@@ -4557,6 +4557,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
   const [songLoading,setSongLoading]=useState(false);
   const [songErr,setSongErr]=useState(null);
   const [confirmedSong,setConfirmedSong]=useState(null);
+  const [showGuitarPick,setShowGuitarPick]=useState(false);
 
   return (
     <div style={{display:"flex",flexDirection:"column",minHeight:"80vh"}}>
@@ -4620,11 +4621,25 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
               </div>;
             })()}
 
-            {/* Guitare recommandée */}
-            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
+            {/* Guitare recommandée + changement */}
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:6}}>
               {songResult.ideal_guitar&&<span style={{fontSize:11,background:"var(--green-bg)",border:"1px solid var(--green-border)",borderRadius:7,padding:"4px 10px",color:"var(--green)",fontWeight:600}}>🎸 {songResult.ideal_guitar}</span>}
+              <button onClick={()=>{setShowGuitarPick(p=>!p);}} style={{fontSize:10,background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:6,padding:"3px 8px",cursor:"pointer"}}>Changer</button>
             </div>
-            {songResult.guitar_reason&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:10}}>{songResult.guitar_reason}</div>}
+            {songResult.guitar_reason&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:6}}>{songResult.guitar_reason}</div>}
+            {showGuitarPick&&<div style={{marginBottom:10,background:"var(--a4)",borderRadius:8,padding:10}}>
+              <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:6}}>Relancer l'analyse avec une autre guitare :</div>
+              <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                {allGuitars.map(g=><button key={g.id} onClick={()=>{
+                  setShowGuitarPick(false);setSongLoading(true);setSongResult(null);
+                  const song={id:`tmp_${Date.now()}`,title:confirmedSong.title,artist:confirmedSong.artist};
+                  fetchAI(song,g.id,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars)
+                    .then(r=>{setSongResult(r);})
+                    .catch(e=>setSongErr(e.message))
+                    .finally(()=>setSongLoading(false));
+                }} style={{fontSize:10,background:"var(--a5)",border:"1px solid var(--a8)",borderRadius:6,padding:"4px 8px",cursor:"pointer",color:"var(--text-sec)"}}>{g.short} ({g.type})</button>)}
+              </div>
+            </div>}
 
             {/* Référence originale */}
             {(songResult.ref_guitarist||songResult.ref_guitar||songResult.ref_amp)&&<div style={{background:"var(--a4)",borderRadius:8,padding:"8px 10px",marginBottom:10,fontSize:11,color:"var(--text-sec)",lineHeight:1.6}}>
