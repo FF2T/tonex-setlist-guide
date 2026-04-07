@@ -4145,33 +4145,126 @@ function JamScreen({banksAnn,banksPlug,allGuitars,availableSources}){
   );
 }
 
+// ─── SongSearchBar — free text → AI correction → validate ────────────────────
+function SongSearchBar({onConfirm,aiProvider,aiKeys}){
+  const [input,setInput]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [suggestion,setSuggestion]=useState(null);
+  const [err,setErr]=useState(null);
+
+  const search=()=>{
+    if(!input.trim())return;
+    const key=aiProvider==="gemini"?aiKeys?.gemini:aiKeys?.anthropic;
+    if(!key){setErr("Clé API manquante — configure-la dans les paramètres.");return;}
+    setLoading(true);setErr(null);setSuggestion(null);
+    const prompt=`L'utilisateur veut jouer un morceau de guitare. Il a tapé : "${input.trim()}"
+Corrige l'orthographe et identifie le titre exact et l'artiste/groupe.
+Réponds UNIQUEMENT en JSON (sans markdown) : {"title":"Titre exact","artist":"Artiste/Groupe","confidence":"high|medium|low"}`;
+    const parse=t=>JSON.parse(t.replace(/```json|```/g,"").trim());
+    const req=aiProvider==="gemini"
+      ?fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})})
+        .then(r=>r.json()).then(d=>{if(d.error)throw new Error(d.error.message);return parse(d.candidates?.[0]?.content?.parts?.[0]?.text||"");})
+      :fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:200,messages:[{role:"user",content:prompt}]})})
+        .then(r=>r.json()).then(d=>{if(d.error)throw new Error(d.error.message);return parse(d.content?.map(i=>i.text||"").join("")||"");});
+    req.then(s=>setSuggestion(s)).catch(e=>setErr(e.message)).finally(()=>setLoading(false));
+  };
+
+  const inp={background:"var(--bg-card)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:10,padding:"12px 14px",fontSize:14,width:"100%",boxSizing:"border-box"};
+  return(
+    <div>
+      <div style={{display:"flex",gap:8,marginBottom:10}}>
+        <input placeholder="Ex: highway to hel acdc" value={input} onChange={e=>{setInput(e.target.value);setSuggestion(null);}} onKeyDown={e=>e.key==="Enter"&&search()} style={{...inp,flex:1}}/>
+        <button onClick={search} disabled={!input.trim()||loading} style={{background:!input.trim()||loading?"#374151":"#4f46e5",border:"none",color:"#fff",borderRadius:10,padding:"0 18px",fontSize:14,fontWeight:700,cursor:!input.trim()||loading?"not-allowed":"pointer",flexShrink:0}}>{loading?"...":"OK"}</button>
+      </div>
+      {err&&<div style={{fontSize:12,color:"#f87171",marginBottom:8}}>{err}</div>}
+      {suggestion&&<div style={{background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:12,padding:14,marginBottom:8}}>
+        <div style={{fontSize:14,fontWeight:700,color:"var(--text)",marginBottom:2}}>{suggestion.title}</div>
+        <div style={{fontSize:12,color:"var(--text-sec)",marginBottom:10}}>{suggestion.artist}</div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{onConfirm(suggestion.title,suggestion.artist);setSuggestion(null);setInput("");}} style={{background:"#4ade80",border:"none",color:"#0f172a",borderRadius:8,padding:"8px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>C'est bon !</button>
+          <button onClick={()=>setSuggestion(null)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:8,padding:"8px 14px",fontSize:13,cursor:"pointer"}}>Non, corriger</button>
+        </div>
+      </div>}
+    </div>
+  );
+}
+
 // ─── HomeScreen ───────────────────────────────────────────────────────────────
-function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profiles,activeProfileId,onSwitchProfile,customPacks}) {
-  const [tab,setTab]=useState("jam");
-  const tabBtn=(id,emoji,label,rgb)=>(
-    <button className={`tab-btn${tab===id?" active":""}`} onClick={()=>setTab(id)}
-      style={tab===id?{background:`rgba(${rgb},0.22)`,border:`1px solid rgba(${rgb},0.5)`}:{}}>
-      <span className="tab-icon">{emoji}</span>
-      {label}
+function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profiles,activeProfileId,onSwitchProfile,customPacks,onPlaySong}) {
+  const [active,setActive]=useState(null);
+  const profileName=(profiles[activeProfileId]||{}).name||"Profil";
+  const hasProfile=allGuitars&&allGuitars.length>0;
+
+  const card=(id,emoji,title,desc,rgb)=>(
+    <button onClick={()=>setActive(active===id?null:id)} style={{background:active===id?`rgba(${rgb},0.18)`:"var(--a4)",border:active===id?`2px solid rgba(${rgb},0.5)`:"1px solid var(--a8)",borderRadius:16,padding:"18px 14px",cursor:"pointer",textAlign:"left",transition:"all .15s",width:"100%"}}>
+      <div style={{fontSize:28,marginBottom:6}}>{emoji}</div>
+      <div style={{fontSize:14,fontWeight:700,color:active===id?`rgb(${rgb})`:"var(--text)",marginBottom:3}}>{title}</div>
+      <div style={{fontSize:11,color:"var(--text-muted)",lineHeight:1.4}}>{desc}</div>
     </button>
   );
+
   return (
     <div>
-      <div style={{marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minWidth:0}}>
+      <div style={{marginBottom:20,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
         <ProfileSelector profiles={profiles} activeProfileId={activeProfileId} onSwitch={onSwitchProfile} onSettings={onSettings}/>
-        <div style={{fontSize:20,fontWeight:800,color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0,flex:1}}>🎸 ToneX Guide</div>
+        <div style={{fontSize:22,fontWeight:800,color:"var(--text)",flex:1,textAlign:"center"}}>ToneX Guide</div>
         <button onClick={onSettings} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"8px 12px",fontSize:14,cursor:"pointer",flexShrink:0}}>⚙️</button>
       </div>
-      <div className="tab-bar tabs-4" style={{marginBottom:20}}>
-        {tabBtn("jam","🎲","Jam","251,191,36")}
-        {tabBtn("setlist","🎵","Setlist","99,102,241")}
-        {tabBtn("newsong","🔍","Nouveau","167,139,250")}
-        {tabBtn("presets","🎛","Presets","74,222,128")}
+
+      {/* Salut + état profil */}
+      <div style={{marginBottom:20}}>
+        <div style={{fontSize:16,fontWeight:700,color:"var(--text)",marginBottom:4}}>Salut {profileName} !</div>
+        {!hasProfile&&<div style={{fontSize:12,color:"#fbbf24",background:"rgba(251,191,36,0.1)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:8,padding:"8px 12px"}}>Configure ton profil (guitares, appareils) pour commencer.</div>}
       </div>
-      {tab==="jam"&&<JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/>}
-      {tab==="setlist"&&<ListScreen songDb={songDb} onSongDb={onSongDb} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} availableSources={availableSources}/>}
-      {tab==="newsong"&&<NewSongExplorer songDb={songDb} onSongDb={onSongDb} setlists={setlists} onSetlists={onSetlists} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars}/>}
-      {tab==="presets"&&<PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={customPacks}/>}
+
+      {/* 4 cartes d'action */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,marginBottom:20}}>
+        {card("profile","⚙️","Mon profil","Guitares, appareils, packs de presets","99,102,241")}
+        {card("play","🎵","Jouer","Tape un morceau et trouve les bons presets","74,222,128")}
+        {card("jam","🎲","Jammer","Choisis une guitare et un style","251,191,36")}
+        {card("presets","🎛️","Explorer","Parcours ta bibliothèque de presets","167,139,250")}
+      </div>
+
+      {/* Contenu de l'action active */}
+      {active==="profile"&&<div style={{animation:"slideDown .2s ease-out"}}>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:10}}>Mon profil</div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
+          <div style={{background:"var(--a4)",borderRadius:10,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{fontSize:12,color:"var(--text-sec)"}}>Guitares</span>
+            <span style={{fontSize:12,fontWeight:700,color:"var(--text)"}}>{allGuitars?.length||0}</span>
+          </div>
+          <div style={{background:"var(--a4)",borderRadius:10,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{fontSize:12,color:"var(--text-sec)"}}>Sources de presets</span>
+            <span style={{fontSize:12,fontWeight:700,color:"var(--text)"}}>{availableSources?Object.values(availableSources).filter(v=>v!==false).length:0}</span>
+          </div>
+        </div>
+        <button onClick={onSettings} style={{width:"100%",background:"#4f46e5",border:"none",color:"#fff",borderRadius:10,padding:"12px",fontSize:13,fontWeight:700,cursor:"pointer"}}>Modifier mon profil</button>
+      </div>}
+
+      {active==="play"&&<div style={{animation:"slideDown .2s ease-out"}}>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:4}}>Quel morceau veux-tu jouer ?</div>
+        <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:12}}>Tape le titre (même approximatif), l'IA corrigera.</div>
+        <SongSearchBar aiProvider={aiProvider} aiKeys={aiKeys} onConfirm={(title,artist)=>{
+          const existing=songDb.find(s=>normalizePresetName(s.title)===normalizePresetName(title));
+          if(existing){
+            onChecked([existing.id]);
+            onNext();
+          } else {
+            const ns={id:`c_${Date.now()}`,title,artist,isCustom:true,ig:[]};
+            onSongDb(p=>[...p,ns]);
+            onChecked([ns.id]);
+            onNext();
+          }
+        }}/>
+      </div>}
+
+      {active==="jam"&&<div style={{animation:"slideDown .2s ease-out"}}>
+        <JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/>
+      </div>}
+
+      {active==="presets"&&<div style={{animation:"slideDown .2s ease-out"}}>
+        <PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={customPacks}/>
+      </div>}
     </div>
   );
 }
