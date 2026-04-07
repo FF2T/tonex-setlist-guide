@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-<title>ToneX Setlist Guide</title>
+<title>ToneX Poweruser</title>
 <!-- PWA -->
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<meta name="apple-mobile-web-app-title" content="ToneX Guide"/>
+<meta name="apple-mobile-web-app-title" content="ToneX Poweruser"/>
 <meta name="theme-color" content="#0f172a"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%230f172a'/%3E%3Ctext x='90' y='120' font-size='90' text-anchor='middle'%3E🎸%3C/text%3E%3C/svg%3E"/>
-<link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22ToneX+Setlist+Guide%22%2C%22short_name%22%3A%22ToneX+Guide%22%2C%22start_url%22%3A%22.%2FToneX_Setlist_Guide.html%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230f172a%22%2C%22theme_color%22%3A%22%230f172a%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%2520viewBox%3D'0%25200%2520192%2520192'%253E%253Crect%2520width%3D'192'%2520height%3D'192'%2520rx%3D'40'%2520fill%3D'%25230f172a'%2F%253E%253Ctext%2520x%3D'96'%2520y%3D'130'%2520font-size%3D'100'%2520text-anchor%3D'middle'%253E%25F0%259F%258E%25B8%253C%2Ftext%253E%253C%2Fsvg%253E%22%2C%22sizes%22%3A%22192x192%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D"/>
+<link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22ToneX+Setlist+Guide%22%2C%22short_name%22%3A%22ToneX+Poweruser%22%2C%22start_url%22%3A%22.%2FToneX_Setlist_Guide.html%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230f172a%22%2C%22theme_color%22%3A%22%230f172a%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%2520viewBox%3D'0%25200%2520192%2520192'%253E%253Crect%2520width%3D'192'%2520height%3D'192'%2520rx%3D'40'%2520fill%3D'%25230f172a'%2F%253E%253Ctext%2520x%3D'96'%2520y%3D'130'%2520font-size%3D'100'%2520text-anchor%3D'middle'%253E%25F0%259F%258E%25B8%253C%2Ftext%253E%253C%2Fsvg%253E%22%2C%22sizes%22%3A%22192x192%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D"/>
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
@@ -2724,7 +2724,7 @@ function ProfilePickerScreen({profiles,onPick,onCreateNew}){
   return(
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"80vh",padding:20}}>
       <div style={{fontSize:32,marginBottom:8}}>🎸</div>
-      <div style={{fontSize:22,fontWeight:800,color:"var(--text)",marginBottom:4}}>ToneX Guide</div>
+      <div style={{fontSize:22,fontWeight:800,color:"var(--text)",marginBottom:4}}>ToneX Poweruser</div>
       <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:32}}>Qui joue aujourd'hui ?</div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,width:"100%",maxWidth:400,marginBottom:32}}>
         {Object.values(profiles).map(p=>{
@@ -2967,10 +2967,14 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp,section}){
         <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:12}}>Coche les packs de presets que tu as installés.</div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {Object.entries(SOURCE_LABELS).map(([key,label])=>{
-            const on=profile.availableSources?.[key]!==false;
-            return <button key={key} onClick={()=>toggleSource(key)} style={{display:"flex",alignItems:"center",gap:10,background:on?"var(--green-bg)":"var(--a3)",border:on?"1px solid var(--green-border)":"1px solid var(--a8)",borderRadius:8,padding:"10px 14px",cursor:"pointer",textAlign:"left"}}>
-              <div style={{width:18,height:18,borderRadius:5,border:on?"2px solid #4ade80":"2px solid var(--text-muted)",background:on?"var(--green)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{on&&<span style={{color:"#0f172a",fontSize:10,fontWeight:900}}>✓</span>}</div>
-              <div style={{fontSize:12,color:on?"var(--text)":"var(--text-muted)",fontWeight:on?600:400}}>{label}</div>
+            // Auto-lock sources based on owned devices
+            const devices=profile.devices||{};
+            const locked=(key==="Anniversary"&&devices.anniversary)||(key==="Factory"&&devices.pedale)||(key==="PlugFactory"&&devices.plug);
+            const on=locked||profile.availableSources?.[key]!==false;
+            return <button key={key} onClick={()=>{if(!locked)toggleSource(key);}} style={{display:"flex",alignItems:"center",gap:10,background:on?"var(--green-bg)":"var(--a3)",border:on?"1px solid var(--green-border)":"1px solid var(--a8)",borderRadius:8,padding:"10px 14px",cursor:locked?"default":"pointer",textAlign:"left",opacity:locked?0.85:1}}>
+              <div style={{width:18,height:18,borderRadius:5,border:on?"2px solid var(--green)":"2px solid var(--text-muted)",background:on?"var(--green)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{on&&<span style={{color:"#0f172a",fontSize:10,fontWeight:900}}>✓</span>}</div>
+              <div style={{flex:1,fontSize:12,color:on?"var(--text)":"var(--text-muted)",fontWeight:on?600:400}}>{label}</div>
+              {locked&&<span style={{fontSize:9,color:"var(--text-dim)"}}>auto</span>}
             </button>;
           })}
         </div>
@@ -3163,21 +3167,13 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
                 <button onClick={()=>setEditSlId(null)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:7,padding:"6px 10px",fontSize:12,cursor:"pointer"}}>✕</button>
               </div>
             ):(
-              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
                 <div style={{flex:1,fontSize:14,fontWeight:700,color:"var(--text)"}}>{sl.name}</div>
                 <span style={{fontSize:11,color:"var(--text-muted)"}}>{sl.songIds.length} morceaux</span>
                 <button onClick={()=>{setEditSlId(sl.id);setEditSlName(sl.name);}} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:6,padding:"4px 8px",fontSize:11,cursor:"pointer"}}>✏️</button>
                 {setlists.length>1&&<button onClick={()=>deleteSetlist(sl.id)} style={{background:"rgba(239,68,68,0.15)",border:"1px solid var(--red-border)",color:"var(--red)",borderRadius:6,padding:"4px 8px",fontSize:11,cursor:"pointer"}}>🗑</button>}
               </div>
             )}
-            {sl.songIds.length>0&&<div style={{display:"flex",flexDirection:"column",gap:4}}>
-              {sl.songIds.map(sid=>{const s=songDb.find(x=>x.id===sid);if(!s)return null;return(
-                <div key={sid} style={{display:"flex",alignItems:"center",gap:8,background:"var(--a3)",borderRadius:7,padding:"5px 10px"}}>
-                  <div style={{flex:1,fontSize:12,color:"var(--text-bright)"}}>{s.title} <span style={{color:"var(--text-muted)",fontSize:11}}>— {s.artist}</span></div>
-                  <button onClick={()=>removeSongFromSetlist(sl.id,sid)} style={{background:"none",border:"none",color:"var(--text-muted)",cursor:"pointer",fontSize:13,padding:"0 4px"}}>✕</button>
-                </div>
-              );})}
-            </div>}
           </div>
         ))}
         <div style={{background:"var(--accent-bg)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:10,padding:14,marginTop:8}}>
@@ -3500,7 +3496,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
   return (
     <div>
       {!hideHeader&&<div style={{marginBottom:20,textAlign:"center"}}>
-        <div style={{fontSize:26,fontWeight:800,color:"var(--text)",marginBottom:3}}>🎸 ToneX Setlist Guide</div>
+        <div style={{fontSize:26,fontWeight:800,color:"var(--text)",marginBottom:3}}>🎸 ToneX Poweruser</div>
       </div>}
       <div style={{marginBottom:14}}>
         <div style={{fontSize:11,color:"var(--text-muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Setlist active</div>
@@ -3863,32 +3859,33 @@ function PresetDetailInline({name,info,banksAnn,banksPlug,presetContext}){
       </div>
       <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
         {annLoc
-          ?<span style={{fontSize:10,background:"var(--green-bg)",border:"1px solid var(--green-border)",borderRadius:6,padding:"3px 8px",color:"var(--green)",fontWeight:600}}>📦 Bank {annLoc.bank}{annLoc.slot}</span>
+          ?<span style={{fontSize:10,background:"var(--green-bg)",border:"1px solid var(--green-border)",borderRadius:6,padding:"3px 8px",color:"var(--green)",fontWeight:600}}>📦 Banque {annLoc.bank}{annLoc.slot}</span>
           :<span style={{fontSize:10,background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:6,padding:"3px 8px",color:"var(--text-dim)"}}>📦 Non installé</span>}
         {plugLoc
-          ?<span style={{fontSize:10,background:"rgba(99,102,241,0.12)",border:"1px solid var(--accent-border)",borderRadius:6,padding:"3px 8px",color:"var(--accent)",fontWeight:600}}>🔌 Bank {plugLoc.bank}{plugLoc.slot}</span>
+          ?<span style={{fontSize:10,background:"rgba(99,102,241,0.12)",border:"1px solid var(--accent-border)",borderRadius:6,padding:"3px 8px",color:"var(--accent)",fontWeight:600}}>🔌 Banque {plugLoc.bank}{plugLoc.slot}</span>
           :<span style={{fontSize:10,background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:6,padding:"3px 8px",color:"var(--text-dim)"}}>🔌 Non installé</span>}
       </div>
     </div>
   );
 }
 
-function PresetList({filtered,selected,setSelected,banksAnn,banksPlug,fullCatalog,filterSrc,filterPack,setFilterPack,mergedContext}){
+function PresetList({filtered,selected,setSelected,banksAnn,banksPlug,fullCatalog,filterSrcs,filterPacks,togglePack,setFilterPacks,mergedContext}){
   const [shown,setShown]=useState(PRESET_PAGE_SIZE);
-  useEffect(()=>setShown(PRESET_PAGE_SIZE),[filtered,filterPack]);
+  useEffect(()=>setShown(PRESET_PAGE_SIZE),[filtered,filterPacks]);
 
-  // Sub-pack grouping for TSR
+  // Sub-pack grouping (show when TSR is among selected sources or all sources shown)
+  const showSubPacks=filterSrcs.size===0||filterSrcs.has("TSR");
   const subPacks=useMemo(()=>{
-    if(filterSrc!=="TSR") return null;
+    if(!showSubPacks) return null;
     const packs={};
     filtered.forEach(([name,info])=>{if(info.pack){packs[info.pack]=(packs[info.pack]||0)+1;}});
     return Object.entries(packs).sort((a,b)=>a[0].localeCompare(b[0]));
-  },[filtered,filterSrc]);
+  },[filtered,showSubPacks]);
 
   const displayFiltered=useMemo(()=>{
-    if(!filterPack) return filtered;
-    return filtered.filter(([,info])=>info.pack===filterPack);
-  },[filtered,filterPack]);
+    if(filterPacks.size===0) return filtered;
+    return filtered.filter(([,info])=>filterPacks.has(info.pack));
+  },[filtered,filterPacks]);
 
   const visible=displayFiltered.slice(0,shown);
   const remaining=displayFiltered.length-shown;
@@ -3898,9 +3895,9 @@ function PresetList({filtered,selected,setSelected,banksAnn,banksPlug,fullCatalo
       {subPacks&&subPacks.length>1&&<div style={{marginBottom:12}}>
         <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Packs Studio Rats</div>
         <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-          <button onClick={()=>setFilterPack(null)} style={{fontSize:10,fontWeight:filterPack?500:700,color:filterPack?"var(--text-muted)":"var(--yellow)",background:filterPack?"var(--a3)":"var(--yellow-bg)",border:filterPack?"1px solid var(--a6)":"1px solid var(--yellow-border)",borderRadius:6,padding:"4px 8px",cursor:"pointer"}}>Tous ({filtered.length})</button>
-          {subPacks.map(([pack,count])=>(
-            <button key={pack} onClick={()=>setFilterPack(filterPack===pack?null:pack)} style={{fontSize:10,fontWeight:filterPack===pack?700:500,color:filterPack===pack?"var(--yellow)":"var(--text-sec)",background:filterPack===pack?"var(--yellow-bg)":"var(--a3)",border:filterPack===pack?"1px solid var(--yellow-border)":"1px solid var(--a6)",borderRadius:6,padding:"4px 8px",cursor:"pointer"}}>{pack} ({count})</button>
+          <button onClick={()=>setFilterPacks(new Set())} style={{fontSize:10,fontWeight:filterPacks.size===0?700:500,color:filterPacks.size===0?"var(--yellow)":"var(--text-muted)",background:filterPacks.size===0?"var(--yellow-bg)":"var(--a3)",border:filterPacks.size===0?"1px solid var(--yellow-border)":"1px solid var(--a6)",borderRadius:6,padding:"4px 8px",cursor:"pointer"}}>Tous ({filtered.length})</button>
+          {subPacks.map(([pack,count])=>{const on=filterPacks.has(pack);return(
+            <button key={pack} onClick={()=>togglePack(pack)} style={{fontSize:10,fontWeight:on?700:500,color:on?"var(--yellow)":"var(--text-sec)",background:on?"var(--yellow-bg)":"var(--a3)",border:on?"1px solid var(--yellow-border)":"1px solid var(--a6)",borderRadius:6,padding:"4px 8px",cursor:"pointer"}}>{pack} ({count})</button>);})
           ))}
         </div>
       </div>}
@@ -3949,10 +3946,12 @@ function PresetList({filtered,selected,setSelected,banksAnn,banksPlug,fullCatalo
 function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
   const [filterStyle,setFilterStyle]=useState("all");
   const [filterGain,setFilterGain]=useState("all");
-  const [filterSrc,setFilterSrc]=useState("all");
+  const [filterSrcs,setFilterSrcs]=useState(new Set()); // empty = all
   const [search,setSearch]=useState("");
   const [selected,setSelected]=useState(null);
-  const [filterPack,setFilterPack]=useState(null);
+  const [filterPacks,setFilterPacks]=useState(new Set()); // empty = all
+  const toggleSrc=key=>setFilterSrcs(p=>{const n=new Set(p);if(n.has(key))n.delete(key);else n.add(key);return n;});
+  const togglePack=key=>setFilterPacks(p=>{const n=new Set(p);if(n.has(key))n.delete(key);else n.add(key);return n;});
 
   // Merge PRESET_CONTEXT with custom pack ampContext
   const mergedContext=useMemo(()=>{
@@ -3993,7 +3992,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
     Object.entries(fullCatalog).filter(([name,info])=>{
       if(filterStyle!=="all"&&info.style!==filterStyle)return false;
       if(filterGain!=="all"&&info.gain!==filterGain)return false;
-      if(filterSrc!=="all"&&info.src!==filterSrc)return false;
+      if(filterSrcs.size>0&&!filterSrcs.has(info.src))return false;
       if(search.trim()){
         const q=search.toLowerCase();
         const ctx=mergedContext[info.amp];
@@ -4003,7 +4002,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
       }
       return true;
     })
-  ,[filterStyle,filterGain,filterSrc,search]);
+  ,[filterStyle,filterGain,filterSrcs,search]);
 
   const [randomPick,setRandomPick]=useState(null);
   const pickRandom=()=>{
@@ -4020,7 +4019,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
   const SRC_OPTS={all:"Toutes sources",...Object.fromEntries(Object.entries(ALL_SRC_OPTS).filter(([k])=>!availableSources||availableSources[k]!==false))};
   const selStyle={background:"var(--bg-card)",color:"var(--text-sec)",border:"1px solid var(--a12)",borderRadius:7,padding:"6px 10px",fontSize:12,cursor:"pointer"};
 
-  const hasFilter=filterStyle!=="all"||filterGain!=="all"||filterSrc!=="all"||search.trim();
+  const hasFilter=filterStyle!=="all"||filterGain!=="all"||filterSrcs.size>0||search.trim();
   return (
     <div>
       <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:14}}>Explore ta bibliothèque de presets et découvre leur contexte musical.</div>
@@ -4045,13 +4044,19 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
           <select value={filterStyle} onChange={e=>setFilterStyle(e.target.value)} style={selStyle}>{Object.entries(STYLE_OPTS).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
           <select value={filterGain} onChange={e=>setFilterGain(e.target.value)} style={selStyle}>{Object.entries(GAIN_OPTS).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
-          <select value={filterSrc} onChange={e=>{setFilterSrc(e.target.value);setFilterPack(null);}} style={selStyle}>{Object.entries(SRC_OPTS).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
+          </div>
+        <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:8}}>
+          <button onClick={()=>setFilterSrcs(new Set())} style={{fontSize:10,fontWeight:filterSrcs.size===0?700:500,color:filterSrcs.size===0?"var(--accent)":"var(--text-muted)",background:filterSrcs.size===0?"var(--accent-bg)":"var(--a3)",border:filterSrcs.size===0?"1px solid var(--accent-border)":"1px solid var(--a6)",borderRadius:6,padding:"4px 8px",cursor:"pointer"}}>Toutes sources</button>
+          {Object.entries(SRC_OPTS).filter(([k])=>k!=="all").map(([k,l])=>{
+            const on=filterSrcs.has(k);
+            return <button key={k} onClick={()=>toggleSrc(k)} style={{fontSize:10,fontWeight:on?700:500,color:on?"var(--accent)":"var(--text-sec)",background:on?"var(--accent-bg)":"var(--a3)",border:on?"1px solid var(--accent-border)":"1px solid var(--a6)",borderRadius:6,padding:"4px 8px",cursor:"pointer"}}>{l}</button>;
+          })}
         </div>
         <input placeholder="Artiste, morceau, ampli…" value={search} onChange={e=>setSearch(e.target.value)}
           style={{width:"100%",background:"var(--bg-body)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:8,padding:"7px 11px",fontSize:12,boxSizing:"border-box"}}/>
         {hasFilter&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8}}>
           <span style={{fontSize:11,color:"var(--text-muted)"}}>{filtered.length} preset{filtered.length>1?"s":""} trouvé{filtered.length>1?"s":""}</span>
-          <button onClick={()=>{setFilterStyle("all");setFilterGain("all");setFilterSrc("all");setFilterPack(null);setSearch("");}} style={{fontSize:11,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Réinitialiser</button>
+          <button onClick={()=>{setFilterStyle("all");setFilterGain("all");setFilterSrcs(new Set());setFilterPacks(new Set());setSearch("");}} style={{fontSize:11,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Réinitialiser</button>
         </div>}
       </div>
 
@@ -4076,7 +4081,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
           <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:10}}>Parcourir par pack — {Object.keys(fullCatalog).length} presets au total</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8}}>
             {packCards.filter(p=>srcCounts[p.id]).map(p=>(
-              <button key={p.id} onClick={()=>{setFilterSrc(p.id);setFilterPack(null);}}
+              <button key={p.id} onClick={()=>{setFilterSrcs(new Set([p.id]));setFilterPacks(new Set());}}
                 style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:"14px 10px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}
                 onMouseOver={e=>{e.currentTarget.style.borderColor=`rgb(${p.color})`;e.currentTarget.style.background="var(--a7)";}}
                 onMouseOut={e=>{e.currentTarget.style.borderColor="var(--a8)";e.currentTarget.style.background="var(--a4)";}}>
@@ -4090,7 +4095,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
         </div>;
       })()}
       {hasFilter&&filtered.length===0&&<div style={{textAlign:"center",padding:"24px",color:"var(--text-dim)",fontSize:13}}>Aucun preset ne correspond à ces critères.</div>}
-      {hasFilter&&filtered.length>0&&<PresetList filtered={filtered} selected={selected} setSelected={setSelected} banksAnn={banksAnn} banksPlug={banksPlug} fullCatalog={fullCatalog} filterSrc={filterSrc} filterPack={filterPack} setFilterPack={setFilterPack} mergedContext={mergedContext}/>}
+      {hasFilter&&filtered.length>0&&<PresetList filtered={filtered} selected={selected} setSelected={setSelected} banksAnn={banksAnn} banksPlug={banksPlug} fullCatalog={fullCatalog} filterSrcs={filterSrcs} filterPacks={filterPacks} togglePack={togglePack} setFilterPacks={setFilterPacks} mergedContext={mergedContext}/>}
     </div>
   );
 }
@@ -4098,7 +4103,6 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
 // ─── JamScreen ────────────────────────────────────────────────────────────────
 const JAM_STYLES=[
   {id:"jazz",   label:"Jazz",       emoji:"🎹", color:"74,222,128"},
-  {id:"pop",    label:"Pop",        emoji:"🎤", color:"236,72,153"},
   {id:"blues",  label:"Blues",      emoji:"🎷", color:"56,189,248"},
   {id:"rock",   label:"Rock",       emoji:"🎸", color:"251,191,36"},
   {id:"hard_rock",label:"Hard Rock",emoji:"🔥", color:"249,115,22"},
@@ -4183,8 +4187,8 @@ function JamScreen({banksAnn,banksPlug,allGuitars,availableSources}){
               <div key={p.name} className="preset-result-card">
                 <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                   <span style={{fontSize:18,fontWeight:900,color:["var(--yellow)","var(--text-sec)","#cd7c2f"][i]||"var(--text-muted)",minWidth:22}}>#{i+1}</span>
-                  {annLoc&&<span style={{background:"rgba(147,197,253,0.15)",color:"var(--blue)",border:"1px solid rgba(147,197,253,0.3)",borderRadius:5,padding:"2px 7px",fontSize:11,fontWeight:700}}>📦 Bank {annLoc.bank}{annLoc.slot}</span>}
-                  {plugLoc&&<span style={{background:"rgba(165,180,252,0.15)",color:"var(--accent)",border:"1px solid rgba(165,180,252,0.3)",borderRadius:5,padding:"2px 7px",fontSize:11,fontWeight:700}}>🔌 Bank {plugLoc.bank}{plugLoc.slot}</span>}
+                  {annLoc&&<span style={{background:"rgba(147,197,253,0.15)",color:"var(--blue)",border:"1px solid rgba(147,197,253,0.3)",borderRadius:5,padding:"2px 7px",fontSize:11,fontWeight:700}}>📦 Banque {annLoc.bank}{annLoc.slot}</span>}
+                  {plugLoc&&<span style={{background:"rgba(165,180,252,0.15)",color:"var(--accent)",border:"1px solid rgba(165,180,252,0.3)",borderRadius:5,padding:"2px 7px",fontSize:11,fontWeight:700}}>🔌 Banque {plugLoc.bank}{plugLoc.slot}</span>}
                   {!installed&&<span style={{fontSize:10,background:"var(--yellow-bg)",color:"var(--yellow)",borderRadius:4,padding:"1px 7px",fontWeight:700}}>⬇ À installer</span>}
                   <span style={{fontSize:11,fontWeight:800,color:scoreColor(p.score),background:scoreBg(p.score),borderRadius:4,padding:"1px 7px",border:`1px solid ${scoreColor(p.score)}40`}}>{p.score}%</span>
                   {gainBadge(p.gain)}
@@ -4309,8 +4313,8 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
       </div>
 
       {/* Zone centrale style Google */}
-      <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"20px 0"}}>
-        <div style={{fontSize:32,fontWeight:800,color:"var(--text)",marginBottom:6,textAlign:"center"}}>ToneX Guide</div>
+      <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"12px 0 8px"}}>
+        <div style={{fontSize:32,fontWeight:800,color:"var(--text)",marginBottom:6,textAlign:"center"}}>ToneX Poweruser</div>
         <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:24,textAlign:"center"}}>Quel morceau veux-tu jouer ?</div>
         <div style={{width:"100%",maxWidth:500}}>
           <SongSearchBar aiProvider={aiProvider} aiKeys={aiKeys} onConfirm={(title,artist)=>{
@@ -4363,12 +4367,12 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
               {songResult.preset_ann&&<div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(74,222,128,0.06)",border:"1px solid var(--green-border)",borderRadius:8,padding:"8px 10px"}}>
                 <span style={{fontSize:11,color:"var(--green)",fontWeight:700,flexShrink:0}}>📦 Pédale</span>
                 <span style={{fontSize:11,color:"var(--text)",fontWeight:600}}>{songResult.preset_ann.label}</span>
-                <span style={{fontSize:10,color:"var(--text-muted)",marginLeft:"auto"}}>Bank {songResult.preset_ann.bank}{songResult.preset_ann.col}</span>
+                <span style={{fontSize:10,color:"var(--text-muted)",marginLeft:"auto"}}>Banque {songResult.preset_ann.bank}{songResult.preset_ann.col}</span>
               </div>}
               {songResult.preset_plug&&<div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(99,102,241,0.06)",border:"1px solid rgba(99,102,241,0.15)",borderRadius:8,padding:"8px 10px"}}>
                 <span style={{fontSize:11,color:"var(--accent)",fontWeight:700,flexShrink:0}}>🔌 Plug</span>
                 <span style={{fontSize:11,color:"var(--text)",fontWeight:600}}>{songResult.preset_plug.label}</span>
-                <span style={{fontSize:10,color:"var(--text-muted)",marginLeft:"auto"}}>Bank {songResult.preset_plug.bank}{songResult.preset_plug.col}</span>
+                <span style={{fontSize:10,color:"var(--text-muted)",marginLeft:"auto"}}>Banque {songResult.preset_plug.bank}{songResult.preset_plug.col}</span>
               </div>}
             </div>
 
