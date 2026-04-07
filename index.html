@@ -3636,7 +3636,13 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
 
   // Merge custom packs into catalog
   const fullCatalog=useMemo(()=>{
-    const cat={...PRESET_CATALOG_FULL,...TSR_PACK_CATALOG,...ANNIVERSARY_CATALOG,...FACTORY_CATALOG};
+    // Dedup TSR_PACK_CATALOG against PRESET_CATALOG_FULL (same presets, different key format: "TSR - X" vs "TSR X")
+    const existingNorms=new Set(Object.keys(PRESET_CATALOG_FULL).map(normalizePresetName));
+    const tsrDeduped={};
+    for(const [k,v] of Object.entries(TSR_PACK_CATALOG)){
+      if(!existingNorms.has(normalizePresetName(k))) tsrDeduped[k]=v;
+    }
+    const cat={...PRESET_CATALOG_FULL,...tsrDeduped,...ANNIVERSARY_CATALOG,...FACTORY_CATALOG};
     (customPacks||[]).forEach(pack=>{
       (pack.presets||[]).forEach(p=>{
         if(p.name&&!cat[p.name]) cat[p.name]={src:pack.name,amp:p.amp||"Custom",gain:p.gain||"mid",style:p.style||"rock",scores:p.scores||{HB:78,SC:78,P90:78}};
