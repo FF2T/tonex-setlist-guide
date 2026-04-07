@@ -4416,7 +4416,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
             {confirmedSong&&<div style={{fontSize:14,color:"var(--text-sec)",marginTop:8}}>{confirmedSong.title} — {confirmedSong.artist}</div>}
             <style>{"@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}"}</style>
           </div>
-        ):<>
+        ):<div>
         <div style={{fontSize:32,fontWeight:800,color:"var(--text)",marginBottom:6,textAlign:"center"}}>ToneX Poweruser</div>
         <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:24,textAlign:"center"}}>Quel morceau veux-tu jouer ?</div>
         <div style={{width:"100%",maxWidth:500}}>
@@ -4484,7 +4484,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
             <button onClick={()=>{setConfirmedSong(null);setSongResult(null);}} style={{width:"100%",marginTop:10,background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-sec)",borderRadius:8,padding:"8px",fontSize:12,cursor:"pointer"}}>Autre morceau</button>
           </div>
         </div>}
-      </>}
+      </div>}
 
       {/* Tuiles en bas (masquer si résultat ou loading) */}
       {!songResult&&!songLoading&&<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,paddingBottom:12}}>
