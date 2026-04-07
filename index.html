@@ -135,6 +135,7 @@ function onFirestoreChange(cb){if(!db)return function(){};return db.collection("
 <body>
 <div id="root"></div>
 <script type="text/babel">
+const DEFAULT_GEMINI_KEY = "AIzaSyAnaJMN-a47S9W_cTC60lKAnzRMAgHNMAA";
 const {useState,useMemo,useEffect,useRef} = React;
 
 // ─── Clé localStorage ─────────────────────────────────────────────────────────
@@ -2507,8 +2508,8 @@ function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars){
   const plugCtx=Object.entries(banksPlug).map(([k,v])=>`Banque ${k}: A=${v.A} | B=${v.B} | C=${v.C}`).join("\n");
   const glist=guitars.map(x=>`${x.name} (${x.type})`).join(", ");
   const prompt=`Expert guitare ToneX. Réponds TOUJOURS en français, toutes tes réponses doivent être rédigées en français.\nPédale:\n${annCtx}\nPlug:\n${plugCtx}\nMorceau: "${song.title}" de "${song.artist}".\nGuitare: ${g?g.name+" ("+g.type+")":"non précisée"}.\nGuitares disponibles: ${glist}.\nJSON sans markdown (tous les textes en français):\n{"ideal_guitar":"nom complet de la guitare idéale","guitar_reason":"1-2 phrases en français expliquant le choix","preset_ann":{"bank":0,"col":"A","label":"nom exact du preset Pédale"},"preset_plug":{"bank":1,"col":"A","label":"nom exact du preset Plug"},"settings_preset":"conseils de réglage preset en français","settings_guitar":"conseils de jeu guitare en français","ref_guitarist":"nom du guitariste principal sur l'enregistrement original","ref_guitar":"guitare(s) utilisée(s) sur l'enregistrement original (modèle précis)","ref_amp":"ampli(s) utilisé(s) sur l'enregistrement original (modèle précis)","ref_effects":"effets utilisés sur l'enregistrement (ou 'Aucun effet' si signal direct)"}`;
-  const key=aiKeys.gemini||aiKeys.anthropic;
-  const provider=aiKeys.gemini?"gemini":"anthropic";
+  const key=aiKeys.gemini||aiKeys.anthropic||DEFAULT_GEMINI_KEY;
+  const provider=(aiKeys.gemini||DEFAULT_GEMINI_KEY)?"gemini":"anthropic";
   if(!key) return Promise.reject(new Error("Clé API manquante — configure-la dans ⚙️ Paramètres."));
   const parse=t=>JSON.parse(t.replace(/```json|```/g,"").trim());
   if(provider==="gemini"){
@@ -3099,8 +3100,8 @@ function PacksTab({profile,onProfiles,activeProfileId,aiProvider,aiKeys}){
 
   const extractPresets=()=>{
     if(!packName.trim()||!filePreview)return;
-    const key=aiKeys?.gemini||aiKeys?.anthropic;
-    const provider=aiKeys?.gemini?"gemini":"anthropic";
+    const key=aiKeys?.gemini||aiKeys?.anthropic||DEFAULT_GEMINI_KEY;
+    const provider=(aiKeys?.gemini||DEFAULT_GEMINI_KEY)?"gemini":"anthropic";
     if(!key){setErr("Clé API manquante — configure-la dans ⚙️ Paramètres.");return;}
     setLoading(true);setErr(null);
     const prompt=`Analyse cette image/document d'un pack de presets pour guitare ToneX appelé "${packName.trim()}".
@@ -4347,8 +4348,8 @@ function SongSearchBar({onConfirm,aiProvider,aiKeys}){
 
   const search=()=>{
     if(!input.trim())return;
-    const key=aiKeys?.gemini||aiKeys?.anthropic;
-    const provider=aiKeys?.gemini?"gemini":"anthropic";
+    const key=aiKeys?.gemini||aiKeys?.anthropic||DEFAULT_GEMINI_KEY;
+    const provider=(aiKeys?.gemini||DEFAULT_GEMINI_KEY)?"gemini":"anthropic";
     if(!key){setErr("Clé API manquante — configure-la dans les paramètres.");return;}
     setLoading(true);setErr(null);setSuggestion(null);
     const prompt=`L'utilisateur veut jouer un morceau de guitare. Il a tapé : "${input.trim()}"
