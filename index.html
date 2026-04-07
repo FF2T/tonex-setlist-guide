@@ -222,6 +222,14 @@ const INIT_BANKS_PLUG = {
   10:{cat:"",A:"FNDR BLBM NR Clean BAL CAB",B:"TSR - A-Peg Pro 4 - Classic A 4x",C:"TSR - A-Peg Pro 4 - Jack-O 4x10"},
 };
 
+// ─── Factory bank presets (ToneX Pedal / ToneX Plug) ─────────────────────────
+const FACTORY_BANKS_PEDALE = {
+  0:{cat:"",A:"CL DMBL",B:"DR1 DMBL",C:"DR2 DMBL"},1:{cat:"",A:"DR PLEXI",B:"HG PLEXI",C:"LD PLEXI"},2:{cat:"",A:"CL 515S",B:"HG 515S",C:"LD 515S"},3:{cat:"",A:"CL TWIN",B:"DR1 TWIN",C:"DR2 TWIN"},4:{cat:"",A:"CL OR120",B:"DR DUAL",C:"HG DUAL"},5:{cat:"",A:"LD DUAL",B:"CL VX30",C:"DR VX30"},6:{cat:"",A:"HG VX30",B:"CL WRECK",C:"DR WRECK"},7:{cat:"",A:"HG WRECK",B:"DR FRIED",C:"HG FRIED"},8:{cat:"",A:"LD FRIED",B:"DR SOLD",C:"HG SOLD"},9:{cat:"",A:"LD SOLD",B:"CL MARK3",C:"HG MARK3"},10:{cat:"",A:"LD MARK3",B:"DR 800",C:"HG 800"},11:{cat:"",A:"LD 800",B:"DR DZL",C:"HG DZL"},12:{cat:"",A:"LD DZL",B:"CL HIWTT",C:"DR HIWTT"},13:{cat:"",A:"HG HIWTT",B:"DR MZER",C:"HG MZER"},14:{cat:"",A:"LD MZER",B:"DR 5051",C:"DR1 PRIN"},15:{cat:"",A:"DR2 PRIN",B:"HG PRIN",C:"CL MRK5"},16:{cat:"",A:"DR1 MRK5",B:"DR2 MRK5",C:"DR FIRE"},17:{cat:"",A:"HG FIRE",B:"LD FIRE",C:"CL JAZZ"},18:{cat:"",A:"DR1 JAZZ",B:"DR2 JAZZ",C:"DR THUND"},19:{cat:"",A:"HG THUND",B:"LD THUND",C:"CL BOGN"},20:{cat:"",A:"HG BOGN",B:"LD BOGN",C:"CL DLX"},21:{cat:"",A:"DR1 DLX",B:"DR2 DLX",C:"CL GUNS"},22:{cat:"",A:"HG GUNS",B:"LD GUNS",C:"CL MAVER"},23:{cat:"",A:"DR MAVER",B:"LD MAVER",C:"CL ARCH"},24:{cat:"",A:"HG ARCH",B:"LD ARCH",C:"CL BMAN"},25:{cat:"",A:"DR1 BMAN",B:"DR2 BMAN",C:"CL RMAN"},26:{cat:"",A:"DR RMAN",B:"LD RMAN",C:"CL 3NITY"},27:{cat:"",A:"DR 3NITY",B:"HG 3NITY",C:"CL 900"},28:{cat:"",A:"HG 900",B:"LD 900",C:"BRIGHTON"},29:{cat:"",A:"AMBIENT",B:"PINKDLY",C:"AINTALK"},30:{cat:"",A:"STERPAN",B:"SPRING4",C:"MYBABY"},31:{cat:"",A:"BLKHOLE",B:"1CHAIN",C:"VOWELS"},32:{cat:"",A:"SLAPBACK",B:"PHASEY",C:"LUSH"},33:{cat:"",A:"INFINITE",B:"CL VX30 (Amp)",C:"DR PLEXI (Amp)"},34:{cat:"",A:"HG DZL (Amp)",B:"CL JAZZ (Amp)",C:"DR OR120 (Amp)"},35:{cat:"",A:"HG SOLD (Amp)",B:"CL TWIN (Amp)",C:"DR MARK3 (Amp)"},36:{cat:"",A:"HG 5051 (Amp)",B:"CL DMBL (Amp)",C:"DR FRIED (Amp)"},37:{cat:"",A:"HG DUAL (Amp)",B:"CL HIWTT (Amp)",C:"DR BOGN (Amp)"},38:{cat:"",A:"HG FIRE (Amp)",B:"BOX-SD1",C:"CLONE 1"},39:{cat:"",A:"CLONE 2",B:"DRVMASTR",C:"FULDRV 2"},40:{cat:"",A:"FULL DOC",B:"MAXO 8O8",C:"TS8O8 A"},41:{cat:"",A:"TS8O8 B",B:"SUNSET",C:"BOX-DS1"},42:{cat:"",A:"MOUSE",B:"XOTBOOST",C:"FUZZONE"},43:{cat:"",A:"MAYFUZZ",B:"BS B15",C:"BS DB750"},44:{cat:"",A:"BS SVX 2",B:"BS 800",C:"BS 800RB"},45:{cat:"",A:"BS ORNG",B:"BS SVX VR",C:"BS IRON"},46:{cat:"",A:"BS SANS",B:"BS BK7",C:"BS DUG"},47:{cat:"",A:"BS LEE",B:"BS XULTR",C:"BS DOC"},48:{cat:"",A:"BS MUFF",B:"",C:""},
+};
+const FACTORY_BANKS_PLUG = {
+  1:{cat:"",A:"DMBL Clean",B:"Just 800",C:"80's Hero"},2:{cat:"",A:"Doctor Clean",B:"Some Grit",C:"Boosted DZL"},3:{cat:"",A:"Crunchy Plexi",B:"Plexi Drive",C:"Nine Hundred Degrees"},4:{cat:"",A:"Jazz Choir",B:"Orange Juice",C:"Eddie"},5:{cat:"",A:"HWTT Clean",B:"MK5 Street",C:"Sold!"},6:{cat:"",A:"Black Hole",B:"VX30 Trem",C:"PV 5051 Warm"},7:{cat:"",A:"Sparkling Clean",B:"Fried",C:"Fire Angel"},8:{cat:"",A:"Enigma",B:"UK Dirt",C:"Full 800 Tone"},9:{cat:"",A:"Dirty Twin",B:"Plexi Trem",C:"Orange Vibe"},10:{cat:"",A:"Bass Clean",B:"Bass Chorus",C:"Bass Driven"},
+};
+
 // Les fonctions preset sont sérialisées sous forme de données statiques pour localStorage
 const SONG_PRESETS = {
   acdc_hth:{
@@ -2272,8 +2280,8 @@ function makeDefaultProfile(id, name, isAdmin=false) {
     devices: {pedale:false, anniversary:isAdmin, plug:false},
     availableSources: {TSR:true, ML:true, Anniversary:true, Factory:true},
     customPacks: [],
-    banksAnn: INIT_BANKS_ANN,
-    banksPlug: INIT_BANKS_PLUG,
+    banksAnn: isAdmin ? {...INIT_BANKS_ANN} : {...FACTORY_BANKS_PEDALE},
+    banksPlug: isAdmin ? {...INIT_BANKS_PLUG} : {...FACTORY_BANKS_PLUG},
     aiProvider: "gemini",
     aiKeys: {anthropic:"",gemini:""}
   };
@@ -2672,15 +2680,28 @@ function ExportImportScreen({banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,on
 }
 
 // ─── BankEditor ───────────────────────────────────────────────────────────────
-function BankEditor({banks,onBanks,color,maxBanks,startBank}) {
+function BankEditor({banks,onBanks,color,maxBanks,startBank,factoryBanks}) {
   const start=startBank||0;
   const max=maxBanks||50;
+  const [confirmReset,setConfirmReset]=useState(false);
   const inp={background:"var(--bg-card)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:7,padding:"5px 8px",fontSize:11,width:"100%",boxSizing:"border-box"};
   const edit=(k,f,v)=>onBanks(p=>({...p,[k]:{...(p[k]||{cat:"",A:"",B:"",C:""}),[f]:v}}));
+  const resetFactory=()=>{if(factoryBanks){onBanks({...factoryBanks});setConfirmReset(false);}};
   const allBanks=[];
   for(let i=start;i<start+max;i++){allBanks.push([String(i),banks[i]||{cat:"",A:"",B:"",C:""}]);}
   return (
     <div>
+      {/* Reset factory button */}
+      {factoryBanks&&<div style={{marginBottom:12}}>
+        {!confirmReset?<button onClick={()=>setConfirmReset(true)} style={{background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",color:"var(--yellow)",borderRadius:8,padding:"8px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Réinitialiser (config usine)</button>
+        :<div style={{background:"var(--red-bg)",border:"1px solid var(--red-border)",borderRadius:10,padding:12}}>
+          <div style={{fontSize:12,color:"var(--red)",fontWeight:600,marginBottom:8}}>Revenir à la configuration d'usine ? Toutes tes modifications seront perdues.</div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={resetFactory} style={{background:"var(--red)",border:"none",color:"#fff",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Oui, réinitialiser</button>
+            <button onClick={()=>setConfirmReset(false)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:7,padding:"6px 12px",fontSize:12,cursor:"pointer"}}>Annuler</button>
+          </div>
+        </div>}
+      </div>}
       {allBanks.map(([k,v])=>{
         const empty=!v.A&&!v.B&&!v.C;
         return <div key={k} style={{background:empty?"transparent":"var(--a3)",border:empty?"1px solid var(--a5)":"1px solid var(--a7)",borderRadius:8,padding:"8px 10px",marginBottom:4}}>
@@ -3221,9 +3242,9 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
           </div>
         </div>
       </div>}
-      {tab==="pedale"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="#f59e0b" maxBanks={50}/>}
-      {tab==="ann"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="#3b82f6" maxBanks={50}/>}
-      {tab==="plug"&&<BankEditor banks={banksPlug} onBanks={onBanksPlug} color="var(--accent)" maxBanks={10} startBank={1}/>}
+      {tab==="pedale"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="#f59e0b" maxBanks={50} factoryBanks={FACTORY_BANKS_PEDALE}/>}
+      {tab==="ann"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="#3b82f6" maxBanks={50} factoryBanks={FACTORY_BANKS_PEDALE}/>}
+      {tab==="plug"&&<BankEditor banks={banksPlug} onBanks={onBanksPlug} color="var(--accent)" maxBanks={10} startBank={1} factoryBanks={FACTORY_BANKS_PLUG}/>}
     </div>
   );
 }
