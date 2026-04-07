@@ -2111,12 +2111,12 @@ const PRESET_CONTEXT = {
 function scoreColor(s){return s>=90?"var(--green)":s>=75?"var(--blue)":s>=60?"var(--yellow)":"var(--red)";}
 function scoreBg(s){return s>=90?"var(--green-bg)":s>=75?"var(--blue-bg)":s>=60?"var(--yellow-bg)":"var(--red-bg)";}
 // Cherche un preset dans le catalogue par nom exact puis fuzzy
-const PRESET_CATALOG_MERGED = {...PRESET_CATALOG, ...ANNIVERSARY_CATALOG, ...PRESET_CATALOG_FULL};
+const PRESET_CATALOG_MERGED = {...PRESET_CATALOG, ...ANNIVERSARY_CATALOG, ...PRESET_CATALOG_FULL, ...TSR_PACK_CATALOG, ...FACTORY_CATALOG, ...PLUG_FACTORY_CATALOG};
 function findCatalogEntry(name){
   if(!name) return null;
-  if(PRESET_CATALOG[name]) return PRESET_CATALOG[name];
+  if(PRESET_CATALOG_MERGED[name]) return PRESET_CATALOG_MERGED[name];
   const norm=normalizePresetName(name);
-  for(const [k,v] of Object.entries(PRESET_CATALOG)){
+  for(const [k,v] of Object.entries(PRESET_CATALOG_MERGED)){
     if(normalizePresetName(k)===norm) return v;
   }
   return null;
@@ -2757,9 +2757,10 @@ function BankEditor({banks,onBanks,color,maxBanks,startBank,factoryBanks}) {
               const name=v[c]||"";
               const isSel=selectedPreset&&selectedPreset.bank===k&&selectedPreset.slot===c;
               const isCustom=customInput&&customInput.bank===k&&customInput.slot===c;
+              const notInDb=name&&!findCatalogEntry(name);
               return <div key={c} style={{flex:1,minWidth:0}}>
                 <button onClick={()=>{if(name){setSelectedPreset(isSel?null:{bank:k,slot:c,name});setCustomInput(null);}}}
-                  style={{display:"flex",alignItems:"center",gap:3,width:"100%",background:isSel?"var(--accent-bg)":"transparent",border:isSel?"1px solid var(--accent-border)":"1px solid transparent",borderRadius:5,padding:"3px 4px",cursor:name?"pointer":"default",textAlign:"left"}}>
+                  style={{display:"flex",alignItems:"center",gap:3,width:"100%",background:isSel?"var(--accent-bg)":notInDb?"var(--yellow-bg)":"transparent",border:isSel?"1px solid var(--accent-border)":notInDb?"1px solid var(--yellow-border)":"1px solid transparent",borderRadius:5,padding:"3px 4px",cursor:name?"pointer":"default",textAlign:"left"}}>
                   <span style={{fontSize:10,fontWeight:700,color:CC[c],flexShrink:0}}>{c}</span>
                   <span style={{fontSize:10,color:name?"var(--text-bright)":"var(--text-dim)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{name||"—"}</span>
                 </button>
