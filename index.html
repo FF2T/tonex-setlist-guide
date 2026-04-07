@@ -3887,8 +3887,7 @@ function PresetList({filtered,selected,setSelected,banksAnn,banksPlug,fullCatalo
         <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
           <button onClick={()=>setFilterPacks([])} style={{fontSize:10,fontWeight:filterPacks.length===0?700:500,color:filterPacks.length===0?"var(--yellow)":"var(--text-muted)",background:filterPacks.length===0?"var(--yellow-bg)":"var(--a3)",border:filterPacks.length===0?"1px solid var(--yellow-border)":"1px solid var(--a6)",borderRadius:6,padding:"4px 8px",cursor:"pointer"}}>Tous ({filtered.length})</button>
           {subPacks.map(([pack,count])=>{const on=filterPacks.includes(pack);return(
-            <button key={pack} onClick={()=>togglePack(pack)} style={{fontSize:10,fontWeight:on?700:500,color:on?"var(--yellow)":"var(--text-sec)",background:on?"var(--yellow-bg)":"var(--a3)",border:on?"1px solid var(--yellow-border)":"1px solid var(--a6)",borderRadius:6,padding:"4px 8px",cursor:"pointer"}}>{pack} ({count})</button>);})
-          ))}
+            <button key={pack} onClick={()=>togglePack(pack)} style={{fontSize:10,fontWeight:on?700:500,color:on?"var(--yellow)":"var(--text-sec)",background:on?"var(--yellow-bg)":"var(--a3)",border:on?"1px solid var(--yellow-border)":"1px solid var(--a6)",borderRadius:6,padding:"4px 8px",cursor:"pointer"}}>{pack} ({count})</button>);})}
         </div>
       </div>}
       <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>
