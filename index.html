@@ -44,41 +44,12 @@ self.addEventListener('fetch',e=>{
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script>
-// Firebase init — non-blocking, app works without it
-var db = null;
-try {
-  firebase.initializeApp({
-    apiKey: "AIzaSyAnaJMN-a47S9W_cTC60lKAnzRMAgHNMAA",
-    authDomain: "tonex-guide.firebaseapp.com",
-    projectId: "tonex-guide",
-    storageBucket: "tonex-guide.firebasestorage.app",
-    messagingSenderId: "891859157059",
-    appId: "1:891859157059:web:519ce30a866f20ab3d54f6"
-  });
-  db = firebase.firestore();
-} catch(e) { console.warn("Firebase init failed:", e); }
-
-function saveToFirestore(state) {
-  if(!db) return Promise.resolve();
-  // Clean undefined values that Firestore rejects
-  const clean = JSON.parse(JSON.stringify(state));
-  return db.collection("sync").doc("state").set(clean).catch(e => console.warn("Firestore save:", e));
-}
-function loadFromFirestore() {
-  if(!db) return Promise.resolve(null);
-  return db.collection("sync").doc("state").get()
-    .then(doc => doc.exists ? doc.data() : null)
-    .catch(e => { console.warn("Firestore load:", e); return null; });
-}
-function onFirestoreChange(callback) {
-  if(!db) return ()=>{};
-  return db.collection("sync").doc("state").onSnapshot(doc => {
-    if (doc.exists) callback(doc.data());
-  }, e => console.warn("Firestore listen:", e));
-}
+// Firebase stubs — loaded lazily after page renders
+var db=null;
+function saveToFirestore(s){if(!db)return Promise.resolve();try{return db.collection("sync").doc("state").set(JSON.parse(JSON.stringify(s))).catch(function(e){console.warn("FS save:",e);});}catch(e){return Promise.resolve();}}
+function loadFromFirestore(){if(!db)return Promise.resolve(null);return db.collection("sync").doc("state").get().then(function(d){return d.exists?d.data():null;}).catch(function(){return null;});}
+function onFirestoreChange(cb){if(!db)return function(){};return db.collection("sync").doc("state").onSnapshot(function(d){if(d.exists)cb(d.data());},function(){});}
 </script>
 <style>
   :root, [data-theme="dark"] {
@@ -4054,7 +4025,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
           <span style={{fontSize:13,fontWeight:800,color:"var(--text)"}}>{randomPick.name}</span>
           <button onClick={()=>setRandomPick(null)} style={{background:"none",border:"none",color:"var(--text-muted)",cursor:"pointer",fontSize:14}}>✕</button>
         </div>
-        <PresetDetailInline name={randomPick.name} info={randomPick.info} banksAnn={banksAnn} banksPlug={banksPlug}/>
+        <PresetDetailInline name={randomPick.name} info={randomPick.info} banksAnn={banksAnn} banksPlug={banksPlug} presetContext={mergedContext}/>
       </div>}
 
       {/* Filtres */}
@@ -4595,6 +4566,26 @@ function App() {
 }
 
 ReactDOM.render(<App/>, document.getElementById("root"));
+</script>
+<script>
+// Load Firebase lazily — after app renders
+(function(){
+  var s1=document.createElement("script");
+  s1.src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js";
+  s1.onload=function(){
+    var s2=document.createElement("script");
+    s2.src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js";
+    s2.onload=function(){
+      try{
+        firebase.initializeApp({apiKey:"AIzaSyAnaJMN-a47S9W_cTC60lKAnzRMAgHNMAA",authDomain:"tonex-guide.firebaseapp.com",projectId:"tonex-guide",storageBucket:"tonex-guide.firebasestorage.app",messagingSenderId:"891859157059",appId:"1:891859157059:web:519ce30a866f20ab3d54f6"});
+        db=firebase.firestore();
+        console.log("Firebase ready");
+      }catch(e){console.warn("Firebase init failed:",e);}
+    };
+    document.head.appendChild(s2);
+  };
+  document.head.appendChild(s1);
+})();
 </script>
 </body>
 </html>
