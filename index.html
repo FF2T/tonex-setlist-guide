@@ -3756,12 +3756,39 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
         </div>
       )}
 
-      {/* Liste des presets */}
-      {!hasFilter&&<div style={{textAlign:"center",padding:"24px 16px",background:"var(--a3)",border:"1px dashed var(--a8)",borderRadius:12,color:"var(--text-dim)"}}>
-        <div style={{fontSize:22,marginBottom:8}}>🎛</div>
-        <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:4}}>Utilise les filtres ou la recherche</div>
-        <div style={{fontSize:11,color:"var(--text-dim)"}}>pour parcourir les {Object.keys(fullCatalog).length} presets du catalogue</div>
-      </div>}
+      {/* Packs browsing / Liste des presets */}
+      {!hasFilter&&(()=>{
+        const srcCounts={};
+        Object.values(fullCatalog).forEach(info=>{
+          srcCounts[info.src]=(srcCounts[info.src]||0)+1;
+        });
+        const packCards=[
+          {id:"TSR",label:"The Studio Rats",emoji:"🎸",color:"251,191,36",desc:"64 packs"},
+          {id:"ML",label:"ML Sound Lab",emoji:"🎛",color:"56,189,248",desc:"Essentials"},
+          {id:"Anniversary",label:"Anniversary",emoji:"📦",color:"167,139,250",desc:"AA, JS, TJ, TSR, WT"},
+          {id:"Factory",label:"Factory (Pédale)",emoji:"🎹",color:"74,222,128",desc:"Presets d'usine"},
+        ];
+        // Add custom packs
+        (customPacks||[]).forEach(p=>{
+          if(srcCounts[p.name]) packCards.push({id:p.name,label:p.name,emoji:"📂",color:"236,72,153",desc:`${srcCounts[p.name]} presets`});
+        });
+        return <div>
+          <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:10}}>Parcourir par pack — {Object.keys(fullCatalog).length} presets au total</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8}}>
+            {packCards.filter(p=>srcCounts[p.id]).map(p=>(
+              <button key={p.id} onClick={()=>setFilterSrc(p.id)}
+                style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:"14px 10px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}
+                onMouseOver={e=>{e.currentTarget.style.borderColor=`rgb(${p.color})`;e.currentTarget.style.background="var(--a7)";}}
+                onMouseOut={e=>{e.currentTarget.style.borderColor="var(--a8)";e.currentTarget.style.background="var(--a4)";}}>
+                <div style={{fontSize:22,marginBottom:4}}>{p.emoji}</div>
+                <div style={{fontSize:12,fontWeight:700,color:"var(--text)",marginBottom:2}}>{p.label}</div>
+                <div style={{fontSize:11,color:`rgb(${p.color})`,fontWeight:600}}>{srcCounts[p.id]} presets</div>
+                <div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>{p.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>;
+      })()}
       {hasFilter&&filtered.length===0&&<div style={{textAlign:"center",padding:"24px",color:"#475569",fontSize:13}}>Aucun preset ne correspond à ces critères.</div>}
       {hasFilter&&filtered.length>0&&<PresetList filtered={filtered} selected={selected} setSelected={setSelected} banksAnn={banksAnn} banksPlug={banksPlug}/>}
     </div>
