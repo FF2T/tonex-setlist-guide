@@ -1855,6 +1855,40 @@ function BankEditor({banks,onBanks,color}) {
   );
 }
 
+// ─── Profile Picker (startup) ─────────────────────────────────────────────────
+function ProfilePickerScreen({profiles,onPick,onCreateNew}){
+  const [newName,setNewName]=useState("");
+  const create=()=>{
+    if(!newName.trim())return;
+    onCreateNew(newName.trim());
+    setNewName("");
+  };
+  return(
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"80vh",padding:20}}>
+      <div style={{fontSize:32,marginBottom:8}}>🎸</div>
+      <div style={{fontSize:22,fontWeight:800,color:"var(--text)",marginBottom:4}}>ToneX Guide</div>
+      <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:32}}>Qui joue aujourd'hui ?</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,width:"100%",maxWidth:400,marginBottom:32}}>
+        {Object.values(profiles).map(p=>{
+          const c=profileColor(p.id);
+          return <button key={p.id} onClick={()=>onPick(p.id)} style={{background:"var(--a4)",border:"2px solid var(--a10)",borderRadius:16,padding:"24px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}} onMouseOver={e=>{e.currentTarget.style.borderColor=c;e.currentTarget.style.background="var(--a7)";}} onMouseOut={e=>{e.currentTarget.style.borderColor="var(--a10)";e.currentTarget.style.background="var(--a4)";}}>
+            <div style={{background:c,color:"#fff",borderRadius:"50%",width:48,height:48,fontSize:22,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 10px"}}>{p.name[0].toUpperCase()}</div>
+            <div style={{fontSize:14,fontWeight:700,color:"var(--text)"}}>{p.name}</div>
+            <div style={{fontSize:11,color:"var(--text-muted)",marginTop:4}}>{(p.myGuitars||[]).length+(p.customGuitars||[]).length} guitares</div>
+          </button>;
+        })}
+      </div>
+      <div style={{width:"100%",maxWidth:400,background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:16,textAlign:"center"}}>
+        <div style={{fontSize:12,color:"#818cf8",fontWeight:600,marginBottom:10}}>+ Nouveau profil</div>
+        <div style={{display:"flex",gap:8}}>
+          <input placeholder="Nom" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&create()} style={{flex:1,background:"var(--bg-card)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:8,padding:"8px 12px",fontSize:13}}/>
+          <button onClick={create} disabled={!newName.trim()} style={{background:newName.trim()?"#4f46e5":"var(--bg-disabled)",border:"none",color:"#fff",borderRadius:8,padding:"8px 16px",fontSize:13,fontWeight:700,cursor:newName.trim()?"pointer":"not-allowed"}}>Créer</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Profile Selector ─────────────────────────────────────────────────────────
 function ProfileSelector({profiles,activeProfileId,onSwitch,onSettings}){
   const [open,setOpen]=useState(false);
@@ -1908,6 +1942,10 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp}){
   const [newGuitarShort,setNewGuitarShort]=useState("");
   const [newGuitarType,setNewGuitarType]=useState("HB");
   const [confirmDelete,setConfirmDelete]=useState(false);
+  const [editingGuitarId,setEditingGuitarId]=useState(null);
+  const [editGName,setEditGName]=useState("");
+  const [editGShort,setEditGShort]=useState("");
+  const [editGType,setEditGType]=useState("HB");
 
   const updateProfile=(field,value)=>onProfiles(p=>({...p,[activeProfileId]:{...p[activeProfileId],[field]:typeof value==="function"?value(p[activeProfileId][field]):value}}));
 
@@ -1925,6 +1963,25 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp}){
   };
   const removeCustomGuitar=id=>{
     updateProfile("customGuitars",prev=>(prev||[]).filter(g=>g.id!==id));
+  };
+  const startEditGuitar=(g,isCustom)=>{
+    const edits=profile.editedGuitars||{};
+    const orig=isCustom?g:({...GUITARS.find(x=>x.id===g.id),...(edits[g.id]||{})});
+    setEditingGuitarId(g.id);setEditGName(orig.name);setEditGShort(orig.short);setEditGType(orig.type);
+  };
+  const saveEditGuitar=()=>{
+    if(!editGName.trim()||!editGShort.trim()){setEditingGuitarId(null);return;}
+    const isCustom=editingGuitarId?.startsWith("cg_");
+    if(isCustom){
+      updateProfile("customGuitars",prev=>(prev||[]).map(g=>g.id===editingGuitarId?{...g,name:editGName.trim(),short:editGShort.trim(),type:editGType}:g));
+    } else {
+      updateProfile("editedGuitars",prev=>({...(prev||{}), [editingGuitarId]:{name:editGName.trim(),short:editGShort.trim(),type:editGType}}));
+    }
+    setEditingGuitarId(null);
+  };
+  const resetGuitar=id=>{
+    updateProfile("editedGuitars",prev=>{const n={...(prev||{})};delete n[id];return n;});
+    setEditingGuitarId(null);
   };
   const createProfile=()=>{
     if(!newProfileName.trim())return;
@@ -1962,23 +2019,58 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp}){
       <div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:16,marginBottom:16}}>
         <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:4}}>Mes guitares</div>
         <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:12}}>Coche les guitares que tu possèdes.</div>
-        <div className="guitar-grid" style={{marginBottom:12}}>
+        <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:12}}>
           {GUITARS.map(g=>{
             const sel=profile.myGuitars.includes(g.id);
-            return <button key={g.id} className={`guitar-card${sel?" selected":""}`} onClick={()=>toggleGuitar(g.id)} style={{padding:"10px 6px"}}>
-              <div style={{fontSize:11,fontWeight:700,color:sel?"var(--text)":"var(--text-muted)",lineHeight:1.3}}>{g.short}</div>
-              <div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>{g.type}</div>
-            </button>;
+            const edits=profile.editedGuitars||{};
+            const display={...g,...(edits[g.id]||{})};
+            const isEdited=!!edits[g.id];
+            const isEditing=editingGuitarId===g.id;
+            return <div key={g.id}>
+              <div style={{display:"flex",alignItems:"center",gap:8,background:sel?"rgba(99,102,241,0.1)":"var(--a3)",border:sel?"1px solid rgba(99,102,241,0.3)":"1px solid var(--a6)",borderRadius:8,padding:"8px 12px",cursor:"pointer"}} onClick={()=>toggleGuitar(g.id)}>
+                <div style={{width:18,height:18,borderRadius:5,border:sel?"2px solid #6366f1":"2px solid var(--text-muted)",background:sel?"#6366f1":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sel&&<span style={{color:"#fff",fontSize:10,fontWeight:900}}>✓</span>}</div>
+                <div style={{flex:1}}><span style={{fontSize:12,fontWeight:600,color:sel?"var(--text)":"var(--text-muted)"}}>{display.short}</span><span style={{fontSize:10,color:"var(--text-dim)",marginLeft:6}}>{display.name}</span>{isEdited&&<span style={{fontSize:9,color:"#f59e0b",marginLeft:4}}>modifié</span>}</div>
+                <span style={{fontSize:10,color:"var(--text-dim)",marginRight:4}}>{display.type}</span>
+                {sel&&<button onClick={e=>{e.stopPropagation();startEditGuitar(display,false);}} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:5,padding:"3px 7px",fontSize:10,cursor:"pointer"}}>✏️</button>}
+              </div>
+              {isEditing&&<div style={{background:"var(--a5)",borderRadius:"0 0 8px 8px",padding:"10px 12px",marginTop:-1,border:"1px solid var(--a8)",borderTop:"none"}} onClick={e=>e.stopPropagation()}>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>
+                  <input placeholder="Nom" value={editGName} onChange={e=>setEditGName(e.target.value)} style={{...inp,flex:"1 1 140px",fontSize:11,padding:"5px 8px"}}/>
+                  <input placeholder="Abrégé" value={editGShort} onChange={e=>setEditGShort(e.target.value)} style={{...inp,flex:"0 1 80px",fontSize:11,padding:"5px 8px"}}/>
+                  <select value={editGType} onChange={e=>setEditGType(e.target.value)} style={{...inp,flex:"0 0 55px",fontSize:11,padding:"5px 4px"}}><option value="HB">HB</option><option value="SC">SC</option><option value="P90">P90</option></select>
+                </div>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={saveEditGuitar} style={{background:"#4f46e5",border:"none",color:"#fff",borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Sauver</button>
+                  {isEdited&&<button onClick={()=>resetGuitar(g.id)} style={{background:"rgba(251,191,36,0.15)",border:"1px solid rgba(251,191,36,0.3)",color:"#fbbf24",borderRadius:6,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>Réinitialiser</button>}
+                  <button onClick={()=>setEditingGuitarId(null)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:6,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>Annuler</button>
+                </div>
+              </div>}
+            </div>;
           })}
         </div>
         {(profile.customGuitars||[]).length>0&&<div style={{marginBottom:12}}>
           <div style={{fontSize:11,color:"var(--text-muted)",fontWeight:600,marginBottom:6}}>Guitares custom</div>
-          {profile.customGuitars.map(g=>(
-            <div key={g.id} style={{display:"flex",alignItems:"center",gap:8,background:"var(--a3)",borderRadius:7,padding:"5px 10px",marginBottom:4}}>
-              <div style={{flex:1,fontSize:12,color:"var(--text)"}}>{g.name} <span style={{color:"var(--text-muted)",fontSize:10}}>({g.type})</span></div>
-              <button onClick={()=>removeCustomGuitar(g.id)} style={{background:"none",border:"none",color:"#f87171",cursor:"pointer",fontSize:13}}>✕</button>
-            </div>
-          ))}
+          {profile.customGuitars.map(g=>{
+            const isEditing=editingGuitarId===g.id;
+            return <div key={g.id}>
+              <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--a3)",borderRadius:isEditing?"7px 7px 0 0":7,padding:"5px 10px",marginBottom:isEditing?0:4}}>
+                <div style={{flex:1,fontSize:12,color:"var(--text)"}}>{g.name} <span style={{color:"var(--text-muted)",fontSize:10}}>({g.type})</span></div>
+                <button onClick={()=>startEditGuitar(g,true)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:5,padding:"3px 7px",fontSize:10,cursor:"pointer"}}>✏️</button>
+                <button onClick={()=>removeCustomGuitar(g.id)} style={{background:"none",border:"none",color:"#f87171",cursor:"pointer",fontSize:13}}>✕</button>
+              </div>
+              {isEditing&&<div style={{background:"var(--a5)",borderRadius:"0 0 7px 7px",padding:"10px 12px",marginBottom:4,border:"1px solid var(--a8)",borderTop:"none"}}>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>
+                  <input placeholder="Nom" value={editGName} onChange={e=>setEditGName(e.target.value)} style={{...inp,flex:"1 1 140px",fontSize:11,padding:"5px 8px"}}/>
+                  <input placeholder="Abrégé" value={editGShort} onChange={e=>setEditGShort(e.target.value)} style={{...inp,flex:"0 1 80px",fontSize:11,padding:"5px 8px"}}/>
+                  <select value={editGType} onChange={e=>setEditGType(e.target.value)} style={{...inp,flex:"0 0 55px",fontSize:11,padding:"5px 4px"}}><option value="HB">HB</option><option value="SC">SC</option><option value="P90">P90</option></select>
+                </div>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={saveEditGuitar} style={{background:"#4f46e5",border:"none",color:"#fff",borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Sauver</button>
+                  <button onClick={()=>setEditingGuitarId(null)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:6,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>Annuler</button>
+                </div>
+              </div>}
+            </div>;
+          })}
         </div>}
         <div style={{background:"rgba(99,102,241,0.08)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:10,padding:12}}>
           <div style={{fontSize:11,color:"#818cf8",fontWeight:600,marginBottom:8}}>+ Guitare custom</div>
@@ -2015,6 +2107,120 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp}){
           <input placeholder="Nom du profil" value={newProfileName} onChange={e=>setNewProfileName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&createProfile()} style={{...inp,flex:1}}/>
           <button onClick={createProfile} disabled={!newProfileName.trim()} style={{background:newProfileName.trim()?"#4f46e5":"var(--bg-disabled)",border:"none",color:"#fff",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:newProfileName.trim()?"pointer":"not-allowed"}}>Créer</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Packs Tab ────────────────────────────────────────────────────────────────
+function PacksTab({profile,onProfiles,activeProfileId,aiProvider,aiKeys}){
+  const [packName,setPackName]=useState("");
+  const [file,setFile]=useState(null);
+  const [filePreview,setFilePreview]=useState(null);
+  const [loading,setLoading]=useState(false);
+  const [err,setErr]=useState(null);
+  const fileRef=useRef(null);
+
+  const updateProfile=(field,value)=>onProfiles(p=>({...p,[activeProfileId]:{...p[activeProfileId],[field]:typeof value==="function"?value(p[activeProfileId][field]):value}}));
+
+  const handleFile=e=>{
+    const f=e.target.files?.[0];
+    if(!f)return;
+    setFile(f);setErr(null);
+    const reader=new FileReader();
+    reader.onload=ev=>{setFilePreview(ev.target.result);};
+    reader.readAsDataURL(f);
+  };
+
+  const extractPresets=()=>{
+    if(!packName.trim()||!filePreview)return;
+    const key=aiProvider==="gemini"?aiKeys.gemini:aiKeys.anthropic;
+    if(!key){setErr(`Clé API ${aiProvider==="gemini"?"Gemini":"Anthropic"} manquante — configure-la dans 🔑 IA.`);return;}
+    setLoading(true);setErr(null);
+    const prompt=`Analyse cette image/document d'un pack de presets pour guitare ToneX appelé "${packName.trim()}".
+Extrais TOUS les noms de presets visibles et pour chacun déduis :
+- amp : le modèle d'ampli simulé
+- gain : "low", "mid" ou "high"
+- style : "clean", "blues", "rock", "hard_rock" ou "metal"
+- scores : compatibilité par type de micro {HB: 50-97, SC: 50-97, P90: 50-97}
+
+Réponds UNIQUEMENT en JSON (sans markdown) : {"presets":[{"name":"...","amp":"...","gain":"...","style":"...","scores":{"HB":85,"SC":70,"P90":78}},...]}`;
+    const base64=filePreview.split(",")[1];
+    const mimeType=filePreview.split(";")[0].split(":")[1];
+    if(aiProvider==="gemini"){
+      fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({contents:[{parts:[{inlineData:{mimeType,data:base64}},{text:prompt}]}]})
+      }).then(r=>r.json()).then(d=>{
+        if(d.error)throw new Error(d.error.message);
+        const txt=d.candidates?.[0]?.content?.parts?.[0]?.text||"";
+        const parsed=JSON.parse(txt.replace(/```json|```/g,"").trim());
+        savePack(parsed.presets||[]);
+      }).catch(e=>setErr(e.message)).finally(()=>setLoading(false));
+    } else {
+      fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+        body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:4096,messages:[{role:"user",content:[{type:"image",source:{type:"base64",media_type:mimeType,data:base64}},{type:"text",text:prompt}]}]})
+      }).then(r=>r.json()).then(d=>{
+        if(d.error)throw new Error(d.error.message);
+        const txt=d.content?.map(i=>i.text||"").join("")||"";
+        const parsed=JSON.parse(txt.replace(/```json|```/g,"").trim());
+        savePack(parsed.presets||[]);
+      }).catch(e=>setErr(e.message)).finally(()=>setLoading(false));
+    }
+  };
+
+  const savePack=(presets)=>{
+    const pack={id:`pack_${Date.now()}`,name:packName.trim(),presetCount:presets.length,presets:presets.map(p=>({...p,src:packName.trim()}))};
+    updateProfile("customPacks",prev=>[...(prev||[]),pack]);
+    setPackName("");setFile(null);setFilePreview(null);
+    if(fileRef.current)fileRef.current.value="";
+  };
+
+  const deletePack=id=>{
+    updateProfile("customPacks",prev=>(prev||[]).filter(p=>p.id!==id));
+  };
+
+  const packs=profile.customPacks||[];
+  const inp={background:"var(--bg-card)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:7,padding:"6px 10px",fontSize:12,boxSizing:"border-box"};
+
+  return(
+    <div>
+      <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:16}}>Ajoute des packs de presets en joignant une photo ou un document. L'IA en extraira les presets.</div>
+
+      {/* Packs existants */}
+      {packs.length>0&&<div style={{marginBottom:16}}>
+        {packs.map(p=>(
+          <div key={p.id} style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:10,padding:12,marginBottom:8}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+              <div style={{flex:1,fontSize:13,fontWeight:700,color:"var(--text)"}}>{p.name}</div>
+              <span style={{fontSize:11,color:"var(--text-muted)"}}>{p.presetCount||p.presets?.length||0} presets</span>
+              <button onClick={()=>deletePack(p.id)} style={{background:"rgba(239,68,68,0.15)",border:"1px solid rgba(239,68,68,0.3)",color:"#f87171",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer"}}>Supprimer</button>
+            </div>
+            {p.presets?.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+              {p.presets.slice(0,8).map((pr,i)=><span key={i} style={{fontSize:10,background:"var(--a5)",border:"1px solid var(--a8)",borderRadius:4,padding:"2px 6px",color:"var(--text-sec)"}}>{pr.name}</span>)}
+              {p.presets.length>8&&<span style={{fontSize:10,color:"var(--text-muted)"}}>+{p.presets.length-8} autres</span>}
+            </div>}
+          </div>
+        ))}
+      </div>}
+
+      {/* Ajouter un pack */}
+      <div style={{background:"rgba(99,102,241,0.08)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:12,padding:16}}>
+        <div style={{fontSize:13,fontWeight:700,color:"#818cf8",marginBottom:12}}>+ Nouveau pack</div>
+        <input placeholder="Nom du pack (ex: TSR Blues Pack)" value={packName} onChange={e=>setPackName(e.target.value)} style={{...inp,width:"100%",marginBottom:10}}/>
+        <div style={{marginBottom:10}}>
+          <input ref={fileRef} type="file" accept="image/*,.pdf" onChange={handleFile} style={{fontSize:12,color:"var(--text-sec)"}}/>
+        </div>
+        {filePreview&&filePreview.startsWith("data:image")&&<div style={{marginBottom:10,borderRadius:8,overflow:"hidden",border:"1px solid var(--a8)"}}>
+          <img src={filePreview} style={{width:"100%",maxHeight:200,objectFit:"contain",background:"var(--a3)"}}/>
+        </div>}
+        {filePreview&&!filePreview.startsWith("data:image")&&<div style={{fontSize:11,color:"var(--text-muted)",marginBottom:10}}>Document joint ({file?.name})</div>}
+        {err&&<div style={{fontSize:12,color:"#f87171",marginBottom:10}}>{err}</div>}
+        <button onClick={extractPresets} disabled={!packName.trim()||!filePreview||loading}
+          style={{width:"100%",background:packName.trim()&&filePreview&&!loading?"linear-gradient(135deg,#7c3aed,#4f46e5)":"var(--bg-disabled)",border:"none",color:"#fff",borderRadius:10,padding:"12px",fontSize:13,fontWeight:700,cursor:packName.trim()&&filePreview&&!loading?"pointer":"not-allowed"}}>
+          {loading?"Extraction IA en cours...":"Extraire les presets avec l'IA"}
+        </button>
       </div>
     </div>
   );
@@ -2059,9 +2265,10 @@ function SettingsScreen({songDb,onSongDb,setlists,onSetlists,banksAnn,onBanksAnn
         📋 Export / Import →
       </button>
       <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
-        {tabBtn("profile","👤 Profil")}{tabBtn("setlists","🎵 Setlists")}{tabBtn("songs","🎸 Morceaux")}{tabBtn("ann","📦 Anniversary")}{tabBtn("plug","🔌 Plug")}{tabBtn("ia","🔑 IA")}{tabBtn("display","🎨 Affichage")}
+        {tabBtn("profile","👤 Profil")}{tabBtn("packs","📦 Mes Packs")}{tabBtn("setlists","🎵 Setlists")}{tabBtn("songs","🎸 Morceaux")}{tabBtn("ann","📦 Ann.")}{tabBtn("plug","🔌 Plug")}{tabBtn("ia","🔑 IA")}{tabBtn("display","🎨 Affichage")}
       </div>
       {tab==="profile"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp}/>}
+      {tab==="packs"&&<PacksTab profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId} aiProvider={aiProvider} aiKeys={aiKeys}/>}
       {tab==="setlists"&&<div>
         <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>{setlists.length} setlist{setlists.length>1?"s":""}</div>
         {setlists.map(sl=>(
@@ -2706,7 +2913,7 @@ function PresetList({filtered,selected,setSelected,banksAnn,banksPlug}){
   );
 }
 
-function PresetBrowser({banksAnn,banksPlug,availableSources}) {
+function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
   const [filterStyle,setFilterStyle]=useState("all");
   const [filterGain,setFilterGain]=useState("all");
   const [filterSrc,setFilterSrc]=useState("all");
@@ -2714,8 +2921,19 @@ function PresetBrowser({banksAnn,banksPlug,availableSources}) {
   const [search,setSearch]=useState("");
   const [selected,setSelected]=useState(null);
 
+  // Merge custom packs into catalog
+  const fullCatalog=useMemo(()=>{
+    const cat={...PRESET_CATALOG_FULL};
+    (customPacks||[]).forEach(pack=>{
+      (pack.presets||[]).forEach(p=>{
+        if(p.name&&!cat[p.name]) cat[p.name]={src:pack.name,amp:p.amp||"Custom",gain:p.gain||"mid",style:p.style||"rock",scores:p.scores||{HB:78,SC:78,P90:78}};
+      });
+    });
+    return cat;
+  },[customPacks]);
+
   const filtered=useMemo(()=>
-    Object.entries(PRESET_CATALOG_FULL).filter(([name,info])=>{
+    Object.entries(fullCatalog).filter(([name,info])=>{
       if(!showAllSrc&&availableSources&&availableSources[info.src]===false)return false;
       if(filterStyle!=="all"&&info.style!==filterStyle)return false;
       if(filterGain!=="all"&&info.gain!==filterGain)return false;
@@ -2737,7 +2955,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources}) {
     setSelected(name);
   };
 
-  const selInfo=selected?(PRESET_CATALOG_FULL[selected]||PRESET_CATALOG[selected]):null;
+  const selInfo=selected?(fullCatalog[selected]||PRESET_CATALOG[selected]):null;
   const selCtx=selInfo?PRESET_CONTEXT[selInfo.amp]:null;
   const annLoc=selected?findInBanks(selected,banksAnn):null;
   const plugLoc=selected?findInBanks(selected,banksPlug):null;
@@ -2764,7 +2982,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources}) {
 
       {/* Bouton aléatoire */}
       <button onClick={pickRandom} style={{width:"100%",background:"linear-gradient(135deg,#7c3aed,#0ea5e9)",border:"none",color:"var(--text)",borderRadius:12,padding:"14px",fontSize:15,fontWeight:700,cursor:"pointer",marginBottom:16}}>
-        🎲 Preset aléatoire {filtered.length<Object.keys(PRESET_CATALOG_FULL).length?`(dans les ${filtered.length} filtrés)`:""}
+        🎲 Preset aléatoire {filtered.length<Object.keys(fullCatalog).length?`(dans les ${filtered.length} filtrés)`:""}
       </button>
 
       {/* Filtres */}
@@ -2835,7 +3053,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources}) {
       {!hasFilter&&<div style={{textAlign:"center",padding:"24px 16px",background:"var(--a3)",border:"1px dashed var(--a8)",borderRadius:12,color:"var(--text-dim)"}}>
         <div style={{fontSize:22,marginBottom:8}}>🎛</div>
         <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:4}}>Utilise les filtres ou la recherche</div>
-        <div style={{fontSize:11,color:"var(--text-dim)"}}>pour parcourir les {Object.keys(PRESET_CATALOG_FULL).length} presets du catalogue</div>
+        <div style={{fontSize:11,color:"var(--text-dim)"}}>pour parcourir les {Object.keys(fullCatalog).length} presets du catalogue</div>
       </div>}
       {hasFilter&&filtered.length===0&&<div style={{textAlign:"center",padding:"24px",color:"#475569",fontSize:13}}>Aucun preset ne correspond à ces critères.</div>}
       {hasFilter&&filtered.length>0&&<PresetList filtered={filtered} selected={selected} setSelected={setSelected} banksAnn={banksAnn} banksPlug={banksPlug}/>}
@@ -2990,7 +3208,7 @@ function JamScreen({banksAnn,banksPlug,allGuitars,availableSources}){
 }
 
 // ─── HomeScreen ───────────────────────────────────────────────────────────────
-function HomeScreen({songDb,onSongDb,setlists,onSetlists,checked,onChecked,onNext,onSettings,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profiles,activeProfileId,onSwitchProfile}) {
+function HomeScreen({songDb,onSongDb,setlists,onSetlists,checked,onChecked,onNext,onSettings,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profiles,activeProfileId,onSwitchProfile,customPacks}) {
   const [tab,setTab]=useState("jam");
   const tabBtn=(id,emoji,label,rgb)=>(
     <button className={`tab-btn${tab===id?" active":""}`} onClick={()=>setTab(id)}
@@ -3015,7 +3233,7 @@ function HomeScreen({songDb,onSongDb,setlists,onSetlists,checked,onChecked,onNex
       {tab==="jam"&&<JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/>}
       {tab==="setlist"&&<ListScreen songDb={songDb} onSongDb={onSongDb} setlists={setlists} onSetlists={onSetlists} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} availableSources={availableSources}/>}
       {tab==="newsong"&&<NewSongExplorer songDb={songDb} onSongDb={onSongDb} setlists={setlists} onSetlists={onSetlists} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars}/>}
-      {tab==="presets"&&<PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources}/>}
+      {tab==="presets"&&<PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={customPacks}/>}
     </div>
   );
 }
@@ -3061,14 +3279,16 @@ function App() {
   const setAiProvider= v => setProfileField("aiProvider", v);
   const setAiKeys    = v => setProfileField("aiKeys", v);
 
-  // Guitars for current profile
+  // Guitars for current profile (with edits merged)
   const allGuitars = useMemo(()=>{
-    const base = GUITARS.filter(g=>profile.myGuitars.includes(g.id));
+    const edits=profile.editedGuitars||{};
+    const base = GUITARS.filter(g=>profile.myGuitars.includes(g.id)).map(g=>({...g,...(edits[g.id]||{})}));
     return [...base, ...(profile.customGuitars||[])];
-  },[profile.myGuitars, profile.customGuitars]);
+  },[profile.myGuitars, profile.customGuitars, profile.editedGuitars]);
 
   // Non-persisted
-  const [screen,  setScreen]  = useState("list");
+  const multiProfile = Object.keys(initDefault.profiles).length > 1;
+  const [screen,  setScreen]  = useState(multiProfile ? "pick" : "list");
   const [checked, setChecked] = useState([]);
   const [synth,   setSynth]   = useState(null);
 
@@ -3089,6 +3309,14 @@ function App() {
   },[theme]);
 
   const switchProfile = id => { if(profiles[id]) setActiveProfileId(id); };
+  const pickProfile = id => { setActiveProfileId(id); setScreen("list"); };
+  const createAndPick = name => {
+    const id=name.toLowerCase().replace(/[^a-z0-9]/g,"_")+`_${Date.now()}`;
+    const np=makeDefaultProfile(id,name);
+    setProfiles(p=>({...p,[id]:np}));
+    setActiveProfileId(id);
+    setScreen("list");
+  };
 
   const songs=useMemo(()=>checked.map(id=>{
     const d=songDb.find(x=>x.id===id);
@@ -3105,11 +3333,12 @@ function App() {
     setScreen("list");
   };
 
+  if(screen==="pick") return <div className="page-root"><ProfilePickerScreen profiles={profiles} onPick={pickProfile} onCreateNew={createAndPick}/></div>;
   if(screen==="exportimport") return <div className="page-root"><ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("settings")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/></div>;
   if(screen==="settings")     return <div className="page-root"><SettingsScreen songDb={songDb} onSongDb={setSongDb} setlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars}/></div>;
   if(screen==="synthesis"&&synth) return <div className="page-root"><SynthesisScreen songs={songs} gps={synth.gps} aiR={synth.aiR} onBack={()=>setScreen("recap")} onNavigate={setScreen} songDb={songDb} banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/></div>;
   if(screen==="recap")        return <div className="page-root"><RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDb} onSongDb={setSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources}/></div>;
-  return <div className="page-root"><HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile}/></div>;
+  return <div className="page-root"><HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} customPacks={profile.customPacks}/></div>;
 }
 
 ReactDOM.render(<App/>, document.getElementById("root"));
