@@ -4383,7 +4383,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
       </div>
 
       {/* Tuiles en bas (masquer si résultat ou loading) */}
-      {!songResult&&!songLoading&&<div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,paddingBottom:12}}>
+      {!songResult&&!songLoading&&<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,paddingBottom:12}}>
         <button onClick={onSetlistScreen} style={{background:"rgba(99,102,241,0.1)",border:"1px solid var(--accent-border)",borderRadius:14,padding:"16px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
           <div style={{fontSize:24,marginBottom:4}}>🎵</div>
           <div style={{fontSize:13,fontWeight:700,color:"var(--accent)"}}>Mes setlists</div>
@@ -4398,11 +4398,6 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           <div style={{fontSize:24,marginBottom:4}}>🎛️</div>
           <div style={{fontSize:13,fontWeight:700,color:"var(--purple)"}}>Explorer</div>
           <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>Bibliothèque de presets</div>
-        </button>
-        <button onClick={onProfile} style={{background:"var(--green-bg)",border:"1px solid var(--green-border)",borderRadius:14,padding:"16px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
-          <div style={{fontSize:24,marginBottom:4}}>👤</div>
-          <div style={{fontSize:13,fontWeight:700,color:"var(--green)"}}>Mon profil</div>
-          <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>{allGuitars?.length||0} guitare{(allGuitars?.length||0)>1?"s":""}</div>
         </button>
       </div>}
     </div>
