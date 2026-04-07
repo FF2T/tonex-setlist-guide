@@ -3744,7 +3744,8 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
   const [activeSlId,setActiveSlId]=useState(setlists[0]?.id||null);
   const activeSl=activeSlId?setlists.find(s=>s.id===activeSlId):null;
   const [showAdd,setShowAdd]=useState(false);
-  const [sort,setSort]=useState("default");
+  const [sort,setSort]=useState(activeSl?.sort||"default");
+  const saveSort=(v)=>{setSort(v);if(activeSlId)onSetlists(p=>p.map(sl=>sl.id===activeSlId?{...sl,sort:v}:sl));};
   const activeSongs=useMemo(()=>{
     const sl=activeSl;
     const arr=sl?(sl.songIds||[]).map(id=>songDb.find(s=>s.id===id)).filter(Boolean):[...songDb];
@@ -3768,7 +3769,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
             Tous<span style={{fontSize:10,marginLeft:5,color:!activeSlId?"var(--accent)":"var(--text-dim)"}}>({songDb.length})</span>
           </button>
           {setlists.map(sl=>(
-            <button key={sl.id} onClick={()=>{setActiveSlId(activeSlId===sl.id?null:sl.id);onChecked([]);}}
+            <button key={sl.id} onClick={()=>{const newId=activeSlId===sl.id?null:sl.id;setActiveSlId(newId);onChecked([]);setSort(newId?setlists.find(s=>s.id===newId)?.sort||"default":"default");}}
               style={{background:activeSlId===sl.id?"var(--accent-bg)":"var(--a5)",border:activeSlId===sl.id?"1px solid rgba(99,102,241,0.6)":"1px solid var(--a10)",color:activeSlId===sl.id?"var(--accent)":"var(--text-sec)",borderRadius:8,padding:"7px 14px",fontSize:13,fontWeight:600,cursor:"pointer"}}>
               {sl.name}<span style={{fontSize:10,marginLeft:5,color:activeSlId===sl.id?"var(--accent)":"var(--text-dim)"}}>({sl.songIds.length})</span>
             </button>
@@ -3780,7 +3781,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
           <span style={{fontSize:12,color:"var(--text-muted)",fontWeight:600}}>{activeSongs.length} morceaux</span>
           {activeSongs.length>0&&<button onClick={toggleAll} style={{background:"var(--a7)",border:"1px solid var(--a10)",color:"var(--text-sec)",borderRadius:6,padding:"3px 10px",fontSize:11,cursor:"pointer"}}>{checked.length===activeSongs.length?"Tout décocher":"Tout cocher"}</button>}
-          <select value={sort} onChange={e=>setSort(e.target.value)} style={{background:"var(--bg-card)",color:"var(--text-sec)",border:"1px solid var(--a12)",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer"}}>
+          <select value={sort} onChange={e=>saveSort(e.target.value)} style={{background:"var(--bg-card)",color:"var(--text-sec)",border:"1px solid var(--a12)",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer"}}>
             <option value="default">Ordre setlist</option>
             <option value="alpha">Titre A → Z</option>
             <option value="artist">Artiste A → Z</option>
