@@ -2754,7 +2754,7 @@ function profileColor(id){
 
 const SOURCE_LABELS={TSR:"64 Studio Rats",ML:"ML Sound Lab Essentials",Anniversary:"ToneX Anniversary Factory",Factory:"ToneX Factory",PlugFactory:"ToneX Plug Factory"};
 
-function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp}){
+function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp,section}){
   const [editName,setEditName]=useState(profile.name);
   const [newProfileName,setNewProfileName]=useState("");
   const [newGuitarName,setNewGuitarName]=useState("");
@@ -2823,10 +2823,11 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp}){
     updateProfile("name",editName.trim());
   };
 
+  const s=section||"guitars";
   return (
     <div>
       {/* Nom du profil */}
-      <div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:16,marginBottom:16}}>
+      {s==="guitars"&&<div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:16,marginBottom:16}}>
         <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:10}}>Nom du profil</div>
         <div style={{display:"flex",gap:8}}>
           <input value={editName} onChange={e=>setEditName(e.target.value)} onBlur={saveName} onKeyDown={e=>e.key==="Enter"&&saveName()} style={{...inp,flex:1}}/>
@@ -2836,10 +2837,10 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp}){
           {!confirmDelete?<button onClick={()=>setConfirmDelete(true)} style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",color:"#f87171",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer"}}>Supprimer ce profil</button>
           :<div style={{display:"flex",gap:8,alignItems:"center"}}><span style={{fontSize:12,color:"#f87171"}}>Confirmer ?</span><button onClick={deleteProfile} style={{background:"#ef4444",border:"none",color:"#fff",borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Oui, supprimer</button><button onClick={()=>setConfirmDelete(false)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:6,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>Annuler</button></div>}
         </div>}
-      </div>
+      </div>}
 
       {/* Mes guitares */}
-      <div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:16,marginBottom:16}}>
+      {s==="guitars"&&<div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:16,marginBottom:16}}>
         <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:4}}>Mes guitares</div>
         <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:12}}>Coche les guitares que tu possèdes.</div>
         <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:12}}>
@@ -2911,10 +2912,10 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp}){
             <button onClick={addCustomGuitar} disabled={!newGuitarName.trim()||!newGuitarShort.trim()} style={{background:newGuitarName.trim()&&newGuitarShort.trim()?"#4f46e5":"var(--bg-disabled)",border:"none",color:"#fff",borderRadius:7,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:newGuitarName.trim()&&newGuitarShort.trim()?"pointer":"not-allowed"}}>Ajouter</button>
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Mes appareils */}
-      <div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:16,marginBottom:16}}>
+      {s==="devices"&&<div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:16,marginBottom:16}}>
         <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:4}}>Mes appareils ToneX</div>
         <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:12}}>Coche les appareils que tu possèdes.</div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
@@ -2926,10 +2927,10 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp}){
             </button>;
           })}
         </div>
-      </div>
+      </div>}
 
       {/* Mes sources de presets */}
-      <div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:16,marginBottom:16}}>
+      {s==="sources"&&<div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:16,marginBottom:16}}>
         <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:4}}>Mes sources de presets</div>
         <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:12}}>Coche les packs de presets que tu as installés.</div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
@@ -2941,7 +2942,7 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp}){
             </button>;
           })}
         </div>
-      </div>
+      </div>}
 
       {/* Créer un nouveau profil */}
       <div style={{background:"rgba(99,102,241,0.08)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:12,padding:16}}>
@@ -3127,9 +3128,9 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
         {profile.devices?.plug&&tabBtn("plug","🔌 ToneX Plug")}
         {tabBtn("display","🎨 Affichage")}
       </div>
-      {tab==="profile"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp}/>}
-      {tab==="devices"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} initSection="devices"/>}
-      {tab==="sources"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} initSection="sources"/>}
+      {tab==="profile"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="guitars"/>}
+      {tab==="devices"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="devices"/>}
+      {tab==="sources"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="sources"/>}
       {tab==="setlists"&&<div>
         <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>{setlists.length} setlist{setlists.length>1?"s":""}</div>
         {setlists.map(sl=>(
@@ -3216,8 +3217,6 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
       {tab==="pedale"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="#f59e0b"/>}
       {tab==="ann"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="#3b82f6"/>}
       {tab==="plug"&&<BankEditor banks={banksPlug} onBanks={onBanksPlug} color="#6366f1"/>}
-      {tab==="jam"&&<JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={profile.availableSources}/>}
-      {tab==="presets"&&<PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={profile.availableSources} customPacks={profile.customPacks}/>}
     </div>
   );
 }
@@ -4231,7 +4230,7 @@ Réponds UNIQUEMENT en JSON (sans markdown) : {"title":"Titre exact","artist":"A
 }
 
 // ─── HomeScreen (style Google) ────────────────────────────────────────────────
-function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onProfile,onSetlistScreen,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profiles,activeProfileId,onSwitchProfile,customPacks}) {
+function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onProfile,onSetlistScreen,onJam,onExplore,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profiles,activeProfileId,onSwitchProfile,customPacks}) {
   const profileName=(profiles[activeProfileId]||{}).name||"Profil";
 
   return (
@@ -4273,12 +4272,12 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           <div style={{fontSize:13,fontWeight:700,color:"#a5b4fc"}}>Mes setlists</div>
           <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>{setlists.length} setlist{setlists.length>1?"s":""}</div>
         </button>
-        <button onClick={()=>onProfile("jam")} style={{background:"rgba(251,191,36,0.1)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:14,padding:"16px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
+        <button onClick={()=>onJam()} style={{background:"rgba(251,191,36,0.1)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:14,padding:"16px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
           <div style={{fontSize:24,marginBottom:4}}>🎲</div>
           <div style={{fontSize:13,fontWeight:700,color:"#fbbf24"}}>Jammer</div>
           <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>Guitare + style</div>
         </button>
-        <button onClick={()=>onProfile("presets")} style={{background:"rgba(167,139,250,0.1)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:14,padding:"16px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
+        <button onClick={()=>onExplore()} style={{background:"rgba(167,139,250,0.1)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:14,padding:"16px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
           <div style={{fontSize:24,marginBottom:4}}>🎛️</div>
           <div style={{fontSize:13,fontWeight:700,color:"#a78bfa"}}>Explorer</div>
           <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>Bibliothèque de presets</div>
@@ -4402,9 +4401,19 @@ function App() {
     <div style={{fontSize:20,fontWeight:800,color:"var(--text)",marginBottom:16}}>🎵 Mes setlists</div>
     <ListScreen songDb={songDb} onSongDb={setSongDb} allSetlists={setlists} setlists={mySetlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} availableSources={availableSources}/>
   </div>;
+  if(screen==="jam") return <div className="page-root">
+    <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Jammer"}]} onNavigate={setScreen}/>
+    <div style={{fontSize:20,fontWeight:800,color:"var(--text)",marginBottom:16}}>🎲 Jammer</div>
+    <JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/>
+  </div>;
+  if(screen==="explore") return <div className="page-root">
+    <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Explorer"}]} onNavigate={setScreen}/>
+    <div style={{fontSize:20,fontWeight:800,color:"var(--text)",marginBottom:16}}>🎛️ Explorer les presets</div>
+    <PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={profile.customPacks}/>
+  </div>;
   if(screen==="synthesis"&&synth) return <div className="page-root"><SynthesisScreen songs={songs} gps={synth.gps} aiR={synth.aiR} onBack={()=>setScreen("recap")} onNavigate={setScreen} songDb={songDb} banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/></div>;
   if(screen==="recap")        return <div className="page-root"><RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDb} onSongDb={setSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources}/></div>;
-  return <div className="page-root"><HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} customPacks={profile.customPacks}/></div>;
+  return <div className="page-root"><HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} customPacks={profile.customPacks}/></div>;
 }
 
 ReactDOM.render(<App/>, document.getElementById("root"));
