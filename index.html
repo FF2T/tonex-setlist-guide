@@ -3651,7 +3651,7 @@ function AddSongModal({songDb,onSongDb,setlists,onSetlists,activeSlId,onClose,ba
 function getJamRecs(guitarId, style, banksAnn, banksPlug, guitars){
   const guitar=(guitars||GUITARS).find(g=>g.id===guitarId);
   const gType=guitar?.type||"HB";
-  const allCatalog={...PRESET_CATALOG_FULL,...PRESET_CATALOG};
+  const allCatalog={...PRESET_CATALOG_MERGED};
   // deduplicate by name
   const allEntries=Object.entries(allCatalog);
   const seen=new Set();
@@ -4549,7 +4549,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           <button onClick={onProfile} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>👤</button>
           <button onClick={onSetlistScreen} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>🎵</button>
           <button onClick={onSettings} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>⚙️</button>
-          <button onClick={onLogout} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}} title="Se déconnecter">🚪</button>
+          <button onClick={onLogout} style={{background:"rgba(239,68,68,0.1)",border:"1px solid var(--red-border)",color:"var(--red)",borderRadius:8,padding:"6px 8px",fontSize:10,fontWeight:600,cursor:"pointer"}}>Quitter</button>
         </div>
       </div>
 
