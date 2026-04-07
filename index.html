@@ -3403,7 +3403,7 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
 }
 
 // ─── Paramètres Screen (admin PIN) ────────────────────────────────────────────
-function ParametresScreen({onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAiKeys,profile,profiles,onProfiles,activeProfileId,fullState,onImportState,banksAnn,onBanksAnn,banksPlug,onBanksPlug}) {
+function ParametresScreen({onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAiKeys,profile,profiles,onProfiles,activeProfileId,fullState,onImportState,banksAnn,onBanksAnn,banksPlug,onBanksPlug,songDb,onSongDb}) {
   const [unlocked,setUnlocked]=useState(false);
   const [pin,setPin]=useState("");
   const [pinErr,setPinErr]=useState(false);
@@ -3432,6 +3432,7 @@ function ParametresScreen({onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAi
             {tabBtn("presets","📦 Sources")}
             {tabBtn("ia","🔑 Clé API")}
             {tabBtn("profiles","👤 Profils")}
+            {tabBtn("maintenance","🔧 Maintenance")}
             {tabBtn("export","📋 Export / Import")}
           </div>
           {tab==="presets"&&<PacksTab profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId} aiProvider={aiProvider} aiKeys={aiKeys}/>}
@@ -3451,6 +3452,7 @@ function ParametresScreen({onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAi
             </div>
           </div>}
           {tab==="profiles"&&<ProfilesAdmin profiles={profiles} onProfiles={onProfiles}/>}
+          {tab==="maintenance"&&<MaintenanceTab songDb={songDb} onSongDb={onSongDb}/>}
           {tab==="export"&&<div>
             <button onClick={()=>onNavigate("exportimport")} style={{width:"100%",background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",color:"var(--yellow)",borderRadius:10,padding:"12px 16px",fontSize:13,fontWeight:700,cursor:"pointer",textAlign:"left"}}>
               📋 Export / Import →
@@ -3458,6 +3460,34 @@ function ParametresScreen({onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAi
           </div>}
         </div>
       )}
+    </div>
+  );
+}
+
+function MaintenanceTab({songDb,onSongDb}){
+  const [confirmClear,setConfirmClear]=useState(false);
+  const [cleared,setCleared]=useState(false);
+  const cachedCount=songDb.filter(s=>s.aiCache).length;
+  const clearCache=()=>{
+    onSongDb(p=>p.map(s=>({...s,aiCache:null})));
+    setConfirmClear(false);
+    setCleared(true);
+    setTimeout(()=>setCleared(false),3000);
+  };
+  return(
+    <div>
+      <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:16}}>Outils de maintenance de l'application.</div>
+      <div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:16,marginBottom:12}}>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:4}}>Recalculer les recommandations</div>
+        <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:10}}>Vide le cache IA de tous les morceaux ({cachedCount} en cache). Les recommandations seront recalculées avec les presets actuels de tes pédales.</div>
+        {cleared?<div style={{fontSize:12,color:"var(--green)",fontWeight:600}}>Cache vidé !</div>
+        :!confirmClear?<button onClick={()=>setConfirmClear(true)} style={{background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",color:"var(--yellow)",borderRadius:8,padding:"8px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Vider le cache IA ({cachedCount} morceaux)</button>
+        :<div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <span style={{fontSize:12,color:"var(--yellow)"}}>Confirmer ?</span>
+          <button onClick={clearCache} style={{background:"var(--yellow)",border:"none",color:"#0f172a",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Oui, vider</button>
+          <button onClick={()=>setConfirmClear(false)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:7,padding:"6px 12px",fontSize:12,cursor:"pointer"}}>Annuler</button>
+        </div>}
+      </div>
     </div>
   );
 }
@@ -4745,7 +4775,7 @@ function App() {
   if(screen==="pick") return <div className="page-root"><ProfilePickerScreen profiles={profiles} onPick={pickProfile} onCreateNew={createAndPick}/></div>;
   if(screen==="exportimport") return <div className="page-root"><ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("settings")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/></div>;
   if(screen==="profile")      return <div className="page-root"><MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} aiKeys={aiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab}/></div>;
-  if(screen==="settings")     return <div className="page-root"><ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug}/></div>;
+  if(screen==="settings")     return <div className="page-root"><ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} songDb={songDb} onSongDb={setSongDb}/></div>;
   if(screen==="setlists")     return <div className="page-root">
     <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Mes setlists"}]} onNavigate={setScreen}/>
     <div style={{fontSize:20,fontWeight:800,color:"var(--text)",marginBottom:16}}>🎵 Mes setlists</div>
