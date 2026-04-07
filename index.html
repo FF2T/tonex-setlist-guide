@@ -4248,6 +4248,10 @@ Réponds UNIQUEMENT en JSON (sans markdown) : {"title":"Titre exact","artist":"A
 // ─── HomeScreen (style Google) ────────────────────────────────────────────────
 function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onProfile,onSetlistScreen,onJam,onExplore,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profiles,activeProfileId,onSwitchProfile,customPacks}) {
   const profileName=(profiles[activeProfileId]||{}).name||"Profil";
+  const [songResult,setSongResult]=useState(null);
+  const [songLoading,setSongLoading]=useState(false);
+  const [songErr,setSongErr]=useState(null);
+  const [confirmedSong,setConfirmedSong]=useState(null);
 
   return (
     <div style={{display:"flex",flexDirection:"column",minHeight:"80vh"}}>
@@ -4267,22 +4271,76 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:24,textAlign:"center"}}>Quel morceau veux-tu jouer ?</div>
         <div style={{width:"100%",maxWidth:500}}>
           <SongSearchBar aiProvider={aiProvider} aiKeys={aiKeys} onConfirm={(title,artist)=>{
-            const existing=songDb.find(s=>normalizePresetName(s.title)===normalizePresetName(title));
-            if(existing){
-              onChecked([existing.id]);
-              onNext();
-            } else {
-              const ns={id:`c_${Date.now()}`,title,artist,isCustom:true,ig:[]};
-              onSongDb(p=>[...p,ns]);
-              onChecked([ns.id]);
-              onNext();
-            }
+            setConfirmedSong({title,artist});
+            setSongResult(null);setSongErr(null);setSongLoading(true);
+            const song={id:`tmp_${Date.now()}`,title,artist};
+            fetchAI(song,"",banksAnn,banksPlug,aiProvider,aiKeys,allGuitars)
+              .then(r=>{
+                setSongResult(r);
+                // Save to DB if not existing
+                const existing=songDb.find(s=>normalizePresetName(s.title)===normalizePresetName(title));
+                if(!existing){
+                  const ns={id:`c_${Date.now()}`,title,artist,isCustom:true,ig:[],aiCache:{gId:"",result:r}};
+                  onSongDb(p=>[...p,ns]);
+                }
+              })
+              .catch(e=>setSongErr(e.message))
+              .finally(()=>setSongLoading(false));
           }}/>
         </div>
+
+        {/* Loading */}
+        {songLoading&&<div style={{textAlign:"center",padding:20,color:"var(--text-muted)",fontSize:13}}>Analyse en cours...</div>}
+
+        {/* Erreur */}
+        {songErr&&<div style={{fontSize:12,color:"#f87171",textAlign:"center",padding:10}}>{songErr}</div>}
+
+        {/* Résultat */}
+        {songResult&&confirmedSong&&<div style={{width:"100%",maxWidth:500,animation:"slideDown .2s ease-out"}}>
+          <div style={{background:"rgba(99,102,241,0.08)",border:"1px solid rgba(99,102,241,0.3)",borderRadius:14,padding:16,marginTop:8}}>
+            <div style={{fontSize:16,fontWeight:800,color:"var(--text)",marginBottom:2}}>{confirmedSong.title}</div>
+            <div style={{fontSize:12,color:"var(--text-sec)",marginBottom:12}}>{confirmedSong.artist}</div>
+
+            {/* Guitare recommandée */}
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
+              {songResult.ideal_guitar&&<span style={{fontSize:11,background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:7,padding:"4px 10px",color:"#4ade80",fontWeight:600}}>🎸 {songResult.ideal_guitar}</span>}
+            </div>
+            {songResult.guitar_reason&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:10}}>{songResult.guitar_reason}</div>}
+
+            {/* Référence originale */}
+            {(songResult.ref_guitarist||songResult.ref_guitar||songResult.ref_amp)&&<div style={{background:"var(--a4)",borderRadius:8,padding:"8px 10px",marginBottom:10,fontSize:11,color:"var(--text-sec)",lineHeight:1.6}}>
+              {songResult.ref_guitarist&&<div><b style={{color:"var(--text-muted)"}}>Guitariste :</b> {songResult.ref_guitarist}</div>}
+              {songResult.ref_guitar&&<div><b style={{color:"var(--text-muted)"}}>Guitare :</b> {songResult.ref_guitar}</div>}
+              {songResult.ref_amp&&<div><b style={{color:"var(--text-muted)"}}>Ampli :</b> {songResult.ref_amp}</div>}
+              {songResult.ref_effects&&songResult.ref_effects!=="Aucun effet"&&<div><b style={{color:"var(--text-muted)"}}>Effets :</b> {songResult.ref_effects}</div>}
+            </div>}
+
+            {/* Presets recommandés */}
+            <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
+              {songResult.preset_ann&&<div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(74,222,128,0.06)",border:"1px solid rgba(74,222,128,0.15)",borderRadius:8,padding:"8px 10px"}}>
+                <span style={{fontSize:11,color:"#4ade80",fontWeight:700,flexShrink:0}}>📦 Anniversary</span>
+                <span style={{fontSize:11,color:"var(--text)",fontWeight:600}}>{songResult.preset_ann.label}</span>
+                <span style={{fontSize:10,color:"var(--text-muted)",marginLeft:"auto"}}>Bank {songResult.preset_ann.bank}{songResult.preset_ann.col}</span>
+              </div>}
+              {songResult.preset_plug&&<div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(99,102,241,0.06)",border:"1px solid rgba(99,102,241,0.15)",borderRadius:8,padding:"8px 10px"}}>
+                <span style={{fontSize:11,color:"#a5b4fc",fontWeight:700,flexShrink:0}}>🔌 Plug</span>
+                <span style={{fontSize:11,color:"var(--text)",fontWeight:600}}>{songResult.preset_plug.label}</span>
+                <span style={{fontSize:10,color:"var(--text-muted)",marginLeft:"auto"}}>Bank {songResult.preset_plug.bank}{songResult.preset_plug.col}</span>
+              </div>}
+            </div>
+
+            {/* Réglages */}
+            {songResult.settings_preset&&<div style={{fontSize:11,background:"rgba(251,191,36,0.07)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:7,padding:"6px 10px",color:"#fde68a",marginBottom:6}}><b style={{color:"#fbbf24"}}>Preset :</b> {songResult.settings_preset}</div>}
+            {songResult.settings_guitar&&<div style={{fontSize:11,background:"rgba(34,197,94,0.07)",border:"1px solid rgba(34,197,94,0.15)",borderRadius:7,padding:"6px 10px",color:"#bbf7d0"}}><b style={{color:"#4ade80"}}>Guitare :</b> {songResult.settings_guitar}</div>}
+
+            {/* Nouveau morceau */}
+            <button onClick={()=>{setConfirmedSong(null);setSongResult(null);}} style={{width:"100%",marginTop:10,background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-sec)",borderRadius:8,padding:"8px",fontSize:12,cursor:"pointer"}}>Autre morceau</button>
+          </div>
+        </div>}
       </div>
 
-      {/* Tuiles en bas */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,paddingBottom:12}}>
+      {/* Tuiles en bas (masquer si résultat ou loading) */}
+      {!songResult&&!songLoading&&<div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,paddingBottom:12}}>
         <button onClick={onSetlistScreen} style={{background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.3)",borderRadius:14,padding:"16px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
           <div style={{fontSize:24,marginBottom:4}}>🎵</div>
           <div style={{fontSize:13,fontWeight:700,color:"#a5b4fc"}}>Mes setlists</div>
@@ -4303,7 +4361,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           <div style={{fontSize:13,fontWeight:700,color:"#4ade80"}}>Mon profil</div>
           <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>{allGuitars?.length||0} guitare{(allGuitars?.length||0)>1?"s":""}</div>
         </button>
-      </div>
+      </div>}
     </div>
   );
 }
