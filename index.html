@@ -3604,13 +3604,9 @@ function PresetDetailInline({name,info,banksAnn,banksPlug}){
         </div>
       </div>
       {ctx?.desc&&<div style={{fontSize:11,color:"#cbd5e1",lineHeight:1.6,marginBottom:10,padding:"7px 10px",background:"var(--a4)",borderRadius:7,borderLeft:"3px solid rgba(99,102,241,0.5)"}}>{ctx.desc}</div>}
-      {ctx?.artists&&<div style={{marginBottom:8}}>
-        <div style={{fontSize:9,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>Artistes</div>
-        <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{ctx.artists.map(a=><span key={a} style={{fontSize:10,background:"rgba(167,139,250,0.12)",color:"#a78bfa",border:"1px solid rgba(167,139,250,0.25)",borderRadius:5,padding:"2px 7px",fontWeight:600}}>{a}</span>)}</div>
-      </div>}
-      {ctx?.tracks&&<div style={{marginBottom:10}}>
-        <div style={{fontSize:9,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>Morceaux</div>
-        <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{ctx.tracks.map(t=><span key={t} style={{fontSize:10,background:"rgba(56,189,248,0.08)",color:"#7dd3fc",border:"1px solid rgba(56,189,248,0.2)",borderRadius:5,padding:"2px 7px"}}>{t}</span>)}</div>
+      {(ctx?.artists||ctx?.tracks)&&<div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:10}}>
+        {(ctx.artists||[]).map(a=><span key={a} style={{fontSize:10,background:"rgba(167,139,250,0.12)",color:"#a78bfa",border:"1px solid rgba(167,139,250,0.25)",borderRadius:5,padding:"2px 7px",fontWeight:600}}>{a}</span>)}
+        {(ctx.tracks||[]).map(t=><span key={t} style={{fontSize:10,background:"rgba(56,189,248,0.08)",color:"#7dd3fc",border:"1px solid rgba(56,189,248,0.2)",borderRadius:5,padding:"2px 7px"}}>{t}</span>)}
       </div>}
       <div style={{marginBottom:8}}>
         <div style={{fontSize:9,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:5}}>Pertinence par guitare</div>
