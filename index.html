@@ -3580,38 +3580,113 @@ function NewSongExplorer({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug
 
 // ─── PresetBrowser ────────────────────────────────────────────────────────────
 const PRESET_PAGE_SIZE=30;
-function PresetList({filtered,selected,setSelected,banksAnn,banksPlug}){
+function PresetDetailInline({name,info,banksAnn,banksPlug}){
+  const ctx=PRESET_CONTEXT[info.amp];
+  const annLoc=findInBanks(name,banksAnn);
+  const plugLoc=findInBanks(name,banksPlug);
+  const ScoreBar=({label,score})=>(
+    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
+      <span style={{fontSize:10,color:"var(--text-muted)",width:28,flexShrink:0}}>{label}</span>
+      <div style={{flex:1,height:5,background:"var(--a8)",borderRadius:3,overflow:"hidden"}}><div style={{width:`${score}%`,height:"100%",background:scoreColor(score),borderRadius:3}}/></div>
+      <span style={{fontSize:10,fontWeight:700,color:scoreColor(score),width:30,textAlign:"right"}}>{score}%</span>
+    </div>
+  );
+  return(
+    <div style={{background:"rgba(99,102,241,0.08)",border:"1px solid rgba(99,102,241,0.3)",borderRadius:"0 0 9px 9px",padding:14,marginTop:-1,animation:"slideDown .2s ease-out"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+        <div style={{flex:1,marginRight:10}}>
+          {ctx?.emoji&&<span style={{fontSize:20,marginRight:6}}>{ctx.emoji}</span>}
+          <span style={{fontSize:12,color:"var(--text-sec)"}}>{info.amp}</span>
+          {info.pack&&<span style={{fontSize:9,color:"#fbbf24",background:"rgba(251,191,36,0.1)",borderRadius:4,padding:"1px 6px",marginLeft:6,fontWeight:600}}>{info.pack}</span>}
+        </div>
+        <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0}}>
+          {styleBadge(info.style)}{gainBadge(info.gain)}
+        </div>
+      </div>
+      {ctx?.desc&&<div style={{fontSize:11,color:"#cbd5e1",lineHeight:1.6,marginBottom:10,padding:"7px 10px",background:"var(--a4)",borderRadius:7,borderLeft:"3px solid rgba(99,102,241,0.5)"}}>{ctx.desc}</div>}
+      {ctx?.artists&&<div style={{marginBottom:8}}>
+        <div style={{fontSize:9,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>Artistes</div>
+        <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{ctx.artists.map(a=><span key={a} style={{fontSize:10,background:"rgba(167,139,250,0.12)",color:"#a78bfa",border:"1px solid rgba(167,139,250,0.25)",borderRadius:5,padding:"2px 7px",fontWeight:600}}>{a}</span>)}</div>
+      </div>}
+      {ctx?.tracks&&<div style={{marginBottom:10}}>
+        <div style={{fontSize:9,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>Morceaux</div>
+        <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{ctx.tracks.map(t=><span key={t} style={{fontSize:10,background:"rgba(56,189,248,0.08)",color:"#7dd3fc",border:"1px solid rgba(56,189,248,0.2)",borderRadius:5,padding:"2px 7px"}}>{t}</span>)}</div>
+      </div>}
+      <div style={{marginBottom:8}}>
+        <div style={{fontSize:9,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:5}}>Pertinence par guitare</div>
+        {["HB","SC","P90"].map(gt=><ScoreBar key={gt} label={gt} score={info.scores[gt]||60}/>)}
+      </div>
+      <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+        {annLoc
+          ?<span style={{fontSize:10,background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:6,padding:"3px 8px",color:"#4ade80",fontWeight:600}}>📦 Bank {annLoc.bank}{annLoc.slot}</span>
+          :<span style={{fontSize:10,background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:6,padding:"3px 8px",color:"var(--text-dim)"}}>📦 Non installé</span>}
+        {plugLoc
+          ?<span style={{fontSize:10,background:"rgba(99,102,241,0.12)",border:"1px solid rgba(99,102,241,0.3)",borderRadius:6,padding:"3px 8px",color:"#a5b4fc",fontWeight:600}}>🔌 Bank {plugLoc.bank}{plugLoc.slot}</span>
+          :<span style={{fontSize:10,background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:6,padding:"3px 8px",color:"var(--text-dim)"}}>🔌 Non installé</span>}
+      </div>
+    </div>
+  );
+}
+
+function PresetList({filtered,selected,setSelected,banksAnn,banksPlug,fullCatalog,filterSrc,filterPack,setFilterPack}){
   const [shown,setShown]=useState(PRESET_PAGE_SIZE);
-  useEffect(()=>setShown(PRESET_PAGE_SIZE),[filtered]);
-  const visible=filtered.slice(0,shown);
-  const remaining=filtered.length-shown;
+  useEffect(()=>setShown(PRESET_PAGE_SIZE),[filtered,filterPack]);
+
+  // Sub-pack grouping for TSR
+  const subPacks=useMemo(()=>{
+    if(filterSrc!=="TSR") return null;
+    const packs={};
+    filtered.forEach(([name,info])=>{if(info.pack){packs[info.pack]=(packs[info.pack]||0)+1;}});
+    return Object.entries(packs).sort((a,b)=>a[0].localeCompare(b[0]));
+  },[filtered,filterSrc]);
+
+  const displayFiltered=useMemo(()=>{
+    if(!filterPack) return filtered;
+    return filtered.filter(([,info])=>info.pack===filterPack);
+  },[filtered,filterPack]);
+
+  const visible=displayFiltered.slice(0,shown);
+  const remaining=displayFiltered.length-shown;
   return(
     <div>
+      {/* Sub-pack chips for TSR */}
+      {subPacks&&subPacks.length>1&&<div style={{marginBottom:12}}>
+        <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Packs Studio Rats</div>
+        <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+          <button onClick={()=>setFilterPack(null)} style={{fontSize:10,fontWeight:filterPack?500:700,color:filterPack?"var(--text-muted)":"#fbbf24",background:filterPack?"var(--a3)":"rgba(251,191,36,0.15)",border:filterPack?"1px solid var(--a6)":"1px solid rgba(251,191,36,0.4)",borderRadius:6,padding:"4px 8px",cursor:"pointer"}}>Tous ({filtered.length})</button>
+          {subPacks.map(([pack,count])=>(
+            <button key={pack} onClick={()=>setFilterPack(filterPack===pack?null:pack)} style={{fontSize:10,fontWeight:filterPack===pack?700:500,color:filterPack===pack?"#fbbf24":"var(--text-sec)",background:filterPack===pack?"rgba(251,191,36,0.15)":"var(--a3)",border:filterPack===pack?"1px solid rgba(251,191,36,0.4)":"1px solid var(--a6)",borderRadius:6,padding:"4px 8px",cursor:"pointer"}}>{pack} ({count})</button>
+          ))}
+        </div>
+      </div>}
       <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>
-        {filtered.length} preset{filtered.length>1?"s":""} trouvé{filtered.length>1?"s":""} — clique pour voir la fiche
+        {displayFiltered.length} preset{displayFiltered.length>1?"s":""} — clique pour voir la fiche
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:3}}>
         {visible.map(([name,info])=>{
           const annLoc=findInBanks(name,banksAnn);
           const plugLoc=findInBanks(name,banksPlug);
-          const installed=!!(annLoc||plugLoc);
           const isSel=selected===name;
           return(
-            <div key={name} onClick={()=>setSelected(isSel?null:name)}
-              style={{display:"flex",alignItems:"center",gap:8,background:isSel?"rgba(99,102,241,0.18)":"var(--a3)",border:isSel?"1px solid rgba(99,102,241,0.45)":"1px solid var(--a6)",borderRadius:9,padding:"8px 11px",cursor:"pointer"}}>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:12,color:isSel?"#a5b4fc":"#e2e8f0",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</div>
-                <div style={{display:"flex",gap:5,alignItems:"center",marginTop:2,flexWrap:"wrap"}}>
-                  <span style={{fontSize:10,color:"var(--text-muted)"}}>{info.amp}</span>
-                  {annLoc&&<span style={{fontSize:9,color:"#93c5fd",background:"rgba(147,197,253,0.1)",borderRadius:3,padding:"1px 5px",fontWeight:700}}>📦{annLoc.bank}{annLoc.slot}</span>}
-                  {plugLoc&&<span style={{fontSize:9,color:"#a5b4fc",background:"rgba(165,180,252,0.1)",borderRadius:3,padding:"1px 5px",fontWeight:700}}>🔌{plugLoc.bank}{plugLoc.slot}</span>}
+            <div key={name}>
+              <div onClick={()=>setSelected(isSel?null:name)}
+                style={{display:"flex",alignItems:"center",gap:8,background:isSel?"rgba(99,102,241,0.18)":"var(--a3)",border:isSel?"1px solid rgba(99,102,241,0.45)":"1px solid var(--a6)",borderRadius:isSel?"9px 9px 0 0":9,padding:"8px 11px",cursor:"pointer"}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,color:isSel?"#a5b4fc":"#e2e8f0",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</div>
+                  <div style={{display:"flex",gap:5,alignItems:"center",marginTop:2,flexWrap:"wrap"}}>
+                    <span style={{fontSize:10,color:"var(--text-muted)"}}>{info.amp}</span>
+                    {info.pack&&<span style={{fontSize:9,color:"#fbbf24",background:"rgba(251,191,36,0.08)",borderRadius:3,padding:"1px 5px"}}>{info.pack}</span>}
+                    {annLoc&&<span style={{fontSize:9,color:"#93c5fd",background:"rgba(147,197,253,0.1)",borderRadius:3,padding:"1px 5px",fontWeight:700}}>📦{annLoc.bank}{annLoc.slot}</span>}
+                    {plugLoc&&<span style={{fontSize:9,color:"#a5b4fc",background:"rgba(165,180,252,0.1)",borderRadius:3,padding:"1px 5px",fontWeight:700}}>🔌{plugLoc.bank}{plugLoc.slot}</span>}
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:3,alignItems:"center",flexShrink:0}}>
+                  {["HB","SC","P90"].map(gt=>(
+                    <span key={gt} style={{fontSize:9,color:scoreColor(info.scores[gt]||60),fontWeight:700,background:scoreBg(info.scores[gt]||60),borderRadius:3,padding:"1px 4px"}}>{info.scores[gt]||60}</span>
+                  ))}
                 </div>
               </div>
-              <div style={{display:"flex",gap:3,alignItems:"center",flexShrink:0}}>
-                {["HB","SC","P90"].map(gt=>(
-                  <span key={gt} style={{fontSize:9,color:scoreColor(info.scores[gt]||60),fontWeight:700,background:scoreBg(info.scores[gt]||60),borderRadius:3,padding:"1px 4px"}}>{info.scores[gt]||60}</span>
-                ))}
-              </div>
+              {isSel&&<PresetDetailInline name={name} info={info} banksAnn={banksAnn} banksPlug={banksPlug}/>}
             </div>
           );
         })}
@@ -3633,6 +3708,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
   const [showAllSrc,setShowAllSrc]=useState(false);
   const [search,setSearch]=useState("");
   const [selected,setSelected]=useState(null);
+  const [filterPack,setFilterPack]=useState(null);
 
   // Merge custom packs into catalog
   const fullCatalog=useMemo(()=>{
@@ -3674,21 +3750,6 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
     setSelected(name);
   };
 
-  const selInfo=selected?(fullCatalog[selected]||PRESET_CATALOG[selected]):null;
-  const selCtx=selInfo?PRESET_CONTEXT[selInfo.amp]:null;
-  const annLoc=selected?findInBanks(selected,banksAnn):null;
-  const plugLoc=selected?findInBanks(selected,banksPlug):null;
-
-  const ScoreBar=({label,score})=>(
-    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
-      <span style={{fontSize:10,color:"var(--text-muted)",width:28,flexShrink:0}}>{label}</span>
-      <div style={{flex:1,height:5,background:"var(--a8)",borderRadius:3,overflow:"hidden"}}>
-        <div style={{width:`${score}%`,height:"100%",background:scoreColor(score),borderRadius:3}}/>
-      </div>
-      <span style={{fontSize:10,fontWeight:700,color:scoreColor(score),width:30,textAlign:"right"}}>{score}%</span>
-    </div>
-  );
-
   const STYLE_OPTS={all:"Tous styles",hard_rock:"Hard Rock",rock:"Rock",blues:"Blues",jazz:"Jazz",pop:"Pop",metal:"Metal"};
   const GAIN_OPTS={all:"Tous gains",low:"Low gain",mid:"Mid gain",high:"High gain"};
   const SRC_OPTS={all:"Toutes sources",TSR:"64 Studio Rats",ML:"ML Sound Lab Essentials",Anniversary:"ToneX Anniversary Factory",Factory:"ToneX Factory",custom:"Custom"};
@@ -3710,7 +3771,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
           <select value={filterStyle} onChange={e=>setFilterStyle(e.target.value)} style={selStyle}>{Object.entries(STYLE_OPTS).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
           <select value={filterGain} onChange={e=>setFilterGain(e.target.value)} style={selStyle}>{Object.entries(GAIN_OPTS).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
-          <select value={filterSrc} onChange={e=>setFilterSrc(e.target.value)} style={selStyle}>{Object.entries(SRC_OPTS).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
+          <select value={filterSrc} onChange={e=>{setFilterSrc(e.target.value);setFilterPack(null);}} style={selStyle}>{Object.entries(SRC_OPTS).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
         </div>
         <input placeholder="Artiste, morceau, ampli…" value={search} onChange={e=>setSearch(e.target.value)}
           style={{width:"100%",background:"var(--bg-body)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:8,padding:"7px 11px",fontSize:12,boxSizing:"border-box"}}/>
@@ -3719,54 +3780,9 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
         </label>}
         {hasFilter&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8}}>
           <span style={{fontSize:11,color:"var(--text-muted)"}}>{filtered.length} preset{filtered.length>1?"s":""} trouvé{filtered.length>1?"s":""}</span>
-          <button onClick={()=>{setFilterStyle("all");setFilterGain("all");setFilterSrc("all");setSearch("");}} style={{fontSize:11,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Réinitialiser</button>
+          <button onClick={()=>{setFilterStyle("all");setFilterGain("all");setFilterSrc("all");setFilterPack(null);setSearch("");}} style={{fontSize:11,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Réinitialiser</button>
         </div>}
       </div>
-
-      {/* Fiche preset sélectionné */}
-      {selected&&selInfo&&(
-        <div style={{background:"rgba(99,102,241,0.08)",border:"2px solid rgba(99,102,241,0.4)",borderRadius:16,padding:18,marginBottom:16}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
-            <div style={{flex:1,marginRight:10}}>
-              {selCtx?.emoji&&<div style={{fontSize:26,marginBottom:4}}>{selCtx.emoji}</div>}
-              <div style={{fontSize:15,fontWeight:800,color:"var(--text)",marginBottom:2}}>{selected}</div>
-              <div style={{fontSize:12,color:"var(--text-sec)"}}>{selInfo.amp}</div>
-            </div>
-            <div style={{display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end",flexShrink:0}}>
-              {styleBadge(selInfo.style)}
-              {gainBadge(selInfo.gain)}
-              <span style={{fontSize:9,color:"var(--text-muted)",background:"var(--a6)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{srcBadge(selected)||selInfo.src}</span>
-            </div>
-          </div>
-          {selCtx?.desc&&<div style={{fontSize:12,color:"#cbd5e1",lineHeight:1.65,marginBottom:12,padding:"9px 12px",background:"var(--a4)",borderRadius:8,borderLeft:"3px solid rgba(99,102,241,0.5)"}}>{selCtx.desc}</div>}
-          {selCtx?.artists&&<div style={{marginBottom:10}}>
-            <div style={{fontSize:9,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:5}}>Artistes de référence</div>
-            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-              {selCtx.artists.map(a=><span key={a} style={{fontSize:11,background:"rgba(167,139,250,0.12)",color:"#a78bfa",border:"1px solid rgba(167,139,250,0.25)",borderRadius:5,padding:"2px 9px",fontWeight:600}}>{a}</span>)}
-            </div>
-          </div>}
-          {selCtx?.tracks&&<div style={{marginBottom:12}}>
-            <div style={{fontSize:9,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:5}}>Morceaux / Albums évocateurs</div>
-            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-              {selCtx.tracks.map(t=><span key={t} style={{fontSize:11,background:"rgba(56,189,248,0.08)",color:"#7dd3fc",border:"1px solid rgba(56,189,248,0.2)",borderRadius:5,padding:"2px 9px"}}>{t}</span>)}
-            </div>
-          </div>}
-          <div style={{marginBottom:10}}>
-            <div style={{fontSize:9,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Pertinence par guitare</div>
-            {["HB","SC","P90"].map(gt=><ScoreBar key={gt} label={gt} score={selInfo.scores[gt]||60}/>)}
-          </div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            {annLoc
-              ?<span style={{fontSize:11,background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:7,padding:"4px 10px",color:"#4ade80",fontWeight:600}}>📦 Bank {annLoc.bank}{annLoc.slot}</span>
-              :<span style={{fontSize:11,background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:7,padding:"4px 10px",color:"var(--text-dim)"}}>📦 Non installé (Ann.)</span>
-            }
-            {plugLoc
-              ?<span style={{fontSize:11,background:"rgba(99,102,241,0.12)",border:"1px solid rgba(99,102,241,0.3)",borderRadius:7,padding:"4px 10px",color:"#a5b4fc",fontWeight:600}}>🔌 Bank {plugLoc.bank}{plugLoc.slot}</span>
-              :<span style={{fontSize:11,background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:7,padding:"4px 10px",color:"var(--text-dim)"}}>🔌 Non installé (Plug)</span>
-            }
-          </div>
-        </div>
-      )}
 
       {/* Packs browsing / Liste des presets */}
       {!hasFilter&&(()=>{
@@ -3788,7 +3804,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
           <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:10}}>Parcourir par pack — {Object.keys(fullCatalog).length} presets au total</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8}}>
             {packCards.filter(p=>srcCounts[p.id]).map(p=>(
-              <button key={p.id} onClick={()=>setFilterSrc(p.id)}
+              <button key={p.id} onClick={()=>{setFilterSrc(p.id);setFilterPack(null);}}
                 style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:"14px 10px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}
                 onMouseOver={e=>{e.currentTarget.style.borderColor=`rgb(${p.color})`;e.currentTarget.style.background="var(--a7)";}}
                 onMouseOut={e=>{e.currentTarget.style.borderColor="var(--a8)";e.currentTarget.style.background="var(--a4)";}}>
@@ -3802,7 +3818,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
         </div>;
       })()}
       {hasFilter&&filtered.length===0&&<div style={{textAlign:"center",padding:"24px",color:"#475569",fontSize:13}}>Aucun preset ne correspond à ces critères.</div>}
-      {hasFilter&&filtered.length>0&&<PresetList filtered={filtered} selected={selected} setSelected={setSelected} banksAnn={banksAnn} banksPlug={banksPlug}/>}
+      {hasFilter&&filtered.length>0&&<PresetList filtered={filtered} selected={selected} setSelected={setSelected} banksAnn={banksAnn} banksPlug={banksPlug} fullCatalog={fullCatalog} filterSrc={filterSrc} filterPack={filterPack} setFilterPack={setFilterPack}/>}
     </div>
   );
 }
