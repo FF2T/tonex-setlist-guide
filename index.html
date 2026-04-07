@@ -44,6 +44,36 @@ self.addEventListener('fetch',e=>{
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+const firebaseApp = firebase.initializeApp({
+  apiKey: "AIzaSyAnaJMN-a47S9W_cTC60lKAnzRMAgHNMAA",
+  authDomain: "tonex-guide.firebaseapp.com",
+  projectId: "tonex-guide",
+  storageBucket: "tonex-guide.firebasestorage.app",
+  messagingSenderId: "891859157059",
+  appId: "1:891859157059:web:519ce30a866f20ab3d54f6"
+});
+const db = firebase.firestore();
+
+// Sync helpers
+function saveToFirestore(state) {
+  // Firestore has 1MB doc limit, split large data
+  const light = {...state, shared: {...state.shared, songDb: state.shared.songDb?.slice(0,500)}};
+  return db.collection("sync").doc("state").set(light, {merge: true}).catch(e => console.warn("Firestore save:", e));
+}
+function loadFromFirestore() {
+  return db.collection("sync").doc("state").get()
+    .then(doc => doc.exists ? doc.data() : null)
+    .catch(e => { console.warn("Firestore load:", e); return null; });
+}
+function onFirestoreChange(callback) {
+  return db.collection("sync").doc("state").onSnapshot(doc => {
+    if (doc.exists) callback(doc.data());
+  }, e => console.warn("Firestore listen:", e));
+}
+</script>
 <style>
   :root, [data-theme="dark"] {
     --bg-body:#0f172a; --bg-card:#1e293b; --bg-disabled:#374151;
@@ -4258,7 +4288,7 @@ Réponds UNIQUEMENT en JSON (sans markdown) : {"title":"Titre exact","artist":"A
 }
 
 // ─── HomeScreen (style Google) ────────────────────────────────────────────────
-function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onProfile,onSetlistScreen,onJam,onExplore,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profiles,activeProfileId,onSwitchProfile,customPacks}) {
+function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onProfile,onSetlistScreen,onJam,onExplore,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profiles,activeProfileId,onSwitchProfile,customPacks,syncStatus}) {
   const profileName=(profiles[activeProfileId]||{}).name||"Profil";
   const [songResult,setSongResult]=useState(null);
   const [songLoading,setSongLoading]=useState(false);
@@ -4270,9 +4300,10 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
       {/* Header nav */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,marginBottom:8}}>
         <ProfileSelector profiles={profiles} activeProfileId={activeProfileId} onSwitch={onSwitchProfile} onSettings={onProfile}/>
-        <div style={{display:"flex",gap:6}}>
-          <button onClick={onProfile} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>👤 Mon profil</button>
-          <button onClick={onSetlistScreen} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>🎵 Setlists</button>
+        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+          {syncStatus&&<span style={{fontSize:10,color:syncStatus==="synced"?"var(--green)":syncStatus==="syncing"?"var(--yellow)":syncStatus==="error"?"var(--red)":"var(--text-dim)",marginRight:2}} title={syncStatus==="synced"?"Synchronisé":syncStatus==="syncing"?"Synchronisation...":"Hors ligne"}>{syncStatus==="synced"?"☁️":syncStatus==="syncing"?"⏳":"⚠️"}</span>}
+          <button onClick={onProfile} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>👤</button>
+          <button onClick={onSetlistScreen} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>🎵</button>
           <button onClick={onSettings} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>⚙️</button>
         </div>
       </div>
@@ -4391,6 +4422,7 @@ function mergeBanks(saved, init){
 
 function App() {
   const saved = loadState();
+  const [firestoreLoaded, setFirestoreLoaded] = useState(false);
   const initDefault = saved || {
     version:2,
     activeProfileId:"sebastien",
@@ -4431,14 +4463,52 @@ function App() {
   const [screen,  setScreen]  = useState(multiProfile ? "pick" : "list");
   const [checked, setChecked] = useState([]);
   const [synth,   setSynth]   = useState(null);
+  const [syncStatus, setSyncStatus] = useState("idle"); // idle|syncing|synced|error
+  const ignoreNextSnapshot = useRef(false);
 
   // Destructure profile fields for convenience
   const {banksAnn, banksPlug, aiProvider, aiKeys, availableSources} = profile;
   // Filter setlists for current profile
   const mySetlists = setlists.filter(sl => !sl.profileIds || sl.profileIds.length === 0 || sl.profileIds.includes(activeProfileId));
 
-  // Persist
-  useEffect(()=>{saveState({version:2, activeProfileId, shared:{songDb,theme,setlists}, profiles});},[songDb,theme,setlists,profiles,activeProfileId]);
+  // Persist to localStorage + Firestore
+  useEffect(()=>{
+    const state={version:2, activeProfileId, shared:{songDb,theme,setlists}, profiles};
+    try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){}
+    ignoreNextSnapshot.current = true;
+    setSyncStatus("syncing");
+    saveToFirestore(state).then(()=>setSyncStatus("synced")).catch(()=>setSyncStatus("error"));
+  },[songDb,theme,setlists,profiles,activeProfileId]);
+
+  // Load from Firestore on first mount (for new devices)
+  useEffect(()=>{
+    if(saved) {setFirestoreLoaded(true);return;} // already have local data
+    loadFromFirestore().then(data=>{
+      if(data&&data.shared&&data.profiles){
+        if(data.shared.songDb) setSongDb(data.shared.songDb);
+        if(data.shared.theme) setTheme(data.shared.theme);
+        if(data.shared.setlists) setSetlists(data.shared.setlists);
+        if(data.profiles) setProfiles(data.profiles);
+        if(data.activeProfileId) setActiveProfileId(data.activeProfileId);
+      }
+      setFirestoreLoaded(true);
+    }).catch(()=>setFirestoreLoaded(true));
+  },[]);
+
+  // Listen for remote changes from other devices
+  useEffect(()=>{
+    const unsub = onFirestoreChange(data=>{
+      if(ignoreNextSnapshot.current){ignoreNextSnapshot.current=false;return;}
+      if(!data||!data.shared||!data.profiles) return;
+      // Apply remote state
+      if(data.shared.songDb) setSongDb(data.shared.songDb);
+      if(data.shared.theme) setTheme(data.shared.theme);
+      if(data.shared.setlists) setSetlists(data.shared.setlists);
+      if(data.profiles) setProfiles(data.profiles);
+      setSyncStatus("synced");
+    });
+    return ()=>unsub();
+  },[]);
 
   // Reset on profile switch
   useEffect(()=>{setChecked([]);setScreen("list");},[activeProfileId]);
@@ -4499,7 +4569,7 @@ function App() {
   </div>;
   if(screen==="synthesis"&&synth) return <div className="page-root"><SynthesisScreen songs={songs} gps={synth.gps} aiR={synth.aiR} onBack={()=>setScreen("recap")} onNavigate={setScreen} songDb={songDb} banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/></div>;
   if(screen==="recap")        return <div className="page-root"><RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDb} onSongDb={setSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources}/></div>;
-  return <div className="page-root"><HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} customPacks={profile.customPacks}/></div>;
+  return <div className="page-root"><HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} customPacks={profile.customPacks} syncStatus={syncStatus}/></div>;
 }
 
 ReactDOM.render(<App/>, document.getElementById("root"));
