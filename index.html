@@ -3744,14 +3744,13 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
     })
   ,[filterStyle,filterGain,filterSrc,search]);
 
-  const [showAll,setShowAll]=useState(false);
+  const [randomPick,setRandomPick]=useState(null);
   const pickRandom=()=>{
     const pool=Object.entries(fullCatalog);
     if(!pool.length)return;
-    const [name]=pool[Math.floor(Math.random()*pool.length)];
-    setSelected(name);
-    setShowAll(true);
-    setFilterStyle("all");setFilterGain("all");setFilterSrc("all");setFilterPack(null);setSearch("");
+    const [name,info]=pool[Math.floor(Math.random()*pool.length)];
+    setRandomPick({name,info});
+    setSelected(null);
   };
 
   const STYLE_OPTS={all:"Tous styles",hard_rock:"Hard Rock",rock:"Rock",blues:"Blues",jazz:"Jazz",pop:"Pop",metal:"Metal"};
@@ -3760,15 +3759,24 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
   const SRC_OPTS={all:"Toutes sources",...Object.fromEntries(Object.entries(ALL_SRC_OPTS).filter(([k])=>!availableSources||availableSources[k]!==false))};
   const selStyle={background:"var(--bg-card)",color:"var(--text-sec)",border:"1px solid var(--a12)",borderRadius:7,padding:"6px 10px",fontSize:12,cursor:"pointer"};
 
-  const hasFilter=showAll||filterStyle!=="all"||filterGain!=="all"||filterSrc!=="all"||search.trim();
+  const hasFilter=filterStyle!=="all"||filterGain!=="all"||filterSrc!=="all"||search.trim();
   return (
     <div>
       <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:14}}>Explore ta bibliothèque de presets et découvre leur contexte musical.</div>
 
       {/* Bouton aléatoire */}
       <button onClick={pickRandom} style={{width:"100%",background:"linear-gradient(135deg,#7c3aed,#0ea5e9)",border:"none",color:"var(--text)",borderRadius:12,padding:"14px",fontSize:15,fontWeight:700,cursor:"pointer",marginBottom:16}}>
-        🎲 Preset aléatoire {filtered.length<Object.keys(fullCatalog).length?`(dans les ${filtered.length} filtrés)`:""}
+        🎲 Preset aléatoire
       </button>
+
+      {/* Fiche du preset aléatoire */}
+      {randomPick&&<div style={{marginBottom:16}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+          <span style={{fontSize:13,fontWeight:800,color:"var(--text)"}}>{randomPick.name}</span>
+          <button onClick={()=>setRandomPick(null)} style={{background:"none",border:"none",color:"var(--text-muted)",cursor:"pointer",fontSize:14}}>✕</button>
+        </div>
+        <PresetDetailInline name={randomPick.name} info={randomPick.info} banksAnn={banksAnn} banksPlug={banksPlug}/>
+      </div>}
 
       {/* Filtres */}
       <div style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:12,padding:12,marginBottom:16}}>
@@ -3782,7 +3790,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
           style={{width:"100%",background:"var(--bg-body)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:8,padding:"7px 11px",fontSize:12,boxSizing:"border-box"}}/>
         {hasFilter&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8}}>
           <span style={{fontSize:11,color:"var(--text-muted)"}}>{filtered.length} preset{filtered.length>1?"s":""} trouvé{filtered.length>1?"s":""}</span>
-          <button onClick={()=>{setFilterStyle("all");setFilterGain("all");setFilterSrc("all");setFilterPack(null);setSearch("");setShowAll(false);}} style={{fontSize:11,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Réinitialiser</button>
+          <button onClick={()=>{setFilterStyle("all");setFilterGain("all");setFilterSrc("all");setFilterPack(null);setSearch("");}} style={{fontSize:11,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Réinitialiser</button>
         </div>}
       </div>
 
