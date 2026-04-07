@@ -3127,6 +3127,7 @@ function SettingsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksAn
         {profile.devices?.anniversary&&tabBtn("ann","🎛 ToneX Ann.")}
         {profile.devices?.plug&&tabBtn("plug","🔌 ToneX Plug")}
         {tabBtn("ia","🔑 IA")}
+
         {tabBtn("display","🎨 Affichage")}
       </div>
       {tab==="profile"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp}/>}
@@ -3217,13 +3218,34 @@ function SettingsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksAn
       {tab==="pedale"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="#f59e0b"/>}
       {tab==="ann"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="#3b82f6"/>}
       {tab==="plug"&&<BankEditor banks={banksPlug} onBanks={onBanksPlug} color="#6366f1"/>}
-      {tab==="ia"&&<div>
-        <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>Fournisseur IA pour l'analyse des morceaux personnalisés.</div>
-        <div style={{display:"flex",gap:8,marginBottom:16}}>
-          {[{v:"anthropic",l:"Anthropic (Claude)"},{v:"gemini",l:"Google (Gemini)"}].map(({v,l})=>(
-            <button key={v} onClick={()=>onAiProvider(v)} style={{flex:1,background:aiProvider===v?"rgba(99,102,241,0.3)":"var(--a5)",border:aiProvider===v?"1px solid rgba(99,102,241,0.6)":"1px solid var(--a10)",color:aiProvider===v?"#a5b4fc":"#94a3b8",borderRadius:8,padding:"8px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{l}</button>
-          ))}
-        </div>
+      {tab==="ia"&&<IATab aiProvider={aiProvider} onAiProvider={onAiProvider} aiKeys={aiKeys} onAiKeys={onAiKeys} inp={inp}/>}
+    </div>
+  );
+}
+
+function IATab({aiProvider,onAiProvider,aiKeys,onAiKeys,inp}){
+  const [unlocked,setUnlocked]=useState(false);
+  const [pin,setPin]=useState("");
+  const [pinErr,setPinErr]=useState(false);
+  const tryUnlock=()=>{if(pin===ADMIN_PIN){setUnlocked(true);setPinErr(false);}else{setPinErr(true);}};
+  if(!unlocked) return(
+    <div>
+      <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>Entrez le code administrateur pour accéder aux clés API.</div>
+      <div style={{display:"flex",gap:8}}>
+        <input type="password" placeholder="Code admin" value={pin} onChange={e=>{setPin(e.target.value);setPinErr(false);}} onKeyDown={e=>e.key==="Enter"&&tryUnlock()} style={{...inp,flex:1}}/>
+        <button onClick={tryUnlock} style={{background:"#4f46e5",border:"none",color:"#fff",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>OK</button>
+      </div>
+      {pinErr&&<div style={{fontSize:11,color:"#f87171",marginTop:6}}>Code incorrect</div>}
+    </div>
+  );
+  return(
+    <div>
+      <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>Fournisseur IA pour l'analyse des morceaux personnalisés.</div>
+      <div style={{display:"flex",gap:8,marginBottom:16}}>
+        {[{v:"anthropic",l:"Anthropic (Claude)"},{v:"gemini",l:"Google (Gemini)"}].map(({v,l})=>(
+          <button key={v} onClick={()=>onAiProvider(v)} style={{flex:1,background:aiProvider===v?"rgba(99,102,241,0.3)":"var(--a5)",border:aiProvider===v?"1px solid rgba(99,102,241,0.6)":"1px solid var(--a10)",color:aiProvider===v?"#a5b4fc":"#94a3b8",borderRadius:8,padding:"8px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{l}</button>
+        ))}
+      </div>
         {aiProvider==="anthropic"&&<div style={{background:"rgba(167,139,250,0.06)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:12,padding:16}}>
           <div style={{fontSize:12,fontWeight:700,color:"#a78bfa",marginBottom:10}}>🔑 Clé API Anthropic</div>
           <input type="password" placeholder="sk-ant-..." value={aiKeys.anthropic} onChange={e=>onAiKeys(p=>({...p,anthropic:e.target.value}))} style={{...inp,width:"100%",marginBottom:8,fontFamily:"monospace"}}/>
@@ -3236,7 +3258,6 @@ function SettingsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksAn
           <div style={{fontSize:11,color:"var(--text-muted)"}}>aistudio.google.com → Get API key (tier gratuit disponible)</div>
           {aiKeys.gemini&&<div style={{fontSize:11,color:"#4ade80",marginTop:8}}>✓ Clé configurée ({aiKeys.gemini.slice(0,8)}...)</div>}
         </div>}
-      </div>}
     </div>
   );
 }
