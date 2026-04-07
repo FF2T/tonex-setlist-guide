@@ -45,17 +45,37 @@ self.addEventListener('fetch',e=>{
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <style>
+  :root, [data-theme="dark"] {
+    --bg-body:#0f172a; --bg-card:#1e293b; --bg-disabled:#374151;
+    --text:#fff; --text-bright:#e2e8f0; --text-sec:#94a3b8; --text-muted:#64748b; --text-dim:#475569;
+    --a3:var(--a3); --a4:var(--a4); --a5:var(--a5);
+    --a6:var(--a6); --a7:var(--a7); --a8:var(--a8);
+    --a10:var(--a10); --a12:var(--a12); --a15:var(--a15);
+    --overlay:rgba(0,0,0,0.7);
+    --gradient-bottom:linear-gradient(transparent,#0f172a 8px);
+    color-scheme: dark;
+  }
+  [data-theme="light"] {
+    --bg-body:#f1f5f9; --bg-card:#ffffff; --bg-disabled:#d1d5db;
+    --text:#0f172a; --text-bright:#1e293b; --text-sec:#475569; --text-muted:#64748b; --text-dim:#94a3b8;
+    --a3:rgba(0,0,0,0.02); --a4:rgba(0,0,0,0.03); --a5:rgba(0,0,0,0.05);
+    --a6:rgba(0,0,0,0.06); --a7:rgba(0,0,0,0.08); --a8:rgba(0,0,0,0.1);
+    --a10:rgba(0,0,0,0.12); --a12:rgba(0,0,0,0.15); --a15:rgba(0,0,0,0.18);
+    --overlay:rgba(0,0,0,0.4);
+    --gradient-bottom:linear-gradient(transparent,#f1f5f9 8px);
+    color-scheme: light;
+  }
   *{box-sizing:border-box;margin:0;padding:0}
   html{-webkit-text-size-adjust:100%;overflow-x:hidden}
-  body{background:#0f172a;color:#fff;font-family:system-ui,-apple-system,sans-serif;min-height:100vh;min-height:100dvh;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);overflow-x:hidden;-webkit-font-smoothing:antialiased}
+  body{background:var(--bg-body);color:var(--text);font-family:system-ui,-apple-system,sans-serif;min-height:100vh;min-height:100dvh;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);overflow-x:hidden;-webkit-font-smoothing:antialiased}
   /* iOS : empêche le zoom auto sur les inputs (seuil = 16px) */
   input,select,textarea{font-size:16px!important;-webkit-appearance:none;appearance:none;border-radius:8px}
-  select option{background:#1e293b;color:#fff}
-  input::placeholder{color:#475569}
+  select option{background:var(--bg-card);color:var(--text)}
+  input::placeholder{color:var(--text-dim)}
   button{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
   ::-webkit-scrollbar{width:6px;height:6px}
   ::-webkit-scrollbar-track{background:transparent}
-  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:3px}
+  ::-webkit-scrollbar-thumb{background:var(--a15);border-radius:3px}
   table{border-collapse:collapse;width:100%}
   /* ── Responsive ── */
   .page-root{padding:12px;max-width:700px;margin:0 auto;min-height:100vh;min-height:100dvh;overflow-x:hidden;word-break:break-word}
@@ -65,27 +85,27 @@ self.addEventListener('fetch',e=>{
   .tab-bar.tabs-3{grid-template-columns:repeat(3,1fr)}
   .tab-bar.tabs-4{grid-template-columns:repeat(4,1fr)}
   @media(max-width:360px){.tab-bar.tabs-4{grid-template-columns:repeat(2,1fr)}}
-  .tab-btn{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#64748b;border-radius:10px;padding:10px 4px;font-size:11px;font-weight:700;cursor:pointer;text-align:center;line-height:1.4;transition:all .15s;-webkit-tap-highlight-color:transparent}
+  .tab-btn{background:var(--a4);border:1px solid var(--a8);color:var(--text-muted);border-radius:10px;padding:10px 4px;font-size:11px;font-weight:700;cursor:pointer;text-align:center;line-height:1.4;transition:all .15s;-webkit-tap-highlight-color:transparent}
   .tab-btn.active{color:#fff}
   .tab-icon{font-size:16px;display:block;margin-bottom:2px}
   .guitar-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
   @media(min-width:480px){.guitar-grid{grid-template-columns:repeat(3,1fr)}}
-  .guitar-card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:14px 8px;cursor:pointer;text-align:center;transition:all .15s;-webkit-tap-highlight-color:transparent}
+  .guitar-card{background:var(--a4);border:1px solid var(--a10);border-radius:12px;padding:14px 8px;cursor:pointer;text-align:center;transition:all .15s;-webkit-tap-highlight-color:transparent}
   .guitar-card:active{transform:scale(0.97)}
   .guitar-card.selected{background:rgba(99,102,241,0.2);border-color:rgba(99,102,241,0.6)}
   .style-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
   @media(min-width:400px){.style-grid{grid-template-columns:repeat(3,1fr)}}
-  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;overflow-y:auto;padding:12px;-webkit-overflow-scrolling:touch}
-  .modal-box{background:#1e293b;border:1px solid rgba(255,255,255,0.12);border-radius:16px;padding:14px;max-width:660px;margin:0 auto}
+  .modal-overlay{position:fixed;inset:0;background:var(--overlay);z-index:100;overflow-y:auto;padding:12px;-webkit-overflow-scrolling:touch}
+  .modal-box{background:var(--bg-card);border:1px solid var(--a12);border-radius:16px;padding:14px;max-width:660px;margin:0 auto}
   @media(min-width:600px){.modal-box{padding:20px}}
   .song-row-detail{animation:slideDown .2s ease-out}
   @keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
   .overflow-x-auto{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  .preset-result-card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:10px 12px;margin-bottom:6px}
+  .preset-result-card{background:var(--a4);border:1px solid var(--a10);border-radius:10px;padding:10px 12px;margin-bottom:6px}
   /* ── Badges et tags : toujours wrappables ── */
   .badge-wrap{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
   /* ── Safe area bottom pour les boutons fixes ── */
-  .bottom-action{position:sticky;bottom:0;padding-bottom:max(12px,env(safe-area-inset-bottom));background:linear-gradient(transparent,#0f172a 8px);z-index:10}
+  .bottom-action{position:sticky;bottom:0;padding-bottom:max(12px,env(safe-area-inset-bottom));background:var(--gradient-bottom);z-index:10}
 </style>
 </head>
 <body>
@@ -1491,7 +1511,7 @@ function GuitarSelect({value,onChange,ig=[]}) {
   return (
     <div>
       <select value={value||""} onChange={e=>onChange(e.target.value)}
-        style={{width:"100%",background:"#1e293b",color:"#fff",border:`1px solid ${ideal?"rgba(74,222,128,0.5)":warn?"rgba(251,191,36,0.5)":"rgba(255,255,255,0.2)"}`,borderRadius:8,padding:"8px 10px",fontSize:13,cursor:"pointer",marginBottom:4}}>
+        style={{width:"100%",background:"var(--bg-card)",color:"var(--text)",border:`1px solid ${ideal?"rgba(74,222,128,0.5)":warn?"rgba(251,191,36,0.5)":"var(--a15)"}`,borderRadius:8,padding:"8px 10px",fontSize:13,cursor:"pointer",marginBottom:4}}>
         <option value="">— Choisir une guitare —</option>
         {GUITARS.map(x=><option key={x.id} value={x.id}>{ig.includes(x.id)?"★ ":""}{x.name} ({x.type})</option>)}
       </select>
@@ -1511,7 +1531,7 @@ function Breadcrumb({crumbs,onNavigate}){
         return <React.Fragment key={i}>
           {i>0&&<span style={{color:"#334155",margin:"0 6px",fontSize:10}}>›</span>}
           {isLast
-            ?<span style={{color:"#94a3b8",fontWeight:700}}>{c.label}</span>
+            ?<span style={{color:"var(--text-sec)",fontWeight:700}}>{c.label}</span>
             :<button onClick={()=>onNavigate(c.screen)} style={{background:"none",border:"none",color:"#6366f1",cursor:"pointer",fontWeight:600,padding:0,fontSize:13,textDecoration:"none"}}>{c.label}</button>
           }
         </React.Fragment>;
@@ -1528,8 +1548,8 @@ function PBlock({device,emoji,presetName,gType,banks,adapted,gs,bg2}) {
   const badge=srcBadge(presetName);
   const up=rec?.upgrade; // upgrade suggestion si score < 80%
   return (
-    <div style={{background:bg2||"rgba(255,255,255,0.04)",border:`1px solid ${up?"rgba(251,191,36,0.2)":"rgba(255,255,255,0.08)"}`,borderRadius:10,padding:"10px 12px"}}>
-      <div style={{fontSize:11,color:"#64748b",fontWeight:700,marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>{emoji} {device}</div>
+    <div style={{background:bg2||"var(--a4)",border:`1px solid ${up?"rgba(251,191,36,0.2)":"var(--a8)"}`,borderRadius:10,padding:"10px 12px"}}>
+      <div style={{fontSize:11,color:"var(--text-muted)",fontWeight:700,marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>{emoji} {device}</div>
       {rec?<>
         <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",marginBottom:5}}>
           {rec.installed?(
@@ -1541,14 +1561,14 @@ function PBlock({device,emoji,presetName,gType,banks,adapted,gs,bg2}) {
             <span style={{fontSize:10,background:"rgba(251,191,36,0.15)",color:"#fbbf24",border:"1px solid rgba(251,191,36,0.3)",borderRadius:4,padding:"1px 7px",fontWeight:700}}>⬇ À installer</span>
           )}
           {sc!=null&&<span style={{fontSize:11,fontWeight:800,color:scC,background:scB,borderRadius:5,padding:"1px 8px",border:`1px solid ${scC}40`}}>{sc}%</span>}
-          {badge&&<span style={{fontSize:9,color:"#64748b",background:"rgba(255,255,255,0.06)",borderRadius:4,padding:"1px 6px",fontWeight:600}}>{badge}</span>}
+          {badge&&<span style={{fontSize:9,color:"var(--text-muted)",background:"var(--a6)",borderRadius:4,padding:"1px 6px",fontWeight:600}}>{badge}</span>}
           {adapted&&<span style={{fontSize:10,background:"rgba(251,191,36,0.1)",color:"#fbbf24",border:"1px solid rgba(251,191,36,0.25)",borderRadius:4,padding:"1px 6px",fontWeight:600}}>✦ Adapté {gs}</span>}
         </div>
-        <div style={{fontSize:12,color:"#e2e8f0",fontWeight:600,marginBottom:3}}>{presetName}</div>
+        <div style={{fontSize:12,color:"var(--text-bright)",fontWeight:600,marginBottom:3}}>{presetName}</div>
         {!rec.installed&&rec.replaceBank!=null&&(
-          <div style={{fontSize:10,color:"#64748b",background:"rgba(251,191,36,0.04)",borderRadius:5,padding:"4px 7px",marginTop:2}}>
+          <div style={{fontSize:10,color:"var(--text-muted)",background:"rgba(251,191,36,0.04)",borderRadius:5,padding:"4px 7px",marginTop:2}}>
             → Remplacer Bank {rec.replaceBank}{rec.replaceSlot}
-            {rec.replaceName&&<span style={{color:"#475569"}}> ({rec.replaceName}
+            {rec.replaceName&&<span style={{color:"var(--text-dim)"}}> ({rec.replaceName}
               {rec.replaceScore!=null&&<span style={{color:scoreColor(rec.replaceScore)}}> · {rec.replaceScore}%</span>}
             )</span>}
           </div>
@@ -1562,13 +1582,13 @@ function PBlock({device,emoji,presetName,gType,banks,adapted,gs,bg2}) {
                 ?<span style={{fontSize:10,color:"#4ade80",background:"rgba(74,222,128,0.08)",borderRadius:4,padding:"1px 6px"}}>✓ Bank {up.bank}{up.slot}</span>
                 :<span style={{fontSize:10,color:"#f59e0b",background:"rgba(245,158,11,0.08)",borderRadius:4,padding:"1px 6px"}}>⬇ À installer</span>
               }
-              <span style={{fontSize:9,color:"#64748b",background:"rgba(255,255,255,0.05)",borderRadius:4,padding:"1px 6px"}}>{srcBadge(up.name)}</span>
+              <span style={{fontSize:9,color:"var(--text-muted)",background:"var(--a5)",borderRadius:4,padding:"1px 6px"}}>{srcBadge(up.name)}</span>
             </div>
             <div style={{fontSize:11,color:"#fde68a",fontWeight:600}}>{up.name}</div>
-            {!up.installed&&(()=>{const ws=worstSlot(banks,gType,[presetName,up.name]);return ws.bank!=null&&<div style={{fontSize:10,color:"#64748b",marginTop:2}}>→ Remplace Bank {ws.bank}{ws.slot}</div>;})()}
+            {!up.installed&&(()=>{const ws=worstSlot(banks,gType,[presetName,up.name]);return ws.bank!=null&&<div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>→ Remplace Bank {ws.bank}{ws.slot}</div>;})()}
           </div>
         )}
-      </>:<div style={{fontSize:12,color:"#64748b"}}>Sélectionne une guitare.</div>}
+      </>:<div style={{fontSize:12,color:"var(--text-muted)"}}>Sélectionne une guitare.</div>}
     </div>
   );
 }
@@ -1607,12 +1627,12 @@ function AICard({song,gId,onResult,banksAnn,banksPlug,aiProvider,aiKeys,onCacheR
       .catch(e=>setErr(e.message||"Erreur IA"))
       .finally(()=>setLoading(false));
   },[song.id,gId,aiProvider,aiKeys.anthropic,aiKeys.gemini]);
-  if(loading) return <div style={{fontSize:12,color:"#64748b",padding:"8px 0"}}>✨ Analyse IA…</div>;
+  if(loading) return <div style={{fontSize:12,color:"var(--text-muted)",padding:"8px 0"}}>✨ Analyse IA…</div>;
   if(err) return <div style={{fontSize:12,color:"#f87171"}}>{err}</div>;
   if(!res) return null;
   return (
     <div style={{display:"flex",flexDirection:"column",gap:9}}>
-      <Row icon="🎯"><div><div style={{fontSize:12,color:"#a78bfa",fontWeight:700,marginBottom:2}}>IA : {res.ideal_guitar}</div><div style={{fontSize:11,color:"#94a3b8"}}>{res.guitar_reason}</div></div></Row>
+      <Row icon="🎯"><div><div style={{fontSize:12,color:"#a78bfa",fontWeight:700,marginBottom:2}}>IA : {res.ideal_guitar}</div><div style={{fontSize:11,color:"var(--text-sec)"}}>{res.guitar_reason}</div></div></Row>
       <div style={{display:"flex",flexDirection:"column",gap:6}}>
         <PBlock device="ToneX Anniversary" emoji="📦" presetName={res.preset_ann?.label} gType={gId?GUITARS.find(x=>x.id===gId)?.type||"HB":null} banks={banksAnn}/>
         <PBlock device="ToneX Plug" emoji="🔌" presetName={res.preset_plug?.label} gType={gId?GUITARS.find(x=>x.id===gId)?.type||"HB":null} banks={banksPlug} bg2="rgba(99,102,241,0.06)"/>
@@ -1621,12 +1641,12 @@ function AICard({song,gId,onResult,banksAnn,banksPlug,aiProvider,aiKeys,onCacheR
         {res.settings_preset&&<div style={{fontSize:11,background:"rgba(251,191,36,0.07)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:7,padding:"6px 10px",color:"#fde68a"}}><b style={{color:"#fbbf24"}}>Preset · </b>{res.settings_preset}</div>}
         {res.settings_guitar&&<div style={{fontSize:11,background:"rgba(34,197,94,0.07)",border:"1px solid rgba(34,197,94,0.15)",borderRadius:7,padding:"6px 10px",color:"#bbf7d0"}}><b style={{color:"#4ade80"}}>Guitare · </b>{res.settings_guitar}</div>}
       </div></Row>
-      {res.ref_guitarist&&<Row icon="📖"><div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:9,padding:"9px 12px",flex:1}}>
-        <div style={{fontSize:10,color:"#64748b",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Référence originale — {res.ref_guitarist}</div>
+      {res.ref_guitarist&&<Row icon="📖"><div style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:9,padding:"9px 12px",flex:1}}>
+        <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Référence originale — {res.ref_guitarist}</div>
         <div style={{display:"flex",flexDirection:"column",gap:3}}>
-          <div style={{display:"flex",gap:5,alignItems:"baseline",flexWrap:"wrap"}}><span style={{fontSize:10,color:"#64748b",flexShrink:0}}>🎸 Guitare</span><span style={{fontSize:11,color:"#e2e8f0",fontWeight:500}}>{res.ref_guitar}</span></div>
-          <div style={{display:"flex",gap:5,alignItems:"baseline",flexWrap:"wrap"}}><span style={{fontSize:10,color:"#64748b",flexShrink:0}}>🔊 Ampli</span><span style={{fontSize:11,color:"#e2e8f0",fontWeight:500}}>{res.ref_amp}</span></div>
-          {res.ref_effects&&<div style={{display:"flex",gap:5,alignItems:"baseline",flexWrap:"wrap"}}><span style={{fontSize:10,color:"#64748b",flexShrink:0}}>🎚 Effets</span><span style={{fontSize:11,color:"#94a3b8"}}>{res.ref_effects}</span></div>}
+          <div style={{display:"flex",gap:5,alignItems:"baseline",flexWrap:"wrap"}}><span style={{fontSize:10,color:"var(--text-muted)",flexShrink:0}}>🎸 Guitare</span><span style={{fontSize:11,color:"var(--text-bright)",fontWeight:500}}>{res.ref_guitar}</span></div>
+          <div style={{display:"flex",gap:5,alignItems:"baseline",flexWrap:"wrap"}}><span style={{fontSize:10,color:"var(--text-muted)",flexShrink:0}}>🔊 Ampli</span><span style={{fontSize:11,color:"var(--text-bright)",fontWeight:500}}>{res.ref_amp}</span></div>
+          {res.ref_effects&&<div style={{display:"flex",gap:5,alignItems:"baseline",flexWrap:"wrap"}}><span style={{fontSize:10,color:"var(--text-muted)",flexShrink:0}}>🎚 Effets</span><span style={{fontSize:11,color:"var(--text-sec)"}}>{res.ref_effects}</span></div>}
         </div>
       </div></Row>}
     </div>
@@ -1674,33 +1694,33 @@ function ExportImportScreen({banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,on
   };
 
   const xBtn=(onClick,key,label,color)=>(
-    <button onClick={onClick} style={{background:exported===key?"rgba(74,222,128,0.2)":color,border:"none",color:"#fff",borderRadius:9,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+    <button onClick={onClick} style={{background:exported===key?"rgba(74,222,128,0.2)":color,border:"none",color:"var(--text)",borderRadius:9,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>
       {exported===key?"✅ OK":label}
     </button>
   );
-  const th={padding:"7px 10px",textAlign:"left",fontSize:11,fontWeight:700,textTransform:"uppercase",borderBottom:"2px solid rgba(255,255,255,0.1)",color:"#94a3b8"};
-  const td={padding:"6px 10px",fontSize:11,borderBottom:"1px solid rgba(255,255,255,0.05)",verticalAlign:"middle"};
+  const th={padding:"7px 10px",textAlign:"left",fontSize:11,fontWeight:700,textTransform:"uppercase",borderBottom:"2px solid var(--a10)",color:"var(--text-sec)"};
+  const td={padding:"6px 10px",fontSize:11,borderBottom:"1px solid var(--a5)",verticalAlign:"middle"};
 
   return (
     <div>
-      {toast&&<div style={{position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",background:"#16a34a",color:"#fff",borderRadius:10,padding:"10px 22px",fontSize:13,fontWeight:700,zIndex:999}}>✅ {toast}</div>}
+      {toast&&<div style={{position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",background:"#16a34a",color:"var(--text)",borderRadius:10,padding:"10px 22px",fontSize:13,fontWeight:700,zIndex:999}}>✅ {toast}</div>}
       <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Paramètres",screen:"settings"},{label:"Import / Export"}]} onNavigate={onNavigate}/>
-      <div style={{fontSize:20,fontWeight:800,color:"#fff",marginBottom:20}}>📋 Export / Import</div>
+      <div style={{fontSize:20,fontWeight:800,color:"var(--text)",marginBottom:20}}>📋 Export / Import</div>
 
       {/* Sauvegarde JSON */}
       <div style={{background:"rgba(74,222,128,0.06)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:12,padding:16,marginBottom:12}}>
         <div style={{fontSize:12,fontWeight:700,color:"#4ade80",marginBottom:10,textTransform:"uppercase",letterSpacing:0.5}}>💾 Sauvegarde complète (JSON)</div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <button onClick={doExportJSON} style={{background:"#16a34a",border:"none",color:"#fff",borderRadius:9,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>⬇ Exporter JSON</button>
+          <button onClick={doExportJSON} style={{background:"#16a34a",border:"none",color:"var(--text)",borderRadius:9,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>⬇ Exporter JSON</button>
           <button onClick={()=>jsonRef.current?.click()} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.35)",color:"#4ade80",borderRadius:9,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>📂 Importer JSON</button>
           <input ref={jsonRef} type="file" accept=".json" onChange={handleJSONFile} style={{display:"none"}}/>
         </div>
-        <div style={{fontSize:11,color:"#64748b",marginTop:8}}>Sauvegarde complète : setlists, morceaux, presets, banks. Parfait pour sauvegarder ou transférer entre appareils.</div>
+        <div style={{fontSize:11,color:"var(--text-muted)",marginTop:8}}>Sauvegarde complète : setlists, morceaux, presets, banks. Parfait pour sauvegarder ou transférer entre appareils.</div>
       </div>
 
       {/* Export CSV */}
-      <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,padding:16,marginBottom:12}}>
-        <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",marginBottom:12,textTransform:"uppercase",letterSpacing:0.5}}>Export CSV (Banks)</div>
+      <div style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:12,padding:16,marginBottom:12}}>
+        <div style={{fontSize:12,fontWeight:700,color:"var(--text-sec)",marginBottom:12,textTransform:"uppercase",letterSpacing:0.5}}>Export CSV (Banks)</div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           {xBtn(()=>doExportCSV(banksAnn,"ToneX Anniversary","Anniversary"),"Anniversary","⬇ Anniversary","#3b82f6")}
           {xBtn(()=>doExportCSV(banksPlug,"ToneX Plug","Plug"),"Plug","⬇ Plug","#6366f1")}
@@ -1709,25 +1729,25 @@ function ExportImportScreen({banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,on
       </div>
 
       {/* Import CSV */}
-      <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,padding:16,marginBottom:16}}>
-        <div style={{fontSize:12,fontWeight:700,color:"#94a3b8",marginBottom:12,textTransform:"uppercase",letterSpacing:0.5}}>Import CSV (Banks)</div>
+      <div style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:12,padding:16,marginBottom:16}}>
+        <div style={{fontSize:12,fontWeight:700,color:"var(--text-sec)",marginBottom:12,textTransform:"uppercase",letterSpacing:0.5}}>Import CSV (Banks)</div>
         <button onClick={()=>csvRef.current?.click()} style={{background:"rgba(251,191,36,0.15)",border:"1px solid rgba(251,191,36,0.35)",color:"#fbbf24",borderRadius:9,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:8}}>📂 Charger CSV</button>
         <input ref={csvRef} type="file" accept=".csv,.txt" onChange={handleCSVFile} style={{display:"none"}}/>
         {importErr&&<div style={{marginTop:8,fontSize:12,color:"#f87171",background:"rgba(239,68,68,0.1)",borderRadius:8,padding:"8px 12px"}}>{importErr}</div>}
         {importData&&<div style={{marginTop:14,background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.3)",borderRadius:10,padding:14}}>
           <div style={{fontSize:13,fontWeight:700,color:"#a5b4fc",marginBottom:10}}>Aperçu</div>
           <div style={{display:"flex",gap:10,marginBottom:12,flexWrap:"wrap"}}>
-            {Object.keys(importData.ann).length>0&&<div style={{background:"rgba(59,130,246,0.1)",border:"1px solid rgba(59,130,246,0.3)",borderRadius:7,padding:"6px 12px"}}><div style={{fontSize:12,color:"#93c5fd",fontWeight:700}}>📦 Anniversary</div><div style={{fontSize:11,color:"#64748b"}}>{Object.keys(importData.ann).length} banks</div></div>}
-            {Object.keys(importData.plug).length>0&&<div style={{background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.3)",borderRadius:7,padding:"6px 12px"}}><div style={{fontSize:12,color:"#a5b4fc",fontWeight:700}}>🔌 Plug</div><div style={{fontSize:11,color:"#64748b"}}>{Object.keys(importData.plug).length} banks</div></div>}
+            {Object.keys(importData.ann).length>0&&<div style={{background:"rgba(59,130,246,0.1)",border:"1px solid rgba(59,130,246,0.3)",borderRadius:7,padding:"6px 12px"}}><div style={{fontSize:12,color:"#93c5fd",fontWeight:700}}>📦 Anniversary</div><div style={{fontSize:11,color:"var(--text-muted)"}}>{Object.keys(importData.ann).length} banks</div></div>}
+            {Object.keys(importData.plug).length>0&&<div style={{background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.3)",borderRadius:7,padding:"6px 12px"}}><div style={{fontSize:12,color:"#a5b4fc",fontWeight:700}}>🔌 Plug</div><div style={{fontSize:11,color:"var(--text-muted)"}}>{Object.keys(importData.plug).length} banks</div></div>}
           </div>
           <div style={{display:"flex",gap:8,marginBottom:12}}>
             {[{v:"replace",l:"🔄 Remplacer"},{v:"merge",l:"🔀 Fusionner"}].map(({v,l})=>(
-              <button key={v} onClick={()=>setImportMode(v)} style={{flex:1,background:importMode===v?"rgba(99,102,241,0.3)":"rgba(255,255,255,0.05)",border:importMode===v?"1px solid rgba(99,102,241,0.6)":"1px solid rgba(255,255,255,0.1)",color:importMode===v?"#a5b4fc":"#94a3b8",borderRadius:8,padding:"8px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{l}</button>
+              <button key={v} onClick={()=>setImportMode(v)} style={{flex:1,background:importMode===v?"rgba(99,102,241,0.3)":"var(--a5)",border:importMode===v?"1px solid rgba(99,102,241,0.6)":"1px solid var(--a10)",color:importMode===v?"#a5b4fc":"#94a3b8",borderRadius:8,padding:"8px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{l}</button>
             ))}
           </div>
           <div style={{display:"flex",gap:8}}>
-            <button onClick={()=>setImportData(null)} style={{flex:1,background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.1)",color:"#94a3b8",borderRadius:8,padding:"9px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Annuler</button>
-            <button onClick={confirmCSV} style={{flex:2,background:"#4f46e5",border:"none",color:"#fff",borderRadius:8,padding:"9px",fontSize:13,fontWeight:700,cursor:"pointer"}}>✅ Importer</button>
+            <button onClick={()=>setImportData(null)} style={{flex:1,background:"var(--a7)",border:"1px solid var(--a10)",color:"var(--text-sec)",borderRadius:8,padding:"9px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Annuler</button>
+            <button onClick={confirmCSV} style={{flex:2,background:"#4f46e5",border:"none",color:"var(--text)",borderRadius:8,padding:"9px",fontSize:13,fontWeight:700,cursor:"pointer"}}>✅ Importer</button>
           </div>
         </div>}
       </div>
@@ -1735,16 +1755,16 @@ function ExportImportScreen({banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,on
       {/* Tableaux banks */}
       {[{banks:banksAnn,label:"ToneX Anniversary",color:"#3b82f6"},{banks:banksPlug,label:"ToneX Plug",color:"#6366f1"}].map(({banks,label,color})=>(
         <div key={label} style={{marginBottom:20}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}><div style={{width:4,height:18,background:color,borderRadius:2}}/><div style={{fontSize:13,fontWeight:700,color:"#fff"}}>{label}</div><div style={{fontSize:11,color:"#64748b"}}>{Object.keys(banks).length} banks</div></div>
-          <div style={{overflowX:"auto",borderRadius:10,border:"1px solid rgba(255,255,255,0.08)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}><div style={{width:4,height:18,background:color,borderRadius:2}}/><div style={{fontSize:13,fontWeight:700,color:"var(--text)"}}>{label}</div><div style={{fontSize:11,color:"var(--text-muted)"}}>{Object.keys(banks).length} banks</div></div>
+          <div style={{overflowX:"auto",borderRadius:10,border:"1px solid var(--a8)"}}>
             <table>
-              <thead><tr style={{background:"rgba(255,255,255,0.04)"}}><th style={{...th,width:45}}>Bank</th><th style={th}>Catégorie</th>{["A","B","C"].map(c=><th key={c} style={{...th,color:CC[c]}}>{c} — {CL[c]}</th>)}</tr></thead>
+              <thead><tr style={{background:"var(--a4)"}}><th style={{...th,width:45}}>Bank</th><th style={th}>Catégorie</th>{["A","B","C"].map(c=><th key={c} style={{...th,color:CC[c]}}>{c} — {CL[c]}</th>)}</tr></thead>
               <tbody>
                 {Object.entries(banks).sort((a,b)=>Number(a[0])-Number(b[0])).map(([k,v],i)=>(
-                  <tr key={k} style={{background:i%2===0?"transparent":"rgba(255,255,255,0.015)"}}>
+                  <tr key={k} style={{background:i%2===0?"transparent":"var(--a3)"}}>
                     <td style={{...td,fontWeight:800,color:color,fontSize:13}}>{k}</td>
-                    <td style={{...td,color:"#94a3b8"}}>{v.cat}</td>
-                    {["A","B","C"].map(c=><td key={c} style={td}><span style={{color:"#e2e8f0"}}>{v[c]}</span></td>)}
+                    <td style={{...td,color:"var(--text-sec)"}}>{v.cat}</td>
+                    {["A","B","C"].map(c=><td key={c} style={td}><span style={{color:"var(--text-bright)"}}>{v[c]}</span></td>)}
                   </tr>
                 ))}
               </tbody>
@@ -1760,7 +1780,7 @@ function ExportImportScreen({banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,on
 function BankEditor({banks,onBanks,color}) {
   const [newKey,setNewKey]=useState("");
   const [newCat,setNewCat]=useState("");
-  const inp={background:"#1e293b",color:"#fff",border:"1px solid rgba(255,255,255,0.15)",borderRadius:7,padding:"6px 10px",fontSize:12,width:"100%",boxSizing:"border-box"};
+  const inp={background:"var(--bg-card)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:7,padding:"6px 10px",fontSize:12,width:"100%",boxSizing:"border-box"};
   const sml={...inp,fontSize:11};
   const edit=(k,f,v)=>onBanks(p=>({...p,[k]:{...p[k],[f]:v}}));
   const del=k=>{const n={...banks};delete n[k];onBanks(n);};
@@ -1768,7 +1788,7 @@ function BankEditor({banks,onBanks,color}) {
   return (
     <div>
       {Object.entries(banks).sort((a,b)=>Number(a[0])-Number(b[0])).map(([k,v])=>(
-        <div key={k} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:10,padding:"12px 14px",marginBottom:10}}>
+        <div key={k} style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:10,padding:"12px 14px",marginBottom:10}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
             <span style={{fontSize:16,fontWeight:800,color,minWidth:36}}>B{k}</span>
             <input value={v.cat} onChange={e=>edit(k,"cat",e.target.value)} style={{...inp,flex:1}}/>
@@ -1777,7 +1797,7 @@ function BankEditor({banks,onBanks,color}) {
           {["A","B","C"].map(c=>(
             <div key={c} style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
               <span style={{fontSize:11,fontWeight:700,color:CC[c],minWidth:28}}>{c}</span>
-              <span style={{fontSize:10,color:"#64748b",minWidth:36}}>{CL[c]}</span>
+              <span style={{fontSize:10,color:"var(--text-muted)",minWidth:36}}>{CL[c]}</span>
               <input value={v[c]||""} onChange={e=>edit(k,c,e.target.value)} style={sml}/>
             </div>
           ))}
@@ -1789,14 +1809,14 @@ function BankEditor({banks,onBanks,color}) {
           <input placeholder="N° bank" value={newKey} onChange={e=>setNewKey(e.target.value)} style={{...inp,width:80}}/>
           <input placeholder="Catégorie" value={newCat} onChange={e=>setNewCat(e.target.value)} style={{...inp,flex:1}}/>
         </div>
-        <button onClick={add} disabled={!newKey||!newCat.trim()} style={{width:"100%",background:(newKey&&newCat.trim())?"#4f46e5":"#374151",color:"#fff",border:"none",borderRadius:8,padding:"9px",fontSize:13,fontWeight:600,cursor:(newKey&&newCat.trim())?"pointer":"not-allowed"}}>Ajouter</button>
+        <button onClick={add} disabled={!newKey||!newCat.trim()} style={{width:"100%",background:(newKey&&newCat.trim())?"#4f46e5":"#374151",color:"var(--text)",border:"none",borderRadius:8,padding:"9px",fontSize:13,fontWeight:600,cursor:(newKey&&newCat.trim())?"pointer":"not-allowed"}}>Ajouter</button>
       </div>
     </div>
   );
 }
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
-function SettingsScreen({songDb,onSongDb,setlists,onSetlists,banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAiKeys}) {
+function SettingsScreen({songDb,onSongDb,setlists,onSetlists,banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAiKeys,theme,onTheme}) {
   const [tab,setTab]=useState("setlists");
   const [newSlName,setNewSlName]=useState("");
   const [editSlId,setEditSlId]=useState(null);
@@ -1807,9 +1827,9 @@ function SettingsScreen({songDb,onSongDb,setlists,onSetlists,banksAnn,onBanksAnn
   const toggleNewSongSl=id=>setNewSongSlIds(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
   const [expandedSongId,setExpandedSongId]=useState(null);
   const toggleSongInSetlist=(songId,slId)=>onSetlists(p=>p.map(sl=>sl.id!==slId?sl:{...sl,songIds:sl.songIds.includes(songId)?sl.songIds.filter(x=>x!==songId):[...sl.songIds,songId]}));
-  const inp={background:"#1e293b",color:"#fff",border:"1px solid rgba(255,255,255,0.15)",borderRadius:7,padding:"6px 10px",fontSize:12,boxSizing:"border-box"};
+  const inp={background:"var(--bg-card)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:7,padding:"6px 10px",fontSize:12,boxSizing:"border-box"};
   const tabBtn=(id,label)=>(
-    <button onClick={()=>setTab(id)} style={{background:tab===id?"rgba(99,102,241,0.3)":"rgba(255,255,255,0.05)",border:tab===id?"1px solid rgba(99,102,241,0.5)":"1px solid rgba(255,255,255,0.08)",color:tab===id?"#a5b4fc":"#94a3b8",borderRadius:8,padding:"7px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{label}</button>
+    <button onClick={()=>setTab(id)} style={{background:tab===id?"rgba(99,102,241,0.3)":"var(--a5)",border:tab===id?"1px solid rgba(99,102,241,0.5)":"1px solid var(--a8)",color:tab===id?"#a5b4fc":"#94a3b8",borderRadius:8,padding:"7px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{label}</button>
   );
   const createSetlist=()=>{if(!newSlName.trim())return;onSetlists(p=>[...p,{id:`sl_${Date.now()}`,name:newSlName.trim(),songIds:[]}]);setNewSlName("");};
   const deleteSetlist=id=>onSetlists(p=>p.filter(s=>s.id!==id));
@@ -1829,36 +1849,36 @@ function SettingsScreen({songDb,onSongDb,setlists,onSetlists,banksAnn,onBanksAnn
   return (
     <div>
       <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Paramètres"}]} onNavigate={onNavigate}/>
-      <div style={{fontSize:20,fontWeight:800,color:"#fff",marginBottom:16}}>⚙️ Paramètres</div>
+      <div style={{fontSize:20,fontWeight:800,color:"var(--text)",marginBottom:16}}>⚙️ Paramètres</div>
       <button onClick={()=>onNavigate("exportimport")} style={{width:"100%",background:"rgba(251,191,36,0.1)",border:"1px solid rgba(251,191,36,0.3)",color:"#fbbf24",borderRadius:10,padding:"12px 16px",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:20,textAlign:"left"}}>
         📋 Export / Import →
       </button>
       <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
-        {tabBtn("setlists","🎵 Setlists")}{tabBtn("songs","🎸 Morceaux")}{tabBtn("ann","📦 Anniversary")}{tabBtn("plug","🔌 Plug")}{tabBtn("ia","🔑 IA")}
+        {tabBtn("setlists","🎵 Setlists")}{tabBtn("songs","🎸 Morceaux")}{tabBtn("ann","📦 Anniversary")}{tabBtn("plug","🔌 Plug")}{tabBtn("ia","🔑 IA")}{tabBtn("display","🎨 Affichage")}
       </div>
       {tab==="setlists"&&<div>
-        <div style={{fontSize:13,color:"#94a3b8",marginBottom:12}}>{setlists.length} setlist{setlists.length>1?"s":""}</div>
+        <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>{setlists.length} setlist{setlists.length>1?"s":""}</div>
         {setlists.map(sl=>(
-          <div key={sl.id} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:14,marginBottom:12}}>
+          <div key={sl.id} style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:14,marginBottom:12}}>
             {editSlId===sl.id?(
               <div style={{display:"flex",gap:8,marginBottom:10}}>
                 <input value={editSlName} onChange={e=>setEditSlName(e.target.value)} style={{...inp,flex:1}} onKeyDown={e=>e.key==="Enter"&&(renameSetlist(sl.id,editSlName),setEditSlId(null))}/>
-                <button onClick={()=>{renameSetlist(sl.id,editSlName);setEditSlId(null);}} style={{background:"#4f46e5",border:"none",color:"#fff",borderRadius:7,padding:"6px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>OK</button>
-                <button onClick={()=>setEditSlId(null)} style={{background:"rgba(255,255,255,0.07)",border:"none",color:"#94a3b8",borderRadius:7,padding:"6px 10px",fontSize:12,cursor:"pointer"}}>✕</button>
+                <button onClick={()=>{renameSetlist(sl.id,editSlName);setEditSlId(null);}} style={{background:"#4f46e5",border:"none",color:"var(--text)",borderRadius:7,padding:"6px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>OK</button>
+                <button onClick={()=>setEditSlId(null)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:7,padding:"6px 10px",fontSize:12,cursor:"pointer"}}>✕</button>
               </div>
             ):(
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-                <div style={{flex:1,fontSize:14,fontWeight:700,color:"#fff"}}>{sl.name}</div>
-                <span style={{fontSize:11,color:"#64748b"}}>{sl.songIds.length} morceaux</span>
-                <button onClick={()=>{setEditSlId(sl.id);setEditSlName(sl.name);}} style={{background:"rgba(255,255,255,0.07)",border:"none",color:"#94a3b8",borderRadius:6,padding:"4px 8px",fontSize:11,cursor:"pointer"}}>✏️</button>
+                <div style={{flex:1,fontSize:14,fontWeight:700,color:"var(--text)"}}>{sl.name}</div>
+                <span style={{fontSize:11,color:"var(--text-muted)"}}>{sl.songIds.length} morceaux</span>
+                <button onClick={()=>{setEditSlId(sl.id);setEditSlName(sl.name);}} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:6,padding:"4px 8px",fontSize:11,cursor:"pointer"}}>✏️</button>
                 {setlists.length>1&&<button onClick={()=>deleteSetlist(sl.id)} style={{background:"rgba(239,68,68,0.15)",border:"1px solid rgba(239,68,68,0.3)",color:"#f87171",borderRadius:6,padding:"4px 8px",fontSize:11,cursor:"pointer"}}>🗑</button>}
               </div>
             )}
             {sl.songIds.length>0&&<div style={{display:"flex",flexDirection:"column",gap:4}}>
               {sl.songIds.map(sid=>{const s=songDb.find(x=>x.id===sid);if(!s)return null;return(
-                <div key={sid} style={{display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.03)",borderRadius:7,padding:"5px 10px"}}>
-                  <div style={{flex:1,fontSize:12,color:"#e2e8f0"}}>{s.title} <span style={{color:"#64748b",fontSize:11}}>— {s.artist}</span></div>
-                  <button onClick={()=>removeSongFromSetlist(sl.id,sid)} style={{background:"none",border:"none",color:"#64748b",cursor:"pointer",fontSize:13,padding:"0 4px"}}>✕</button>
+                <div key={sid} style={{display:"flex",alignItems:"center",gap:8,background:"var(--a3)",borderRadius:7,padding:"5px 10px"}}>
+                  <div style={{flex:1,fontSize:12,color:"var(--text-bright)"}}>{s.title} <span style={{color:"var(--text-muted)",fontSize:11}}>— {s.artist}</span></div>
+                  <button onClick={()=>removeSongFromSetlist(sl.id,sid)} style={{background:"none",border:"none",color:"var(--text-muted)",cursor:"pointer",fontSize:13,padding:"0 4px"}}>✕</button>
                 </div>
               );})}
             </div>}
@@ -1868,24 +1888,24 @@ function SettingsScreen({songDb,onSongDb,setlists,onSetlists,banksAnn,onBanksAnn
           <div style={{fontSize:12,color:"#818cf8",fontWeight:600,marginBottom:8}}>+ Nouvelle setlist</div>
           <div style={{display:"flex",gap:8}}>
             <input placeholder="Nom de la setlist" value={newSlName} onChange={e=>setNewSlName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&createSetlist()} style={{...inp,flex:1}}/>
-            <button onClick={createSetlist} disabled={!newSlName.trim()} style={{background:newSlName.trim()?"#4f46e5":"#374151",border:"none",color:"#fff",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:newSlName.trim()?"pointer":"not-allowed"}}>Créer</button>
+            <button onClick={createSetlist} disabled={!newSlName.trim()} style={{background:newSlName.trim()?"#4f46e5":"#374151",border:"none",color:"var(--text)",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:newSlName.trim()?"pointer":"not-allowed"}}>Créer</button>
           </div>
         </div>
       </div>}
       {tab==="songs"&&<div>
-        <div style={{fontSize:13,color:"#94a3b8",marginBottom:12}}>{songDb.length} morceaux dans la base</div>
+        <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>{songDb.length} morceaux dans la base</div>
         {songDb.map(s=>{
           const expanded=expandedSongId===s.id;
           return (
-          <div key={s.id} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:9,marginBottom:6,overflow:"hidden"}}>
+          <div key={s.id} style={{background:"var(--a3)",border:"1px solid var(--a6)",borderRadius:9,marginBottom:6,overflow:"hidden"}}>
             <div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 12px"}}>
-              <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:"#fff"}}>{s.title}</div><div style={{fontSize:11,color:"#64748b"}}>{s.artist}{s.isCustom?" · ✨IA":""}</div></div>
-              <button onClick={()=>setExpandedSongId(expanded?null:s.id)} style={{background:expanded?"rgba(99,102,241,0.25)":"rgba(255,255,255,0.07)",border:expanded?"1px solid rgba(99,102,241,0.4)":"1px solid rgba(255,255,255,0.1)",color:expanded?"#a5b4fc":"#94a3b8",borderRadius:6,padding:"4px 8px",fontSize:11,cursor:"pointer"}}>Setlists</button>
+              <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:"var(--text)"}}>{s.title}</div><div style={{fontSize:11,color:"var(--text-muted)"}}>{s.artist}{s.isCustom?" · ✨IA":""}</div></div>
+              <button onClick={()=>setExpandedSongId(expanded?null:s.id)} style={{background:expanded?"rgba(99,102,241,0.25)":"var(--a7)",border:expanded?"1px solid rgba(99,102,241,0.4)":"1px solid var(--a10)",color:expanded?"#a5b4fc":"#94a3b8",borderRadius:6,padding:"4px 8px",fontSize:11,cursor:"pointer"}}>Setlists</button>
               <button onClick={()=>deleteSongFromDb(s.id)} style={{background:"rgba(239,68,68,0.15)",border:"1px solid rgba(239,68,68,0.3)",color:"#f87171",borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer"}}>Supprimer</button>
             </div>
-            {expanded&&<div style={{padding:"8px 12px 10px",borderTop:"1px solid rgba(255,255,255,0.05)",display:"flex",gap:6,flexWrap:"wrap"}}>
+            {expanded&&<div style={{padding:"8px 12px 10px",borderTop:"1px solid var(--a5)",display:"flex",gap:6,flexWrap:"wrap"}}>
               {setlists.map(sl=>{const inSl=sl.songIds.includes(s.id);return(
-                <button key={sl.id} onClick={()=>toggleSongInSetlist(s.id,sl.id)} style={{background:inSl?"rgba(74,222,128,0.2)":"rgba(255,255,255,0.05)",border:inSl?"1px solid rgba(74,222,128,0.4)":"1px solid rgba(255,255,255,0.1)",color:inSl?"#4ade80":"#94a3b8",borderRadius:7,padding:"4px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{inSl?"✓ ":""}{sl.name}</button>
+                <button key={sl.id} onClick={()=>toggleSongInSetlist(s.id,sl.id)} style={{background:inSl?"rgba(74,222,128,0.2)":"var(--a5)",border:inSl?"1px solid rgba(74,222,128,0.4)":"1px solid var(--a10)",color:inSl?"#4ade80":"#94a3b8",borderRadius:7,padding:"4px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{inSl?"✓ ":""}{sl.name}</button>
               );})}
             </div>}
           </div>
@@ -1895,34 +1915,49 @@ function SettingsScreen({songDb,onSongDb,setlists,onSetlists,banksAnn,onBanksAnn
           <div style={{fontSize:12,color:"#818cf8",fontWeight:600,marginBottom:10}}>+ Ajouter un morceau</div>
           <input placeholder="Titre *" value={newSongTitle} onChange={e=>setNewSongTitle(e.target.value)} style={{...inp,width:"100%",marginBottom:7}}/>
           <input placeholder="Artiste" value={newSongArtist} onChange={e=>setNewSongArtist(e.target.value)} style={{...inp,width:"100%",marginBottom:10}}/>
-          <div style={{fontSize:11,color:"#64748b",marginBottom:6}}>Ajouter aussi à :</div>
+          <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:6}}>Ajouter aussi à :</div>
           <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
             {setlists.map(sl=>{const sel=newSongSlIds.includes(sl.id);return(
-              <button key={sl.id} onClick={()=>toggleNewSongSl(sl.id)} style={{background:sel?"rgba(99,102,241,0.3)":"rgba(255,255,255,0.05)",border:sel?"1px solid rgba(99,102,241,0.6)":"1px solid rgba(255,255,255,0.1)",color:sel?"#a5b4fc":"#94a3b8",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{sl.name}</button>
+              <button key={sl.id} onClick={()=>toggleNewSongSl(sl.id)} style={{background:sel?"rgba(99,102,241,0.3)":"var(--a5)",border:sel?"1px solid rgba(99,102,241,0.6)":"1px solid var(--a10)",color:sel?"#a5b4fc":"#94a3b8",borderRadius:7,padding:"4px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{sl.name}</button>
             );})}
           </div>
-          <button onClick={addSongToDb} disabled={!newSongTitle.trim()} style={{width:"100%",background:newSongTitle.trim()?"#4f46e5":"#374151",color:"#fff",border:"none",borderRadius:8,padding:"9px",fontSize:13,fontWeight:600,cursor:newSongTitle.trim()?"pointer":"not-allowed"}}>Ajouter à la base</button>
+          <button onClick={addSongToDb} disabled={!newSongTitle.trim()} style={{width:"100%",background:newSongTitle.trim()?"#4f46e5":"#374151",color:"var(--text)",border:"none",borderRadius:8,padding:"9px",fontSize:13,fontWeight:600,cursor:newSongTitle.trim()?"pointer":"not-allowed"}}>Ajouter à la base</button>
+        </div>
+      </div>}
+      {tab==="display"&&<div>
+        <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:16}}>Apparence de l'application.</div>
+        <div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:16}}>
+          <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:12}}>Thème</div>
+          <div style={{display:"flex",gap:8}}>
+            {[{v:"dark",l:"🌙 Sombre",desc:"Fond sombre"},{v:"light",l:"☀️ Clair",desc:"Fond clair"}].map(({v,l,desc})=>(
+              <button key={v} onClick={()=>onTheme(v)} style={{flex:1,background:theme===v?"rgba(99,102,241,0.3)":"var(--a5)",border:theme===v?"1px solid rgba(99,102,241,0.6)":"1px solid var(--a10)",color:theme===v?"#a5b4fc":"var(--text-sec)",borderRadius:10,padding:"14px 8px",fontSize:13,fontWeight:600,cursor:"pointer",textAlign:"center"}}>
+                <div style={{fontSize:22,marginBottom:4}}>{v==="dark"?"🌙":"☀️"}</div>
+                <div>{l.split(" ")[1]}</div>
+                <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>{desc}</div>
+              </button>
+            ))}
+          </div>
         </div>
       </div>}
       {tab==="ann"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="#3b82f6"/>}
       {tab==="plug"&&<BankEditor banks={banksPlug} onBanks={onBanksPlug} color="#6366f1"/>}
       {tab==="ia"&&<div>
-        <div style={{fontSize:13,color:"#94a3b8",marginBottom:12}}>Fournisseur IA pour l'analyse des morceaux personnalisés.</div>
+        <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>Fournisseur IA pour l'analyse des morceaux personnalisés.</div>
         <div style={{display:"flex",gap:8,marginBottom:16}}>
           {[{v:"anthropic",l:"Anthropic (Claude)"},{v:"gemini",l:"Google (Gemini)"}].map(({v,l})=>(
-            <button key={v} onClick={()=>onAiProvider(v)} style={{flex:1,background:aiProvider===v?"rgba(99,102,241,0.3)":"rgba(255,255,255,0.05)",border:aiProvider===v?"1px solid rgba(99,102,241,0.6)":"1px solid rgba(255,255,255,0.1)",color:aiProvider===v?"#a5b4fc":"#94a3b8",borderRadius:8,padding:"8px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{l}</button>
+            <button key={v} onClick={()=>onAiProvider(v)} style={{flex:1,background:aiProvider===v?"rgba(99,102,241,0.3)":"var(--a5)",border:aiProvider===v?"1px solid rgba(99,102,241,0.6)":"1px solid var(--a10)",color:aiProvider===v?"#a5b4fc":"#94a3b8",borderRadius:8,padding:"8px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{l}</button>
           ))}
         </div>
         {aiProvider==="anthropic"&&<div style={{background:"rgba(167,139,250,0.06)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:12,padding:16}}>
           <div style={{fontSize:12,fontWeight:700,color:"#a78bfa",marginBottom:10}}>🔑 Clé API Anthropic</div>
           <input type="password" placeholder="sk-ant-..." value={aiKeys.anthropic} onChange={e=>onAiKeys(p=>({...p,anthropic:e.target.value}))} style={{...inp,width:"100%",marginBottom:8,fontFamily:"monospace"}}/>
-          <div style={{fontSize:11,color:"#64748b"}}>console.anthropic.com → API Keys</div>
+          <div style={{fontSize:11,color:"var(--text-muted)"}}>console.anthropic.com → API Keys</div>
           {aiKeys.anthropic&&<div style={{fontSize:11,color:"#4ade80",marginTop:8}}>✓ Clé configurée ({aiKeys.anthropic.slice(0,12)}...)</div>}
         </div>}
         {aiProvider==="gemini"&&<div style={{background:"rgba(74,222,128,0.06)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:12,padding:16}}>
           <div style={{fontSize:12,fontWeight:700,color:"#4ade80",marginBottom:10}}>🔑 Clé API Google Gemini</div>
           <input type="password" placeholder="AIza..." value={aiKeys.gemini} onChange={e=>onAiKeys(p=>({...p,gemini:e.target.value}))} style={{...inp,width:"100%",marginBottom:8,fontFamily:"monospace"}}/>
-          <div style={{fontSize:11,color:"#64748b"}}>aistudio.google.com → Get API key (tier gratuit disponible)</div>
+          <div style={{fontSize:11,color:"var(--text-muted)"}}>aistudio.google.com → Get API key (tier gratuit disponible)</div>
           {aiKeys.gemini&&<div style={{fontSize:11,color:"#4ade80",marginTop:8}}>✓ Clé configurée ({aiKeys.gemini.slice(0,8)}...)</div>}
         </div>}
       </div>}
@@ -1959,44 +1994,44 @@ function AddSongModal({songDb,onSongDb,setlists,onSetlists,activeSlId,onClose,ba
     onClose();
   };
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:100}} onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div style={{background:"#1e293b",borderRadius:"16px 16px 0 0",padding:20,width:"100%",maxWidth:700,maxHeight:"85vh",overflowY:"auto"}}>
+    <div style={{position:"fixed",inset:0,background:"var(--overlay)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:100}} onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{background:"var(--bg-card)",borderRadius:"16px 16px 0 0",padding:20,width:"100%",maxWidth:700,maxHeight:"85vh",overflowY:"auto"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-          <div style={{fontSize:16,fontWeight:700,color:"#fff"}}>Ajouter un morceau</div>
-          <button onClick={onClose} style={{background:"none",border:"none",color:"#94a3b8",fontSize:20,cursor:"pointer"}}>✕</button>
+          <div style={{fontSize:16,fontWeight:700,color:"var(--text)"}}>Ajouter un morceau</div>
+          <button onClick={onClose} style={{background:"none",border:"none",color:"var(--text-sec)",fontSize:20,cursor:"pointer"}}>✕</button>
         </div>
         <div style={{display:"flex",gap:8,marginBottom:16}}>
           {[{v:"existing",l:"Depuis la base"},{v:"new",l:"Nouveau morceau"}].map(({v,l})=>(
-            <button key={v} onClick={()=>setMode(v)} style={{flex:1,background:mode===v?"rgba(99,102,241,0.3)":"rgba(255,255,255,0.05)",border:mode===v?"1px solid rgba(99,102,241,0.6)":"1px solid rgba(255,255,255,0.1)",color:mode===v?"#a5b4fc":"#94a3b8",borderRadius:8,padding:"8px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{l}</button>
+            <button key={v} onClick={()=>setMode(v)} style={{flex:1,background:mode===v?"rgba(99,102,241,0.3)":"var(--a5)",border:mode===v?"1px solid rgba(99,102,241,0.6)":"1px solid var(--a10)",color:mode===v?"#a5b4fc":"#94a3b8",borderRadius:8,padding:"8px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{l}</button>
           ))}
         </div>
         {mode==="existing"&&<>
-          <input placeholder="Rechercher..." value={search} onChange={e=>setSearch(e.target.value)} style={{width:"100%",background:"#0f172a",color:"#fff",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"9px 12px",fontSize:13,marginBottom:10,boxSizing:"border-box"}}/>
+          <input placeholder="Rechercher..." value={search} onChange={e=>setSearch(e.target.value)} style={{width:"100%",background:"var(--bg-body)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:8,padding:"9px 12px",fontSize:13,marginBottom:10,boxSizing:"border-box"}}/>
           <div style={{maxHeight:200,overflowY:"auto",marginBottom:14}}>
-            {filtered.length===0&&<div style={{fontSize:12,color:"#64748b",textAlign:"center",padding:"20px 0"}}>Aucun morceau disponible</div>}
+            {filtered.length===0&&<div style={{fontSize:12,color:"var(--text-muted)",textAlign:"center",padding:"20px 0"}}>Aucun morceau disponible</div>}
             {filtered.map(s=>{const sel=selectedSongs.includes(s.id);return(
               <div key={s.id} onClick={()=>toggleSong(s.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,cursor:"pointer",background:sel?"rgba(74,222,128,0.08)":"transparent",border:sel?"1px solid rgba(74,222,128,0.2)":"1px solid transparent",marginBottom:4}}>
-                <div style={{width:16,height:16,borderRadius:4,border:sel?"2px solid #4ade80":"2px solid #475569",background:sel?"#4ade80":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{sel&&<span style={{color:"#0f172a",fontSize:9,fontWeight:900}}>✓</span>}</div>
-                <div><div style={{fontSize:13,color:"#fff",fontWeight:600}}>{s.title}</div><div style={{fontSize:11,color:"#64748b"}}>{s.artist}</div></div>
+                <div style={{width:16,height:16,borderRadius:4,border:sel?"2px solid #4ade80":"2px solid var(--text-muted)",background:sel?"#4ade80":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{sel&&<span style={{color:"#0f172a",fontSize:9,fontWeight:900}}>✓</span>}</div>
+                <div><div style={{fontSize:13,color:"var(--text)",fontWeight:600}}>{s.title}</div><div style={{fontSize:11,color:"var(--text-muted)"}}>{s.artist}</div></div>
               </div>
             );})}
           </div>
         </>}
         {mode==="new"&&<div style={{marginBottom:14}}>
-          <input placeholder="Titre *" value={newTitle} onChange={e=>setNewTitle(e.target.value)} style={{width:"100%",background:"#0f172a",color:"#fff",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"9px 12px",fontSize:13,marginBottom:8,boxSizing:"border-box"}}/>
-          <input placeholder="Artiste" value={newArtist} onChange={e=>setNewArtist(e.target.value)} style={{width:"100%",background:"#0f172a",color:"#fff",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"9px 12px",fontSize:13,boxSizing:"border-box"}}/>
-          <div style={{fontSize:11,color:"#64748b",marginTop:6}}>Analysé par l'IA dans le récap.</div>
+          <input placeholder="Titre *" value={newTitle} onChange={e=>setNewTitle(e.target.value)} style={{width:"100%",background:"var(--bg-body)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:8,padding:"9px 12px",fontSize:13,marginBottom:8,boxSizing:"border-box"}}/>
+          <input placeholder="Artiste" value={newArtist} onChange={e=>setNewArtist(e.target.value)} style={{width:"100%",background:"var(--bg-body)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:8,padding:"9px 12px",fontSize:13,boxSizing:"border-box"}}/>
+          <div style={{fontSize:11,color:"var(--text-muted)",marginTop:6}}>Analysé par l'IA dans le récap.</div>
         </div>}
         <div style={{marginBottom:16}}>
-          <div style={{fontSize:12,color:"#94a3b8",fontWeight:600,marginBottom:8}}>Ajouter à :</div>
+          <div style={{fontSize:12,color:"var(--text-sec)",fontWeight:600,marginBottom:8}}>Ajouter à :</div>
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
             {setlists.map(sl=>{const sel=targetSlIds.includes(sl.id);return(
-              <button key={sl.id} onClick={()=>toggleSl(sl.id)} style={{background:sel?"rgba(99,102,241,0.3)":"rgba(255,255,255,0.05)",border:sel?"1px solid rgba(99,102,241,0.6)":"1px solid rgba(255,255,255,0.1)",color:sel?"#a5b4fc":"#94a3b8",borderRadius:7,padding:"6px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{sl.name}</button>
+              <button key={sl.id} onClick={()=>toggleSl(sl.id)} style={{background:sel?"rgba(99,102,241,0.3)":"var(--a5)",border:sel?"1px solid rgba(99,102,241,0.6)":"1px solid var(--a10)",color:sel?"#a5b4fc":"#94a3b8",borderRadius:7,padding:"6px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{sl.name}</button>
             );})}
           </div>
         </div>
         <button onClick={handleAdd} disabled={targetSlIds.length===0||(mode==="existing"&&selectedSongs.length===0)||(mode==="new"&&!newTitle.trim())}
-          style={{width:"100%",background:targetSlIds.length>0?"#4f46e5":"#374151",border:"none",color:"#fff",borderRadius:10,padding:"13px",fontSize:14,fontWeight:700,cursor:"pointer"}}>
+          style={{width:"100%",background:targetSlIds.length>0?"#4f46e5":"#374151",border:"none",color:"var(--text)",borderRadius:10,padding:"13px",fontSize:14,fontWeight:700,cursor:"pointer"}}>
           ✅ Ajouter{selectedSongs.length>1?` (${selectedSongs.length})`:""}
         </button>
       </div>
@@ -2040,15 +2075,15 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose}){
     <div className="song-row-detail" style={{background:"rgba(99,102,241,0.07)",border:"1px solid rgba(99,102,241,0.25)",borderRadius:"0 0 12px 12px",padding:"12px 14px",marginBottom:8,marginTop:-2}}>
       <Row icon="🎸"><div style={{flex:1,marginBottom:10}}>
         <GuitarSelect value={gId} onChange={setGId} ig={ig}/>
-        {g&&!song.isCustom&&<div style={{fontSize:11,color:"#94a3b8",marginTop:3}}>{getGr(song,type)}</div>}
+        {g&&!song.isCustom&&<div style={{fontSize:11,color:"var(--text-sec)",marginTop:3}}>{getGr(song,type)}</div>}
         {g&&aiC?.ideal_guitar&&<div style={{fontSize:11,color:"#a78bfa",marginTop:3}}>IA : {aiC.ideal_guitar}{aiC.guitar_reason?" — "+aiC.guitar_reason:""}</div>}
       </div></Row>
-      {hist&&<Row icon="📖"><div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:9,padding:"9px 12px",flex:1,marginBottom:10}}>
-        <div style={{fontSize:10,color:"#64748b",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:5}}>Référence — {hist.guitarist}</div>
+      {hist&&<Row icon="📖"><div style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:9,padding:"9px 12px",flex:1,marginBottom:10}}>
+        <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:5}}>Référence — {hist.guitarist}</div>
         <div style={{display:"flex",flexDirection:"column",gap:3}}>
-          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}><span style={{fontSize:10,color:"#64748b",flexShrink:0}}>🎸</span><span style={{fontSize:11,color:"#e2e8f0"}}>{hist.guitar}</span></div>
-          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}><span style={{fontSize:10,color:"#64748b",flexShrink:0}}>🔊</span><span style={{fontSize:11,color:"#e2e8f0"}}>{hist.amp}</span></div>
-          {hist.effects&&<div style={{display:"flex",gap:5,flexWrap:"wrap"}}><span style={{fontSize:10,color:"#64748b",flexShrink:0}}>🎚</span><span style={{fontSize:11,color:"#94a3b8"}}>{hist.effects}</span></div>}
+          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}><span style={{fontSize:10,color:"var(--text-muted)",flexShrink:0}}>🎸</span><span style={{fontSize:11,color:"var(--text-bright)"}}>{hist.guitar}</span></div>
+          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}><span style={{fontSize:10,color:"var(--text-muted)",flexShrink:0}}>🔊</span><span style={{fontSize:11,color:"var(--text-bright)"}}>{hist.amp}</span></div>
+          {hist.effects&&<div style={{display:"flex",gap:5,flexWrap:"wrap"}}><span style={{fontSize:10,color:"var(--text-muted)",flexShrink:0}}>🎚</span><span style={{fontSize:11,color:"var(--text-sec)"}}>{hist.effects}</span></div>}
         </div>
       </div></Row>}
       {!song.isCustom&&<>
@@ -2072,7 +2107,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose}){
         </div>}
       </>}
       {song.isCustom&&!aiC&&<div style={{fontSize:12,color:"#475569",padding:"10px 0"}}>Aucune analyse IA en cache. Ouvre ce morceau dans le Récap pour lancer l'analyse.</div>}
-      <button onClick={onClose} style={{fontSize:11,color:"#64748b",background:"none",border:"none",cursor:"pointer",textDecoration:"underline",padding:0}}>Fermer ↑</button>
+      <button onClick={onClose} style={{fontSize:11,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",textDecoration:"underline",padding:0}}>Fermer ↑</button>
     </div>
   );
 }
@@ -2095,29 +2130,29 @@ function ListScreen({songDb,onSongDb,setlists,onSetlists,checked,onChecked,onNex
   return (
     <div>
       {!hideHeader&&<div style={{marginBottom:20,textAlign:"center"}}>
-        <div style={{fontSize:26,fontWeight:800,color:"#fff",marginBottom:3}}>🎸 ToneX Setlist Guide</div>
+        <div style={{fontSize:26,fontWeight:800,color:"var(--text)",marginBottom:3}}>🎸 ToneX Setlist Guide</div>
       </div>}
       <div style={{marginBottom:14}}>
-        <div style={{fontSize:11,color:"#64748b",fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Setlist active</div>
+        <div style={{fontSize:11,color:"var(--text-muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Setlist active</div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
           <button onClick={()=>{setActiveSlId(null);onChecked([]);}}
-            style={{background:!activeSlId?"rgba(99,102,241,0.3)":"rgba(255,255,255,0.05)",border:!activeSlId?"1px solid rgba(99,102,241,0.6)":"1px solid rgba(255,255,255,0.1)",color:!activeSlId?"#a5b4fc":"#94a3b8",borderRadius:8,padding:"7px 14px",fontSize:13,fontWeight:600,cursor:"pointer"}}>
+            style={{background:!activeSlId?"rgba(99,102,241,0.3)":"var(--a5)",border:!activeSlId?"1px solid rgba(99,102,241,0.6)":"1px solid var(--a10)",color:!activeSlId?"#a5b4fc":"#94a3b8",borderRadius:8,padding:"7px 14px",fontSize:13,fontWeight:600,cursor:"pointer"}}>
             Tous<span style={{fontSize:10,marginLeft:5,color:!activeSlId?"#818cf8":"#475569"}}>({songDb.length})</span>
           </button>
           {setlists.map(sl=>(
             <button key={sl.id} onClick={()=>{setActiveSlId(activeSlId===sl.id?null:sl.id);onChecked([]);}}
-              style={{background:activeSlId===sl.id?"rgba(99,102,241,0.3)":"rgba(255,255,255,0.05)",border:activeSlId===sl.id?"1px solid rgba(99,102,241,0.6)":"1px solid rgba(255,255,255,0.1)",color:activeSlId===sl.id?"#a5b4fc":"#94a3b8",borderRadius:8,padding:"7px 14px",fontSize:13,fontWeight:600,cursor:"pointer"}}>
+              style={{background:activeSlId===sl.id?"rgba(99,102,241,0.3)":"var(--a5)",border:activeSlId===sl.id?"1px solid rgba(99,102,241,0.6)":"1px solid var(--a10)",color:activeSlId===sl.id?"#a5b4fc":"#94a3b8",borderRadius:8,padding:"7px 14px",fontSize:13,fontWeight:600,cursor:"pointer"}}>
               {sl.name}<span style={{fontSize:10,marginLeft:5,color:activeSlId===sl.id?"#818cf8":"#475569"}}>({sl.songIds.length})</span>
             </button>
           ))}
-          {!hideHeader&&<button onClick={onSettings} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:"#64748b",borderRadius:8,padding:"7px 12px",fontSize:13,cursor:"pointer",marginLeft:"auto"}}>⚙️</button>}
+          {!hideHeader&&<button onClick={onSettings} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"7px 12px",fontSize:13,cursor:"pointer",marginLeft:"auto"}}>⚙️</button>}
         </div>
       </div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-          <span style={{fontSize:12,color:"#64748b",fontWeight:600}}>{activeSongs.length} morceaux</span>
-          {activeSongs.length>0&&<button onClick={toggleAll} style={{background:"rgba(255,255,255,0.07)",border:"1px solid rgba(255,255,255,0.1)",color:"#94a3b8",borderRadius:6,padding:"3px 10px",fontSize:11,cursor:"pointer"}}>{checked.length===activeSongs.length?"Tout décocher":"Tout cocher"}</button>}
-          <select value={sort} onChange={e=>setSort(e.target.value)} style={{background:"#1e293b",color:"#94a3b8",border:"1px solid rgba(255,255,255,0.12)",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer"}}>
+          <span style={{fontSize:12,color:"var(--text-muted)",fontWeight:600}}>{activeSongs.length} morceaux</span>
+          {activeSongs.length>0&&<button onClick={toggleAll} style={{background:"var(--a7)",border:"1px solid var(--a10)",color:"var(--text-sec)",borderRadius:6,padding:"3px 10px",fontSize:11,cursor:"pointer"}}>{checked.length===activeSongs.length?"Tout décocher":"Tout cocher"}</button>}
+          <select value={sort} onChange={e=>setSort(e.target.value)} style={{background:"var(--bg-card)",color:"var(--text-sec)",border:"1px solid var(--a12)",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer"}}>
             <option value="default">Ordre setlist</option>
             <option value="alpha">Titre A → Z</option>
             <option value="artist">Artiste A → Z</option>
@@ -2125,7 +2160,7 @@ function ListScreen({songDb,onSongDb,setlists,onSetlists,checked,onChecked,onNex
         </div>
         <button onClick={()=>setShowAdd(true)} style={{background:"rgba(99,102,241,0.15)",border:"1px solid rgba(99,102,241,0.3)",color:"#a5b4fc",borderRadius:7,padding:"5px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>+ Ajouter</button>
       </div>
-      {activeSongs.length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#475569"}}><div style={{fontSize:24,marginBottom:8}}>🎵</div><div style={{fontSize:14}}>Setlist vide — clique sur "+ Ajouter"</div></div>}
+      {activeSongs.length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"var(--text-dim)"}}><div style={{fontSize:24,marginBottom:8}}>🎵</div><div style={{fontSize:14}}>Setlist vide — clique sur "+ Ajouter"</div></div>}
       {activeSongs.map(s=>{
         const isC=checked.includes(s.id);
         const ig=getIg(s);
@@ -2141,12 +2176,12 @@ function ListScreen({songDb,onSongDb,setlists,onSetlists,checked,onChecked,onNex
           const loc=findInBanks(label,banks);
           return(
             <div style={{display:"flex",alignItems:"center",gap:5}}>
-              <span style={{fontSize:10,color:"#64748b"}}>{emoji}</span>
+              <span style={{fontSize:10,color:"var(--text-muted)"}}>{emoji}</span>
               {loc
                 ?<span style={{fontSize:10,background:`${CC[loc.slot]}18`,color:CC[loc.slot],border:`1px solid ${CC[loc.slot]}40`,borderRadius:4,padding:"1px 6px",fontWeight:700}}>{loc.bank}{loc.slot}</span>
                 :<span style={{fontSize:10,background:"rgba(251,191,36,0.15)",color:"#fbbf24",borderRadius:4,padding:"1px 6px",fontWeight:700}}>⬇</span>
               }
-              <span style={{fontSize:10,color:"#94a3b8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,minWidth:0}}>{label}</span>
+              <span style={{fontSize:10,color:"var(--text-sec)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,minWidth:0}}>{label}</span>
             </div>
           );
         };
@@ -2154,25 +2189,25 @@ function ListScreen({songDb,onSongDb,setlists,onSetlists,checked,onChecked,onNex
         return (
           <div key={s.id} style={{marginBottom: isExpanded?0:8}}>
             <div style={{display:"flex"}}>
-              <button onClick={()=>toggle(s.id)} style={{background:isC?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.04)",border:isC?"1px solid rgba(74,222,128,0.4)":"1px solid rgba(255,255,255,0.1)",borderRight:"none",borderRadius:isExpanded?"10px 0 0 0":"10px 0 0 10px",padding:"0 14px",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center"}}>
-                <div style={{width:18,height:18,borderRadius:5,border:isC?"2px solid #4ade80":"2px solid #475569",background:isC?"#4ade80":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>{isC&&<span style={{color:"#0f172a",fontSize:11,fontWeight:900}}>✓</span>}</div>
+              <button onClick={()=>toggle(s.id)} style={{background:isC?"rgba(74,222,128,0.15)":"var(--a4)",border:isC?"1px solid rgba(74,222,128,0.4)":"1px solid var(--a10)",borderRight:"none",borderRadius:isExpanded?"10px 0 0 0":"10px 0 0 10px",padding:"0 14px",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center"}}>
+                <div style={{width:18,height:18,borderRadius:5,border:isC?"2px solid #4ade80":"2px solid var(--text-muted)",background:isC?"#4ade80":"transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>{isC&&<span style={{color:"#0f172a",fontSize:11,fontWeight:900}}>✓</span>}</div>
               </button>
-              <div onClick={()=>setExpandedId(isExpanded?null:s.id)} style={{flex:1,background:isC?"rgba(74,222,128,0.05)":"rgba(255,255,255,0.03)",border:isC?"1px solid rgba(74,222,128,0.15)":"1px solid rgba(255,255,255,0.07)",borderLeft:"none",borderRadius:isExpanded?"0 10px 0 0":"0 10px 10px 0",padding:"10px 13px",cursor:"pointer"}}>
+              <div onClick={()=>setExpandedId(isExpanded?null:s.id)} style={{flex:1,background:isC?"rgba(74,222,128,0.05)":"var(--a3)",border:isC?"1px solid rgba(74,222,128,0.15)":"1px solid var(--a7)",borderLeft:"none",borderRadius:isExpanded?"0 10px 0 0":"0 10px 10px 0",padding:"10px 13px",cursor:"pointer"}}>
                 <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:2}}>
-                  <span style={{fontSize:14,fontWeight:600,color:"#fff"}}>{s.title}</span>
+                  <span style={{fontSize:14,fontWeight:600,color:"var(--text)"}}>{s.title}</span>
                   {s.isCustom&&<span style={{fontSize:10,color:"#a78bfa",background:"rgba(167,139,250,0.15)",borderRadius:4,padding:"1px 6px"}}>✨IA</span>}
-                  {s.isCustom&&!s.aiCache&&<span style={{fontSize:10,color:"#64748b"}}>⏳</span>}
-                  <span style={{marginLeft:"auto",fontSize:11,color:"#475569"}}>{isExpanded?"▲":"▼"}</span>
+                  {s.isCustom&&!s.aiCache&&<span style={{fontSize:10,color:"var(--text-muted)"}}>⏳</span>}
+                  <span style={{marginLeft:"auto",fontSize:11,color:"var(--text-dim)"}}>{isExpanded?"▲":"▼"}</span>
                 </div>
-                <div style={{fontSize:11,color:"#64748b",marginBottom:hist?3:0}}>{s.artist}</div>
+                <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:hist?3:0}}>{s.artist}</div>
                 {hist&&!isExpanded&&<div style={{fontSize:10,color:"#475569",marginTop:2,display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
                   <span style={{color:"#4a5568",fontWeight:600}}>{hist.guitarist}</span>
                   <span style={{color:"#2d3748"}}>·</span>
                   <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,minWidth:0}}>{hist.amp}</span>
                 </div>}
                 {!isExpanded&&<div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",marginTop:g||aiC?.ideal_guitar?4:0}}>
-                  {g&&<><span style={{fontSize:10,color:"#64748b"}}>🎸</span><span style={{fontSize:10,color:"#4ade80",background:"rgba(74,222,128,0.1)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{g.short}</span>{ig.slice(1).map(gid=>{const gg=GUITARS.find(x=>x.id===gid);return gg?<span key={gid} style={{fontSize:10,color:"#64748b",background:"rgba(255,255,255,0.05)",borderRadius:4,padding:"1px 7px"}}>{gg.short}</span>:null;})}</>}
-                  {aiC?.ideal_guitar&&<><span style={{fontSize:10,color:"#64748b"}}>🎸</span><span style={{fontSize:10,color:"#a78bfa",background:"rgba(167,139,250,0.1)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{aiC.ideal_guitar}</span></>}
+                  {g&&<><span style={{fontSize:10,color:"var(--text-muted)"}}>🎸</span><span style={{fontSize:10,color:"#4ade80",background:"rgba(74,222,128,0.1)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{g.short}</span>{ig.slice(1).map(gid=>{const gg=GUITARS.find(x=>x.id===gid);return gg?<span key={gid} style={{fontSize:10,color:"var(--text-muted)",background:"var(--a5)",borderRadius:4,padding:"1px 7px"}}>{gg.short}</span>:null;})}</>}
+                  {aiC?.ideal_guitar&&<><span style={{fontSize:10,color:"var(--text-muted)"}}>🎸</span><span style={{fontSize:10,color:"#a78bfa",background:"rgba(167,139,250,0.1)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{aiC.ideal_guitar}</span></>}
                 </div>}
                 {!isExpanded&&<div style={{display:"flex",flexDirection:"column",gap:3,marginTop:pa||pp?4:0}}>
                   {pa&&presetRow("📦",pa.l,banksAnn)}
@@ -2186,7 +2221,7 @@ function ListScreen({songDb,onSongDb,setlists,onSetlists,checked,onChecked,onNex
           </div>
         );
       })}
-      {checked.length>0&&<div className="bottom-action" style={{paddingTop:12}}><button onClick={onNext} style={{width:"100%",background:"#16a34a",border:"none",color:"#fff",borderRadius:12,padding:"14px",fontSize:15,fontWeight:700,cursor:"pointer"}}>Générer le récap — {checked.length} morceau{checked.length>1?"x":""} →</button></div>}
+      {checked.length>0&&<div className="bottom-action" style={{paddingTop:12}}><button onClick={onNext} style={{width:"100%",background:"#16a34a",border:"none",color:"var(--text)",borderRadius:12,padding:"14px",fontSize:15,fontWeight:700,cursor:"pointer"}}>Générer le récap — {checked.length} morceau{checked.length>1?"x":""} →</button></div>}
       {showAdd&&<AddSongModal songDb={songDb} onSongDb={onSongDb} setlists={setlists} onSetlists={onSetlists} activeSlId={activeSlId} onClose={()=>setShowAdd(false)} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys}/>}
     </div>
   );
@@ -2200,7 +2235,7 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
   return (
     <div>
       <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Récap"}]} onNavigate={onNavigate}/>
-      <div style={{marginBottom:20}}><div style={{fontSize:22,fontWeight:800,color:"#fff"}}>Récap de session</div><div style={{fontSize:12,color:"#64748b",marginTop:3}}>{songs.length} morceau{songs.length>1?"x":""}</div></div>
+      <div style={{marginBottom:20}}><div style={{fontSize:22,fontWeight:800,color:"var(--text)"}}>Récap de session</div><div style={{fontSize:12,color:"var(--text-muted)",marginTop:3}}>{songs.length} morceau{songs.length>1?"x":""}</div></div>
       {songs.map(s=>{
         const gId=gps[s.id]||"";
         const g=GUITARS.find(x=>x.id===gId);
@@ -2212,28 +2247,28 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
         const ideal=gId&&ig.includes(gId);
         const adapted=gId&&!ideal;
         return (
-          <div key={s.id} style={{background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.09)",borderRadius:14,padding:16,marginBottom:14}}>
+          <div key={s.id} style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:14,padding:16,marginBottom:14}}>
             <div style={{marginBottom:12}}>
-              <div style={{fontSize:11,color:"#64748b",textTransform:"uppercase",letterSpacing:1}}>{s.artist}</div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:17,fontWeight:700,color:"#fff"}}>{s.title}</span>{s.isCustom&&<span style={{fontSize:10,color:"#a78bfa",background:"rgba(167,139,250,0.15)",borderRadius:4,padding:"1px 6px"}}>✨ IA</span>}</div>
+              <div style={{fontSize:11,color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:1}}>{s.artist}</div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:17,fontWeight:700,color:"var(--text)"}}>{s.title}</span>{s.isCustom&&<span style={{fontSize:10,color:"#a78bfa",background:"rgba(167,139,250,0.15)",borderRadius:4,padding:"1px 6px"}}>✨ IA</span>}</div>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
-              <Row icon="🎸"><div style={{flex:1}}><GuitarSelect value={gId} onChange={v=>sg(s.id,v)} ig={ig}/>{g&&!s.isCustom&&<div style={{fontSize:11,color:"#94a3b8",marginTop:4}}>{getGr(s,type)}</div>}</div></Row>
+              <Row icon="🎸"><div style={{flex:1}}><GuitarSelect value={gId} onChange={v=>sg(s.id,v)} ig={ig}/>{g&&!s.isCustom&&<div style={{fontSize:11,color:"var(--text-sec)",marginTop:4}}>{getGr(s,type)}</div>}</div></Row>
               {(()=>{const hist=getSongHist(s,aiR[s.id]);return hist&&(
-                <Row icon="📖"><div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:9,padding:"9px 12px",flex:1}}>
-                  <div style={{fontSize:10,color:"#64748b",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Référence originale — {hist.guitarist}</div>
+                <Row icon="📖"><div style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:9,padding:"9px 12px",flex:1}}>
+                  <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Référence originale — {hist.guitarist}</div>
                   <div style={{display:"flex",flexDirection:"column",gap:3}}>
                     <div style={{display:"flex",gap:5,alignItems:"baseline",flexWrap:"wrap"}}>
-                      <span style={{fontSize:10,color:"#64748b",flexShrink:0}}>🎸 Guitare</span>
-                      <span style={{fontSize:11,color:"#e2e8f0",fontWeight:500}}>{hist.guitar}</span>
+                      <span style={{fontSize:10,color:"var(--text-muted)",flexShrink:0}}>🎸 Guitare</span>
+                      <span style={{fontSize:11,color:"var(--text-bright)",fontWeight:500}}>{hist.guitar}</span>
                     </div>
                     <div style={{display:"flex",gap:5,alignItems:"baseline",flexWrap:"wrap"}}>
-                      <span style={{fontSize:10,color:"#64748b",flexShrink:0}}>🔊 Ampli</span>
-                      <span style={{fontSize:11,color:"#e2e8f0",fontWeight:500}}>{hist.amp}</span>
+                      <span style={{fontSize:10,color:"var(--text-muted)",flexShrink:0}}>🔊 Ampli</span>
+                      <span style={{fontSize:11,color:"var(--text-bright)",fontWeight:500}}>{hist.amp}</span>
                     </div>
                     {hist.effects&&<div style={{display:"flex",gap:5,alignItems:"baseline",flexWrap:"wrap"}}>
-                      <span style={{fontSize:10,color:"#64748b",flexShrink:0}}>🎚 Effets</span>
-                      <span style={{fontSize:11,color:"#94a3b8"}}>{hist.effects}</span>
+                      <span style={{fontSize:10,color:"var(--text-muted)",flexShrink:0}}>🎚 Effets</span>
+                      <span style={{fontSize:11,color:"var(--text-sec)"}}>{hist.effects}</span>
                     </div>}
                   </div>
                 </div></Row>
@@ -2254,7 +2289,7 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
         );
       })}
       <div className="bottom-action" style={{paddingTop:8}}>
-        <button onClick={()=>onValidate(gps,aiR)} style={{width:"100%",background:"linear-gradient(135deg,#0ea5e9,#6366f1)",border:"none",color:"#fff",borderRadius:12,padding:"16px",fontSize:15,fontWeight:700,cursor:"pointer"}}>
+        <button onClick={()=>onValidate(gps,aiR)} style={{width:"100%",background:"linear-gradient(135deg,#0ea5e9,#6366f1)",border:"none",color:"var(--text)",borderRadius:12,padding:"16px",fontSize:15,fontWeight:700,cursor:"pointer"}}>
           ✅ Valider et voir le tableau de synthèse →
         </button>
       </div>
@@ -2279,10 +2314,10 @@ function SynthesisScreen({songs,gps,aiR,onBack,onNavigate,songDb,banksAnn,banksP
     }
     return {s,g,type,ann,plug};
   });
-  const th={fontSize:11,color:"#64748b",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,padding:"8px 10px",borderBottom:"1px solid rgba(255,255,255,0.1)",textAlign:"left"};
-  const td={fontSize:12,padding:"10px",borderBottom:"1px solid rgba(255,255,255,0.05)",verticalAlign:"top"};
+  const th={fontSize:11,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,padding:"8px 10px",borderBottom:"1px solid var(--a10)",textAlign:"left"};
+  const td={fontSize:12,padding:"10px",borderBottom:"1px solid var(--a5)",verticalAlign:"top"};
   const cellPreset=(item,accentColor)=>{
-    if(!item) return <span style={{color:"#64748b"}}>—</span>;
+    if(!item) return <span style={{color:"var(--text-muted)"}}>—</span>;
     const {name,rec}=item;
     const sc=rec?.score;
     const scC=sc!=null?scoreColor(sc):"#888";
@@ -2294,7 +2329,7 @@ function SynthesisScreen({songs,gps,aiR,onBack,onNavigate,songDb,banksAnn,banksP
           :<span style={{fontSize:10,background:"rgba(251,191,36,0.15)",color:"#fbbf24",borderRadius:4,padding:"1px 6px",fontWeight:700,marginRight:4}}>⬇ À installer</span>
         }
         {sc!=null&&<span style={{fontSize:10,fontWeight:800,color:scC,background:scB,borderRadius:4,padding:"1px 6px"}}>{sc}%</span>}
-        <div style={{fontSize:11,color:"#94a3b8",lineHeight:1.5,marginTop:2}}>{name}</div>
+        <div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.5,marginTop:2}}>{name}</div>
         {!rec?.installed&&rec?.replaceBank!=null&&<div style={{fontSize:10,color:"#475569",marginTop:1}}>→ Remplace Bank {rec.replaceBank}{rec.replaceSlot}</div>}
       </div>
     );
@@ -2302,15 +2337,15 @@ function SynthesisScreen({songs,gps,aiR,onBack,onNavigate,songDb,banksAnn,banksP
   return (
     <div>
       <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Récap",screen:"recap"},{label:"Synthèse"}]} onNavigate={onNavigate}/>
-      <div style={{marginBottom:20}}><div style={{fontSize:22,fontWeight:800,color:"#fff"}}>Tableau de synthèse</div><div style={{fontSize:12,color:"#64748b",marginTop:3}}>{songs.length} morceau{songs.length>1?"x":""}</div></div>
-      <div style={{overflowX:"auto",borderRadius:12,border:"1px solid rgba(255,255,255,0.09)"}}>
+      <div style={{marginBottom:20}}><div style={{fontSize:22,fontWeight:800,color:"var(--text)"}}>Tableau de synthèse</div><div style={{fontSize:12,color:"var(--text-muted)",marginTop:3}}>{songs.length} morceau{songs.length>1?"x":""}</div></div>
+      <div style={{overflowX:"auto",borderRadius:12,border:"1px solid var(--a8)"}}>
         <table>
-          <thead><tr style={{background:"rgba(255,255,255,0.04)"}}><th style={th}>Morceau</th><th style={th}>Guitare</th><th style={{...th,color:"#93c5fd"}}>📦 Anniversary</th><th style={{...th,color:"#a5b4fc"}}>🔌 Plug</th></tr></thead>
+          <thead><tr style={{background:"var(--a4)"}}><th style={th}>Morceau</th><th style={th}>Guitare</th><th style={{...th,color:"#93c5fd"}}>📦 Anniversary</th><th style={{...th,color:"#a5b4fc"}}>🔌 Plug</th></tr></thead>
           <tbody>
             {rows.map(({s,g,ann,plug},i)=>(
-              <tr key={s.id} style={{background:i%2===0?"transparent":"rgba(255,255,255,0.02)"}}>
-                <td style={td}><div style={{fontWeight:600,color:"#fff",fontSize:13}}>{s.title}</div><div style={{fontSize:11,color:"#64748b"}}>{s.artist}</div></td>
-                <td style={td}>{g?<span style={{fontSize:12,color:"#4ade80",background:"rgba(74,222,128,0.1)",borderRadius:5,padding:"2px 8px",fontWeight:600,whiteSpace:"nowrap"}}>{g.short}</span>:<span style={{color:"#64748b"}}>—</span>}</td>
+              <tr key={s.id} style={{background:i%2===0?"transparent":"var(--a3)"}}>
+                <td style={td}><div style={{fontWeight:600,color:"var(--text)",fontSize:13}}>{s.title}</div><div style={{fontSize:11,color:"var(--text-muted)"}}>{s.artist}</div></td>
+                <td style={td}>{g?<span style={{fontSize:12,color:"#4ade80",background:"rgba(74,222,128,0.1)",borderRadius:5,padding:"2px 8px",fontWeight:600,whiteSpace:"nowrap"}}>{g.short}</span>:<span style={{color:"var(--text-muted)"}}>—</span>}</td>
                 <td style={td}>{cellPreset(ann,"#93c5fd")}</td>
                 <td style={td}>{cellPreset(plug,"#a5b4fc")}</td>
               </tr>
@@ -2333,7 +2368,7 @@ function NewSongExplorer({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug
   const [addToDb,setAddToDb]=useState(true);
   const [addToSlIds,setAddToSlIds]=useState([]);
   const [saved,setSaved]=useState(false);
-  const inp={background:"#1e293b",color:"#fff",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"9px 12px",fontSize:13,width:"100%",boxSizing:"border-box"};
+  const inp={background:"var(--bg-card)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:8,padding:"9px 12px",fontSize:13,width:"100%",boxSizing:"border-box"};
 
   const analyze=()=>{
     if(!title.trim())return;
@@ -2356,14 +2391,14 @@ function NewSongExplorer({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug
   const gType=gId?GUITARS.find(x=>x.id===gId)?.type||"HB":null;
   return (
     <div>
-      <div style={{fontSize:13,color:"#64748b",marginBottom:16}}>Explore un nouveau morceau avec l'IA et ajoute-le éventuellement à ta base.</div>
+      <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:16}}>Explore un nouveau morceau avec l'IA et ajoute-le éventuellement à ta base.</div>
       <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:14}}>
         <input placeholder="Titre du morceau *" value={title} onChange={e=>setTitle(e.target.value)} style={inp} onKeyDown={e=>e.key==="Enter"&&analyze()}/>
         <input placeholder="Artiste" value={artist} onChange={e=>setArtist(e.target.value)} style={inp}/>
         <GuitarSelect value={gId} onChange={setGId}/>
       </div>
       <button onClick={analyze} disabled={!title.trim()||loading}
-        style={{width:"100%",background:!title.trim()||loading?"#374151":"linear-gradient(135deg,#7c3aed,#4f46e5)",border:"none",color:"#fff",borderRadius:10,padding:"12px",fontSize:14,fontWeight:700,cursor:!title.trim()||loading?"not-allowed":"pointer",marginBottom:16}}>
+        style={{width:"100%",background:!title.trim()||loading?"#374151":"linear-gradient(135deg,#7c3aed,#4f46e5)",border:"none",color:"var(--text)",borderRadius:10,padding:"12px",fontSize:14,fontWeight:700,cursor:!title.trim()||loading?"not-allowed":"pointer",marginBottom:16}}>
         {loading?"✨ Analyse en cours…":"✨ Analyser avec l'IA"}
       </button>
       {err&&<div style={{fontSize:12,color:"#f87171",background:"rgba(239,68,68,0.1)",borderRadius:8,padding:"10px 12px",marginBottom:12}}>{err}</div>}
@@ -2371,7 +2406,7 @@ function NewSongExplorer({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug
         <div style={{background:"rgba(99,102,241,0.08)",border:"1px solid rgba(99,102,241,0.3)",borderRadius:14,padding:16,marginBottom:14}}>
           <div style={{fontSize:13,fontWeight:700,color:"#a5b4fc",marginBottom:12}}>{title}{artist?" — "+artist:""}</div>
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            <Row icon="🎯"><div><div style={{fontSize:12,color:"#a78bfa",fontWeight:700,marginBottom:2}}>Guitare idéale : {result.ideal_guitar}</div><div style={{fontSize:11,color:"#94a3b8"}}>{result.guitar_reason}</div></div></Row>
+            <Row icon="🎯"><div><div style={{fontSize:12,color:"#a78bfa",fontWeight:700,marginBottom:2}}>Guitare idéale : {result.ideal_guitar}</div><div style={{fontSize:11,color:"var(--text-sec)"}}>{result.guitar_reason}</div></div></Row>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>
               <PBlock device="ToneX Anniversary" emoji="📦" presetName={result.preset_ann?.label} gType={gType} banks={banksAnn}/>
               <PBlock device="ToneX Plug" emoji="🔌" presetName={result.preset_plug?.label} gType={gType} banks={banksPlug} bg2="rgba(99,102,241,0.06)"/>
@@ -2380,12 +2415,12 @@ function NewSongExplorer({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug
               {result.settings_preset&&<div style={{fontSize:11,background:"rgba(251,191,36,0.07)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:7,padding:"6px 10px",color:"#fde68a"}}><b style={{color:"#fbbf24"}}>Preset · </b>{result.settings_preset}</div>}
               {result.settings_guitar&&<div style={{fontSize:11,background:"rgba(34,197,94,0.07)",border:"1px solid rgba(34,197,94,0.15)",borderRadius:7,padding:"6px 10px",color:"#bbf7d0"}}><b style={{color:"#4ade80"}}>Guitare · </b>{result.settings_guitar}</div>}
             </div></Row>
-            {result.ref_guitarist&&<Row icon="📖"><div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:9,padding:"9px 12px",flex:1}}>
-              <div style={{fontSize:10,color:"#64748b",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Référence originale — {result.ref_guitarist}</div>
+            {result.ref_guitarist&&<Row icon="📖"><div style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:9,padding:"9px 12px",flex:1}}>
+              <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Référence originale — {result.ref_guitarist}</div>
               <div style={{display:"flex",flexDirection:"column",gap:3}}>
-                <div style={{display:"flex",gap:5,alignItems:"baseline",flexWrap:"wrap"}}><span style={{fontSize:10,color:"#64748b",flexShrink:0}}>🎸 Guitare</span><span style={{fontSize:11,color:"#e2e8f0",fontWeight:500}}>{result.ref_guitar}</span></div>
-                <div style={{display:"flex",gap:5,alignItems:"baseline",flexWrap:"wrap"}}><span style={{fontSize:10,color:"#64748b",flexShrink:0}}>🔊 Ampli</span><span style={{fontSize:11,color:"#e2e8f0",fontWeight:500}}>{result.ref_amp}</span></div>
-                {result.ref_effects&&<div style={{display:"flex",gap:5,alignItems:"baseline",flexWrap:"wrap"}}><span style={{fontSize:10,color:"#64748b",flexShrink:0}}>🎚 Effets</span><span style={{fontSize:11,color:"#94a3b8"}}>{result.ref_effects}</span></div>}
+                <div style={{display:"flex",gap:5,alignItems:"baseline",flexWrap:"wrap"}}><span style={{fontSize:10,color:"var(--text-muted)",flexShrink:0}}>🎸 Guitare</span><span style={{fontSize:11,color:"var(--text-bright)",fontWeight:500}}>{result.ref_guitar}</span></div>
+                <div style={{display:"flex",gap:5,alignItems:"baseline",flexWrap:"wrap"}}><span style={{fontSize:10,color:"var(--text-muted)",flexShrink:0}}>🔊 Ampli</span><span style={{fontSize:11,color:"var(--text-bright)",fontWeight:500}}>{result.ref_amp}</span></div>
+                {result.ref_effects&&<div style={{display:"flex",gap:5,alignItems:"baseline",flexWrap:"wrap"}}><span style={{fontSize:10,color:"var(--text-muted)",flexShrink:0}}>🎚 Effets</span><span style={{fontSize:11,color:"var(--text-sec)"}}>{result.ref_effects}</span></div>}
               </div>
             </div></Row>}
           </div>
@@ -2393,18 +2428,18 @@ function NewSongExplorer({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug
         {!saved?(
           <div style={{background:"rgba(74,222,128,0.06)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:12,padding:16}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,cursor:"pointer"}} onClick={()=>setAddToDb(!addToDb)}>
-              <div style={{width:18,height:18,borderRadius:5,border:addToDb?"2px solid #4ade80":"2px solid #475569",background:addToDb?"#4ade80":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{addToDb&&<span style={{color:"#0f172a",fontSize:10,fontWeight:900}}>✓</span>}</div>
-              <div style={{fontSize:13,color:"#fff",fontWeight:600}}>Ajouter à ma base de morceaux</div>
+              <div style={{width:18,height:18,borderRadius:5,border:addToDb?"2px solid #4ade80":"2px solid var(--text-muted)",background:addToDb?"#4ade80":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{addToDb&&<span style={{color:"#0f172a",fontSize:10,fontWeight:900}}>✓</span>}</div>
+              <div style={{fontSize:13,color:"var(--text)",fontWeight:600}}>Ajouter à ma base de morceaux</div>
             </div>
             {addToDb&&setlists.length>0&&<div style={{marginBottom:10}}>
-              <div style={{fontSize:11,color:"#64748b",marginBottom:6}}>Ajouter aussi à :</div>
+              <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:6}}>Ajouter aussi à :</div>
               <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                 {setlists.map(sl=>{const sel=addToSlIds.includes(sl.id);return(
-                  <button key={sl.id} onClick={()=>setAddToSlIds(p=>p.includes(sl.id)?p.filter(x=>x!==sl.id):[...p,sl.id])} style={{background:sel?"rgba(99,102,241,0.3)":"rgba(255,255,255,0.05)",border:sel?"1px solid rgba(99,102,241,0.6)":"1px solid rgba(255,255,255,0.1)",color:sel?"#a5b4fc":"#94a3b8",borderRadius:7,padding:"4px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{sl.name}</button>
+                  <button key={sl.id} onClick={()=>setAddToSlIds(p=>p.includes(sl.id)?p.filter(x=>x!==sl.id):[...p,sl.id])} style={{background:sel?"rgba(99,102,241,0.3)":"var(--a5)",border:sel?"1px solid rgba(99,102,241,0.6)":"1px solid var(--a10)",color:sel?"#a5b4fc":"#94a3b8",borderRadius:7,padding:"4px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{sl.name}</button>
                 );})}
               </div>
             </div>}
-            {addToDb&&<button onClick={doSave} style={{width:"100%",background:"#16a34a",border:"none",color:"#fff",borderRadius:10,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer"}}>✅ Sauvegarder dans la base</button>}
+            {addToDb&&<button onClick={doSave} style={{width:"100%",background:"#16a34a",border:"none",color:"var(--text)",borderRadius:10,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer"}}>✅ Sauvegarder dans la base</button>}
           </div>
         ):(
           <div style={{background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.4)",borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8}}>
@@ -2426,7 +2461,7 @@ function PresetList({filtered,selected,setSelected,banksAnn,banksPlug}){
   const remaining=filtered.length-shown;
   return(
     <div>
-      <div style={{fontSize:10,color:"#64748b",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>
+      <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>
         {filtered.length} preset{filtered.length>1?"s":""} trouvé{filtered.length>1?"s":""} — clique pour voir la fiche
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:3}}>
@@ -2437,11 +2472,11 @@ function PresetList({filtered,selected,setSelected,banksAnn,banksPlug}){
           const isSel=selected===name;
           return(
             <div key={name} onClick={()=>setSelected(isSel?null:name)}
-              style={{display:"flex",alignItems:"center",gap:8,background:isSel?"rgba(99,102,241,0.18)":"rgba(255,255,255,0.03)",border:isSel?"1px solid rgba(99,102,241,0.45)":"1px solid rgba(255,255,255,0.06)",borderRadius:9,padding:"8px 11px",cursor:"pointer"}}>
+              style={{display:"flex",alignItems:"center",gap:8,background:isSel?"rgba(99,102,241,0.18)":"var(--a3)",border:isSel?"1px solid rgba(99,102,241,0.45)":"1px solid var(--a6)",borderRadius:9,padding:"8px 11px",cursor:"pointer"}}>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:12,color:isSel?"#a5b4fc":"#e2e8f0",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</div>
                 <div style={{display:"flex",gap:5,alignItems:"center",marginTop:2,flexWrap:"wrap"}}>
-                  <span style={{fontSize:10,color:"#64748b"}}>{info.amp}</span>
+                  <span style={{fontSize:10,color:"var(--text-muted)"}}>{info.amp}</span>
                   {annLoc&&<span style={{fontSize:9,color:"#93c5fd",background:"rgba(147,197,253,0.1)",borderRadius:3,padding:"1px 5px",fontWeight:700}}>📦{annLoc.bank}{annLoc.slot}</span>}
                   {plugLoc&&<span style={{fontSize:9,color:"#a5b4fc",background:"rgba(165,180,252,0.1)",borderRadius:3,padding:"1px 5px",fontWeight:700}}>🔌{plugLoc.bank}{plugLoc.slot}</span>}
                 </div>
@@ -2457,7 +2492,7 @@ function PresetList({filtered,selected,setSelected,banksAnn,banksPlug}){
       </div>
       {remaining>0&&(
         <button onClick={()=>setShown(s=>s+PRESET_PAGE_SIZE)}
-          style={{width:"100%",marginTop:10,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:"#94a3b8",borderRadius:9,padding:"10px",fontSize:12,cursor:"pointer",fontWeight:600}}>
+          style={{width:"100%",marginTop:10,background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-sec)",borderRadius:9,padding:"10px",fontSize:12,cursor:"pointer",fontWeight:600}}>
           Voir {Math.min(remaining,PRESET_PAGE_SIZE)} de plus ({remaining} restants)
         </button>
       )}
@@ -2501,8 +2536,8 @@ function PresetBrowser({banksAnn,banksPlug}) {
 
   const ScoreBar=({label,score})=>(
     <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
-      <span style={{fontSize:10,color:"#64748b",width:28,flexShrink:0}}>{label}</span>
-      <div style={{flex:1,height:5,background:"rgba(255,255,255,0.08)",borderRadius:3,overflow:"hidden"}}>
+      <span style={{fontSize:10,color:"var(--text-muted)",width:28,flexShrink:0}}>{label}</span>
+      <div style={{flex:1,height:5,background:"var(--a8)",borderRadius:3,overflow:"hidden"}}>
         <div style={{width:`${score}%`,height:"100%",background:scoreColor(score),borderRadius:3}}/>
       </div>
       <span style={{fontSize:10,fontWeight:700,color:scoreColor(score),width:30,textAlign:"right"}}>{score}%</span>
@@ -2512,31 +2547,31 @@ function PresetBrowser({banksAnn,banksPlug}) {
   const STYLE_OPTS={all:"Tous styles",hard_rock:"Hard Rock",rock:"Rock",blues:"Blues",clean:"Clean",metal:"Metal"};
   const GAIN_OPTS={all:"Tous gains",low:"Low gain",mid:"Mid gain",high:"High gain"};
   const SRC_OPTS={all:"Toutes sources",TSR:"TSR Pack",ML:"ML Sound Lab",AA:"Factory (Ann.)",TJ:"Factory (TJ)",custom:"Custom"};
-  const selStyle={background:"#1e293b",color:"#94a3b8",border:"1px solid rgba(255,255,255,0.12)",borderRadius:7,padding:"6px 10px",fontSize:12,cursor:"pointer"};
+  const selStyle={background:"var(--bg-card)",color:"var(--text-sec)",border:"1px solid var(--a12)",borderRadius:7,padding:"6px 10px",fontSize:12,cursor:"pointer"};
 
   const hasFilter=filterStyle!=="all"||filterGain!=="all"||filterSrc!=="all"||search.trim();
   return (
     <div>
-      <div style={{fontSize:13,color:"#64748b",marginBottom:14}}>Explore ta bibliothèque de presets et découvre leur contexte musical.</div>
+      <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:14}}>Explore ta bibliothèque de presets et découvre leur contexte musical.</div>
 
       {/* Bouton aléatoire */}
-      <button onClick={pickRandom} style={{width:"100%",background:"linear-gradient(135deg,#7c3aed,#0ea5e9)",border:"none",color:"#fff",borderRadius:12,padding:"14px",fontSize:15,fontWeight:700,cursor:"pointer",marginBottom:16}}>
+      <button onClick={pickRandom} style={{width:"100%",background:"linear-gradient(135deg,#7c3aed,#0ea5e9)",border:"none",color:"var(--text)",borderRadius:12,padding:"14px",fontSize:15,fontWeight:700,cursor:"pointer",marginBottom:16}}>
         🎲 Preset aléatoire {filtered.length<Object.keys(PRESET_CATALOG_FULL).length?`(dans les ${filtered.length} filtrés)`:""}
       </button>
 
       {/* Filtres */}
-      <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,padding:12,marginBottom:16}}>
-        <div style={{fontSize:10,color:"#64748b",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Filtres</div>
+      <div style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:12,padding:12,marginBottom:16}}>
+        <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Filtres</div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
           <select value={filterStyle} onChange={e=>setFilterStyle(e.target.value)} style={selStyle}>{Object.entries(STYLE_OPTS).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
           <select value={filterGain} onChange={e=>setFilterGain(e.target.value)} style={selStyle}>{Object.entries(GAIN_OPTS).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
           <select value={filterSrc} onChange={e=>setFilterSrc(e.target.value)} style={selStyle}>{Object.entries(SRC_OPTS).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
         </div>
         <input placeholder="Artiste, morceau, ampli…" value={search} onChange={e=>setSearch(e.target.value)}
-          style={{width:"100%",background:"#0f172a",color:"#fff",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"7px 11px",fontSize:12,boxSizing:"border-box"}}/>
+          style={{width:"100%",background:"var(--bg-body)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:8,padding:"7px 11px",fontSize:12,boxSizing:"border-box"}}/>
         {hasFilter&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8}}>
-          <span style={{fontSize:11,color:"#64748b"}}>{filtered.length} preset{filtered.length>1?"s":""} trouvé{filtered.length>1?"s":""}</span>
-          <button onClick={()=>{setFilterStyle("all");setFilterGain("all");setFilterSrc("all");setSearch("");}} style={{fontSize:11,color:"#64748b",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Réinitialiser</button>
+          <span style={{fontSize:11,color:"var(--text-muted)"}}>{filtered.length} preset{filtered.length>1?"s":""} trouvé{filtered.length>1?"s":""}</span>
+          <button onClick={()=>{setFilterStyle("all");setFilterGain("all");setFilterSrc("all");setSearch("");}} style={{fontSize:11,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Réinitialiser</button>
         </div>}
       </div>
 
@@ -2546,50 +2581,50 @@ function PresetBrowser({banksAnn,banksPlug}) {
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
             <div style={{flex:1,marginRight:10}}>
               {selCtx?.emoji&&<div style={{fontSize:26,marginBottom:4}}>{selCtx.emoji}</div>}
-              <div style={{fontSize:15,fontWeight:800,color:"#fff",marginBottom:2}}>{selected}</div>
-              <div style={{fontSize:12,color:"#94a3b8"}}>{selInfo.amp}</div>
+              <div style={{fontSize:15,fontWeight:800,color:"var(--text)",marginBottom:2}}>{selected}</div>
+              <div style={{fontSize:12,color:"var(--text-sec)"}}>{selInfo.amp}</div>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end",flexShrink:0}}>
               {styleBadge(selInfo.style)}
               {gainBadge(selInfo.gain)}
-              <span style={{fontSize:9,color:"#64748b",background:"rgba(255,255,255,0.06)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{srcBadge(selected)||selInfo.src}</span>
+              <span style={{fontSize:9,color:"var(--text-muted)",background:"var(--a6)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{srcBadge(selected)||selInfo.src}</span>
             </div>
           </div>
-          {selCtx?.desc&&<div style={{fontSize:12,color:"#cbd5e1",lineHeight:1.65,marginBottom:12,padding:"9px 12px",background:"rgba(255,255,255,0.04)",borderRadius:8,borderLeft:"3px solid rgba(99,102,241,0.5)"}}>{selCtx.desc}</div>}
+          {selCtx?.desc&&<div style={{fontSize:12,color:"#cbd5e1",lineHeight:1.65,marginBottom:12,padding:"9px 12px",background:"var(--a4)",borderRadius:8,borderLeft:"3px solid rgba(99,102,241,0.5)"}}>{selCtx.desc}</div>}
           {selCtx?.artists&&<div style={{marginBottom:10}}>
-            <div style={{fontSize:9,color:"#64748b",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:5}}>Artistes de référence</div>
+            <div style={{fontSize:9,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:5}}>Artistes de référence</div>
             <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
               {selCtx.artists.map(a=><span key={a} style={{fontSize:11,background:"rgba(167,139,250,0.12)",color:"#a78bfa",border:"1px solid rgba(167,139,250,0.25)",borderRadius:5,padding:"2px 9px",fontWeight:600}}>{a}</span>)}
             </div>
           </div>}
           {selCtx?.tracks&&<div style={{marginBottom:12}}>
-            <div style={{fontSize:9,color:"#64748b",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:5}}>Morceaux / Albums évocateurs</div>
+            <div style={{fontSize:9,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:5}}>Morceaux / Albums évocateurs</div>
             <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
               {selCtx.tracks.map(t=><span key={t} style={{fontSize:11,background:"rgba(56,189,248,0.08)",color:"#7dd3fc",border:"1px solid rgba(56,189,248,0.2)",borderRadius:5,padding:"2px 9px"}}>{t}</span>)}
             </div>
           </div>}
           <div style={{marginBottom:10}}>
-            <div style={{fontSize:9,color:"#64748b",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Pertinence par guitare</div>
+            <div style={{fontSize:9,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Pertinence par guitare</div>
             {["HB","SC","P90"].map(gt=><ScoreBar key={gt} label={gt} score={selInfo.scores[gt]||60}/>)}
           </div>
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             {annLoc
               ?<span style={{fontSize:11,background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:7,padding:"4px 10px",color:"#4ade80",fontWeight:600}}>📦 Bank {annLoc.bank}{annLoc.slot}</span>
-              :<span style={{fontSize:11,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:7,padding:"4px 10px",color:"#475569"}}>📦 Non installé (Ann.)</span>
+              :<span style={{fontSize:11,background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:7,padding:"4px 10px",color:"var(--text-dim)"}}>📦 Non installé (Ann.)</span>
             }
             {plugLoc
               ?<span style={{fontSize:11,background:"rgba(99,102,241,0.12)",border:"1px solid rgba(99,102,241,0.3)",borderRadius:7,padding:"4px 10px",color:"#a5b4fc",fontWeight:600}}>🔌 Bank {plugLoc.bank}{plugLoc.slot}</span>
-              :<span style={{fontSize:11,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:7,padding:"4px 10px",color:"#475569"}}>🔌 Non installé (Plug)</span>
+              :<span style={{fontSize:11,background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:7,padding:"4px 10px",color:"var(--text-dim)"}}>🔌 Non installé (Plug)</span>
             }
           </div>
         </div>
       )}
 
       {/* Liste des presets */}
-      {!hasFilter&&<div style={{textAlign:"center",padding:"24px 16px",background:"rgba(255,255,255,0.02)",border:"1px dashed rgba(255,255,255,0.08)",borderRadius:12,color:"#475569"}}>
+      {!hasFilter&&<div style={{textAlign:"center",padding:"24px 16px",background:"var(--a3)",border:"1px dashed var(--a8)",borderRadius:12,color:"var(--text-dim)"}}>
         <div style={{fontSize:22,marginBottom:8}}>🎛</div>
-        <div style={{fontSize:13,color:"#64748b",marginBottom:4}}>Utilise les filtres ou la recherche</div>
-        <div style={{fontSize:11,color:"#475569"}}>pour parcourir les {Object.keys(PRESET_CATALOG_FULL).length} presets du catalogue</div>
+        <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:4}}>Utilise les filtres ou la recherche</div>
+        <div style={{fontSize:11,color:"var(--text-dim)"}}>pour parcourir les {Object.keys(PRESET_CATALOG_FULL).length} presets du catalogue</div>
       </div>}
       {hasFilter&&filtered.length===0&&<div style={{textAlign:"center",padding:"24px",color:"#475569",fontSize:13}}>Aucun preset ne correspond à ces critères.</div>}
       {hasFilter&&filtered.length>0&&<PresetList filtered={filtered} selected={selected} setSelected={setSelected} banksAnn={banksAnn} banksPlug={banksPlug}/>}
@@ -2619,10 +2654,10 @@ function JamPresetItem({p,rank}){
         {"bank" in p&&<span style={{background:"rgba(99,102,241,0.2)",color:"#a5b4fc",border:"1px solid rgba(99,102,241,0.4)",borderRadius:5,padding:"2px 8px",fontSize:11,fontWeight:700}}>Bank {p.bank}{p.slot}</span>}
         <span style={{fontSize:11,fontWeight:800,color:sc,background:sb,borderRadius:4,padding:"1px 7px",border:`1px solid ${sc}40`}}>{p.score}%</span>
         {gainBadge(p.gain)}
-        <span style={{fontSize:9,color:"#64748b",background:"rgba(255,255,255,0.06)",borderRadius:4,padding:"1px 5px",fontWeight:600}}>{p.src}</span>
+        <span style={{fontSize:9,color:"var(--text-muted)",background:"var(--a6)",borderRadius:4,padding:"1px 5px",fontWeight:600}}>{p.src}</span>
       </div>
-      <div style={{fontSize:12,color:"#e2e8f0",fontWeight:600,marginTop:5,lineHeight:1.3}}>{p.name}</div>
-      <div style={{fontSize:11,color:"#64748b",marginTop:2}}>{p.amp}</div>
+      <div style={{fontSize:12,color:"var(--text-bright)",fontWeight:600,marginTop:5,lineHeight:1.3}}>{p.name}</div>
+      <div style={{fontSize:11,color:"var(--text-muted)",marginTop:2}}>{p.amp}</div>
     </div>
   );
 }
@@ -2647,7 +2682,7 @@ function JamScreen({banksAnn,banksPlug}){
       <div>
         {/* Header */}
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,flexWrap:"wrap"}}>
-          <button onClick={reset} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",color:"#94a3b8",borderRadius:8,padding:"6px 12px",fontSize:12,cursor:"pointer",flexShrink:0}}>← Nouveau Jam</button>
+          <button onClick={reset} style={{background:"var(--a8)",border:"1px solid var(--a12)",color:"var(--text-sec)",borderRadius:8,padding:"6px 12px",fontSize:12,cursor:"pointer",flexShrink:0}}>← Nouveau Jam</button>
           <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             <span style={{fontSize:12,background:`rgba(${typeRgb},0.15)`,color:`rgb(${typeRgb})`,border:`1px solid rgba(${typeRgb},0.4)`,borderRadius:6,padding:"3px 10px",fontWeight:700}}>{guitar?.name} · {TYPE_LABELS[recs.gType]}</span>
             <span style={{fontSize:12,background:`rgba(${styleInfo?.color||"99,102,241"},0.15)`,color:`rgb(${styleInfo?.color||"99,102,241"})`,border:`1px solid rgba(${styleInfo?.color||"99,102,241"},0.4)`,borderRadius:6,padding:"3px 10px",fontWeight:700}}>{styleInfo?.emoji} {styleInfo?.label}</span>
@@ -2659,7 +2694,7 @@ function JamScreen({banksAnn,banksPlug}){
           <div style={{fontSize:12,color:"#93c5fd",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>📦 Top 3 — ToneX Anniversary <span style={{fontSize:10,color:"#475569",fontWeight:400,textTransform:"none"}}>(presets installés)</span></div>
           {recs.annTop3.length>0
             ?recs.annTop3.map((p,i)=><JamPresetItem key={p.name} p={p} rank={i}/>)
-            :<div style={{fontSize:12,color:"#475569",padding:"12px",background:"rgba(255,255,255,0.03)",borderRadius:8,textAlign:"center"}}>Aucun preset {styleInfo?.label} installé sur l'Anniversary pour ce type de guitare.</div>
+            :<div style={{fontSize:12,color:"#475569",padding:"12px",background:"var(--a3)",borderRadius:8,textAlign:"center"}}>Aucun preset {styleInfo?.label} installé sur l'Anniversary pour ce type de guitare.</div>
           }
         </div>
 
@@ -2668,7 +2703,7 @@ function JamScreen({banksAnn,banksPlug}){
           <div style={{fontSize:12,color:"#a5b4fc",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>🔌 Top 3 — ToneX Plug <span style={{fontSize:10,color:"#475569",fontWeight:400,textTransform:"none"}}>(presets installés)</span></div>
           {recs.plugBest.length>0
             ?recs.plugBest.map((p,i)=><JamPresetItem key={p.name} p={p} rank={i}/>)
-            :<div style={{fontSize:12,color:"#475569",padding:"12px",background:"rgba(255,255,255,0.03)",borderRadius:8,textAlign:"center"}}>Aucun preset {styleInfo?.label} installé sur le Plug pour ce type de guitare.</div>
+            :<div style={{fontSize:12,color:"#475569",padding:"12px",background:"var(--a3)",borderRadius:8,textAlign:"center"}}>Aucun preset {styleInfo?.label} installé sur le Plug pour ce type de guitare.</div>
           }
         </div>
 
@@ -2688,10 +2723,10 @@ function JamScreen({banksAnn,banksPlug}){
                   {!installed&&<span style={{fontSize:10,background:"rgba(251,191,36,0.15)",color:"#fbbf24",borderRadius:4,padding:"1px 7px",fontWeight:700}}>⬇ À installer</span>}
                   <span style={{fontSize:11,fontWeight:800,color:scoreColor(p.score),background:scoreBg(p.score),borderRadius:4,padding:"1px 7px",border:`1px solid ${scoreColor(p.score)}40`}}>{p.score}%</span>
                   {gainBadge(p.gain)}
-                  <span style={{fontSize:9,color:"#64748b",background:"rgba(255,255,255,0.06)",borderRadius:4,padding:"1px 5px",fontWeight:600}}>{p.src}</span>
+                  <span style={{fontSize:9,color:"var(--text-muted)",background:"var(--a6)",borderRadius:4,padding:"1px 5px",fontWeight:600}}>{p.src}</span>
                 </div>
-                <div style={{fontSize:12,color:"#e2e8f0",fontWeight:600,marginTop:5,lineHeight:1.3}}>{p.name}</div>
-                <div style={{fontSize:11,color:"#64748b",marginTop:2}}>{p.amp}</div>
+                <div style={{fontSize:12,color:"var(--text-bright)",fontWeight:600,marginTop:5,lineHeight:1.3}}>{p.name}</div>
+                <div style={{fontSize:11,color:"var(--text-muted)",marginTop:2}}>{p.amp}</div>
               </div>
             );
           })}
@@ -2703,9 +2738,9 @@ function JamScreen({banksAnn,banksPlug}){
   if(step==="style"){
     return(
       <div>
-        <button onClick={()=>setStep("guitar")} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.12)",color:"#94a3b8",borderRadius:8,padding:"6px 12px",fontSize:12,cursor:"pointer",marginBottom:16}}>← Changer de guitare</button>
-        <div style={{fontSize:14,color:"#fff",fontWeight:700,marginBottom:4}}>Guitare : <span style={{color:"#4ade80"}}>{guitar?.name}</span></div>
-        <div style={{fontSize:12,color:"#64748b",marginBottom:16}}>Quel style joues-tu ?</div>
+        <button onClick={()=>setStep("guitar")} style={{background:"var(--a8)",border:"1px solid var(--a12)",color:"var(--text-sec)",borderRadius:8,padding:"6px 12px",fontSize:12,cursor:"pointer",marginBottom:16}}>← Changer de guitare</button>
+        <div style={{fontSize:14,color:"var(--text)",fontWeight:700,marginBottom:4}}>Guitare : <span style={{color:"#4ade80"}}>{guitar?.name}</span></div>
+        <div style={{fontSize:12,color:"var(--text-muted)",marginBottom:16}}>Quel style joues-tu ?</div>
         <div className="style-grid">
           {JAM_STYLES.map(s=>(
             <button key={s.id} onClick={()=>{setStyle(s.id);setStep("results");}}
@@ -2724,7 +2759,7 @@ function JamScreen({banksAnn,banksPlug}){
   GUITARS.forEach(g=>typeGroups[g.type]?.push(g));
   return(
     <div>
-      <div style={{fontSize:12,color:"#64748b",marginBottom:16}}>Sélectionne ta guitare pour ce jam :</div>
+      <div style={{fontSize:12,color:"var(--text-muted)",marginBottom:16}}>Sélectionne ta guitare pour ce jam :</div>
       {Object.entries(typeGroups).filter(([,arr])=>arr.length>0).map(([type,arr])=>(
         <div key={type} style={{marginBottom:16}}>
           <div style={{fontSize:11,color:`rgb(${TYPE_COLORS[type]||"99,102,241"})`,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>{type} — {TYPE_LABELS[type]}</div>
@@ -2732,7 +2767,7 @@ function JamScreen({banksAnn,banksPlug}){
             {arr.map(g=>(
               <button key={g.id} className={`guitar-card${guitarId===g.id?" selected":""}`} onClick={()=>{setGuitarId(g.id);setStep("style");}}>
                 <div style={{fontSize:22,marginBottom:4}}>🎸</div>
-                <div style={{fontSize:11,fontWeight:700,color:"#e2e8f0",lineHeight:1.3}}>{g.short}</div>
+                <div style={{fontSize:11,fontWeight:700,color:"var(--text-bright)",lineHeight:1.3}}>{g.short}</div>
               </button>
             ))}
           </div>
@@ -2755,8 +2790,8 @@ function HomeScreen({songDb,onSongDb,setlists,onSetlists,checked,onChecked,onNex
   return (
     <div>
       <div style={{marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minWidth:0}}>
-        <div style={{fontSize:20,fontWeight:800,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}}>🎸 ToneX Guide</div>
-        <button onClick={onSettings} style={{background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:"#64748b",borderRadius:8,padding:"8px 12px",fontSize:14,cursor:"pointer",flexShrink:0}}>⚙️</button>
+        <div style={{fontSize:20,fontWeight:800,color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}}>🎸 ToneX Guide</div>
+        <button onClick={onSettings} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"8px 12px",fontSize:14,cursor:"pointer",flexShrink:0}}>⚙️</button>
       </div>
       <div className="tab-bar tabs-4" style={{marginBottom:20}}>
         {tabBtn("jam","🎲","Jam","251,191,36")}
@@ -2797,11 +2832,19 @@ function App() {
   });
   const [aiProvider, setAiProvider] = useState(saved?.aiProvider || "anthropic");
   const [aiKeys,     setAiKeys]     = useState(saved?.aiKeys     || {anthropic:saved?.apiKey||"",gemini:""});
+  const [theme,     setTheme]     = useState(saved?.theme || "dark");
   const [checked,   setChecked]   = useState([]);
   const [synth,     setSynth]     = useState(null);
 
   // Persist à chaque changement
-  useEffect(()=>{saveState({songDb,setlists,banksAnn,banksPlug,aiProvider,aiKeys});},[songDb,setlists,banksAnn,banksPlug,aiProvider,aiKeys]);
+  useEffect(()=>{saveState({songDb,setlists,banksAnn,banksPlug,aiProvider,aiKeys,theme});},[songDb,setlists,banksAnn,banksPlug,aiProvider,aiKeys,theme]);
+
+  // Apply theme to document
+  useEffect(()=>{
+    document.documentElement.setAttribute("data-theme",theme);
+    const meta=document.querySelector('meta[name="theme-color"]');
+    if(meta) meta.content=theme==="dark"?"#0f172a":"#f1f5f9";
+  },[theme]);
 
   const songs=useMemo(()=>checked.map(id=>{
     const d=songDb.find(x=>x.id===id);
@@ -2819,7 +2862,7 @@ function App() {
   };
 
   if(screen==="exportimport") return <div className="page-root"><ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("settings")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/></div>;
-  if(screen==="settings")     return <div className="page-root"><SettingsScreen songDb={songDb} onSongDb={setSongDb} setlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys}/></div>;
+  if(screen==="settings")     return <div className="page-root"><SettingsScreen songDb={songDb} onSongDb={setSongDb} setlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme}/></div>;
   if(screen==="synthesis"&&synth) return <div className="page-root"><SynthesisScreen songs={songs} gps={synth.gps} aiR={synth.aiR} onBack={()=>setScreen("recap")} onNavigate={setScreen} songDb={songDb} banksAnn={banksAnn} banksPlug={banksPlug}/></div>;
   if(screen==="recap")        return <div className="page-root"><RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDb} onSongDb={setSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys}/></div>;
   return <div className="page-root"><HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys}/></div>;
