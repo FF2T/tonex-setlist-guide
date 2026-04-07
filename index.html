@@ -4423,11 +4423,11 @@ function App() {
   const [theme,   setTheme]   = useState(initDefault.shared.theme);
   const [setlists, setSetlists] = useState(initDefault.shared?.setlists || [{id:"sl_main",name:"Ma Setlist",songIds:INIT_SONG_DB_META.map(s=>s.id),profileIds:[initDefault.activeProfileId]}]);
 
-  // Profiles state — force reset banks to INIT values
+  // Profiles state — merge new banks from INIT without overwriting user changes
   const mergedProfiles = useMemo(()=>{
     const p={...initDefault.profiles};
     for(const [id,prof] of Object.entries(p)){
-      p[id]={...prof, banksAnn:{...INIT_BANKS_ANN}, banksPlug:{...INIT_BANKS_PLUG}};
+      p[id]={...prof, banksAnn:mergeBanks(prof.banksAnn,INIT_BANKS_ANN), banksPlug:mergeBanks(prof.banksPlug,INIT_BANKS_PLUG)};
     }
     return p;
   },[]);
