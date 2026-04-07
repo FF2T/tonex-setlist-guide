@@ -3081,8 +3081,9 @@ Réponds UNIQUEMENT en JSON (sans markdown) :
 }
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
-function SettingsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAiKeys,theme,onTheme,profile,profiles,onProfiles,activeProfileId,allGuitars,isAdmin}) {
-  const [tab,setTab]=useState("setlists");
+// ─── Mon Profil Screen ────────────────────────────────────────────────────────
+function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,onNavigate,aiProvider,aiKeys,theme,onTheme,profile,profiles,onProfiles,activeProfileId,allGuitars,initTab}) {
+  const [tab,setTab]=useState(initTab||"profile");
   const [newSlName,setNewSlName]=useState("");
   const [editSlId,setEditSlId]=useState(null);
   const [editSlName,setEditSlName]=useState("");
@@ -3113,25 +3114,22 @@ function SettingsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksAn
   const deleteSongFromDb=id=>{onSongDb(p=>p.filter(s=>s.id!==id));onSetlists(p=>p.map(sl=>({...sl,songIds:sl.songIds.filter(x=>x!==id)})));};
   return (
     <div>
-      <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Paramètres"}]} onNavigate={onNavigate}/>
-      <div style={{fontSize:20,fontWeight:800,color:"var(--text)",marginBottom:16}}>⚙️ Paramètres</div>
-      <button onClick={()=>onNavigate("exportimport")} style={{width:"100%",background:"rgba(251,191,36,0.1)",border:"1px solid rgba(251,191,36,0.3)",color:"#fbbf24",borderRadius:10,padding:"12px 16px",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:20,textAlign:"left"}}>
-        📋 Export / Import →
-      </button>
+      <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Mon profil"}]} onNavigate={onNavigate}/>
+      <div style={{fontSize:20,fontWeight:800,color:"var(--text)",marginBottom:16}}>👤 Mon profil</div>
       <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
-        {tabBtn("profile","👤 Profil")}
-        {tabBtn("presets","📦 Presets")}
+        {tabBtn("profile","🎸 Guitares")}
+        {tabBtn("devices","📱 Matériel")}
+        {tabBtn("sources","📦 Sources")}
         {tabBtn("setlists","🎵 Setlists")}
-        {tabBtn("songs","🎸 Morceaux")}
+        {tabBtn("songs","🎶 Morceaux")}
         {profile.devices?.pedale&&tabBtn("pedale","🎛 Pédale ToneX")}
         {profile.devices?.anniversary&&tabBtn("ann","🎛 ToneX Ann.")}
         {profile.devices?.plug&&tabBtn("plug","🔌 ToneX Plug")}
-        {tabBtn("ia","🔑 IA")}
-
         {tabBtn("display","🎨 Affichage")}
       </div>
       {tab==="profile"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp}/>}
-      {tab==="presets"&&<PacksTab profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId} aiProvider={aiProvider} aiKeys={aiKeys}/>}
+      {tab==="devices"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} initSection="devices"/>}
+      {tab==="sources"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} initSection="sources"/>}
       {tab==="setlists"&&<div>
         <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>{setlists.length} setlist{setlists.length>1?"s":""}</div>
         {setlists.map(sl=>(
@@ -3218,46 +3216,65 @@ function SettingsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksAn
       {tab==="pedale"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="#f59e0b"/>}
       {tab==="ann"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="#3b82f6"/>}
       {tab==="plug"&&<BankEditor banks={banksPlug} onBanks={onBanksPlug} color="#6366f1"/>}
-      {tab==="ia"&&<IATab aiProvider={aiProvider} onAiProvider={onAiProvider} aiKeys={aiKeys} onAiKeys={onAiKeys} inp={inp}/>}
+      {tab==="jam"&&<JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={profile.availableSources}/>}
+      {tab==="presets"&&<PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={profile.availableSources} customPacks={profile.customPacks}/>}
     </div>
   );
 }
 
-function IATab({aiProvider,onAiProvider,aiKeys,onAiKeys,inp}){
+// ─── Paramètres Screen (admin PIN) ────────────────────────────────────────────
+function ParametresScreen({onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAiKeys,profile,onProfiles,activeProfileId,fullState,onImportState,banksAnn,onBanksAnn,banksPlug,onBanksPlug}) {
   const [unlocked,setUnlocked]=useState(false);
   const [pin,setPin]=useState("");
   const [pinErr,setPinErr]=useState(false);
+  const [tab,setTab]=useState("presets");
   const tryUnlock=()=>{if(pin===ADMIN_PIN){setUnlocked(true);setPinErr(false);}else{setPinErr(true);}};
-  if(!unlocked) return(
-    <div>
-      <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>Entrez le code administrateur pour accéder aux clés API.</div>
-      <div style={{display:"flex",gap:8}}>
-        <input type="password" placeholder="Code admin" value={pin} onChange={e=>{setPin(e.target.value);setPinErr(false);}} onKeyDown={e=>e.key==="Enter"&&tryUnlock()} style={{...inp,flex:1}}/>
-        <button onClick={tryUnlock} style={{background:"#4f46e5",border:"none",color:"#fff",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>OK</button>
-      </div>
-      {pinErr&&<div style={{fontSize:11,color:"#f87171",marginTop:6}}>Code incorrect</div>}
-    </div>
+  const inp={background:"var(--bg-card)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:7,padding:"6px 10px",fontSize:12,boxSizing:"border-box"};
+  const tabBtn=(id,label)=>(
+    <button onClick={()=>setTab(id)} style={{background:tab===id?"rgba(99,102,241,0.3)":"var(--a5)",border:tab===id?"1px solid rgba(99,102,241,0.5)":"1px solid var(--a8)",color:tab===id?"#a5b4fc":"#94a3b8",borderRadius:8,padding:"7px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{label}</button>
   );
   return(
     <div>
-      <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>Fournisseur IA pour l'analyse des morceaux personnalisés.</div>
-      <div style={{display:"flex",gap:8,marginBottom:16}}>
-        {[{v:"anthropic",l:"Anthropic (Claude)"},{v:"gemini",l:"Google (Gemini)"}].map(({v,l})=>(
-          <button key={v} onClick={()=>onAiProvider(v)} style={{flex:1,background:aiProvider===v?"rgba(99,102,241,0.3)":"var(--a5)",border:aiProvider===v?"1px solid rgba(99,102,241,0.6)":"1px solid var(--a10)",color:aiProvider===v?"#a5b4fc":"#94a3b8",borderRadius:8,padding:"8px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{l}</button>
-        ))}
-      </div>
-        {aiProvider==="anthropic"&&<div style={{background:"rgba(167,139,250,0.06)",border:"1px solid rgba(167,139,250,0.2)",borderRadius:12,padding:16}}>
-          <div style={{fontSize:12,fontWeight:700,color:"#a78bfa",marginBottom:10}}>🔑 Clé API Anthropic</div>
-          <input type="password" placeholder="sk-ant-..." value={aiKeys.anthropic} onChange={e=>onAiKeys(p=>({...p,anthropic:e.target.value}))} style={{...inp,width:"100%",marginBottom:8,fontFamily:"monospace"}}/>
-          <div style={{fontSize:11,color:"var(--text-muted)"}}>console.anthropic.com → API Keys</div>
-          {aiKeys.anthropic&&<div style={{fontSize:11,color:"#4ade80",marginTop:8}}>✓ Clé configurée ({aiKeys.anthropic.slice(0,12)}...)</div>}
-        </div>}
-        {aiProvider==="gemini"&&<div style={{background:"rgba(74,222,128,0.06)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:12,padding:16}}>
-          <div style={{fontSize:12,fontWeight:700,color:"#4ade80",marginBottom:10}}>🔑 Clé API Google Gemini</div>
-          <input type="password" placeholder="AIza..." value={aiKeys.gemini} onChange={e=>onAiKeys(p=>({...p,gemini:e.target.value}))} style={{...inp,width:"100%",marginBottom:8,fontFamily:"monospace"}}/>
-          <div style={{fontSize:11,color:"var(--text-muted)"}}>aistudio.google.com → Get API key (tier gratuit disponible)</div>
-          {aiKeys.gemini&&<div style={{fontSize:11,color:"#4ade80",marginTop:8}}>✓ Clé configurée ({aiKeys.gemini.slice(0,8)}...)</div>}
-        </div>}
+      <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Paramètres"}]} onNavigate={onNavigate}/>
+      <div style={{fontSize:20,fontWeight:800,color:"var(--text)",marginBottom:16}}>⚙️ Paramètres</div>
+      {!unlocked?(
+        <div>
+          <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>Entrez le code administrateur.</div>
+          <div style={{display:"flex",gap:8}}>
+            <input type="password" placeholder="Code admin" value={pin} onChange={e=>{setPin(e.target.value);setPinErr(false);}} onKeyDown={e=>e.key==="Enter"&&tryUnlock()} style={{...inp,flex:1}}/>
+            <button onClick={tryUnlock} style={{background:"#4f46e5",border:"none",color:"#fff",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>OK</button>
+          </div>
+          {pinErr&&<div style={{fontSize:11,color:"#f87171",marginTop:6}}>Code incorrect</div>}
+        </div>
+      ):(
+        <div>
+          <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
+            {tabBtn("presets","📦 Sources de presets")}
+            {tabBtn("ia","🔑 Clé API")}
+            {tabBtn("export","📋 Export / Import")}
+          </div>
+          {tab==="presets"&&<PacksTab profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId} aiProvider={aiProvider} aiKeys={aiKeys}/>}
+          {tab==="ia"&&<div>
+            <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>Fournisseur IA pour l'analyse des morceaux.</div>
+            <div style={{display:"flex",gap:8,marginBottom:16}}>
+              {[{v:"gemini",l:"Google (Gemini)"}].map(({v,l})=>(
+                <button key={v} onClick={()=>onAiProvider(v)} style={{flex:1,background:aiProvider===v?"rgba(74,222,128,0.3)":"var(--a5)",border:aiProvider===v?"1px solid rgba(74,222,128,0.6)":"1px solid var(--a10)",color:aiProvider===v?"#4ade80":"#94a3b8",borderRadius:8,padding:"8px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{l}</button>
+              ))}
+            </div>
+            <div style={{background:"rgba(74,222,128,0.06)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:12,padding:16}}>
+              <div style={{fontSize:12,fontWeight:700,color:"#4ade80",marginBottom:10}}>🔑 Clé API Google AI Studio</div>
+              <input type="password" placeholder="AIza..." value={aiKeys.gemini} onChange={e=>onAiKeys(p=>({...p,gemini:e.target.value}))} style={{...inp,width:"100%",marginBottom:8,fontFamily:"monospace"}}/>
+              <div style={{fontSize:11,color:"var(--text-muted)"}}>aistudio.google.com → Get API key</div>
+              {aiKeys.gemini&&<div style={{fontSize:11,color:"#4ade80",marginTop:8}}>✓ Clé configurée ({aiKeys.gemini.slice(0,8)}...)</div>}
+            </div>
+          </div>}
+          {tab==="export"&&<div>
+            <button onClick={()=>onNavigate("exportimport")} style={{width:"100%",background:"rgba(251,191,36,0.1)",border:"1px solid rgba(251,191,36,0.3)",color:"#fbbf24",borderRadius:10,padding:"12px 16px",fontSize:13,fontWeight:700,cursor:"pointer",textAlign:"left"}}>
+              📋 Export / Import →
+            </button>
+          </div>}
+        </div>
+      )}
     </div>
   );
 }
@@ -4213,82 +4230,65 @@ Réponds UNIQUEMENT en JSON (sans markdown) : {"title":"Titre exact","artist":"A
   );
 }
 
-// ─── HomeScreen ───────────────────────────────────────────────────────────────
-function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profiles,activeProfileId,onSwitchProfile,customPacks,onPlaySong}) {
-  const [active,setActive]=useState(null);
+// ─── HomeScreen (style Google) ────────────────────────────────────────────────
+function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onProfile,onSetlistScreen,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profiles,activeProfileId,onSwitchProfile,customPacks}) {
   const profileName=(profiles[activeProfileId]||{}).name||"Profil";
-  const hasProfile=allGuitars&&allGuitars.length>0;
-
-  const card=(id,emoji,title,desc,rgb)=>(
-    <button onClick={()=>setActive(active===id?null:id)} style={{background:active===id?`rgba(${rgb},0.18)`:"var(--a4)",border:active===id?`2px solid rgba(${rgb},0.5)`:"1px solid var(--a8)",borderRadius:16,padding:"18px 14px",cursor:"pointer",textAlign:"left",transition:"all .15s",width:"100%"}}>
-      <div style={{fontSize:28,marginBottom:6}}>{emoji}</div>
-      <div style={{fontSize:14,fontWeight:700,color:active===id?`rgb(${rgb})`:"var(--text)",marginBottom:3}}>{title}</div>
-      <div style={{fontSize:11,color:"var(--text-muted)",lineHeight:1.4}}>{desc}</div>
-    </button>
-  );
 
   return (
-    <div>
-      <div style={{marginBottom:20,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
-        <ProfileSelector profiles={profiles} activeProfileId={activeProfileId} onSwitch={onSwitchProfile} onSettings={onSettings}/>
-        <div style={{fontSize:22,fontWeight:800,color:"var(--text)",flex:1,textAlign:"center"}}>ToneX Guide</div>
-        <button onClick={onSettings} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"8px 12px",fontSize:14,cursor:"pointer",flexShrink:0}}>⚙️</button>
-      </div>
-
-      {/* Salut + état profil */}
-      <div style={{marginBottom:20}}>
-        <div style={{fontSize:16,fontWeight:700,color:"var(--text)",marginBottom:4}}>Salut {profileName} !</div>
-        {!hasProfile&&<div style={{fontSize:12,color:"#fbbf24",background:"rgba(251,191,36,0.1)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:8,padding:"8px 12px"}}>Configure ton profil (guitares, appareils) pour commencer.</div>}
-      </div>
-
-      {/* 4 cartes d'action */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,marginBottom:20}}>
-        {card("profile","⚙️","Mon profil","Guitares, appareils, packs de presets","99,102,241")}
-        {card("play","🎵","Jouer","Tape un morceau et trouve les bons presets","74,222,128")}
-        {card("jam","🎲","Jammer","Choisis une guitare et un style","251,191,36")}
-        {card("presets","🎛️","Explorer","Parcours ta bibliothèque de presets","167,139,250")}
-      </div>
-
-      {/* Contenu de l'action active */}
-      {active==="profile"&&<div style={{animation:"slideDown .2s ease-out"}}>
-        <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:10}}>Mon profil</div>
-        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
-          <div style={{background:"var(--a4)",borderRadius:10,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{fontSize:12,color:"var(--text-sec)"}}>Guitares</span>
-            <span style={{fontSize:12,fontWeight:700,color:"var(--text)"}}>{allGuitars?.length||0}</span>
-          </div>
-          <div style={{background:"var(--a4)",borderRadius:10,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{fontSize:12,color:"var(--text-sec)"}}>Sources de presets</span>
-            <span style={{fontSize:12,fontWeight:700,color:"var(--text)"}}>{availableSources?Object.values(availableSources).filter(v=>v!==false).length:0}</span>
-          </div>
+    <div style={{display:"flex",flexDirection:"column",minHeight:"80vh"}}>
+      {/* Header nav */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,marginBottom:8}}>
+        <ProfileSelector profiles={profiles} activeProfileId={activeProfileId} onSwitch={onSwitchProfile} onSettings={onProfile}/>
+        <div style={{display:"flex",gap:6}}>
+          <button onClick={onProfile} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>👤 Mon profil</button>
+          <button onClick={onSetlistScreen} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>🎵 Setlists</button>
+          <button onClick={onSettings} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>⚙️</button>
         </div>
-        <button onClick={onSettings} style={{width:"100%",background:"#4f46e5",border:"none",color:"#fff",borderRadius:10,padding:"12px",fontSize:13,fontWeight:700,cursor:"pointer"}}>Modifier mon profil</button>
-      </div>}
+      </div>
 
-      {active==="play"&&<div style={{animation:"slideDown .2s ease-out"}}>
-        <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:4}}>Quel morceau veux-tu jouer ?</div>
-        <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:12}}>Tape le titre (même approximatif), l'IA corrigera.</div>
-        <SongSearchBar aiProvider={aiProvider} aiKeys={aiKeys} onConfirm={(title,artist)=>{
-          const existing=songDb.find(s=>normalizePresetName(s.title)===normalizePresetName(title));
-          if(existing){
-            onChecked([existing.id]);
-            onNext();
-          } else {
-            const ns={id:`c_${Date.now()}`,title,artist,isCustom:true,ig:[]};
-            onSongDb(p=>[...p,ns]);
-            onChecked([ns.id]);
-            onNext();
-          }
-        }}/>
-      </div>}
+      {/* Zone centrale style Google */}
+      <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"20px 0"}}>
+        <div style={{fontSize:32,fontWeight:800,color:"var(--text)",marginBottom:6,textAlign:"center"}}>ToneX Guide</div>
+        <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:24,textAlign:"center"}}>Quel morceau veux-tu jouer ?</div>
+        <div style={{width:"100%",maxWidth:500}}>
+          <SongSearchBar aiProvider={aiProvider} aiKeys={aiKeys} onConfirm={(title,artist)=>{
+            const existing=songDb.find(s=>normalizePresetName(s.title)===normalizePresetName(title));
+            if(existing){
+              onChecked([existing.id]);
+              onNext();
+            } else {
+              const ns={id:`c_${Date.now()}`,title,artist,isCustom:true,ig:[]};
+              onSongDb(p=>[...p,ns]);
+              onChecked([ns.id]);
+              onNext();
+            }
+          }}/>
+        </div>
+      </div>
 
-      {active==="jam"&&<div style={{animation:"slideDown .2s ease-out"}}>
-        <JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/>
-      </div>}
-
-      {active==="presets"&&<div style={{animation:"slideDown .2s ease-out"}}>
-        <PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={customPacks}/>
-      </div>}
+      {/* Tuiles en bas */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,paddingBottom:12}}>
+        <button onClick={onSetlistScreen} style={{background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.3)",borderRadius:14,padding:"16px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
+          <div style={{fontSize:24,marginBottom:4}}>🎵</div>
+          <div style={{fontSize:13,fontWeight:700,color:"#a5b4fc"}}>Mes setlists</div>
+          <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>{setlists.length} setlist{setlists.length>1?"s":""}</div>
+        </button>
+        <button onClick={()=>onProfile("jam")} style={{background:"rgba(251,191,36,0.1)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:14,padding:"16px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
+          <div style={{fontSize:24,marginBottom:4}}>🎲</div>
+          <div style={{fontSize:13,fontWeight:700,color:"#fbbf24"}}>Jammer</div>
+          <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>Guitare + style</div>
+        </button>
+        <button onClick={()=>onProfile("presets")} style={{background:"rgba(167,139,250,0.1)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:14,padding:"16px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
+          <div style={{fontSize:24,marginBottom:4}}>🎛️</div>
+          <div style={{fontSize:13,fontWeight:700,color:"#a78bfa"}}>Explorer</div>
+          <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>Bibliothèque de presets</div>
+        </button>
+        <button onClick={onProfile} style={{background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:14,padding:"16px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
+          <div style={{fontSize:24,marginBottom:4}}>👤</div>
+          <div style={{fontSize:13,fontWeight:700,color:"#4ade80"}}>Mon profil</div>
+          <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>{allGuitars?.length||0} guitare{(allGuitars?.length||0)>1?"s":""}</div>
+        </button>
+      </div>
     </div>
   );
 }
@@ -4391,12 +4391,20 @@ function App() {
     setScreen("list");
   };
 
+  const [profileInitTab,setProfileInitTab]=useState(null);
+
   if(screen==="pick") return <div className="page-root"><ProfilePickerScreen profiles={profiles} onPick={pickProfile} onCreateNew={createAndPick}/></div>;
   if(screen==="exportimport") return <div className="page-root"><ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("settings")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/></div>;
-  if(screen==="settings")     return <div className="page-root"><SettingsScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} allSetlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} isAdmin={isAdmin} activeProfileId={activeProfileId}/></div>;
+  if(screen==="profile")      return <div className="page-root"><MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} aiKeys={aiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab}/></div>;
+  if(screen==="settings")     return <div className="page-root"><ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug}/></div>;
+  if(screen==="setlists")     return <div className="page-root">
+    <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Mes setlists"}]} onNavigate={setScreen}/>
+    <div style={{fontSize:20,fontWeight:800,color:"var(--text)",marginBottom:16}}>🎵 Mes setlists</div>
+    <ListScreen songDb={songDb} onSongDb={setSongDb} allSetlists={setlists} setlists={mySetlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} availableSources={availableSources}/>
+  </div>;
   if(screen==="synthesis"&&synth) return <div className="page-root"><SynthesisScreen songs={songs} gps={synth.gps} aiR={synth.aiR} onBack={()=>setScreen("recap")} onNavigate={setScreen} songDb={songDb} banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/></div>;
   if(screen==="recap")        return <div className="page-root"><RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDb} onSongDb={setSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources}/></div>;
-  return <div className="page-root"><HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} customPacks={profile.customPacks}/></div>;
+  return <div className="page-root"><HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} customPacks={profile.customPacks}/></div>;
 }
 
 ReactDOM.render(<App/>, document.getElementById("root"));
