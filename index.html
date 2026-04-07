@@ -4423,8 +4423,15 @@ function App() {
   const [theme,   setTheme]   = useState(initDefault.shared.theme);
   const [setlists, setSetlists] = useState(initDefault.shared?.setlists || [{id:"sl_main",name:"Ma Setlist",songIds:INIT_SONG_DB_META.map(s=>s.id),profileIds:[initDefault.activeProfileId]}]);
 
-  // Profiles state
-  const [profiles, setProfiles] = useState(initDefault.profiles);
+  // Profiles state — merge banks from INIT on load (adds new banks without overwriting user changes)
+  const mergedProfiles = useMemo(()=>{
+    const p={...initDefault.profiles};
+    for(const [id,prof] of Object.entries(p)){
+      p[id]={...prof, banksAnn:mergeBanks(prof.banksAnn,INIT_BANKS_ANN), banksPlug:mergeBanks(prof.banksPlug,INIT_BANKS_PLUG)};
+    }
+    return p;
+  },[]);
+  const [profiles, setProfiles] = useState(mergedProfiles);
   const [activeProfileId, setActiveProfileId] = useState(initDefault.activeProfileId);
 
   // Current profile (derived)
