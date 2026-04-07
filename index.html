@@ -2083,7 +2083,7 @@ function findCatalogEntry(name){
   return null;
 }
 function presetScore(name,gType){return findCatalogEntry(name)?.scores?.[gType]??60;}
-function srcBadge(name){const s=findCatalogEntry(name)?.src;return s==="TSR"?"TSR":s==="ML"?"ML":s==="Anniversary"?"Anniversary":s==="custom"?"Custom":"";}
+function srcBadge(name){const s=findCatalogEntry(name)?.src;return s==="TSR"?"TSR":s==="ML"?"ML":s==="Anniversary"?"Pédale":s==="custom"?"Custom":"";}
 function styleBadge(style){const c={hard_rock:"#ef4444",rock:"#f59e0b",blues:"var(--blue)",jazz:"var(--green)",pop:"#ec4899",metal:"#8b5cf6"}[style]||"var(--text-sec)";const l={hard_rock:"Hard Rock",rock:"Rock",blues:"Blues",jazz:"Jazz",pop:"Pop",metal:"Metal"}[style]||style;return <span style={{fontSize:10,background:`${c}20`,color:c,border:`1px solid ${c}40`,borderRadius:4,padding:"1px 7px",fontWeight:700}}>{l}</span>;}
 function gainBadge(gain){const c={low:"var(--green)",mid:"var(--yellow)",high:"var(--red)"}[gain]||"var(--text-sec)";const l={low:"Low",mid:"Mid",high:"High"}[gain]||gain;return <span style={{fontSize:10,background:`${c}20`,color:c,border:`1px solid ${c}40`,borderRadius:4,padding:"1px 7px",fontWeight:700}}>{l} gain</span>;}
 
@@ -2462,7 +2462,7 @@ function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars){
   const annCtx=Object.entries(banksAnn).map(([k,v])=>`Banque ${k}: A=${v.A} | B=${v.B} | C=${v.C}`).join("\n");
   const plugCtx=Object.entries(banksPlug).map(([k,v])=>`Banque ${k}: A=${v.A} | B=${v.B} | C=${v.C}`).join("\n");
   const glist=guitars.map(x=>`${x.name} (${x.type})`).join(", ");
-  const prompt=`Expert guitare ToneX. Réponds TOUJOURS en français, toutes tes réponses doivent être rédigées en français.\nAnniversary:\n${annCtx}\nPlug:\n${plugCtx}\nMorceau: "${song.title}" de "${song.artist}".\nGuitare: ${g?g.name+" ("+g.type+")":"non précisée"}.\nGuitares disponibles: ${glist}.\nJSON sans markdown (tous les textes en français):\n{"ideal_guitar":"nom complet de la guitare idéale","guitar_reason":"1-2 phrases en français expliquant le choix","preset_ann":{"bank":0,"col":"A","label":"nom exact du preset Anniversary"},"preset_plug":{"bank":1,"col":"A","label":"nom exact du preset Plug"},"settings_preset":"conseils de réglage preset en français","settings_guitar":"conseils de jeu guitare en français","ref_guitarist":"nom du guitariste principal sur l'enregistrement original","ref_guitar":"guitare(s) utilisée(s) sur l'enregistrement original (modèle précis)","ref_amp":"ampli(s) utilisé(s) sur l'enregistrement original (modèle précis)","ref_effects":"effets utilisés sur l'enregistrement (ou 'Aucun effet' si signal direct)"}`;
+  const prompt=`Expert guitare ToneX. Réponds TOUJOURS en français, toutes tes réponses doivent être rédigées en français.\nPédale:\n${annCtx}\nPlug:\n${plugCtx}\nMorceau: "${song.title}" de "${song.artist}".\nGuitare: ${g?g.name+" ("+g.type+")":"non précisée"}.\nGuitares disponibles: ${glist}.\nJSON sans markdown (tous les textes en français):\n{"ideal_guitar":"nom complet de la guitare idéale","guitar_reason":"1-2 phrases en français expliquant le choix","preset_ann":{"bank":0,"col":"A","label":"nom exact du preset Pédale"},"preset_plug":{"bank":1,"col":"A","label":"nom exact du preset Plug"},"settings_preset":"conseils de réglage preset en français","settings_guitar":"conseils de jeu guitare en français","ref_guitarist":"nom du guitariste principal sur l'enregistrement original","ref_guitar":"guitare(s) utilisée(s) sur l'enregistrement original (modèle précis)","ref_amp":"ampli(s) utilisé(s) sur l'enregistrement original (modèle précis)","ref_effects":"effets utilisés sur l'enregistrement (ou 'Aucun effet' si signal direct)"}`;
   const key=aiKeys.gemini||aiKeys.anthropic;
   const provider=aiKeys.gemini?"gemini":"anthropic";
   if(!key) return Promise.reject(new Error("Clé API manquante — configure-la dans ⚙️ Paramètres."));
@@ -2498,7 +2498,7 @@ function AICard({song,gId,onResult,banksAnn,banksPlug,aiProvider,aiKeys,onCacheR
     <div style={{display:"flex",flexDirection:"column",gap:9}}>
       <Row icon="🎯"><div><div style={{fontSize:12,color:"var(--purple)",fontWeight:700,marginBottom:2}}>IA : {res.ideal_guitar}</div><div style={{fontSize:11,color:"var(--text-sec)"}}>{res.guitar_reason}</div></div></Row>
       <div style={{display:"flex",flexDirection:"column",gap:6}}>
-        <PBlock device="ToneX Anniversary" emoji="📦" presetName={res.preset_ann?.label} gType={gId?(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB":null} banks={banksAnn}/>
+        <PBlock device="Pédale" emoji="📦" presetName={res.preset_ann?.label} gType={gId?(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB":null} banks={banksAnn}/>
         <PBlock device="ToneX Plug" emoji="🔌" presetName={res.preset_plug?.label} gType={gId?(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB":null} banks={banksPlug} bg2="rgba(99,102,241,0.06)"/>
       </div>
       <Row icon="🎛️"><div style={{display:"flex",flexDirection:"column",gap:4}}>
@@ -2601,7 +2601,7 @@ function ExportImportScreen({banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,on
         {importData&&<div style={{marginTop:14,background:"rgba(99,102,241,0.1)",border:"1px solid var(--accent-border)",borderRadius:10,padding:14}}>
           <div style={{fontSize:13,fontWeight:700,color:"var(--accent)",marginBottom:10}}>Aperçu</div>
           <div style={{display:"flex",gap:10,marginBottom:12,flexWrap:"wrap"}}>
-            {Object.keys(importData.ann).length>0&&<div style={{background:"rgba(59,130,246,0.1)",border:"1px solid rgba(59,130,246,0.3)",borderRadius:7,padding:"6px 12px"}}><div style={{fontSize:12,color:"var(--blue)",fontWeight:700}}>📦 Anniversary</div><div style={{fontSize:11,color:"var(--text-muted)"}}>{Object.keys(importData.ann).length} banks</div></div>}
+            {Object.keys(importData.ann).length>0&&<div style={{background:"rgba(59,130,246,0.1)",border:"1px solid rgba(59,130,246,0.3)",borderRadius:7,padding:"6px 12px"}}><div style={{fontSize:12,color:"var(--blue)",fontWeight:700}}>📦 Pédale</div><div style={{fontSize:11,color:"var(--text-muted)"}}>{Object.keys(importData.ann).length} banks</div></div>}
             {Object.keys(importData.plug).length>0&&<div style={{background:"rgba(99,102,241,0.1)",border:"1px solid var(--accent-border)",borderRadius:7,padding:"6px 12px"}}><div style={{fontSize:12,color:"var(--accent)",fontWeight:700}}>🔌 Plug</div><div style={{fontSize:11,color:"var(--text-muted)"}}>{Object.keys(importData.plug).length} banks</div></div>}
           </div>
           <div style={{display:"flex",gap:8,marginBottom:12}}>
@@ -3428,7 +3428,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
       </div></Row>}
       {!song.isCustom&&<>
         <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
-          <PBlock device="ToneX Anniversary" emoji="📦" presetName={pA?.l} gType={gId?type:null} banks={banksAnn} adapted={adapted} gs={g?.short} availableSources={availableSources}/>
+          <PBlock device="Pédale" emoji="📦" presetName={pA?.l} gType={gId?type:null} banks={banksAnn} adapted={adapted} gs={g?.short} availableSources={availableSources}/>
           <PBlock device="ToneX Plug" emoji="🔌" presetName={pP?.l} gType={gId?type:null} banks={banksPlug} adapted={adapted} gs={g?.short} bg2="rgba(99,102,241,0.06)" availableSources={availableSources}/>
         </div>
         {(set?.p||set?.g)&&<div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:8}}>
@@ -3438,7 +3438,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
       </>}
       {song.isCustom&&aiC&&<>
         <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
-          <PBlock device="ToneX Anniversary" emoji="📦" presetName={aiC.preset_ann?.label} gType={gId?type:null} banks={banksAnn} availableSources={availableSources}/>
+          <PBlock device="Pédale" emoji="📦" presetName={aiC.preset_ann?.label} gType={gId?type:null} banks={banksAnn} availableSources={availableSources}/>
           <PBlock device="ToneX Plug" emoji="🔌" presetName={aiC.preset_plug?.label} gType={gId?type:null} banks={banksPlug} bg2="rgba(99,102,241,0.06)" availableSources={availableSources}/>
         </div>
         {(aiC.settings_preset||aiC.settings_guitar)&&<div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:8}}>
@@ -3615,7 +3615,7 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
               );})()}
               {!s.isCustom&&<>
                 <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                  <PBlock device="ToneX Anniversary" emoji="📦" presetName={pA?.l} gType={gId?type:null} banks={banksAnn} adapted={adapted} gs={g?.short} availableSources={availableSources}/>
+                  <PBlock device="Pédale" emoji="📦" presetName={pA?.l} gType={gId?type:null} banks={banksAnn} adapted={adapted} gs={g?.short} availableSources={availableSources}/>
                   <PBlock device="ToneX Plug" emoji="🔌" presetName={pP?.l} gType={gId?type:null} banks={banksPlug} adapted={adapted} gs={g?.short} bg2="rgba(99,102,241,0.06)" availableSources={availableSources}/>
                 </div>
                 {(set?.p||set?.g)&&<Row icon="🎛️"><div style={{display:"flex",flexDirection:"column",gap:4,flex:1}}>
@@ -3680,7 +3680,7 @@ function SynthesisScreen({songs,gps,aiR,onBack,onNavigate,songDb,banksAnn,banksP
       <div style={{marginBottom:20}}><div style={{fontSize:22,fontWeight:800,color:"var(--text)"}}>Tableau de synthèse</div><div style={{fontSize:12,color:"var(--text-muted)",marginTop:3}}>{songs.length} morceau{songs.length>1?"x":""}</div></div>
       <div style={{overflowX:"auto",borderRadius:12,border:"1px solid var(--a8)"}}>
         <table>
-          <thead><tr style={{background:"var(--a4)"}}><th style={th}>Morceau</th><th style={th}>Guitare</th><th style={{...th,color:"var(--blue)"}}>📦 Anniversary</th><th style={{...th,color:"var(--accent)"}}>🔌 Plug</th></tr></thead>
+          <thead><tr style={{background:"var(--a4)"}}><th style={th}>Morceau</th><th style={th}>Guitare</th><th style={{...th,color:"var(--blue)"}}>📦 Pédale</th><th style={{...th,color:"var(--accent)"}}>🔌 Plug</th></tr></thead>
           <tbody>
             {rows.map(({s,g,ann,plug},i)=>(
               <tr key={s.id} style={{background:i%2===0?"transparent":"var(--a3)"}}>
@@ -3747,7 +3747,7 @@ function NewSongExplorer({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
             <Row icon="🎯"><div><div style={{fontSize:12,color:"var(--purple)",fontWeight:700,marginBottom:2}}>Guitare idéale : {result.ideal_guitar}</div><div style={{fontSize:11,color:"var(--text-sec)"}}>{result.guitar_reason}</div></div></Row>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>
-              <PBlock device="ToneX Anniversary" emoji="📦" presetName={result.preset_ann?.label} gType={gType} banks={banksAnn}/>
+              <PBlock device="Pédale" emoji="📦" presetName={result.preset_ann?.label} gType={gType} banks={banksAnn}/>
               <PBlock device="ToneX Plug" emoji="🔌" presetName={result.preset_plug?.label} gType={gType} banks={banksPlug} bg2="rgba(99,102,241,0.06)"/>
             </div>
             <Row icon="🎛️"><div style={{display:"flex",flexDirection:"column",gap:4}}>
@@ -4124,12 +4124,12 @@ function JamScreen({banksAnn,banksPlug,allGuitars,availableSources}){
           </div>
         </div>
 
-        {/* Top 3 Anniversary */}
+        {/* Top 3 Pédale */}
         <div style={{marginBottom:16}}>
-          <div style={{fontSize:12,color:"var(--blue)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>📦 Top 3 — ToneX Anniversary <span style={{fontSize:10,color:"var(--text-dim)",fontWeight:400,textTransform:"none"}}>(presets installés)</span></div>
+          <div style={{fontSize:12,color:"var(--blue)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>📦 Top 3 — Pédale <span style={{fontSize:10,color:"var(--text-dim)",fontWeight:400,textTransform:"none"}}>(presets installés)</span></div>
           {recs.annTop3.length>0
             ?recs.annTop3.map((p,i)=><JamPresetItem key={p.name} p={p} rank={i}/>)
-            :<div style={{fontSize:12,color:"var(--text-dim)",padding:"12px",background:"var(--a3)",borderRadius:8,textAlign:"center"}}>Aucun preset {styleInfo?.label} installé sur l'Anniversary pour ce type de guitare.</div>
+            :<div style={{fontSize:12,color:"var(--text-dim)",padding:"12px",background:"var(--a3)",borderRadius:8,textAlign:"center"}}>Aucun preset {styleInfo?.label} installé sur la Pédale pour ce type de guitare.</div>
           }
         </div>
 
@@ -4330,7 +4330,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
             {/* Presets recommandés */}
             <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
               {songResult.preset_ann&&<div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(74,222,128,0.06)",border:"1px solid var(--green-border)",borderRadius:8,padding:"8px 10px"}}>
-                <span style={{fontSize:11,color:"var(--green)",fontWeight:700,flexShrink:0}}>📦 Anniversary</span>
+                <span style={{fontSize:11,color:"var(--green)",fontWeight:700,flexShrink:0}}>📦 Pédale</span>
                 <span style={{fontSize:11,color:"var(--text)",fontWeight:600}}>{songResult.preset_ann.label}</span>
                 <span style={{fontSize:10,color:"var(--text-muted)",marginLeft:"auto"}}>Bank {songResult.preset_ann.bank}{songResult.preset_ann.col}</span>
               </div>}
