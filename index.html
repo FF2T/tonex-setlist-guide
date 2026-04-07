@@ -50,7 +50,7 @@ var db=null;
 function saveToFirestore(s){if(!db)return Promise.resolve();try{
   // Strip sensitive data (API keys) before syncing
   var clean=JSON.parse(JSON.stringify(s));
-  if(clean.profiles){for(var pid in clean.profiles){if(clean.profiles[pid].aiKeys)clean.profiles[pid].aiKeys={anthropic:"",gemini:""};}}
+  if(clean.profiles){for(var pid in clean.profiles){if(clean.profiles[pid].aiKeys)clean.profiles[pid].aiKeys={anthropic:"",gemini:""};delete clean.profiles[pid].password;}}
   return db.collection("sync").doc("state").set(clean).catch(function(e){console.warn("FS save:",e);});
 }catch(e){return Promise.resolve();}}
 function loadFromFirestore(){if(!db)return Promise.resolve(null);return db.collection("sync").doc("state").get().then(function(d){return d.exists?d.data():null;}).catch(function(){return null;});}
@@ -2279,9 +2279,9 @@ function getSongHist(song, aiResult=null){
 // ─── localStorage ─────────────────────────────────────────────────────────────
 const ADMIN_PIN = "212402";
 
-function makeDefaultProfile(id, name, isAdmin=false) {
+function makeDefaultProfile(id, name, isAdmin=false, password="") {
   return {
-    id, name, isAdmin,
+    id, name, isAdmin, password,
     myGuitars: GUITARS.map(g=>g.id),
     customGuitars: [],
     editedGuitars: {},
@@ -2836,68 +2836,97 @@ function BankEditor({banks,onBanks,color,maxBanks,startBank,factoryBanks}) {
 }
 
 // ─── Profile Picker (startup) ─────────────────────────────────────────────────
-function ProfilePickerScreen({profiles,onPick,onCreateNew}){
-  const [newName,setNewName]=useState("");
-  const [pin,setPin]=useState("");
-  const [pinErr,setPinErr]=useState(false);
-  const create=()=>{
-    if(!newName.trim())return;
-    if(pin!==ADMIN_PIN){setPinErr(true);return;}
-    setPinErr(false);
-    onCreateNew(newName.trim());
-    setNewName("");setPin("");
+function ProfilePickerScreen({profiles,onPick}){
+  const [selectedId,setSelectedId]=useState(null);
+  const [pwd,setPwd]=useState("");
+  const [pwdErr,setPwdErr]=useState(false);
+  const tryLogin=()=>{
+    const p=profiles[selectedId];
+    if(!p)return;
+    if(!p.password||p.password===pwd){onPick(selectedId);}
+    else{setPwdErr(true);}
   };
   return(
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"80vh",padding:20}}>
       <div style={{fontSize:32,marginBottom:8}}>🎸</div>
       <div style={{fontSize:22,fontWeight:800,color:"var(--text)",marginBottom:4}}>ToneX Poweruser</div>
       <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:32}}>Qui joue aujourd'hui ?</div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,width:"100%",maxWidth:400,marginBottom:32}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,width:"100%",maxWidth:400,marginBottom:16}}>
         {Object.values(profiles).map(p=>{
           const c=profileColor(p.id);
-          return <button key={p.id} onClick={()=>onPick(p.id)} style={{background:"var(--a4)",border:"2px solid var(--a10)",borderRadius:16,padding:"24px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}} onMouseOver={e=>{e.currentTarget.style.borderColor=c;e.currentTarget.style.background="var(--a7)";}} onMouseOut={e=>{e.currentTarget.style.borderColor="var(--a10)";e.currentTarget.style.background="var(--a4)";}}>
+          const sel=selectedId===p.id;
+          return <button key={p.id} onClick={()=>{setSelectedId(p.id);setPwd("");setPwdErr(false);if(!p.password)onPick(p.id);}} style={{background:sel?"var(--accent-bg)":"var(--a4)",border:sel?"2px solid var(--accent)":"2px solid var(--a10)",borderRadius:16,padding:"24px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
             <div style={{background:c,color:"#fff",borderRadius:"50%",width:48,height:48,fontSize:22,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 10px"}}>{p.name[0].toUpperCase()}</div>
             <div style={{fontSize:14,fontWeight:700,color:"var(--text)"}}>{p.name}</div>
-            <div style={{fontSize:11,color:"var(--text-muted)",marginTop:4}}>{(p.myGuitars||[]).length+(p.customGuitars||[]).length} guitares</div>
+            <div style={{fontSize:11,color:"var(--text-muted)",marginTop:4}}>{p.password?"🔒":""} {(p.myGuitars||[]).length+(p.customGuitars||[]).length} guitares</div>
           </button>;
         })}
       </div>
+      {selectedId&&profiles[selectedId]?.password&&<div style={{width:"100%",maxWidth:300}}>
+        <div style={{fontSize:12,color:"var(--text-sec)",marginBottom:8,textAlign:"center"}}>Mot de passe pour {profiles[selectedId].name}</div>
+        <div style={{display:"flex",gap:8}}>
+          <input type="password" autoFocus placeholder="Mot de passe" value={pwd} onChange={e=>{setPwd(e.target.value);setPwdErr(false);}} onKeyDown={e=>e.key==="Enter"&&tryLogin()} style={{flex:1,background:"var(--bg-card)",color:"var(--text)",border:`1px solid ${pwdErr?"var(--red)":"var(--a15)"}`,borderRadius:8,padding:"10px 14px",fontSize:14}}/>
+          <button onClick={tryLogin} style={{background:"#4f46e5",border:"none",color:"#fff",borderRadius:8,padding:"10px 18px",fontSize:14,fontWeight:700,cursor:"pointer"}}>OK</button>
+        </div>
+        {pwdErr&&<div style={{fontSize:11,color:"var(--red)",marginTop:6,textAlign:"center"}}>Mot de passe incorrect</div>}
+      </div>}
     </div>
   );
 }
 
 // ─── Profile Selector ─────────────────────────────────────────────────────────
-function ProfileSelector({profiles,activeProfileId,onSwitch,onSettings}){
+function ProfileSelector({profiles,activeProfileId,onSwitch,onSettings,onViewProfile}){
   const [open,setOpen]=useState(false);
+  const [loginId,setLoginId]=useState(null);
+  const [pwd,setPwd]=useState("");
+  const [pwdErr,setPwdErr]=useState(false);
   const ref=useRef(null);
   useEffect(()=>{
     if(!open)return;
-    const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+    const h=e=>{if(ref.current&&!ref.current.contains(e.target)){setOpen(false);setLoginId(null);}};
     document.addEventListener("click",h,true);
     return ()=>document.removeEventListener("click",h,true);
   },[open]);
+  const trySwitch=(id)=>{
+    const p=profiles[id];
+    if(!p)return;
+    if(!p.password){onSwitch(id);setOpen(false);setLoginId(null);return;}
+    setLoginId(id);setPwd("");setPwdErr(false);
+  };
+  const tryLogin=()=>{
+    const p=profiles[loginId];
+    if(!p)return;
+    if(p.password===pwd){onSwitch(loginId);setOpen(false);setLoginId(null);}
+    else setPwdErr(true);
+  };
   const active=profiles[activeProfileId];
   const color=profileColor(activeProfileId);
   return(
     <div ref={ref} style={{position:"relative"}}>
-      <button onClick={()=>setOpen(!open)} style={{background:color,border:"none",color:"#fff",borderRadius:"50%",width:34,height:34,fontSize:15,fontWeight:800,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+      <button onClick={()=>{setOpen(!open);setLoginId(null);}} style={{background:color,border:"none",color:"#fff",borderRadius:"50%",width:34,height:34,fontSize:15,fontWeight:800,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
         {(active?.name||"?")[0].toUpperCase()}
       </button>
-      {open&&<div style={{position:"absolute",top:40,left:0,background:"var(--bg-card)",border:"1px solid var(--a12)",borderRadius:12,padding:8,zIndex:50,minWidth:180,boxShadow:"0 8px 24px rgba(0,0,0,0.3)"}}>
+      {open&&<div style={{position:"absolute",top:40,left:0,background:"var(--bg-card)",border:"1px solid var(--a12)",borderRadius:12,padding:8,zIndex:50,minWidth:200,boxShadow:"0 8px 24px rgba(0,0,0,0.3)"}}>
         {Object.values(profiles).map(p=>{
           const isActive=p.id===activeProfileId;
           const c=profileColor(p.id);
-          return <button key={p.id} onClick={()=>{onSwitch(p.id);setOpen(false);}} style={{display:"flex",alignItems:"center",gap:10,width:"100%",background:isActive?"var(--a7)":"transparent",border:"none",borderRadius:8,padding:"8px 10px",cursor:"pointer",marginBottom:2}}>
-            <div style={{background:c,color:"#fff",borderRadius:"50%",width:26,height:26,fontSize:12,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{p.name[0].toUpperCase()}</div>
-            <span style={{fontSize:13,color:isActive?"var(--text)":"var(--text-sec)",fontWeight:isActive?700:400}}>{p.name}</span>
-            {isActive&&<span style={{marginLeft:"auto",fontSize:11,color:"var(--green)"}}>✓</span>}
-          </button>;
+          const isLogin=loginId===p.id;
+          return <div key={p.id}>
+            <div style={{display:"flex",alignItems:"center",gap:6,width:"100%",background:isActive?"var(--a7)":isLogin?"var(--accent-bg)":"transparent",borderRadius:8,padding:"6px 8px",marginBottom:2}}>
+              <button onClick={()=>trySwitch(p.id)} style={{display:"flex",alignItems:"center",gap:8,flex:1,background:"transparent",border:"none",cursor:"pointer",padding:0}}>
+                <div style={{background:c,color:"#fff",borderRadius:"50%",width:26,height:26,fontSize:12,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{p.name[0].toUpperCase()}</div>
+                <span style={{fontSize:13,color:isActive?"var(--text)":"var(--text-sec)",fontWeight:isActive?700:400}}>{p.name}</span>
+                {p.password&&<span style={{fontSize:9,color:"var(--text-dim)"}}>🔒</span>}
+              </button>
+              {isActive&&<span style={{fontSize:11,color:"var(--green)"}}>✓</span>}
+              {!isActive&&<button onClick={()=>{if(onViewProfile){onViewProfile(p.id);setOpen(false);}}} style={{background:"var(--a5)",border:"none",color:"var(--text-dim)",borderRadius:4,padding:"2px 6px",fontSize:9,cursor:"pointer"}} title="Voir la config">👁</button>}
+            </div>
+            {isLogin&&<div style={{padding:"4px 8px 8px",display:"flex",gap:6}}>
+              <input type="password" autoFocus placeholder="Mot de passe" value={pwd} onChange={e=>{setPwd(e.target.value);setPwdErr(false);}} onKeyDown={e=>e.key==="Enter"&&tryLogin()} style={{flex:1,background:"var(--bg-body)",color:"var(--text)",border:`1px solid ${pwdErr?"var(--red)":"var(--a15)"}`,borderRadius:6,padding:"5px 8px",fontSize:11}}/>
+              <button onClick={tryLogin} style={{background:"#4f46e5",border:"none",color:"#fff",borderRadius:6,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>OK</button>
+            </div>}
+          </div>;
         })}
-        <div style={{borderTop:"1px solid var(--a8)",marginTop:4,paddingTop:4}}>
-          <button onClick={()=>{onSettings();setOpen(false);}} style={{display:"flex",alignItems:"center",gap:8,width:"100%",background:"transparent",border:"none",borderRadius:8,padding:"8px 10px",cursor:"pointer",color:"var(--accent)",fontSize:12,fontWeight:600}}>
-            + Gérer les profils
-          </button>
-        </div>
       </div>}
     </div>
   );
@@ -3494,31 +3523,48 @@ function MaintenanceTab({songDb,onSongDb}){
 
 function ProfilesAdmin({profiles,onProfiles}){
   const [name,setName]=useState("");
+  const [newPwd,setNewPwd]=useState("");
+  const [editPwdId,setEditPwdId]=useState(null);
+  const [editPwdVal,setEditPwdVal]=useState("");
   const create=()=>{
     if(!name.trim())return;
     const id=name.trim().toLowerCase().replace(/[^a-z0-9]/g,"_")+`_${Date.now()}`;
-    onProfiles(p=>({...p,[id]:makeDefaultProfile(id,name.trim())}));
-    setName("");
+    onProfiles(p=>({...p,[id]:makeDefaultProfile(id,name.trim(),false,newPwd)}));
+    setName("");setNewPwd("");
   };
   const deleteProfile=id=>{
     if(Object.keys(profiles).length<=1)return;
     onProfiles(p=>{const n={...p};delete n[id];return n;});
   };
+  const savePwd=(id)=>{
+    onProfiles(p=>({...p,[id]:{...p[id],password:editPwdVal}}));
+    setEditPwdId(null);setEditPwdVal("");
+  };
   const inp={background:"var(--bg-card)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:7,padding:"6px 10px",fontSize:12,boxSizing:"border-box"};
   return(
     <div>
-      <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>Gestion des profils utilisateurs.</div>
+      <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>Gestion des utilisateurs.</div>
       {Object.values(profiles).map(p=>(
-        <div key={p.id} style={{display:"flex",alignItems:"center",gap:8,background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:9,padding:"10px 14px",marginBottom:6}}>
-          <div style={{flex:1,fontSize:13,fontWeight:600,color:"var(--text)"}}>{p.name}{p.isAdmin&&<span style={{fontSize:9,color:"var(--yellow)",marginLeft:6}}>admin</span>}</div>
-          <span style={{fontSize:10,color:"var(--text-muted)"}}>{(p.myGuitars||[]).length+(p.customGuitars||[]).length} guitares</span>
-          {Object.keys(profiles).length>1&&<button onClick={()=>deleteProfile(p.id)} style={{background:"rgba(239,68,68,0.15)",border:"1px solid var(--red-border)",color:"var(--red)",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer"}}>Supprimer</button>}
+        <div key={p.id} style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:9,padding:"10px 14px",marginBottom:6}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div style={{flex:1,fontSize:13,fontWeight:600,color:"var(--text)"}}>{p.name}{p.isAdmin&&<span style={{fontSize:9,color:"var(--yellow)",marginLeft:6}}>admin</span>}</div>
+            <span style={{fontSize:10,color:"var(--text-muted)"}}>{p.password?"🔒":"🔓"}</span>
+            <button onClick={()=>{setEditPwdId(editPwdId===p.id?null:p.id);setEditPwdVal(p.password||"");}} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:5,padding:"3px 7px",fontSize:10,cursor:"pointer"}}>Mot de passe</button>
+            {Object.keys(profiles).length>1&&!p.isAdmin&&<button onClick={()=>deleteProfile(p.id)} style={{background:"rgba(239,68,68,0.15)",border:"1px solid var(--red-border)",color:"var(--red)",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer"}}>Supprimer</button>}
+          </div>
+          {editPwdId===p.id&&<div style={{display:"flex",gap:6,marginTop:8}}>
+            <input type="text" placeholder="Nouveau mot de passe (vide = sans)" value={editPwdVal} onChange={e=>setEditPwdVal(e.target.value)} style={{...inp,flex:1}}/>
+            <button onClick={()=>savePwd(p.id)} style={{background:"#4f46e5",border:"none",color:"#fff",borderRadius:6,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>OK</button>
+          </div>}
         </div>
       ))}
       <div style={{background:"var(--accent-bg)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:10,padding:14,marginTop:10}}>
-        <div style={{fontSize:12,color:"var(--accent)",fontWeight:600,marginBottom:8}}>+ Nouveau profil</div>
-        <div style={{display:"flex",gap:8}}>
-          <input placeholder="Nom du profil" value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&create()} style={{...inp,flex:1}}/>
+        <div style={{fontSize:12,color:"var(--accent)",fontWeight:600,marginBottom:8}}>+ Nouvel utilisateur</div>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          <div style={{display:"flex",gap:8}}>
+            <input placeholder="Nom" value={name} onChange={e=>setName(e.target.value)} style={{...inp,flex:1}}/>
+            <input type="text" placeholder="Mot de passe" value={newPwd} onChange={e=>setNewPwd(e.target.value)} style={{...inp,flex:1}}/>
+          </div>
           <button onClick={create} disabled={!name.trim()} style={{background:name.trim()?"#4f46e5":"var(--bg-disabled)",border:"none",color:"#fff",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:name.trim()?"pointer":"not-allowed"}}>Créer</button>
         </div>
       </div>
@@ -4486,7 +4532,7 @@ Réponds UNIQUEMENT en JSON (sans markdown) : {"title":"Titre exact","artist":"A
 }
 
 // ─── HomeScreen (style Google) ────────────────────────────────────────────────
-function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onProfile,onSetlistScreen,onJam,onExplore,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profiles,activeProfileId,onSwitchProfile,customPacks,syncStatus}) {
+function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onProfile,onSetlistScreen,onJam,onExplore,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profiles,activeProfileId,onSwitchProfile,customPacks,syncStatus,onViewProfile}) {
   const profileName=(profiles[activeProfileId]||{}).name||"Profil";
   const [songResult,setSongResult]=useState(null);
   const [songLoading,setSongLoading]=useState(false);
@@ -4497,7 +4543,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
     <div style={{display:"flex",flexDirection:"column",minHeight:"80vh"}}>
       {/* Header nav */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,marginBottom:8}}>
-        <ProfileSelector profiles={profiles} activeProfileId={activeProfileId} onSwitch={onSwitchProfile} onSettings={onProfile}/>
+        <ProfileSelector profiles={profiles} activeProfileId={activeProfileId} onSwitch={onSwitchProfile} onSettings={onProfile} onViewProfile={onViewProfile}/>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
           {syncStatus&&<span style={{fontSize:10,color:syncStatus==="synced"?"var(--green)":syncStatus==="syncing"?"var(--yellow)":syncStatus==="error"?"var(--red)":"var(--text-dim)",marginRight:2}} title={syncStatus==="synced"?"Synchronisé":syncStatus==="syncing"?"Synchronisation...":"Hors ligne"}>{syncStatus==="synced"?"☁️":syncStatus==="syncing"?"⏳":"⚠️"}</span>}
           <button onClick={onProfile} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>👤</button>
@@ -4608,6 +4654,69 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
   );
 }
 
+// ─── ViewProfileScreen (lecture seule) ────────────────────────────────────────
+function ViewProfileScreen({profile,onBack,onNavigate}){
+  if(!profile) return null;
+  const d=profile.devices||{};
+  const hasPedale=d.pedale||d.anniversary;
+  const edits=profile.editedGuitars||{};
+  const guitars=GUITARS.filter(g=>(profile.myGuitars||[]).includes(g.id)).map(g=>({...g,...(edits[g.id]||{})}));
+  const customG=profile.customGuitars||[];
+  return(
+    <div>
+      <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Config de "+profile.name}]} onNavigate={onNavigate}/>
+      <div style={{fontSize:20,fontWeight:800,color:"var(--text)",marginBottom:4}}>👁 {profile.name}</div>
+      <div style={{fontSize:12,color:"var(--text-muted)",marginBottom:16}}>Configuration en lecture seule</div>
+
+      {/* Matériel */}
+      <div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:10,padding:12,marginBottom:10}}>
+        <div style={{fontSize:12,fontWeight:700,color:"var(--text)",marginBottom:6}}>Matériel</div>
+        <div style={{fontSize:11,color:"var(--text-sec)"}}>
+          {d.pedale&&!d.anniversary&&"Pédale ToneX Standard"}
+          {d.anniversary&&"Pédale ToneX Anniversary"}
+          {hasPedale&&d.plug&&" + "}{d.plug&&"ToneX Plug"}
+          {!hasPedale&&!d.plug&&"Aucun appareil configuré"}
+        </div>
+      </div>
+
+      {/* Guitares */}
+      <div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:10,padding:12,marginBottom:10}}>
+        <div style={{fontSize:12,fontWeight:700,color:"var(--text)",marginBottom:6}}>Guitares ({guitars.length+customG.length})</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+          {guitars.map(g=><span key={g.id} style={{fontSize:10,background:"var(--a5)",borderRadius:5,padding:"2px 8px",color:"var(--text-sec)"}}>{g.short} ({g.type})</span>)}
+          {customG.map(g=><span key={g.id} style={{fontSize:10,background:"var(--purple-bg)",borderRadius:5,padding:"2px 8px",color:"var(--purple)"}}>{g.short} ({g.type})</span>)}
+        </div>
+      </div>
+
+      {/* Banques Pédale */}
+      {hasPedale&&<div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:10,padding:12,marginBottom:10}}>
+        <div style={{fontSize:12,fontWeight:700,color:"var(--text)",marginBottom:6}}>Banques Pédale (50)</div>
+        <div style={{maxHeight:200,overflowY:"auto"}}>
+          {Object.entries(profile.banksAnn||{}).sort((a,b)=>Number(a[0])-Number(b[0])).map(([k,v])=>(
+            v.A||v.B||v.C?<div key={k} style={{fontSize:10,color:"var(--text-sec)",marginBottom:2}}>
+              <span style={{fontWeight:700,color:"var(--text-muted)",minWidth:20,display:"inline-block"}}>{k}</span>
+              <span style={{color:CC.A}}>A:</span>{v.A||"—"} <span style={{color:CC.B}}>B:</span>{v.B||"—"} <span style={{color:CC.C}}>C:</span>{v.C||"—"}
+            </div>:null
+          ))}
+        </div>
+      </div>}
+
+      {/* Banques Plug */}
+      {d.plug&&<div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:10,padding:12,marginBottom:10}}>
+        <div style={{fontSize:12,fontWeight:700,color:"var(--text)",marginBottom:6}}>Banques Plug (10)</div>
+        {Object.entries(profile.banksPlug||{}).sort((a,b)=>Number(a[0])-Number(b[0])).map(([k,v])=>(
+          v.A||v.B||v.C?<div key={k} style={{fontSize:10,color:"var(--text-sec)",marginBottom:2}}>
+            <span style={{fontWeight:700,color:"var(--text-muted)",minWidth:20,display:"inline-block"}}>{k}</span>
+            <span style={{color:CC.A}}>A:</span>{v.A||"—"} <span style={{color:CC.B}}>B:</span>{v.B||"—"} <span style={{color:CC.C}}>C:</span>{v.C||"—"}
+          </div>:null
+        ))}
+      </div>}
+
+      <button onClick={onBack} style={{width:"100%",background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-sec)",borderRadius:8,padding:"10px",fontSize:13,cursor:"pointer",marginTop:8}}>Retour</button>
+    </div>
+  );
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 // Fusionne les banks sauvées avec les banks initiales (ajoute les nouvelles sans écraser les modifs utilisateur)
 function mergeBanks(saved, init){
@@ -4669,8 +4778,9 @@ function App() {
   const [screen,  setScreen]  = useState(multiProfile ? "pick" : "list");
   const [checked, setChecked] = useState([]);
   const [synth,   setSynth]   = useState(null);
-  const [syncStatus, setSyncStatus] = useState("idle"); // idle|syncing|synced|error
+  const [syncStatus, setSyncStatus] = useState("idle");
   const lastSaveTime = useRef(0);
+  const [viewProfileId, setViewProfileId] = useState(null);
 
   // Destructure profile fields for convenience
   const {banksAnn, banksPlug, aiProvider, aiKeys, availableSources} = profile;
@@ -4700,7 +4810,7 @@ function App() {
         if(data.profiles) setProfiles(prev=>{
           const merged={...data.profiles};
           for(const [id,p] of Object.entries(merged)){
-            if(prev[id]?.aiKeys) merged[id]={...p,aiKeys:prev[id].aiKeys};
+            if(prev[id]?.aiKeys) merged[id]={...p,aiKeys:prev[id].aiKeys,password:prev[id].password||""};
           }
           return merged;
         });
@@ -4725,7 +4835,7 @@ function App() {
       if(data.profiles) setProfiles(prev=>{
         const merged={...data.profiles};
         for(const [id,p] of Object.entries(merged)){
-          if(prev[id]?.aiKeys) merged[id]={...p,aiKeys:prev[id].aiKeys};
+          if(prev[id]?.aiKeys) merged[id]={...p,aiKeys:prev[id].aiKeys,password:prev[id].password||""};
         }
         return merged;
       });
@@ -4772,7 +4882,8 @@ function App() {
 
   const [profileInitTab,setProfileInitTab]=useState(null);
 
-  if(screen==="pick") return <div className="page-root"><ProfilePickerScreen profiles={profiles} onPick={pickProfile} onCreateNew={createAndPick}/></div>;
+  if(screen==="pick") return <div className="page-root"><ProfilePickerScreen profiles={profiles} onPick={pickProfile}/></div>;
+  if(screen==="viewprofile"&&viewProfileId&&profiles[viewProfileId]) return <div className="page-root"><ViewProfileScreen profile={profiles[viewProfileId]} onBack={()=>setScreen("list")} onNavigate={setScreen}/></div>;
   if(screen==="exportimport") return <div className="page-root"><ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("settings")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/></div>;
   if(screen==="profile")      return <div className="page-root"><MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} aiKeys={aiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab}/></div>;
   if(screen==="settings")     return <div className="page-root"><ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} songDb={songDb} onSongDb={setSongDb}/></div>;
@@ -4793,7 +4904,7 @@ function App() {
   </div>;
   if(screen==="synthesis"&&synth) return <div className="page-root"><SynthesisScreen songs={songs} gps={synth.gps} aiR={synth.aiR} onBack={()=>setScreen("recap")} onNavigate={setScreen} songDb={songDb} banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/></div>;
   if(screen==="recap")        return <div className="page-root"><RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDb} onSongDb={setSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources}/></div>;
-  return <div className="page-root"><HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} customPacks={profile.customPacks} syncStatus={syncStatus}/></div>;
+  return <div className="page-root"><HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}}/></div>;
 }
 
 ReactDOM.render(<App/>, document.getElementById("root"));
