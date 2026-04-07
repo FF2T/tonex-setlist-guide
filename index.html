@@ -2522,7 +2522,13 @@ function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars){
   const annCtx=Object.entries(banksAnn).map(([k,v])=>`Banque ${k}: A=${v.A} | B=${v.B} | C=${v.C}`).join("\n");
   const plugCtx=Object.entries(banksPlug).map(([k,v])=>`Banque ${k}: A=${v.A} | B=${v.B} | C=${v.C}`).join("\n");
   const glist=guitars.map(x=>`${x.name} (${x.type})`).join(", ");
-  const prompt=`Expert guitare ToneX. Réponds TOUJOURS en français, toutes tes réponses doivent être rédigées en français.\nPédale:\n${annCtx}\nPlug:\n${plugCtx}\nMorceau: "${song.title}" de "${song.artist}".\nGuitare: ${g?g.name+" ("+g.type+")":"non précisée"}.\nGuitares disponibles: ${glist}.\nJSON sans markdown (tous les textes en français):\n{"song_year":1970,"song_album":"nom de l'album","song_desc":"2-3 phrases décrivant le morceau, son style, ses particularités guitare","ideal_guitar":"nom complet de la guitare idéale","guitar_reason":"1-2 phrases en français expliquant le choix","preset_ann":{"bank":0,"col":"A","label":"nom exact du preset Pédale"},"preset_plug":{"bank":1,"col":"A","label":"nom exact du preset Plug"},"settings_preset":"conseils de réglage preset en français","settings_guitar":"conseils de jeu guitare en français","ref_guitarist":"nom du guitariste principal sur l'enregistrement original","ref_guitar":"guitare(s) utilisée(s) sur l'enregistrement original (modèle précis)","ref_amp":"ampli(s) utilisé(s) sur l'enregistrement original (modèle précis)","ref_effects":"effets utilisés sur l'enregistrement (ou 'Aucun effet' si signal direct)"}`;
+  // Build list of best presets from full catalog for this guitar type
+  const gType=g?.type||"HB";
+  const bestFromCatalog=Object.entries(PRESET_CATALOG_MERGED)
+    .map(([name,info])=>({name,score:info.scores?.[gType]??60,amp:info.amp,style:info.style}))
+    .sort((a,b)=>b.score-a.score).slice(0,30)
+    .map(p=>`${p.name} (${p.amp}, ${p.style}, ${gType}:${p.score}%)`).join("\n");
+  const prompt=`Expert guitare ToneX. Réponds TOUJOURS en français, toutes tes réponses doivent être rédigées en français.\nPresets installés sur la Pédale:\n${annCtx}\nPresets installés sur le Plug:\n${plugCtx}\n\nMeilleurs presets disponibles dans la base complète pour guitare ${gType}:\n${bestFromCatalog}\n\nMorceau: "${song.title}" de "${song.artist}".\nGuitare: ${g?g.name+" ("+g.type+")":"non précisée"}.\nGuitares disponibles: ${glist}.\n\nIMPORTANT: Pour preset_ann et preset_plug, choisis UNIQUEMENT parmi les presets installés ci-dessus. Pour ideal_preset, recommande le meilleur preset de la base complète (même s'il n'est pas installé).\n\nJSON sans markdown (tous les textes en français):\n{"song_year":1970,"song_album":"nom de l'album","song_desc":"2-3 phrases décrivant le morceau, son style, ses particularités guitare","ideal_guitar":"nom complet de la guitare idéale","guitar_reason":"1-2 phrases en français expliquant le choix","preset_ann":{"bank":0,"col":"A","label":"nom exact du preset Pédale installé"},"preset_plug":{"bank":1,"col":"A","label":"nom exact du preset Plug installé"},"ideal_preset":"nom du meilleur preset de la base complète (peut ne pas être installé)","ideal_preset_score":85,"settings_preset":"conseils de réglage preset en français","settings_guitar":"conseils de jeu guitare en français","ref_guitarist":"nom du guitariste principal sur l'enregistrement original","ref_guitar":"guitare(s) utilisée(s) sur l'enregistrement original (modèle précis)","ref_amp":"ampli(s) utilisé(s) sur l'enregistrement original (modèle précis)","ref_effects":"effets utilisés sur l'enregistrement (ou 'Aucun effet' si signal direct)"}`;
   const key=aiKeys.gemini||aiKeys.anthropic||DEFAULT_GEMINI_KEY;
   const provider=(aiKeys.gemini||DEFAULT_GEMINI_KEY)?"gemini":"anthropic";
   if(!key) return Promise.reject(new Error("Clé API manquante — configure-la dans ⚙️ Paramètres."));
@@ -3743,6 +3749,12 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
       </div>}
       {song.isCustom&&!reloading&&aiC&&<>
         {aiC.ideal_guitar&&<div style={{fontSize:11,color:"var(--purple)",marginBottom:6}}>IA recommande : {aiC.ideal_guitar}{aiC.guitar_reason?" — "+aiC.guitar_reason:""}</div>}
+        {aiC.ideal_preset&&<div style={{display:"flex",alignItems:"center",gap:8,background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",borderRadius:8,padding:"6px 10px",marginBottom:6}}>
+          <span style={{fontSize:10,color:"var(--yellow)",fontWeight:700}}>⭐ Idéal</span>
+          <span style={{fontSize:10,color:"var(--text)",fontWeight:600,flex:1}}>{aiC.ideal_preset}</span>
+          {aiC.ideal_preset_score&&<span style={{fontSize:10,color:"var(--yellow)"}}>{aiC.ideal_preset_score}%</span>}
+          {(()=>{const loc=findInBanks(aiC.ideal_preset,banksAnn)||findInBanks(aiC.ideal_preset,banksPlug);return loc?<span style={{fontSize:9,color:"var(--green)"}}>✓ installé</span>:<span style={{fontSize:9,color:"var(--text-dim)"}}>non installé</span>;})()}
+        </div>}
         <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
           <PBlock device="Pédale" emoji="📦" presetName={aiC.preset_ann?.label} gType={gId?type:null} banks={banksAnn} availableSources={availableSources}/>
           <PBlock device="ToneX Plug" emoji="🔌" presetName={aiC.preset_plug?.label} gType={gId?type:null} banks={banksPlug} bg2="rgba(99,102,241,0.06)" availableSources={availableSources}/>
@@ -4771,7 +4783,15 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
               {songResult.ref_effects&&songResult.ref_effects!=="Aucun effet"&&<div><b style={{color:"var(--text-muted)"}}>Effets :</b> {songResult.ref_effects}</div>}
             </div>}
 
-            {/* Presets recommandés */}
+            {/* Preset idéal (base complète) */}
+            {songResult.ideal_preset&&<div style={{display:"flex",alignItems:"center",gap:8,background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",borderRadius:8,padding:"8px 10px",marginBottom:6}}>
+              <span style={{fontSize:11,color:"var(--yellow)",fontWeight:700,flexShrink:0}}>⭐ Idéal</span>
+              <span style={{fontSize:11,color:"var(--text)",fontWeight:600}}>{songResult.ideal_preset}</span>
+              {songResult.ideal_preset_score&&<span style={{fontSize:10,color:"var(--yellow)",marginLeft:"auto"}}>{songResult.ideal_preset_score}%</span>}
+              {(()=>{const loc=findInBanks(songResult.ideal_preset,banksAnn)||findInBanks(songResult.ideal_preset,banksPlug);return loc?<span style={{fontSize:9,color:"var(--green)"}}>✓ installé</span>:<span style={{fontSize:9,color:"var(--text-dim)"}}>non installé</span>;})()}
+            </div>}
+
+            {/* Presets installés recommandés */}
             <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
               {songResult.preset_ann&&<div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(74,222,128,0.06)",border:"1px solid var(--green-border)",borderRadius:8,padding:"8px 10px"}}>
                 <span style={{fontSize:11,color:"var(--green)",fontWeight:700,flexShrink:0}}>📦 Pédale</span>
