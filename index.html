@@ -2680,15 +2680,54 @@ function ExportImportScreen({banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,on
 }
 
 // ─── BankEditor ───────────────────────────────────────────────────────────────
+function PresetSearchModal({onSelect,onClose}){
+  const [q,setQ]=useState("");
+  const allPresets=useMemo(()=>{
+    const cat={...PRESET_CATALOG,...PRESET_CATALOG_FULL,...ANNIVERSARY_CATALOG,...FACTORY_CATALOG,...PLUG_FACTORY_CATALOG};
+    return Object.entries(cat).sort((a,b)=>a[0].localeCompare(b[0]));
+  },[]);
+  const results=useMemo(()=>{
+    if(!q.trim()) return allPresets.slice(0,30);
+    const lq=q.toLowerCase();
+    return allPresets.filter(([n,info])=>n.toLowerCase().includes(lq)||info.amp.toLowerCase().includes(lq)).slice(0,30);
+  },[q]);
+  return(
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{fontSize:14,fontWeight:700,color:"var(--text)"}}>Chercher un preset</div>
+          <button onClick={onClose} style={{background:"none",border:"none",color:"var(--text-muted)",fontSize:18,cursor:"pointer"}}>✕</button>
+        </div>
+        <input autoFocus placeholder="Nom du preset ou ampli..." value={q} onChange={e=>setQ(e.target.value)} style={{width:"100%",background:"var(--bg-body)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:8,padding:"9px 12px",fontSize:13,boxSizing:"border-box",marginBottom:10}}/>
+        <div style={{maxHeight:"50vh",overflowY:"auto"}}>
+          {results.map(([name,info])=>(
+            <button key={name} onClick={()=>onSelect(name)} style={{display:"block",width:"100%",textAlign:"left",background:"var(--a3)",border:"1px solid var(--a6)",borderRadius:7,padding:"8px 10px",marginBottom:3,cursor:"pointer"}}>
+              <div style={{fontSize:12,fontWeight:600,color:"var(--text)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</div>
+              <div style={{fontSize:10,color:"var(--text-muted)"}}>{info.amp} · {SOURCE_LABELS[info.src]||info.src}</div>
+            </button>
+          ))}
+          {results.length===0&&<div style={{fontSize:12,color:"var(--text-dim)",textAlign:"center",padding:16}}>Aucun preset trouvé</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BankEditor({banks,onBanks,color,maxBanks,startBank,factoryBanks}) {
   const start=startBank||0;
   const max=maxBanks||50;
   const [confirmReset,setConfirmReset]=useState(false);
+  const [selectedPreset,setSelectedPreset]=useState(null); // {bank,slot,name}
+  const [editingPreset,setEditingPreset]=useState(null); // {bank,slot} — search mode
+  const [customInput,setCustomInput]=useState(null); // {bank,slot} — manual input
   const inp={background:"var(--bg-card)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:7,padding:"5px 8px",fontSize:11,width:"100%",boxSizing:"border-box"};
   const edit=(k,f,v)=>onBanks(p=>({...p,[k]:{...(p[k]||{cat:"",A:"",B:"",C:""}),[f]:v}}));
   const resetFactory=()=>{if(factoryBanks){onBanks({...factoryBanks});setConfirmReset(false);}};
   const allBanks=[];
   for(let i=start;i<start+max;i++){allBanks.push([String(i),banks[i]||{cat:"",A:"",B:"",C:""}]);}
+
+  const selInfo=selectedPreset?findCatalogEntry(selectedPreset.name):null;
+
   return (
     <div>
       {/* Reset factory button */}
@@ -2702,18 +2741,64 @@ function BankEditor({banks,onBanks,color,maxBanks,startBank,factoryBanks}) {
           </div>
         </div>}
       </div>}
+
+      {/* Search modal */}
+      {editingPreset&&<PresetSearchModal onClose={()=>setEditingPreset(null)} onSelect={name=>{
+        edit(editingPreset.bank,editingPreset.slot,name);
+        setEditingPreset(null);
+      }}/>}
+
       {allBanks.map(([k,v])=>{
         const empty=!v.A&&!v.B&&!v.C;
         return <div key={k} style={{background:empty?"transparent":"var(--a3)",border:empty?"1px solid var(--a5)":"1px solid var(--a7)",borderRadius:8,padding:"8px 10px",marginBottom:4}}>
-          <div style={{display:"flex",alignItems:"center",gap:6}}>
+          <div style={{display:"flex",alignItems:"center",gap:4}}>
             <span style={{fontSize:12,fontWeight:800,color,minWidth:24}}>{k}</span>
-            {["A","B","C"].map(c=>(
-              <div key={c} style={{flex:1,display:"flex",alignItems:"center",gap:3}}>
-                <span style={{fontSize:10,fontWeight:700,color:CC[c]}}>{c}</span>
-                <input value={v[c]||""} onChange={e=>edit(k,c,e.target.value)} placeholder="—" style={inp}/>
-              </div>
-            ))}
+            {["A","B","C"].map(c=>{
+              const name=v[c]||"";
+              const isSel=selectedPreset&&selectedPreset.bank===k&&selectedPreset.slot===c;
+              const isCustom=customInput&&customInput.bank===k&&customInput.slot===c;
+              return <div key={c} style={{flex:1,minWidth:0}}>
+                <button onClick={()=>{if(name){setSelectedPreset(isSel?null:{bank:k,slot:c,name});setCustomInput(null);}}}
+                  style={{display:"flex",alignItems:"center",gap:3,width:"100%",background:isSel?"var(--accent-bg)":"transparent",border:isSel?"1px solid var(--accent-border)":"1px solid transparent",borderRadius:5,padding:"3px 4px",cursor:name?"pointer":"default",textAlign:"left"}}>
+                  <span style={{fontSize:10,fontWeight:700,color:CC[c],flexShrink:0}}>{c}</span>
+                  <span style={{fontSize:10,color:name?"var(--text-bright)":"var(--text-dim)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{name||"—"}</span>
+                </button>
+              </div>;
+            })}
           </div>
+          {/* Detail card for selected preset */}
+          {selectedPreset&&selectedPreset.bank===k&&<div style={{marginTop:6,animation:"slideDown .2s ease-out"}}>
+            {selInfo?<div style={{background:"var(--accent-bg)",border:"1px solid var(--accent-border)",borderRadius:8,padding:10}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+                <div>
+                  <div style={{fontSize:12,fontWeight:700,color:"var(--text)"}}>{selectedPreset.name}</div>
+                  <div style={{fontSize:10,color:"var(--text-sec)"}}>{selInfo.amp}</div>
+                  <div style={{display:"flex",gap:4,marginTop:4}}>{styleBadge(selInfo.style)}{gainBadge(selInfo.gain)}<span style={{fontSize:9,color:"var(--text-muted)",background:"var(--a6)",borderRadius:4,padding:"1px 6px",fontWeight:600}}>{SOURCE_LABELS[selInfo.src]||selInfo.src}</span></div>
+                </div>
+                <div style={{display:"flex",gap:3,flexShrink:0}}>
+                  {["HB","SC","P90"].map(gt=><span key={gt} style={{fontSize:9,color:scoreColor(selInfo.scores[gt]||60),fontWeight:700,background:scoreBg(selInfo.scores[gt]||60),borderRadius:3,padding:"1px 4px"}}>{gt} {selInfo.scores[gt]||60}%</span>)}
+                </div>
+              </div>
+              <div style={{display:"flex",gap:6,marginTop:6}}>
+                <button onClick={()=>{setEditingPreset({bank:k,slot:selectedPreset.slot});setSelectedPreset(null);}} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>Modifier</button>
+                <button onClick={()=>setSelectedPreset(null)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:6,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>Fermer</button>
+              </div>
+            </div>
+            :<div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:8,padding:10}}>
+              <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:6}}>Preset non trouvé dans la base : <b style={{color:"var(--text)"}}>{selectedPreset.name}</b></div>
+              <div style={{display:"flex",gap:6}}>
+                <button onClick={()=>{setEditingPreset({bank:k,slot:selectedPreset.slot});setSelectedPreset(null);}} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>Remplacer</button>
+                <button onClick={()=>{setCustomInput({bank:k,slot:selectedPreset.slot});setSelectedPreset(null);}} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:6,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>Saisie manuelle</button>
+                <button onClick={()=>setSelectedPreset(null)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:6,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>Fermer</button>
+              </div>
+            </div>}
+          </div>}
+          {/* Custom input for manual entry */}
+          {customInput&&customInput.bank===k&&<div style={{marginTop:6,display:"flex",gap:6,alignItems:"center"}}>
+            <span style={{fontSize:10,fontWeight:700,color:CC[customInput.slot]}}>{customInput.slot}</span>
+            <input autoFocus value={v[customInput.slot]||""} onChange={e=>edit(k,customInput.slot,e.target.value)} style={{...inp,flex:1}} placeholder="Nom du preset custom"/>
+            <button onClick={()=>setCustomInput(null)} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:5,padding:"4px 10px",fontSize:10,fontWeight:700,cursor:"pointer"}}>OK</button>
+          </div>}
         </div>;
       })}
     </div>
