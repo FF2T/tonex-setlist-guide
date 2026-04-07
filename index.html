@@ -2769,17 +2769,8 @@ function BankEditor({banks,onBanks,color,maxBanks,startBank,factoryBanks}) {
           </div>
           {/* Detail card for selected preset */}
           {selectedPreset&&selectedPreset.bank===k&&<div style={{marginTop:6,animation:"slideDown .2s ease-out"}}>
-            {selInfo?<div style={{background:"var(--accent-bg)",border:"1px solid var(--accent-border)",borderRadius:8,padding:10}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
-                <div>
-                  <div style={{fontSize:12,fontWeight:700,color:"var(--text)"}}>{selectedPreset.name}</div>
-                  <div style={{fontSize:10,color:"var(--text-sec)"}}>{selInfo.amp}</div>
-                  <div style={{display:"flex",gap:4,marginTop:4}}>{styleBadge(selInfo.style)}{gainBadge(selInfo.gain)}<span style={{fontSize:9,color:"var(--text-muted)",background:"var(--a6)",borderRadius:4,padding:"1px 6px",fontWeight:600}}>{SOURCE_LABELS[selInfo.src]||selInfo.src}</span></div>
-                </div>
-                <div style={{display:"flex",gap:3,flexShrink:0}}>
-                  {["HB","SC","P90"].map(gt=><span key={gt} style={{fontSize:9,color:scoreColor(selInfo.scores[gt]||60),fontWeight:700,background:scoreBg(selInfo.scores[gt]||60),borderRadius:3,padding:"1px 4px"}}>{gt} {selInfo.scores[gt]||60}%</span>)}
-                </div>
-              </div>
+            {selInfo?<div>
+              <PresetDetailInline name={selectedPreset.name} info={selInfo} banksAnn={banks} banksPlug={banks}/>
               <div style={{display:"flex",gap:6,marginTop:6}}>
                 <button onClick={()=>{setEditingPreset({bank:k,slot:selectedPreset.slot});setSelectedPreset(null);}} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>Modifier</button>
                 <button onClick={()=>setSelectedPreset(null)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:6,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>Fermer</button>
