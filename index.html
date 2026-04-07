@@ -2327,6 +2327,10 @@ function migrateV1toV2(v1) {
   };
 }
 
+const LS_SECRETS_KEY = "tonex_secrets";
+function loadSecrets(){try{return JSON.parse(localStorage.getItem(LS_SECRETS_KEY))||{};}catch(e){return {};}}
+function saveSecrets(secrets){try{localStorage.setItem(LS_SECRETS_KEY,JSON.stringify(secrets));}catch(e){}}
+
 function loadState() {
   try {
     const raw = localStorage.getItem(LS_KEY);
@@ -4751,6 +4755,16 @@ function mergeBanks(saved, init){
   return merged;
 }
 
+function applySecrets(profiles){
+  const secrets=loadSecrets();
+  const result={...profiles};
+  for(const [id,p] of Object.entries(result)){
+    const s=secrets[id]||{};
+    result[id]={...p, aiKeys:s.aiKeys||p.aiKeys||{anthropic:"",gemini:""}, password:s.password!==undefined?s.password:(p.password||"")};
+  }
+  return result;
+}
+
 function App() {
   const saved = loadState();
   const [firestoreLoaded, setFirestoreLoaded] = useState(false);
@@ -4766,13 +4780,13 @@ function App() {
   const [theme,   setTheme]   = useState(initDefault.shared.theme);
   const [setlists, setSetlists] = useState(initDefault.shared?.setlists || [{id:"sl_main",name:"Ma Setlist",songIds:INIT_SONG_DB_META.map(s=>s.id),profileIds:[initDefault.activeProfileId]}]);
 
-  // Profiles state — merge new banks from INIT without overwriting user changes
+  // Profiles state — merge banks + apply local secrets (aiKeys, passwords)
   const mergedProfiles = useMemo(()=>{
     const p={...initDefault.profiles};
     for(const [id,prof] of Object.entries(p)){
       p[id]={...prof, banksAnn:mergeBanks(prof.banksAnn,INIT_BANKS_ANN), banksPlug:mergeBanks(prof.banksPlug,INIT_BANKS_PLUG)};
     }
-    return p;
+    return applySecrets(p);
   },[]);
   const [profiles, setProfiles] = useState(mergedProfiles);
   const [activeProfileId, setActiveProfileId] = useState(initDefault.activeProfileId);
@@ -4810,6 +4824,15 @@ function App() {
   // Filter setlists for current profile
   const mySetlists = setlists.filter(sl => !sl.profileIds || sl.profileIds.length === 0 || sl.profileIds.includes(activeProfileId));
 
+  // Save secrets (aiKeys, passwords) to separate localStorage key — never synced
+  useEffect(()=>{
+    const secrets={};
+    for(const [id,p] of Object.entries(profiles)){
+      secrets[id]={aiKeys:p.aiKeys||{anthropic:"",gemini:""},password:p.password||""};
+    }
+    saveSecrets(secrets);
+  },[profiles]);
+
   // Persist to localStorage + Firestore (skip first render to avoid overwriting remote)
   const hasMounted = useRef(false);
   useEffect(()=>{
@@ -4829,14 +4852,7 @@ function App() {
         if(data.shared.songDb) setSongDb(data.shared.songDb);
         if(data.shared.theme) setTheme(data.shared.theme);
         if(data.shared.setlists) setSetlists(data.shared.setlists);
-        // Don't overwrite local API keys from Firestore
-        if(data.profiles) setProfiles(prev=>{
-          const merged={...data.profiles};
-          for(const [id,p] of Object.entries(merged)){
-            if(prev[id]?.aiKeys) merged[id]={...p,aiKeys:prev[id].aiKeys,password:prev[id].password||""};
-          }
-          return merged;
-        });
+        if(data.profiles) setProfiles(applySecrets(data.profiles));
         if(data.activeProfileId) setActiveProfileId(data.activeProfileId);
       }
       setFirestoreLoaded(true);
@@ -4851,17 +4867,11 @@ function App() {
       if(Date.now()-lastSaveTime.current<5000)return;
       if(firstSnapshot){firstSnapshot=false;return;} // skip initial snapshot
       if(!data||!data.shared||!data.profiles) return;
-      // Apply remote state — preserve local API keys
+      // Apply remote state — secrets are restored from local storage
       if(data.shared.songDb) setSongDb(data.shared.songDb);
       if(data.shared.theme) setTheme(data.shared.theme);
       if(data.shared.setlists) setSetlists(data.shared.setlists);
-      if(data.profiles) setProfiles(prev=>{
-        const merged={...data.profiles};
-        for(const [id,p] of Object.entries(merged)){
-          if(prev[id]?.aiKeys) merged[id]={...p,aiKeys:prev[id].aiKeys,password:prev[id].password||""};
-        }
-        return merged;
-      });
+      if(data.profiles) setProfiles(applySecrets(data.profiles));
       setSyncStatus("synced");
     });
     return ()=>unsub();
