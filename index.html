@@ -4397,12 +4397,12 @@ Réponds UNIQUEMENT en JSON (sans markdown) : {"title":"Titre exact","artist":"A
     req.then(s=>setSuggestion(s)).catch(e=>setErr(e.message)).finally(()=>setLoading(false));
   };
 
-  const inp={background:"var(--bg-card)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:10,padding:"12px 14px",fontSize:14,width:"100%",boxSizing:"border-box"};
+  const inp={background:"var(--bg-card)",color:"var(--text)",border:"2px solid var(--a15)",borderRadius:14,padding:"16px 18px",fontSize:17,width:"100%",boxSizing:"border-box"};
   return(
     <div>
       <div style={{display:"flex",gap:8,marginBottom:10}}>
-        <input placeholder="Ex: highway to hel acdc" value={input} onChange={e=>{setInput(e.target.value);setSuggestion(null);}} onKeyDown={e=>e.key==="Enter"&&search()} style={{...inp,flex:1}}/>
-        <button onClick={search} disabled={!input.trim()||loading} style={{background:!input.trim()||loading?"#374151":"#4f46e5",border:"none",color:"#fff",borderRadius:10,padding:"0 18px",fontSize:14,fontWeight:700,cursor:!input.trim()||loading?"not-allowed":"pointer",flexShrink:0}}>{loading?"...":"OK"}</button>
+        <input placeholder="Titre, artiste..." value={input} onChange={e=>{setInput(e.target.value);setSuggestion(null);}} onKeyDown={e=>e.key==="Enter"&&search()} style={{...inp,flex:1}}/>
+        <button onClick={search} disabled={!input.trim()||loading} style={{background:!input.trim()||loading?"#374151":"#4f46e5",border:"none",color:"#fff",borderRadius:14,padding:"0 22px",fontSize:17,fontWeight:700,cursor:!input.trim()||loading?"not-allowed":"pointer",flexShrink:0}}>{loading?"...":"OK"}</button>
       </div>
       {err&&<div style={{fontSize:12,color:"var(--red)",marginBottom:8}}>{err}</div>}
       {suggestion&&<div style={{background:"var(--green-bg)",border:"1px solid var(--green-border)",borderRadius:12,padding:14,marginBottom:8}}>
@@ -4439,7 +4439,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
       </div>
 
       {/* Zone centrale style Google */}
-      <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"12px 0 8px"}}>
+      <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"8px 0 4px"}}>
         {songLoading?(
           <div style={{textAlign:"center",padding:"40px 0"}}>
             <div style={{fontSize:48,marginBottom:16,animation:"spin 1.5s linear infinite"}}>&#9203;</div>
@@ -4449,8 +4449,8 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           </div>
         ):<div>
         <div style={{fontSize:32,fontWeight:800,color:"var(--text)",marginBottom:6,textAlign:"center"}}>ToneX Poweruser</div>
-        <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:24,textAlign:"center"}}>Quel morceau veux-tu jouer ?</div>
-        <div style={{width:"100%",maxWidth:500}}>
+        <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:16,textAlign:"center"}}>Quel morceau veux-tu jouer ?</div>
+        <div style={{width:"100%"}}>
           <SongSearchBar aiProvider={aiProvider} aiKeys={aiKeys} onConfirm={(title,artist)=>{
             setConfirmedSong({title,artist});
             setSongResult(null);setSongErr(null);setSongLoading(true);
@@ -4519,7 +4519,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
       </div>
 
       {/* Tuiles en bas (masquer si résultat ou loading) */}
-      {!songResult&&!songLoading&&<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,paddingBottom:12}}>
+      {!songResult&&!songLoading&&<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,paddingBottom:8,marginTop:4}}>
         <button onClick={onSetlistScreen} style={{background:"rgba(99,102,241,0.1)",border:"1px solid var(--accent-border)",borderRadius:14,padding:"16px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
           <div style={{fontSize:24,marginBottom:4}}>🎵</div>
           <div style={{fontSize:13,fontWeight:700,color:"var(--accent)"}}>Mes setlists</div>
