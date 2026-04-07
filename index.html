@@ -47,7 +47,12 @@ self.addEventListener('fetch',e=>{
 <script>
 // Firebase stubs — loaded lazily after page renders
 var db=null;
-function saveToFirestore(s){if(!db)return Promise.resolve();try{return db.collection("sync").doc("state").set(JSON.parse(JSON.stringify(s))).catch(function(e){console.warn("FS save:",e);});}catch(e){return Promise.resolve();}}
+function saveToFirestore(s){if(!db)return Promise.resolve();try{
+  // Strip sensitive data (API keys) before syncing
+  var clean=JSON.parse(JSON.stringify(s));
+  if(clean.profiles){for(var pid in clean.profiles){if(clean.profiles[pid].aiKeys)clean.profiles[pid].aiKeys={anthropic:"",gemini:""};}}
+  return db.collection("sync").doc("state").set(clean).catch(function(e){console.warn("FS save:",e);});
+}catch(e){return Promise.resolve();}}
 function loadFromFirestore(){if(!db)return Promise.resolve(null);return db.collection("sync").doc("state").get().then(function(d){return d.exists?d.data():null;}).catch(function(){return null;});}
 function onFirestoreChange(cb){if(!db)return function(){};return db.collection("sync").doc("state").onSnapshot(function(d){if(d.exists)cb(d.data());},function(){});}
 </script>
@@ -4589,7 +4594,14 @@ function App() {
         if(data.shared.songDb) setSongDb(data.shared.songDb);
         if(data.shared.theme) setTheme(data.shared.theme);
         if(data.shared.setlists) setSetlists(data.shared.setlists);
-        if(data.profiles) setProfiles(data.profiles);
+        // Don't overwrite local API keys from Firestore
+        if(data.profiles) setProfiles(prev=>{
+          const merged={...data.profiles};
+          for(const [id,p] of Object.entries(merged)){
+            if(prev[id]?.aiKeys) merged[id]={...p,aiKeys:prev[id].aiKeys};
+          }
+          return merged;
+        });
         if(data.activeProfileId) setActiveProfileId(data.activeProfileId);
       }
       setFirestoreLoaded(true);
@@ -4603,11 +4615,17 @@ function App() {
       if(ignoreNextSnapshot.current){ignoreNextSnapshot.current=false;return;}
       if(firstSnapshot){firstSnapshot=false;return;} // skip initial snapshot
       if(!data||!data.shared||!data.profiles) return;
-      // Apply remote state
+      // Apply remote state — preserve local API keys
       if(data.shared.songDb) setSongDb(data.shared.songDb);
       if(data.shared.theme) setTheme(data.shared.theme);
       if(data.shared.setlists) setSetlists(data.shared.setlists);
-      if(data.profiles) setProfiles(data.profiles);
+      if(data.profiles) setProfiles(prev=>{
+        const merged={...data.profiles};
+        for(const [id,p] of Object.entries(merged)){
+          if(prev[id]?.aiKeys) merged[id]={...p,aiKeys:prev[id].aiKeys};
+        }
+        return merged;
+      });
       setSyncStatus("synced");
     });
     return ()=>unsub();
