@@ -3126,7 +3126,7 @@ function SettingsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksAn
         {profile.devices?.pedale&&tabBtn("pedale","🎛 Pédale ToneX")}
         {profile.devices?.anniversary&&tabBtn("ann","🎛 ToneX Ann.")}
         {profile.devices?.plug&&tabBtn("plug","🔌 ToneX Plug")}
-        {isAdmin&&tabBtn("ia","🔑 IA")}
+        {tabBtn("ia","🔑 IA")}
         {tabBtn("display","🎨 Affichage")}
       </div>
       {tab==="profile"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp}/>}
