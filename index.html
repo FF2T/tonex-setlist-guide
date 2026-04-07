@@ -329,19 +329,19 @@ const SONG_PRESETS = {
 };
 
 const INIT_SONG_DB_META = [
-  {id:"acdc_hth",title:"Highway to Hell",artist:"AC/DC"},
-  {id:"acdc_ysmanll",title:"You Shook Me All Night Long",artist:"AC/DC"},
-  {id:"acdc_thunderstruck",title:"Thunderstruck",artist:"AC/DC"},
-  {id:"acdc_tnt",title:"TNT",artist:"AC/DC"},
-  {id:"acdc_bib",title:"Back in Black",artist:"AC/DC"},
-  {id:"cream_wr",title:"White Room",artist:"Cream"},
-  {id:"bbking_thrill",title:"The Thrill Is Gone",artist:"B.B. King"},
-  {id:"dire_mfn",title:"Money for Nothing",artist:"Dire Straits"},
-  {id:"dire_romeo",title:"Romeo & Juliet",artist:"Dire Straits"},
-  {id:"ledzep_stairway",title:"Stairway to Heaven",artist:"Led Zeppelin"},
-  {id:"tel_flipper",title:"Flipper",artist:"Téléphone"},
-  {id:"muddy_hoochie",title:"Hoochie Coochie Man",artist:"Muddy Waters"},
-  {id:"deeppurple_smoke",title:"Smoke on the Water",artist:"Deep Purple"},
+  {id:"acdc_hth",title:"Highway to Hell",artist:"AC/DC",year:1979,album:"Highway to Hell",desc:"Le riff d'ouverture le plus iconique du hard rock. Angus Young en SG sur un Marshall, le son brut du rock australien."},
+  {id:"acdc_ysmanll",title:"You Shook Me All Night Long",artist:"AC/DC",year:1980,album:"Back in Black",desc:"Le groove parfait d'AC/DC. Riff en La majeur, son crunchy et rythmique imparable."},
+  {id:"acdc_thunderstruck",title:"Thunderstruck",artist:"AC/DC",year:1990,album:"The Razors Edge",desc:"L'intro en tapping d'Angus Young sur une seule corde. Technique et énergie à l'état pur."},
+  {id:"acdc_tnt",title:"TNT",artist:"AC/DC",year:1975,album:"T.N.T.",desc:"Riff simple et efficace en power chords. L'essence du rock'n'roll : 3 accords et la vérité."},
+  {id:"acdc_bib",title:"Back in Black",artist:"AC/DC",year:1980,album:"Back in Black",desc:"L'album le plus vendu d'AC/DC. Le riff en Mi est devenu un standard du rock mondial."},
+  {id:"cream_wr",title:"White Room",artist:"Cream",year:1968,album:"Wheels of Fire",desc:"Clapton à la wah-wah sur un riff psychédélique. Le son du blues-rock britannique des sixties."},
+  {id:"bbking_thrill",title:"The Thrill Is Gone",artist:"B.B. King",year:1969,album:"Completely Well",desc:"Le chef-d'œuvre de B.B. King. Vibrato légendaire sur Lucille, le son du blues moderne."},
+  {id:"dire_mfn",title:"Money for Nothing",artist:"Dire Straits",year:1985,album:"Brothers in Arms",desc:"Le riff de Knopfler aux doigts (pas de médiator). Son Gibson Les Paul dans un Laney amplifié."},
+  {id:"dire_romeo",title:"Romeo & Juliet",artist:"Dire Straits",year:1980,album:"Making Movies",desc:"Fingerpicking délicat de Knopfler sur une National steel guitar. Ballade folk-rock intemporelle."},
+  {id:"ledzep_stairway",title:"Stairway to Heaven",artist:"Led Zeppelin",year:1971,album:"Led Zeppelin IV",desc:"Progression de l'arpège acoustique au solo électrique légendaire de Jimmy Page. Le morceau de guitare par excellence."},
+  {id:"tel_flipper",title:"Flipper",artist:"Téléphone",year:1977,album:"Téléphone",desc:"Le rock français de Bertignac. Énergie punk, riffs simples et efficaces sur Marshall JCM900."},
+  {id:"muddy_hoochie",title:"Hoochie Coochie Man",artist:"Muddy Waters",year:1954,album:"Single",desc:"Le standard du Chicago Blues. Riff hypnotique en Mi, le son qui a inspiré le rock'n'roll."},
+  {id:"deeppurple_smoke",title:"Smoke on the Water",artist:"Deep Purple",year:1972,album:"Machine Head",desc:"Le riff le plus connu de l'histoire du rock. Ritchie Blackmore sur une Strat dans un Marshall."},
 ];
 
 const INIT_SETLISTS = [{id:"sl_main",name:"Ma Setlist",songIds:INIT_SONG_DB_META.map(s=>s.id)}];
@@ -2116,6 +2116,15 @@ const PRESET_CONTEXT = {
 };
 
 // Couleur selon score
+function getSongInfo(song){
+  const init=INIT_SONG_DB_META.find(s=>s.id===song.id);
+  const ai=song.aiCache?.result;
+  return {
+    year:init?.year||ai?.song_year||null,
+    album:init?.album||ai?.song_album||null,
+    desc:init?.desc||ai?.song_desc||null,
+  };
+}
 function scoreColor(s){return s>=90?"var(--green)":s>=75?"var(--blue)":s>=60?"var(--yellow)":"var(--red)";}
 function scoreBg(s){return s>=90?"var(--green-bg)":s>=75?"var(--blue-bg)":s>=60?"var(--yellow-bg)":"var(--red-bg)";}
 // Cherche un preset dans le catalogue par nom exact puis fuzzy
@@ -2509,7 +2518,7 @@ function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars){
   const annCtx=Object.entries(banksAnn).map(([k,v])=>`Banque ${k}: A=${v.A} | B=${v.B} | C=${v.C}`).join("\n");
   const plugCtx=Object.entries(banksPlug).map(([k,v])=>`Banque ${k}: A=${v.A} | B=${v.B} | C=${v.C}`).join("\n");
   const glist=guitars.map(x=>`${x.name} (${x.type})`).join(", ");
-  const prompt=`Expert guitare ToneX. Réponds TOUJOURS en français, toutes tes réponses doivent être rédigées en français.\nPédale:\n${annCtx}\nPlug:\n${plugCtx}\nMorceau: "${song.title}" de "${song.artist}".\nGuitare: ${g?g.name+" ("+g.type+")":"non précisée"}.\nGuitares disponibles: ${glist}.\nJSON sans markdown (tous les textes en français):\n{"ideal_guitar":"nom complet de la guitare idéale","guitar_reason":"1-2 phrases en français expliquant le choix","preset_ann":{"bank":0,"col":"A","label":"nom exact du preset Pédale"},"preset_plug":{"bank":1,"col":"A","label":"nom exact du preset Plug"},"settings_preset":"conseils de réglage preset en français","settings_guitar":"conseils de jeu guitare en français","ref_guitarist":"nom du guitariste principal sur l'enregistrement original","ref_guitar":"guitare(s) utilisée(s) sur l'enregistrement original (modèle précis)","ref_amp":"ampli(s) utilisé(s) sur l'enregistrement original (modèle précis)","ref_effects":"effets utilisés sur l'enregistrement (ou 'Aucun effet' si signal direct)"}`;
+  const prompt=`Expert guitare ToneX. Réponds TOUJOURS en français, toutes tes réponses doivent être rédigées en français.\nPédale:\n${annCtx}\nPlug:\n${plugCtx}\nMorceau: "${song.title}" de "${song.artist}".\nGuitare: ${g?g.name+" ("+g.type+")":"non précisée"}.\nGuitares disponibles: ${glist}.\nJSON sans markdown (tous les textes en français):\n{"song_year":1970,"song_album":"nom de l'album","song_desc":"2-3 phrases décrivant le morceau, son style, ses particularités guitare","ideal_guitar":"nom complet de la guitare idéale","guitar_reason":"1-2 phrases en français expliquant le choix","preset_ann":{"bank":0,"col":"A","label":"nom exact du preset Pédale"},"preset_plug":{"bank":1,"col":"A","label":"nom exact du preset Plug"},"settings_preset":"conseils de réglage preset en français","settings_guitar":"conseils de jeu guitare en français","ref_guitarist":"nom du guitariste principal sur l'enregistrement original","ref_guitar":"guitare(s) utilisée(s) sur l'enregistrement original (modèle précis)","ref_amp":"ampli(s) utilisé(s) sur l'enregistrement original (modèle précis)","ref_effects":"effets utilisés sur l'enregistrement (ou 'Aucun effet' si signal direct)"}`;
   const key=aiKeys.gemini||aiKeys.anthropic||DEFAULT_GEMINI_KEY;
   const provider=(aiKeys.gemini||DEFAULT_GEMINI_KEY)?"gemini":"anthropic";
   if(!key) return Promise.reject(new Error("Clé API manquante — configure-la dans ⚙️ Paramètres."));
@@ -3678,8 +3687,14 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
   const adapted=gId&&!ideal&&ig.length>0;
   const hist=getSongHist(song);
   const aiC=song.isCustom?song.aiCache?.result:null;
+  const songInfo=getSongInfo(song);
   return(
     <div className="song-row-detail" style={{background:"rgba(99,102,241,0.07)",border:"1px solid rgba(99,102,241,0.25)",borderRadius:"0 0 12px 12px",padding:"12px 14px",marginBottom:8,marginTop:-2}}>
+      {/* Song info */}
+      {(songInfo.desc||songInfo.year)&&<div style={{marginBottom:10}}>
+        {(songInfo.year||songInfo.album)&&<div style={{fontSize:10,color:"var(--text-muted)",marginBottom:3}}>{songInfo.year}{songInfo.album?" · "+songInfo.album:""}</div>}
+        {songInfo.desc&&<div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.5,padding:"6px 10px",background:"var(--a4)",borderRadius:7,borderLeft:"3px solid var(--accent)"}}>{songInfo.desc}</div>}
+      </div>}
       <Row icon="🎸"><div style={{flex:1,marginBottom:10}}>
         <GuitarSelect value={gId} onChange={setGId} ig={ig} guitars={guitars}/>
         {g&&!song.isCustom&&<div style={{fontSize:11,color:"var(--text-sec)",marginTop:3}}>{getGr(song,type)}</div>}
@@ -4591,8 +4606,15 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         {/* Résultat */}
         {songResult&&confirmedSong&&<div style={{width:"100%",maxWidth:500,animation:"slideDown .2s ease-out"}}>
           <div style={{background:"var(--accent-bg)",border:"1px solid var(--accent-border)",borderRadius:14,padding:16,marginTop:8}}>
-            <div style={{fontSize:16,fontWeight:800,color:"var(--text)",marginBottom:2}}>{confirmedSong.title}</div>
-            <div style={{fontSize:12,color:"var(--text-sec)",marginBottom:12}}>{confirmedSong.artist}</div>
+            {(()=>{
+              const existing=songDb.find(s=>normalizePresetName(s.title)===normalizePresetName(confirmedSong.title));
+              const info=existing?getSongInfo(existing):{year:songResult.song_year,album:songResult.song_album,desc:songResult.song_desc};
+              return <div>
+                <div style={{fontSize:16,fontWeight:800,color:"var(--text)",marginBottom:2}}>{confirmedSong.title}</div>
+                <div style={{fontSize:12,color:"var(--text-sec)",marginBottom:4}}>{confirmedSong.artist}{info.year?" · "+info.year:""}{info.album?" · "+info.album:""}</div>
+                {info.desc&&<div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.5,marginBottom:10,padding:"6px 10px",background:"var(--a4)",borderRadius:7,borderLeft:"3px solid var(--accent)"}}>{info.desc}</div>}
+              </div>;
+            })()}
 
             {/* Guitare recommandée */}
             <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
