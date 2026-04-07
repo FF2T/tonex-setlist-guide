@@ -2610,7 +2610,7 @@ function profileColor(id){
   return PROFILE_COLORS[Math.abs(h)%PROFILE_COLORS.length];
 }
 
-const SOURCE_LABELS={TSR:"TSR Pack (64 packs)",ML:"ML Sound Lab",Anniversary:"ToneX Pedal Anniversary Factory",Factory:"ToneX Pedal Factory"};
+const SOURCE_LABELS={TSR:"64 Studio Rats",ML:"ML Sound Lab Essentials",Anniversary:"ToneX Anniversary Factory",Factory:"ToneX Factory"};
 
 function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp}){
   const [editName,setEditName]=useState(profile.name);
@@ -3691,7 +3691,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
 
   const STYLE_OPTS={all:"Tous styles",hard_rock:"Hard Rock",rock:"Rock",blues:"Blues",jazz:"Jazz",pop:"Pop",metal:"Metal"};
   const GAIN_OPTS={all:"Tous gains",low:"Low gain",mid:"Mid gain",high:"High gain"};
-  const SRC_OPTS={all:"Toutes sources",TSR:"TSR Pack",ML:"ML Sound Lab",Anniversary:"ToneX Pedal Anniversary Factory",Factory:"ToneX Pedal Factory",custom:"Custom"};
+  const SRC_OPTS={all:"Toutes sources",TSR:"64 Studio Rats",ML:"ML Sound Lab Essentials",Anniversary:"ToneX Anniversary Factory",Factory:"ToneX Factory",custom:"Custom"};
   const selStyle={background:"var(--bg-card)",color:"var(--text-sec)",border:"1px solid var(--a12)",borderRadius:7,padding:"6px 10px",fontSize:12,cursor:"pointer"};
 
   const hasFilter=filterStyle!=="all"||filterGain!=="all"||filterSrc!=="all"||search.trim();
@@ -3775,10 +3775,10 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
           srcCounts[info.src]=(srcCounts[info.src]||0)+1;
         });
         const packCards=[
-          {id:"TSR",label:"The Studio Rats",emoji:"🎸",color:"251,191,36",desc:"64 packs"},
-          {id:"ML",label:"ML Sound Lab",emoji:"🎛",color:"56,189,248",desc:"Essentials"},
-          {id:"Anniversary",label:"ToneX Pedal Anniversary Factory",emoji:"📦",color:"167,139,250",desc:"AA, JS, TJ, TSR, WT"},
-          {id:"Factory",label:"ToneX Pedal Factory",emoji:"🎹",color:"74,222,128",desc:"Presets d'usine"},
+          {id:"TSR",label:"64 Studio Rats",emoji:"🎸",color:"251,191,36"},
+          {id:"ML",label:"ML Sound Lab Essentials",emoji:"🎛",color:"56,189,248"},
+          {id:"Anniversary",label:"ToneX Anniversary Factory",emoji:"📦",color:"167,139,250"},
+          {id:"Factory",label:"ToneX Factory",emoji:"🎹",color:"74,222,128"},
         ];
         // Add custom packs
         (customPacks||[]).forEach(p=>{
@@ -3795,7 +3795,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
                 <div style={{fontSize:22,marginBottom:4}}>{p.emoji}</div>
                 <div style={{fontSize:12,fontWeight:700,color:"var(--text)",marginBottom:2}}>{p.label}</div>
                 <div style={{fontSize:11,color:`rgb(${p.color})`,fontWeight:600}}>{srcCounts[p.id]} presets</div>
-                <div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>{p.desc}</div>
+                {p.desc&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>{p.desc}</div>}
               </button>
             ))}
           </div>
