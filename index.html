@@ -3702,14 +3702,12 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
   const [filterStyle,setFilterStyle]=useState("all");
   const [filterGain,setFilterGain]=useState("all");
   const [filterSrc,setFilterSrc]=useState("all");
-  const [showAllSrc,setShowAllSrc]=useState(false);
   const [search,setSearch]=useState("");
   const [selected,setSelected]=useState(null);
   const [filterPack,setFilterPack]=useState(null);
 
-  // Merge custom packs into catalog
+  // Merge custom packs into catalog — only keep sources the user has
   const fullCatalog=useMemo(()=>{
-    // Dedup TSR_PACK_CATALOG against PRESET_CATALOG_FULL (same presets, different key format: "TSR - X" vs "TSR X")
     const existingNorms=new Set(Object.keys(PRESET_CATALOG_FULL).map(normalizePresetName));
     const tsrDeduped={};
     for(const [k,v] of Object.entries(TSR_PACK_CATALOG)){
@@ -3721,12 +3719,17 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
         if(p.name&&!cat[p.name]) cat[p.name]={src:pack.name,amp:p.amp||"Custom",gain:p.gain||"mid",style:p.style||"rock",scores:p.scores||{HB:78,SC:78,P90:78}};
       });
     });
+    // Filter to only sources the user has
+    if(availableSources){
+      for(const k of Object.keys(cat)){
+        if(availableSources[cat[k].src]===false) delete cat[k];
+      }
+    }
     return cat;
-  },[customPacks]);
+  },[customPacks,availableSources]);
 
   const filtered=useMemo(()=>
     Object.entries(fullCatalog).filter(([name,info])=>{
-      if(!showAllSrc&&availableSources&&availableSources[info.src]===false)return false;
       if(filterStyle!=="all"&&info.style!==filterStyle)return false;
       if(filterGain!=="all"&&info.gain!==filterGain)return false;
       if(filterSrc!=="all"&&info.src!==filterSrc)return false;
@@ -3741,18 +3744,23 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
     })
   ,[filterStyle,filterGain,filterSrc,search]);
 
+  const [showAll,setShowAll]=useState(false);
   const pickRandom=()=>{
-    if(!filtered.length)return;
-    const [name]=filtered[Math.floor(Math.random()*filtered.length)];
+    const pool=Object.entries(fullCatalog);
+    if(!pool.length)return;
+    const [name]=pool[Math.floor(Math.random()*pool.length)];
     setSelected(name);
+    setShowAll(true);
+    setFilterStyle("all");setFilterGain("all");setFilterSrc("all");setFilterPack(null);setSearch("");
   };
 
   const STYLE_OPTS={all:"Tous styles",hard_rock:"Hard Rock",rock:"Rock",blues:"Blues",jazz:"Jazz",pop:"Pop",metal:"Metal"};
   const GAIN_OPTS={all:"Tous gains",low:"Low gain",mid:"Mid gain",high:"High gain"};
-  const SRC_OPTS={all:"Toutes sources",TSR:"64 Studio Rats",ML:"ML Sound Lab Essentials",Anniversary:"ToneX Anniversary Factory",Factory:"ToneX Factory",custom:"Custom"};
+  const ALL_SRC_OPTS={TSR:"64 Studio Rats",ML:"ML Sound Lab Essentials",Anniversary:"ToneX Anniversary Factory",Factory:"ToneX Factory",custom:"Custom"};
+  const SRC_OPTS={all:"Toutes sources",...Object.fromEntries(Object.entries(ALL_SRC_OPTS).filter(([k])=>!availableSources||availableSources[k]!==false))};
   const selStyle={background:"var(--bg-card)",color:"var(--text-sec)",border:"1px solid var(--a12)",borderRadius:7,padding:"6px 10px",fontSize:12,cursor:"pointer"};
 
-  const hasFilter=filterStyle!=="all"||filterGain!=="all"||filterSrc!=="all"||search.trim();
+  const hasFilter=showAll||filterStyle!=="all"||filterGain!=="all"||filterSrc!=="all"||search.trim();
   return (
     <div>
       <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:14}}>Explore ta bibliothèque de presets et découvre leur contexte musical.</div>
@@ -3772,12 +3780,9 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
         </div>
         <input placeholder="Artiste, morceau, ampli…" value={search} onChange={e=>setSearch(e.target.value)}
           style={{width:"100%",background:"var(--bg-body)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:8,padding:"7px 11px",fontSize:12,boxSizing:"border-box"}}/>
-        {availableSources&&Object.values(availableSources).some(v=>!v)&&<label style={{display:"flex",alignItems:"center",gap:6,marginTop:8,fontSize:11,color:"var(--text-sec)",cursor:"pointer"}}>
-          <input type="checkbox" checked={showAllSrc} onChange={e=>setShowAllSrc(e.target.checked)} style={{width:14,height:14}}/> Inclure les sources non disponibles
-        </label>}
         {hasFilter&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8}}>
           <span style={{fontSize:11,color:"var(--text-muted)"}}>{filtered.length} preset{filtered.length>1?"s":""} trouvé{filtered.length>1?"s":""}</span>
-          <button onClick={()=>{setFilterStyle("all");setFilterGain("all");setFilterSrc("all");setFilterPack(null);setSearch("");}} style={{fontSize:11,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Réinitialiser</button>
+          <button onClick={()=>{setFilterStyle("all");setFilterGain("all");setFilterSrc("all");setFilterPack(null);setSearch("");setShowAll(false);}} style={{fontSize:11,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Réinitialiser</button>
         </div>}
       </div>
 
