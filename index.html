@@ -133,6 +133,10 @@ const GUITARS = [
 ];
 const GUITAR_BRANDS = [...new Set(GUITARS.map(g=>g.brand))];
 
+const TSR_PACK_ZIPS = {
+  "50-51":"TSR-50-51-TONEX-Pack-ithoaj","Ampeg Pro 4":"TSR-A-Peg-Pro-4-TONEX-Pack--xqj9tk","Amp Nation ODR":"TSR-Amp-Nation-ODR-0yt0ig","Amp Nation WOD":"TSR-Amp-Nation-WOD-bxkixg","Ample Betty":"TSR-Ample-Betty","Bass Elliot":"TSR-Bass-Elliot-yp8vl7","Bass Pack 1":"TSR-The-Bass-Pack-1-w8fa9b","Bogner Ecstasy 101B":"TSR-Bogner-Ecstasy-101B-wjmrhd","Bogner G-Finger":"TSR-Bogy-GFINGER-Tonex-23sa3p","Bogner Helioclipse":"TSR-Bogy-Helioclipse","British Chime (Budda V20)":"TSR-British-Chime-Pack-zni3bq","British Rock (Vox DC30)":"TSR-British-Rock-Pack-lzwcob","Bumble Deluxe":"TSR-Bumble-Dluxe-fakul2","Cat Cub":"TSR-CAT-CUB-Pack-oqqm9q","Chandler GAV19T":"American-Pack-1-j9zcnx","Cornford Harlequin":"TSR-Cornfield-Harle-dp9nw5","D13":"TSR-D13-Pack","D13 AMP39":"TSR-D13-AMP39-TONEX-Pack-hl0ehr","D13 Best Tweed":"TSR-D13-Pack","Deity (Ironlung)":"TSR-Deity-Pack","Deluxe Reverb II":"TSR-Dlux-Verb-II-3yvqet","Diesel Humbert":"TSR-Diesel-Humbert-8hukym","Drive Pedal Pack 3":"TSR-Drive-Pedal-Pack-3-wk09fp","Electro Dime":"TSR-Electro-Dime-TONEX-Pack-loehp2","Fender Blackface Bassman":"TSR-TONEX-Blackface-Pack--lzzfed","Fender Concert":"TSR-FNDR-Consert-z4zidm","Fender Silverface Twin":"TSR-The-Silverface-Pack-juvwgv","Fender Super S":"TSR-Super-S-a4ad1n","Friedman BE/DE":"TSR-Freeman-BE-DE-id5zii","Friedman Phil X":"Friedman-Phil-X-cnnnxx","GK MBS150 (Bass)":"TSR-GK-MBS150-TONEX-hksx95","Hiwatt HG100":"TSR-High-What-HG100-q28r50","Hiwatt Wizard":"TSR-HOKK-PACK-iy5xyz","Indi 35-2":"TSR-INDI-35-2-9nxtpt","Jimi Hendrix 20W":"TSR-Jimi-H-20-TONEX-qhxcsu","Jivey Drives":"TSR-Jivey-Drives-vrb7o5","Jivey Drives 2":"Jivey-Drives-2-6u19yp","Marshall 800 SL":"TSR-Mars-800SL-TONEX-Pack-a6hrsy","Marshall JCM900":"TSR-Mars-900-JCM-900-1aovpo","Marshall JTM":"TSR-JTM-Pack","Marshall Plexi":"TSR-Plexi-Pack","Marshall SLT60":"TSR-Mars-SLT60-TONEX-Pack-dhqozw","Matchless HC15":"TSR-Tonex-MATCHBOX-HC15-PACK-wthh21","Matchless Independence":"TSR-Matchbox-Pack","Mega Barba Skill":"MEGA-BARBA-SKILL-gitill","Mesa Boogie IIC+":"TSR-MBoogie-IIC-ii0r3b","Mesa Rectifier":"TSR-Rectified--6eqai9","Amplifonics & Gain":"TSR-TONEX-Aliphonivs-And-Gain-Pack-v4mzay","Reinhardt RT-36":"TSR-Reinguard-RT-36-TONEX-uk0r7i","Roland JC":"TSR-JC-Pack-jchfsq","Rouge Plate D50":"TSR-Rouge-Plate-ofucpf","Silver Jubilee":"TSR-Silver-J-Pack-1ykk0n","Soldano 100":"TSR-SLODANO-100-l7ppmu","Soldano GP77":"TSR-SLODANO-GP77-05bqpx","Sons Amp":"TSR-Sons-Amp-TONEX-Pack-2-ealhrl","Synergy SYN 30":"American-Pack-1-j9zcnx","Talon 50":"TSR-Talon-50-nqmscm","TSR20":"TSR-TSR20-mmb5hz","Tube King Imp MK2":"TSR-Tube-King-Imp-MK2-2g9lph","TWS 2864-S":"TWS-2864-S-Pack-yspvyu","Two Rock Bloomfield":"TSR-TWO-ROCK-Bloomfield-Drive-Pack-84jzuk","Two Rock Stevie G":"TSR-Stevie-G-jrfy9q","VMP-1":"TSR-VMP-1--5i4ehm","Zwrek":"TSR-ZWREK-TONEX-Pack",
+};
+
 const INIT_BANKS_ANN = {
   0:{cat:"ARTHUR - AC/DC",A:"ML MARS 800 Clean",B:"ML MARS 800 Drive",C:"ML MARS 800 Lead"},
   1:{cat:"ARTHUR - BB King",A:"AA FNDR BFTWN NR Clean BAL CAB",B:"AA FNDR TWDLX IN Clean BAL CAB",C:"TJ DMBL ODS 124 Lead 1"},
@@ -593,11 +597,11 @@ const FACTORY_CATALOG = {
 };
 // ─── ToneX Plug Factory Presets ───────────────────────────────────────────────
 const PLUG_FACTORY_CATALOG = {
-  "DMBL Clean": {src:"PlugFactory",amp:"Dumble Overdrive Special #0080",gain:"low",style:"blues",scores:{HB:75,SC:92,P90:88}},
-  "Just 800": {src:"PlugFactory",amp:"Marshall JCM 800",gain:"high",style:"hard_rock",scores:{HB:90,SC:62,P90:76}},
+  "DMBL Clean": {src:"PlugFactory",amp:"Dumble ODS",gain:"low",style:"blues",scores:{HB:75,SC:92,P90:88}},
+  "Just 800": {src:"PlugFactory",amp:"Marshall JCM800",gain:"high",style:"hard_rock",scores:{HB:90,SC:62,P90:76}},
   "80's Hero": {src:"PlugFactory",amp:"Peavey 5150",gain:"high",style:"hard_rock",scores:{HB:92,SC:56,P90:70}},
   "Doctor Clean": {src:"PlugFactory",amp:"Dr. Z",gain:"low",style:"blues",scores:{HB:72,SC:90,P90:86}},
-  "Some Grit": {src:"PlugFactory",amp:"Marshall JCM 800",gain:"mid",style:"rock",scores:{HB:85,SC:70,P90:78}},
+  "Some Grit": {src:"PlugFactory",amp:"Marshall JCM800",gain:"mid",style:"rock",scores:{HB:85,SC:70,P90:78}},
   "Boosted DZL": {src:"PlugFactory",amp:"Diezel",gain:"high",style:"metal",scores:{HB:92,SC:55,P90:68}},
   "Crunchy Plexi": {src:"PlugFactory",amp:"Marshall Super Lead 100W",gain:"mid",style:"hard_rock",scores:{HB:88,SC:67,P90:80}},
   "Plexi Drive": {src:"PlugFactory",amp:"Marshall Super Lead 100W",gain:"high",style:"hard_rock",scores:{HB:90,SC:62,P90:76}},
@@ -614,9 +618,9 @@ const PLUG_FACTORY_CATALOG = {
   "Sparkling Clean": {src:"PlugFactory",amp:"Fender Deluxe Reverb",gain:"low",style:"jazz",scores:{HB:68,SC:95,P90:88}},
   "Fried": {src:"PlugFactory",amp:"Friedman BE-100",gain:"high",style:"hard_rock",scores:{HB:92,SC:60,P90:74}},
   "Fire Angel": {src:"PlugFactory",amp:"ENGL",gain:"high",style:"metal",scores:{HB:92,SC:55,P90:68}},
-  "Enigma": {src:"PlugFactory",amp:"Dumble Overdrive Special #0080",gain:"low",style:"blues",scores:{HB:75,SC:92,P90:88}},
+  "Enigma": {src:"PlugFactory",amp:"Dumble ODS",gain:"low",style:"blues",scores:{HB:75,SC:92,P90:88}},
   "UK Dirt": {src:"PlugFactory",amp:"Vox AC30",gain:"mid",style:"rock",scores:{HB:76,SC:88,P90:90}},
-  "Full 800 Tone": {src:"PlugFactory",amp:"Marshall JCM 800",gain:"mid",style:"hard_rock",scores:{HB:88,SC:64,P90:76}},
+  "Full 800 Tone": {src:"PlugFactory",amp:"Marshall JCM800",gain:"mid",style:"hard_rock",scores:{HB:88,SC:64,P90:76}},
   "Dirty Twin": {src:"PlugFactory",amp:"Fender Twin Reverb",gain:"low",style:"blues",scores:{HB:70,SC:92,P90:86}},
   "Plexi Trem": {src:"PlugFactory",amp:"Marshall Super Lead 100W",gain:"high",style:"hard_rock",scores:{HB:90,SC:62,P90:76}},
   "Orange Vibe": {src:"PlugFactory",amp:"Orange Rockerverb",gain:"mid",style:"rock",scores:{HB:85,SC:70,P90:80}},
@@ -2982,12 +2986,19 @@ function PacksTab({profile,onProfiles,activeProfileId,aiProvider,aiKeys}){
     setLoading(true);setErr(null);
     const prompt=`Analyse cette image/document d'un pack de presets pour guitare ToneX appelé "${packName.trim()}".
 Extrais TOUS les noms de presets visibles et pour chacun déduis :
-- amp : le modèle d'ampli simulé
+- amp : le modèle d'ampli simulé (nom générique, ex: "Marshall JCM800", "Fender Twin Reverb")
 - gain : "low", "mid" ou "high"
-- style : "clean", "blues", "rock", "hard_rock" ou "metal"
+- style : "blues", "rock", "hard_rock", "jazz", "pop" ou "metal"
 - scores : compatibilité par type de micro {HB: 50-97, SC: 50-97, P90: 50-97}
 
-Réponds UNIQUEMENT en JSON (sans markdown) : {"presets":[{"name":"...","amp":"...","gain":"...","style":"...","scores":{"HB":85,"SC":70,"P90":78}},...]}`;
+Pour chaque ampli UNIQUE trouvé, génère aussi une fiche descriptive :
+- emoji : un emoji représentatif
+- refs : artistes et morceaux associés [{a:"Artiste",t:["Morceau 1","Morceau 2"]}]
+- desc : description courte en français de l'ampli (2-3 phrases)
+
+Réponds UNIQUEMENT en JSON (sans markdown) :
+{"presets":[{"name":"...","amp":"...","gain":"...","style":"...","scores":{"HB":85,"SC":70,"P90":78}},...],
+"ampContext":{"Nom Ampli":{"emoji":"🎸","refs":[{"a":"Artiste","t":["Morceau"]}],"desc":"Description..."},...}}`;
     const base64=filePreview.split(",")[1];
     const mimeType=filePreview.split(";")[0].split(":")[1];
     if(aiProvider==="gemini"){
@@ -2998,7 +3009,7 @@ Réponds UNIQUEMENT en JSON (sans markdown) : {"presets":[{"name":"...","amp":".
         if(d.error)throw new Error(d.error.message);
         const txt=d.candidates?.[0]?.content?.parts?.[0]?.text||"";
         const parsed=JSON.parse(txt.replace(/```json|```/g,"").trim());
-        savePack(parsed.presets||[]);
+        savePack(parsed.presets||[],parsed.ampContext||{});
       }).catch(e=>setErr(e.message)).finally(()=>setLoading(false));
     } else {
       fetch("https://api.anthropic.com/v1/messages",{
@@ -3008,13 +3019,13 @@ Réponds UNIQUEMENT en JSON (sans markdown) : {"presets":[{"name":"...","amp":".
         if(d.error)throw new Error(d.error.message);
         const txt=d.content?.map(i=>i.text||"").join("")||"";
         const parsed=JSON.parse(txt.replace(/```json|```/g,"").trim());
-        savePack(parsed.presets||[]);
+        savePack(parsed.presets||[],parsed.ampContext||{});
       }).catch(e=>setErr(e.message)).finally(()=>setLoading(false));
     }
   };
 
-  const savePack=(presets)=>{
-    const pack={id:`pack_${Date.now()}`,name:packName.trim(),presetCount:presets.length,presets:presets.map(p=>({...p,src:packName.trim()}))};
+  const savePack=(presets,ampContext)=>{
+    const pack={id:`pack_${Date.now()}`,name:packName.trim(),presetCount:presets.length,presets:presets.map(p=>({...p,src:packName.trim()})),ampContext:ampContext||{}};
     updateProfile("customPacks",prev=>[...(prev||[]),pack]);
     setPackName("");setFile(null);setFilePreview(null);
     if(fileRef.current)fileRef.current.value="";
@@ -3718,8 +3729,8 @@ function NewSongExplorer({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug
 
 // ─── PresetBrowser ────────────────────────────────────────────────────────────
 const PRESET_PAGE_SIZE=30;
-function PresetDetailInline({name,info,banksAnn,banksPlug}){
-  const ctx=PRESET_CONTEXT[info.amp];
+function PresetDetailInline({name,info,banksAnn,banksPlug,presetContext}){
+  const ctx=(presetContext||PRESET_CONTEXT)[info.amp];
   const annLoc=findInBanks(name,banksAnn);
   const plugLoc=findInBanks(name,banksPlug);
   const ScoreBar=({label,score})=>(
@@ -3741,6 +3752,7 @@ function PresetDetailInline({name,info,banksAnn,banksPlug}){
           {styleBadge(info.style)}{gainBadge(info.gain)}
         </div>
       </div>
+      {info.pack&&TSR_PACK_ZIPS[info.pack]&&<div style={{fontSize:10,color:"var(--text-dim)",marginBottom:8}}>📁 {TSR_PACK_ZIPS[info.pack]}.zip</div>}
       {ctx?.desc&&<div style={{fontSize:11,color:"#cbd5e1",lineHeight:1.6,marginBottom:10,padding:"7px 10px",background:"var(--a4)",borderRadius:7,borderLeft:"3px solid rgba(99,102,241,0.5)"}}>{ctx.desc}</div>}
       {ctx?.refs&&ctx.refs.length>0&&<div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:10}}>
         {ctx.refs.map(r=><div key={r.a} style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
@@ -3764,7 +3776,7 @@ function PresetDetailInline({name,info,banksAnn,banksPlug}){
   );
 }
 
-function PresetList({filtered,selected,setSelected,banksAnn,banksPlug,fullCatalog,filterSrc,filterPack,setFilterPack}){
+function PresetList({filtered,selected,setSelected,banksAnn,banksPlug,fullCatalog,filterSrc,filterPack,setFilterPack,mergedContext}){
   const [shown,setShown]=useState(PRESET_PAGE_SIZE);
   useEffect(()=>setShown(PRESET_PAGE_SIZE),[filtered,filterPack]);
 
@@ -3822,7 +3834,7 @@ function PresetList({filtered,selected,setSelected,banksAnn,banksPlug,fullCatalo
                   ))}
                 </div>
               </div>
-              {isSel&&<PresetDetailInline name={name} info={info} banksAnn={banksAnn} banksPlug={banksPlug}/>}
+              {isSel&&<PresetDetailInline name={name} info={info} banksAnn={banksAnn} banksPlug={banksPlug} presetContext={mergedContext}/>}
             </div>
           );
         })}
@@ -3844,6 +3856,19 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
   const [search,setSearch]=useState("");
   const [selected,setSelected]=useState(null);
   const [filterPack,setFilterPack]=useState(null);
+
+  // Merge PRESET_CONTEXT with custom pack ampContext
+  const mergedContext=useMemo(()=>{
+    const ctx={...PRESET_CONTEXT};
+    (customPacks||[]).forEach(pack=>{
+      if(pack.ampContext){
+        for(const [amp,info] of Object.entries(pack.ampContext)){
+          if(!ctx[amp]) ctx[amp]=info;
+        }
+      }
+    });
+    return ctx;
+  },[customPacks]);
 
   // Merge custom packs into catalog — only keep sources the user has
   const fullCatalog=useMemo(()=>{
@@ -3874,7 +3899,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
       if(filterSrc!=="all"&&info.src!==filterSrc)return false;
       if(search.trim()){
         const q=search.toLowerCase();
-        const ctx=PRESET_CONTEXT[info.amp];
+        const ctx=mergedContext[info.amp];
         const artistsStr=(ctx?.refs||[]).map(r=>r.a).join(" ").toLowerCase();
         const tracksStr=(ctx?.refs||[]).flatMap(r=>r.t).join(" ").toLowerCase();
         if(!name.toLowerCase().includes(q)&&!info.amp.toLowerCase().includes(q)&&!artistsStr.includes(q)&&!tracksStr.includes(q))return false;
@@ -3968,7 +3993,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
         </div>;
       })()}
       {hasFilter&&filtered.length===0&&<div style={{textAlign:"center",padding:"24px",color:"#475569",fontSize:13}}>Aucun preset ne correspond à ces critères.</div>}
-      {hasFilter&&filtered.length>0&&<PresetList filtered={filtered} selected={selected} setSelected={setSelected} banksAnn={banksAnn} banksPlug={banksPlug} fullCatalog={fullCatalog} filterSrc={filterSrc} filterPack={filterPack} setFilterPack={setFilterPack}/>}
+      {hasFilter&&filtered.length>0&&<PresetList filtered={filtered} selected={selected} setSelected={setSelected} banksAnn={banksAnn} banksPlug={banksPlug} fullCatalog={fullCatalog} filterSrc={filterSrc} filterPack={filterPack} setFilterPack={setFilterPack} mergedContext={mergedContext}/>}
     </div>
   );
 }
