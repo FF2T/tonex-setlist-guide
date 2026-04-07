@@ -2609,7 +2609,7 @@ function profileColor(id){
   return PROFILE_COLORS[Math.abs(h)%PROFILE_COLORS.length];
 }
 
-const SOURCE_LABELS={TSR:"TSR Pack (64 packs)",ML:"ML Sound Lab",Anniversary:"Presets Anniversary (usine)",Factory:"Presets Factory (pédale standard)"};
+const SOURCE_LABELS={TSR:"TSR Pack (64 packs)",ML:"ML Sound Lab",Anniversary:"ToneX Pedal Anniversary Factory",Factory:"ToneX Pedal Factory"};
 
 function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp}){
   const [editName,setEditName]=useState(profile.name);
@@ -3679,7 +3679,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
 
   const STYLE_OPTS={all:"Tous styles",hard_rock:"Hard Rock",rock:"Rock",blues:"Blues",jazz:"Jazz",pop:"Pop",metal:"Metal"};
   const GAIN_OPTS={all:"Tous gains",low:"Low gain",mid:"Mid gain",high:"High gain"};
-  const SRC_OPTS={all:"Toutes sources",TSR:"TSR Pack",ML:"ML Sound Lab",Anniversary:"Anniversary",Factory:"Factory (Pédale)",custom:"Custom"};
+  const SRC_OPTS={all:"Toutes sources",TSR:"TSR Pack",ML:"ML Sound Lab",Anniversary:"ToneX Pedal Anniversary Factory",Factory:"ToneX Pedal Factory",custom:"Custom"};
   const selStyle={background:"var(--bg-card)",color:"var(--text-sec)",border:"1px solid var(--a12)",borderRadius:7,padding:"6px 10px",fontSize:12,cursor:"pointer"};
 
   const hasFilter=filterStyle!=="all"||filterGain!=="all"||filterSrc!=="all"||search.trim();
@@ -3765,8 +3765,8 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
         const packCards=[
           {id:"TSR",label:"The Studio Rats",emoji:"🎸",color:"251,191,36",desc:"64 packs"},
           {id:"ML",label:"ML Sound Lab",emoji:"🎛",color:"56,189,248",desc:"Essentials"},
-          {id:"Anniversary",label:"Anniversary",emoji:"📦",color:"167,139,250",desc:"AA, JS, TJ, TSR, WT"},
-          {id:"Factory",label:"Factory (Pédale)",emoji:"🎹",color:"74,222,128",desc:"Presets d'usine"},
+          {id:"Anniversary",label:"ToneX Pedal Anniversary Factory",emoji:"📦",color:"167,139,250",desc:"AA, JS, TJ, TSR, WT"},
+          {id:"Factory",label:"ToneX Pedal Factory",emoji:"🎹",color:"74,222,128",desc:"Presets d'usine"},
         ];
         // Add custom packs
         (customPacks||[]).forEach(p=>{
