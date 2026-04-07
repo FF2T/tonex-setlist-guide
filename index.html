@@ -2694,17 +2694,6 @@ function ProfilePickerScreen({profiles,onPick,onCreateNew}){
           </button>;
         })}
       </div>
-      <div style={{width:"100%",maxWidth:400,background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:16,textAlign:"center"}}>
-        <div style={{fontSize:12,color:"#818cf8",fontWeight:600,marginBottom:10}}>+ Nouveau profil (admin)</div>
-        <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          <div style={{display:"flex",gap:8}}>
-            <input placeholder="Nom" value={newName} onChange={e=>setNewName(e.target.value)} style={{flex:1,background:"var(--bg-card)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:8,padding:"8px 12px",fontSize:13}}/>
-            <input type="password" placeholder="Code admin" value={pin} onChange={e=>{setPin(e.target.value);setPinErr(false);}} onKeyDown={e=>e.key==="Enter"&&create()} style={{width:100,background:"var(--bg-card)",color:"var(--text)",border:`1px solid ${pinErr?"#f87171":"var(--a15)"}`,borderRadius:8,padding:"8px 12px",fontSize:13}}/>
-          </div>
-          {pinErr&&<div style={{fontSize:11,color:"#f87171"}}>Code admin incorrect</div>}
-          <button onClick={create} disabled={!newName.trim()||!pin} style={{background:newName.trim()&&pin?"#4f46e5":"var(--bg-disabled)",border:"none",color:"#fff",borderRadius:8,padding:"8px 16px",fontSize:13,fontWeight:700,cursor:newName.trim()&&pin?"pointer":"not-allowed"}}>Créer</button>
-        </div>
-      </div>
     </div>
   );
 }
@@ -2945,18 +2934,6 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp,section}){
         </div>
       </div>}
 
-      {/* Créer un nouveau profil */}
-      <div style={{background:"rgba(99,102,241,0.08)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:12,padding:16}}>
-        <div style={{fontSize:13,fontWeight:700,color:"#818cf8",marginBottom:10}}>+ Nouveau profil (admin)</div>
-        <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            <input placeholder="Nom du profil" value={newProfileName} onChange={e=>setNewProfileName(e.target.value)} style={{...inp,flex:"1 1 120px"}}/>
-            <input type="password" placeholder="Code admin" value={adminPin} onChange={e=>{setAdminPin(e.target.value);setAdminPinErr(false);}} onKeyDown={e=>e.key==="Enter"&&createProfile()} style={{...inp,flex:"0 0 100px"}}/>
-          </div>
-          {adminPinErr&&<div style={{fontSize:11,color:"#f87171"}}>Code admin incorrect</div>}
-          <button onClick={createProfile} disabled={!newProfileName.trim()||!adminPin} style={{background:newProfileName.trim()&&adminPin?"#4f46e5":"var(--bg-disabled)",border:"none",color:"#fff",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:newProfileName.trim()&&adminPin?"pointer":"not-allowed"}}>Créer</button>
-        </div>
-      </div>
     </div>
   );
 }
@@ -3224,7 +3201,7 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
 }
 
 // ─── Paramètres Screen (admin PIN) ────────────────────────────────────────────
-function ParametresScreen({onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAiKeys,profile,onProfiles,activeProfileId,fullState,onImportState,banksAnn,onBanksAnn,banksPlug,onBanksPlug}) {
+function ParametresScreen({onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAiKeys,profile,profiles,onProfiles,activeProfileId,fullState,onImportState,banksAnn,onBanksAnn,banksPlug,onBanksPlug}) {
   const [unlocked,setUnlocked]=useState(false);
   const [pin,setPin]=useState("");
   const [pinErr,setPinErr]=useState(false);
@@ -3250,8 +3227,9 @@ function ParametresScreen({onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAi
       ):(
         <div>
           <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
-            {tabBtn("presets","📦 Sources de presets")}
+            {tabBtn("presets","📦 Sources")}
             {tabBtn("ia","🔑 Clé API")}
+            {tabBtn("profiles","👤 Profils")}
             {tabBtn("export","📋 Export / Import")}
           </div>
           {tab==="presets"&&<PacksTab profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId} aiProvider={aiProvider} aiKeys={aiKeys}/>}
@@ -3269,6 +3247,7 @@ function ParametresScreen({onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAi
               {aiKeys.gemini&&<div style={{fontSize:11,color:"#4ade80",marginTop:8}}>✓ Clé configurée ({aiKeys.gemini.slice(0,8)}...)</div>}
             </div>
           </div>}
+          {tab==="profiles"&&<ProfilesAdmin profiles={profiles} onProfiles={onProfiles}/>}
           {tab==="export"&&<div>
             <button onClick={()=>onNavigate("exportimport")} style={{width:"100%",background:"rgba(251,191,36,0.1)",border:"1px solid rgba(251,191,36,0.3)",color:"#fbbf24",borderRadius:10,padding:"12px 16px",fontSize:13,fontWeight:700,cursor:"pointer",textAlign:"left"}}>
               📋 Export / Import →
@@ -3276,6 +3255,40 @@ function ParametresScreen({onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAi
           </div>}
         </div>
       )}
+    </div>
+  );
+}
+
+function ProfilesAdmin({profiles,onProfiles}){
+  const [name,setName]=useState("");
+  const create=()=>{
+    if(!name.trim())return;
+    const id=name.trim().toLowerCase().replace(/[^a-z0-9]/g,"_")+`_${Date.now()}`;
+    onProfiles(p=>({...p,[id]:makeDefaultProfile(id,name.trim())}));
+    setName("");
+  };
+  const deleteProfile=id=>{
+    if(Object.keys(profiles).length<=1)return;
+    onProfiles(p=>{const n={...p};delete n[id];return n;});
+  };
+  const inp={background:"var(--bg-card)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:7,padding:"6px 10px",fontSize:12,boxSizing:"border-box"};
+  return(
+    <div>
+      <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>Gestion des profils utilisateurs.</div>
+      {Object.values(profiles).map(p=>(
+        <div key={p.id} style={{display:"flex",alignItems:"center",gap:8,background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:9,padding:"10px 14px",marginBottom:6}}>
+          <div style={{flex:1,fontSize:13,fontWeight:600,color:"var(--text)"}}>{p.name}{p.isAdmin&&<span style={{fontSize:9,color:"#fbbf24",marginLeft:6}}>admin</span>}</div>
+          <span style={{fontSize:10,color:"var(--text-muted)"}}>{(p.myGuitars||[]).length+(p.customGuitars||[]).length} guitares</span>
+          {Object.keys(profiles).length>1&&<button onClick={()=>deleteProfile(p.id)} style={{background:"rgba(239,68,68,0.15)",border:"1px solid rgba(239,68,68,0.3)",color:"#f87171",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer"}}>Supprimer</button>}
+        </div>
+      ))}
+      <div style={{background:"rgba(99,102,241,0.08)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:10,padding:14,marginTop:10}}>
+        <div style={{fontSize:12,color:"#818cf8",fontWeight:600,marginBottom:8}}>+ Nouveau profil</div>
+        <div style={{display:"flex",gap:8}}>
+          <input placeholder="Nom du profil" value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&create()} style={{...inp,flex:1}}/>
+          <button onClick={create} disabled={!name.trim()} style={{background:name.trim()?"#4f46e5":"var(--bg-disabled)",border:"none",color:"#fff",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:name.trim()?"pointer":"not-allowed"}}>Créer</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -4398,7 +4411,7 @@ function App() {
   if(screen==="pick") return <div className="page-root"><ProfilePickerScreen profiles={profiles} onPick={pickProfile} onCreateNew={createAndPick}/></div>;
   if(screen==="exportimport") return <div className="page-root"><ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("settings")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/></div>;
   if(screen==="profile")      return <div className="page-root"><MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} aiKeys={aiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab}/></div>;
-  if(screen==="settings")     return <div className="page-root"><ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug}/></div>;
+  if(screen==="settings")     return <div className="page-root"><ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug}/></div>;
   if(screen==="setlists")     return <div className="page-root">
     <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Mes setlists"}]} onNavigate={setScreen}/>
     <div style={{fontSize:20,fontWeight:800,color:"var(--text)",marginBottom:16}}>🎵 Mes setlists</div>
