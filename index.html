@@ -4691,6 +4691,34 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
   const [songErr,setSongErr]=useState(null);
   const [confirmedSong,setConfirmedSong]=useState(null);
   const [showGuitarPick,setShowGuitarPick]=useState(false);
+  const [showFeedback,setShowFeedback]=useState(false);
+  const [feedback,setFeedback]=useState("");
+  const rerunWithFeedback=()=>{
+    if(!confirmedSong||!feedback.trim())return;
+    setSongLoading(true);setSongResult(null);setShowFeedback(false);
+    // Create a modified song with the feedback appended
+    const song={id:`tmp_${Date.now()}`,title:confirmedSong.title,artist:confirmedSong.artist,feedback:feedback.trim()};
+    // Override fetchAI to include feedback
+    const g2=allGuitars.find(x=>x.id===(showGuitarPick?null:null));
+    const annCtx=Object.entries(banksAnn).map(([k,v])=>`Banque ${k}: A=${v.A} | B=${v.B} | C=${v.C}`).join("\n");
+    const plugCtx=Object.entries(banksPlug).map(([k,v])=>`Banque ${k}: A=${v.A} | B=${v.B} | C=${v.C}`).join("\n");
+    const glist=allGuitars.map(x=>`${x.name} (${x.type})`).join(", ");
+    const gType="HB";
+    const bestFromCatalog=Object.entries(PRESET_CATALOG_MERGED)
+      .map(([name,info])=>({name,score:info.scores?.[gType]??60,amp:info.amp,style:info.style}))
+      .sort((a,b)=>b.score-a.score).slice(0,30)
+      .map(p=>`${p.name} (${p.amp}, ${p.style}, ${gType}:${p.score}%)`).join("\n");
+    const prompt=`Expert guitare ToneX. Réponds TOUJOURS en français.\nPédale:\n${annCtx}\nPlug:\n${plugCtx}\nMeilleurs presets base complète ${gType}:\n${bestFromCatalog}\nMorceau: "${song.title}" de "${song.artist}".\nGuitares: ${glist}.\n\nFEEDBACK UTILISATEUR (IMPORTANT, tiens-en compte): ${feedback.trim()}\n\nJSON sans markdown:\n{"song_year":1970,"song_album":"","song_desc":"","ideal_guitar":"","guitar_reason":"","preset_ann":{"bank":0,"col":"A","label":""},"preset_plug":{"bank":1,"col":"A","label":""},"ideal_preset":"","ideal_preset_score":85,"settings_preset":"","settings_guitar":"","ref_guitarist":"","ref_guitar":"","ref_amp":"","ref_effects":""}`;
+    const key=aiKeys?.gemini||aiKeys?.anthropic||DEFAULT_GEMINI_KEY;
+    const provider=(aiKeys?.gemini||DEFAULT_GEMINI_KEY)?"gemini":"anthropic";
+    const parse=t=>JSON.parse(t.replace(/```json|```/g,"").trim());
+    const req=provider==="gemini"
+      ?fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})})
+        .then(r=>r.json()).then(d=>{if(d.error)throw new Error(d.error.message);return parse(d.candidates?.[0]?.content?.parts?.[0]?.text||"");})
+      :fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:600,messages:[{role:"user",content:prompt}]})})
+        .then(r=>r.json()).then(d=>{if(d.error)throw new Error(d.error.message);return parse(d.content?.map(i=>i.text||"").join("")||"");});
+    req.then(r=>{setSongResult(r);setFeedback("");}).catch(e=>setSongErr(e.message)).finally(()=>setSongLoading(false));
+  };
 
   return (
     <div style={{display:"flex",flexDirection:"column",minHeight:"80vh"}}>
@@ -4699,11 +4727,11 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
           <ProfileSelector profiles={profiles} activeProfileId={activeProfileId} onSwitch={onSwitchProfile} onSettings={onProfile} onViewProfile={onViewProfile}/>
           <button onClick={onProfile} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 10px",fontSize:10,fontWeight:600,cursor:"pointer"}}>Mon profil</button>
+          <button onClick={onLogout} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 8px",fontSize:10,cursor:"pointer"}}>Se déconnecter</button>
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
           {syncStatus&&<span style={{fontSize:10,color:syncStatus==="synced"?"var(--green)":syncStatus==="syncing"?"var(--yellow)":syncStatus==="error"?"var(--red)":"var(--text-dim)",marginRight:2}} title={syncStatus==="synced"?"Synchronisé":syncStatus==="syncing"?"Synchronisation...":"Hors ligne"}>{syncStatus==="synced"?"☁️":syncStatus==="syncing"?"⏳":"⚠️"}</span>}
           <button onClick={onSettings} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 10px",fontSize:10,fontWeight:600,cursor:"pointer"}}>Admin</button>
-          <button onClick={onLogout} style={{background:"rgba(239,68,68,0.1)",border:"1px solid var(--red-border)",color:"var(--red)",borderRadius:8,padding:"6px 8px",fontSize:10,fontWeight:600,cursor:"pointer"}}>Quitter</button>
         </div>
       </div>
 
@@ -4809,8 +4837,19 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
             {songResult.settings_preset&&<div style={{fontSize:11,background:"rgba(251,191,36,0.07)",border:"1px solid var(--yellow-border)",borderRadius:7,padding:"6px 10px",color:"var(--yellow)",marginBottom:6}}><b style={{color:"var(--yellow)"}}>Preset :</b> {songResult.settings_preset}</div>}
             {songResult.settings_guitar&&<div style={{fontSize:11,background:"rgba(34,197,94,0.07)",border:"1px solid rgba(34,197,94,0.15)",borderRadius:7,padding:"6px 10px",color:"var(--green)"}}><b style={{color:"var(--green)"}}>Guitare :</b> {songResult.settings_guitar}</div>}
 
+            {/* Feedback */}
+            {!showFeedback?<button onClick={()=>setShowFeedback(true)} style={{width:"100%",marginTop:8,background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px",fontSize:11,cursor:"pointer"}}>Corriger / Affiner l'analyse</button>
+            :<div style={{marginTop:8,background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:8,padding:10}}>
+              <div style={{fontSize:11,color:"var(--text-sec)",marginBottom:6}}>Précise ce qui ne va pas (ex: "version Peter Green, pas Santana", "je veux un son plus crunchy"):</div>
+              <input placeholder="Ton feedback..." value={feedback} onChange={e=>setFeedback(e.target.value)} onKeyDown={e=>e.key==="Enter"&&feedback.trim()&&rerunWithFeedback()} style={{width:"100%",background:"var(--bg-card)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:7,padding:"8px 10px",fontSize:12,boxSizing:"border-box",marginBottom:6}}/>
+              <div style={{display:"flex",gap:6}}>
+                <button onClick={()=>{if(feedback.trim())rerunWithFeedback();}} disabled={!feedback.trim()||songLoading} style={{background:feedback.trim()?"#4f46e5":"var(--bg-disabled)",border:"none",color:"#fff",borderRadius:7,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:feedback.trim()?"pointer":"not-allowed"}}>Relancer l'analyse</button>
+                <button onClick={()=>setShowFeedback(false)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:7,padding:"6px 10px",fontSize:11,cursor:"pointer"}}>Annuler</button>
+              </div>
+            </div>}
+
             {/* Nouveau morceau */}
-            <button onClick={()=>{setConfirmedSong(null);setSongResult(null);}} style={{width:"100%",marginTop:10,background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-sec)",borderRadius:8,padding:"8px",fontSize:12,cursor:"pointer"}}>Autre morceau</button>
+            <button onClick={()=>{setConfirmedSong(null);setSongResult(null);setShowFeedback(false);setFeedback("");}} style={{width:"100%",marginTop:6,background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-sec)",borderRadius:8,padding:"8px",fontSize:12,cursor:"pointer"}}>Autre morceau</button>
           </div>
         </div>}
       </div>}
