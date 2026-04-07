@@ -59,9 +59,7 @@ const db = firebase.firestore();
 
 // Sync helpers
 function saveToFirestore(state) {
-  // Firestore has 1MB doc limit, split large data
-  const light = {...state, shared: {...state.shared, songDb: state.shared.songDb?.slice(0,500)}};
-  return db.collection("sync").doc("state").set(light, {merge: true}).catch(e => console.warn("Firestore save:", e));
+  return db.collection("sync").doc("state").set(state).catch(e => console.warn("Firestore save:", e));
 }
 function loadFromFirestore() {
   return db.collection("sync").doc("state").get()
@@ -4470,10 +4468,12 @@ function App() {
   // Filter setlists for current profile
   const mySetlists = setlists.filter(sl => !sl.profileIds || sl.profileIds.length === 0 || sl.profileIds.includes(activeProfileId));
 
-  // Persist to localStorage + Firestore
+  // Persist to localStorage + Firestore (skip first render to avoid overwriting remote)
+  const hasMounted = useRef(false);
   useEffect(()=>{
     const state={version:2, activeProfileId, shared:{songDb,theme,setlists}, profiles};
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){}
+    if(!hasMounted.current){hasMounted.current=true;return;} // don't push to Firestore on first render
     ignoreNextSnapshot.current = true;
     setSyncStatus("syncing");
     saveToFirestore(state).then(()=>setSyncStatus("synced")).catch(()=>setSyncStatus("error"));
@@ -4496,8 +4496,10 @@ function App() {
 
   // Listen for remote changes from other devices
   useEffect(()=>{
+    let firstSnapshot=true;
     const unsub = onFirestoreChange(data=>{
       if(ignoreNextSnapshot.current){ignoreNextSnapshot.current=false;return;}
+      if(firstSnapshot){firstSnapshot=false;return;} // skip initial snapshot
       if(!data||!data.shared||!data.profiles) return;
       // Apply remote state
       if(data.shared.songDb) setSongDb(data.shared.songDb);
