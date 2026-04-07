@@ -231,16 +231,16 @@ const INIT_BANKS_ANN = {
 };
 
 const INIT_BANKS_PLUG = {
-  1:{cat:"Strat Blues/Dumble",A:"TSR Super S Clean",B:"TSR Bumble DLX Drive 1",C:"TSR Bumble DLX Klon"},
-  2:{cat:"Marshall JTM/Plexi",A:"TSR JTM Clean(ish)",B:"MRSH SL100 JU Dimed BAL CAB",C:"TSR Plexi RodentsMuff"},
-  3:{cat:"ML MARS 800",A:"ML MARS 800 Clean",B:"ML MARS 800 Drive",C:"ML MARS 800 Lead"},
-  4:{cat:"Fender/Orange",A:"FNDR BLBM NR Clean BAL CAB",B:"ORNG 120 Dimed BAL CAB",C:"TSR Plexi RodentsMuff"},
-  5:{cat:"D13 Tweed/JTM",A:"TSR D13 Best Tweed Ever Clean",B:"TSR JTM Jumped",C:"TSR JTM Klone Lead"},
-  6:{cat:"Hiwatt",A:"HWTT CUT100 NR Clean BAL CAB",B:"HWTT CUT100 JU Crunch BRI CAB",C:"TSR Plexi RodentsMuff"},
-  7:{cat:"Fender Blackface",A:"FNDR BFTWN NR Clean BAL CAB",B:"FNDR BFDLX NR Edge BAL CAB",C:"FNDR BFDLX VB Drive BAL KLN CAB"},
-  8:{cat:"ML VX30 Vox",A:"ML VX30 '64 Clean",B:"ML VX30 '64 Drive",C:"ML VX30 '64 Overdrive"},
-  9:{cat:"Fender Deluxe/Two Rock",A:"ML FNDR Deluxe Clean",B:"TSR TWO ROK Bloom KOT",C:"MRSH JT50 I Drive BAL SCH CAB"},
-  10:{cat:"Fender/Ampeg",A:"FNDR BLBM NR Clean BAL CAB",B:"TSR A-Peg Pro 4 Classic A 4x",C:"TSR A-Peg Pro 4 Jack-O 4x10"},
+  1:{cat:"",A:"TSR - Super S Clean",B:"TSR Bumble DLX Drive 1",C:"TSR Bumble DLX Klon"},
+  2:{cat:"",A:"TSR JTM Clean(ish)",B:"MRSH SL100 JU Dimed BAL CAB",C:"TSR Plexi RodentsMuff"},
+  3:{cat:"",A:"ML MARS 800 Clean",B:"ML MARS 800 Drive",C:"ML MARS 800 Lead"},
+  4:{cat:"",A:"FNDR BLBM NR Clean BAL CAB",B:"ORNG 120 Dimed BAL CAB",C:"TSR Plexi RodentsMuff"},
+  5:{cat:"",A:"TSR D13 Best Tweed Ever Clean",B:"TSR JTM Jumped",C:"TSR JTM Klone Lead"},
+  6:{cat:"",A:"HWTT CUT100 NR Clean BAL CAB",B:"HWTT CUT100 JU Crunch BRI CAB",C:"TSR Plexi RodentsMuff"},
+  7:{cat:"",A:"FNDR BFTWN NR Clean BAL CAB",B:"FNDR BFDLX NR Edge BAL CAB",C:"FNDR BFDLX VB Drive BAL KLN CAB"},
+  8:{cat:"",A:"ML VX30 '64 Clean",B:"ML VX30 '64 Drive",C:"ML VX30 '64 Overdrive"},
+  9:{cat:"",A:"ML FNDR Deluxe Clean",B:"TSR TWO ROK Bloom KOT",C:"MRSH JT50 I Drive BAL SCH CAB"},
+  10:{cat:"",A:"FNDR BLBM NR Clean BAL CAB",B:"TSR - A-Peg Pro 4 - Classic A 4x",C:"TSR - A-Peg Pro 4 - Jack-O 4x10"},
 };
 
 // Les fonctions preset sont sérialisées sous forme de données statiques pour localStorage
@@ -2693,13 +2693,13 @@ function ExportImportScreen({banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,on
 }
 
 // ─── BankEditor ───────────────────────────────────────────────────────────────
-function BankEditor({banks,onBanks,color,maxBanks}) {
+function BankEditor({banks,onBanks,color,maxBanks,startBank}) {
+  const start=startBank||0;
   const max=maxBanks||50;
   const inp={background:"var(--bg-card)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:7,padding:"5px 8px",fontSize:11,width:"100%",boxSizing:"border-box"};
   const edit=(k,f,v)=>onBanks(p=>({...p,[k]:{...(p[k]||{cat:"",A:"",B:"",C:""}),[f]:v}}));
-  // Ensure all banks 0..max-1 exist
   const allBanks=[];
-  for(let i=0;i<max;i++){allBanks.push([String(i),banks[i]||{cat:"",A:"",B:"",C:""}]);}
+  for(let i=start;i<start+max;i++){allBanks.push([String(i),banks[i]||{cat:"",A:"",B:"",C:""}]);}
   return (
     <div>
       {allBanks.map(([k,v])=>{
@@ -3244,7 +3244,7 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
       </div>}
       {tab==="pedale"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="#f59e0b" maxBanks={50}/>}
       {tab==="ann"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="#3b82f6" maxBanks={50}/>}
-      {tab==="plug"&&<BankEditor banks={banksPlug} onBanks={onBanksPlug} color="var(--accent)" maxBanks={10}/>}
+      {tab==="plug"&&<BankEditor banks={banksPlug} onBanks={onBanksPlug} color="var(--accent)" maxBanks={10} startBank={1}/>}
     </div>
   );
 }
