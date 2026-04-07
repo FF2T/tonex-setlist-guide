@@ -591,6 +591,39 @@ const FACTORY_CATALOG = {
   "BS DOC": {src:"Factory",amp:"Stomp - Overdrive",gain:"mid",style:"rock",scores:{HB:82,SC:74,P90:82}},
   "BS MUFF": {src:"Factory",amp:"Stomp - Fuzz",gain:"mid",style:"rock",scores:{HB:82,SC:74,P90:82}},
 };
+// ─── ToneX Plug Factory Presets ───────────────────────────────────────────────
+const PLUG_FACTORY_CATALOG = {
+  "DMBL Clean": {src:"PlugFactory",amp:"Dumble Overdrive Special #0080",gain:"low",style:"blues",scores:{HB:75,SC:92,P90:88}},
+  "Just 800": {src:"PlugFactory",amp:"Marshall JCM 800",gain:"high",style:"hard_rock",scores:{HB:90,SC:62,P90:76}},
+  "80's Hero": {src:"PlugFactory",amp:"Peavey 5150",gain:"high",style:"hard_rock",scores:{HB:92,SC:56,P90:70}},
+  "Doctor Clean": {src:"PlugFactory",amp:"Dr. Z",gain:"low",style:"blues",scores:{HB:72,SC:90,P90:86}},
+  "Some Grit": {src:"PlugFactory",amp:"Marshall JCM 800",gain:"mid",style:"rock",scores:{HB:85,SC:70,P90:78}},
+  "Boosted DZL": {src:"PlugFactory",amp:"Diezel",gain:"high",style:"metal",scores:{HB:92,SC:55,P90:68}},
+  "Crunchy Plexi": {src:"PlugFactory",amp:"Marshall Super Lead 100W",gain:"mid",style:"hard_rock",scores:{HB:88,SC:67,P90:80}},
+  "Plexi Drive": {src:"PlugFactory",amp:"Marshall Super Lead 100W",gain:"high",style:"hard_rock",scores:{HB:90,SC:62,P90:76}},
+  "Nine Hundred Degrees": {src:"PlugFactory",amp:"Marshall JCM900",gain:"high",style:"hard_rock",scores:{HB:92,SC:60,P90:74}},
+  "Jazz Choir": {src:"PlugFactory",amp:"Roland JC-120",gain:"low",style:"jazz",scores:{HB:72,SC:90,P90:82}},
+  "Orange Juice": {src:"PlugFactory",amp:"Orange Rockerverb",gain:"mid",style:"rock",scores:{HB:85,SC:70,P90:80}},
+  "Eddie": {src:"PlugFactory",amp:"EVH 5150",gain:"high",style:"hard_rock",scores:{HB:92,SC:58,P90:70}},
+  "HWTT Clean": {src:"PlugFactory",amp:"Hiwatt Custom 100",gain:"low",style:"rock",scores:{HB:80,SC:85,P90:84}},
+  "MK5 Street": {src:"PlugFactory",amp:"Mesa Mark",gain:"mid",style:"rock",scores:{HB:86,SC:68,P90:76}},
+  "Sold!": {src:"PlugFactory",amp:"Soldano SLO-100",gain:"high",style:"hard_rock",scores:{HB:90,SC:62,P90:74}},
+  "Black Hole": {src:"PlugFactory",amp:"Fender Hot Rod Twin",gain:"mid",style:"rock",scores:{HB:78,SC:85,P90:82}},
+  "VX30 Trem": {src:"PlugFactory",amp:"Vox AC30",gain:"mid",style:"rock",scores:{HB:76,SC:90,P90:90}},
+  "PV 5051 Warm": {src:"PlugFactory",amp:"Peavey 5150",gain:"high",style:"metal",scores:{HB:94,SC:52,P90:66}},
+  "Sparkling Clean": {src:"PlugFactory",amp:"Fender Deluxe Reverb",gain:"low",style:"jazz",scores:{HB:68,SC:95,P90:88}},
+  "Fried": {src:"PlugFactory",amp:"Friedman BE-100",gain:"high",style:"hard_rock",scores:{HB:92,SC:60,P90:74}},
+  "Fire Angel": {src:"PlugFactory",amp:"ENGL",gain:"high",style:"metal",scores:{HB:92,SC:55,P90:68}},
+  "Enigma": {src:"PlugFactory",amp:"Dumble Overdrive Special #0080",gain:"low",style:"blues",scores:{HB:75,SC:92,P90:88}},
+  "UK Dirt": {src:"PlugFactory",amp:"Vox AC30",gain:"mid",style:"rock",scores:{HB:76,SC:88,P90:90}},
+  "Full 800 Tone": {src:"PlugFactory",amp:"Marshall JCM 800",gain:"mid",style:"hard_rock",scores:{HB:88,SC:64,P90:76}},
+  "Dirty Twin": {src:"PlugFactory",amp:"Fender Twin Reverb",gain:"low",style:"blues",scores:{HB:70,SC:92,P90:86}},
+  "Plexi Trem": {src:"PlugFactory",amp:"Marshall Super Lead 100W",gain:"high",style:"hard_rock",scores:{HB:90,SC:62,P90:76}},
+  "Orange Vibe": {src:"PlugFactory",amp:"Orange Rockerverb",gain:"mid",style:"rock",scores:{HB:85,SC:70,P90:80}},
+  "Bass Clean": {src:"PlugFactory",amp:"Ampeg SVT",gain:"low",style:"rock",scores:{HB:70,SC:70,P90:70}},
+  "Bass Chorus": {src:"PlugFactory",amp:"Ampeg SVT",gain:"low",style:"rock",scores:{HB:70,SC:70,P90:70}},
+  "Bass Driven": {src:"PlugFactory",amp:"Ampeg SVT",gain:"mid",style:"rock",scores:{HB:72,SC:68,P90:70}},
+};
 // ─── TSR 64 Pack (additional presets) ──────────────────────────────────────────
 const TSR_PACK_CATALOG = {
   "TSR Green Lead": {src:"TSR",pack:"Two Rock Bloomfield",amp:"Two Rock",gain:"high",style:"blues",scores:{HB:79,SC:84,P90:84}},
@@ -2715,7 +2748,7 @@ function profileColor(id){
   return PROFILE_COLORS[Math.abs(h)%PROFILE_COLORS.length];
 }
 
-const SOURCE_LABELS={TSR:"64 Studio Rats",ML:"ML Sound Lab Essentials",Anniversary:"ToneX Anniversary Factory",Factory:"ToneX Factory"};
+const SOURCE_LABELS={TSR:"64 Studio Rats",ML:"ML Sound Lab Essentials",Anniversary:"ToneX Anniversary Factory",Factory:"ToneX Factory",PlugFactory:"ToneX Plug Factory"};
 
 function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp}){
   const [editName,setEditName]=useState(profile.name);
@@ -3819,7 +3852,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
     for(const [k,v] of Object.entries(TSR_PACK_CATALOG)){
       if(!existingNorms.has(normalizePresetName(k))) tsrDeduped[k]=v;
     }
-    const cat={...PRESET_CATALOG_FULL,...tsrDeduped,...ANNIVERSARY_CATALOG,...FACTORY_CATALOG};
+    const cat={...PRESET_CATALOG_FULL,...tsrDeduped,...ANNIVERSARY_CATALOG,...FACTORY_CATALOG,...PLUG_FACTORY_CATALOG};
     (customPacks||[]).forEach(pack=>{
       (pack.presets||[]).forEach(p=>{
         if(p.name&&!cat[p.name]) cat[p.name]={src:pack.name,amp:p.amp||"Custom",gain:p.gain||"mid",style:p.style||"rock",scores:p.scores||{HB:78,SC:78,P90:78}};
@@ -3861,7 +3894,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
 
   const STYLE_OPTS={all:"Tous styles",hard_rock:"Hard Rock",rock:"Rock",blues:"Blues",jazz:"Jazz",pop:"Pop",metal:"Metal"};
   const GAIN_OPTS={all:"Tous gains",low:"Low gain",mid:"Mid gain",high:"High gain"};
-  const ALL_SRC_OPTS={TSR:"64 Studio Rats",ML:"ML Sound Lab Essentials",Anniversary:"ToneX Anniversary Factory",Factory:"ToneX Factory",custom:"Custom"};
+  const ALL_SRC_OPTS={TSR:"64 Studio Rats",ML:"ML Sound Lab Essentials",Anniversary:"ToneX Anniversary Factory",Factory:"ToneX Factory",PlugFactory:"ToneX Plug Factory",custom:"Custom"};
   const SRC_OPTS={all:"Toutes sources",...Object.fromEntries(Object.entries(ALL_SRC_OPTS).filter(([k])=>!availableSources||availableSources[k]!==false))};
   const selStyle={background:"var(--bg-card)",color:"var(--text-sec)",border:"1px solid var(--a12)",borderRadius:7,padding:"6px 10px",fontSize:12,cursor:"pointer"};
 
@@ -3911,6 +3944,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
           {id:"ML",label:"ML Sound Lab Essentials",emoji:"🎛",color:"56,189,248"},
           {id:"Anniversary",label:"ToneX Anniversary Factory",emoji:"📦",color:"167,139,250"},
           {id:"Factory",label:"ToneX Factory",emoji:"🎹",color:"74,222,128"},
+          {id:"PlugFactory",label:"ToneX Plug Factory",emoji:"🔌",color:"249,115,22"},
         ];
         // Add custom packs
         (customPacks||[]).forEach(p=>{
