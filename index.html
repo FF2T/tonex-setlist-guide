@@ -2515,31 +2515,69 @@ function PBlock({device,emoji,presetName,gType,banks,adapted,gs,bg2,availableSou
   );
 }
 
+// ─── Calcul algorithmique des meilleurs presets ──────────────────────────────
+function computeBestPresets(gType,style,banksAnn,banksPlug){
+  // Best installed on pedal
+  const annPresets=[];
+  for(const [k,v] of Object.entries(banksAnn)){
+    for(const c of ["A","B","C"]){
+      if(v[c]){const info=findCatalogEntry(v[c]);if(info){
+        const score=info.scores?.[gType]??60;
+        const styleBonus=info.style===style?10:0;
+        annPresets.push({name:v[c],bank:Number(k),col:c,score:score+styleBonus,rawScore:score,amp:info.amp,style:info.style});
+      }}
+    }
+  }
+  annPresets.sort((a,b)=>b.score-a.score);
+  // Best installed on plug
+  const plugPresets=[];
+  for(const [k,v] of Object.entries(banksPlug)){
+    for(const c of ["A","B","C"]){
+      if(v[c]){const info=findCatalogEntry(v[c]);if(info){
+        const score=info.scores?.[gType]??60;
+        const styleBonus=info.style===style?10:0;
+        plugPresets.push({name:v[c],bank:Number(k),col:c,score:score+styleBonus,rawScore:score,amp:info.amp,style:info.style});
+      }}
+    }
+  }
+  plugPresets.sort((a,b)=>b.score-a.score);
+  // Best from full catalog (not necessarily installed)
+  const catalogBest=Object.entries(PRESET_CATALOG_MERGED)
+    .map(([name,info])=>{
+      const score=info.scores?.[gType]??60;
+      const styleBonus=info.style===style?10:0;
+      return {name,score:score+styleBonus,rawScore:score,amp:info.amp,style:info.style,src:info.src};
+    })
+    .sort((a,b)=>b.score-a.score);
+  return {annTop:annPresets[0]||null,plugTop:plugPresets[0]||null,idealTop:catalogBest[0]||null,idealTop3:catalogBest.slice(0,3)};
+}
+
 // ─── fetchAI (helper partagé) ─────────────────────────────────────────────────
 function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars){
   guitars=guitars||GUITARS;
   const g=guitars.find(x=>x.id===gId);
-  const annCtx=Object.entries(banksAnn).map(([k,v])=>`Banque ${k}: A=${v.A} | B=${v.B} | C=${v.C}`).join("\n");
-  const plugCtx=Object.entries(banksPlug).map(([k,v])=>`Banque ${k}: A=${v.A} | B=${v.B} | C=${v.C}`).join("\n");
   const glist=guitars.map(x=>`${x.name} (${x.type})`).join(", ");
-  // Build list of best presets from full catalog for this guitar type
   const gType=g?.type||"HB";
-  const bestFromCatalog=Object.entries(PRESET_CATALOG_MERGED)
-    .map(([name,info])=>({name,score:info.scores?.[gType]??60,amp:info.amp,style:info.style}))
-    .sort((a,b)=>b.score-a.score).slice(0,30)
-    .map(p=>`${p.name} (${p.amp}, ${p.style}, ${gType}:${p.score}%)`).join("\n");
-  const prompt=`Expert guitare ToneX. Réponds TOUJOURS en français, toutes tes réponses doivent être rédigées en français.\nPresets installés sur la Pédale:\n${annCtx}\nPresets installés sur le Plug:\n${plugCtx}\n\nMeilleurs presets disponibles dans la base complète pour guitare ${gType}:\n${bestFromCatalog}\n\nMorceau: "${song.title}" de "${song.artist}".\nGuitare: ${g?g.name+" ("+g.type+")":"non précisée"}.\nGuitares disponibles: ${glist}.\n\nIMPORTANT: Pour preset_ann et preset_plug, choisis UNIQUEMENT parmi les presets installés ci-dessus. Pour ideal_preset, recommande le meilleur preset de la base complète (même s'il n'est pas installé).\n\nJSON sans markdown (tous les textes en français):\n{"song_year":1970,"song_album":"nom de l'album","song_desc":"2-3 phrases décrivant le morceau, son style, ses particularités guitare","ideal_guitar":"nom complet de la guitare idéale","guitar_reason":"1-2 phrases en français expliquant le choix","preset_ann":{"bank":0,"col":"A","label":"nom exact du preset Pédale installé"},"preset_plug":{"bank":1,"col":"A","label":"nom exact du preset Plug installé"},"ideal_preset":"nom du meilleur preset de la base complète (peut ne pas être installé)","ideal_preset_score":85,"settings_preset":"conseils de réglage preset en français","settings_guitar":"conseils de jeu guitare en français","ref_guitarist":"nom du guitariste principal sur l'enregistrement original","ref_guitar":"guitare(s) utilisée(s) sur l'enregistrement original (modèle précis)","ref_amp":"ampli(s) utilisé(s) sur l'enregistrement original (modèle précis)","ref_effects":"effets utilisés sur l'enregistrement (ou 'Aucun effet' si signal direct)"}`;
+  const prompt=`Expert guitare ToneX. Réponds TOUJOURS en français, toutes tes réponses doivent être rédigées en français.\nMorceau: "${song.title}" de "${song.artist}".\nGuitare: ${g?g.name+" ("+g.type+")":"non précisée"}.\nGuitares disponibles: ${glist}.\n\nJSON sans markdown (tous les textes en français):\n{"song_year":1970,"song_album":"nom de l'album","song_desc":"2-3 phrases décrivant le morceau, son style, ses particularités guitare","song_style":"blues/rock/hard_rock/jazz/metal","ideal_guitar":"nom complet de la guitare idéale","guitar_reason":"1-2 phrases en français expliquant le choix","settings_preset":"conseils de réglage preset en français","settings_guitar":"conseils de jeu guitare en français","ref_guitarist":"nom du guitariste principal sur l'enregistrement original","ref_guitar":"guitare(s) utilisée(s) sur l'enregistrement original (modèle précis)","ref_amp":"ampli(s) utilisé(s) sur l'enregistrement original (modèle précis)","ref_effects":"effets utilisés sur l'enregistrement (ou 'Aucun effet' si signal direct)"}`;
   const key=aiKeys.gemini||aiKeys.anthropic||DEFAULT_GEMINI_KEY;
   const provider=(aiKeys.gemini||DEFAULT_GEMINI_KEY)?"gemini":"anthropic";
   if(!key) return Promise.reject(new Error("Clé API manquante — configure-la dans ⚙️ Paramètres."));
   const parse=t=>JSON.parse(t.replace(/```json|```/g,"").trim());
-  if(provider==="gemini"){
-    return fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})})
-      .then(r=>r.json()).then(d=>{if(d.error)throw new Error(d.error.message||d.error.status);return parse(d.candidates?.[0]?.content?.parts?.[0]?.text||"");});
-  } else {
-    return fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:600,messages:[{role:"user",content:prompt}]})})
+  const aiReq=provider==="gemini"
+    ?fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})})
+      .then(r=>r.json()).then(d=>{if(d.error)throw new Error(d.error.message||d.error.status);return parse(d.candidates?.[0]?.content?.parts?.[0]?.text||"");})
+    :fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:600,messages:[{role:"user",content:prompt}]})})
       .then(r=>r.json()).then(d=>{if(d.error)throw new Error(d.error.message||d.error.type);return parse(d.content?.map(i=>i.text||"").join("")||"");});
-  }
+  // Enrich AI result with algorithmically computed best presets
+  return aiReq.then(aiResult=>{
+    const style=aiResult.song_style||"rock";
+    const best=computeBestPresets(gType,style,banksAnn,banksPlug);
+    if(best.annTop) aiResult.preset_ann={bank:best.annTop.bank,col:best.annTop.col,label:best.annTop.name,score:best.annTop.rawScore};
+    if(best.plugTop) aiResult.preset_plug={bank:best.plugTop.bank,col:best.plugTop.col,label:best.plugTop.name,score:best.plugTop.rawScore};
+    if(best.idealTop) {aiResult.ideal_preset=best.idealTop.name;aiResult.ideal_preset_score=best.idealTop.rawScore;}
+    aiResult.ideal_top3=best.idealTop3;
+    return aiResult;
+  });
 }
 
 function AICard({song,gId,onResult,banksAnn,banksPlug,aiProvider,aiKeys,onCacheResult,guitars}) {
@@ -4823,13 +4861,15 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
             <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
               {songResult.preset_ann&&<div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(74,222,128,0.06)",border:"1px solid var(--green-border)",borderRadius:8,padding:"8px 10px"}}>
                 <span style={{fontSize:11,color:"var(--green)",fontWeight:700,flexShrink:0}}>📦 Pédale</span>
-                <span style={{fontSize:11,color:"var(--text)",fontWeight:600}}>{songResult.preset_ann.label}</span>
-                <span style={{fontSize:10,color:"var(--text-muted)",marginLeft:"auto"}}>Banque {songResult.preset_ann.bank}{songResult.preset_ann.col}</span>
+                <span style={{fontSize:11,color:"var(--text)",fontWeight:600,flex:1}}>{songResult.preset_ann.label}</span>
+                {songResult.preset_ann.score&&<span style={{fontSize:10,fontWeight:700,color:scoreColor(songResult.preset_ann.score)}}>{songResult.preset_ann.score}%</span>}
+                <span style={{fontSize:10,color:"var(--text-muted)"}}>Banque {songResult.preset_ann.bank}{songResult.preset_ann.col}</span>
               </div>}
               {songResult.preset_plug&&<div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(99,102,241,0.06)",border:"1px solid rgba(99,102,241,0.15)",borderRadius:8,padding:"8px 10px"}}>
                 <span style={{fontSize:11,color:"var(--accent)",fontWeight:700,flexShrink:0}}>🔌 Plug</span>
-                <span style={{fontSize:11,color:"var(--text)",fontWeight:600}}>{songResult.preset_plug.label}</span>
-                <span style={{fontSize:10,color:"var(--text-muted)",marginLeft:"auto"}}>Banque {songResult.preset_plug.bank}{songResult.preset_plug.col}</span>
+                <span style={{fontSize:11,color:"var(--text)",fontWeight:600,flex:1}}>{songResult.preset_plug.label}</span>
+                {songResult.preset_plug.score&&<span style={{fontSize:10,fontWeight:700,color:scoreColor(songResult.preset_plug.score)}}>{songResult.preset_plug.score}%</span>}
+                <span style={{fontSize:10,color:"var(--text-muted)"}}>Banque {songResult.preset_plug.bank}{songResult.preset_plug.col}</span>
               </div>}
             </div>
 
