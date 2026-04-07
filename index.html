@@ -55,6 +55,8 @@ function saveToFirestore(s){if(!db)return Promise.resolve();try{
 }catch(e){return Promise.resolve();}}
 function loadFromFirestore(){if(!db)return Promise.resolve(null);return db.collection("sync").doc("state").get().then(function(d){return d.exists?d.data():null;}).catch(function(){return null;});}
 function onFirestoreChange(cb){if(!db)return function(){};return db.collection("sync").doc("state").onSnapshot(function(d){if(d.exists)cb(d.data());},function(){});}
+function loadSharedKey(){if(!db)return Promise.resolve();return db.collection("config").doc("apikeys").get().then(function(d){if(d.exists&&d.data().gemini)DEFAULT_GEMINI_KEY=d.data().gemini;}).catch(function(){});}
+function saveSharedKey(key){if(!db)return Promise.resolve();return db.collection("config").doc("apikeys").set({gemini:key}).catch(function(e){console.warn("FS key save:",e);});}
 </script>
 <style>
   :root, [data-theme="dark"] {
@@ -135,7 +137,7 @@ function onFirestoreChange(cb){if(!db)return function(){};return db.collection("
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const DEFAULT_GEMINI_KEY = "AIzaSyAnaJMN-a47S9W_cTC60lKAnzRMAgHNMAA";
+var DEFAULT_GEMINI_KEY = "";
 const {useState,useMemo,useEffect,useRef} = React;
 
 // ─── Clé localStorage ─────────────────────────────────────────────────────────
@@ -3374,7 +3376,8 @@ function ParametresScreen({onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAi
             </div>
             <div style={{background:"rgba(74,222,128,0.06)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:12,padding:16}}>
               <div style={{fontSize:12,fontWeight:700,color:"var(--green)",marginBottom:10}}>🔑 Clé API Google AI Studio</div>
-              <input type="password" placeholder="AIza..." value={aiKeys.gemini} onChange={e=>onAiKeys(p=>({...p,gemini:e.target.value}))} style={{...inp,width:"100%",marginBottom:8,fontFamily:"monospace"}}/>
+              <input type="password" placeholder="AIza..." value={aiKeys.gemini} onChange={e=>{onAiKeys(p=>({...p,gemini:e.target.value}));}} style={{...inp,width:"100%",marginBottom:8,fontFamily:"monospace"}}/>
+              <button onClick={()=>{if(aiKeys.gemini){saveSharedKey(aiKeys.gemini);DEFAULT_GEMINI_KEY=aiKeys.gemini;}}} disabled={!aiKeys.gemini} style={{background:aiKeys.gemini?"var(--green)":"var(--bg-disabled)",border:"none",color:"#fff",borderRadius:7,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:aiKeys.gemini?"pointer":"not-allowed",marginBottom:8}}>Partager la clé (tous les utilisateurs)</button>
               <div style={{fontSize:11,color:"var(--text-muted)"}}>aistudio.google.com → Get API key</div>
               {aiKeys.gemini&&<div style={{fontSize:11,color:"var(--green)",marginTop:8}}>✓ Clé configurée ({aiKeys.gemini.slice(0,8)}...)</div>}
             </div>
@@ -4708,7 +4711,7 @@ ReactDOM.render(<App/>, document.getElementById("root"));
       try{
         firebase.initializeApp({apiKey:"AIzaSyAnaJMN-a47S9W_cTC60lKAnzRMAgHNMAA",authDomain:"tonex-guide.firebaseapp.com",projectId:"tonex-guide",storageBucket:"tonex-guide.firebasestorage.app",messagingSenderId:"891859157059",appId:"1:891859157059:web:519ce30a866f20ab3d54f6"});
         db=firebase.firestore();
-        console.log("Firebase ready");
+        loadSharedKey().then(function(){console.log("Firebase ready, key loaded");});
       }catch(e){console.warn("Firebase init failed:",e);}
     };
     document.head.appendChild(s2);
