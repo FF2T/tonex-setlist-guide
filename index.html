@@ -2231,7 +2231,7 @@ function makeDefaultProfile(id, name, isAdmin=false) {
     customPacks: [],
     banksAnn: INIT_BANKS_ANN,
     banksPlug: INIT_BANKS_PLUG,
-    aiProvider: "anthropic",
+    aiProvider: "gemini",
     aiKeys: {anthropic:"",gemini:""}
   };
 }
@@ -2248,7 +2248,7 @@ function migrateV1toV2(v1) {
     customPacks: [],
     banksAnn: mergeBanks(v1.banksAnn, INIT_BANKS_ANN),
     banksPlug: mergeBanks(v1.banksPlug, INIT_BANKS_PLUG),
-    aiProvider: v1.aiProvider || "anthropic",
+    aiProvider: v1.aiProvider || "gemini",
     aiKeys: v1.aiKeys || {anthropic: v1.apiKey||"", gemini:""}
   };
   return {
@@ -2451,10 +2451,11 @@ function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars){
   const plugCtx=Object.entries(banksPlug).map(([k,v])=>`Banque ${k}: A=${v.A} | B=${v.B} | C=${v.C}`).join("\n");
   const glist=guitars.map(x=>`${x.name} (${x.type})`).join(", ");
   const prompt=`Expert guitare ToneX. Réponds TOUJOURS en français, toutes tes réponses doivent être rédigées en français.\nAnniversary:\n${annCtx}\nPlug:\n${plugCtx}\nMorceau: "${song.title}" de "${song.artist}".\nGuitare: ${g?g.name+" ("+g.type+")":"non précisée"}.\nGuitares disponibles: ${glist}.\nJSON sans markdown (tous les textes en français):\n{"ideal_guitar":"nom complet de la guitare idéale","guitar_reason":"1-2 phrases en français expliquant le choix","preset_ann":{"bank":0,"col":"A","label":"nom exact du preset Anniversary"},"preset_plug":{"bank":1,"col":"A","label":"nom exact du preset Plug"},"settings_preset":"conseils de réglage preset en français","settings_guitar":"conseils de jeu guitare en français","ref_guitarist":"nom du guitariste principal sur l'enregistrement original","ref_guitar":"guitare(s) utilisée(s) sur l'enregistrement original (modèle précis)","ref_amp":"ampli(s) utilisé(s) sur l'enregistrement original (modèle précis)","ref_effects":"effets utilisés sur l'enregistrement (ou 'Aucun effet' si signal direct)"}`;
-  const key=aiProvider==="gemini"?aiKeys.gemini:aiKeys.anthropic;
-  if(!key) return Promise.reject(new Error(`Clé ${aiProvider==="gemini"?"Gemini":"Anthropic"} manquante — configure-la dans ⚙️ Paramètres > 🔑 IA.`));
+  const key=aiKeys.gemini||aiKeys.anthropic;
+  const provider=aiKeys.gemini?"gemini":"anthropic";
+  if(!key) return Promise.reject(new Error("Clé API manquante — configure-la dans ⚙️ Paramètres."));
   const parse=t=>JSON.parse(t.replace(/```json|```/g,"").trim());
-  if(aiProvider==="gemini"){
+  if(provider==="gemini"){
     return fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})})
       .then(r=>r.json()).then(d=>{if(d.error)throw new Error(d.error.message||d.error.status);return parse(d.candidates?.[0]?.content?.parts?.[0]?.text||"");});
   } else {
@@ -2982,8 +2983,9 @@ function PacksTab({profile,onProfiles,activeProfileId,aiProvider,aiKeys}){
 
   const extractPresets=()=>{
     if(!packName.trim()||!filePreview)return;
-    const key=aiProvider==="gemini"?aiKeys.gemini:aiKeys.anthropic;
-    if(!key){setErr(`Clé API ${aiProvider==="gemini"?"Gemini":"Anthropic"} manquante — configure-la dans 🔑 IA.`);return;}
+    const key=aiKeys?.gemini||aiKeys?.anthropic;
+    const provider=aiKeys?.gemini?"gemini":"anthropic";
+    if(!key){setErr("Clé API manquante — configure-la dans ⚙️ Paramètres.");return;}
     setLoading(true);setErr(null);
     const prompt=`Analyse cette image/document d'un pack de presets pour guitare ToneX appelé "${packName.trim()}".
 Extrais TOUS les noms de presets visibles et pour chacun déduis :
@@ -3002,7 +3004,7 @@ Réponds UNIQUEMENT en JSON (sans markdown) :
 "ampContext":{"Nom Ampli":{"emoji":"🎸","refs":[{"a":"Artiste","t":["Morceau"]}],"desc":"Description..."},...}}`;
     const base64=filePreview.split(",")[1];
     const mimeType=filePreview.split(";")[0].split(":")[1];
-    if(aiProvider==="gemini"){
+    if(provider==="gemini"){
       fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,{
         method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({contents:[{parts:[{inlineData:{mimeType,data:base64}},{text:prompt}]}]})
@@ -4194,14 +4196,15 @@ function SongSearchBar({onConfirm,aiProvider,aiKeys}){
 
   const search=()=>{
     if(!input.trim())return;
-    const key=aiProvider==="gemini"?aiKeys?.gemini:aiKeys?.anthropic;
+    const key=aiKeys?.gemini||aiKeys?.anthropic;
+    const provider=aiKeys?.gemini?"gemini":"anthropic";
     if(!key){setErr("Clé API manquante — configure-la dans les paramètres.");return;}
     setLoading(true);setErr(null);setSuggestion(null);
     const prompt=`L'utilisateur veut jouer un morceau de guitare. Il a tapé : "${input.trim()}"
 Corrige l'orthographe et identifie le titre exact et l'artiste/groupe.
 Réponds UNIQUEMENT en JSON (sans markdown) : {"title":"Titre exact","artist":"Artiste/Groupe","confidence":"high|medium|low"}`;
     const parse=t=>JSON.parse(t.replace(/```json|```/g,"").trim());
-    const req=aiProvider==="gemini"
+    const req=provider==="gemini"
       ?fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})})
         .then(r=>r.json()).then(d=>{if(d.error)throw new Error(d.error.message);return parse(d.candidates?.[0]?.content?.parts?.[0]?.text||"");})
       :fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:200,messages:[{role:"user",content:prompt}]})})
