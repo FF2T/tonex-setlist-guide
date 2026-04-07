@@ -14,7 +14,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v4';
+const CACHE='tonex-v5';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -3679,9 +3679,10 @@ function getJamRecs(guitarId, style, banksAnn, banksPlug, guitars){
 }
 
 // ─── SongDetailCard ──────────────────────────────────────────────────────────
-function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSources}){
+function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSources,savedGuitarId,onGuitarChange}){
   const ig=getIg(song);
-  const [gId,setGId]=useState(ig[0]||"");
+  const [gId,setGId]=useState(savedGuitarId||ig[0]||"");
+  const handleGuitarChange=(v)=>{setGId(v);if(onGuitarChange)onGuitarChange(song.id,v);};
   const g=(guitars||GUITARS).find(x=>x.id===gId);
   const type=g?.type||"HB";
   const pA=getPA(song,type);
@@ -3700,7 +3701,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
         {songInfo.desc&&<div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.5,padding:"6px 10px",background:"var(--a4)",borderRadius:7,borderLeft:"3px solid var(--accent)"}}>{songInfo.desc}</div>}
       </div>}
       <Row icon="🎸"><div style={{flex:1,marginBottom:10}}>
-        <GuitarSelect value={gId} onChange={setGId} ig={ig} guitars={guitars}/>
+        <GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/>
         {g&&!song.isCustom&&<div style={{fontSize:11,color:"var(--text-sec)",marginTop:3}}>{getGr(song,type)}</div>}
         {g&&aiC?.ideal_guitar&&<div style={{fontSize:11,color:"var(--purple)",marginTop:3}}>IA : {aiC.ideal_guitar}{aiC.guitar_reason?" — "+aiC.guitar_reason:""}</div>}
       </div></Row>
@@ -3741,10 +3742,11 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
 // ─── ListScreen ───────────────────────────────────────────────────────────────
 function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,banksAnn,banksPlug,aiProvider,aiKeys,hideHeader=false,allGuitars,availableSources}) {
   const [activeSlId,setActiveSlId]=useState(setlists[0]?.id||null);
+  const activeSl=activeSlId?setlists.find(s=>s.id===activeSlId):null;
   const [showAdd,setShowAdd]=useState(false);
   const [sort,setSort]=useState("default");
   const activeSongs=useMemo(()=>{
-    const sl=activeSlId?setlists.find(s=>s.id===activeSlId):null;
+    const sl=activeSl;
     const arr=sl?(sl.songIds||[]).map(id=>songDb.find(s=>s.id===id)).filter(Boolean):[...songDb];
     if(sort==="alpha") arr.sort((a,b)=>a.title.localeCompare(b.title,"fr"));
     else if(sort==="artist") arr.sort((a,b)=>a.artist.localeCompare(b.artist,"fr")||a.title.localeCompare(b.title,"fr"));
@@ -3790,9 +3792,12 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
       {activeSongs.map(s=>{
         const isC=checked.includes(s.id);
         const ig=getIg(s);
-        const g=ig?.[0]?(allGuitars||GUITARS).find(x=>x.id===ig[0]):null;
-        const pa=getPA(s,"HB");
-        const pp=getPP(s,"HB");
+        const savedGId=activeSl?.guitars?.[s.id];
+        const gId=savedGId||ig?.[0]||"";
+        const g=gId?(allGuitars||GUITARS).find(x=>x.id===gId):null;
+        const gType=g?.type||"HB";
+        const pa=getPA(s,gType);
+        const pp=getPP(s,gType);
         const aiC=s.isCustom?s.aiCache?.result:null;
         const aiPA=aiC?.preset_ann;
         const aiPP=aiC?.preset_plug;
@@ -3832,7 +3837,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                   <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,minWidth:0}}>{hist.amp}</span>
                 </div>}
                 {!isExpanded&&<div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",marginTop:g||aiC?.ideal_guitar?4:0}}>
-                  {g&&<><span style={{fontSize:10,color:"var(--text-muted)"}}>🎸</span><span style={{fontSize:10,color:"var(--green)",background:"var(--green-bg)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{g.short}</span>{ig.slice(1).map(gid=>{const gg=(allGuitars||GUITARS).find(x=>x.id===gid);return gg?<span key={gid} style={{fontSize:10,color:"var(--text-muted)",background:"var(--a5)",borderRadius:4,padding:"1px 7px"}}>{gg.short}</span>:null;})}</>}
+                  {g&&<><span style={{fontSize:10,color:"var(--text-muted)"}}>🎸</span><span style={{fontSize:10,color:savedGId?"var(--accent)":"var(--green)",background:savedGId?"var(--accent-bg)":"var(--green-bg)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{g.short}{savedGId&&!ig.includes(savedGId)?" (choix perso)":""}</span></>}
                   {aiC?.ideal_guitar&&<><span style={{fontSize:10,color:"var(--text-muted)"}}>🎸</span><span style={{fontSize:10,color:"var(--purple)",background:"rgba(167,139,250,0.1)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{aiC.ideal_guitar}</span></>}
                 </div>}
                 {!isExpanded&&<div style={{display:"flex",flexDirection:"column",gap:3,marginTop:pa||pp?4:0}}>
@@ -3843,7 +3848,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                 </div>}
               </div>
             </div>
-            {isExpanded&&<SongDetailCard song={s} banksAnn={banksAnn} banksPlug={banksPlug} onClose={()=>setExpandedId(null)} guitars={allGuitars} availableSources={availableSources}/>}
+            {isExpanded&&<SongDetailCard song={s} banksAnn={banksAnn} banksPlug={banksPlug} onClose={()=>setExpandedId(null)} guitars={allGuitars} availableSources={availableSources} savedGuitarId={activeSl?.guitars?.[s.id]} onGuitarChange={(songId,gId)=>{if(activeSlId)onSetlists(p=>p.map(sl=>sl.id===activeSlId?{...sl,guitars:{...(sl.guitars||{}),[songId]:gId}}:sl));}}/>}
           </div>
         );
       })}
