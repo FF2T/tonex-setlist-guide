@@ -4324,6 +4324,14 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
 
       {/* Zone centrale style Google */}
       <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",padding:"12px 0 8px"}}>
+        {songLoading?(
+          <div style={{textAlign:"center",padding:"40px 0"}}>
+            <div style={{fontSize:48,marginBottom:16,animation:"spin 1.5s linear infinite"}}>&#9203;</div>
+            <div style={{fontSize:22,fontWeight:700,color:"var(--text)"}}>Analyse en cours...</div>
+            {confirmedSong&&<div style={{fontSize:14,color:"var(--text-sec)",marginTop:8}}>{confirmedSong.title} — {confirmedSong.artist}</div>}
+            <style>{"@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}"}</style>
+          </div>
+        ):<>
         <div style={{fontSize:32,fontWeight:800,color:"var(--text)",marginBottom:6,textAlign:"center"}}>ToneX Poweruser</div>
         <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:24,textAlign:"center"}}>Quel morceau veux-tu jouer ?</div>
         <div style={{width:"100%",maxWidth:500}}>
@@ -4345,9 +4353,6 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
               .finally(()=>setSongLoading(false));
           }}/>
         </div>
-
-        {/* Loading */}
-        {songLoading&&<div style={{textAlign:"center",padding:20,color:"var(--text-muted)",fontSize:13}}>Analyse en cours...</div>}
 
         {/* Erreur */}
         {songErr&&<div style={{fontSize:12,color:"var(--red)",textAlign:"center",padding:10}}>{songErr}</div>}
@@ -4394,7 +4399,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
             <button onClick={()=>{setConfirmedSong(null);setSongResult(null);}} style={{width:"100%",marginTop:10,background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-sec)",borderRadius:8,padding:"8px",fontSize:12,cursor:"pointer"}}>Autre morceau</button>
           </div>
         </div>}
-      </div>
+      </>}
 
       {/* Tuiles en bas (masquer si résultat ou loading) */}
       {!songResult&&!songLoading&&<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,paddingBottom:12}}>
