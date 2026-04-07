@@ -2721,6 +2721,43 @@ function PresetSearchModal({onSelect,onClose}){
   );
 }
 
+function fuzzyMatch(query,catalog){
+  const norm=normalizePresetName(query);
+  const words=norm.split(" ").filter(w=>w.length>1);
+  return Object.entries(catalog).map(([name,info])=>{
+    const nn=normalizePresetName(name);
+    let score=0;
+    words.forEach(w=>{if(nn.includes(w))score+=w.length;});
+    // Bonus for same start
+    if(nn.startsWith(words[0]||""))score+=5;
+    return {name,info,score};
+  }).filter(r=>r.score>3).sort((a,b)=>b.score-a.score).slice(0,5);
+}
+
+function FuzzyPresetMatch({name,bank,slot,onAccept,onSearch,onManual,onClose}){
+  const suggestions=useMemo(()=>fuzzyMatch(name,PRESET_CATALOG_MERGED),[name]);
+  return(
+    <div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:8,padding:10}}>
+      <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:6}}>Preset non trouvé : <b style={{color:"var(--text)"}}>{name}</b></div>
+      {suggestions.length>0&&<div style={{marginBottom:8}}>
+        <div style={{fontSize:10,color:"var(--text-dim)",marginBottom:4}}>Presets approchants :</div>
+        {suggestions.map(s=>(
+          <button key={s.name} onClick={()=>onAccept(s.name)} style={{display:"block",width:"100%",textAlign:"left",background:"var(--green-bg)",border:"1px solid var(--green-border)",borderRadius:6,padding:"6px 8px",marginBottom:3,cursor:"pointer"}}>
+            <div style={{fontSize:11,fontWeight:600,color:"var(--text)"}}>{s.name}</div>
+            <div style={{fontSize:9,color:"var(--text-muted)"}}>{s.info.amp} · {SOURCE_LABELS[s.info.src]||s.info.src}</div>
+          </button>
+        ))}
+      </div>}
+      {suggestions.length===0&&<div style={{fontSize:10,color:"var(--text-dim)",marginBottom:8}}>Aucun preset approchant trouvé.</div>}
+      <div style={{display:"flex",gap:6}}>
+        <button onClick={onSearch} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>Rechercher</button>
+        <button onClick={onManual} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:6,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>Saisie manuelle</button>
+        <button onClick={onClose} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:6,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>Fermer</button>
+      </div>
+    </div>
+  );
+}
+
 function BankEditor({banks,onBanks,color,maxBanks,startBank,factoryBanks}) {
   const start=startBank||0;
   const max=maxBanks||50;
@@ -2784,14 +2821,7 @@ function BankEditor({banks,onBanks,color,maxBanks,startBank,factoryBanks}) {
                 <button onClick={()=>setSelectedPreset(null)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:6,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>Fermer</button>
               </div>
             </div>
-            :<div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:8,padding:10}}>
-              <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:6}}>Preset non trouvé dans la base : <b style={{color:"var(--text)"}}>{selectedPreset.name}</b></div>
-              <div style={{display:"flex",gap:6}}>
-                <button onClick={()=>{setEditingPreset({bank:k,slot:selectedPreset.slot});setSelectedPreset(null);}} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>Remplacer</button>
-                <button onClick={()=>{setCustomInput({bank:k,slot:selectedPreset.slot});setSelectedPreset(null);}} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:6,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>Saisie manuelle</button>
-                <button onClick={()=>setSelectedPreset(null)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:6,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>Fermer</button>
-              </div>
-            </div>}
+            :<FuzzyPresetMatch name={selectedPreset.name} bank={k} slot={selectedPreset.slot} onAccept={(name)=>{edit(k,selectedPreset.slot,name);setSelectedPreset(null);}} onSearch={()=>{setEditingPreset({bank:k,slot:selectedPreset.slot});setSelectedPreset(null);}} onManual={()=>{setCustomInput({bank:k,slot:selectedPreset.slot});setSelectedPreset(null);}} onClose={()=>setSelectedPreset(null)}/>}
           </div>}
           {/* Custom input for manual entry */}
           {customInput&&customInput.bank===k&&<div style={{marginTop:6,display:"flex",gap:6,alignItems:"center"}}>
