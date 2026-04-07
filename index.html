@@ -2804,8 +2804,8 @@ function BankEditor({banks,onBanks,color,maxBanks,startBank,factoryBanks}) {
               const isCustom=customInput&&customInput.bank===k&&customInput.slot===c;
               const notInDb=name&&!findCatalogEntry(name);
               return <div key={c} style={{flex:1,minWidth:0}}>
-                <button onClick={()=>{if(name){setSelectedPreset(isSel?null:{bank:k,slot:c,name});setCustomInput(null);}}}
-                  style={{display:"flex",alignItems:"center",gap:3,width:"100%",background:isSel?"var(--accent-bg)":notInDb?"var(--yellow-bg)":"transparent",border:isSel?"1px solid var(--accent-border)":notInDb?"1px solid var(--yellow-border)":"1px solid transparent",borderRadius:5,padding:"3px 4px",cursor:name?"pointer":"default",textAlign:"left"}}>
+                <button onClick={()=>{if(!name){setEditingPreset({bank:k,slot:c});setCustomInput(null);}else{setSelectedPreset(isSel?null:{bank:k,slot:c,name});setCustomInput(null);}}}
+                  style={{display:"flex",alignItems:"center",gap:3,width:"100%",background:isSel?"var(--accent-bg)":notInDb?"var(--yellow-bg)":"transparent",border:isSel?"1px solid var(--accent-border)":notInDb?"1px solid var(--yellow-border)":"1px solid transparent",borderRadius:5,padding:"3px 4px",cursor:"pointer",textAlign:"left"}}>
                   <span style={{fontSize:10,fontWeight:700,color:CC[c],flexShrink:0}}>{c}</span>
                   <span style={{fontSize:10,color:name?"var(--text-bright)":"var(--text-dim)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{name||"—"}</span>
                 </button>
