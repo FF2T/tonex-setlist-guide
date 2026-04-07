@@ -3773,7 +3773,10 @@ function PresetDetailInline({name,info,banksAnn,banksPlug,presetContext}){
           {styleBadge(info.style)}{gainBadge(info.gain)}
         </div>
       </div>
-      {info.pack&&TSR_PACK_ZIPS[info.pack]&&<div style={{fontSize:10,color:"var(--text-dim)",marginBottom:8}}>📁 {TSR_PACK_ZIPS[info.pack]}.zip</div>}
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8,alignItems:"center"}}>
+        {info.src&&<span style={{fontSize:9,color:"var(--text-muted)",background:"var(--a6)",borderRadius:4,padding:"2px 6px",fontWeight:600}}>{SOURCE_LABELS[info.src]||info.src}</span>}
+        {info.pack&&TSR_PACK_ZIPS[info.pack]&&<span style={{fontSize:9,color:"var(--text-dim)"}}>📁 {TSR_PACK_ZIPS[info.pack]}.zip</span>}
+      </div>
       {ctx?.desc&&<div style={{fontSize:11,color:"#cbd5e1",lineHeight:1.6,marginBottom:10,padding:"7px 10px",background:"var(--a4)",borderRadius:7,borderLeft:"3px solid rgba(99,102,241,0.5)"}}>{ctx.desc}</div>}
       {ctx?.refs&&ctx.refs.length>0&&<div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:10}}>
         {ctx.refs.map(r=><div key={r.a} style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
