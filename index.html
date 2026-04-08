@@ -2914,7 +2914,7 @@ function ProfilePickerScreen({profiles,onPick}){
           return <button key={p.id} onClick={()=>{setSelectedId(p.id);setPwd("");setPwdErr(false);if(!p.password)onPick(p.id);}} style={{background:sel?"var(--accent-bg)":"var(--a4)",border:sel?"2px solid var(--accent)":"2px solid var(--a10)",borderRadius:16,padding:"24px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
             <div style={{background:c,color:"#fff",borderRadius:"50%",width:48,height:48,fontSize:22,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 10px"}}>{p.name[0].toUpperCase()}</div>
             <div style={{fontSize:14,fontWeight:700,color:"var(--text)"}}>{p.name}</div>
-            <div style={{fontSize:11,color:"var(--text-muted)",marginTop:4}}>{p.password?"🔒":""} {(p.myGuitars||[]).length+(p.customGuitars||[]).length} guitares</div>
+            {p.password&&<div style={{fontSize:11,color:"var(--text-muted)",marginTop:4}}>🔒</div>}
           </button>;
         })}
       </div>
