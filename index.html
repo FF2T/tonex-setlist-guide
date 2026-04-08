@@ -5619,8 +5619,7 @@ function App() {
   },[profile.myGuitars, profile.customGuitars, profile.editedGuitars]);
 
   // Non-persisted
-  const multiProfile = Object.keys(initDefault.profiles).length > 1;
-  const [screen,  setScreen]  = useState(multiProfile ? "pick" : "list");
+  const [screen,  setScreen]  = useState("loading");
   const [checked, setChecked] = useState([]);
   const [synth,   setSynth]   = useState(null);
   const [syncStatus, setSyncStatus] = useState("idle");
@@ -5691,8 +5690,16 @@ function App() {
     return ()=>unsub();
   },[]);
 
+  // Once Firestore loaded, decide initial screen
+  useEffect(()=>{
+    if(!firestoreLoaded) return;
+    if(screen!=="loading") return;
+    const multi=Object.keys(profiles).length>1;
+    setScreen(multi?"pick":"list");
+  },[firestoreLoaded,profiles]);
+
   // Reset on profile switch
-  useEffect(()=>{setChecked([]);setScreen("list");},[activeProfileId]);
+  useEffect(()=>{if(screen!=="loading"){setChecked([]);setScreen("list");}},[activeProfileId]);
 
   // Apply theme to document
   useEffect(()=>{
@@ -5729,6 +5736,7 @@ function App() {
 
   const [profileInitTab,setProfileInitTab]=useState(null);
 
+  if(screen==="loading") return <div className="page-root"><div style={{textAlign:"center",padding:"60px 20px"}}><div style={{fontSize:48,marginBottom:16}}>🎸</div><div style={{fontSize:20,fontWeight:800,color:"var(--text)"}}>ToneX Poweruser</div><div style={{fontSize:13,color:"var(--text-muted)",marginTop:8}}>Chargement...</div></div></div>;
   if(screen==="pick") return <div className="page-root"><ProfilePickerScreen profiles={profiles} onPick={pickProfile}/></div>;
   if(screen==="viewprofile"&&viewProfileId&&profiles[viewProfileId]) return <div className="page-root"><ViewProfileScreen profile={profiles[viewProfileId]} onBack={()=>setScreen("list")} onNavigate={setScreen}/></div>;
   if(screen==="exportimport") return <div className="page-root"><ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("settings")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/></div>;
