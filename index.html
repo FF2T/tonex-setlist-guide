@@ -14,7 +14,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v9';
+const CACHE='tonex-v10';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -2247,16 +2247,15 @@ function getTsrRef(song) {
 
 const getType = id => GUITARS.find(g=>g.id===id)?.type||"HB";
 
-// Retourne {guitarist,guitar,amp,effects} depuis SONG_HISTORY (morceaux pré-chargés)
-// ou depuis le cache IA (morceaux personnalisés)
+// Retourne {guitarist,guitar,amp,effects} depuis le cache IA ou SONG_HISTORY (fallback)
 function getSongHist(song, aiResult=null){
-  if(!song.isCustom) return SONG_HISTORY[song.id]||null;
   const r=aiResult||song.aiCache?.result;
-  if(!r||!r.ref_guitarist) return null;
-  return {guitarist:r.ref_guitarist,guitar:r.ref_guitar,amp:r.ref_amp,effects:r.ref_effects};
+  if(r&&r.ref_guitarist) return {guitarist:r.ref_guitarist,guitar:r.ref_guitar,amp:r.ref_amp,effects:r.ref_effects};
+  return SONG_HISTORY[song.id]||null;
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
+const APP_VERSION = "2.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -2461,11 +2460,11 @@ function Breadcrumb({crumbs,onNavigate}){
   );
 }
 
-function PBlock({device,emoji,presetName,gType,banks,adapted,gs,bg2,availableSources,guitarId}) {
+function PBlock({device,emoji,presetName,gType,banks,adapted,gs,bg2,availableSources,guitarId,noUpgrade}) {
   const rec=presetName&&gType?getInstallRec(presetName,gType,banks||{},guitarId):null;
   const entry=findCatalogEntry(presetName);
   const srcAvail=!entry||!availableSources||availableSources[entry.src]!==false;
-  const best=rec?.upgrade; // now findBestAvailable result with isCurrent flag
+  const best=noUpgrade?null:rec?.upgrade; // now findBestAvailable result with isCurrent flag
   // Si un meilleur preset est installé, on l'affiche directement
   const showBest=best&&!best.isCurrent&&best.installed;
   const displayName=showBest?best.name:presetName;
@@ -2507,12 +2506,21 @@ function PBlock({device,emoji,presetName,gType,banks,adapted,gs,bg2,availableSou
 }
 
 // ─── Calcul algorithmique des meilleurs presets ──────────────────────────────
-function computeBestPresets(gType,style,banksAnn,banksPlug,guitarId){
+function computeBestPresets(gType,style,banksAnn,banksPlug,guitarId,refAmp){
   const compat=COMPAT_STYLES[style]||[style];
+  // Fuzzy amp matching: extract keywords from ref_amp and compare with preset amp
+  const refAmpWords=(refAmp||"").toLowerCase().replace(/[^a-z0-9\s]/g,"").split(/\s+/).filter(w=>w.length>2&&!["the","and","with","series","channel","combo","head","watt"].includes(w));
+  const ampMatch=(presetAmp)=>{
+    if(!refAmpWords.length||!presetAmp) return 0;
+    const pa=presetAmp.toLowerCase().replace(/[^a-z0-9\s]/g,"");
+    const matched=refAmpWords.filter(w=>pa.includes(w));
+    return matched.length>=2?20:matched.length===1&&refAmpWords.length<=2?15:0;
+  };
   const scorePreset=(name,info)=>{
     const base=guitarId?guitarScore(name,guitarId):(info.scores?.[gType]??60);
     const styleBonus=info.style===style?12:compat.includes(info.style)?5:0;
-    return {total:base+styleBonus,raw:base};
+    const refBonus=ampMatch(info.amp);
+    return {total:base+styleBonus+refBonus,raw:base,refBonus};
   };
   // Best installed on pedal — diversify amps
   const annPresets=[];
@@ -2571,7 +2579,7 @@ function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars){
   // Enrich AI result with algorithmically computed best presets
   return aiReq.then(aiResult=>{
     const style=aiResult.song_style||"rock";
-    const best=computeBestPresets(gType,style,banksAnn,banksPlug,gId);
+    const best=computeBestPresets(gType,style,banksAnn,banksPlug,gId,aiResult.ref_amp);
     if(best.annTop) aiResult.preset_ann={bank:best.annTop.bank,col:best.annTop.col,label:best.annTop.name,score:best.annTop.rawScore};
     if(best.plugTop) aiResult.preset_plug={bank:best.plugTop.bank,col:best.plugTop.col,label:best.plugTop.name,score:best.plugTop.rawScore};
     if(best.idealTop) {aiResult.ideal_preset=best.idealTop.name;aiResult.ideal_preset_score=best.idealTop.rawScore;}
@@ -2602,8 +2610,8 @@ function AICard({song,gId,onResult,banksAnn,banksPlug,aiProvider,aiKeys,onCacheR
     <div style={{display:"flex",flexDirection:"column",gap:9}}>
       <Row icon="🎯"><div><div style={{fontSize:12,color:"var(--purple)",fontWeight:700,marginBottom:2}}>IA : {res.ideal_guitar}</div><div style={{fontSize:11,color:"var(--text-sec)"}}>{res.guitar_reason}</div></div></Row>
       <div style={{display:"flex",flexDirection:"column",gap:6}}>
-        <PBlock device="Pédale" emoji="📦" presetName={res.preset_ann?.label} gType={gId?(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB":null} banks={banksAnn}/>
-        <PBlock device="ToneX Plug" emoji="🔌" presetName={res.preset_plug?.label} gType={gId?(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB":null} banks={banksPlug} bg2="rgba(99,102,241,0.06)"/>
+        <PBlock device="Pédale" emoji="📦" presetName={res.preset_ann?.label} gType={gId?(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB":null} banks={banksAnn} noUpgrade/>
+        <PBlock device="ToneX Plug" emoji="🔌" presetName={res.preset_plug?.label} gType={gId?(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB":null} banks={banksPlug} bg2="rgba(99,102,241,0.06)" noUpgrade/>
       </div>
       <Row icon="🎛️"><div style={{display:"flex",flexDirection:"column",gap:4}}>
         {res.settings_preset&&<div style={{fontSize:11,background:"rgba(251,191,36,0.07)",border:"1px solid var(--yellow-border)",borderRadius:7,padding:"6px 10px",color:"var(--yellow)"}}><b style={{color:"var(--yellow)"}}>Preset · </b>{res.settings_preset}</div>}
@@ -3911,11 +3919,24 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
   const [gId,setGId]=useState(savedGuitarId||ig[0]||"");
   const [reloading,setReloading]=useState(false);
   const [localAiResult,setLocalAiResult]=useState(null);
+  // Auto-trigger AI analysis if no cache for current guitar
+  useEffect(()=>{
+    if(localAiResult) return;
+    if(song.aiCache&&song.aiCache.gId===gId) return;
+    if(!gId||!onSongDb) return;
+    setReloading(true);
+    fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars)
+      .then(r=>{
+        setLocalAiResult(r);
+        onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:{gId,result:r}}:x));
+      })
+      .catch(()=>{})
+      .finally(()=>setReloading(false));
+  },[song.id,gId]);
   const handleGuitarChange=(v)=>{
     setGId(v);
     if(onGuitarChange)onGuitarChange(song.id,v);
-    // Auto-reload AI for custom songs when guitar changes
-    if(song.isCustom&&onSongDb){
+    if(onSongDb){
       setReloading(true);setLocalAiResult(null);
       fetchAI(song,v,banksAnn,banksPlug,aiProvider,aiKeys,guitars)
         .then(r=>{
@@ -3928,13 +3949,8 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
   };
   const g=(guitars||GUITARS).find(x=>x.id===gId);
   const type=g?.type||"HB";
-  const pA=getPA(song,type);
-  const pP=getPP(song,type);
-  const set=getSet(song,type);
-  const ideal=gId&&ig.includes(gId);
-  const adapted=gId&&!ideal&&ig.length>0;
   const hist=getSongHist(song);
-  const aiC=localAiResult||(song.isCustom?song.aiCache?.result:null);
+  const aiC=localAiResult||song.aiCache?.result||null;
   const songInfo=getSongInfo(song);
   return(
     <div className="song-row-detail" style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:"0 0 12px 12px",padding:"12px 14px",marginBottom:8,marginTop:-2}}>
@@ -3945,37 +3961,25 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
       </div>}
       <div style={{marginBottom:10}}>
         <GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/>
-        {g&&!song.isCustom&&<div style={{fontSize:11,color:"var(--text-sec)",marginTop:3}}>{getGr(song,type)}</div>}
-        {g&&aiC?.ideal_guitar&&<div style={{fontSize:11,color:"var(--text-sec)",marginTop:3}}>IA : {aiC.ideal_guitar}{aiC.guitar_reason?" — "+aiC.guitar_reason:""}</div>}
+        {g&&aiC?.guitar_reason&&<div style={{fontSize:11,color:"var(--text-sec)",marginTop:3}}>{aiC.ideal_guitar?" "+aiC.ideal_guitar+" — ":""}{aiC.guitar_reason}</div>}
       </div>
-      {hist&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:10,lineHeight:1.6}}>
+      {hist&&!aiC&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:10,lineHeight:1.6}}>
         <span style={{fontWeight:700,color:"var(--text-muted)",fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>{hist.guitarist}</span><br/>
         🎸 {hist.guitar} · 🔊 {hist.amp}{hist.effects?" · 🎚 "+hist.effects:""}
       </div>}
-      {!song.isCustom&&<>
-        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
-          <PBlock device="Pédale" emoji="📦" presetName={pA?.l} gType={gId?type:null} banks={banksAnn} adapted={adapted} gs={g?.short} availableSources={availableSources} guitarId={gId}/>
-          <PBlock device="ToneX Plug" emoji="🔌" presetName={pP?.l} gType={gId?type:null} banks={banksPlug} adapted={adapted} gs={g?.short} availableSources={availableSources} guitarId={gId}/>
-        </div>
-        {(set?.p||set?.g)&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:8,lineHeight:1.6}}>
-          {set?.p&&<div>💡 <b>Preset :</b> {set.p}</div>}
-          {set?.g&&<div>💡 <b>Guitare :</b> {set.g}</div>}
-        </div>}
-      </>}
-      {song.isCustom&&reloading&&<div style={{textAlign:"center",padding:"16px 0"}}>
+      {reloading&&<div style={{textAlign:"center",padding:"16px 0"}}>
         <div style={{fontSize:28,marginBottom:6,animation:"spin 1.5s linear infinite",display:"inline-block"}}>&#9203;</div>
         <div style={{fontSize:12,color:"var(--text-muted)"}}>Analyse en cours pour {g?.short||"cette guitare"}...</div>
       </div>}
-      {song.isCustom&&!reloading&&aiC&&<>
-        {aiC.ideal_guitar&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:6}}>IA : {aiC.ideal_guitar}{aiC.guitar_reason?" — "+aiC.guitar_reason:""}</div>}
+      {!reloading&&aiC&&<>
         {aiC.ideal_preset&&<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:11}}>
           <span style={{fontWeight:700}}>⭐ Idéal : {aiC.ideal_preset}</span>
           {aiC.ideal_preset_score&&<span style={{fontWeight:700,color:scoreColor(aiC.ideal_preset_score)}}>{aiC.ideal_preset_score}%</span>}
           {(()=>{const loc=findInBanks(aiC.ideal_preset,banksAnn)||findInBanks(aiC.ideal_preset,banksPlug);return loc?<span style={{fontSize:9,color:"var(--green)"}}>✓ installé</span>:<span style={{fontSize:9,color:"var(--text-dim)"}}>non installé</span>;})()}
         </div>}
         <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
-          <PBlock device="Pédale" emoji="📦" presetName={aiC.preset_ann?.label} gType={gId?type:null} banks={banksAnn} availableSources={availableSources} guitarId={gId}/>
-          <PBlock device="ToneX Plug" emoji="🔌" presetName={aiC.preset_plug?.label} gType={gId?type:null} banks={banksPlug} availableSources={availableSources} guitarId={gId}/>
+          <PBlock device="Pédale" emoji="📦" presetName={aiC.preset_ann?.label} gType={gId?type:null} banks={banksAnn} availableSources={availableSources} guitarId={gId} noUpgrade/>
+          <PBlock device="ToneX Plug" emoji="🔌" presetName={aiC.preset_plug?.label} gType={gId?type:null} banks={banksPlug} availableSources={availableSources} guitarId={gId} noUpgrade/>
         </div>
         {(aiC.settings_preset||aiC.settings_guitar)&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:8,lineHeight:1.6}}>
           {aiC.settings_preset&&<div>💡 <b>Preset :</b> {aiC.settings_preset}</div>}
@@ -3988,7 +3992,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
           {aiC.ref_effects&&aiC.ref_effects!=="Aucun effet"&&<> · 🎚 {aiC.ref_effects}</>}
         </div>}
       </>}
-      {song.isCustom&&!reloading&&!aiC&&<div style={{fontSize:12,color:"var(--text-dim)",padding:"10px 0"}}>Aucune analyse IA en cache. Change la guitare pour lancer l'analyse.</div>}
+      {!reloading&&!aiC&&<div style={{fontSize:12,color:"var(--text-dim)",padding:"10px 0"}}>Aucune analyse IA en cache. Sélectionne une guitare pour lancer l'analyse.</div>}
       <button onClick={onClose} style={{fontSize:11,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",textDecoration:"underline",padding:0}}>Fermer ↑</button>
     </div>
   );
@@ -4085,7 +4089,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
               songsByGuitar[gId].add(s.id);
               matched=true;
             });
-            const aiG=s.isCustom&&s.aiCache?.result?.ideal_guitar;
+            const aiG=s.aiCache?.result?.ideal_guitar;
             if(aiG){
               const m=guitars.find(g=>g.name===aiG||g.short===aiG);
               if(m){if(!songsByGuitar[m.id]) songsByGuitar[m.id]=new Set();songsByGuitar[m.id].add(s.id);matched=true;}
@@ -4145,9 +4149,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         const gId=savedGId||ig?.[0]||"";
         const g=gId?(allGuitars||GUITARS).find(x=>x.id===gId):null;
         const gType=g?.type||"HB";
-        const pa=getPA(s,gType);
-        const pp=getPP(s,gType);
-        const aiC=s.isCustom?s.aiCache?.result:null;
+        const aiC=s.aiCache?.result||null;
         const aiPA=aiC?.preset_ann;
         const aiPP=aiC?.preset_plug;
         const hist=getSongHist(s);
@@ -4210,8 +4212,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
               <div onClick={()=>setExpandedId(isExpanded?null:s.id)} style={{flex:1,background:isC?"rgba(74,222,128,0.05)":"var(--a3)",border:isC?"1px solid var(--green-border)":"1px solid var(--a7)",borderLeft:"none",borderRadius:isExpanded?"0 10px 0 0":"0 10px 10px 0",padding:"10px 13px",cursor:"pointer"}}>
                 <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:2}}>
                   <span style={{fontSize:14,fontWeight:600,color:"var(--text)"}}>{s.title}</span>
-                  {s.isCustom&&<span style={{fontSize:10,color:"var(--purple)",background:"rgba(167,139,250,0.15)",borderRadius:4,padding:"1px 6px"}}>✨IA</span>}
-                  {s.isCustom&&!s.aiCache&&<span style={{fontSize:10,color:"var(--text-muted)"}}>⏳</span>}
+                  {!s.aiCache&&<span style={{fontSize:10,color:"var(--text-muted)"}}>⏳</span>}
                   <span style={{marginLeft:"auto",fontSize:11,color:"var(--text-dim)"}}>{isExpanded?"▲":"▼"}</span>
                 </div>
                 {sort!=="artist"&&<div style={{fontSize:11,color:"var(--text-muted)",marginBottom:hist?3:0}}>{s.artist}</div>}
@@ -4224,9 +4225,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                   {g&&<><span style={{fontSize:10,color:"var(--text-muted)"}}>🎸</span><span style={{fontSize:10,color:savedGId?"var(--accent)":"var(--green)",background:savedGId?"var(--accent-bg)":"var(--green-bg)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{g.short}{savedGId&&!ig.includes(savedGId)?" (choix perso)":""}</span></>}
                   {aiC?.ideal_guitar&&<><span style={{fontSize:10,color:"var(--text-muted)"}}>🎸</span><span style={{fontSize:10,color:"var(--purple)",background:"rgba(167,139,250,0.1)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{aiC.ideal_guitar}</span></>}
                 </div>}
-                {!isExpanded&&<div style={{display:"flex",flexDirection:"column",gap:3,marginTop:pa||pp?4:0}}>
-                  {pa&&presetRow("📦",pa.l,banksAnn)}
-                  {pp&&presetRow("🔌",pp.l,banksPlug)}
+                {!isExpanded&&<div style={{display:"flex",flexDirection:"column",gap:3,marginTop:aiPA||aiPP?4:0}}>
                   {aiPA&&presetRow("📦",aiPA.label,banksAnn)}
                   {aiPP&&presetRow("🔌",aiPP.label,banksPlug)}
                 </div>}
@@ -4274,14 +4273,10 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
         const bestLoc=(best&&!best.isCurrent&&best.installed)?{bank:best.bank,slot:best.slot}:loc;
         needed.push({song:s,device,preset:bestName,score:bestScore,installed:!!bestLoc,bank:bestLoc?.bank,slot:bestLoc?.slot,amp:findCatalogEntry(bestName)?.amp||"",upgraded:best&&!best.isCurrent&&best.installed});
       };
-      if(!s.isCustom){
-        const pA=getPA(s,gType==="SC"?"SC":gType==="P90"?"P90":"HB");
-        const pP=getPP(s,gType==="SC"?"SC":gType==="P90"?"P90":"HB");
-        if(pA) addPreset(pA.l,"ann");
-        if(pP) addPreset(pP.l,"plug");
-      } else if(aiR[s.id]){
-        if(aiR[s.id].preset_ann) addPreset(aiR[s.id].preset_ann.label,"ann");
-        if(aiR[s.id].preset_plug) addPreset(aiR[s.id].preset_plug.label,"plug");
+      const ai=aiR[s.id]||s.aiCache?.result;
+      if(ai){
+        if(ai.preset_ann) addPreset(ai.preset_ann.label,"ann");
+        if(ai.preset_plug) addPreset(ai.preset_plug.label,"plug");
       }
     });
     // Deduplicate by preset+device, keep best score
@@ -4358,19 +4353,14 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
         const g=(allGuitars||GUITARS).find(x=>x.id===gId);
         const type=g?.type||"HB";
         const ig=getIg(s);
-        const pA=getPA(s,type);
-        const pP=getPP(s,type);
-        const set=getSet(s,type);
-        const ideal=gId&&ig.includes(gId);
-        const adapted=gId&&!ideal;
         return (
           <div key={s.id} style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:14,padding:16,marginBottom:14}}>
             <div style={{marginBottom:12}}>
               <div style={{fontSize:11,color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:1}}>{s.artist}</div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:17,fontWeight:700,color:"var(--text)"}}>{s.title}</span>{s.isCustom&&<span style={{fontSize:10,color:"var(--purple)",background:"rgba(167,139,250,0.15)",borderRadius:4,padding:"1px 6px"}}>✨ IA</span>}</div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:17,fontWeight:700,color:"var(--text)"}}>{s.title}</span></div>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
-              <Row icon="🎸"><div style={{flex:1}}><GuitarSelect value={gId} onChange={v=>sg(s.id,v)} ig={ig} guitars={allGuitars}/>{g&&!s.isCustom&&<div style={{fontSize:11,color:"var(--text-sec)",marginTop:4}}>{getGr(s,type)}</div>}</div></Row>
+              <Row icon="🎸"><div style={{flex:1}}><GuitarSelect value={gId} onChange={v=>sg(s.id,v)} ig={ig} guitars={allGuitars}/></div></Row>
               {(()=>{const hist=getSongHist(s,aiR[s.id]);return hist&&(
                 <Row icon="📖"><div style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:9,padding:"9px 12px",flex:1}}>
                   <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Référence originale — {hist.guitarist}</div>
@@ -4390,17 +4380,7 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
                   </div>
                 </div></Row>
               );})()}
-              {!s.isCustom&&<>
-                <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                  <PBlock device="Pédale" emoji="📦" presetName={pA?.l} gType={gId?type:null} banks={banksAnn} adapted={adapted} gs={g?.short} availableSources={availableSources} guitarId={gId}/>
-                  <PBlock device="ToneX Plug" emoji="🔌" presetName={pP?.l} gType={gId?type:null} banks={banksPlug} adapted={adapted} gs={g?.short} bg2="rgba(99,102,241,0.06)" availableSources={availableSources} guitarId={gId}/>
-                </div>
-                {(set?.p||set?.g)&&<Row icon="🎛️"><div style={{display:"flex",flexDirection:"column",gap:4,flex:1}}>
-                  {set?.p&&<div style={{fontSize:11,background:"rgba(251,191,36,0.07)",border:"1px solid var(--yellow-border)",borderRadius:7,padding:"6px 10px",color:"var(--yellow)"}}><b style={{color:"var(--yellow)"}}>Preset · </b>{set.p}</div>}
-                  {set?.g&&<div style={{fontSize:11,background:"rgba(34,197,94,0.07)",border:"1px solid rgba(34,197,94,0.15)",borderRadius:7,padding:"6px 10px",color:"var(--green)"}}><b style={{color:"var(--green)"}}>Guitare · </b>{set.g}</div>}
-                </div></Row>}
-              </>}
-              {s.isCustom&&<AICard song={s} gId={gId} onResult={r=>setAiR(p=>({...p,[s.id]:r}))} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} onCacheResult={(gid,r)=>onSongDb(p=>p.map(x=>x.id===s.id?{...x,aiCache:{gId:gid,result:r}}:x))} guitars={allGuitars}/>}
+              <AICard song={s} gId={gId} onResult={r=>setAiR(p=>({...p,[s.id]:r}))} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} onCacheResult={(gid,r)=>onSongDb(p=>p.map(x=>x.id===s.id?{...x,aiCache:{gId:gid,result:r}}:x))} guitars={allGuitars}/>
             </div>
           </div>
         );
@@ -4420,12 +4400,8 @@ function SynthesisScreen({songs,gps,aiR,onBack,onNavigate,songDb,banksAnn,banksP
     const g=(allGuitars||GUITARS).find(x=>x.id===gps[s.id]);
     const type=g?.type||"HB";
     let ann=null,plug=null;
-    if(!s.isCustom){
-      const pa=getPA(s,type),pp=getPP(s,type);
-      if(pa){const rec=getInstallRec(pa.l,type,banksAnn);ann={name:pa.l,rec};}
-      if(pp){const rec=getInstallRec(pp.l,type,banksPlug);plug={name:pp.l,rec};}
-    } else if(aiR[s.id]){
-      const ai=aiR[s.id];
+    const ai=aiR[s.id]||s.aiCache?.result;
+    if(ai){
       if(ai.preset_ann)ann={name:ai.preset_ann.label,rec:getInstallRec(ai.preset_ann.label,type,banksAnn)};
       if(ai.preset_plug)plug={name:ai.preset_plug.label,rec:getInstallRec(ai.preset_plug.label,type,banksPlug)};
     }
@@ -5510,6 +5486,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>Bibliothèque de presets</div>
         </button>
       </div>}
+      <div style={{textAlign:"center",padding:"24px 0 8px",fontSize:10,color:"var(--text-dim)"}}>ToneX Poweruser v{APP_VERSION}</div>
     </div>
   );
 }
