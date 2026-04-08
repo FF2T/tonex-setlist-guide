@@ -3735,18 +3735,22 @@ function AddSongModal({songDb,onSongDb,setlists,onSetlists,activeSlId,onClose,ba
 
 // ─── List Screen ──────────────────────────────────────────────────────────────
 // ─── Jam helpers ─────────────────────────────────────────────────────────────
-function getJamRecs(guitarId, style, banksAnn, banksPlug, guitars){
+function getJamRecs(guitarId, style, banksAnn, banksPlug, guitars, availableSources){
   const guitar=(guitars||GUITARS).find(g=>g.id===guitarId);
   const gType=guitar?.type||"HB";
-  const allCatalog={...PRESET_CATALOG_MERGED};
-  // deduplicate by name
-  const allEntries=Object.entries(allCatalog);
+  const compat=COMPAT_STYLES[style]||[style];
+  const allEntries=Object.entries(PRESET_CATALOG_MERGED);
   const seen=new Set();
   const unique=allEntries.filter(([n])=>{if(seen.has(n))return false;seen.add(n);return true;});
   const scored=unique
-    .filter(([,info])=>!style||info.style===style)
-    .map(([name,info])=>({name,score:info.scores?.[gType]??60,amp:info.amp,gain:info.gain,style:info.style,src:info.src}))
-    .sort((a,b)=>b.score-a.score);
+    .filter(([,info])=>!style||compat.includes(info.style))
+    .filter(([,info])=>!availableSources||availableSources[info.src]!==false)
+    .map(([name,info])=>{
+      const raw=info.scores?.[gType]??60;
+      const styleBonus=info.style===style?5:0;
+      return{name,score:raw,sortScore:raw+styleBonus,amp:info.amp,gain:info.gain,style:info.style,src:info.src};
+    })
+    .sort((a,b)=>b.sortScore-a.sortScore);
   const annInstalled=scored.map(p=>{const loc=findInBanks(p.name,banksAnn);return loc?{...p,...loc}:null;}).filter(Boolean);
   const plugInstalled=scored.map(p=>{const loc=findInBanks(p.name,banksPlug);return loc?{...p,...loc}:null;}).filter(Boolean);
   return{annTop3:annInstalled.slice(0,3),plugBest:plugInstalled.slice(0,3),fullTop3:scored.slice(0,3),gType};
@@ -4581,8 +4585,8 @@ function JamScreen({banksAnn,banksPlug,allGuitars,availableSources}){
   const guitar=guitars.find(g=>g.id===guitarId);
   const recs=useMemo(()=>{
     if(!guitarId||!style) return null;
-    return getJamRecs(guitarId,style,banksAnn,banksPlug,guitars);
-  },[guitarId,style,banksAnn,banksPlug,guitars]);
+    return getJamRecs(guitarId,style,banksAnn,banksPlug,guitars,availableSources);
+  },[guitarId,style,banksAnn,banksPlug,guitars,availableSources]);
 
   const reset=()=>{setStep("guitar");setGuitarId(null);setStyle(null);};
 
