@@ -4004,11 +4004,112 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
 function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources}) {
   const [gps,setGps]=useState(()=>{const i={};songs.forEach(s=>{i[s.id]=getIg(s)?.[0]||"";});return i;});
   const [aiR,setAiR]=useState({});
+  const [globalGuitar,setGlobalGuitar]=useState("");
   const sg=(id,v)=>setGps(p=>({...p,[id]:v}));
+  const applyGlobal=(gId)=>{
+    setGlobalGuitar(gId);
+    if(gId) setGps(()=>{const o={};songs.forEach(s=>{o[s.id]=gId;});return o;});
+  };
+
+  // Compute "presets à emporter" when global guitar is set
+  const packList=useMemo(()=>{
+    if(!globalGuitar) return null;
+    const g=(allGuitars||GUITARS).find(x=>x.id===globalGuitar);
+    const gType=g?.type||"HB";
+    const needed=[];
+    songs.forEach(s=>{
+      const addPreset=(presetName,device)=>{
+        if(!presetName) return;
+        const entry=findCatalogEntry(presetName);
+        const sc=entry?.scores?.[gType]??60;
+        const banks=device==="ann"?banksAnn:banksPlug;
+        const loc=findInBanks(presetName,banks);
+        // Also check for upgrade
+        const upgrade=sc<80?findUpgrade(presetName,gType,banks,availableSources):null;
+        const bestName=(upgrade&&upgrade.installed)?upgrade.name:presetName;
+        const bestScore=(upgrade&&upgrade.installed)?upgrade.score:sc;
+        const bestLoc=(upgrade&&upgrade.installed)?{bank:upgrade.bank,slot:upgrade.slot}:loc;
+        needed.push({song:s,device,preset:bestName,score:bestScore,installed:!!bestLoc,bank:bestLoc?.bank,slot:bestLoc?.slot,amp:findCatalogEntry(bestName)?.amp||"",upgraded:upgrade&&upgrade.installed});
+      };
+      if(!s.isCustom){
+        const pA=getPA(s,gType==="SC"?"SC":gType==="P90"?"P90":"HB");
+        const pP=getPP(s,gType==="SC"?"SC":gType==="P90"?"P90":"HB");
+        if(pA) addPreset(pA.l,"ann");
+        if(pP) addPreset(pP.l,"plug");
+      } else if(aiR[s.id]){
+        if(aiR[s.id].preset_ann) addPreset(aiR[s.id].preset_ann.label,"ann");
+        if(aiR[s.id].preset_plug) addPreset(aiR[s.id].preset_plug.label,"plug");
+      }
+    });
+    // Deduplicate by preset+device, keep best score
+    const map=new Map();
+    needed.forEach(p=>{
+      const key=p.preset+"|"+p.device;
+      const existing=map.get(key);
+      if(!existing||p.score>existing.score) map.set(key,{...p,songs:existing?[...existing.songs,p.song.title]:[p.song.title]});
+    });
+    // Merge songs for same preset
+    needed.forEach(p=>{
+      const key=p.preset+"|"+p.device;
+      const e=map.get(key);
+      if(e&&!e.songs.includes(p.song.title)) e.songs.push(p.song.title);
+    });
+    const list=[...map.values()].sort((a,b)=>{
+      if(a.installed!==b.installed) return a.installed?1:-1; // non-installés d'abord
+      return b.score-a.score;
+    });
+    return{ann:list.filter(p=>p.device==="ann"),plug:list.filter(p=>p.device==="plug"),gType};
+  },[globalGuitar,songs,aiR,banksAnn,banksPlug,allGuitars,availableSources]);
+
   return (
     <div>
       <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Récap"}]} onNavigate={onNavigate}/>
       <div style={{marginBottom:20}}><div style={{fontSize:22,fontWeight:800,color:"var(--text)"}}>Récap de session</div><div style={{fontSize:12,color:"var(--text-muted)",marginTop:3}}>{songs.length} morceau{songs.length>1?"x":""}</div></div>
+
+      {/* Sélecteur guitare global */}
+      <div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:14,marginBottom:16}}>
+        <div style={{fontSize:11,fontWeight:700,color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>🎸 Une seule guitare pour la session ?</div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          <button onClick={()=>applyGlobal("")} style={{fontSize:11,fontWeight:!globalGuitar?700:500,color:!globalGuitar?"var(--text)":"var(--text-muted)",background:!globalGuitar?"var(--a8)":"var(--a3)",border:!globalGuitar?"1px solid var(--a15)":"1px solid var(--a7)",borderRadius:8,padding:"6px 12px",cursor:"pointer"}}>Par morceau</button>
+          {(allGuitars||GUITARS).map(g=>{
+            const active=globalGuitar===g.id;
+            const rgb=TYPE_COLORS[g.type];
+            return <button key={g.id} onClick={()=>applyGlobal(g.id)} style={{fontSize:11,fontWeight:active?700:500,color:active&&rgb?`rgb(${rgb})`:"var(--text-muted)",background:active&&rgb?`rgba(${rgb},0.15)`:"var(--a3)",border:active&&rgb?`1px solid rgba(${rgb},0.4)`:"1px solid var(--a7)",borderRadius:8,padding:"6px 12px",cursor:"pointer"}}>{g.short||g.name}</button>;
+          })}
+        </div>
+      </div>
+
+      {/* Pack list — presets à emporter */}
+      {packList&&<div style={{background:"linear-gradient(135deg,rgba(99,102,241,0.08),rgba(14,165,233,0.08))",border:"1px solid rgba(99,102,241,0.2)",borderRadius:14,padding:16,marginBottom:20}}>
+        <div style={{fontSize:14,fontWeight:800,color:"var(--text)",marginBottom:4}}>📋 Presets à emporter</div>
+        <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:14}}>
+          {(()=>{const g=(allGuitars||GUITARS).find(x=>x.id===globalGuitar);return g?`Pour ${g.name} (${TYPE_LABELS[packList.gType]})`:""})()}
+          {" · "}{songs.length} morceau{songs.length>1?"x":""}
+        </div>
+        {[{key:"plug",label:"🔌 ToneX Plug",items:packList.plug,color:"var(--accent)",banks:banksPlug},
+          {key:"ann",label:"📦 Pédale",items:packList.ann,color:"var(--blue)",banks:banksAnn}].map(({key,label,items,color,banks})=>
+          <div key={key} style={{marginBottom:14}}>
+            <div style={{fontSize:11,fontWeight:700,color,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>{label} — {items.length} preset{items.length>1?"s":""}</div>
+            {items.length===0
+              ?<div style={{fontSize:11,color:"var(--text-dim)",padding:8}}>Aucun preset recommandé.</div>
+              :items.map(p=>(
+                <div key={p.preset} style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",padding:"8px 10px",background:p.installed?"transparent":"rgba(251,191,36,0.06)",border:p.installed?"none":"1px solid rgba(251,191,36,0.15)",borderRadius:8,marginBottom:4}}>
+                  {p.installed
+                    ?<span style={{fontSize:10,background:`${CC[p.slot]}18`,color:CC[p.slot],border:`1px solid ${CC[p.slot]}40`,borderRadius:4,padding:"1px 7px",fontWeight:700}}>{p.bank}{p.slot}</span>
+                    :<span style={{fontSize:10,background:"var(--yellow-bg)",color:"var(--yellow)",borderRadius:4,padding:"1px 7px",fontWeight:700}}>⬇</span>
+                  }
+                  <span style={{fontSize:11,fontWeight:700,color:scoreColor(p.score)}}>{p.score}%</span>
+                  <span style={{fontSize:11,color:"var(--text-bright)",fontWeight:600,flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.preset}</span>
+                  {p.upgraded&&<span style={{fontSize:9,color:"var(--green)",fontWeight:600}}>↑</span>}
+                  <span style={{fontSize:9,color:"var(--text-dim)"}}>{p.songs.join(", ")}</span>
+                </div>
+              ))
+            }
+            {(()=>{const toInstall=items.filter(p=>!p.installed);return toInstall.length>0&&<div style={{fontSize:10,color:"var(--yellow)",fontWeight:600,marginTop:4}}>{toInstall.length} preset{toInstall.length>1?"s":""} à installer</div>;})()}
+          </div>
+        )}
+      </div>}
+
       {songs.map(s=>{
         const gId=gps[s.id]||"";
         const g=(allGuitars||GUITARS).find(x=>x.id===gId);
