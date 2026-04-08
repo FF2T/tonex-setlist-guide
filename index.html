@@ -4699,7 +4699,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
     for(const [k,v] of Object.entries(TSR_PACK_CATALOG)){
       if(!existingNorms.has(normalizePresetName(k))) tsrDeduped[k]=v;
     }
-    const cat={...PRESET_CATALOG_FULL,...tsrDeduped,...ANNIVERSARY_CATALOG,...FACTORY_CATALOG,...PLUG_FACTORY_CATALOG};
+    const cat={...PRESET_CATALOG_FULL,...tsrDeduped,...ANNIVERSARY_CATALOG,...FACTORY_CATALOG,...PLUG_FACTORY_CATALOG,...PRESET_CATALOG};
     (customPacks||[]).forEach(pack=>{
       (pack.presets||[]).forEach(p=>{
         if(p.name&&!cat[p.name]) cat[p.name]={src:pack.name,amp:p.amp||"Custom",gain:p.gain||"mid",style:p.style||"rock",scores:p.scores||{HB:78,SC:78,P90:78}};
