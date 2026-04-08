@@ -5184,7 +5184,7 @@ function OnboardingWizard({profile,profiles,onProfiles,activeProfileId,onClose,a
           </div>
         </div>
         <div>
-          <div style={{fontSize:12,fontWeight:600,color:"var(--text-sec)",marginBottom:8}}>ToneX Plug (logiciel) ?</div>
+          <div style={{fontSize:12,fontWeight:600,color:"var(--text-sec)",marginBottom:8}}>ToneX Plug ?</div>
           <div style={{display:"flex",gap:8}}>
             {[{v:true,l:"Oui"},{v:false,l:"Non"}].map(({v,l})=>
               <button key={String(v)} onClick={()=>setDevice("plug",v)}
