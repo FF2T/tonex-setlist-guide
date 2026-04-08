@@ -2311,7 +2311,36 @@ function loadState() {
   } catch(e){}
   return null;
 }
+const LS_BACKUP_KEY = "tonex_guide_backups";
+const MAX_BACKUPS = 5;
+function autoBackup(){
+  try{
+    const current=localStorage.getItem(LS_KEY);
+    if(!current) return;
+    const parsed=JSON.parse(current);
+    // Only backup if there's real data (at least 1 song beyond defaults)
+    if(!parsed?.shared?.songDb||parsed.shared.songDb.length<1) return;
+    const backups=JSON.parse(localStorage.getItem(LS_BACKUP_KEY)||"[]");
+    const lastBackup=backups[0];
+    // Don't backup if less than 5 min since last backup
+    if(lastBackup&&Date.now()-lastBackup.time<5*60*1000) return;
+    backups.unshift({time:Date.now(),data:current,songs:parsed.shared.songDb.length,profiles:Object.keys(parsed.profiles||{}).length});
+    // Keep only last N backups
+    while(backups.length>MAX_BACKUPS) backups.pop();
+    localStorage.setItem(LS_BACKUP_KEY,JSON.stringify(backups));
+  }catch(e){console.warn("Backup failed:",e);}
+}
+function listBackups(){
+  try{return JSON.parse(localStorage.getItem(LS_BACKUP_KEY)||"[]");}catch(e){return [];}
+}
+function restoreBackup(index){
+  const backups=listBackups();
+  if(!backups[index]) return false;
+  localStorage.setItem(LS_KEY,backups[index].data);
+  return true;
+}
 function saveState(state) {
+  autoBackup();
   try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){}
 }
 
@@ -3619,6 +3648,30 @@ function MaintenanceTab({songDb,onSongDb,banksAnn,banksPlug,aiProvider,aiKeys,on
           <button onClick={recalcAll} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:8,padding:"8px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Recalculer tout ({songDb.length} morceaux)</button>
           <button onClick={clearCache} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:8,padding:"8px 14px",fontSize:12,cursor:"pointer"}}>Vider le cache uniquement</button>
         </div>}
+      </div>
+
+      {/* Backups automatiques */}
+      <div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:16,marginBottom:12}}>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:4}}>Sauvegardes automatiques</div>
+        <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:10}}>L'app sauvegarde automatiquement tes données toutes les 5 minutes. Tu peux restaurer un état précédent en cas de problème.</div>
+        {(()=>{
+          const backups=listBackups();
+          if(!backups.length) return <div style={{fontSize:11,color:"var(--text-dim)"}}>Aucune sauvegarde disponible.</div>;
+          return <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            {backups.map((b,i)=>{
+              const d=new Date(b.time);
+              const ago=Math.round((Date.now()-b.time)/60000);
+              const label=ago<60?`il y a ${ago} min`:ago<1440?`il y a ${Math.round(ago/60)}h`:`${d.toLocaleDateString("fr")} ${d.toLocaleTimeString("fr",{hour:"2-digit",minute:"2-digit"})}`;
+              return <div key={i} style={{display:"flex",alignItems:"center",gap:8,background:"var(--a3)",borderRadius:8,padding:"8px 10px"}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:11,fontWeight:600,color:"var(--text)"}}>{label}</div>
+                  <div style={{fontSize:10,color:"var(--text-dim)"}}>{b.songs} morceaux · {b.profiles} profil{b.profiles>1?"s":""}</div>
+                </div>
+                <button onClick={()=>{if(confirm("Restaurer cette sauvegarde ? Les données actuelles seront remplacées.")){restoreBackup(i);location.reload();}}} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:6,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Restaurer</button>
+              </div>;
+            })}
+          </div>;
+        })()}
       </div>
 
       {/* Réinitialiser */}
@@ -5539,6 +5592,7 @@ function App() {
   const hasMounted = useRef(false);
   useEffect(()=>{
     const state={version:2, activeProfileId, shared:{songDb,theme,setlists}, profiles, lastModified:Date.now()};
+    autoBackup();
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){}
     if(!hasMounted.current){hasMounted.current=true;return;} // don't push to Firestore on first render
     if(!firestoreLoaded) return; // don't push until we've checked Firestore for newer data
