@@ -5568,7 +5568,11 @@ function applySecrets(profiles){
   const result={...profiles};
   for(const [id,p] of Object.entries(result)){
     const s=secrets[id]||{};
-    result[id]={...p, aiKeys:s.aiKeys||p.aiKeys||{anthropic:"",gemini:""}, password:s.password!==undefined?s.password:(p.password||"")};
+    // Local secrets override Firestore only if they exist (non-empty)
+    result[id]={...p,
+      aiKeys:(s.aiKeys&&(s.aiKeys.gemini||s.aiKeys.anthropic))?s.aiKeys:(p.aiKeys||{anthropic:"",gemini:""}),
+      password:s.password?s.password:(p.password||"")
+    };
   }
   return result;
 }
@@ -5642,12 +5646,15 @@ function App() {
 
   // Persist to localStorage + Firestore (skip until Firestore loaded to avoid overwriting remote)
   const hasMounted = useRef(false);
+  const justLoadedFromFirestore = useRef(false);
   useEffect(()=>{
     const state={version:2, activeProfileId, shared:{songDb,theme,setlists}, profiles, lastModified:Date.now()};
     autoBackup();
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){}
-    if(!hasMounted.current){hasMounted.current=true;return;} // don't push to Firestore on first render
-    if(!firestoreLoaded) return; // don't push until we've checked Firestore for newer data
+    if(!hasMounted.current){hasMounted.current=true;return;}
+    if(!firestoreLoaded) return;
+    // Don't push back to Firestore right after loading from it (would overwrite passwords in incognito)
+    if(justLoadedFromFirestore.current){justLoadedFromFirestore.current=false;return;}
     lastSaveTime.current = Date.now();
     setSyncStatus("syncing");
     saveToFirestore(state).then(()=>setSyncStatus("synced")).catch(()=>setSyncStatus("error"));
@@ -5661,6 +5668,7 @@ function App() {
         const localTime = saved?.lastModified || 0;
         const remoteTime = data.lastModified || 0;
         if(!saved || remoteTime >= localTime){
+          justLoadedFromFirestore.current=true;
           if(data.shared.songDb) setSongDb(data.shared.songDb);
           if(data.shared.theme) setTheme(data.shared.theme);
           if(data.shared.setlists) setSetlists(data.shared.setlists);
