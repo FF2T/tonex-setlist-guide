@@ -5271,8 +5271,7 @@ function OnboardingWizard({profile,profiles,onProfiles,activeProfileId,onClose,a
 function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onProfile,onSetlistScreen,onJam,onExplore,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profiles,activeProfileId,onSwitchProfile,onProfiles,customPacks,syncStatus,onViewProfile,onLogout}) {
   const profileName=(profiles[activeProfileId]||{}).name||"Profil";
   const profile=profiles[activeProfileId]||{};
-  const isNewUser=!profile.myGuitars||profile.myGuitars.length===0;
-  const [showOnboarding,setShowOnboarding]=useState(isNewUser);
+  const [showOnboarding,setShowOnboarding]=useState(false);
   const [songResult,setSongResult]=useState(null);
   const [songLoading,setSongLoading]=useState(false);
   const [songErr,setSongErr]=useState(null);
