@@ -5205,16 +5205,17 @@ function OnboardingWizard({onClose,onProfile}){
     ()=><div style={{textAlign:"center"}}>
       <div style={{fontSize:48,marginBottom:12}}>🎵</div>
       <div style={{fontSize:22,fontWeight:800,color:"var(--text)",marginBottom:8}}>Comment utiliser l'app</div>
-      <div style={{display:"flex",flexDirection:"column",gap:12,textAlign:"left",padding:"4px 0"}}>
+      <div style={{display:"flex",flexDirection:"column",gap:10,textAlign:"left",padding:"4px 0"}}>
         {[
-          {emoji:"🔍",title:"Recherche de morceau",desc:"Tape un titre depuis l'accueil — l'IA identifie le morceau et recommande les presets."},
-          {emoji:"🎵",title:"Setlists",desc:"Crée des setlists, ajoute des morceaux, et utilise \"Top guitares\" pour choisir ta guitare."},
-          {emoji:"📋",title:"Récap de session",desc:"Coche les morceaux, choisis une guitare unique, et vois les \"Presets à emporter\"."},
-          {emoji:"🎲",title:"Jammer",desc:"Guitare + style = top 3 des presets installés et du catalogue."},
-          {emoji:"🎛️",title:"Explorer",desc:"Parcours les 500+ presets filtrables par style, gain, source et type de micro."},
+          {emoji:"🔍",title:"Recherche intelligente",desc:"Tape \"white room\" ou \"highway to hel\" — l'IA corrige et identifie le morceau, les presets, l'ampli et les effets de référence."},
+          {emoji:"🎵",title:"Setlists de session",desc:"Crée des setlists par contexte (cours, répétition, scène). L'app te dit quelle guitare emporter et génère la liste des presets à charger."},
+          {emoji:"🎲",title:"Jammer",desc:"Choisis une guitare et un style — top 3 des presets installés et meilleurs du catalogue."},
+          {emoji:"🎛️",title:"Explorateur de presets",desc:"500+ presets scorés par guitare, filtrables par style, gain, source et micro."},
+          {emoji:"★",title:"Meilleur preset disponible",desc:"Comparaison automatique avec tout ton catalogue. Installé ? Affiché. Pas installé ? Suggéré avec score et source."},
+          {emoji:"👥",title:"Multi-profils & Sync",desc:"Chaque guitariste a son profil. Idéal pour un prof et ses élèves. Sync temps réel téléphone ↔ PC."},
         ].map(({emoji,title,desc})=><div key={title} style={{display:"flex",gap:10,padding:"10px 12px",background:"var(--a3)",borderRadius:10}}>
-          <span style={{fontSize:20,flexShrink:0}}>{emoji}</span>
-          <div><div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:2}}>{title}</div><div style={{fontSize:11,color:"var(--text-muted)",lineHeight:1.5}}>{desc}</div></div>
+          <span style={{fontSize:18,flexShrink:0}}>{emoji}</span>
+          <div><div style={{fontSize:12,fontWeight:700,color:"var(--text)",marginBottom:2}}>{title}</div><div style={{fontSize:11,color:"var(--text-muted)",lineHeight:1.5}}>{desc}</div></div>
         </div>)}
       </div>
     </div>,
