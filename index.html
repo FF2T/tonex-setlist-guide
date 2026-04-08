@@ -14,7 +14,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v8';
+const CACHE='tonex-v9';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -2271,7 +2271,8 @@ function makeDefaultProfile(id, name, isAdmin=false, password="") {
     banksAnn: isAdmin ? {...INIT_BANKS_ANN} : {...FACTORY_BANKS_PEDALE},
     banksPlug: isAdmin ? {...INIT_BANKS_PLUG} : {...FACTORY_BANKS_PLUG},
     aiProvider: "gemini",
-    aiKeys: {anthropic:"",gemini:""}
+    aiKeys: {anthropic:"",gemini:""},
+    loginHistory: []
   };
 }
 
@@ -3771,6 +3772,10 @@ function ProfilesAdmin({profiles,onProfiles}){
           {editPwdId===p.id&&editNameId!==p.id&&<div style={{display:"flex",gap:6,marginTop:8}}>
             <input type="text" placeholder="Nouveau mot de passe (vide = sans)" value={editPwdVal} onChange={e=>setEditPwdVal(e.target.value)} style={{...inp,flex:1}}/>
             <button onClick={()=>savePwd(p.id)} style={{background:"#4f46e5",border:"none",color:"#fff",borderRadius:6,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>OK</button>
+          </div>}
+          {(p.loginHistory||[]).length>0&&<div style={{marginTop:8,borderTop:"1px solid var(--a8)",paddingTop:6}}>
+            <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Dernières connexions</div>
+            {(p.loginHistory||[]).slice(0,5).map((ts,i)=><div key={i} style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.6}}>{new Date(ts).toLocaleString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})}</div>)}
           </div>}
         </div>
       ))}
@@ -5735,12 +5740,18 @@ function App() {
     return ()=>unsub();
   },[]);
 
+  const recordLogin = id => {
+    setProfiles(p=>{if(!p[id])return p;const h=(p[id].loginHistory||[]).slice();h.unshift(Date.now());if(h.length>5)h.length=5;return{...p,[id]:{...p[id],loginHistory:h}};});
+  };
+
   // Once Firestore loaded, decide initial screen
+  const loginRecorded=useRef(false);
   useEffect(()=>{
     if(!firestoreLoaded||screen!=="loading") return;
     // Use firestoreProfiles if available (more reliable than profiles state which may not have updated yet)
     const profileCount=Object.keys(firestoreProfiles||profiles).length;
-    setScreen(profileCount>1?"pick":"list");
+    if(profileCount>1){setScreen("pick");}
+    else{recordLogin(activeProfileId);loginRecorded.current=true;setScreen("list");}
   },[firestoreLoaded,firestoreProfiles]);
 
   // Reset on profile switch
@@ -5752,10 +5763,9 @@ function App() {
     const meta=document.querySelector('meta[name="theme-color"]');
     if(meta) meta.content=theme==="dark"?"#0f172a":"#f1f5f9";
   },[theme]);
-
-  const switchProfile = id => { if(profiles[id]) setActiveProfileId(id); };
+  const switchProfile = id => { if(profiles[id]){recordLogin(id);setActiveProfileId(id);} };
   const isAdmin = profile.isAdmin === true;
-  const pickProfile = id => { setActiveProfileId(id); setScreen("list"); };
+  const pickProfile = id => { recordLogin(id);setActiveProfileId(id); setScreen("list"); };
   const createAndPick = name => {
     const id=name.toLowerCase().replace(/[^a-z0-9]/g,"_")+`_${Date.now()}`;
     const np=makeDefaultProfile(id,name);
