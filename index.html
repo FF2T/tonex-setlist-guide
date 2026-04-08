@@ -2129,7 +2129,7 @@ function getSongInfo(song){
 function scoreColor(s){return s>=90?"var(--green)":s>=75?"var(--blue)":s>=60?"var(--yellow)":"var(--red)";}
 function scoreBg(s){return s>=90?"var(--green-bg)":s>=75?"var(--blue-bg)":s>=60?"var(--yellow-bg)":"var(--red-bg)";}
 // Cherche un preset dans le catalogue par nom exact puis fuzzy
-const PRESET_CATALOG_MERGED = {...PRESET_CATALOG, ...ANNIVERSARY_CATALOG, ...PRESET_CATALOG_FULL, ...TSR_PACK_CATALOG, ...FACTORY_CATALOG, ...PLUG_FACTORY_CATALOG};
+const PRESET_CATALOG_MERGED = {...PRESET_CATALOG_FULL, ...TSR_PACK_CATALOG, ...ANNIVERSARY_CATALOG, ...FACTORY_CATALOG, ...PLUG_FACTORY_CATALOG, ...PRESET_CATALOG};
 function findCatalogEntry(name){
   if(!name) return null;
   if(PRESET_CATALOG_MERGED[name]) return PRESET_CATALOG_MERGED[name];
