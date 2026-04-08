@@ -5274,8 +5274,7 @@ function OnboardingWizard({onClose,onProfile}){
 function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onProfile,onSetlistScreen,onJam,onExplore,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profiles,activeProfileId,onSwitchProfile,onProfiles,customPacks,syncStatus,onViewProfile,onLogout}) {
   const profileName=(profiles[activeProfileId]||{}).name||"Profil";
   const profile=profiles[activeProfileId]||{};
-  const [showSplash]=useState(()=>{if(sessionStorage.getItem("tonex_splash_seen"))return false;sessionStorage.setItem("tonex_splash_seen","1");return true;});
-  const [splashOpen,setSplashOpen]=useState(showSplash);
+  const [splashOpen,setSplashOpen]=useState(true);
   const [showOnboarding,setShowOnboarding]=useState(false);
   const [songResult,setSongResult]=useState(null);
   const [songLoading,setSongLoading]=useState(false);
