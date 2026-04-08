@@ -2611,7 +2611,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.1.07";
+const APP_VERSION = "2.1.08";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3347,6 +3347,10 @@ function ProfilePickerScreen({profiles,onPick}){
         </div>
         {pwdErr&&<div style={{fontSize:11,color:"var(--red)",marginTop:6,textAlign:"center"}}>Mot de passe incorrect</div>}
       </div>}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginTop:32}}>
+        <span style={{fontSize:10,color:"var(--text-dim)"}}>v{APP_VERSION}</span>
+        <button onClick={()=>{location.reload(true);}} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:6,padding:"4px 8px",fontSize:9,fontWeight:600,cursor:"pointer"}} title="Recharger pour récupérer la dernière version">🔄 MAJ</button>
+      </div>
     </div>
   );
 }
@@ -5897,10 +5901,11 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>Bibliothèque de presets</div>
         </button>
       </div>}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"24px 0 8px"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"24px 0 8px",flexWrap:"wrap"}}>
         {syncStatus&&<span style={{fontSize:10,color:syncStatus==="synced"?"var(--green)":syncStatus==="syncing"?"var(--yellow)":syncStatus==="error"?"var(--red)":"var(--text-dim)"}} title={syncStatus==="synced"?"Synchronisé":syncStatus==="syncing"?"Synchronisation...":"Hors ligne"}>{syncStatus==="synced"?"☁️":syncStatus==="syncing"?"⏳":"⚠️"}</span>}
         <span style={{fontSize:10,color:"var(--text-dim)"}}>ToneX Poweruser v{APP_VERSION}</span>
         <button onClick={onSettings} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:6,padding:"4px 8px",fontSize:9,fontWeight:600,cursor:"pointer"}}>Admin</button>
+        <button onClick={()=>{location.reload(true);}} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:6,padding:"4px 8px",fontSize:9,fontWeight:600,cursor:"pointer"}} title="Recharger pour récupérer la dernière version">🔄 MAJ</button>
       </div>
     </div>
   );
