@@ -127,6 +127,13 @@ function saveSharedKey(key){if(!db)return Promise.resolve();return db.collection
   @media(min-width:600px){.modal-box{padding:20px}}
   .song-row-detail{animation:slideDown .2s ease-out}
   @keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+  /* ── Mobile: polices plus grandes ── */
+  @media(max-width:480px){
+    body{font-size:15px}
+    .page-root{font-size:15px}
+    .tab-btn{font-size:12px;padding:12px 4px}
+    .tab-icon{font-size:18px}
+  }
   .overflow-x-auto{overflow-x:auto;-webkit-overflow-scrolling:touch}
   .preset-result-card{background:var(--a4);border:1px solid var(--a10);border-radius:10px;padding:10px 12px;margin-bottom:6px}
   /* ── Badges et tags : toujours wrappables ── */
@@ -2604,7 +2611,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.1.06";
+const APP_VERSION = "2.1.07";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5718,12 +5725,8 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
           <ProfileSelector profiles={profiles} activeProfileId={activeProfileId} onSwitch={onSwitchProfile} onSettings={onProfile} onViewProfile={onViewProfile}/>
           <button onClick={onProfile} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 10px",fontSize:10,fontWeight:600,cursor:"pointer"}}>Mon profil</button>
-          <button onClick={onLogout} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 8px",fontSize:10,cursor:"pointer"}}>Se déconnecter</button>
         </div>
-        <div style={{display:"flex",gap:6,alignItems:"center"}}>
-          {syncStatus&&<span style={{fontSize:10,color:syncStatus==="synced"?"var(--green)":syncStatus==="syncing"?"var(--yellow)":syncStatus==="error"?"var(--red)":"var(--text-dim)",marginRight:2}} title={syncStatus==="synced"?"Synchronisé":syncStatus==="syncing"?"Synchronisation...":"Hors ligne"}>{syncStatus==="synced"?"☁️":syncStatus==="syncing"?"⏳":"⚠️"}</span>}
-          <button onClick={onSettings} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 10px",fontSize:10,fontWeight:600,cursor:"pointer"}}>Admin</button>
-        </div>
+        <button onClick={onLogout} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 8px",fontSize:10,cursor:"pointer"}}>Se déconnecter</button>
       </div>
 
       {/* Zone centrale style Google */}
@@ -5894,7 +5897,11 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>Bibliothèque de presets</div>
         </button>
       </div>}
-      <div style={{textAlign:"center",padding:"24px 0 8px",fontSize:10,color:"var(--text-dim)"}}>ToneX Poweruser v{APP_VERSION}</div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"24px 0 8px"}}>
+        {syncStatus&&<span style={{fontSize:10,color:syncStatus==="synced"?"var(--green)":syncStatus==="syncing"?"var(--yellow)":syncStatus==="error"?"var(--red)":"var(--text-dim)"}} title={syncStatus==="synced"?"Synchronisé":syncStatus==="syncing"?"Synchronisation...":"Hors ligne"}>{syncStatus==="synced"?"☁️":syncStatus==="syncing"?"⏳":"⚠️"}</span>}
+        <span style={{fontSize:10,color:"var(--text-dim)"}}>ToneX Poweruser v{APP_VERSION}</span>
+        <button onClick={onSettings} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:6,padding:"4px 8px",fontSize:9,fontWeight:600,cursor:"pointer"}}>Admin</button>
+      </div>
     </div>
   );
 }
