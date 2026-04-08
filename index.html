@@ -2603,7 +2603,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.1";
+const APP_VERSION = "2.1.01";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4359,11 +4359,20 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
         <div style={{fontSize:12,color:"var(--text-muted)"}}>Analyse en cours pour {g?.short||"cette guitare"}...</div>
       </div>}
       {!reloading&&aiC&&<>
-        {aiC.ideal_preset&&<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:11}}>
-          <span style={{fontWeight:700}}>⭐ Idéal : {aiC.ideal_preset}</span>
-          {aiC.ideal_preset_score&&<span style={{fontWeight:700,color:scoreColor(aiC.ideal_preset_score)}}>{aiC.ideal_preset_score}%</span>}
-          {(()=>{const loc=findInBanks(aiC.ideal_preset,banksAnn)||findInBanks(aiC.ideal_preset,banksPlug);return loc?<span style={{fontSize:9,color:"var(--green)"}}>✓ installé</span>:<span style={{fontSize:9,color:"var(--text-dim)"}}>non installé</span>;})()}
-        </div>}
+        {aiC.ideal_preset&&(()=>{
+          const installedBest=Math.max(aiC.preset_ann?.score||0,aiC.preset_plug?.score||0);
+          const idealScore=aiC.ideal_preset_score||0;
+          const installedIsMax=installedBest>0&&installedBest>=idealScore;
+          return installedIsMax
+            ?<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:11,background:"rgba(74,222,128,0.08)",border:"1px solid var(--green-border)",borderRadius:7,padding:"5px 10px"}}>
+              <span style={{fontWeight:700,color:"var(--green)"}}>✅ Tu as déjà le meilleur preset installé !</span>
+            </div>
+            :<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:11}}>
+              <span style={{fontWeight:700}}>⭐ Idéal : {aiC.ideal_preset}</span>
+              {idealScore>0&&<span style={{fontWeight:700,color:scoreColor(idealScore)}}>{idealScore}%</span>}
+              {(()=>{const loc=findInBanks(aiC.ideal_preset,banksAnn)||findInBanks(aiC.ideal_preset,banksPlug);return loc?<span style={{fontSize:9,color:"var(--green)"}}>✓ installé</span>:<span style={{fontSize:9,color:"var(--text-dim)"}}>non installé</span>;})()}
+            </div>;
+        })()}
         <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
           <PBlock device="Pédale" emoji="📦" presetName={aiC.preset_ann?.label} gType={gId?type:null} banks={banksAnn} availableSources={availableSources} guitarId={gId} noUpgrade/>
           <PBlock device="ToneX Plug" emoji="🔌" presetName={aiC.preset_plug?.label} gType={gId?type:null} banks={banksPlug} availableSources={availableSources} guitarId={gId} noUpgrade/>
@@ -5771,12 +5780,21 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
             </div>}
 
             {/* Preset idéal (base complète) */}
-            {songResult.ideal_preset&&<div style={{display:"flex",alignItems:"center",gap:8,background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",borderRadius:8,padding:"8px 10px",marginBottom:6}}>
-              <span style={{fontSize:11,color:"var(--yellow)",fontWeight:700,flexShrink:0}}>⭐ Idéal</span>
-              <span style={{fontSize:11,color:"var(--text)",fontWeight:600}}>{songResult.ideal_preset}</span>
-              {songResult.ideal_preset_score&&<span style={{fontSize:10,color:"var(--yellow)",marginLeft:"auto"}}>{songResult.ideal_preset_score}%</span>}
-              {(()=>{const loc=findInBanks(songResult.ideal_preset,banksAnn)||findInBanks(songResult.ideal_preset,banksPlug);return loc?<span style={{fontSize:9,color:"var(--green)"}}>✓ installé</span>:<span style={{fontSize:9,color:"var(--text-dim)"}}>non installé</span>;})()}
-            </div>}
+            {songResult.ideal_preset&&(()=>{
+              const installedBest=Math.max(songResult.preset_ann?.score||0,songResult.preset_plug?.score||0);
+              const idealScore=songResult.ideal_preset_score||0;
+              const installedIsMax=installedBest>0&&installedBest>=idealScore;
+              return installedIsMax
+                ?<div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(74,222,128,0.08)",border:"1px solid var(--green-border)",borderRadius:8,padding:"8px 10px",marginBottom:6}}>
+                  <span style={{fontSize:11,color:"var(--green)",fontWeight:700}}>✅ Tu as déjà le meilleur preset installé !</span>
+                </div>
+                :<div style={{display:"flex",alignItems:"center",gap:8,background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",borderRadius:8,padding:"8px 10px",marginBottom:6}}>
+                  <span style={{fontSize:11,color:"var(--yellow)",fontWeight:700,flexShrink:0}}>⭐ Idéal</span>
+                  <span style={{fontSize:11,color:"var(--text)",fontWeight:600}}>{songResult.ideal_preset}</span>
+                  {idealScore>0&&<span style={{fontSize:10,color:"var(--yellow)",marginLeft:"auto"}}>{idealScore}%</span>}
+                  {(()=>{const loc=findInBanks(songResult.ideal_preset,banksAnn)||findInBanks(songResult.ideal_preset,banksPlug);return loc?<span style={{fontSize:9,color:"var(--green)"}}>✓ installé</span>:<span style={{fontSize:9,color:"var(--text-dim)"}}>non installé</span>;})()}
+                </div>;
+            })()}
 
             {/* Presets installés recommandés */}
             <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
