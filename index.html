@@ -2506,15 +2506,20 @@ function PBlock({device,emoji,presetName,gType,banks,adapted,gs,bg2,availableSou
 }
 
 // ─── Calcul algorithmique des meilleurs presets ──────────────────────────────
-function computeBestPresets(gType,style,banksAnn,banksPlug){
-  // Best installed on pedal
+function computeBestPresets(gType,style,banksAnn,banksPlug,guitarId){
+  const compat=COMPAT_STYLES[style]||[style];
+  const scorePreset=(name,info)=>{
+    const base=guitarId?guitarScore(name,guitarId):(info.scores?.[gType]??60);
+    const styleBonus=info.style===style?12:compat.includes(info.style)?5:0;
+    return {total:base+styleBonus,raw:base};
+  };
+  // Best installed on pedal — diversify amps
   const annPresets=[];
   for(const [k,v] of Object.entries(banksAnn)){
     for(const c of ["A","B","C"]){
       if(v[c]){const info=findCatalogEntry(v[c]);if(info){
-        const score=info.scores?.[gType]??60;
-        const styleBonus=info.style===style?10:0;
-        annPresets.push({name:v[c],bank:Number(k),col:c,score:score+styleBonus,rawScore:score,amp:info.amp,style:info.style});
+        const {total,raw}=scorePreset(v[c],info);
+        annPresets.push({name:v[c],bank:Number(k),col:c,score:total,rawScore:raw,amp:info.amp,style:info.style});
       }}
     }
   }
@@ -2524,22 +2529,26 @@ function computeBestPresets(gType,style,banksAnn,banksPlug){
   for(const [k,v] of Object.entries(banksPlug)){
     for(const c of ["A","B","C"]){
       if(v[c]){const info=findCatalogEntry(v[c]);if(info){
-        const score=info.scores?.[gType]??60;
-        const styleBonus=info.style===style?10:0;
-        plugPresets.push({name:v[c],bank:Number(k),col:c,score:score+styleBonus,rawScore:score,amp:info.amp,style:info.style});
+        const {total,raw}=scorePreset(v[c],info);
+        plugPresets.push({name:v[c],bank:Number(k),col:c,score:total,rawScore:raw,amp:info.amp,style:info.style});
       }}
     }
   }
   plugPresets.sort((a,b)=>b.score-a.score);
-  // Best from full catalog (not necessarily installed)
-  const catalogBest=Object.entries(PRESET_CATALOG_MERGED)
+  // Best from full catalog — diversify amps (no 2 presets from same amp in top 3)
+  const catalogAll=Object.entries(PRESET_CATALOG_MERGED)
     .map(([name,info])=>{
-      const score=info.scores?.[gType]??60;
-      const styleBonus=info.style===style?10:0;
-      return {name,score:score+styleBonus,rawScore:score,amp:info.amp,style:info.style,src:info.src};
+      const {total,raw}=scorePreset(name,info);
+      return {name,score:total,rawScore:raw,amp:info.amp,style:info.style,src:info.src};
     })
     .sort((a,b)=>b.score-a.score);
-  return {annTop:annPresets[0]||null,plugTop:plugPresets[0]||null,idealTop:catalogBest[0]||null,idealTop3:catalogBest.slice(0,3)};
+  const catalogBest=[];
+  const seenAmps=new Set();
+  for(const p of catalogAll){
+    if(!seenAmps.has(p.amp)){catalogBest.push(p);seenAmps.add(p.amp);}
+    if(catalogBest.length>=3) break;
+  }
+  return {annTop:annPresets[0]||null,plugTop:plugPresets[0]||null,idealTop:catalogBest[0]||null,idealTop3:catalogBest};
 }
 
 // ─── fetchAI (helper partagé) ─────────────────────────────────────────────────
@@ -2561,7 +2570,7 @@ function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars){
   // Enrich AI result with algorithmically computed best presets
   return aiReq.then(aiResult=>{
     const style=aiResult.song_style||"rock";
-    const best=computeBestPresets(gType,style,banksAnn,banksPlug);
+    const best=computeBestPresets(gType,style,banksAnn,banksPlug,gId);
     if(best.annTop) aiResult.preset_ann={bank:best.annTop.bank,col:best.annTop.col,label:best.annTop.name,score:best.annTop.rawScore};
     if(best.plugTop) aiResult.preset_plug={bank:best.plugTop.bank,col:best.plugTop.col,label:best.plugTop.name,score:best.plugTop.rawScore};
     if(best.idealTop) {aiResult.ideal_preset=best.idealTop.name;aiResult.ideal_preset_score=best.idealTop.rawScore;}
