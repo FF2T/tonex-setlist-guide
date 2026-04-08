@@ -5208,7 +5208,7 @@ function OnboardingWizard({onClose,onProfile}){
             :<button onClick={()=>setStep(s=>s-1)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:600,cursor:"pointer"}}>← Retour</button>
           }
           {isLast
-            ?<button onClick={onClose} style={{background:"linear-gradient(135deg,#7c3aed,#0ea5e9)",border:"none",color:"#fff",borderRadius:10,padding:"12px 28px",fontSize:15,fontWeight:700,cursor:"pointer"}}>C'est parti !</button>
+            ?<button onClick={()=>{onClose();onProfile();}} style={{background:"linear-gradient(135deg,#7c3aed,#0ea5e9)",border:"none",color:"#fff",borderRadius:10,padding:"12px 28px",fontSize:15,fontWeight:700,cursor:"pointer"}}>Configurer mon profil →</button>
             :<button onClick={()=>setStep(s=>s+1)} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:8,padding:"8px 20px",fontSize:13,fontWeight:700,cursor:"pointer"}}>Suivant →</button>
           }
         </div>
