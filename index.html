@@ -2193,29 +2193,26 @@ function worstSlot(banks, gType, exclude=[]){
 // Cherche la meilleure alternative disponible dans le catalogue pour le même style musical
 // Retourne le preset avec le score gType le plus élevé du même style, non installé dans banks
 // ou installé mais avec un score significativement plus élevé
-function findUpgrade(presetName, gType, banks){
-  const entry=PRESET_CATALOG[presetName];
+function findUpgrade(presetName, gType, banks, availableSources){
+  const entry=findCatalogEntry(presetName);
   if(!entry) return null;
   const currentScore=entry.scores?.[gType]??60;
-  if(currentScore>=80) return null; // déjà bon, pas d'upgrade à chercher
+  if(currentScore>=80) return null;
   const style=entry.style;
-  const minGain=entry.gain; // chercher un niveau de gain similaire ou compatible
-
-  // Ordre de compatibilité gain : low < mid < high
   const gainOrder={low:0,mid:1,high:2};
-  const currentGainLevel=gainOrder[minGain]??1;
+  const currentGainLevel=gainOrder[entry.gain]??1;
 
   let best={score:currentScore+8,name:null,installed:false,bank:null,slot:null}; // seuil minimum : +8 pts
-  for(const [name,info] of Object.entries(PRESET_CATALOG)){
+  for(const [name,info] of Object.entries(PRESET_CATALOG_MERGED)){
     if(name===presetName) continue;
     if(info.style!==style) continue;
-    // Compatibilité gain : ±1 niveau max pour rester cohérent avec le contexte du morceau
+    if(availableSources&&availableSources[info.src]===false) continue;
     const gainDiff=Math.abs((gainOrder[info.gain]??1)-currentGainLevel);
     if(gainDiff>1) continue;
     const s=info.scores?.[gType]??60;
     if(s>best.score){
       const found=findInBanks(name,banks);
-      best={score:s,name,installed:!!found,bank:found?.bank??null,slot:found?.slot??null};
+      best={score:s,name,src:info.src,amp:info.amp,installed:!!found,bank:found?.bank??null,slot:found?.slot??null};
     }
   }
   return best.name?best:null;
@@ -3921,19 +3918,30 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           const sc=entry?.scores?.[gType]??null;
           const ampName=entry?.amp||null;
           const installed=!!loc;
-          const isLowScore=sc!=null&&(installed?sc<80:sc<90);
+          const isLowScore=sc!=null&&sc<80;
           const scColor=sc!=null?(isLowScore?"#f87171":scoreColor(sc)):null;
           const scBgColor=sc!=null?(isLowScore?"rgba(248,113,113,0.15)":scoreBg(sc)):null;
+          const upgrade=isLowScore?findUpgrade(label,gType,banks,availableSources):null;
           return(
-            <div style={{display:"flex",alignItems:"center",gap:5}}>
-              <span style={{fontSize:10,color:"var(--text-muted)"}}>{emoji}</span>
-              {loc
-                ?<span style={{fontSize:10,background:`${CC[loc.slot]}18`,color:CC[loc.slot],border:`1px solid ${CC[loc.slot]}40`,borderRadius:4,padding:"1px 6px",fontWeight:700}}>{loc.bank}{loc.slot}</span>
-                :<span style={{fontSize:10,background:"var(--yellow-bg)",color:"var(--yellow)",borderRadius:4,padding:"1px 6px",fontWeight:700}}>⬇</span>
-              }
-              {ampName&&<span style={{fontSize:10,color:scColor||"var(--text-sec)",background:scBgColor||"transparent",border:scColor?`1px solid ${scColor}30`:"none",borderRadius:4,padding:"1px 6px",fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:120}}>{ampName}</span>}
-              {sc!=null&&<span style={{fontSize:10,fontWeight:800,color:scColor,background:scBgColor,borderRadius:4,padding:"1px 6px",border:`1px solid ${scColor}30`}}>{sc}%</span>}
-              {isLowScore&&!installed&&<span style={{fontSize:9,color:"#f87171"}}>⚠</span>}
+            <div style={{display:"flex",flexDirection:"column",gap:2}}>
+              <div style={{display:"flex",alignItems:"center",gap:5}}>
+                <span style={{fontSize:10,color:"var(--text-muted)"}}>{emoji}</span>
+                {loc
+                  ?<span style={{fontSize:10,background:`${CC[loc.slot]}18`,color:CC[loc.slot],border:`1px solid ${CC[loc.slot]}40`,borderRadius:4,padding:"1px 6px",fontWeight:700}}>{loc.bank}{loc.slot}</span>
+                  :<span style={{fontSize:10,background:"var(--yellow-bg)",color:"var(--yellow)",borderRadius:4,padding:"1px 6px",fontWeight:700}}>⬇</span>
+                }
+                {ampName&&<span style={{fontSize:10,color:scColor||"var(--text-sec)",background:scBgColor||"transparent",border:scColor?`1px solid ${scColor}30`:"none",borderRadius:4,padding:"1px 6px",fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:120}}>{ampName}</span>}
+                {sc!=null&&<span style={{fontSize:10,fontWeight:800,color:scColor,background:scBgColor,borderRadius:4,padding:"1px 6px",border:`1px solid ${scColor}30`}}>{sc}%</span>}
+              </div>
+              {upgrade&&<div style={{display:"flex",alignItems:"center",gap:4,paddingLeft:18}}>
+                <span style={{fontSize:9,color:"var(--green)"}}>↑</span>
+                {upgrade.installed
+                  ?<span style={{fontSize:9,background:`${CC[upgrade.slot]}18`,color:CC[upgrade.slot],border:`1px solid ${CC[upgrade.slot]}40`,borderRadius:3,padding:"0 5px",fontWeight:700}}>{upgrade.bank}{upgrade.slot}</span>
+                  :<span style={{fontSize:9,background:"var(--yellow-bg)",color:"var(--yellow)",borderRadius:3,padding:"0 5px",fontWeight:700}}>⬇</span>
+                }
+                <span style={{fontSize:9,color:"var(--green)",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:100}}>{upgrade.amp||upgrade.name}</span>
+                <span style={{fontSize:9,fontWeight:800,color:scoreColor(upgrade.score),background:scoreBg(upgrade.score),borderRadius:3,padding:"0 5px",border:`1px solid ${scoreColor(upgrade.score)}30`}}>{upgrade.score}%</span>
+              </div>}
             </div>
           );
         };
