@@ -3422,7 +3422,7 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
   const tabBtn=(id,label)=>(
     <button onClick={()=>setTab(id)} style={{background:tab===id?"var(--accent-bg)":"var(--a5)",border:tab===id?"1px solid rgba(99,102,241,0.5)":"1px solid var(--a8)",color:tab===id?"var(--accent)":"var(--text-sec)",borderRadius:8,padding:"7px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{label}</button>
   );
-  const createSetlist=()=>{if(!newSlName.trim())return;onSetlists(p=>[...p,{id:`sl_${Date.now()}`,name:newSlName.trim(),songIds:[]}]);setNewSlName("");};
+  const createSetlist=()=>{if(!newSlName.trim())return;onSetlists(p=>[...p,{id:`sl_${Date.now()}`,name:newSlName.trim(),songIds:[],profileIds:[activeProfileId]}]);setNewSlName("");};
   const deleteSetlist=id=>onSetlists(p=>p.filter(s=>s.id!==id));
   const renameSetlist=(id,name)=>onSetlists(p=>p.map(s=>s.id===id?{...s,name}:s));
   const removeSongFromSetlist=(slId,songId)=>onSetlists(p=>p.map(sl=>sl.id===slId?{...sl,songIds:sl.songIds.filter(x=>x!==songId)}:sl));
@@ -3973,7 +3973,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
 }
 
 // ─── ListScreen ───────────────────────────────────────────────────────────────
-function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,banksAnn,banksPlug,aiProvider,aiKeys,hideHeader=false,allGuitars,availableSources}) {
+function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,banksAnn,banksPlug,aiProvider,aiKeys,hideHeader=false,allGuitars,availableSources,activeProfileId}) {
   const [activeSlId,setActiveSlId]=useState(setlists[0]?.id||null);
   const activeSl=activeSlId?setlists.find(s=>s.id===activeSlId):null;
   const [showAdd,setShowAdd]=useState(false);
@@ -3992,7 +3992,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
   const [newSlName,setNewSlName]=useState("");
   const [editSlId,setEditSlId]=useState(null);
   const [editSlName,setEditSlName]=useState("");
-  const createSetlist=()=>{if(!newSlName.trim())return;onSetlists(p=>[...p,{id:`sl_${Date.now()}`,name:newSlName.trim(),songIds:[]}]);setNewSlName("");};
+  const createSetlist=()=>{if(!newSlName.trim())return;onSetlists(p=>[...p,{id:`sl_${Date.now()}`,name:newSlName.trim(),songIds:[],profileIds:[activeProfileId]}]);setNewSlName("");};
   const deleteSetlist=id=>{onSetlists(p=>p.filter(s=>s.id!==id));if(activeSlId===id){setActiveSlId(null);onChecked([]);}};
   const renameSetlist=(id,name)=>{onSetlists(p=>p.map(s=>s.id===id?{...s,name}:s));setEditSlId(null);};
   const toggle=id=>onChecked(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
@@ -5012,7 +5012,7 @@ function JamScreen({banksAnn,banksPlug,allGuitars,availableSources}){
 }
 
 // ─── SetlistsScreen (onglets Setlists + Morceaux) ────────────────────────────
-function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onNavigate,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources}){
+function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onNavigate,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,activeProfileId}){
   const [tab,setTab]=useState("setlists");
   const tabBtn=(id,label)=>(
     <button onClick={()=>setTab(id)} style={{background:tab===id?"var(--accent-bg)":"var(--a5)",border:tab===id?"1px solid var(--accent-border)":"1px solid var(--a8)",color:tab===id?"var(--accent)":"var(--text-sec)",borderRadius:8,padding:"7px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{label}</button>
@@ -5045,7 +5045,7 @@ function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked
         {tabBtn("setlists","🎵 Setlists")}
         {tabBtn("songs","🎶 Morceaux")}
       </div>
-      {tab==="setlists"&&<ListScreen songDb={songDb} onSongDb={onSongDb} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} availableSources={availableSources}/>}
+      {tab==="setlists"&&<ListScreen songDb={songDb} onSongDb={onSongDb} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} availableSources={availableSources} activeProfileId={activeProfileId}/>}
       {tab==="songs"&&<div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
           <div style={{fontSize:13,color:"var(--text-sec)"}}>{songDb.length} morceaux</div>
@@ -5735,7 +5735,7 @@ function App() {
   if(screen==="profile")      return <div className="page-root"><MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} aiKeys={aiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab}/></div>;
   if(screen==="settings")     return <div className="page-root"><ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} songDb={songDb} onSongDb={setSongDb}/></div>;
   if(screen==="setlists")     return <div className="page-root">
-    <SetlistsScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources}/>
+    <SetlistsScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} activeProfileId={activeProfileId}/>
   </div>;
   if(screen==="jam") return <div className="page-root">
     <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Jammer"}]} onNavigate={setScreen}/>
