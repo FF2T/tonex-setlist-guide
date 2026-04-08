@@ -2262,7 +2262,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.0.8";
+const APP_VERSION = "2.0.9";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -2557,12 +2557,12 @@ function computeBestPresets(gType,style,banksAnn,banksPlug,guitarId,refAmp){
   const ampMatch=(presetAmp)=>{
     if(!refNorm||!presetAmp) return 0;
     // Direct alias match
-    if(resolvedAmp&&presetAmp===resolvedAmp) return 25;
+    if(resolvedAmp&&presetAmp===resolvedAmp) return 5;
     // Fuzzy fallback
     const pa=presetAmp.toLowerCase().replace(/[^a-z0-9\s]/g,"");
     const refWords=refNorm.split(/\s+/).filter(w=>w.length>2&&!["the","and","with","series","channel","combo","head","watt","100w"].includes(w));
     const matched=refWords.filter(w=>pa.includes(w));
-    return matched.length>=2?20:0;
+    return matched.length>=2?3:0;
   };
   const scorePreset=(name,info)=>{
     const base=guitarId?guitarScore(name,guitarId):(info.scores?.[gType]??60);
