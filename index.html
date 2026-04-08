@@ -55,7 +55,7 @@ function saveToFirestore(s){if(!db)return Promise.resolve();try{
   return db.collection("sync").doc("state").set(clean).catch(function(e){console.warn("FS save:",e);});
 }catch(e){return Promise.resolve();}}
 var dbReadyResolve;var dbReadyPromise=new Promise(function(r){dbReadyResolve=r;setTimeout(function(){r();},5000);});
-function loadFromFirestore(){console.log("loadFromFirestore: waiting for db...");return dbReadyPromise.then(function(){console.log("loadFromFirestore: db ready, db=",!!db);if(!db)return null;return db.collection("sync").doc("state").get().then(function(d){console.log("loadFromFirestore: got doc, exists=",d.exists);return d.exists?d.data():null;}).catch(function(e){console.warn("loadFromFirestore error:",e);return null;});});}
+function loadFromFirestore(){return dbReadyPromise.then(function(){if(!db)return null;return db.collection("sync").doc("state").get().then(function(d){return d.exists?d.data():null;}).catch(function(){return null;});});}
 function onFirestoreChange(cb){if(!db)return function(){};return db.collection("sync").doc("state").onSnapshot(function(d){if(d.exists)cb(d.data());},function(){});}
 function loadSharedKey(){if(!db)return Promise.resolve();return db.collection("config").doc("apikeys").get().then(function(d){if(d.exists&&d.data().gemini)DEFAULT_GEMINI_KEY=d.data().gemini;}).catch(function(){});}
 function saveSharedKey(key){if(!db)return Promise.resolve();return db.collection("config").doc("apikeys").set({gemini:key}).catch(function(e){console.warn("FS key save:",e);});}
@@ -5658,7 +5658,6 @@ function App() {
   const [firestoreProfiles,setFirestoreProfiles]=useState(null);
   useEffect(()=>{
     loadFromFirestore().then(data=>{
-      console.log("Firestore data loaded:",data?"profiles="+Object.keys(data.profiles||{}).length:"null");
       if(data&&data.shared&&data.profiles){
         const localTime = saved?.lastModified || 0;
         const remoteTime = data.lastModified || 0;
@@ -5697,7 +5696,6 @@ function App() {
     if(!firestoreLoaded||screen!=="loading") return;
     // Use firestoreProfiles if available (more reliable than profiles state which may not have updated yet)
     const profileCount=Object.keys(firestoreProfiles||profiles).length;
-    console.log("Deciding screen: profileCount="+profileCount);
     setScreen(profileCount>1?"pick":"list");
   },[firestoreLoaded,firestoreProfiles]);
 
