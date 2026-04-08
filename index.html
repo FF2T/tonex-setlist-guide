@@ -2611,7 +2611,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.1.08";
+const APP_VERSION = "2.1.09";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3329,7 +3329,7 @@ function ProfilePickerScreen({profiles,onPick}){
       <div style={{fontSize:22,fontWeight:800,color:"var(--text)",marginBottom:4}}>ToneX Poweruser</div>
       <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:32}}>Qui joue aujourd'hui ?</div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,width:"100%",maxWidth:400,marginBottom:16}}>
-        {Object.values(profiles).map(p=>{
+        {Object.values(profiles).sort((a,b)=>a.name.localeCompare(b.name)).map(p=>{
           const c=profileColor(p.id);
           const sel=selectedId===p.id;
           return <button key={p.id} onClick={()=>{setSelectedId(p.id);setPwd("");setPwdErr(false);if(!p.password)onPick(p.id);}} style={{background:sel?"var(--accent-bg)":"var(--a4)",border:sel?"2px solid var(--accent)":"2px solid var(--a10)",borderRadius:16,padding:"24px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
@@ -3390,7 +3390,7 @@ function ProfileSelector({profiles,activeProfileId,onSwitch,onSettings,onViewPro
         {(active?.name||"?")[0].toUpperCase()}
       </button>
       {open&&<div style={{position:"absolute",top:40,left:0,background:"var(--bg-card)",border:"1px solid var(--a12)",borderRadius:12,padding:8,zIndex:50,minWidth:200,boxShadow:"0 8px 24px rgba(0,0,0,0.3)"}}>
-        {Object.values(profiles).map(p=>{
+        {Object.values(profiles).sort((a,b)=>a.name.localeCompare(b.name)).map(p=>{
           const isActive=p.id===activeProfileId;
           const c=profileColor(p.id);
           const isLogin=loginId===p.id;
@@ -6145,9 +6145,13 @@ function App() {
   const loginRecorded=useRef(false);
   useEffect(()=>{
     if(!firestoreLoaded||screen!=="loading") return;
-    // Use firestoreProfiles if available (more reliable than profiles state which may not have updated yet)
-    const profileCount=Object.keys(firestoreProfiles||profiles).length;
-    if(profileCount>1){setScreen("pick");}
+    const allProfiles=firestoreProfiles||profiles;
+    const profileCount=Object.keys(allProfiles).length;
+    // Check if a session was active before reload
+    const sessionProfile=sessionStorage.getItem("tonex_active_profile");
+    if(sessionProfile&&allProfiles[sessionProfile]){
+      setActiveProfileId(sessionProfile);recordLogin(sessionProfile);loginRecorded.current=true;setScreen("list");
+    } else if(profileCount>1){setScreen("pick");}
     else{recordLogin(activeProfileId);loginRecorded.current=true;setScreen("list");}
   },[firestoreLoaded,firestoreProfiles]);
 
@@ -6160,9 +6164,9 @@ function App() {
     const meta=document.querySelector('meta[name="theme-color"]');
     if(meta) meta.content=theme==="dark"?"#0f172a":"#f1f5f9";
   },[theme]);
-  const switchProfile = id => { if(profiles[id]){recordLogin(id);setActiveProfileId(id);} };
+  const switchProfile = id => { if(profiles[id]){recordLogin(id);setActiveProfileId(id);sessionStorage.setItem("tonex_active_profile",id);} };
   const isAdmin = profile.isAdmin === true;
-  const pickProfile = id => { recordLogin(id);setActiveProfileId(id); setScreen("list"); };
+  const pickProfile = id => { recordLogin(id);setActiveProfileId(id);sessionStorage.setItem("tonex_active_profile",id); setScreen("list"); };
   const createAndPick = name => {
     const id=name.toLowerCase().replace(/[^a-z0-9]/g,"_")+`_${Date.now()}`;
     const np=makeDefaultProfile(id,name);
@@ -6209,7 +6213,7 @@ function App() {
   </div>;
   if(screen==="synthesis"&&synth) return <div className="page-root"><SynthesisScreen songs={songs} gps={synth.gps} aiR={synth.aiR} onBack={()=>setScreen("recap")} onNavigate={setScreen} songDb={songDb} banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/></div>;
   if(screen==="recap")        return <div className="page-root"><RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDb} onSongDb={setSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources}/></div>;
-  return <div className="page-root"><HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>setScreen("pick")}/></div>;
+  return <div className="page-root"><HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/></div>;
 }
 
 ReactDOM.render(<App/>, document.getElementById("root"));
