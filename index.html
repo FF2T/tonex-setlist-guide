@@ -5217,7 +5217,10 @@ function OnboardingWizard({onClose,onProfile}){
             :<button onClick={()=>setStep(s=>s-1)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:600,cursor:"pointer"}}>← Retour</button>
           }
           {isLast
-            ?<button onClick={()=>{onClose();onProfile();}} style={{background:"linear-gradient(135deg,#7c3aed,#0ea5e9)",border:"none",color:"#fff",borderRadius:10,padding:"12px 28px",fontSize:15,fontWeight:700,cursor:"pointer"}}>Configurer mon profil →</button>
+            ?<div style={{display:"flex",gap:8}}>
+              <button onClick={onClose} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:10,padding:"12px 20px",fontSize:13,fontWeight:600,cursor:"pointer"}}>Fermer</button>
+              <button onClick={()=>{onClose();onProfile();}} style={{background:"linear-gradient(135deg,#7c3aed,#0ea5e9)",border:"none",color:"#fff",borderRadius:10,padding:"12px 24px",fontSize:14,fontWeight:700,cursor:"pointer"}}>Configurer mon profil →</button>
+            </div>
             :<button onClick={()=>setStep(s=>s+1)} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:8,padding:"8px 20px",fontSize:13,fontWeight:700,cursor:"pointer"}}>Suivant →</button>
           }
         </div>
@@ -5292,7 +5295,8 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           </div>
         ):<div>
         <div style={{fontSize:32,fontWeight:800,color:"var(--text)",marginBottom:6,textAlign:"center"}}>ToneX Poweruser</div>
-        <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:16,textAlign:"center"}}>Quel morceau veux-tu jouer ?</div>
+        <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:6,textAlign:"center"}}>Quel morceau veux-tu jouer ?</div>
+        <div style={{textAlign:"center",marginBottom:16}}><button onClick={()=>setShowOnboarding(true)} style={{background:"none",border:"none",color:"var(--text-dim)",fontSize:11,cursor:"pointer",textDecoration:"underline"}}>Besoin d'aide ?</button></div>
         <div style={{width:"100%"}}>
           <SongSearchBar aiProvider={aiProvider} aiKeys={aiKeys} onConfirm={(title,artist)=>{
             setConfirmedSong({title,artist});
@@ -5419,7 +5423,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
       </div>
 
       {/* Tuiles en bas (masquer si résultat ou loading) */}
-      {!songResult&&!songLoading&&<div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,paddingBottom:8,marginTop:4}}>
+      {!songResult&&!songLoading&&<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,paddingBottom:8,marginTop:4}}>
         <button onClick={onSetlistScreen} style={{background:"rgba(99,102,241,0.1)",border:"1px solid var(--accent-border)",borderRadius:14,padding:"16px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
           <div style={{fontSize:24,marginBottom:4}}>🎵</div>
           <div style={{fontSize:13,fontWeight:700,color:"var(--accent)"}}>Mes setlists</div>
@@ -5434,11 +5438,6 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           <div style={{fontSize:24,marginBottom:4}}>🎛️</div>
           <div style={{fontSize:13,fontWeight:700,color:"var(--purple)"}}>Explorer</div>
           <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>Bibliothèque de presets</div>
-        </button>
-        <button onClick={()=>setShowOnboarding(true)} style={{background:"rgba(74,222,128,0.08)",border:"1px solid var(--green-border)",borderRadius:14,padding:"16px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
-          <div style={{fontSize:24,marginBottom:4}}>📖</div>
-          <div style={{fontSize:13,fontWeight:700,color:"var(--green)"}}>Guide</div>
-          <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>Configuration & aide</div>
         </button>
       </div>}
     </div>
