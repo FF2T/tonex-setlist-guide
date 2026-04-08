@@ -3948,22 +3948,18 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
               if(m){if(!songsByGuitar[m.id]) songsByGuitar[m.id]=new Set();songsByGuitar[m.id].add(s.id);matched=true;}
             }
             if(!matched){
-              // Fallback: meilleur type via scores presets
-              const pA=getPA(s,"HB");const pP=getPP(s,"HB");
-              const presetName=pA?.l||pP?.l;
-              const entry=presetName?findCatalogEntry(presetName):null;
-              if(entry?.scores){
-                const bestType=Object.entries(entry.scores).sort((a,b)=>b[1]-a[1])[0]?.[0]||"HB";
-                const matching=guitars.filter(g=>g.type===bestType);
-                if(matching.length){
-                  const gId=matching[0].id;
-                  if(!songsByGuitar[gId]) songsByGuitar[gId]=new Set();
-                  songsByGuitar[gId].add(s.id);
-                }
-              } else if(guitars.length){
-                // Dernier fallback : première guitare de l'utilisateur
-                if(!songsByGuitar[guitars[0].id]) songsByGuitar[guitars[0].id]=new Set();
-                songsByGuitar[guitars[0].id].add(s.id);
+              // Fallback: tester les presets pour chaque type et trouver le meilleur score
+              const typeScores={HB:0,SC:0,P90:0};
+              ["HB","SC","P90"].forEach(t=>{
+                const pA=getPA(s,t);const pP=getPP(s,t);
+                const name=pA?.l||pP?.l;
+                if(name){const e=findCatalogEntry(name);if(e?.scores?.[t]) typeScores[t]=e.scores[t];}
+              });
+              const bestType=Object.entries(typeScores).sort((a,b)=>b[1]-a[1])[0]?.[0]||"HB";
+              const matching=guitars.filter(g=>g.type===bestType);
+              if(matching.length){
+                if(!songsByGuitar[matching[0].id]) songsByGuitar[matching[0].id]=new Set();
+                songsByGuitar[matching[0].id].add(s.id);
               }
             }
           });
