@@ -502,6 +502,14 @@ const PRESET_CATALOG = {
   "Cornford HellCat Clean":          {src:"custom",amp:"Cornford HellCat",gain:"low", style:"rock",    scores:{HB:82,SC:78,P90:85}},
   "Chandler GAV19T Drive":           {src:"custom",amp:"Chandler GAV19T", gain:"mid", style:"rock",    scores:{HB:84,SC:72,P90:80}},
   "Marshall JCM800":                 {src:"custom",amp:"Marshall JCM800", gain:"high",style:"hard_rock",scores:{HB:90,SC:64,P90:76}},
+  // ── Alias presets installés (noms variantes) ─────────────────────────────────
+  "Golden Queen":                    {src:"custom",amp:"Vox AC30",        gain:"mid", style:"rock",    scores:{HB:80,SC:82,P90:85}},
+  "Brian May":                       {src:"custom",amp:"Vox AC30",        gain:"mid", style:"rock",    scores:{HB:80,SC:82,P90:85}},
+  "TSR JTM 45 Jumped":               {src:"TSR",pack:"Marshall JTM",amp:"Marshall JTM45",    gain:"mid",  style:"rock",     scores:{HB:90,SC:74,P90:85}},
+  "TSR JTM45 Klon Lead":             {src:"TSR",pack:"Marshall JTM",amp:"Marshall JTM45",    gain:"high", style:"rock",     scores:{HB:88,SC:70,P90:83}},
+  "TSR Bing 19 Sparky":              {src:"TSR",pack:"Bogner Ecstasy 101B",amp:"Chandler 19T",gain:"mid",style:"rock",     scores:{HB:82,SC:74,P90:82}},
+  "TSR Basyman Bass Full Grit":      {src:"TSR",pack:"Bass Pack 1",amp:"Ampeg Bass",gain:"high",style:"jazz",   scores:{HB:69,SC:87,P90:82}},
+  "ML FMAN BE Plexi":                {src:"ML", amp:"Friedman BE-100",   gain:"low",  style:"hard_rock",scores:{HB:88,SC:67,P90:80}},
 };
 
 
@@ -2133,9 +2141,20 @@ const PRESET_CATALOG_MERGED = {...PRESET_CATALOG_FULL, ...TSR_PACK_CATALOG, ...A
 function findCatalogEntry(name){
   if(!name) return null;
   if(PRESET_CATALOG_MERGED[name]) return PRESET_CATALOG_MERGED[name];
+  // Try with "AA " prefix (Anniversary presets often stored without it)
+  if(PRESET_CATALOG_MERGED["AA "+name]) return PRESET_CATALOG_MERGED["AA "+name];
+  // Try without "AA " prefix
+  if(name.startsWith("AA ")&&PRESET_CATALOG_MERGED[name.slice(3)]) return PRESET_CATALOG_MERGED[name.slice(3)];
   const norm=normalizePresetName(name);
   for(const [k,v] of Object.entries(PRESET_CATALOG_MERGED)){
     if(normalizePresetName(k)===norm) return v;
+  }
+  // Partial match: try stripping trailing numbers/suffixes (e.g. "Skylark 2" → "Skylark")
+  const normBase=norm.replace(/\s+\d+$/,"");
+  if(normBase!==norm){
+    for(const [k,v] of Object.entries(PRESET_CATALOG_MERGED)){
+      if(normalizePresetName(k)===normBase) return v;
+    }
   }
   return null;
 }
