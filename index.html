@@ -2603,7 +2603,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.1.02";
+const APP_VERSION = "2.1.03";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4377,8 +4377,8 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
             </div>;
         })()}
         <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
-          <PBlock device="Pédale" emoji="📦" presetName={aiC.preset_ann?.label} gType={gId?type:null} banks={banksAnn} availableSources={availableSources} guitarId={gId} noUpgrade/>
-          <PBlock device="ToneX Plug" emoji="🔌" presetName={aiC.preset_plug?.label} gType={gId?type:null} banks={banksPlug} availableSources={availableSources} guitarId={gId} noUpgrade/>
+          <PBlock device="Pédale" emoji="📦" presetName={aiC.preset_ann?.label} gType={gId?type:null} banks={banksAnn} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_ann?.score}/>
+          <PBlock device="ToneX Plug" emoji="🔌" presetName={aiC.preset_plug?.label} gType={gId?type:null} banks={banksPlug} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_plug?.score}/>
         </div>
         {(aiC.settings_preset||aiC.settings_guitar)&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:8,lineHeight:1.6}}>
           {aiC.settings_preset&&<div>💡 <b>Preset :</b> {aiC.settings_preset}</div>}
