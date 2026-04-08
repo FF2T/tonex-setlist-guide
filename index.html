@@ -2230,7 +2230,14 @@ function getGr(song, type) {
   if(!p) return "";
   return p.gr[type] || p.gr["HB"] || "";
 }
-function getIg(song) {
+function getIg(song, guitars) {
+  // AI ideal guitar takes priority
+  const aiG=song.aiCache?.result?.ideal_guitar;
+  if(aiG){
+    const allG=guitars||GUITARS;
+    const m=allG.find(g=>g.name===aiG||g.short===aiG||aiG.toLowerCase().includes(g.name.toLowerCase())||g.name.toLowerCase().includes(aiG.toLowerCase()));
+    if(m) return [m.id];
+  }
   const p = SONG_PRESETS[song.id];
   const ig=song.ig?.length?song.ig:p?.ig;
   return ig?.length?ig:[];
@@ -2255,7 +2262,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.0.6";
+const APP_VERSION = "2.0.7";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3956,7 +3963,7 @@ function getJamRecs(guitarId, style, banksAnn, banksPlug, guitars, availableSour
 
 // ─── SongDetailCard ──────────────────────────────────────────────────────────
 function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSources,savedGuitarId,onGuitarChange,aiProvider,aiKeys,onSongDb}){
-  const ig=getIg(song);
+  const ig=getIg(song,guitars);
   const [gId,setGId]=useState(savedGuitarId||ig[0]||"");
   const [reloading,setReloading]=useState(false);
   const [localAiResult,setLocalAiResult]=useState(null);
@@ -4123,7 +4130,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           const guitars=allGuitars||GUITARS;
           const songsByGuitar={};
           activeSongs.forEach(s=>{
-            const ig=getIg(s);
+            const ig=getIg(s,guitars);
             let matched=false;
             ig.forEach(gId=>{
               if(!songsByGuitar[gId]) songsByGuitar[gId]=new Set();
@@ -4185,7 +4192,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         const showArtistHeader=sort==="artist"&&s.artist!==lastArtist;
         if(showArtistHeader) lastArtist=s.artist;
         const isC=checked.includes(s.id);
-        const ig=getIg(s);
+        const ig=getIg(s,allGuitars);
         const savedGId=activeSl?.guitars?.[s.id];
         const gId=savedGId||ig?.[0]||"";
         const g=gId?(allGuitars||GUITARS).find(x=>x.id===gId):null;
@@ -4260,7 +4267,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
 
 // ─── Recap Screen ─────────────────────────────────────────────────────────────
 function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources}) {
-  const [gps,setGps]=useState(()=>{const i={};songs.forEach(s=>{i[s.id]=getIg(s)?.[0]||"";});return i;});
+  const [gps,setGps]=useState(()=>{const i={};songs.forEach(s=>{i[s.id]=getIg(s,allGuitars)?.[0]||"";});return i;});
   const [aiR,setAiR]=useState({});
   const [globalGuitar,setGlobalGuitar]=useState("");
   const sg=(id,v)=>setGps(p=>({...p,[id]:v}));
@@ -4368,7 +4375,7 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
         const gId=gps[s.id]||"";
         const g=(allGuitars||GUITARS).find(x=>x.id===gId);
         const type=g?.type||"HB";
-        const ig=getIg(s);
+        const ig=getIg(s,allGuitars);
         return (
           <div key={s.id} style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:14,padding:16,marginBottom:14}}>
             <div style={{marginBottom:12}}>
