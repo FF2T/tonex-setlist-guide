@@ -2056,6 +2056,34 @@ function getSongInfo(song){
 function scoreColor(s){return s>=80?"var(--green)":s>=65?"var(--blue)":s>=50?"var(--yellow)":"var(--red)";}
 function scoreBg(s){return s>=80?"var(--green-bg)":s>=65?"var(--blue-bg)":s>=50?"var(--yellow-bg)":"var(--red-bg)";}
 function scoreLabel(s){return s>=80?{t:"Excellent",tip:"Preset très adapté à ce morceau"}:s>=65?{t:"Bon",tip:"Preset convenable pour ce morceau"}:s>=50?{t:"Moyen",tip:"Ça dépanne, mais un meilleur preset existe"}:{t:"Faible",tip:"Preset peu adapté à ce morceau"};}
+const BREAKDOWN_LABELS={pickup:"Micro",guitar:"Guitare",gainMatch:"Gain",refAmp:"Ampli",styleMatch:"Style"};
+function ScoreWithBreakdown({score,breakdown,size}){
+  const [open,setOpen]=useState(false);
+  const sz=size||11;
+  const ref=useRef(null);
+  useEffect(()=>{if(!open)return;const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};document.addEventListener("click",h,true);return()=>document.removeEventListener("click",h,true);},[open]);
+  if(!breakdown) return <span style={{fontSize:sz,fontWeight:800,color:scoreColor(score)}}>{score}%</span>;
+  return(
+    <span ref={ref} style={{position:"relative",display:"inline-block"}}>
+      <span onClick={e=>{e.stopPropagation();setOpen(o=>!o);}}
+        style={{fontSize:sz,fontWeight:800,color:scoreColor(score),cursor:"pointer",textDecoration:"underline dotted"}}>
+        {score}% · {scoreLabel(score).t}
+      </span>
+      {open&&<div style={{position:"absolute",bottom:"120%",left:0,zIndex:999,background:"var(--bg-card)",border:"1px solid var(--a12)",borderRadius:8,padding:"8px 10px",fontSize:10,whiteSpace:"nowrap",boxShadow:"0 4px 12px rgba(0,0,0,0.3)",minWidth:160}}>
+        <div style={{fontSize:9,fontWeight:700,color:"var(--text-muted)",textTransform:"uppercase",marginBottom:4}}>Décomposition</div>
+        {Object.entries(breakdown).map(([k,v])=>(
+          <div key={k} style={{display:"flex",justifyContent:"space-between",gap:12,color:v.raw===null?"var(--text-dim)":"var(--text-sec)",marginBottom:2}}>
+            <span>{BREAKDOWN_LABELS[k]||k}</span>
+            {v.raw!==null
+              ?<span><b style={{color:scoreColor(v.raw)}}>{v.raw}</b> x{v.weight}% = <b>{v.contribution}</b></span>
+              :<span style={{fontStyle:"italic"}}>—</span>}
+          </div>
+        ))}
+        <div style={{borderTop:"1px solid var(--a8)",marginTop:4,paddingTop:4,fontWeight:700,color:scoreColor(score),textAlign:"right"}}>Total : {score}%</div>
+      </div>}
+    </span>
+  );
+}
 // Cherche un preset dans le catalogue par nom exact puis fuzzy
 const PRESET_CATALOG_MERGED = {...PRESET_CATALOG_FULL, ...TSR_PACK_CATALOG, ...ANNIVERSARY_CATALOG, ...FACTORY_CATALOG, ...PLUG_FACTORY_CATALOG, ...PRESET_CATALOG};
 function findCatalogEntry(name){
@@ -2356,11 +2384,11 @@ const STYLE_COMPATIBILITY={
 
 // Pondérations des 5 dimensions
 const SCORING_WEIGHTS={
-  pickup:    0.25,
-  guitar:    0.15,
-  gainMatch: 0.25,
-  refAmp:    0.20,
-  styleMatch:0.15
+  pickup:    0.20,
+  guitar:    0.10,
+  gainMatch: 0.15,
+  refAmp:    0.30,
+  styleMatch:0.25
 };
 
 // ─── Fonctions de scoring V2 ─────────────────────────────────────────────────
@@ -2393,28 +2421,29 @@ function computeGuitarScoreV2(guitarId,presetStyle,presetGainRange,presetVoicing
 }
 
 function computeGainMatchScore(presetGain,songTargetGain){
-  if(songTargetGain==null) return 50; // neutre si pas d'info
+  if(songTargetGain==null) return null;
   const diff=Math.abs(presetGain-songTargetGain);
   return Math.max(0,100-diff*12);
 }
 
 function computeRefAmpScore(presetAmp,songRefAmp){
-  if(!songRefAmp||!presetAmp) return 50;
+  if(!songRefAmp||!presetAmp) return null;
   if(presetAmp===songRefAmp) return 100;
   const preset=AMP_TAXONOMY[presetAmp];
   const song=AMP_TAXONOMY[songRefAmp];
-  if(!preset||!song) return 30;
+  if(!preset||!song) return 25;
   if(preset.family===song.family) return 85;
-  if(preset.brand===song.brand) return 55;
-  if(preset.school===song.school) return 45;
-  return 15;
+  if(preset.brand===song.brand) return 50;
+  if(preset.school===song.school) return 40;
+  return 10;
 }
 
 function computeStyleMatchScore(presetStyle,songStyle){
+  if(!songStyle) return null;
   return STYLE_COMPATIBILITY[presetStyle]?.[songStyle]??30;
 }
 
-function computeFinalScore(preset,guitarId,songStyle,songTargetGain,songRefAmp){
+function computeFinalScore(preset,guitarId,songStyle,songTargetGain,songRefAmp,_returnBreakdown){
   const presetGain=typeof preset.gain==="number"?preset.gain:gainToNumeric(preset.gain);
   const presetGainRange=getGainRange(presetGain);
   const pickupType=GUITAR_PROFILES[guitarId]?.pickupType||GUITARS.find(g=>g.id===guitarId)?.type||"HB";
@@ -2425,13 +2454,28 @@ function computeFinalScore(preset,guitarId,songStyle,songTargetGain,songRefAmp){
   const gainMatchScore=computeGainMatchScore(presetGain,songTargetGain);
   const refAmpScore=computeRefAmpScore(preset.amp,songRefAmp);
   const styleScore=computeStyleMatchScore(preset.style,songStyle);
-  return Math.max(0,Math.min(100,Math.round(
-    SCORING_WEIGHTS.pickup    *pickupScore+
-    SCORING_WEIGHTS.guitar    *guitarScore2+
-    SCORING_WEIGHTS.gainMatch *gainMatchScore+
-    SCORING_WEIGHTS.refAmp    *refAmpScore+
-    SCORING_WEIGHTS.styleMatch*styleScore
-  )));
+  // Build active dimensions, redistribute weights when some are null
+  const dims=[
+    {key:"pickup",score:pickupScore,weight:SCORING_WEIGHTS.pickup},
+    {key:"guitar",score:guitarScore2,weight:SCORING_WEIGHTS.guitar},
+    {key:"gainMatch",score:gainMatchScore,weight:SCORING_WEIGHTS.gainMatch},
+    {key:"refAmp",score:refAmpScore,weight:SCORING_WEIGHTS.refAmp},
+    {key:"styleMatch",score:styleScore,weight:SCORING_WEIGHTS.styleMatch}
+  ];
+  const active=dims.filter(d=>d.score!==null);
+  const totalWeight=active.reduce((s,d)=>s+d.weight,0);
+  let final=0;
+  const breakdown={};
+  for(const d of active){
+    const ew=d.weight/totalWeight;
+    const contrib=ew*d.score;
+    final+=contrib;
+    breakdown[d.key]={raw:d.score,weight:Math.round(ew*100),contribution:Math.round(contrib)};
+  }
+  for(const d of dims){if(d.score===null)breakdown[d.key]={raw:null,weight:0,contribution:0};}
+  const result=Math.max(0,Math.min(100,Math.round(final)));
+  if(_returnBreakdown) return {score:result,breakdown};
+  return result;
 }
 
 // Score simplifié sans contexte morceau (pour affichage liste, worstSlot, etc.)
@@ -2611,7 +2655,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.1.09";
+const APP_VERSION = "2.2.00";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -2816,7 +2860,7 @@ function Breadcrumb({crumbs,onNavigate}){
   );
 }
 
-function PBlock({device,emoji,presetName,gType,banks,adapted,gs,bg2,availableSources,guitarId,noUpgrade,finalScore}) {
+function PBlock({device,emoji,presetName,gType,banks,adapted,gs,bg2,availableSources,guitarId,noUpgrade,finalScore,breakdown}) {
   const rec=presetName&&gType?getInstallRec(presetName,gType,banks||{},guitarId):null;
   const entry=findCatalogEntry(presetName);
   const srcAvail=!entry||!availableSources||availableSources[entry.src]!==false;
@@ -2832,7 +2876,7 @@ function PBlock({device,emoji,presetName,gType,banks,adapted,gs,bg2,availableSou
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}>
         <span style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5}}>{emoji} {device}</span>
         {!srcAvail&&<span style={{fontSize:9,color:"var(--red)"}}>Source non dispo</span>}
-        {sc!=null&&<span style={{fontSize:11,fontWeight:800,color:scC}} title={scoreLabel(sc).tip}>{sc}% · {scoreLabel(sc).t}</span>}
+        {sc!=null&&(breakdown?<ScoreWithBreakdown score={sc} breakdown={breakdown}/>:<span style={{fontSize:11,fontWeight:800,color:scC}} title={scoreLabel(sc).tip}>{sc}% · {scoreLabel(sc).t}</span>)}
       </div>
       {displayRec?<>
         <div style={{fontSize:12,color:"var(--text-bright)",fontWeight:600,marginBottom:4}}>{displayName}</div>
@@ -2910,12 +2954,13 @@ function resolveRefAmp(refAmp){
 function computeBestPresets(gType,style,banksAnn,banksPlug,guitarId,refAmp,targetGain){
   const resolvedAmp=resolveRefAmp(refAmp);
   const songTargetGain=targetGain!=null?targetGain:null;
-  const scorePreset=(name,info)=>{
+  const scorePreset=(name,info,withBreakdown)=>{
     if(!guitarId) {
       // Fallback sans guitare : score simple par pickup type
-      return info.scores?.[gType]??60;
+      const s=info.scores?.[gType]??60;
+      return withBreakdown?{score:s,breakdown:null}:s;
     }
-    return computeFinalScore(info,guitarId,style,songTargetGain,resolvedAmp);
+    return computeFinalScore(info,guitarId,style,songTargetGain,resolvedAmp,withBreakdown);
   };
   // Best installed on pedal — diversify amps
   const annPresets=[];
@@ -2952,7 +2997,9 @@ function computeBestPresets(gType,style,banksAnn,banksPlug,guitarId,refAmp,targe
     if(!seenAmps.has(p.amp)){catalogBest.push(p);seenAmps.add(p.amp);}
     if(catalogBest.length>=3) break;
   }
-  return {annTop:annPresets[0]||null,plugTop:plugPresets[0]||null,idealTop:catalogBest[0]||null,idealTop3:catalogBest};
+  // Add breakdown to top presets
+  const addBreakdown=(p)=>{if(!p||!guitarId)return p;const info=findCatalogEntry(p.name);if(!info)return p;const r=scorePreset(p.name,info,true);return{...p,breakdown:r.breakdown||null};};
+  return {annTop:addBreakdown(annPresets[0])||null,plugTop:addBreakdown(plugPresets[0])||null,idealTop:catalogBest[0]||null,idealTop3:catalogBest};
 }
 
 // ─── fetchAI (helper partagé) ─────────────────────────────────────────────────
@@ -2976,8 +3023,8 @@ function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars){
     const style=aiResult.song_style||"rock";
     const targetGain=typeof aiResult.target_gain==="number"?aiResult.target_gain:null;
     const best=computeBestPresets(gType,style,banksAnn,banksPlug,gId,aiResult.ref_amp,targetGain);
-    if(best.annTop) aiResult.preset_ann={bank:best.annTop.bank,col:best.annTop.col,label:best.annTop.name,score:best.annTop.score};
-    if(best.plugTop) aiResult.preset_plug={bank:best.plugTop.bank,col:best.plugTop.col,label:best.plugTop.name,score:best.plugTop.score};
+    if(best.annTop) aiResult.preset_ann={bank:best.annTop.bank,col:best.annTop.col,label:best.annTop.name,score:best.annTop.score,breakdown:best.annTop.breakdown||null};
+    if(best.plugTop) aiResult.preset_plug={bank:best.plugTop.bank,col:best.plugTop.col,label:best.plugTop.name,score:best.plugTop.score,breakdown:best.plugTop.breakdown||null};
     if(best.idealTop) {aiResult.ideal_preset=best.idealTop.name;aiResult.ideal_preset_score=best.idealTop.score;}
     aiResult.ideal_top3=best.idealTop3;
     return aiResult;
@@ -3000,8 +3047,8 @@ function AICard({song,gId,onResult,banksAnn,banksPlug,aiProvider,aiKeys,onCacheR
       const targetGain=typeof cached.target_gain==="number"?cached.target_gain:null;
       const best=computeBestPresets(gType,cached.song_style||"rock",banksAnn,banksPlug,gId,cached.ref_amp,targetGain);
       const updated={...cached};
-      if(best.annTop) updated.preset_ann={bank:best.annTop.bank,col:best.annTop.col,label:best.annTop.name,score:best.annTop.score};
-      if(best.plugTop) updated.preset_plug={bank:best.plugTop.bank,col:best.plugTop.col,label:best.plugTop.name,score:best.plugTop.score};
+      if(best.annTop) updated.preset_ann={bank:best.annTop.bank,col:best.annTop.col,label:best.annTop.name,score:best.annTop.score,breakdown:best.annTop.breakdown||null};
+      if(best.plugTop) updated.preset_plug={bank:best.plugTop.bank,col:best.plugTop.col,label:best.plugTop.name,score:best.plugTop.score,breakdown:best.plugTop.breakdown||null};
       if(best.idealTop){updated.ideal_preset=best.idealTop.name;updated.ideal_preset_score=best.idealTop.score;}
       updated.ideal_top3=best.idealTop3;
       setRes(updated);onResult(updated);if(onCacheResult)onCacheResult(gId,updated);
@@ -3020,8 +3067,8 @@ function AICard({song,gId,onResult,banksAnn,banksPlug,aiProvider,aiKeys,onCacheR
     <div style={{display:"flex",flexDirection:"column",gap:9}}>
       <Row icon="🎯"><div><div style={{fontSize:12,color:"var(--purple)",fontWeight:700,marginBottom:2}}>IA : {res.ideal_guitar}</div><div style={{fontSize:11,color:"var(--text-sec)"}}>{res.guitar_reason}</div></div></Row>
       <div style={{display:"flex",flexDirection:"column",gap:6}}>
-        <PBlock device="Pédale" emoji="📦" presetName={res.preset_ann?.label} gType={gId?(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB":null} banks={banksAnn} noUpgrade finalScore={res.preset_ann?.score}/>
-        <PBlock device="ToneX Plug" emoji="🔌" presetName={res.preset_plug?.label} gType={gId?(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB":null} banks={banksPlug} bg2="rgba(99,102,241,0.06)" noUpgrade finalScore={res.preset_plug?.score}/>
+        <PBlock device="Pédale" emoji="📦" presetName={res.preset_ann?.label} gType={gId?(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB":null} banks={banksAnn} noUpgrade finalScore={res.preset_ann?.score} breakdown={res.preset_ann?.breakdown}/>
+        <PBlock device="ToneX Plug" emoji="🔌" presetName={res.preset_plug?.label} gType={gId?(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB":null} banks={banksPlug} bg2="rgba(99,102,241,0.06)" noUpgrade finalScore={res.preset_plug?.score} breakdown={res.preset_plug?.breakdown}/>
       </div>
       <Row icon="🎛️"><div style={{display:"flex",flexDirection:"column",gap:4}}>
         {res.settings_preset&&<div style={{fontSize:11,background:"rgba(251,191,36,0.07)",border:"1px solid var(--yellow-border)",borderRadius:7,padding:"6px 10px",color:"var(--yellow)"}}><b style={{color:"var(--yellow)"}}>Preset · </b>{res.settings_preset}</div>}
@@ -4409,8 +4456,8 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
             </div>;
         })()}
         <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
-          <PBlock device="Pédale" emoji="📦" presetName={aiC.preset_ann?.label} gType={gId?type:null} banks={banksAnn} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_ann?.score}/>
-          <PBlock device="ToneX Plug" emoji="🔌" presetName={aiC.preset_plug?.label} gType={gId?type:null} banks={banksPlug} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_plug?.score}/>
+          <PBlock device="Pédale" emoji="📦" presetName={aiC.preset_ann?.label} gType={gId?type:null} banks={banksAnn} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_ann?.score} breakdown={aiC.preset_ann?.breakdown}/>
+          <PBlock device="ToneX Plug" emoji="🔌" presetName={aiC.preset_plug?.label} gType={gId?type:null} banks={banksPlug} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_plug?.score} breakdown={aiC.preset_plug?.breakdown}/>
         </div>
         {(aiC.settings_preset||aiC.settings_guitar)&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:8,lineHeight:1.6}}>
           {aiC.settings_preset&&<div>💡 <b>Preset :</b> {aiC.settings_preset}</div>}
@@ -4591,7 +4638,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         const presetRow=(emoji,label,banks,overrideScore)=>{
           const loc=findInBanks(label,banks);
           const entry=findCatalogEntry(label);
-          const sc=overrideScore!=null?overrideScore:(gId?guitarScore(label,gId):(entry?.scores?.[gType]??null));
+          const sc=overrideScore!=null?overrideScore:(aiC&&gId&&entry?computeFinalScore(entry,gId,aiC.song_style,typeof aiC.target_gain==="number"?aiC.target_gain:null,resolveRefAmp(aiC.ref_amp)):(gId?guitarScore(label,gId):(entry?.scores?.[gType]??null)));
           const ampName=entry?.amp||null;
           const scColor=sc!=null?scoreColor(sc):null;
           const scBg=sc!=null?scoreBg(sc):null;
@@ -4989,7 +5036,7 @@ function PresetDetailInline({name,info,banksAnn,banksPlug,presetContext}){
       </div>}
       <div style={{marginBottom:8}}>
         <div style={{fontSize:9,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:5}}>Pertinence par guitare</div>
-        {["HB","SC","P90"].map(gt=><ScoreBar key={gt} label={gt} score={info.scores[gt]||60}/>)}
+        {["HB","SC","P90"].map(gt=><ScoreBar key={gt} label={gt} score={computePickupScore(info.style,getGainRange(gainToNumeric(info.gain)),gt)}/>)}
       </div>
       <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
         {annLoc
@@ -5057,7 +5104,7 @@ function PresetList({filtered,selected,setSelected,banksAnn,banksPlug,fullCatalo
                 </div>
                 <div style={{display:"flex",gap:3,alignItems:"center",flexShrink:0}}>
                   {["HB","SC","P90"].map(gt=>(
-                    <span key={gt} style={{fontSize:9,color:scoreColor(info.scores[gt]||60),fontWeight:700,background:scoreBg(info.scores[gt]||60),borderRadius:3,padding:"1px 4px"}}>{info.scores[gt]||60}</span>
+                    {(()=>{const sc=computePickupScore(info.style,getGainRange(gainToNumeric(info.gain)),gt);return <span key={gt} style={{fontSize:9,color:scoreColor(sc),fontWeight:700,background:scoreBg(sc),borderRadius:3,padding:"1px 4px"}}>{sc}</span>;})()}
                   ))}
                 </div>
               </div>
@@ -5691,6 +5738,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
   const [songErr,setSongErr]=useState(null);
   const [confirmedSong,setConfirmedSong]=useState(null);
   const [showGuitarPick,setShowGuitarPick]=useState(false);
+  const [selectedGuitar,setSelectedGuitar]=useState(null);
   const [showFeedback,setShowFeedback]=useState(false);
   const [feedback,setFeedback]=useState("");
   const rerunWithFeedback=()=>{
@@ -5749,7 +5797,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         <div style={{width:"100%"}}>
           <SongSearchBar aiProvider={aiProvider} aiKeys={aiKeys} onConfirm={(title,artist)=>{
             setConfirmedSong({title,artist});
-            setSongResult(null);setSongErr(null);setSongLoading(true);
+            setSongResult(null);setSongErr(null);setSongLoading(true);setSelectedGuitar(null);
             const song={id:`tmp_${Date.now()}`,title,artist};
             fetchAI(song,"",banksAnn,banksPlug,aiProvider,aiKeys,allGuitars)
               .then(r=>{
@@ -5784,7 +5832,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
 
             {/* Guitare recommandée + changement */}
             <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:6}}>
-              {songResult.ideal_guitar&&<span style={{fontSize:11,background:"var(--green-bg)",border:"1px solid var(--green-border)",borderRadius:7,padding:"4px 10px",color:"var(--green)",fontWeight:600}}>🎸 {songResult.ideal_guitar}</span>}
+              {(selectedGuitar||songResult.ideal_guitar)&&<span style={{fontSize:11,background:"var(--green-bg)",border:"1px solid var(--green-border)",borderRadius:7,padding:"4px 10px",color:"var(--green)",fontWeight:600}}>🎸 {selectedGuitar?`${selectedGuitar.name} (${selectedGuitar.type})`:songResult.ideal_guitar}</span>}
               <button onClick={()=>{setShowGuitarPick(p=>!p);}} style={{fontSize:10,background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:6,padding:"3px 8px",cursor:"pointer"}}>Changer</button>
             </div>
             {songResult.guitar_reason&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:6}}>{songResult.guitar_reason}</div>}
@@ -5792,7 +5840,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
               <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:6}}>Relancer l'analyse avec une autre guitare :</div>
               <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
                 {allGuitars.map(g=><button key={g.id} onClick={()=>{
-                  setShowGuitarPick(false);setSongLoading(true);setSongResult(null);
+                  setShowGuitarPick(false);setSelectedGuitar(g);setSongLoading(true);setSongResult(null);
                   const song={id:`tmp_${Date.now()}`,title:confirmedSong.title,artist:confirmedSong.artist};
                   fetchAI(song,g.id,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars)
                     .then(r=>{setSongResult(r);})
