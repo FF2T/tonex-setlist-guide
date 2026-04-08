@@ -2045,8 +2045,9 @@ function getSongInfo(song){
     desc:init?.desc||ai?.song_desc||null,
   };
 }
-function scoreColor(s){return s>=90?"var(--green)":s>=75?"var(--blue)":s>=60?"var(--yellow)":"var(--red)";}
-function scoreBg(s){return s>=90?"var(--green-bg)":s>=75?"var(--blue-bg)":s>=60?"var(--yellow-bg)":"var(--red-bg)";}
+// Seuils V2 : 80+ excellent (fidèle au son original), 65+ bon, 50+ acceptable, <50 mauvais
+function scoreColor(s){return s>=80?"var(--green)":s>=65?"var(--blue)":s>=50?"var(--yellow)":"var(--red)";}
+function scoreBg(s){return s>=80?"var(--green-bg)":s>=65?"var(--blue-bg)":s>=50?"var(--yellow-bg)":"var(--red-bg)";}
 // Cherche un preset dans le catalogue par nom exact puis fuzzy
 const PRESET_CATALOG_MERGED = {...PRESET_CATALOG_FULL, ...TSR_PACK_CATALOG, ...ANNIVERSARY_CATALOG, ...FACTORY_CATALOG, ...PLUG_FACTORY_CATALOG, ...PRESET_CATALOG};
 function findCatalogEntry(name){
@@ -2602,7 +2603,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.0.10";
+const APP_VERSION = "2.0.11";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
