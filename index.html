@@ -5127,8 +5127,23 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
               </div>
             </div>}
 
-            {/* Nouveau morceau */}
-            <button onClick={()=>{setConfirmedSong(null);setSongResult(null);setShowFeedback(false);setFeedback("");}} style={{width:"100%",marginTop:6,background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-sec)",borderRadius:8,padding:"8px",fontSize:12,cursor:"pointer"}}>Autre morceau</button>
+            {/* Ajouter à une setlist */}
+            {(()=>{
+              const song=songDb.find(s=>normalizePresetName(s.title)===normalizePresetName(confirmedSong.title));
+              if(!song) return null;
+              return <div style={{marginTop:10}}>
+                <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Ajouter à une setlist</div>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                  {setlists.map(sl=>{
+                    const inSl=sl.songIds.includes(song.id);
+                    return <button key={sl.id} onClick={()=>{if(inSl){onSetlists(p=>p.map(s=>s.id===sl.id?{...s,songIds:s.songIds.filter(x=>x!==song.id)}:s));}else{onSetlists(p=>p.map(s=>s.id===sl.id?{...s,songIds:[...s.songIds,song.id]}:s));}}} style={{fontSize:11,fontWeight:600,color:inSl?"var(--green)":"var(--text-sec)",background:inSl?"rgba(74,222,128,0.15)":"var(--a5)",border:inSl?"1px solid rgba(74,222,128,0.4)":"1px solid var(--a10)",borderRadius:7,padding:"5px 12px",cursor:"pointer"}}>{inSl?"✓ ":""}{sl.name}</button>;
+                  })}
+                </div>
+              </div>;
+            })()}
+
+            {/* Retour accueil */}
+            <button onClick={()=>{setConfirmedSong(null);setSongResult(null);setShowFeedback(false);setFeedback("");}} style={{width:"100%",marginTop:10,background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-sec)",borderRadius:8,padding:"8px",fontSize:12,cursor:"pointer"}}>← Retour à l'accueil</button>
           </div>
         </div>}
       </div>}
