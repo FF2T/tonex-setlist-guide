@@ -2069,39 +2069,379 @@ function findCatalogEntry(name){
   }
   return null;
 }
-// ─── Scoring par guitare (pas seulement par type de micro) ───────────────────
-// Chaque guitare a un profil sonore qui modifie le score de base du type HB/SC/P90.
-// Modificateurs par style d'ampli : [clean, blues, rock, hard_rock, jazz, pop, metal]
-// Positif = bonus, négatif = malus. Les customs héritent du profil de leur type.
-const GUITAR_PROFILES={
-  // Gibson HB
-  lp60:      {base:"HB", mods:{clean:0,blues:3,rock:4,hard_rock:3,jazz:-2,pop:0,metal:1},   desc:"Polyvalente, référence HB, sustain long"},
-  sg_ebony:  {base:"HB", mods:{clean:-2,blues:2,rock:5,hard_rock:5,jazz:-4,pop:-1,metal:3},  desc:"Médiums agressifs, attaque rapide, léger"},
-  sg61:      {base:"HB", mods:{clean:-1,blues:3,rock:5,hard_rock:4,jazz:-3,pop:0,metal:2},   desc:"Vintage 60s, crunch classique rock"},
-  es335:     {base:"HB", mods:{clean:4,blues:5,rock:2,hard_rock:-2,jazz:6,pop:2,metal:-6},   desc:"Semi-hollow, chaleur et résonance, idéale jazz/blues"},
-  // Gibson P90
-  lp50p90:   {base:"P90",mods:{clean:2,blues:4,rock:3,hard_rock:1,jazz:0,pop:1,metal:-3},    desc:"P90 gras et mordant, midrange caractéristique"},
-  // Fender SC
-  strat61:   {base:"SC", mods:{clean:3,blues:4,rock:1,hard_rock:-2,jazz:0,pop:2,metal:-4},   desc:"Vintage 61, cleans cristallins, quack positions 2/4"},
-  strat_pro2:{base:"SC", mods:{clean:2,blues:2,rock:3,hard_rock:0,jazz:0,pop:3,metal:-2},    desc:"Moderne, V-Mod II, polyvalente tous styles"},
-  strat_ec:  {base:"SC", mods:{clean:4,blues:5,rock:2,hard_rock:-1,jazz:1,pop:1,metal:-4},   desc:"Noiseless, midboost, son Clapton smooth"},
-  tele63:    {base:"SC", mods:{clean:3,blues:2,rock:3,hard_rock:1,jazz:-2,pop:2,metal:-3},    desc:"Twang vintage, attaque percussive, bridge bright"},
-  tele_ultra:{base:"SC", mods:{clean:2,blues:1,rock:4,hard_rock:2,jazz:-1,pop:3,metal:-1},    desc:"Noiseless moderne, S1 switch, très polyvalente"},
-  jazzmaster:{base:"SC", mods:{clean:3,blues:1,rock:2,hard_rock:-2,jazz:5,pop:3,metal:-5},    desc:"Single coil large, son chaud et rond, peu de twang"},
-};
-function guitarScore(name,guitarId){
-  const entry=findCatalogEntry(name);
-  if(!entry) return 60;
-  const gp=GUITAR_PROFILES[guitarId];
-  if(!gp) return entry.scores?.[GUITARS.find(g=>g.id===guitarId)?.type||"HB"]??60;
-  const baseScore=entry.scores?.[gp.base]??60;
-  const styleMod=gp.mods[entry.style]||0;
-  // Gain modifier: high output guitars get bonus on high gain, malus on clean
-  const gainMod=entry.gain==="high"?(gp.mods.hard_rock>2?2:gp.mods.hard_rock<-2?-2:0):entry.gain==="low"?(gp.mods.clean>2?1:gp.mods.clean<-2?-1:0):0;
-  return Math.max(30,Math.min(99,baseScore+styleMod+gainMod));
+// ─── Scoring V2 : 5 dimensions normalisées 0-100 ────────────────────────────
+
+// Tranches de gain
+const GAIN_RANGES={clean:{min:0,max:3},crunch:{min:4,max:6},drive:{min:7,max:8},high_gain:{min:9,max:10}};
+function getGainRange(gain){
+  if(typeof gain==="number") return gain<=3?"clean":gain<=6?"crunch":gain<=8?"drive":"high_gain";
+  return gain==="low"?"clean":gain==="high"?"high_gain":"crunch";
 }
-// Backward compat: presetScore still works with gType for code that doesn't have guitarId
-function presetScore(name,gType){return findCatalogEntry(name)?.scores?.[gType]??60;}
+function gainToNumeric(gain){
+  if(typeof gain==="number") return gain;
+  return gain==="low"?2:gain==="high"?9:6;
+}
+function inferGainFromName(name){
+  if(!name) return 6;
+  const n=name.toLowerCase();
+  if(/\bclean\b|\bcln\b/.test(n)) return 2;
+  if(/\bedge\b|\bcrunch\b|\bbloom cln\b/.test(n)) return 5;
+  if(/\bdrive\b|\bod\b|\bklon\b|\bkot\b|\bduellist\b/.test(n)) return 7;
+  if(/\blead\b|\bdimed\b|\bmuff\b|\bhigh\b|\bfull beans\b/.test(n)) return 9;
+  return 6;
+}
+
+// Matrice de base : 5 styles × 4 gains × 3 pickups (60 cellules)
+const BASE_SCORES={
+  blues:{
+    clean:    {HB:78,SC:92,P90:88},
+    crunch:   {HB:82,SC:88,P90:90},
+    drive:    {HB:85,SC:78,P90:85},
+    high_gain:{HB:70,SC:60,P90:68}
+  },
+  rock:{
+    clean:    {HB:75,SC:80,P90:78},
+    crunch:   {HB:85,SC:76,P90:84},
+    drive:    {HB:88,SC:70,P90:82},
+    high_gain:{HB:82,SC:60,P90:72}
+  },
+  hard_rock:{
+    clean:    {HB:70,SC:72,P90:68},
+    crunch:   {HB:85,SC:65,P90:78},
+    drive:    {HB:90,SC:62,P90:78},
+    high_gain:{HB:92,SC:55,P90:72}
+  },
+  jazz:{
+    clean:    {HB:68,SC:92,P90:86},
+    crunch:   {HB:62,SC:85,P90:80},
+    drive:    {HB:50,SC:60,P90:58},
+    high_gain:{HB:35,SC:40,P90:38}
+  },
+  metal:{
+    clean:    {HB:60,SC:65,P90:58},
+    crunch:   {HB:78,SC:58,P90:68},
+    drive:    {HB:88,SC:55,P90:70},
+    high_gain:{HB:95,SC:50,P90:65}
+  },
+  pop:{
+    clean:    {HB:72,SC:90,P90:82},
+    crunch:   {HB:75,SC:85,P90:80},
+    drive:    {HB:70,SC:68,P90:72},
+    high_gain:{HB:55,SC:50,P90:52}
+  }
+};
+
+// Profils guitare enrichis
+const GUITAR_PROFILES={
+  lp60:{
+    pickupType:"HB",voicing:"warm",bodyResonance:"solid",
+    gainAffinity:{clean:-1,crunch:+3,drive:+4,high_gain:+2},
+    styleMods:{blues:+3,rock:+4,hard_rock:+5,jazz:-2,pop:0,metal:+1},
+    desc:"Polyvalente, référence HB, sustain long"
+  },
+  lp50p90:{
+    pickupType:"P90",voicing:"balanced",bodyResonance:"solid",
+    gainAffinity:{clean:+1,crunch:+3,drive:+2,high_gain:-2},
+    styleMods:{blues:+5,rock:+3,hard_rock:+1,jazz:+2,pop:+1,metal:-3},
+    desc:"P90 gras et mordant, midrange caractéristique"
+  },
+  sg_ebony:{
+    pickupType:"HB",voicing:"bright",bodyResonance:"solid",
+    gainAffinity:{clean:-2,crunch:+2,drive:+5,high_gain:+4},
+    styleMods:{blues:+1,rock:+4,hard_rock:+6,jazz:-4,pop:-1,metal:+3},
+    desc:"Médiums agressifs, attaque rapide, léger"
+  },
+  sg61:{
+    pickupType:"HB",voicing:"balanced",bodyResonance:"solid",
+    gainAffinity:{clean:0,crunch:+3,drive:+4,high_gain:+2},
+    styleMods:{blues:+2,rock:+4,hard_rock:+5,jazz:-2,pop:0,metal:+2},
+    desc:"Vintage 60s, crunch classique rock"
+  },
+  strat61:{
+    pickupType:"SC",voicing:"bright",bodyResonance:"solid",
+    gainAffinity:{clean:+4,crunch:+2,drive:-1,high_gain:-5},
+    styleMods:{blues:+5,rock:+2,hard_rock:-3,jazz:+3,pop:+2,metal:-6},
+    desc:"Vintage 61, cleans cristallins, quack positions 2/4"
+  },
+  strat_pro2:{
+    pickupType:"SC",voicing:"balanced",bodyResonance:"solid",
+    gainAffinity:{clean:+3,crunch:+3,drive:0,high_gain:-4},
+    styleMods:{blues:+4,rock:+3,hard_rock:-2,jazz:+3,pop:+3,metal:-5},
+    desc:"Moderne, V-Mod II, polyvalente tous styles"
+  },
+  strat_ec:{
+    pickupType:"SC",voicing:"warm",bodyResonance:"solid",
+    gainAffinity:{clean:+3,crunch:+4,drive:+1,high_gain:-3},
+    styleMods:{blues:+6,rock:+2,hard_rock:-2,jazz:+2,pop:+1,metal:-5},
+    desc:"Noiseless, midboost, son Clapton smooth"
+  },
+  tele63:{
+    pickupType:"SC",voicing:"bright",bodyResonance:"solid",
+    gainAffinity:{clean:+4,crunch:+2,drive:-1,high_gain:-5},
+    styleMods:{blues:+3,rock:+3,hard_rock:-3,jazz:+2,pop:+2,metal:-6},
+    desc:"Twang vintage, attaque percussive, bridge bright"
+  },
+  tele_ultra:{
+    pickupType:"SC",voicing:"balanced",bodyResonance:"solid",
+    gainAffinity:{clean:+3,crunch:+3,drive:+1,high_gain:-3},
+    styleMods:{blues:+3,rock:+4,hard_rock:-1,jazz:+2,pop:+3,metal:-4},
+    desc:"Noiseless moderne, S1 switch, très polyvalente"
+  },
+  jazzmaster:{
+    pickupType:"SC",voicing:"warm",bodyResonance:"solid",
+    gainAffinity:{clean:+4,crunch:+1,drive:-2,high_gain:-5},
+    styleMods:{blues:+4,rock:+1,hard_rock:-4,jazz:+6,pop:+3,metal:-6},
+    desc:"Single coil large, son chaud et rond, peu de twang"
+  },
+  es335:{
+    pickupType:"HB",voicing:"warm",bodyResonance:"semi_hollow",
+    gainAffinity:{clean:+3,crunch:+3,drive:+1,high_gain:-4},
+    styleMods:{blues:+5,rock:+2,hard_rock:-2,jazz:+6,pop:+2,metal:-6},
+    desc:"Semi-hollow, chaleur et résonance, idéale jazz/blues"
+  }
+};
+
+// Taxonomie d'amplis
+const AMP_TAXONOMY={
+  "Fender Twin Silverface":{brand:"fender",family:"blackface",school:"fender_clean"},
+  "Fender Twin":{brand:"fender",family:"blackface",school:"fender_clean"},
+  "Fender Twin Reverb":{brand:"fender",family:"blackface",school:"fender_clean"},
+  "Fender Blackface Twin":{brand:"fender",family:"blackface",school:"fender_clean"},
+  "Fender Super Reverb":{brand:"fender",family:"blackface",school:"fender_clean"},
+  "Fender Super":{brand:"fender",family:"blackface",school:"fender_clean"},
+  "Fender Deluxe Reverb":{brand:"fender",family:"blackface",school:"fender_clean"},
+  "Fender Deluxe":{brand:"fender",family:"blackface",school:"fender_clean"},
+  "Fender BF Deluxe":{brand:"fender",family:"blackface",school:"fender_clean"},
+  "Fender Blues Deluxe II":{brand:"fender",family:"blackface",school:"fender_clean"},
+  "Fender Princeton":{brand:"fender",family:"blackface",school:"fender_clean"},
+  "Fender Bassman":{brand:"fender",family:"tweed",school:"fender_clean"},
+  "Fender Tweed Bassman":{brand:"fender",family:"tweed",school:"fender_clean"},
+  "Fender Blonde Bassman":{brand:"fender",family:"tweed",school:"fender_clean"},
+  "Fender Tweed Deluxe":{brand:"fender",family:"tweed",school:"fender_clean"},
+  "Fender 5E3 Tweed Deluxe":{brand:"fender",family:"tweed",school:"fender_clean"},
+  "Fender 5E7 Bandmaster":{brand:"fender",family:"tweed",school:"fender_clean"},
+  "Fender 5051 Tweed":{brand:"fender",family:"tweed",school:"fender_clean"},
+  "Fender Champ":{brand:"fender",family:"tweed",school:"fender_clean"},
+  "Fender Concert":{brand:"fender",family:"blackface",school:"fender_clean"},
+  "Fender Pro Amp":{brand:"fender",family:"blackface",school:"fender_clean"},
+  "Fender Cambridge":{brand:"fender",family:"blackface",school:"fender_clean"},
+  "Fender Hot Rod Twin":{brand:"fender",family:"blackface",school:"fender_clean"},
+  "Fender Texas Star":{brand:"fender",family:"blackface",school:"fender_clean"},
+  "Fender Super S":{brand:"fender",family:"blackface",school:"fender_clean"},
+  "Fender":{brand:"fender",family:"blackface",school:"fender_clean"},
+  "Marshall SL800":{brand:"marshall",family:"plexi",school:"marshall_crunch"},
+  "Marshall SL100":{brand:"marshall",family:"plexi",school:"marshall_crunch"},
+  "Marshall Plexi":{brand:"marshall",family:"plexi",school:"marshall_crunch"},
+  "Marshall Plexi 74":{brand:"marshall",family:"plexi",school:"marshall_crunch"},
+  "Marshall Super Lead 100W":{brand:"marshall",family:"plexi",school:"marshall_crunch"},
+  "Marshall Super 100":{brand:"marshall",family:"plexi",school:"marshall_crunch"},
+  "Marshall 1974X":{brand:"marshall",family:"plexi",school:"marshall_crunch"},
+  "Marshall JTM45":{brand:"marshall",family:"jtm",school:"marshall_crunch"},
+  "Marshall JTM50":{brand:"marshall",family:"jtm",school:"marshall_crunch"},
+  "Marshall JTM45 / Super Lead":{brand:"marshall",family:"jtm",school:"marshall_crunch"},
+  "Marshall JCM800":{brand:"marshall",family:"jcm800",school:"marshall_crunch"},
+  "Marshall JC800":{brand:"marshall",family:"jcm800",school:"marshall_crunch"},
+  "Marshall 800":{brand:"marshall",family:"jcm800",school:"marshall_crunch"},
+  "Marshall JCM900":{brand:"marshall",family:"jcm900",school:"marshall_crunch"},
+  "Marshall SLT60":{brand:"marshall",family:"plexi",school:"marshall_crunch"},
+  "Marshall Silver Jubilee":{brand:"marshall",family:"jubilee",school:"marshall_crunch"},
+  "Silver J":{brand:"marshall",family:"jubilee",school:"marshall_crunch"},
+  "Marshall SB100":{brand:"marshall",family:"plexi",school:"marshall_crunch"},
+  "Marshall 18W":{brand:"marshall",family:"18w",school:"marshall_crunch"},
+  "Marshall Major 200W (modifié)":{brand:"marshall",family:"plexi",school:"marshall_crunch"},
+  "Marshall":{brand:"marshall",family:"plexi",school:"marshall_crunch"},
+  "Vox AC30":{brand:"vox",family:"ac",school:"vox_chime"},
+  "Budda V20":{brand:"budda",family:"class_a",school:"vox_chime"},
+  "Matchless DC30":{brand:"matchless",family:"dc",school:"vox_chime"},
+  "Matchless HC15":{brand:"matchless",family:"hc",school:"vox_chime"},
+  "Matchless C30":{brand:"matchless",family:"dc",school:"vox_chime"},
+  "Matchless Brave":{brand:"matchless",family:"dc",school:"vox_chime"},
+  "Matchless Canyon":{brand:"matchless",family:"dc",school:"vox_chime"},
+  "Matchless Chieftain":{brand:"matchless",family:"dc",school:"vox_chime"},
+  "Matchless Independence 35":{brand:"matchless",family:"dc",school:"vox_chime"},
+  "Independence 35":{brand:"matchless",family:"dc",school:"vox_chime"},
+  "Matchless":{brand:"matchless",family:"dc",school:"vox_chime"},
+  "Dumble ODS":{brand:"dumble",family:"ods",school:"dumble_smooth"},
+  "Dumble ODS 124":{brand:"dumble",family:"ods",school:"dumble_smooth"},
+  "Dumble Deluxe":{brand:"dumble",family:"ods",school:"dumble_smooth"},
+  "Two Rock Stevie G":{brand:"two_rock",family:"two_rock",school:"dumble_smooth"},
+  "Two Rock Bloomfield":{brand:"two_rock",family:"bloomfield",school:"dumble_smooth"},
+  "Two Rock":{brand:"two_rock",family:"two_rock",school:"dumble_smooth"},
+  "Carr Sportsman":{brand:"carr",family:"boutique",school:"dumble_smooth"},
+  "Benson Chimera":{brand:"benson",family:"boutique",school:"dumble_smooth"},
+  "Mesa Boogie Rectifier":{brand:"mesa",family:"rectifier",school:"mesa_heavy"},
+  "Mesa Rectifier":{brand:"mesa",family:"rectifier",school:"mesa_heavy"},
+  "Mesa Boogie Mark II":{brand:"mesa",family:"mark",school:"mesa_heavy"},
+  "Mesa Mark IV":{brand:"mesa",family:"mark",school:"mesa_heavy"},
+  "Mesa Mark IIC+":{brand:"mesa",family:"mark",school:"mesa_heavy"},
+  "Mesa Mark":{brand:"mesa",family:"mark",school:"mesa_heavy"},
+  "Mesa Boogie":{brand:"mesa",family:"mark",school:"mesa_heavy"},
+  "Hiwatt HG100":{brand:"hiwatt",family:"dr",school:"hiwatt_clean"},
+  "Hiwatt Custom 100":{brand:"hiwatt",family:"dr",school:"hiwatt_clean"},
+  "Hiwatt Wizard":{brand:"hiwatt",family:"wizard",school:"hiwatt_clean"},
+  "Hiwatt":{brand:"hiwatt",family:"dr",school:"hiwatt_clean"},
+  "Orange Rockerverb":{brand:"orange",family:"rockerverb",school:"marshall_crunch"},
+  "Orange OR120":{brand:"orange",family:"or",school:"marshall_crunch"},
+  "Orange GR100":{brand:"orange",family:"or",school:"marshall_crunch"},
+  "Orange 120":{brand:"orange",family:"or",school:"marshall_crunch"},
+  "Orange":{brand:"orange",family:"or",school:"marshall_crunch"},
+  "Friedman BE-100":{brand:"friedman",family:"be",school:"marshall_crunch"},
+  "Friedman HBE":{brand:"friedman",family:"be",school:"marshall_crunch"},
+  "Friedman Buxom Betty":{brand:"friedman",family:"buxom",school:"marshall_crunch"},
+  "Bogner Ecstasy":{brand:"bogner",family:"ecstasy",school:"marshall_crunch"},
+  "Bogner G-Finger":{brand:"bogner",family:"gfinger",school:"marshall_crunch"},
+  "Bogner Helioclipse":{brand:"bogner",family:"helio",school:"marshall_crunch"},
+  "Soldano SLO-100":{brand:"soldano",family:"slo",school:"marshall_crunch"},
+  "Soldano GP77":{brand:"soldano",family:"gp77",school:"marshall_crunch"},
+  "Peavey 5150":{brand:"peavey",family:"5150",school:"mesa_heavy"},
+  "EVH 5150":{brand:"peavey",family:"5150",school:"mesa_heavy"},
+  "PRS Archon":{brand:"prs",family:"archon",school:"mesa_heavy"},
+  "ENGL":{brand:"engl",family:"engl",school:"mesa_heavy"},
+  "Diezel":{brand:"diezel",family:"diezel",school:"mesa_heavy"},
+  "Roland JC-120":{brand:"roland",family:"jc",school:"fender_clean"},
+  "Suhr SL67":{brand:"suhr",family:"sl67",school:"marshall_crunch"},
+  "Tone King Imperial":{brand:"tone_king",family:"imperial",school:"fender_clean"},
+  "Music Man HD130":{brand:"musicman",family:"hd",school:"fender_clean"},
+  "Trainwreck OD100":{brand:"trainwreck",family:"od",school:"marshall_crunch"},
+  "Bad Cat Cub":{brand:"badcat",family:"cub",school:"vox_chime"},
+  "Amp Nation ODR":{brand:"amp_nation",family:"odr",school:"dumble_smooth"},
+  "Amp Nation WOD":{brand:"amp_nation",family:"wod",school:"dumble_smooth"},
+  "Mezzabarba MZero":{brand:"mezzabarba",family:"mzero",school:"marshall_crunch"},
+  "Mezzabarba Trinity":{brand:"mezzabarba",family:"trinity",school:"marshall_crunch"},
+  "Diesel Humbert":{brand:"diesel",family:"humbert",school:"marshall_crunch"},
+  "D13 RG7":{brand:"d13",family:"rg7",school:"marshall_crunch"},
+  "D13 AMP39":{brand:"d13",family:"amp39",school:"marshall_crunch"},
+  "Gibson GA5 Skylark":{brand:"gibson",family:"skylark",school:"fender_clean"},
+  "Gibson Skylark":{brand:"gibson",family:"skylark",school:"fender_clean"},
+  "Cornfield Harle":{brand:"cornford",family:"harle",school:"marshall_crunch"},
+  "Cornford HellCat":{brand:"cornford",family:"hellcat",school:"marshall_crunch"},
+  "Ironlung":{brand:"ironlung",family:"ironlung",school:"marshall_crunch"},
+  "Rouge Plate D50":{brand:"rouge",family:"d50",school:"fender_clean"},
+  "Chandler GAV19T":{brand:"chandler",family:"gav19t",school:"fender_clean"},
+  "Chandler 19T":{brand:"chandler",family:"gav19t",school:"fender_clean"},
+  "Electro Dime":{brand:"electro",family:"dime",school:"mesa_heavy"},
+  "Dr. Z":{brand:"drz",family:"drz",school:"vox_chime"},
+  "Dr. Z Wreck":{brand:"drz",family:"wreck",school:"vox_chime"},
+  "Jimi H20":{brand:"custom",family:"jimih20",school:"marshall_crunch"},
+  "Rockman Sustainor":{brand:"rockman",family:"sustainor",school:"mesa_heavy"},
+  "Talon 50":{brand:"talon",family:"talon50",school:"marshall_crunch"},
+  "TSR20":{brand:"tsr",family:"tsr20",school:"vox_chime"},
+  "TWS 2864-S":{brand:"tws",family:"2864s",school:"marshall_crunch"},
+  "VMP-1":{brand:"vmp",family:"vmp1",school:"marshall_crunch"},
+  "ZWREK":{brand:"zwrek",family:"zwrek",school:"marshall_crunch"},
+  "Custom 30":{brand:"custom",family:"custom30",school:"vox_chime"},
+  "Sons Amplification":{brand:"sons",family:"sons",school:"marshall_crunch"},
+  "Amplifonics":{brand:"amplifonics",family:"amplifonics",school:"marshall_crunch"},
+  "Reinguard T-36":{brand:"reinhardt",family:"rt36",school:"fender_clean"},
+};
+
+// Compatibilité de style (score 0-100)
+const STYLE_COMPATIBILITY={
+  blues:    {blues:100,rock:60,hard_rock:30,jazz:70,metal:10,pop:55},
+  rock:     {blues:55,rock:100,hard_rock:75,jazz:20,metal:40,pop:60},
+  hard_rock:{blues:25,rock:70,hard_rock:100,jazz:10,metal:65,pop:20},
+  jazz:     {blues:65,rock:15,hard_rock:5,jazz:100,metal:5,pop:30},
+  metal:    {blues:10,rock:35,hard_rock:60,jazz:5,metal:100,pop:10},
+  pop:      {blues:50,rock:60,hard_rock:20,jazz:35,metal:10,pop:100}
+};
+
+// Pondérations des 5 dimensions
+const SCORING_WEIGHTS={
+  pickup:    0.25,
+  guitar:    0.15,
+  gainMatch: 0.25,
+  refAmp:    0.20,
+  styleMatch:0.15
+};
+
+// ─── Fonctions de scoring V2 ─────────────────────────────────────────────────
+
+function computePickupScore(presetStyle,presetGainRange,pickupType){
+  const styleScores=BASE_SCORES[presetStyle];
+  if(!styleScores) return 60;
+  const gainScores=styleScores[presetGainRange];
+  if(!gainScores) return styleScores.crunch?.[pickupType]??60;
+  return gainScores[pickupType]??60;
+}
+
+function computeGuitarScoreV2(guitarId,presetStyle,presetGainRange,presetVoicing){
+  const g=GUITAR_PROFILES[guitarId];
+  if(!g) return 50;
+  const styleMod=g.styleMods[presetStyle]||0;
+  const gainMod=g.gainAffinity[presetGainRange]||0;
+  let voicingMod=0;
+  if(g.voicing!=="balanced"&&presetVoicing&&presetVoicing!=="balanced"){
+    voicingMod=(g.voicing!==presetVoicing)?+3:-2;
+  }
+  let resonanceMod=0;
+  if(g.bodyResonance==="semi_hollow"&&["clean","crunch"].includes(presetGainRange)&&["blues","jazz"].includes(presetStyle)){
+    resonanceMod=+4;
+  }
+  if(g.bodyResonance==="semi_hollow"&&presetGainRange==="high_gain"){
+    resonanceMod=-3;
+  }
+  return Math.max(0,Math.min(100,50+(styleMod+gainMod+voicingMod+resonanceMod)*3));
+}
+
+function computeGainMatchScore(presetGain,songTargetGain){
+  if(songTargetGain==null) return 50; // neutre si pas d'info
+  const diff=Math.abs(presetGain-songTargetGain);
+  return Math.max(0,100-diff*12);
+}
+
+function computeRefAmpScore(presetAmp,songRefAmp){
+  if(!songRefAmp||!presetAmp) return 50;
+  if(presetAmp===songRefAmp) return 100;
+  const preset=AMP_TAXONOMY[presetAmp];
+  const song=AMP_TAXONOMY[songRefAmp];
+  if(!preset||!song) return 30;
+  if(preset.family===song.family) return 85;
+  if(preset.brand===song.brand) return 55;
+  if(preset.school===song.school) return 45;
+  return 15;
+}
+
+function computeStyleMatchScore(presetStyle,songStyle){
+  return STYLE_COMPATIBILITY[presetStyle]?.[songStyle]??30;
+}
+
+function computeFinalScore(preset,guitarId,songStyle,songTargetGain,songRefAmp){
+  const presetGain=typeof preset.gain==="number"?preset.gain:gainToNumeric(preset.gain);
+  const presetGainRange=getGainRange(presetGain);
+  const pickupType=GUITAR_PROFILES[guitarId]?.pickupType||GUITARS.find(g=>g.id===guitarId)?.type||"HB";
+  const pickupScore=preset.scores?.[pickupType]!=null
+    ? preset.scores[pickupType]
+    : computePickupScore(preset.style,presetGainRange,pickupType);
+  const guitarScore2=computeGuitarScoreV2(guitarId,preset.style,presetGainRange,preset.voicing);
+  const gainMatchScore=computeGainMatchScore(presetGain,songTargetGain);
+  const refAmpScore=computeRefAmpScore(preset.amp,songRefAmp);
+  const styleScore=computeStyleMatchScore(preset.style,songStyle);
+  return Math.max(0,Math.min(100,Math.round(
+    SCORING_WEIGHTS.pickup    *pickupScore+
+    SCORING_WEIGHTS.guitar    *guitarScore2+
+    SCORING_WEIGHTS.gainMatch *gainMatchScore+
+    SCORING_WEIGHTS.refAmp    *refAmpScore+
+    SCORING_WEIGHTS.styleMatch*styleScore
+  )));
+}
+
+// Score simplifié sans contexte morceau (pour affichage liste, worstSlot, etc.)
+function computeSimpleScore(presetName,guitarId,gType){
+  const entry=findCatalogEntry(presetName);
+  if(!entry) return 60;
+  if(!guitarId){return entry.scores?.[gType]??60;}
+  const gp=GUITAR_PROFILES[guitarId];
+  if(!gp){const gt=GUITARS.find(g=>g.id===guitarId)?.type||gType||"HB";return entry.scores?.[gt]??60;}
+  const presetGain=gainToNumeric(entry.gain);
+  const presetGainRange=getGainRange(presetGain);
+  const pickupScore=entry.scores?.[gp.pickupType]??60;
+  const guitarScore2=computeGuitarScoreV2(guitarId,entry.style,presetGainRange,entry.voicing);
+  // Sans contexte morceau : pickup 60% + guitar 40%
+  return Math.max(30,Math.min(99,Math.round(pickupScore*0.6+guitarScore2*0.4)));
+}
+// V2 wrappers — delegate to computeSimpleScore
+function guitarScore(name,guitarId){return computeSimpleScore(name,guitarId,null);}
+function presetScore(name,gType){return computeSimpleScore(name,null,gType);}
 function srcBadge(name){const s=findCatalogEntry(name)?.src;return s==="TSR"?"TSR":s==="ML"?"ML":s==="Anniversary"?"Pédale":s==="custom"?"Custom":"";}
 function styleBadge(style){const c={hard_rock:"#ef4444",rock:"#f59e0b",blues:"var(--blue)",jazz:"var(--green)",pop:"#ec4899",metal:"#8b5cf6"}[style]||"var(--text-sec)";const l={hard_rock:"Hard Rock",rock:"Rock",blues:"Blues",jazz:"Jazz",pop:"Pop",metal:"Metal"}[style]||style;return <span style={{fontSize:10,background:`${c}20`,color:c,border:`1px solid ${c}40`,borderRadius:4,padding:"1px 7px",fontWeight:700}}>{l}</span>;}
 function gainBadge(gain){const c={low:"var(--green)",mid:"var(--yellow)",high:"var(--red)"}[gain]||"var(--text-sec)";const l={low:"Low",mid:"Mid",high:"High"}[gain]||gain;return <span style={{fontSize:10,background:`${c}20`,color:c,border:`1px solid ${c}40`,borderRadius:4,padding:"1px 7px",fontWeight:700}}>{l} gain</span>;}
@@ -2262,7 +2602,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.0.9";
+const APP_VERSION = "2.0.10";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -2467,7 +2807,7 @@ function Breadcrumb({crumbs,onNavigate}){
   );
 }
 
-function PBlock({device,emoji,presetName,gType,banks,adapted,gs,bg2,availableSources,guitarId,noUpgrade}) {
+function PBlock({device,emoji,presetName,gType,banks,adapted,gs,bg2,availableSources,guitarId,noUpgrade,finalScore}) {
   const rec=presetName&&gType?getInstallRec(presetName,gType,banks||{},guitarId):null;
   const entry=findCatalogEntry(presetName);
   const srcAvail=!entry||!availableSources||availableSources[entry.src]!==false;
@@ -2476,7 +2816,7 @@ function PBlock({device,emoji,presetName,gType,banks,adapted,gs,bg2,availableSou
   const showBest=best&&!best.isCurrent&&best.installed;
   const displayName=showBest?best.name:presetName;
   const displayRec=showBest?{...rec,score:best.score,installed:true,bank:best.bank,slot:best.slot}:rec;
-  const sc=displayRec?.score;
+  const sc=finalScore!=null?finalScore:displayRec?.score;
   const scC=sc!=null?scoreColor(sc):"#888";
   return (
     <div style={{background:bg2||"var(--a4)",border:"1px solid var(--a8)",borderRadius:10,padding:"10px 12px",opacity:srcAvail?1:0.5}}>
@@ -2546,37 +2886,35 @@ const AMP_ALIASES={
   "matchless dc30":"Matchless DC30","matchless dc 30":"Matchless DC30",
   "roland jc-120":"Roland JC-120","roland jc120":"Roland JC-120","roland jazz chorus":"Roland JC-120",
 };
-function computeBestPresets(gType,style,banksAnn,banksPlug,guitarId,refAmp){
-  const compat=COMPAT_STYLES[style]||[style];
-  // Resolve ref_amp via aliases then fuzzy match
-  const refNorm=(refAmp||"").toLowerCase().replace(/[^a-z0-9\s]/g,"").trim();
-  let resolvedAmp=null;
+// Résout un ref_amp texte vers un nom canonique du catalogue via AMP_ALIASES
+function resolveRefAmp(refAmp){
+  if(!refAmp) return null;
+  const refNorm=refAmp.toLowerCase().replace(/[^a-z0-9\s]/g,"").trim();
   for(const [alias,canonical] of Object.entries(AMP_ALIASES)){
-    if(refNorm.includes(alias)){resolvedAmp=canonical;break;}
+    if(refNorm.includes(alias)) return canonical;
   }
-  const ampMatch=(presetAmp)=>{
-    if(!refNorm||!presetAmp) return 0;
-    // Direct alias match
-    if(resolvedAmp&&presetAmp===resolvedAmp) return 5;
-    // Fuzzy fallback
-    const pa=presetAmp.toLowerCase().replace(/[^a-z0-9\s]/g,"");
-    const refWords=refNorm.split(/\s+/).filter(w=>w.length>2&&!["the","and","with","series","channel","combo","head","watt","100w"].includes(w));
-    const matched=refWords.filter(w=>pa.includes(w));
-    return matched.length>=2?3:0;
-  };
+  // Cherche directement dans AMP_TAXONOMY
+  if(AMP_TAXONOMY[refAmp]) return refAmp;
+  return refAmp; // retourne tel quel si non trouvé
+}
+
+function computeBestPresets(gType,style,banksAnn,banksPlug,guitarId,refAmp,targetGain){
+  const resolvedAmp=resolveRefAmp(refAmp);
+  const songTargetGain=targetGain!=null?targetGain:null;
   const scorePreset=(name,info)=>{
-    const base=guitarId?guitarScore(name,guitarId):(info.scores?.[gType]??60);
-    const styleBonus=info.style===style?12:compat.includes(info.style)?5:0;
-    const refBonus=ampMatch(info.amp);
-    return {total:base+styleBonus+refBonus,raw:base,refBonus};
+    if(!guitarId) {
+      // Fallback sans guitare : score simple par pickup type
+      return info.scores?.[gType]??60;
+    }
+    return computeFinalScore(info,guitarId,style,songTargetGain,resolvedAmp);
   };
   // Best installed on pedal — diversify amps
   const annPresets=[];
   for(const [k,v] of Object.entries(banksAnn)){
     for(const c of ["A","B","C"]){
       if(v[c]){const info=findCatalogEntry(v[c]);if(info){
-        const {total,raw}=scorePreset(v[c],info);
-        annPresets.push({name:v[c],bank:Number(k),col:c,score:total,rawScore:raw,amp:info.amp,style:info.style});
+        const score=scorePreset(v[c],info);
+        annPresets.push({name:v[c],bank:Number(k),col:c,score,rawScore:score,amp:info.amp,style:info.style});
       }}
     }
   }
@@ -2586,8 +2924,8 @@ function computeBestPresets(gType,style,banksAnn,banksPlug,guitarId,refAmp){
   for(const [k,v] of Object.entries(banksPlug)){
     for(const c of ["A","B","C"]){
       if(v[c]){const info=findCatalogEntry(v[c]);if(info){
-        const {total,raw}=scorePreset(v[c],info);
-        plugPresets.push({name:v[c],bank:Number(k),col:c,score:total,rawScore:raw,amp:info.amp,style:info.style});
+        const score=scorePreset(v[c],info);
+        plugPresets.push({name:v[c],bank:Number(k),col:c,score,rawScore:score,amp:info.amp,style:info.style});
       }}
     }
   }
@@ -2595,8 +2933,8 @@ function computeBestPresets(gType,style,banksAnn,banksPlug,guitarId,refAmp){
   // Best from full catalog — diversify amps (no 2 presets from same amp in top 3)
   const catalogAll=Object.entries(PRESET_CATALOG_MERGED)
     .map(([name,info])=>{
-      const {total,raw}=scorePreset(name,info);
-      return {name,score:total,rawScore:raw,amp:info.amp,style:info.style,src:info.src};
+      const score=scorePreset(name,info);
+      return {name,score,rawScore:score,amp:info.amp,style:info.style,src:info.src};
     })
     .sort((a,b)=>b.score-a.score);
   const catalogBest=[];
@@ -2614,7 +2952,7 @@ function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars){
   const g=guitars.find(x=>x.id===gId);
   const glist=guitars.map(x=>`${x.name} (${x.type})`).join(", ");
   const gType=g?.type||"HB";
-  const prompt=`Expert guitare ToneX. Réponds TOUJOURS en français, toutes tes réponses doivent être rédigées en français.\nMorceau: "${song.title}" de "${song.artist}".\nGuitare: ${g?g.name+" ("+g.type+")":"non précisée"}.\nGuitares disponibles: ${glist}.\n\nJSON sans markdown (tous les textes en français):\n{"song_year":1970,"song_album":"nom de l'album","song_desc":"2-3 phrases décrivant le morceau, son style, ses particularités guitare","song_style":"blues/rock/hard_rock/jazz/metal","ideal_guitar":"nom complet de la guitare idéale","guitar_reason":"1-2 phrases en français expliquant le choix","settings_preset":"conseils de réglage preset en français","settings_guitar":"conseils de jeu guitare en français","ref_guitarist":"nom du guitariste principal sur l'enregistrement original","ref_guitar":"guitare(s) utilisée(s) sur l'enregistrement original (modèle précis)","ref_amp":"ampli(s) utilisé(s) sur l'enregistrement original (modèle précis)","ref_effects":"effets utilisés sur l'enregistrement (ou 'Aucun effet' si signal direct)"}`;
+  const prompt=`Expert guitare ToneX. Réponds TOUJOURS en français, toutes tes réponses doivent être rédigées en français.\nMorceau: "${song.title}" de "${song.artist}".\nGuitare: ${g?g.name+" ("+g.type+")":"non précisée"}.\nGuitares disponibles: ${glist}.\n\nJSON sans markdown (tous les textes en français):\n{"song_year":1970,"song_album":"nom de l'album","song_desc":"2-3 phrases décrivant le morceau, son style, ses particularités guitare","song_style":"blues/rock/hard_rock/jazz/metal/pop","target_gain":5,"tonal_school":"fender_clean/marshall_crunch/vox_chime/dumble_smooth/mesa_heavy/hiwatt_clean","pickup_preference":"HB/SC/P90/any","ideal_guitar":"nom complet de la guitare idéale","guitar_reason":"1-2 phrases en français expliquant le choix","settings_preset":"conseils de réglage preset en français","settings_guitar":"conseils de jeu guitare en français","ref_guitarist":"nom du guitariste principal sur l'enregistrement original","ref_guitar":"guitare(s) utilisée(s) sur l'enregistrement original (modèle précis)","ref_amp":"ampli(s) utilisé(s) sur l'enregistrement original (modèle précis)","ref_effects":"effets utilisés sur l'enregistrement (ou 'Aucun effet' si signal direct)"}\n\nChamps spéciaux:\n- target_gain: niveau de gain idéal 0-10 (0=clean cristallin, 3=edge of breakup, 5=crunch, 7=drive, 9=high gain, 10=metal extrême)\n- tonal_school: famille tonale de l'ampli original\n- pickup_preference: type de micro idéal pour ce morceau`;
   const key=aiKeys.gemini||aiKeys.anthropic||DEFAULT_GEMINI_KEY;
   const provider=(aiKeys.gemini||DEFAULT_GEMINI_KEY)?"gemini":"anthropic";
   if(!key) return Promise.reject(new Error("Clé API manquante — configure-la dans ⚙️ Paramètres."));
@@ -2627,10 +2965,11 @@ function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars){
   // Enrich AI result with algorithmically computed best presets
   return aiReq.then(aiResult=>{
     const style=aiResult.song_style||"rock";
-    const best=computeBestPresets(gType,style,banksAnn,banksPlug,gId,aiResult.ref_amp);
-    if(best.annTop) aiResult.preset_ann={bank:best.annTop.bank,col:best.annTop.col,label:best.annTop.name,score:best.annTop.rawScore};
-    if(best.plugTop) aiResult.preset_plug={bank:best.plugTop.bank,col:best.plugTop.col,label:best.plugTop.name,score:best.plugTop.rawScore};
-    if(best.idealTop) {aiResult.ideal_preset=best.idealTop.name;aiResult.ideal_preset_score=best.idealTop.rawScore;}
+    const targetGain=typeof aiResult.target_gain==="number"?aiResult.target_gain:null;
+    const best=computeBestPresets(gType,style,banksAnn,banksPlug,gId,aiResult.ref_amp,targetGain);
+    if(best.annTop) aiResult.preset_ann={bank:best.annTop.bank,col:best.annTop.col,label:best.annTop.name,score:best.annTop.score};
+    if(best.plugTop) aiResult.preset_plug={bank:best.plugTop.bank,col:best.plugTop.col,label:best.plugTop.name,score:best.plugTop.score};
+    if(best.idealTop) {aiResult.ideal_preset=best.idealTop.name;aiResult.ideal_preset_score=best.idealTop.score;}
     aiResult.ideal_top3=best.idealTop3;
     return aiResult;
   });
@@ -2658,8 +2997,8 @@ function AICard({song,gId,onResult,banksAnn,banksPlug,aiProvider,aiKeys,onCacheR
     <div style={{display:"flex",flexDirection:"column",gap:9}}>
       <Row icon="🎯"><div><div style={{fontSize:12,color:"var(--purple)",fontWeight:700,marginBottom:2}}>IA : {res.ideal_guitar}</div><div style={{fontSize:11,color:"var(--text-sec)"}}>{res.guitar_reason}</div></div></Row>
       <div style={{display:"flex",flexDirection:"column",gap:6}}>
-        <PBlock device="Pédale" emoji="📦" presetName={res.preset_ann?.label} gType={gId?(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB":null} banks={banksAnn} noUpgrade/>
-        <PBlock device="ToneX Plug" emoji="🔌" presetName={res.preset_plug?.label} gType={gId?(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB":null} banks={banksPlug} bg2="rgba(99,102,241,0.06)" noUpgrade/>
+        <PBlock device="Pédale" emoji="📦" presetName={res.preset_ann?.label} gType={gId?(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB":null} banks={banksAnn} noUpgrade finalScore={res.preset_ann?.score}/>
+        <PBlock device="ToneX Plug" emoji="🔌" presetName={res.preset_plug?.label} gType={gId?(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB":null} banks={banksPlug} bg2="rgba(99,102,241,0.06)" noUpgrade finalScore={res.preset_plug?.score}/>
       </div>
       <Row icon="🎛️"><div style={{display:"flex",flexDirection:"column",gap:4}}>
         {res.settings_preset&&<div style={{fontSize:11,background:"rgba(251,191,36,0.07)",border:"1px solid var(--yellow-border)",borderRadius:7,padding:"6px 10px",color:"var(--yellow)"}}><b style={{color:"var(--yellow)"}}>Preset · </b>{res.settings_preset}</div>}
@@ -3936,9 +4275,8 @@ function getJamRecs(guitarId, style, banksAnn, banksPlug, guitars, availableSour
     .filter(([,info])=>!style||compat.includes(info.style))
     .filter(([,info])=>!availableSources||availableSources[info.src]!==false)
     .map(([name,info])=>{
-      const raw=guitarId?guitarScore(name,guitarId):(info.scores?.[gType]??60);
-      const styleBonus=info.style===style?12:5;
-      return{name,score:raw,sortScore:raw+styleBonus,amp:info.amp,gain:info.gain,style:info.style,src:info.src};
+      const score=guitarId?computeFinalScore(info,guitarId,style,null,null):(info.scores?.[gType]??60);
+      return{name,score,sortScore:score,amp:info.amp,gain:info.gain,style:info.style,src:info.src};
     })
     .sort((a,b)=>b.sortScore-a.sortScore);
   // Installed top 3 — diversify amps
@@ -4200,14 +4538,15 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         const aiC=s.aiCache?.result||null;
         // Recalculate scoring if cache was computed with a different guitar
         const needRescore=aiC&&s.aiCache?.gId!==gId&&gId;
-        const rescored=needRescore?computeBestPresets(gType,aiC.song_style||"rock",banksAnn,banksPlug,gId,aiC.ref_amp):null;
-        const aiPA=rescored&&rescored.annTop?{label:rescored.annTop.name,bank:rescored.annTop.bank,col:rescored.annTop.col,score:rescored.annTop.rawScore}:aiC?.preset_ann;
-        const aiPP=rescored&&rescored.plugTop?{label:rescored.plugTop.name,bank:rescored.plugTop.bank,col:rescored.plugTop.col,score:rescored.plugTop.rawScore}:aiC?.preset_plug;
+        const targetGain=typeof aiC?.target_gain==="number"?aiC.target_gain:null;
+        const rescored=needRescore?computeBestPresets(gType,aiC.song_style||"rock",banksAnn,banksPlug,gId,aiC.ref_amp,targetGain):null;
+        const aiPA=rescored&&rescored.annTop?{label:rescored.annTop.name,bank:rescored.annTop.bank,col:rescored.annTop.col,score:rescored.annTop.score}:aiC?.preset_ann;
+        const aiPP=rescored&&rescored.plugTop?{label:rescored.plugTop.name,bank:rescored.plugTop.bank,col:rescored.plugTop.col,score:rescored.plugTop.score}:aiC?.preset_plug;
         const hist=getSongHist(s);
-        const presetRow=(emoji,label,banks)=>{
+        const presetRow=(emoji,label,banks,overrideScore)=>{
           const loc=findInBanks(label,banks);
           const entry=findCatalogEntry(label);
-          const sc=gId?guitarScore(label,gId):(entry?.scores?.[gType]??null);
+          const sc=overrideScore!=null?overrideScore:(gId?guitarScore(label,gId):(entry?.scores?.[gType]??null));
           const ampName=entry?.amp||null;
           const scColor=sc!=null?scoreColor(sc):null;
           const scBg=sc!=null?scoreBg(sc):null;
@@ -4249,8 +4588,8 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                   {aiC?.ideal_guitar&&<><span style={{fontSize:10,color:"var(--text-muted)"}}>🎸</span><span style={{fontSize:10,color:"var(--purple)",background:"rgba(167,139,250,0.1)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{aiC.ideal_guitar}</span></>}
                 </div>}
                 {!isExpanded&&<div style={{display:"flex",flexDirection:"column",gap:3,marginTop:aiPA||aiPP?4:0}}>
-                  {aiPA&&presetRow("📦",aiPA.label,banksAnn)}
-                  {aiPP&&presetRow("🔌",aiPP.label,banksPlug)}
+                  {aiPA&&presetRow("📦",aiPA.label,banksAnn,aiPA.score)}
+                  {aiPP&&presetRow("🔌",aiPP.label,banksPlug,aiPP.score)}
                 </div>}
               </div>
             </div>
