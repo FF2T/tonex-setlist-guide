@@ -47,13 +47,12 @@ self.addEventListener('fetch',e=>{
 <script>
 // Firebase stubs — loaded lazily after page renders
 var db=null;
-function saveToFirestore(s){if(!db)return Promise.resolve();try{
-  // Strip sensitive data (API keys) before syncing
+function saveToFirestore(s){return dbReadyPromise.then(function(){if(!db)return;try{
   var clean=JSON.parse(JSON.stringify(s));
   clean.lastModified=Date.now();
   if(clean.profiles){for(var pid in clean.profiles){if(clean.profiles[pid].aiKeys)clean.profiles[pid].aiKeys={anthropic:"",gemini:""};delete clean.profiles[pid].password;}}
   return db.collection("sync").doc("state").set(clean).catch(function(e){console.warn("FS save:",e);});
-}catch(e){return Promise.resolve();}}
+}catch(e){}});}
 var dbReadyResolve;var dbReadyPromise=new Promise(function(r){dbReadyResolve=r;setTimeout(function(){r();},5000);});
 function loadFromFirestore(){return dbReadyPromise.then(function(){if(!db)return null;return db.collection("sync").doc("state").get().then(function(d){return d.exists?d.data():null;}).catch(function(){return null;});});}
 function onFirestoreChange(cb){if(!db)return function(){};return db.collection("sync").doc("state").onSnapshot(function(d){if(d.exists)cb(d.data());},function(){});}
@@ -5675,18 +5674,22 @@ function App() {
 
   // Listen for remote changes from other devices
   useEffect(()=>{
+    let unsub=()=>{};
     let firstSnapshot=true;
-    const unsub = onFirestoreChange(data=>{
-      // Ignore snapshots from our own saves (within 5s) and the initial one
-      if(Date.now()-lastSaveTime.current<5000)return;
-      if(firstSnapshot){firstSnapshot=false;return;} // skip initial snapshot
-      if(!data||!data.shared||!data.profiles) return;
-      // Apply remote state — secrets are restored from local storage
-      if(data.shared.songDb) setSongDb(data.shared.songDb);
-      if(data.shared.theme) setTheme(data.shared.theme);
-      if(data.shared.setlists) setSetlists(data.shared.setlists);
-      if(data.profiles) setProfiles(applySecrets(data.profiles));
-      setSyncStatus("synced");
+    dbReadyPromise.then(()=>{
+      if(!db) return;
+      unsub = db.collection("sync").doc("state").onSnapshot(function(d){
+        if(!d.exists) return;
+        const data=d.data();
+        if(Date.now()-lastSaveTime.current<5000)return;
+        if(firstSnapshot){firstSnapshot=false;return;}
+        if(!data||!data.shared||!data.profiles) return;
+        if(data.shared.songDb) setSongDb(data.shared.songDb);
+        if(data.shared.theme) setTheme(data.shared.theme);
+        if(data.shared.setlists) setSetlists(data.shared.setlists);
+        if(data.profiles) setProfiles(applySecrets(data.profiles));
+        setSyncStatus("synced");
+      },function(){});
     });
     return ()=>unsub();
   },[]);
