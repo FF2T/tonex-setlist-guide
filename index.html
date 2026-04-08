@@ -3960,13 +3960,17 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                   if(!songsByGuitar[gId]) songsByGuitar[gId]=new Set();
                   songsByGuitar[gId].add(s.id);
                 }
+              } else if(guitars.length){
+                // Dernier fallback : première guitare de l'utilisateur
+                if(!songsByGuitar[guitars[0].id]) songsByGuitar[guitars[0].id]=new Set();
+                songsByGuitar[guitars[0].id].add(s.id);
               }
             }
           });
           const ranked=Object.entries(songsByGuitar)
             .map(([gId,songs])=>({gId,count:songs.size}))
             .sort((a,b)=>b.count-a.count).slice(0,3);
-          if(!ranked.length) return <div style={{fontSize:11,color:"var(--text-dim)",padding:4}}>Pas assez de données pour recommander.</div>;
+          if(!ranked.length) return null;
           return <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
             {ranked.map(({gId,count},i)=>{
               const g=guitars.find(x=>x.id===gId);
