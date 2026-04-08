@@ -5128,6 +5128,46 @@ Réponds UNIQUEMENT en JSON (sans markdown) : {"title":"Titre exact","artist":"A
   );
 }
 
+// ─── Splash Popup ────────────────────────────────────────────────────────────
+function SplashPopup({onClose}){
+  return(
+    <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onClose}>
+      <div style={{background:"var(--bg-card)",borderRadius:24,padding:"32px 24px",maxWidth:420,width:"100%",position:"relative",boxShadow:"0 25px 50px rgba(0,0,0,0.5)",textAlign:"center"}} onClick={e=>e.stopPropagation()}>
+        <div style={{fontSize:48,marginBottom:12}}>🎸</div>
+        <div style={{fontSize:24,fontWeight:800,color:"var(--text)",marginBottom:4}}>ToneX Poweruser</div>
+        <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:16}}>Le compagnon intelligent de ta pédale ToneX</div>
+
+        <div style={{fontSize:13,color:"var(--accent)",fontWeight:600,fontStyle:"italic",marginBottom:16,padding:"12px 16px",background:"var(--accent-bg)",borderRadius:10,border:"1px solid var(--accent-border)"}}>
+          "Quel preset charger pour ce morceau, avec cette guitare ?"
+        </div>
+
+        <div style={{fontSize:12,color:"var(--text-muted)",marginBottom:16,lineHeight:1.6}}>
+          Tu scrolles, tu testes, tu perds du temps.<br/>Et tu finis par toujours utiliser les 3 mêmes presets.
+        </div>
+
+        <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:14}}>
+          ToneX Poweruser te recommande automatiquement le meilleur preset pour chaque morceau.
+        </div>
+
+        <div style={{display:"flex",flexDirection:"column",gap:8,textAlign:"left",marginBottom:20}}>
+          {[
+            {n:"1",emoji:"🔍",text:"Tape un morceau — l'IA identifie le titre, l'artiste et le son"},
+            {n:"2",emoji:"🎸",text:"Choisis ta guitare — calcul du meilleur preset pour tes micros"},
+            {n:"3",emoji:"🎵",text:"Charge et joue — banque, slot, score et alternative"},
+          ].map(({n,emoji,text})=>(
+            <div key={n} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"var(--a3)",borderRadius:10}}>
+              <span style={{fontSize:20,flexShrink:0}}>{emoji}</span>
+              <div><span style={{fontWeight:700,color:"var(--accent)",marginRight:4}}>{n}.</span><span style={{fontSize:12,color:"var(--text-sec)"}}>{text}</span></div>
+            </div>
+          ))}
+        </div>
+
+        <button onClick={onClose} style={{background:"linear-gradient(135deg,#7c3aed,#0ea5e9)",border:"none",color:"#fff",borderRadius:12,padding:"12px 32px",fontSize:15,fontWeight:700,cursor:"pointer",width:"100%"}}>C'est parti !</button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Onboarding Wizard ───────────────────────────────────────────────────────
 function OnboardingWizard({onClose,onProfile}){
   const [step,setStep]=useState(0);
@@ -5233,6 +5273,8 @@ function OnboardingWizard({onClose,onProfile}){
 function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onProfile,onSetlistScreen,onJam,onExplore,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profiles,activeProfileId,onSwitchProfile,onProfiles,customPacks,syncStatus,onViewProfile,onLogout}) {
   const profileName=(profiles[activeProfileId]||{}).name||"Profil";
   const profile=profiles[activeProfileId]||{};
+  const [showSplash]=useState(()=>{if(sessionStorage.getItem("tonex_splash_seen"))return false;sessionStorage.setItem("tonex_splash_seen","1");return true;});
+  const [splashOpen,setSplashOpen]=useState(showSplash);
   const [showOnboarding,setShowOnboarding]=useState(false);
   const [songResult,setSongResult]=useState(null);
   const [songLoading,setSongLoading]=useState(false);
@@ -5270,6 +5312,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
 
   return (
     <div style={{display:"flex",flexDirection:"column",minHeight:"80vh"}}>
+      {splashOpen&&<SplashPopup onClose={()=>setSplashOpen(false)}/>}
       {showOnboarding&&<OnboardingWizard onClose={()=>setShowOnboarding(false)} onProfile={onProfile}/>}
       {/* Header nav */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,marginBottom:8}}>
