@@ -3066,7 +3066,7 @@ Réponds UNIQUEMENT en JSON (sans markdown) : {"name":"Nom complet (Marque Modè
   );
 }
 
-function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp,section,aiKeys}){
+function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp,section,aiKeys,customGuitars,onCustomGuitars}){
   const [editName,setEditName]=useState(profile.name);
   const [newProfileName,setNewProfileName]=useState("");
   const [newGuitarName,setNewGuitarName]=useState("");
@@ -3086,14 +3086,15 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp,section,aiK
   const toggleSource=key=>{
     updateProfile("availableSources",prev=>({...prev,[key]:!prev[key]}));
   };
-  const addCustomGuitar=()=>{
-    if(!newGuitarName.trim()||!newGuitarShort.trim())return;
-    const cg={id:`cg_${Date.now()}`,name:newGuitarName.trim(),short:newGuitarShort.trim(),type:newGuitarType};
-    updateProfile("customGuitars",prev=>[...(prev||[]),cg]);
-    setNewGuitarName("");setNewGuitarShort("");setNewGuitarType("HB");
+  const addCustomGuitar=(cg)=>{
+    onCustomGuitars(prev=>[...(prev||[]),cg]);
+    // Auto-check in current profile
+    updateProfile("myGuitars",prev=>[...prev,cg.id]);
   };
   const removeCustomGuitar=id=>{
-    updateProfile("customGuitars",prev=>(prev||[]).filter(g=>g.id!==id));
+    onCustomGuitars(prev=>(prev||[]).filter(g=>g.id!==id));
+    // Uncheck from all profiles
+    onProfiles(p=>{const n={...p};for(const pid in n){n[pid]={...n[pid],myGuitars:(n[pid].myGuitars||[]).filter(x=>x!==id)};}return n;});
   };
   const startEditGuitar=(g,isCustom)=>{
     const edits=profile.editedGuitars||{};
@@ -3104,7 +3105,7 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp,section,aiK
     if(!editGName.trim()||!editGShort.trim()){setEditingGuitarId(null);return;}
     const isCustom=editingGuitarId?.startsWith("cg_");
     if(isCustom){
-      updateProfile("customGuitars",prev=>(prev||[]).map(g=>g.id===editingGuitarId?{...g,name:editGName.trim(),short:editGShort.trim(),type:editGType}:g));
+      onCustomGuitars(prev=>(prev||[]).map(g=>g.id===editingGuitarId?{...g,name:editGName.trim(),short:editGShort.trim(),type:editGType}:g));
     } else {
       updateProfile("editedGuitars",prev=>({...(prev||{}), [editingGuitarId]:{name:editGName.trim(),short:editGShort.trim(),type:editGType}}));
     }
@@ -3143,7 +3144,7 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp,section,aiK
         <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:4}}>Mes guitares</div>
         <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:12}}>Coche les guitares que tu possèdes.</div>
         {(()=>{
-          const customs=profile.customGuitars||[];
+          const customs=customGuitars||[];
           const allBrands=[...GUITAR_BRANDS];
           // Group custom guitars by brand (extract from name, default "Custom")
           const customByBrand={};
@@ -3191,14 +3192,14 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp,section,aiK
             })}
             {customGuitars.map(g=>{
               const isEditing=editingGuitarId===g.id;
-              const rgb=TYPE_COLORS[g.type]||"99,102,241";
+              const sel=profile.myGuitars.includes(g.id);
               return <div key={g.id}>
-                <div style={{display:"flex",alignItems:"center",gap:8,background:`rgba(${rgb},0.1)`,border:`1px solid rgba(${rgb},0.4)`,borderRadius:8,padding:"8px 12px"}}>
-                  <div style={{width:18,height:18,borderRadius:5,border:`2px solid rgb(${rgb})`,background:`rgb(${rgb})`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{color:"#fff",fontSize:10,fontWeight:900}}>✓</span></div>
-                  <div style={{flex:1}}><span style={{fontSize:12,fontWeight:600,color:"var(--text)"}}>{g.short}</span><span style={{fontSize:10,color:"var(--text-dim)",marginLeft:6}}>{g.name}</span></div>
+                <div style={{display:"flex",alignItems:"center",gap:8,background:sel?"rgba(99,102,241,0.1)":"var(--a3)",border:sel?"1px solid var(--accent-border)":"1px solid var(--a6)",borderRadius:8,padding:"8px 12px",cursor:"pointer"}} onClick={()=>toggleGuitar(g.id)}>
+                  <div style={{width:18,height:18,borderRadius:5,border:sel?"2px solid #6366f1":"2px solid var(--text-muted)",background:sel?"var(--accent)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sel&&<span style={{color:"#fff",fontSize:10,fontWeight:900}}>✓</span>}</div>
+                  <div style={{flex:1}}><span style={{fontSize:12,fontWeight:600,color:sel?"var(--text)":"var(--text-muted)"}}>{g.short}</span><span style={{fontSize:10,color:"var(--text-dim)",marginLeft:6}}>{g.name}</span></div>
                   <span style={{fontSize:10,color:"var(--text-dim)",marginRight:4}}>{g.type}</span>
-                  <button onClick={()=>startEditGuitar(g,true)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:5,padding:"3px 7px",fontSize:10,cursor:"pointer"}}>✏️</button>
-                  <button onClick={()=>removeCustomGuitar(g.id)} style={{background:"none",border:"none",color:"var(--red)",cursor:"pointer",fontSize:11,padding:"2px 4px"}}>✕</button>
+                  {sel&&<button onClick={e=>{e.stopPropagation();startEditGuitar(g,true);}} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:5,padding:"3px 7px",fontSize:10,cursor:"pointer"}}>✏️</button>}
+                  <button onClick={e=>{e.stopPropagation();removeCustomGuitar(g.id);}} style={{background:"none",border:"none",color:"var(--red)",cursor:"pointer",fontSize:11,padding:"2px 4px"}}>✕</button>
                 </div>
                 {isEditing&&<div style={{background:"var(--a5)",borderRadius:"0 0 8px 8px",padding:"10px 12px",marginTop:-1,border:"1px solid var(--a8)",borderTop:"none"}}>
                   <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>
@@ -3218,12 +3219,10 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp,section,aiK
           })}
         </div>;})()}
         <GuitarSearchAdd inp={inp} aiKeys={aiKeys} onAdd={(name,short,type)=>{
-          // Extract brand from name (first word if known, otherwise "Mes guitares")
           const knownBrands=["Gibson","Fender","Epiphone","PRS","Ibanez","ESP","Jackson","Schecter","Gretsch","Squier","Yamaha","Taylor","Martin"];
           const firstWord=name.split(" ")[0];
           const brand=knownBrands.find(b=>b.toLowerCase()===firstWord.toLowerCase())||"Mes guitares";
-          const cg={id:`cg_${Date.now()}`,name,short,type,brand};
-          updateProfile("customGuitars",prev=>[...(prev||[]),cg]);
+          addCustomGuitar({id:`cg_${Date.now()}`,name,short,type,brand});
         }}/>
       </div>}
 
@@ -3427,7 +3426,7 @@ Réponds UNIQUEMENT en JSON (sans markdown) :
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 // ─── Mon Profil Screen ────────────────────────────────────────────────────────
-function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,onNavigate,aiProvider,aiKeys,theme,onTheme,profile,profiles,onProfiles,activeProfileId,allGuitars,initTab}) {
+function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,onNavigate,aiProvider,aiKeys,theme,onTheme,profile,profiles,onProfiles,activeProfileId,allGuitars,initTab,customGuitars,onCustomGuitars}) {
   const [tab,setTab]=useState(initTab||"profile");
   const [newSlName,setNewSlName]=useState("");
   const [editSlId,setEditSlId]=useState(null);
@@ -3470,7 +3469,7 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
         {profile.devices?.plug&&tabBtn("plug","🔌 ToneX Plug")}
         {tabBtn("display","🎨 Affichage")}
       </div>
-      {tab==="profile"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="guitars" aiKeys={aiKeys}/>}
+      {tab==="profile"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="guitars" aiKeys={aiKeys} customGuitars={customGuitars} onCustomGuitars={onCustomGuitars}/>}
       {tab==="devices"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="devices"/>}
       {tab==="sources"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="sources"/>}
       {tab==="setlists"&&<div>
@@ -3991,13 +3990,14 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
 }
 
 // ─── ListScreen ───────────────────────────────────────────────────────────────
-function InlineRenameInput({initialName,onSave,onCancel,inp}){
-  const [val,setVal]=useState(initialName);
-  return <>
-    <input value={val} onChange={e=>setVal(e.target.value)} style={{...inp,flex:1}} autoFocus onKeyDown={e=>e.key==="Enter"&&val.trim()&&onSave(val.trim())}/>
-    <button onClick={()=>val.trim()&&onSave(val.trim())} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>OK</button>
-    <button onClick={onCancel} style={{background:"none",border:"none",color:"var(--text-muted)",fontSize:12,cursor:"pointer"}}>✕</button>
-  </>;
+function InlineRenameInput({initialName,onSave,onCancel,inp,placeholder,buttonLabel}){
+  const [val,setVal]=useState(initialName||"");
+  const submit=()=>{if(val.trim()){onSave(val.trim());setVal("");}};
+  return <div style={{display:"flex",gap:6}}>
+    <input value={val} onChange={e=>setVal(e.target.value)} placeholder={placeholder||""} style={{...inp,flex:1}} autoFocus={!!initialName} onKeyDown={e=>e.key==="Enter"&&submit()}/>
+    <button onClick={submit} disabled={!val.trim()} style={{background:val.trim()?"var(--accent)":"var(--a7)",border:"none",color:val.trim()?"#fff":"var(--text-dim)",borderRadius:6,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:val.trim()?"pointer":"not-allowed"}}>{buttonLabel||"OK"}</button>
+    {initialName&&<button onClick={onCancel} style={{background:"none",border:"none",color:"var(--text-muted)",fontSize:12,cursor:"pointer"}}>✕</button>}
+  </div>;
 }
 
 function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,banksAnn,banksPlug,aiProvider,aiKeys,hideHeader=false,allGuitars,availableSources,activeProfileId}) {
@@ -4050,10 +4050,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
               )}
             </div>
           ))}
-          <div style={{display:"flex",gap:6,marginTop:6}}>
-            <input placeholder="Nouvelle setlist…" value={newSlName} onChange={e=>setNewSlName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&createSetlist()} style={{...inp,flex:1}}/>
-            <button onClick={createSetlist} disabled={!newSlName.trim()} style={{background:newSlName.trim()?"var(--accent)":"var(--a7)",border:"none",color:newSlName.trim()?"#fff":"var(--text-dim)",borderRadius:6,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:newSlName.trim()?"pointer":"not-allowed"}}>+ Créer</button>
-          </div>
+          <InlineRenameInput initialName="" onSave={name=>{onSetlists(p=>[...p,{id:`sl_${Date.now()}`,name,songIds:[],profileIds:[activeProfileId]}]);}} onCancel={()=>{}} inp={inp} placeholder="Nouvelle setlist…" buttonLabel="+ Créer"/>
         </div>}
         <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
           <button onClick={()=>{setActiveSlId(null);onChecked([]);}}
@@ -5614,6 +5611,16 @@ function App() {
   const [songDb,  setSongDb]  = useState(initDefault.shared.songDb);
   const [theme,   setTheme]   = useState(initDefault.shared.theme);
   const [setlists, setSetlists] = useState(initDefault.shared?.setlists || [{id:"sl_main",name:"Ma Setlist",songIds:INIT_SONG_DB_META.map(s=>s.id),profileIds:[initDefault.activeProfileId]}]);
+  // Migrate custom guitars from profiles to shared (one-time)
+  const [customGuitars, setCustomGuitars] = useState(()=>{
+    const shared=initDefault.shared?.customGuitars||[];
+    const migrated=[...shared];
+    const existingIds=new Set(migrated.map(g=>g.id));
+    for(const [,p] of Object.entries(initDefault.profiles||{})){
+      (p.customGuitars||[]).forEach(g=>{if(!existingIds.has(g.id)){migrated.push(g);existingIds.add(g.id);}});
+    }
+    return migrated;
+  });
 
   // Profiles state — merge banks + apply local secrets (aiKeys, passwords)
   const mergedProfiles = useMemo(()=>{
@@ -5642,8 +5649,9 @@ function App() {
   const allGuitars = useMemo(()=>{
     const edits=profile.editedGuitars||{};
     const base = GUITARS.filter(g=>profile.myGuitars.includes(g.id)).map(g=>({...g,...(edits[g.id]||{})}));
-    return [...base, ...(profile.customGuitars||[])];
-  },[profile.myGuitars, profile.customGuitars, profile.editedGuitars]);
+    const customs=(customGuitars||[]).filter(g=>profile.myGuitars.includes(g.id));
+    return [...base, ...customs];
+  },[profile.myGuitars, customGuitars, profile.editedGuitars]);
 
   // Non-persisted
   const [screen,  setScreen]  = useState("loading");
@@ -5671,7 +5679,7 @@ function App() {
   const hasMounted = useRef(false);
   const justLoadedFromFirestore = useRef(false);
   useEffect(()=>{
-    const state={version:2, activeProfileId, shared:{songDb,theme,setlists}, profiles, lastModified:Date.now()};
+    const state={version:2, activeProfileId, shared:{songDb,theme,setlists,customGuitars}, profiles, lastModified:Date.now()};
     autoBackup();
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){}
     if(!hasMounted.current){hasMounted.current=true;return;}
@@ -5681,7 +5689,7 @@ function App() {
     lastSaveTime.current = Date.now();
     setSyncStatus("syncing");
     saveToFirestore(state).then(()=>setSyncStatus("synced")).catch(()=>setSyncStatus("error"));
-  },[songDb,theme,setlists,profiles,activeProfileId,firestoreLoaded]);
+  },[songDb,theme,setlists,customGuitars,profiles,activeProfileId,firestoreLoaded]);
 
   // Load from Firestore on first mount — use remote if newer than local
   const [firestoreProfiles,setFirestoreProfiles]=useState(null);
@@ -5695,6 +5703,7 @@ function App() {
           if(data.shared.songDb) setSongDb(data.shared.songDb);
           if(data.shared.theme) setTheme(data.shared.theme);
           if(data.shared.setlists) setSetlists(data.shared.setlists);
+          if(data.shared.customGuitars) setCustomGuitars(data.shared.customGuitars);
           if(data.profiles){setProfiles(applySecrets(data.profiles));setFirestoreProfiles(data.profiles);}
           if(data.activeProfileId) setActiveProfileId(data.activeProfileId);
         }
@@ -5718,6 +5727,7 @@ function App() {
         if(data.shared.songDb) setSongDb(data.shared.songDb);
         if(data.shared.theme) setTheme(data.shared.theme);
         if(data.shared.setlists) setSetlists(data.shared.setlists);
+        if(data.shared.customGuitars) setCustomGuitars(data.shared.customGuitars);
         if(data.profiles) setProfiles(applySecrets(data.profiles));
         setSyncStatus("synced");
       },function(){});
@@ -5775,7 +5785,7 @@ function App() {
   if(screen==="pick") return <div className="page-root"><ProfilePickerScreen profiles={profiles} onPick={pickProfile}/></div>;
   if(screen==="viewprofile"&&viewProfileId&&profiles[viewProfileId]) return <div className="page-root"><ViewProfileScreen profile={profiles[viewProfileId]} onBack={()=>setScreen("list")} onNavigate={setScreen}/></div>;
   if(screen==="exportimport") return <div className="page-root"><ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("settings")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/></div>;
-  if(screen==="profile")      return <div className="page-root"><MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} aiKeys={aiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab}/></div>;
+  if(screen==="profile")      return <div className="page-root"><MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} aiKeys={aiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars}/></div>;
   if(screen==="settings")     return <div className="page-root"><ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} songDb={songDb} onSongDb={setSongDb}/></div>;
   if(screen==="setlists")     return <div className="page-root">
     <SetlistsScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} activeProfileId={activeProfileId}/>
