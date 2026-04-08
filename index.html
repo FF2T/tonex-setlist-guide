@@ -3142,11 +3142,27 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp,section,aiK
       {s==="guitars"&&<div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:16,marginBottom:16}}>
         <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:4}}>Mes guitares</div>
         <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:12}}>Coche les guitares que tu possèdes.</div>
-        <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:12}}>
-          {GUITAR_BRANDS.map(brand=><div key={brand}>
+        {(()=>{
+          const customs=profile.customGuitars||[];
+          const allBrands=[...GUITAR_BRANDS];
+          // Group custom guitars by brand (extract from name, default "Custom")
+          const customByBrand={};
+          customs.forEach(g=>{
+            const brand=g.brand||"Mes guitares";
+            if(!customByBrand[brand]) customByBrand[brand]=[];
+            customByBrand[brand].push(g);
+            if(!allBrands.includes(brand)) allBrands.push(brand);
+          });
+          // Always show "Mes guitares" if there are custom guitars without brand
+          return <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:12}}>
+          {allBrands.map(brand=>{
+            const standardGuitars=GUITARS.filter(g=>g.brand===brand);
+            const customGuitars=customByBrand[brand]||[];
+            if(!standardGuitars.length&&!customGuitars.length) return null;
+            return <div key={brand}>
             <div style={{fontSize:11,fontWeight:700,color:"var(--text-sec)",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6,paddingLeft:2}}>{brand}</div>
             <div style={{display:"flex",flexDirection:"column",gap:4}}>
-            {GUITARS.filter(g=>g.brand===brand).map(g=>{
+            {standardGuitars.map(g=>{
               const sel=profile.myGuitars.includes(g.id);
               const edits=profile.editedGuitars||{};
               const display={...g,...(edits[g.id]||{})};
@@ -3173,36 +3189,40 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp,section,aiK
                 </div>}
               </div>;
             })}
+            {customGuitars.map(g=>{
+              const isEditing=editingGuitarId===g.id;
+              const rgb=TYPE_COLORS[g.type]||"99,102,241";
+              return <div key={g.id}>
+                <div style={{display:"flex",alignItems:"center",gap:8,background:`rgba(${rgb},0.1)`,border:`1px solid rgba(${rgb},0.4)`,borderRadius:8,padding:"8px 12px"}}>
+                  <div style={{width:18,height:18,borderRadius:5,border:`2px solid rgb(${rgb})`,background:`rgb(${rgb})`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{color:"#fff",fontSize:10,fontWeight:900}}>✓</span></div>
+                  <div style={{flex:1}}><span style={{fontSize:12,fontWeight:600,color:"var(--text)"}}>{g.short}</span><span style={{fontSize:10,color:"var(--text-dim)",marginLeft:6}}>{g.name}</span></div>
+                  <span style={{fontSize:10,color:"var(--text-dim)",marginRight:4}}>{g.type}</span>
+                  <button onClick={()=>startEditGuitar(g,true)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:5,padding:"3px 7px",fontSize:10,cursor:"pointer"}}>✏️</button>
+                  <button onClick={()=>removeCustomGuitar(g.id)} style={{background:"none",border:"none",color:"var(--red)",cursor:"pointer",fontSize:11,padding:"2px 4px"}}>✕</button>
+                </div>
+                {isEditing&&<div style={{background:"var(--a5)",borderRadius:"0 0 8px 8px",padding:"10px 12px",marginTop:-1,border:"1px solid var(--a8)",borderTop:"none"}}>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>
+                    <input placeholder="Nom" value={editGName} onChange={e=>setEditGName(e.target.value)} style={{...inp,flex:"1 1 140px",fontSize:11,padding:"5px 8px"}}/>
+                    <input placeholder="Abrégé" value={editGShort} onChange={e=>setEditGShort(e.target.value)} style={{...inp,flex:"0 1 80px",fontSize:11,padding:"5px 8px"}}/>
+                    <select value={editGType} onChange={e=>setEditGType(e.target.value)} style={{...inp,flex:"0 0 55px",fontSize:11,padding:"5px 4px"}}><option value="HB">HB</option><option value="SC">SC</option><option value="P90">P90</option></select>
+                  </div>
+                  <div style={{display:"flex",gap:6}}>
+                    <button onClick={saveEditGuitar} style={{background:"#4f46e5",border:"none",color:"#fff",borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Sauver</button>
+                    <button onClick={()=>setEditingGuitarId(null)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:6,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>Annuler</button>
+                  </div>
+                </div>}
+              </div>;
+            })}
             </div>
-          </div>)}
-        </div>
-        {(profile.customGuitars||[]).length>0&&<div style={{marginBottom:12}}>
-          <div style={{fontSize:11,color:"var(--text-muted)",fontWeight:600,marginBottom:6}}>Guitares custom</div>
-          {profile.customGuitars.map(g=>{
-            const isEditing=editingGuitarId===g.id;
-            return <div key={g.id}>
-              <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--a3)",borderRadius:isEditing?"7px 7px 0 0":7,padding:"5px 10px",marginBottom:isEditing?0:4}}>
-                <div style={{flex:1,fontSize:12,color:"var(--text)"}}>{g.name} <span style={{color:"var(--text-muted)",fontSize:10}}>({g.type})</span></div>
-                <button onClick={()=>startEditGuitar(g,true)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:5,padding:"3px 7px",fontSize:10,cursor:"pointer"}}>✏️</button>
-                <button onClick={()=>removeCustomGuitar(g.id)} style={{background:"none",border:"none",color:"var(--red)",cursor:"pointer",fontSize:13}}>✕</button>
-              </div>
-              {isEditing&&<div style={{background:"var(--a5)",borderRadius:"0 0 7px 7px",padding:"10px 12px",marginBottom:4,border:"1px solid var(--a8)",borderTop:"none"}}>
-                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>
-                  <input placeholder="Nom" value={editGName} onChange={e=>setEditGName(e.target.value)} style={{...inp,flex:"1 1 140px",fontSize:11,padding:"5px 8px"}}/>
-                  <input placeholder="Abrégé" value={editGShort} onChange={e=>setEditGShort(e.target.value)} style={{...inp,flex:"0 1 80px",fontSize:11,padding:"5px 8px"}}/>
-                  <select value={editGType} onChange={e=>setEditGType(e.target.value)} style={{...inp,flex:"0 0 55px",fontSize:11,padding:"5px 4px"}}><option value="HB">HB</option><option value="SC">SC</option><option value="P90">P90</option></select>
-                </div>
-                <div style={{display:"flex",gap:6}}>
-                  <button onClick={saveEditGuitar} style={{background:"#4f46e5",border:"none",color:"#fff",borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Sauver</button>
-                  <button onClick={()=>setEditingGuitarId(null)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:6,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>Annuler</button>
-                </div>
-              </div>}
-            </div>;
+          </div>;
           })}
-        </div>}
+        </div>;})()}
         <GuitarSearchAdd inp={inp} aiKeys={aiKeys} onAdd={(name,short,type)=>{
-          setNewGuitarName(name);setNewGuitarShort(short);setNewGuitarType(type);
-          const cg={id:`cg_${Date.now()}`,name,short,type};
+          // Extract brand from name (first word if known, otherwise "Mes guitares")
+          const knownBrands=["Gibson","Fender","Epiphone","PRS","Ibanez","ESP","Jackson","Schecter","Gretsch","Squier","Yamaha","Taylor","Martin"];
+          const firstWord=name.split(" ")[0];
+          const brand=knownBrands.find(b=>b.toLowerCase()===firstWord.toLowerCase())||"Mes guitares";
+          const cg={id:`cg_${Date.now()}`,name,short,type,brand};
           updateProfile("customGuitars",prev=>[...(prev||[]),cg]);
         }}/>
       </div>}
