@@ -2604,7 +2604,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.1.05";
+const APP_VERSION = "2.1.06";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -2985,6 +2985,20 @@ function AICard({song,gId,onResult,banksAnn,banksPlug,aiProvider,aiKeys,onCacheR
     // Cache valide pour cette guitare → pas d'appel API
     if(song.aiCache&&song.aiCache.gId===gId){
       setRes(song.aiCache.result);onResult(song.aiCache.result);return;
+    }
+    // Cache existant mais guitare différente → recalculer les scores sans rappeler l'IA
+    if(song.aiCache&&song.aiCache.result&&gId){
+      const cached=song.aiCache.result;
+      const gType=(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB";
+      const targetGain=typeof cached.target_gain==="number"?cached.target_gain:null;
+      const best=computeBestPresets(gType,cached.song_style||"rock",banksAnn,banksPlug,gId,cached.ref_amp,targetGain);
+      const updated={...cached};
+      if(best.annTop) updated.preset_ann={bank:best.annTop.bank,col:best.annTop.col,label:best.annTop.name,score:best.annTop.score};
+      if(best.plugTop) updated.preset_plug={bank:best.plugTop.bank,col:best.plugTop.col,label:best.plugTop.name,score:best.plugTop.score};
+      if(best.idealTop){updated.ideal_preset=best.idealTop.name;updated.ideal_preset_score=best.idealTop.score;}
+      updated.ideal_top3=best.idealTop3;
+      setRes(updated);onResult(updated);if(onCacheResult)onCacheResult(gId,updated);
+      return;
     }
     setRes(null);setErr(null);setLoading(true);
     fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars)
