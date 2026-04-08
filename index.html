@@ -14,7 +14,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v10';
+const CACHE='tonex-v11';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -2506,15 +2506,40 @@ function PBlock({device,emoji,presetName,gType,banks,adapted,gs,bg2,availableSou
 }
 
 // ─── Calcul algorithmique des meilleurs presets ──────────────────────────────
+// Amp aliases: maps common ref_amp names to catalog amp names
+const AMP_ALIASES={
+  "marshall super lead":"Marshall SL800","marshall super lead 100":"Marshall SL800","marshall super lead 100w":"Marshall SL800","marshall plexi":"Marshall SL800","marshall 1959":"Marshall SL800",
+  "marshall jcm800":"Marshall JCM800","marshall jcm 800":"Marshall JCM800",
+  "marshall jcm900":"Marshall JCM900","marshall jcm 900":"Marshall JCM900",
+  "marshall jtm45":"Marshall JTM45","marshall jtm 45":"Marshall JTM45","marshall jtm":"Marshall JTM45",
+  "fender twin reverb":"Fender Twin Reverb","fender twin":"Fender Twin Reverb","fender twin silverface":"Fender Twin Reverb",
+  "fender deluxe reverb":"Fender Deluxe Reverb","fender deluxe":"Fender Deluxe Reverb",
+  "fender bassman":"Fender Bassman","fender blues deluxe":"Fender Blues Deluxe",
+  "vox ac30":"Vox AC30","vox ac 30":"Vox AC30","vox ac15":"Vox AC15",
+  "mesa boogie dual rectifier":"Mesa Dual Rectifier","mesa dual rectifier":"Mesa Dual Rectifier","mesa rectifier":"Mesa Dual Rectifier",
+  "orange or120":"Orange OR120","orange rockerverb":"Orange Rockerverb",
+  "friedman be-100":"Friedman BE-100","friedman be100":"Friedman BE-100","friedman be 100":"Friedman BE-100",
+  "dumble overdrive special":"Dumble ODS","dumble ods":"Dumble ODS",
+  "two rock":"Two Rock","peavey 5150":"Peavey 5150","peavey evh":"Peavey 5150",
+  "hiwatt dr103":"Hiwatt DR103","hiwatt custom":"Hiwatt DR103",
+};
 function computeBestPresets(gType,style,banksAnn,banksPlug,guitarId,refAmp){
   const compat=COMPAT_STYLES[style]||[style];
-  // Fuzzy amp matching: extract keywords from ref_amp and compare with preset amp
-  const refAmpWords=(refAmp||"").toLowerCase().replace(/[^a-z0-9\s]/g,"").split(/\s+/).filter(w=>w.length>2&&!["the","and","with","series","channel","combo","head","watt"].includes(w));
+  // Resolve ref_amp via aliases then fuzzy match
+  const refNorm=(refAmp||"").toLowerCase().replace(/[^a-z0-9\s]/g,"").trim();
+  let resolvedAmp=null;
+  for(const [alias,canonical] of Object.entries(AMP_ALIASES)){
+    if(refNorm.includes(alias)){resolvedAmp=canonical;break;}
+  }
   const ampMatch=(presetAmp)=>{
-    if(!refAmpWords.length||!presetAmp) return 0;
+    if(!refNorm||!presetAmp) return 0;
+    // Direct alias match
+    if(resolvedAmp&&presetAmp===resolvedAmp) return 25;
+    // Fuzzy fallback
     const pa=presetAmp.toLowerCase().replace(/[^a-z0-9\s]/g,"");
-    const matched=refAmpWords.filter(w=>pa.includes(w));
-    return matched.length>=2?20:matched.length===1&&refAmpWords.length<=2?15:0;
+    const refWords=refNorm.split(/\s+/).filter(w=>w.length>2&&!["the","and","with","series","channel","combo","head","watt","100w"].includes(w));
+    const matched=refWords.filter(w=>pa.includes(w));
+    return matched.length>=2?20:0;
   };
   const scorePreset=(name,info)=>{
     const base=guitarId?guitarScore(name,guitarId):(info.scores?.[gType]??60);
