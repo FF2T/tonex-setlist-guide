@@ -2603,7 +2603,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.1.01";
+const APP_VERSION = "2.1.02";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4360,12 +4360,15 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
       </div>}
       {!reloading&&aiC&&<>
         {aiC.ideal_preset&&(()=>{
-          const installedBest=Math.max(aiC.preset_ann?.score||0,aiC.preset_plug?.score||0);
+          const annScore=aiC.preset_ann?.score||0;const plugScore=aiC.preset_plug?.score||0;
+          const installedBest=Math.max(annScore,plugScore);
+          const installedBestName=annScore>=plugScore?aiC.preset_ann?.label:aiC.preset_plug?.label;
+          const installedBestDevice=annScore>=plugScore?"📦":"🔌";
           const idealScore=aiC.ideal_preset_score||0;
           const installedIsMax=installedBest>0&&installedBest>=idealScore;
           return installedIsMax
             ?<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:11,background:"rgba(74,222,128,0.08)",border:"1px solid var(--green-border)",borderRadius:7,padding:"5px 10px"}}>
-              <span style={{fontWeight:700,color:"var(--green)"}}>✅ Tu as déjà le meilleur preset installé !</span>
+              <span style={{fontWeight:700,color:"var(--green)"}}>✅ Meilleur preset : {installedBestDevice} {installedBestName} ({installedBest}%)</span>
             </div>
             :<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:11}}>
               <span style={{fontWeight:700}}>⭐ Idéal : {aiC.ideal_preset}</span>
@@ -5781,12 +5784,15 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
 
             {/* Preset idéal (base complète) */}
             {songResult.ideal_preset&&(()=>{
-              const installedBest=Math.max(songResult.preset_ann?.score||0,songResult.preset_plug?.score||0);
+              const annScore=songResult.preset_ann?.score||0;const plugScore=songResult.preset_plug?.score||0;
+              const installedBest=Math.max(annScore,plugScore);
+              const installedBestName=annScore>=plugScore?songResult.preset_ann?.label:songResult.preset_plug?.label;
+              const installedBestDevice=annScore>=plugScore?"📦":"🔌";
               const idealScore=songResult.ideal_preset_score||0;
               const installedIsMax=installedBest>0&&installedBest>=idealScore;
               return installedIsMax
                 ?<div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(74,222,128,0.08)",border:"1px solid var(--green-border)",borderRadius:8,padding:"8px 10px",marginBottom:6}}>
-                  <span style={{fontSize:11,color:"var(--green)",fontWeight:700}}>✅ Tu as déjà le meilleur preset installé !</span>
+                  <span style={{fontSize:11,color:"var(--green)",fontWeight:700}}>✅ Meilleur preset : {installedBestDevice} {installedBestName} ({installedBest}%)</span>
                 </div>
                 :<div style={{display:"flex",alignItems:"center",gap:8,background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",borderRadius:8,padding:"8px 10px",marginBottom:6}}>
                   <span style={{fontSize:11,color:"var(--yellow)",fontWeight:700,flexShrink:0}}>⭐ Idéal</span>
