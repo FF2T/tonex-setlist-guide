@@ -54,7 +54,8 @@ function saveToFirestore(s){if(!db)return Promise.resolve();try{
   if(clean.profiles){for(var pid in clean.profiles){if(clean.profiles[pid].aiKeys)clean.profiles[pid].aiKeys={anthropic:"",gemini:""};delete clean.profiles[pid].password;}}
   return db.collection("sync").doc("state").set(clean).catch(function(e){console.warn("FS save:",e);});
 }catch(e){return Promise.resolve();}}
-function loadFromFirestore(){if(!db)return Promise.resolve(null);return db.collection("sync").doc("state").get().then(function(d){return d.exists?d.data():null;}).catch(function(){return null;});}
+var dbReadyResolve;var dbReadyPromise=new Promise(function(r){dbReadyResolve=r;setTimeout(function(){r();},5000);});
+function loadFromFirestore(){return dbReadyPromise.then(function(){if(!db)return null;return db.collection("sync").doc("state").get().then(function(d){return d.exists?d.data():null;}).catch(function(){return null;});});}
 function onFirestoreChange(cb){if(!db)return function(){};return db.collection("sync").doc("state").onSnapshot(function(d){if(d.exists)cb(d.data());},function(){});}
 function loadSharedKey(){if(!db)return Promise.resolve();return db.collection("config").doc("apikeys").get().then(function(d){if(d.exists&&d.data().gemini)DEFAULT_GEMINI_KEY=d.data().gemini;}).catch(function(){});}
 function saveSharedKey(key){if(!db)return Promise.resolve();return db.collection("config").doc("apikeys").set({gemini:key}).catch(function(e){console.warn("FS key save:",e);});}
@@ -5774,7 +5775,7 @@ ReactDOM.render(<App/>, document.getElementById("root"));
       try{
         firebase.initializeApp({apiKey:"AIzaSyAnaJMN-a47S9W_cTC60lKAnzRMAgHNMAA",authDomain:"tonex-guide.firebaseapp.com",projectId:"tonex-guide",storageBucket:"tonex-guide.firebasestorage.app",messagingSenderId:"891859157059",appId:"1:891859157059:web:519ce30a866f20ab3d54f6"});
         db=firebase.firestore();
-        loadSharedKey().then(function(){console.log("Firebase ready, key loaded");});
+        loadSharedKey().then(function(){console.log("Firebase ready, key loaded");if(dbReadyResolve)dbReadyResolve();});
       }catch(e){console.warn("Firebase init failed:",e);}
     };
     document.head.appendChild(s2);
