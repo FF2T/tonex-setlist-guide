@@ -2048,6 +2048,7 @@ function getSongInfo(song){
 // Seuils V2 : 80+ excellent (fidèle au son original), 65+ bon, 50+ acceptable, <50 mauvais
 function scoreColor(s){return s>=80?"var(--green)":s>=65?"var(--blue)":s>=50?"var(--yellow)":"var(--red)";}
 function scoreBg(s){return s>=80?"var(--green-bg)":s>=65?"var(--blue-bg)":s>=50?"var(--yellow-bg)":"var(--red-bg)";}
+function scoreLabel(s){return s>=80?{t:"Excellent",tip:"Preset très adapté à ce morceau"}:s>=65?{t:"Bon",tip:"Preset convenable pour ce morceau"}:s>=50?{t:"Moyen",tip:"Ça dépanne, mais un meilleur preset existe"}:{t:"Faible",tip:"Preset peu adapté à ce morceau"};}
 // Cherche un preset dans le catalogue par nom exact puis fuzzy
 const PRESET_CATALOG_MERGED = {...PRESET_CATALOG_FULL, ...TSR_PACK_CATALOG, ...ANNIVERSARY_CATALOG, ...FACTORY_CATALOG, ...PLUG_FACTORY_CATALOG, ...PRESET_CATALOG};
 function findCatalogEntry(name){
@@ -2603,7 +2604,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.1.03";
+const APP_VERSION = "2.1.04";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -2824,7 +2825,7 @@ function PBlock({device,emoji,presetName,gType,banks,adapted,gs,bg2,availableSou
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}>
         <span style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5}}>{emoji} {device}</span>
         {!srcAvail&&<span style={{fontSize:9,color:"var(--red)"}}>Source non dispo</span>}
-        {sc!=null&&<span style={{fontSize:11,fontWeight:800,color:scC}}>{sc}%</span>}
+        {sc!=null&&<span style={{fontSize:11,fontWeight:800,color:scC}} title={scoreLabel(sc).tip}>{sc}% · {scoreLabel(sc).t}</span>}
       </div>
       {displayRec?<>
         <div style={{fontSize:12,color:"var(--text-bright)",fontWeight:600,marginBottom:4}}>{displayName}</div>
@@ -4571,7 +4572,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                 :<span style={{fontSize:10,background:"var(--yellow-bg)",color:"var(--yellow)",borderRadius:4,padding:"1px 6px",fontWeight:700}}>⬇</span>
               }
               {ampName&&<span style={{fontSize:10,color:scColor||"var(--text-sec)",background:scBg||"transparent",border:scColor?`1px solid ${scColor}30`:"none",borderRadius:4,padding:"1px 6px",fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:120}}>{ampName}</span>}
-              {sc!=null&&<span style={{fontSize:10,fontWeight:800,color:scColor,background:scBg,borderRadius:4,padding:"1px 6px",border:`1px solid ${scColor}30`}}>{sc}%</span>}
+              {sc!=null&&<span style={{fontSize:10,fontWeight:800,color:scColor,background:scBg,borderRadius:4,padding:"1px 6px",border:`1px solid ${scColor}30`}} title={scoreLabel(sc).tip}>{sc}%</span>}
             </div>
           );
         };
@@ -4711,7 +4712,7 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
                     ?<span style={{fontSize:10,background:`${CC[p.slot]}18`,color:CC[p.slot],border:`1px solid ${CC[p.slot]}40`,borderRadius:4,padding:"1px 7px",fontWeight:700}}>{p.bank}{p.slot}</span>
                     :<span style={{fontSize:10,background:"var(--yellow-bg)",color:"var(--yellow)",borderRadius:4,padding:"1px 7px",fontWeight:700}}>⬇</span>
                   }
-                  <span style={{fontSize:11,fontWeight:700,color:scoreColor(p.score)}}>{p.score}%</span>
+                  <span style={{fontSize:11,fontWeight:700,color:scoreColor(p.score)}} title={scoreLabel(p.score).tip}>{p.score}%</span>
                   <span style={{fontSize:11,color:"var(--text-bright)",fontWeight:600,flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.preset}</span>
                   {p.upgraded&&<span style={{fontSize:9,color:"var(--green)",fontWeight:600}}>↑</span>}
                   <span style={{fontSize:9,color:"var(--text-dim)"}}>{p.songs.join(", ")}</span>
@@ -5807,13 +5808,13 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
               {songResult.preset_ann&&<div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(74,222,128,0.06)",border:"1px solid var(--green-border)",borderRadius:8,padding:"8px 10px"}}>
                 <span style={{fontSize:11,color:"var(--green)",fontWeight:700,flexShrink:0}}>📦 Pédale</span>
                 <span style={{fontSize:11,color:"var(--text)",fontWeight:600,flex:1}}>{songResult.preset_ann.label}</span>
-                {songResult.preset_ann.score&&<span style={{fontSize:10,fontWeight:700,color:scoreColor(songResult.preset_ann.score)}}>{songResult.preset_ann.score}%</span>}
+                {songResult.preset_ann.score&&<span style={{fontSize:10,fontWeight:700,color:scoreColor(songResult.preset_ann.score)}} title={scoreLabel(songResult.preset_ann.score).tip}>{songResult.preset_ann.score}% · {scoreLabel(songResult.preset_ann.score).t}</span>}
                 <span style={{fontSize:10,color:"var(--text-muted)"}}>Banque {songResult.preset_ann.bank}{songResult.preset_ann.col}</span>
               </div>}
               {songResult.preset_plug&&<div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(99,102,241,0.06)",border:"1px solid rgba(99,102,241,0.15)",borderRadius:8,padding:"8px 10px"}}>
                 <span style={{fontSize:11,color:"var(--accent)",fontWeight:700,flexShrink:0}}>🔌 Plug</span>
                 <span style={{fontSize:11,color:"var(--text)",fontWeight:600,flex:1}}>{songResult.preset_plug.label}</span>
-                {songResult.preset_plug.score&&<span style={{fontSize:10,fontWeight:700,color:scoreColor(songResult.preset_plug.score)}}>{songResult.preset_plug.score}%</span>}
+                {songResult.preset_plug.score&&<span style={{fontSize:10,fontWeight:700,color:scoreColor(songResult.preset_plug.score)}} title={scoreLabel(songResult.preset_plug.score).tip}>{songResult.preset_plug.score}% · {scoreLabel(songResult.preset_plug.score).t}</span>}
                 <span style={{fontSize:10,color:"var(--text-muted)"}}>Banque {songResult.preset_plug.bank}{songResult.preset_plug.col}</span>
               </div>}
             </div>
