@@ -3846,7 +3846,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
   const [activeSlId,setActiveSlId]=useState(setlists[0]?.id||null);
   const activeSl=activeSlId?setlists.find(s=>s.id===activeSlId):null;
   const [showAdd,setShowAdd]=useState(false);
-  const [sort,setSort]=useState(activeSl?.sort||"artist");
+  const [sort,setSort]=useState((activeSl?.sort&&activeSl.sort!=="default")?activeSl.sort:"artist");
   const saveSort=(v)=>{setSort(v);if(activeSlId)onSetlists(p=>p.map(sl=>sl.id===activeSlId?{...sl,sort:v}:sl));};
   const activeSongs=useMemo(()=>{
     const sl=activeSl;
@@ -3871,7 +3871,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
             Tous<span style={{fontSize:10,marginLeft:5,color:!activeSlId?"var(--accent)":"var(--text-dim)"}}>({songDb.length})</span>
           </button>
           {setlists.map(sl=>(
-            <button key={sl.id} onClick={()=>{const newId=activeSlId===sl.id?null:sl.id;setActiveSlId(newId);onChecked([]);setSort(newId?setlists.find(s=>s.id===newId)?.sort||"artist":"artist");}}
+            <button key={sl.id} onClick={()=>{const newId=activeSlId===sl.id?null:sl.id;setActiveSlId(newId);onChecked([]);const ss=newId&&setlists.find(s=>s.id===newId)?.sort;setSort(ss&&ss!=="default"?ss:"artist");}}
               style={{background:activeSlId===sl.id?"var(--accent-bg)":"var(--a5)",border:activeSlId===sl.id?"1px solid rgba(99,102,241,0.6)":"1px solid var(--a10)",color:activeSlId===sl.id?"var(--accent)":"var(--text-sec)",borderRadius:8,padding:"7px 14px",fontSize:13,fontWeight:600,cursor:"pointer"}}>
               {sl.name}<span style={{fontSize:10,marginLeft:5,color:activeSlId===sl.id?"var(--accent)":"var(--text-dim)"}}>({sl.songIds.length})</span>
             </button>
