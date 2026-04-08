@@ -5202,24 +5202,10 @@ function OnboardingWizard({onClose,onProfile}){
         <div>📋 Savoir quels presets emporter sur ton plug</div>
       </div>
     </div>,
-    // 1: Configuration
-    ()=><div style={{textAlign:"center"}}>
-      <div style={{fontSize:48,marginBottom:12}}>⚙️</div>
-      <div style={{fontSize:22,fontWeight:800,color:"var(--text)",marginBottom:8}}>Configure ton profil</div>
-      <div style={{fontSize:13,color:"var(--text-sec)",lineHeight:1.6,marginBottom:20}}>
-        Pour des recommandations précises, l'app a besoin de connaître :
-      </div>
-      <div style={{fontSize:13,color:"var(--text-muted)",lineHeight:2.2,textAlign:"left",padding:"18px 20px",background:"var(--a3)",borderRadius:14}}>
-        <div><b style={{color:"var(--text-sec)"}}>🎸 Tes guitares</b> — pour adapter les scores par type de micro (HB, SC, P90) et par modèle</div>
-        <div><b style={{color:"var(--text-sec)"}}>📱 Ton matériel</b> — pédale ToneX Standard/Anniversary et/ou ToneX Plug</div>
-        <div><b style={{color:"var(--text-sec)"}}>📦 Tes sources</b> — quels packs de presets tu possèdes (TSR, ML, Factory...)</div>
-      </div>
-      <div style={{fontSize:11,color:"var(--text-dim)",marginTop:16,textAlign:"center"}}>Tu pourras configurer ton profil après le guide, ou via "Mon profil" sur l'accueil.</div>
-    </div>,
-    // 2: Utilisation
+    // 1: Fonctionnalités
     ()=><div style={{textAlign:"center"}}>
       <div style={{fontSize:48,marginBottom:12}}>🎵</div>
-      <div style={{fontSize:22,fontWeight:800,color:"var(--text)",marginBottom:8}}>Comment utiliser l'app</div>
+      <div style={{fontSize:22,fontWeight:800,color:"var(--text)",marginBottom:8}}>Fonctionnalités</div>
       <div style={{display:"flex",flexDirection:"column",gap:10,textAlign:"left",padding:"4px 0"}}>
         {[
           {emoji:"🔍",title:"Recherche intelligente",desc:"Tape \"white room\" ou \"highway to hel\" — l'IA corrige et identifie le morceau, les presets, l'ampli et les effets de référence."},
@@ -5234,16 +5220,17 @@ function OnboardingWizard({onClose,onProfile}){
         </div>)}
       </div>
     </div>,
-    // 3: Astuces
+    // 2: Configuration
     ()=><div style={{textAlign:"center"}}>
-      <div style={{fontSize:48,marginBottom:12}}>💡</div>
-      <div style={{fontSize:22,fontWeight:800,color:"var(--text)",marginBottom:8}}>Astuces</div>
+      <div style={{fontSize:48,marginBottom:12}}>⚙️</div>
+      <div style={{fontSize:22,fontWeight:800,color:"var(--text)",marginBottom:8}}>Configure ton profil</div>
+      <div style={{fontSize:13,color:"var(--text-sec)",lineHeight:1.6,marginBottom:20}}>
+        Pour des recommandations précises, l'app a besoin de connaître :
+      </div>
       <div style={{fontSize:13,color:"var(--text-muted)",lineHeight:2.2,textAlign:"left",padding:"18px 20px",background:"var(--a3)",borderRadius:14}}>
-        <div>📱 <b>Installe l'app</b> — "Ajouter à l'écran d'accueil" sur mobile</div>
-        <div>☁️ <b>Sync automatique</b> — tes données se synchronisent entre appareils</div>
-        <div>✨ <b>Morceaux custom</b> — ajoute n'importe quel morceau, l'IA l'analyse</div>
-        <div>★ <b>Score par guitare</b> — le score s'adapte à chaque guitare, pas juste au type de micro</div>
-        <div>↑ <b>Meilleur dispo</b> — l'app te montre toujours le meilleur preset de tes sources</div>
+        <div><b style={{color:"var(--text-sec)"}}>🎸 Tes guitares</b> — pour adapter les scores par type de micro (HB, SC, P90) et par modèle</div>
+        <div><b style={{color:"var(--text-sec)"}}>📱 Ton matériel</b> — pédale ToneX Standard/Anniversary et/ou ToneX Plug</div>
+        <div><b style={{color:"var(--text-sec)"}}>📦 Tes sources</b> — quels packs de presets tu possèdes (TSR, ML, Factory...)</div>
       </div>
     </div>,
   ];
