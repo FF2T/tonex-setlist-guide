@@ -2206,7 +2206,7 @@ function findUpgrade(presetName, gType, banks, availableSources){
   const entry=findCatalogEntry(presetName);
   if(!entry) return null;
   const currentScore=entry.scores?.[gType]??60;
-  if(currentScore>=80) return null;
+  if(currentScore>=90) return null;
   const compatStyles=COMPAT_STYLES[entry.style]||[entry.style];
   const gainOrder={low:0,mid:1,high:2};
   const currentGainLevel=gainOrder[entry.gain]??1;
@@ -4014,7 +4014,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           const entry=findCatalogEntry(label);
           const sc=entry?.scores?.[gType]??null;
           const ampName=entry?.amp||null;
-          const isLowScore=sc!=null&&sc<80;
+          const isLowScore=sc!=null&&sc<90;
           const upgrade=isLowScore?findUpgrade(label,gType,banks,availableSources):null;
           // Si un meilleur preset est installé, on le montre directement à la place
           if(upgrade&&upgrade.installed){
@@ -4122,7 +4122,7 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
         const banks=device==="ann"?banksAnn:banksPlug;
         const loc=findInBanks(presetName,banks);
         // Also check for upgrade
-        const upgrade=sc<80?findUpgrade(presetName,gType,banks,availableSources):null;
+        const upgrade=sc<90?findUpgrade(presetName,gType,banks,availableSources):null;
         const bestName=(upgrade&&upgrade.installed)?upgrade.name:presetName;
         const bestScore=(upgrade&&upgrade.installed)?upgrade.score:sc;
         const bestLoc=(upgrade&&upgrade.installed)?{bank:upgrade.bank,slot:upgrade.slot}:loc;
