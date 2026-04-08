@@ -3070,19 +3070,6 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp,section}){
   const s=section||"guitars";
   return (
     <div>
-      {/* Nom du profil */}
-      {s==="guitars"&&<div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:16,marginBottom:16}}>
-        <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:10}}>Nom du profil</div>
-        <div style={{display:"flex",gap:8}}>
-          <input value={editName} onChange={e=>setEditName(e.target.value)} onBlur={saveName} onKeyDown={e=>e.key==="Enter"&&saveName()} style={{...inp,flex:1}}/>
-          <button onClick={saveName} style={{background:"#4f46e5",border:"none",color:"#fff",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>OK</button>
-        </div>
-        {Object.keys(profiles).length>1&&<div style={{marginTop:12}}>
-          {!confirmDelete?<button onClick={()=>setConfirmDelete(true)} style={{background:"rgba(239,68,68,0.1)",border:"1px solid var(--red-border)",color:"var(--red)",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer"}}>Supprimer ce profil</button>
-          :<div style={{display:"flex",gap:8,alignItems:"center"}}><span style={{fontSize:12,color:"var(--red)"}}>Confirmer ?</span><button onClick={deleteProfile} style={{background:"#ef4444",border:"none",color:"#fff",borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Oui, supprimer</button><button onClick={()=>setConfirmDelete(false)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:6,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>Annuler</button></div>}
-        </div>}
-      </div>}
-
       {/* Mes guitares */}
       {s==="guitars"&&<div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:16,marginBottom:16}}>
         <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:4}}>Mes guitares</div>
@@ -3613,6 +3600,8 @@ function ProfilesAdmin({profiles,onProfiles}){
   const [newPwd,setNewPwd]=useState("");
   const [editPwdId,setEditPwdId]=useState(null);
   const [editPwdVal,setEditPwdVal]=useState("");
+  const [editNameId,setEditNameId]=useState(null);
+  const [editNameVal,setEditNameVal]=useState("");
   const create=()=>{
     if(!name.trim())return;
     const id=name.trim().toLowerCase().replace(/[^a-z0-9]/g,"_")+`_${Date.now()}`;
@@ -3627,6 +3616,11 @@ function ProfilesAdmin({profiles,onProfiles}){
     onProfiles(p=>({...p,[id]:{...p[id],password:editPwdVal}}));
     setEditPwdId(null);setEditPwdVal("");
   };
+  const saveName=(id)=>{
+    if(!editNameVal.trim())return;
+    onProfiles(p=>({...p,[id]:{...p[id],name:editNameVal.trim()}}));
+    setEditNameId(null);setEditNameVal("");
+  };
   const inp={background:"var(--bg-card)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:7,padding:"6px 10px",fontSize:12,boxSizing:"border-box"};
   return(
     <div>
@@ -3634,12 +3628,23 @@ function ProfilesAdmin({profiles,onProfiles}){
       {Object.values(profiles).map(p=>(
         <div key={p.id} style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:9,padding:"10px 14px",marginBottom:6}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <div style={{flex:1,fontSize:13,fontWeight:600,color:"var(--text)"}}>{p.name}{p.isAdmin&&<span style={{fontSize:9,color:"var(--yellow)",marginLeft:6}}>admin</span>}</div>
-            <span style={{fontSize:10,color:"var(--text-muted)"}}>{p.password?"🔒":"🔓"}</span>
-            <button onClick={()=>{setEditPwdId(editPwdId===p.id?null:p.id);setEditPwdVal(p.password||"");}} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:5,padding:"3px 7px",fontSize:10,cursor:"pointer"}}>Mot de passe</button>
-            {Object.keys(profiles).length>1&&!p.isAdmin&&<button onClick={()=>deleteProfile(p.id)} style={{background:"rgba(239,68,68,0.15)",border:"1px solid var(--red-border)",color:"var(--red)",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer"}}>Supprimer</button>}
+            {editNameId===p.id?(
+              <>
+                <input value={editNameVal} onChange={e=>setEditNameVal(e.target.value)} onKeyDown={e=>e.key==="Enter"&&saveName(p.id)} style={{...inp,flex:1}} autoFocus/>
+                <button onClick={()=>saveName(p.id)} style={{background:"#4f46e5",border:"none",color:"#fff",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>OK</button>
+                <button onClick={()=>setEditNameId(null)} style={{background:"none",border:"none",color:"var(--text-muted)",fontSize:12,cursor:"pointer"}}>✕</button>
+              </>
+            ):(
+              <>
+                <div style={{flex:1,fontSize:13,fontWeight:600,color:"var(--text)"}}>{p.name}{p.isAdmin&&<span style={{fontSize:9,color:"var(--yellow)",marginLeft:6}}>admin</span>}</div>
+                <button onClick={()=>{setEditNameId(p.id);setEditNameVal(p.name);}} style={{background:"none",border:"none",color:"var(--text-muted)",fontSize:12,cursor:"pointer",padding:"2px 4px"}}>✏️</button>
+                <span style={{fontSize:10,color:"var(--text-muted)"}}>{p.password?"🔒":"🔓"}</span>
+                <button onClick={()=>{setEditPwdId(editPwdId===p.id?null:p.id);setEditPwdVal(p.password||"");}} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:5,padding:"3px 7px",fontSize:10,cursor:"pointer"}}>Mot de passe</button>
+                {Object.keys(profiles).length>1&&!p.isAdmin&&<button onClick={()=>deleteProfile(p.id)} style={{background:"rgba(239,68,68,0.15)",border:"1px solid var(--red-border)",color:"var(--red)",borderRadius:6,padding:"3px 8px",fontSize:11,cursor:"pointer"}}>Supprimer</button>}
+              </>
+            )}
           </div>
-          {editPwdId===p.id&&<div style={{display:"flex",gap:6,marginTop:8}}>
+          {editPwdId===p.id&&editNameId!==p.id&&<div style={{display:"flex",gap:6,marginTop:8}}>
             <input type="text" placeholder="Nouveau mot de passe (vide = sans)" value={editPwdVal} onChange={e=>setEditPwdVal(e.target.value)} style={{...inp,flex:1}}/>
             <button onClick={()=>savePwd(p.id)} style={{background:"#4f46e5",border:"none",color:"#fff",borderRadius:6,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>OK</button>
           </div>}
