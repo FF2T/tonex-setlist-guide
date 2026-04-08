@@ -3536,7 +3536,7 @@ function ParametresScreen({onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAi
             </div>
           </div>}
           {tab==="profiles"&&<ProfilesAdmin profiles={profiles} onProfiles={onProfiles}/>}
-          {tab==="maintenance"&&<MaintenanceTab songDb={songDb} onSongDb={onSongDb}/>}
+          {tab==="maintenance"&&<MaintenanceTab songDb={songDb} onSongDb={onSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys}/>}
           {tab==="export"&&<div>
             <button onClick={()=>onNavigate("exportimport")} style={{width:"100%",background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",color:"var(--yellow)",borderRadius:10,padding:"12px 16px",fontSize:13,fontWeight:700,cursor:"pointer",textAlign:"left"}}>
               📋 Export / Import →
@@ -3548,28 +3548,60 @@ function ParametresScreen({onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAi
   );
 }
 
-function MaintenanceTab({songDb,onSongDb}){
-  const [confirmClear,setConfirmClear]=useState(false);
-  const [cleared,setCleared]=useState(false);
+function MaintenanceTab({songDb,onSongDb,banksAnn,banksPlug,aiProvider,aiKeys}){
+  const [recalculating,setRecalculating]=useState(false);
+  const [progress,setProgress]=useState({done:0,total:0,current:""});
+  const [done,setDone]=useState(false);
   const cachedCount=songDb.filter(s=>s.aiCache).length;
+
+  const recalcAll=async()=>{
+    setRecalculating(true);setDone(false);
+    const total=songDb.length;
+    setProgress({done:0,total,current:""});
+    for(let i=0;i<songDb.length;i++){
+      const s=songDb[i];
+      setProgress({done:i,total,current:s.title});
+      try{
+        const r=await fetchAI(s,"",banksAnn,banksPlug,aiProvider,aiKeys,GUITARS);
+        onSongDb(p=>p.map(x=>x.id===s.id?{...x,aiCache:{gId:"",result:r}}:x));
+      }catch(e){console.warn("Recalc failed for",s.title,e);}
+      // Pause between requests to avoid rate limit
+      if(i<songDb.length-1) await new Promise(r=>setTimeout(r,2000));
+    }
+    setProgress({done:total,total,current:""});
+    setRecalculating(false);setDone(true);
+    setTimeout(()=>setDone(false),5000);
+  };
+
   const clearCache=()=>{
     onSongDb(p=>p.map(s=>({...s,aiCache:null})));
-    setConfirmClear(false);
-    setCleared(true);
-    setTimeout(()=>setCleared(false),3000);
+    setDone(true);setTimeout(()=>setDone(false),3000);
   };
+
   return(
     <div>
       <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:16}}>Outils de maintenance de l'application.</div>
+
+      {/* Recalculer tout */}
       <div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:16,marginBottom:12}}>
-        <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:4}}>Recalculer les recommandations</div>
-        <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:10}}>Vide le cache IA de tous les morceaux ({cachedCount} en cache). Les recommandations seront recalculées avec les presets actuels de tes pédales.</div>
-        {cleared?<div style={{fontSize:12,color:"var(--green)",fontWeight:600}}>Cache vidé !</div>
-        :!confirmClear?<button onClick={()=>setConfirmClear(true)} style={{background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",color:"var(--yellow)",borderRadius:8,padding:"8px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Vider le cache IA ({cachedCount} morceaux)</button>
-        :<div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <span style={{fontSize:12,color:"var(--yellow)"}}>Confirmer ?</span>
-          <button onClick={clearCache} style={{background:"var(--yellow)",border:"none",color:"#0f172a",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Oui, vider</button>
-          <button onClick={()=>setConfirmClear(false)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:7,padding:"6px 12px",fontSize:12,cursor:"pointer"}}>Annuler</button>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:4}}>Recalculer toutes les recommandations</div>
+        <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:10}}>Relance l'IA pour les {songDb.length} morceaux avec les presets actuels de tes pédales. ({cachedCount} en cache)</div>
+        {recalculating?<div>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+            <div style={{fontSize:20,animation:"spin 1.5s linear infinite",display:"inline-block"}}>&#9203;</div>
+            <div>
+              <div style={{fontSize:12,fontWeight:600,color:"var(--text)"}}>{progress.done}/{progress.total}</div>
+              <div style={{fontSize:11,color:"var(--text-muted)"}}>{progress.current}</div>
+            </div>
+          </div>
+          <div style={{background:"var(--a8)",borderRadius:4,height:6,overflow:"hidden"}}>
+            <div style={{width:`${progress.total?progress.done/progress.total*100:0}%`,height:"100%",background:"var(--accent)",borderRadius:4,transition:"width 0.3s"}}/>
+          </div>
+        </div>
+        :done?<div style={{fontSize:12,color:"var(--green)",fontWeight:600}}>Terminé !</div>
+        :<div style={{display:"flex",gap:8}}>
+          <button onClick={recalcAll} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:8,padding:"8px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Recalculer tout ({songDb.length} morceaux)</button>
+          <button onClick={clearCache} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:8,padding:"8px 14px",fontSize:12,cursor:"pointer"}}>Vider le cache uniquement</button>
         </div>}
       </div>
     </div>
