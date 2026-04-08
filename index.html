@@ -3921,30 +3921,53 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
       {/* Top guitares pour cette setlist */}
       {activeSongs.length>0&&(()=>{
         const guitars=allGuitars||GUITARS;
-        const counts={};
+        // Compte par guitare : sources = ig explicite, IA, ou meilleur type via scores presets
+        const songsByGuitar={};// gId -> Set of song ids
         activeSongs.forEach(s=>{
           const ig=getIg(s);
-          ig.forEach((gId,i)=>{
-            counts[gId]=(counts[gId]||0)+(i===0?2:1); // 1ère guitare idéale = poids double
+          let matched=false;
+          // 1) Guitares idéales explicites
+          ig.forEach(gId=>{
+            if(!songsByGuitar[gId]) songsByGuitar[gId]=new Set();
+            songsByGuitar[gId].add(s.id);
+            matched=true;
           });
-          // AI ideal guitar
+          // 2) IA ideal guitar
           const aiG=s.isCustom&&s.aiCache?.result?.ideal_guitar;
           if(aiG){
-            const match=guitars.find(g=>g.name===aiG||g.short===aiG);
-            if(match) counts[match.id]=(counts[match.id]||0)+1;
+            const m=guitars.find(g=>g.name===aiG||g.short===aiG);
+            if(m){if(!songsByGuitar[m.id]) songsByGuitar[m.id]=new Set();songsByGuitar[m.id].add(s.id);matched=true;}
+          }
+          // 3) Fallback : déterminer le meilleur type de guitare via les scores presets
+          if(!matched){
+            const pA=getPA(s,"HB");const pP=getPP(s,"HB");
+            const presetName=pA?.l||pP?.l;
+            const entry=presetName?findCatalogEntry(presetName):null;
+            if(entry?.scores){
+              const bestType=Object.entries(entry.scores).sort((a,b)=>b[1]-a[1])[0]?.[0]||"HB";
+              // Mapper vers les guitares de l'utilisateur de ce type
+              const matching=guitars.filter(g=>g.type===bestType);
+              if(matching.length){
+                const gId=matching[0].id;
+                if(!songsByGuitar[gId]) songsByGuitar[gId]=new Set();
+                songsByGuitar[gId].add(s.id);
+              }
+            }
           }
         });
-        const ranked=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,3);
+        const ranked=Object.entries(songsByGuitar)
+          .map(([gId,songs])=>({gId,count:songs.size}))
+          .sort((a,b)=>b.count-a.count).slice(0,3);
         if(!ranked.length) return null;
         return <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
           <span style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5}}>Top guitares</span>
-          {ranked.map(([gId,count],i)=>{
+          {ranked.map(({gId,count},i)=>{
             const g=guitars.find(x=>x.id===gId);
             if(!g) return null;
             const rgb=TYPE_COLORS[g.type]||"99,102,241";
             return <span key={gId} style={{fontSize:11,fontWeight:i===0?700:600,color:`rgb(${rgb})`,background:`rgba(${rgb},${i===0?0.15:0.08})`,border:`1px solid rgba(${rgb},${i===0?0.4:0.2})`,borderRadius:7,padding:"4px 10px",display:"inline-flex",alignItems:"center",gap:4}}>
               {i===0&&"🏆 "}{g.short||g.name}
-              <span style={{fontSize:9,color:"var(--text-dim)"}}>{count} morceaux</span>
+              <span style={{fontSize:9,color:"var(--text-dim)"}}>{count} morceau{count>1?"x":""}</span>
             </span>;
           })}
         </div>;
