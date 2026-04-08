@@ -2564,7 +2564,7 @@ function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars){
   if(!key) return Promise.reject(new Error("Clé API manquante — configure-la dans ⚙️ Paramètres."));
   const parse=t=>JSON.parse(t.replace(/```json|```/g,"").trim());
   const aiReq=provider==="gemini"
-    ?fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})})
+    ?fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash:generateContent?key=${key}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})})
       .then(r=>r.json()).then(d=>{if(d.error)throw new Error(d.error.message||d.error.status);return parse(d.candidates?.[0]?.content?.parts?.[0]?.text||"");})
     :fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:600,messages:[{role:"user",content:prompt}]})})
       .then(r=>r.json()).then(d=>{if(d.error)throw new Error(d.error.message||d.error.type);return parse(d.content?.map(i=>i.text||"").join("")||"");});
@@ -3278,7 +3278,7 @@ Réponds UNIQUEMENT en JSON (sans markdown) :
     const base64=filePreview.split(",")[1];
     const mimeType=filePreview.split(";")[0].split(":")[1];
     if(provider==="gemini"){
-      fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,{
+      fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash:generateContent?key=${key}`,{
         method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({contents:[{parts:[{inlineData:{mimeType,data:base64}},{text:prompt}]}]})
       }).then(r=>r.json()).then(d=>{
@@ -4987,7 +4987,7 @@ Corrige l'orthographe et identifie le titre exact et l'artiste/groupe.
 Réponds UNIQUEMENT en JSON (sans markdown) : {"title":"Titre exact","artist":"Artiste/Groupe","confidence":"high|medium|low"}`;
     const parse=t=>JSON.parse(t.replace(/```json|```/g,"").trim());
     const req=provider==="gemini"
-      ?fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})})
+      ?fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash:generateContent?key=${key}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})})
         .then(r=>r.json()).then(d=>{if(d.error)throw new Error(d.error.message);return parse(d.candidates?.[0]?.content?.parts?.[0]?.text||"");})
       :fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:200,messages:[{role:"user",content:prompt}]})})
         .then(r=>r.json()).then(d=>{if(d.error)throw new Error(d.error.message);return parse(d.content?.map(i=>i.text||"").join("")||"");});
@@ -5044,7 +5044,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
     const provider=(aiKeys?.gemini||DEFAULT_GEMINI_KEY)?"gemini":"anthropic";
     const parse=t=>JSON.parse(t.replace(/```json|```/g,"").trim());
     const req=provider==="gemini"
-      ?fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})})
+      ?fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash:generateContent?key=${key}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})})
         .then(r=>r.json()).then(d=>{if(d.error)throw new Error(d.error.message);return parse(d.candidates?.[0]?.content?.parts?.[0]?.text||"");})
       :fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:600,messages:[{role:"user",content:prompt}]})})
         .then(r=>r.json()).then(d=>{if(d.error)throw new Error(d.error.message);return parse(d.content?.map(i=>i.text||"").join("")||"");});
