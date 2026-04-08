@@ -1917,6 +1917,9 @@ const PRESET_CONTEXT = {
 // Couleur selon score
 function scoreColor(s){return s>=90?"#4ade80":s>=75?"#38bdf8":s>=60?"#fbbf24":"#f87171";}
 function scoreBg(s){return s>=90?"rgba(74,222,128,0.12)":s>=75?"rgba(56,189,248,0.12)":s>=60?"rgba(251,191,36,0.12)":"rgba(248,113,113,0.12)";}
+// Types de guitare — couleurs et labels cohérents dans toute l'app
+const TYPE_LABELS={HB:"Humbucker",SC:"Single Coil",P90:"P-90"};
+const TYPE_COLORS={HB:"249,115,22",SC:"56,189,248",P90:"167,139,250"};
 // Cherche un preset dans le catalogue par nom exact puis fuzzy
 const PRESET_CATALOG_MERGED = {...PRESET_CATALOG, ...ANNIVERSARY_CATALOG, ...PRESET_CATALOG_FULL};
 function findCatalogEntry(name){
@@ -3345,7 +3348,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                 </div>}
                 {!isExpanded&&<div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",marginTop:g||aiC?.ideal_guitar?4:0}}>
                   {g&&<><span style={{fontSize:10,color:"var(--text-muted)"}}>🎸</span><span style={{fontSize:10,color:"#4ade80",background:"rgba(74,222,128,0.1)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{g.short}</span>{ig.slice(1).map(gid=>{const gg=(allGuitars||GUITARS).find(x=>x.id===gid);return gg?<span key={gid} style={{fontSize:10,color:"var(--text-muted)",background:"var(--a5)",borderRadius:4,padding:"1px 7px"}}>{gg.short}</span>:null;})}</>}
-                  {aiC?.ideal_guitar&&<><span style={{fontSize:10,color:"var(--text-muted)"}}>🎸</span><span style={{fontSize:10,color:"#a78bfa",background:"rgba(167,139,250,0.1)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{aiC.ideal_guitar}</span></>}
+                  {aiC?.ideal_guitar&&<><span style={{fontSize:10,color:"var(--text-muted)"}}>🎸</span><span style={{fontSize:10,color:"#4ade80",background:"rgba(74,222,128,0.1)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{aiC.ideal_guitar}</span></>}
                 </div>}
                 {!isExpanded&&<div style={{display:"flex",flexDirection:"column",gap:3,marginTop:pa||pp?4:0}}>
                   {pa&&presetRow("📦",pa.l,banksAnn)}
@@ -3619,9 +3622,9 @@ function PresetList({filtered,selected,setSelected,banksAnn,banksPlug}){
                 </div>
               </div>
               <div style={{display:"flex",gap:3,alignItems:"center",flexShrink:0}}>
-                {["HB","SC","P90"].map(gt=>(
-                  <span key={gt} style={{fontSize:9,color:scoreColor(info.scores[gt]||60),fontWeight:700,background:scoreBg(info.scores[gt]||60),borderRadius:3,padding:"1px 4px"}}>{info.scores[gt]||60}</span>
-                ))}
+                {["HB","SC","P90"].map(gt=>{const sc=info.scores[gt]||60;const rgb=TYPE_COLORS[gt];return(
+                  <span key={gt} style={{fontSize:9,fontWeight:700,color:`rgb(${rgb})`,background:`rgba(${rgb},0.12)`,border:`1px solid rgba(${rgb},0.3)`,borderRadius:3,padding:"1px 5px"}} title={TYPE_LABELS[gt]}>{gt} <span style={{color:scoreColor(sc)}}>{sc}</span></span>
+                );})}
               </div>
             </div>
           );
@@ -3641,6 +3644,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
   const [filterStyle,setFilterStyle]=useState("all");
   const [filterGain,setFilterGain]=useState("all");
   const [filterSrc,setFilterSrc]=useState("all");
+  const [filterGuitar,setFilterGuitar]=useState("all");
   const [showAllSrc,setShowAllSrc]=useState(false);
   const [search,setSearch]=useState("");
   const [selected,setSelected]=useState(null);
@@ -3668,6 +3672,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
       if(filterStyle!=="all"&&info.style!==filterStyle)return false;
       if(filterGain!=="all"&&info.gain!==filterGain)return false;
       if(filterSrc!=="all"&&info.src!==filterSrc)return false;
+      if(filterGuitar!=="all"&&(info.scores[filterGuitar]||60)<80)return false;
       if(search.trim()){
         const q=search.toLowerCase();
         const ctx=PRESET_CONTEXT[info.amp];
@@ -3677,7 +3682,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
       }
       return true;
     })
-  ,[filterStyle,filterGain,filterSrc,search]);
+  ,[filterStyle,filterGain,filterSrc,filterGuitar,search]);
 
   const pickRandom=()=>{
     if(!filtered.length)return;
@@ -3690,22 +3695,23 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
   const annLoc=selected?findInBanks(selected,banksAnn):null;
   const plugLoc=selected?findInBanks(selected,banksPlug):null;
 
-  const ScoreBar=({label,score})=>(
+  const ScoreBar=({label,score})=>{const rgb=TYPE_COLORS[label]||"148,163,184";const fullLabel=TYPE_LABELS[label]||label;return(
     <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
-      <span style={{fontSize:10,color:"var(--text-muted)",width:28,flexShrink:0}}>{label}</span>
+      <span style={{fontSize:10,color:`rgb(${rgb})`,width:70,flexShrink:0,fontWeight:600}}>{fullLabel}</span>
       <div style={{flex:1,height:5,background:"var(--a8)",borderRadius:3,overflow:"hidden"}}>
         <div style={{width:`${score}%`,height:"100%",background:scoreColor(score),borderRadius:3}}/>
       </div>
       <span style={{fontSize:10,fontWeight:700,color:scoreColor(score),width:30,textAlign:"right"}}>{score}%</span>
     </div>
-  );
+  );};
 
   const STYLE_OPTS={all:"Tous styles",hard_rock:"Hard Rock",rock:"Rock",blues:"Blues",jazz:"Jazz",pop:"Pop",metal:"Metal"};
   const GAIN_OPTS={all:"Tous gains",low:"Low gain",mid:"Mid gain",high:"High gain"};
   const SRC_OPTS={all:"Toutes sources",TSR:"64 Studio Rats",ML:"ML Sound Lab Essentials",Anniversary:"ToneX Anniversary Factory",Factory:"ToneX Factory",custom:"Custom"};
+  const GUITAR_OPTS={all:"Toutes guitares",HB:"Humbucker",SC:"Single Coil",P90:"P-90"};
   const selStyle={background:"var(--bg-card)",color:"var(--text-sec)",border:"1px solid var(--a12)",borderRadius:7,padding:"6px 10px",fontSize:12,cursor:"pointer"};
 
-  const hasFilter=filterStyle!=="all"||filterGain!=="all"||filterSrc!=="all"||search.trim();
+  const hasFilter=filterStyle!=="all"||filterGain!=="all"||filterSrc!=="all"||filterGuitar!=="all"||search.trim();
   return (
     <div>
       <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:14}}>Explore ta bibliothèque de presets et découvre leur contexte musical.</div>
@@ -3723,6 +3729,14 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
           <select value={filterGain} onChange={e=>setFilterGain(e.target.value)} style={selStyle}>{Object.entries(GAIN_OPTS).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
           <select value={filterSrc} onChange={e=>setFilterSrc(e.target.value)} style={selStyle}>{Object.entries(SRC_OPTS).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
         </div>
+        <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8}}>
+          <span style={{fontSize:10,color:"var(--text-muted)",fontWeight:600,alignSelf:"center",marginRight:2}}>🎸 Guitare :</span>
+          {Object.entries(GUITAR_OPTS).map(([k,l])=>{
+            const active=filterGuitar===k;
+            const rgb=TYPE_COLORS[k];
+            return <button key={k} onClick={()=>setFilterGuitar(k)} style={{fontSize:11,fontWeight:active?700:500,color:active&&rgb?`rgb(${rgb})`:active?"var(--text)":"var(--text-muted)",background:active&&rgb?`rgba(${rgb},0.15)`:active?"var(--a8)":"var(--a3)",border:active&&rgb?`1px solid rgba(${rgb},0.4)`:active?"1px solid var(--a15)":"1px solid var(--a7)",borderRadius:6,padding:"4px 10px",cursor:"pointer"}}>{l}{active&&k!=="all"&&<span style={{fontSize:9,marginLeft:4}}>≥80%</span>}</button>;
+          })}
+        </div>
         <input placeholder="Artiste, morceau, ampli…" value={search} onChange={e=>setSearch(e.target.value)}
           style={{width:"100%",background:"var(--bg-body)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:8,padding:"7px 11px",fontSize:12,boxSizing:"border-box"}}/>
         {availableSources&&Object.values(availableSources).some(v=>!v)&&<label style={{display:"flex",alignItems:"center",gap:6,marginTop:8,fontSize:11,color:"var(--text-sec)",cursor:"pointer"}}>
@@ -3730,7 +3744,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
         </label>}
         {hasFilter&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8}}>
           <span style={{fontSize:11,color:"var(--text-muted)"}}>{filtered.length} preset{filtered.length>1?"s":""} trouvé{filtered.length>1?"s":""}</span>
-          <button onClick={()=>{setFilterStyle("all");setFilterGain("all");setFilterSrc("all");setSearch("");}} style={{fontSize:11,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Réinitialiser</button>
+          <button onClick={()=>{setFilterStyle("all");setFilterGain("all");setFilterSrc("all");setFilterGuitar("all");setSearch("");}} style={{fontSize:11,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Réinitialiser</button>
         </div>}
       </div>
 
@@ -3827,8 +3841,6 @@ const JAM_STYLES=[
   {id:"hard_rock",label:"Hard Rock",emoji:"🔥", color:"249,115,22"},
   {id:"metal",  label:"Metal",      emoji:"💀", color:"139,92,246"},
 ];
-const TYPE_LABELS={HB:"Humbucker",SC:"Single Coil",P90:"P-90"};
-const TYPE_COLORS={HB:"249,115,22",SC:"56,189,248",P90:"167,139,250"};
 
 function JamPresetItem({p,rank}){
   const rankColors=["#fbbf24","#94a3b8","#cd7c2f"];
