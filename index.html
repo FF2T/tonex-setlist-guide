@@ -5655,17 +5655,18 @@ function App() {
   },[songDb,theme,setlists,profiles,activeProfileId,firestoreLoaded]);
 
   // Load from Firestore on first mount — use remote if newer than local
+  const [firestoreProfiles,setFirestoreProfiles]=useState(null);
   useEffect(()=>{
     loadFromFirestore().then(data=>{
+      console.log("Firestore data loaded:",data?"profiles="+Object.keys(data.profiles||{}).length:"null");
       if(data&&data.shared&&data.profiles){
         const localTime = saved?.lastModified || 0;
         const remoteTime = data.lastModified || 0;
         if(!saved || remoteTime >= localTime){
-          // Remote is newer or no local data — apply remote state
           if(data.shared.songDb) setSongDb(data.shared.songDb);
           if(data.shared.theme) setTheme(data.shared.theme);
           if(data.shared.setlists) setSetlists(data.shared.setlists);
-          if(data.profiles) setProfiles(applySecrets(data.profiles));
+          if(data.profiles){setProfiles(applySecrets(data.profiles));setFirestoreProfiles(data.profiles);}
           if(data.activeProfileId) setActiveProfileId(data.activeProfileId);
         }
       }
@@ -5693,11 +5694,12 @@ function App() {
 
   // Once Firestore loaded, decide initial screen
   useEffect(()=>{
-    if(!firestoreLoaded) return;
-    if(screen!=="loading") return;
-    const multi=Object.keys(profiles).length>1;
-    setScreen(multi?"pick":"list");
-  },[firestoreLoaded,profiles]);
+    if(!firestoreLoaded||screen!=="loading") return;
+    // Use firestoreProfiles if available (more reliable than profiles state which may not have updated yet)
+    const profileCount=Object.keys(firestoreProfiles||profiles).length;
+    console.log("Deciding screen: profileCount="+profileCount);
+    setScreen(profileCount>1?"pick":"list");
+  },[firestoreLoaded,firestoreProfiles]);
 
   // Reset on profile switch
   useEffect(()=>{if(screen!=="loading"){setChecked([]);setScreen("list");}},[activeProfileId]);
