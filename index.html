@@ -3459,9 +3459,7 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
           <div key={sl.id} style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:12,padding:14,marginBottom:12}}>
             {editSlId===sl.id?(
               <div style={{display:"flex",gap:8,marginBottom:10}}>
-                <input value={editSlName} onChange={e=>setEditSlName(e.target.value)} style={{...inp,flex:1}} onKeyDown={e=>e.key==="Enter"&&(renameSetlist(sl.id,editSlName),setEditSlId(null))}/>
-                <button onClick={()=>{renameSetlist(sl.id,editSlName);setEditSlId(null);}} style={{background:"#4f46e5",border:"none",color:"var(--text)",borderRadius:7,padding:"6px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>OK</button>
-                <button onClick={()=>setEditSlId(null)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:7,padding:"6px 10px",fontSize:12,cursor:"pointer"}}>✕</button>
+                <InlineRenameInput initialName={sl.name} onSave={name=>{renameSetlist(sl.id,name);setEditSlId(null);}} onCancel={()=>setEditSlId(null)} inp={inp}/>
               </div>
             ):(
               <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -3973,6 +3971,15 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
 }
 
 // ─── ListScreen ───────────────────────────────────────────────────────────────
+function InlineRenameInput({initialName,onSave,onCancel,inp}){
+  const [val,setVal]=useState(initialName);
+  return <>
+    <input value={val} onChange={e=>setVal(e.target.value)} style={{...inp,flex:1}} autoFocus onKeyDown={e=>e.key==="Enter"&&val.trim()&&onSave(val.trim())}/>
+    <button onClick={()=>val.trim()&&onSave(val.trim())} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>OK</button>
+    <button onClick={onCancel} style={{background:"none",border:"none",color:"var(--text-muted)",fontSize:12,cursor:"pointer"}}>✕</button>
+  </>;
+}
+
 function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,banksAnn,banksPlug,aiProvider,aiKeys,hideHeader=false,allGuitars,availableSources,activeProfileId}) {
   const [activeSlId,setActiveSlId]=useState(setlists[0]?.id||null);
   const activeSl=activeSlId?setlists.find(s=>s.id===activeSlId):null;
@@ -4012,11 +4019,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           {setlists.map(sl=>(
             <div key={sl.id} style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
               {editSlId===sl.id?(
-                <>
-                  <input value={editSlName} onChange={e=>setEditSlName(e.target.value)} style={{...inp,flex:1}} onKeyDown={e=>e.key==="Enter"&&renameSetlist(sl.id,editSlName)}/>
-                  <button onClick={()=>renameSetlist(sl.id,editSlName)} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>OK</button>
-                  <button onClick={()=>setEditSlId(null)} style={{background:"none",border:"none",color:"var(--text-muted)",fontSize:12,cursor:"pointer"}}>✕</button>
-                </>
+                <InlineRenameInput initialName={sl.name} onSave={name=>renameSetlist(sl.id,name)} onCancel={()=>setEditSlId(null)} inp={inp}/>
               ):(
                 <>
                   <span style={{flex:1,fontSize:12,fontWeight:600,color:"var(--text)"}}>{sl.name}</span>
