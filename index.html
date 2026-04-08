@@ -2211,7 +2211,7 @@ function findUpgrade(presetName, gType, banks, availableSources){
   const gainOrder={low:0,mid:1,high:2};
   const currentGainLevel=gainOrder[entry.gain]??1;
 
-  let best={score:currentScore+5,name:null,installed:false,bank:null,slot:null};
+  let best={score:Math.max(currentScore+2,90),name:null,installed:false,bank:null,slot:null};
   for(const [name,info] of Object.entries(PRESET_CATALOG_MERGED)){
     if(name===presetName) continue;
     if(!compatStyles.includes(info.style)) continue;
