@@ -3067,7 +3067,7 @@ Réponds UNIQUEMENT en JSON (sans markdown) : {"name":"Nom complet (Marque Modè
   );
 }
 
-function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp,section}){
+function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp,section,aiKeys}){
   const [editName,setEditName]=useState(profile.name);
   const [newProfileName,setNewProfileName]=useState("");
   const [newGuitarName,setNewGuitarName]=useState("");
@@ -3451,7 +3451,7 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
         {profile.devices?.plug&&tabBtn("plug","🔌 ToneX Plug")}
         {tabBtn("display","🎨 Affichage")}
       </div>
-      {tab==="profile"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="guitars"/>}
+      {tab==="profile"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="guitars" aiKeys={aiKeys}/>}
       {tab==="devices"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="devices"/>}
       {tab==="sources"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="sources"/>}
       {tab==="setlists"&&<div>
