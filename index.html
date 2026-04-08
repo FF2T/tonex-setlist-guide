@@ -3633,10 +3633,11 @@ function ParametresScreen({onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAi
   );
 }
 
-function MaintenanceTab({songDb,onSongDb,banksAnn,banksPlug,aiProvider,aiKeys}){
+function MaintenanceTab({songDb,onSongDb,banksAnn,banksPlug,aiProvider,aiKeys,onFullReset}){
   const [recalculating,setRecalculating]=useState(false);
   const [progress,setProgress]=useState({done:0,total:0,current:""});
   const [done,setDone]=useState(false);
+  const [confirmReset,setConfirmReset]=useState(false);
   const cachedCount=songDb.filter(s=>s.aiCache).length;
 
   const recalcAll=async()=>{
@@ -3688,6 +3689,22 @@ function MaintenanceTab({songDb,onSongDb,banksAnn,banksPlug,aiProvider,aiKeys}){
           <button onClick={recalcAll} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:8,padding:"8px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Recalculer tout ({songDb.length} morceaux)</button>
           <button onClick={clearCache} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:8,padding:"8px 14px",fontSize:12,cursor:"pointer"}}>Vider le cache uniquement</button>
         </div>}
+      </div>
+
+      {/* Réinitialiser */}
+      <div style={{background:"rgba(239,68,68,0.06)",border:"1px solid var(--red-border)",borderRadius:12,padding:16,marginBottom:12}}>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--red)",marginBottom:4}}>Réinitialiser toutes les données</div>
+        <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:10}}>Remet l'app à zéro : profils, banks, morceaux. Les presets par défaut et le profil initial seront restaurés.</div>
+        {!confirmReset
+          ?<button onClick={()=>setConfirmReset(true)} style={{background:"rgba(239,68,68,0.15)",border:"1px solid var(--red-border)",color:"var(--red)",borderRadius:8,padding:"8px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Réinitialiser...</button>
+          :<div style={{background:"rgba(239,68,68,0.1)",borderRadius:8,padding:12}}>
+            <div style={{fontSize:12,color:"var(--red)",fontWeight:700,marginBottom:8}}>Toutes les données seront supprimées. Cette action est irréversible.</div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>{localStorage.removeItem("tonex_guide_v2");localStorage.removeItem("tonex_guide_v1");location.reload();}} style={{background:"#ef4444",border:"none",color:"#fff",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Confirmer la réinitialisation</button>
+              <button onClick={()=>setConfirmReset(false)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:8,padding:"8px 14px",fontSize:12,cursor:"pointer"}}>Annuler</button>
+            </div>
+          </div>
+        }
       </div>
     </div>
   );
