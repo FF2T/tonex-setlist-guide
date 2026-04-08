@@ -2193,26 +2193,39 @@ function worstSlot(banks, gType, exclude=[]){
 // Cherche la meilleure alternative disponible dans le catalogue pour le même style musical
 // Retourne le preset avec le score gType le plus élevé du même style, non installé dans banks
 // ou installé mais avec un score significativement plus élevé
+// Styles compatibles : on accepte les styles proches pour trouver de meilleurs presets
+const COMPAT_STYLES={
+  blues:["blues","jazz","rock"],
+  jazz:["jazz","blues"],
+  rock:["rock","hard_rock","blues"],
+  hard_rock:["hard_rock","rock","metal"],
+  metal:["metal","hard_rock"],
+  pop:["pop","rock","blues"],
+};
 function findUpgrade(presetName, gType, banks, availableSources){
   const entry=findCatalogEntry(presetName);
   if(!entry) return null;
   const currentScore=entry.scores?.[gType]??60;
   if(currentScore>=80) return null;
-  const style=entry.style;
+  const compatStyles=COMPAT_STYLES[entry.style]||[entry.style];
   const gainOrder={low:0,mid:1,high:2};
   const currentGainLevel=gainOrder[entry.gain]??1;
 
-  let best={score:currentScore+8,name:null,installed:false,bank:null,slot:null}; // seuil minimum : +8 pts
+  let best={score:currentScore+5,name:null,installed:false,bank:null,slot:null};
   for(const [name,info] of Object.entries(PRESET_CATALOG_MERGED)){
     if(name===presetName) continue;
-    if(info.style!==style) continue;
+    if(!compatStyles.includes(info.style)) continue;
     if(availableSources&&availableSources[info.src]===false) continue;
     const gainDiff=Math.abs((gainOrder[info.gain]??1)-currentGainLevel);
     if(gainDiff>1) continue;
     const s=info.scores?.[gType]??60;
     if(s>best.score){
       const found=findInBanks(name,banks);
-      best={score:s,name,src:info.src,amp:info.amp,installed:!!found,bank:found?.bank??null,slot:found?.slot??null};
+      // Priorité aux presets installés : bonus +3 pts
+      const effective=s+(found?3:0);
+      if(effective>best.score+(best.installed?3:0)){
+        best={score:s,name,src:info.src,amp:info.amp,installed:!!found,bank:found?.bank??null,slot:found?.slot??null};
+      }
     }
   }
   return best.name?best:null;
@@ -2460,52 +2473,41 @@ function Breadcrumb({crumbs,onNavigate}){
 
 function PBlock({device,emoji,presetName,gType,banks,adapted,gs,bg2,availableSources}) {
   const rec=presetName&&gType?getInstallRec(presetName,gType,banks||{}):null;
-  const sc=rec?.score;
-  const scC=sc!=null?scoreColor(sc):"#888";
-  const scB=sc!=null?scoreBg(sc):"transparent";
-  const badge=srcBadge(presetName);
-  const up=rec?.upgrade; // upgrade suggestion si score < 80%
   const entry=findCatalogEntry(presetName);
   const srcAvail=!entry||!availableSources||availableSources[entry.src]!==false;
+  const up=rec?.upgrade;
+  // Si upgrade installé, on affiche directement le meilleur preset
+  const showUpgrade=up&&up.installed;
+  const displayName=showUpgrade?up.name:presetName;
+  const displayRec=showUpgrade?{...rec,score:up.score,installed:true,bank:up.bank,slot:up.slot}:rec;
+  const sc=displayRec?.score;
+  const scC=sc!=null?scoreColor(sc):"#888";
   return (
-    <div style={{background:bg2||"var(--a4)",border:`1px solid ${up?"rgba(251,191,36,0.2)":"var(--a8)"}`,borderRadius:10,padding:"10px 12px",opacity:srcAvail?1:0.5}}>
-      <div style={{fontSize:11,color:"var(--text-muted)",fontWeight:700,marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>{emoji} {device}{!srcAvail&&<span style={{fontSize:9,color:"var(--red)",marginLeft:8,textTransform:"none",letterSpacing:0}}>Source non dispo</span>}</div>
-      {rec?<>
-        <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",marginBottom:5}}>
-          {rec.installed?(
-            <>
-              <span style={{background:`${CC[rec.slot]}25`,color:CC[rec.slot],border:`1px solid ${CC[rec.slot]}50`,borderRadius:5,padding:"2px 8px",fontSize:11,fontWeight:700}}>Banque {rec.bank}{rec.slot}</span>
-              <span style={{fontSize:10,color:"var(--green)",background:"var(--green-bg)",borderRadius:4,padding:"1px 6px",fontWeight:600}}>✓ Installé</span>
-            </>
-          ):(
-            <span style={{fontSize:10,background:"var(--yellow-bg)",color:"var(--yellow)",border:"1px solid var(--yellow-border)",borderRadius:4,padding:"1px 7px",fontWeight:700}}>⬇ À installer</span>
-          )}
-          {sc!=null&&<span style={{fontSize:11,fontWeight:800,color:scC,background:scB,borderRadius:5,padding:"1px 8px",border:`1px solid ${scC}40`}}>{sc}%</span>}
-          {badge&&<span style={{fontSize:9,color:"var(--text-muted)",background:"var(--a6)",borderRadius:4,padding:"1px 6px",fontWeight:600}}>{badge}</span>}
-          {adapted&&<span style={{fontSize:10,background:"var(--yellow-bg)",color:"var(--yellow)",border:"1px solid rgba(251,191,36,0.25)",borderRadius:4,padding:"1px 6px",fontWeight:600}}>✦ Adapté {gs}</span>}
+    <div style={{background:bg2||"var(--a4)",border:"1px solid var(--a8)",borderRadius:10,padding:"10px 12px",opacity:srcAvail?1:0.5}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}>
+        <span style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5}}>{emoji} {device}</span>
+        {!srcAvail&&<span style={{fontSize:9,color:"var(--red)"}}>Source non dispo</span>}
+        {sc!=null&&<span style={{fontSize:11,fontWeight:800,color:scC}}>{sc}%</span>}
+      </div>
+      {displayRec?<>
+        <div style={{fontSize:12,color:"var(--text-bright)",fontWeight:600,marginBottom:4}}>{displayName}</div>
+        <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
+          {displayRec.installed
+            ?<span style={{background:`${CC[displayRec.slot]}18`,color:CC[displayRec.slot],border:`1px solid ${CC[displayRec.slot]}40`,borderRadius:5,padding:"1px 7px",fontSize:10,fontWeight:700}}>Banque {displayRec.bank}{displayRec.slot}</span>
+            :<span style={{fontSize:10,color:"var(--yellow)",fontWeight:700}}>⬇ À installer</span>
+          }
+          {showUpgrade&&<span style={{fontSize:9,color:"var(--green)",fontWeight:600}}>↑ meilleur choix</span>}
+          {adapted&&<span style={{fontSize:10,color:"var(--text-muted)"}}>✦ adapté {gs}</span>}
         </div>
-        <div style={{fontSize:12,color:"var(--text-bright)",fontWeight:600,marginBottom:3}}>{presetName}</div>
-        {!rec.installed&&rec.replaceBank!=null&&(
-          <div style={{fontSize:10,color:"var(--text-muted)",background:"rgba(251,191,36,0.04)",borderRadius:5,padding:"4px 7px",marginTop:2}}>
-            → Remplacer Banque {rec.replaceBank}{rec.replaceSlot}
-            {rec.replaceName&&<span style={{color:"var(--text-dim)"}}> ({rec.replaceName}
-              {rec.replaceScore!=null&&<span style={{color:scoreColor(rec.replaceScore)}}> · {rec.replaceScore}%</span>}
-            )</span>}
+        {!displayRec.installed&&displayRec.replaceBank!=null&&(
+          <div style={{fontSize:10,color:"var(--text-dim)",marginTop:3}}>
+            → Remplace {displayRec.replaceBank}{displayRec.replaceSlot}
+            {displayRec.replaceName&&<> ({displayRec.replaceName}{displayRec.replaceScore!=null&&<span style={{color:scoreColor(displayRec.replaceScore)}}> {displayRec.replaceScore}%</span>})</>}
           </div>
         )}
-        {up&&(
-          <div style={{marginTop:6,background:"rgba(234,179,8,0.06)",border:"1px solid rgba(234,179,8,0.2)",borderRadius:7,padding:"6px 9px"}}>
-            <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",marginBottom:3}}>
-              <span style={{fontSize:10,color:"var(--yellow)",fontWeight:700}}>⚡ Meilleur dispo</span>
-              <span style={{fontSize:11,fontWeight:800,color:scoreColor(up.score),background:scoreBg(up.score),borderRadius:4,padding:"1px 7px"}}>{up.score}%</span>
-              {up.installed
-                ?<span style={{fontSize:10,color:"var(--green)",background:"rgba(74,222,128,0.08)",borderRadius:4,padding:"1px 6px"}}>✓ Banque {up.bank}{up.slot}</span>
-                :<span style={{fontSize:10,color:"#f59e0b",background:"rgba(245,158,11,0.08)",borderRadius:4,padding:"1px 6px"}}>⬇ À installer</span>
-              }
-              <span style={{fontSize:9,color:"var(--text-muted)",background:"var(--a5)",borderRadius:4,padding:"1px 6px"}}>{srcBadge(up.name)}</span>
-            </div>
-            <div style={{fontSize:11,color:"var(--yellow)",fontWeight:600}}>{up.name}</div>
-            {!up.installed&&(()=>{const ws=worstSlot(banks,gType,[presetName,up.name]);return ws.bank!=null&&<div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>→ Remplace Banque {ws.bank}{ws.slot}</div>;})()}
+        {up&&!up.installed&&(
+          <div style={{marginTop:5,fontSize:10,color:"var(--text-sec)",background:"var(--a3)",borderRadius:6,padding:"5px 8px"}}>
+            <span style={{color:"var(--green)",fontWeight:600}}>↑ Mieux dispo :</span> {up.name} <span style={{fontWeight:700,color:scoreColor(up.score)}}>{up.score}%</span> <span style={{color:"var(--yellow)"}}>⬇ à installer</span>
           </div>
         )}
       </>:<div style={{fontSize:12,color:"var(--text-muted)"}}>Sélectionne une guitare.</div>}
@@ -3782,33 +3784,29 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
   const aiC=localAiResult||(song.isCustom?song.aiCache?.result:null);
   const songInfo=getSongInfo(song);
   return(
-    <div className="song-row-detail" style={{background:"rgba(99,102,241,0.07)",border:"1px solid rgba(99,102,241,0.25)",borderRadius:"0 0 12px 12px",padding:"12px 14px",marginBottom:8,marginTop:-2}}>
+    <div className="song-row-detail" style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:"0 0 12px 12px",padding:"12px 14px",marginBottom:8,marginTop:-2}}>
       {/* Song info */}
       {(songInfo.desc||songInfo.year)&&<div style={{marginBottom:10}}>
         {(songInfo.year||songInfo.album)&&<div style={{fontSize:10,color:"var(--text-muted)",marginBottom:3}}>{songInfo.year}{songInfo.album?" · "+songInfo.album:""}</div>}
-        {songInfo.desc&&<div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.5,padding:"6px 10px",background:"var(--a4)",borderRadius:7,borderLeft:"3px solid var(--accent)"}}>{songInfo.desc}</div>}
+        {songInfo.desc&&<div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.5}}>{songInfo.desc}</div>}
       </div>}
-      <Row icon="🎸"><div style={{flex:1,marginBottom:10}}>
+      <div style={{marginBottom:10}}>
         <GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/>
         {g&&!song.isCustom&&<div style={{fontSize:11,color:"var(--text-sec)",marginTop:3}}>{getGr(song,type)}</div>}
-        {g&&aiC?.ideal_guitar&&<div style={{fontSize:11,color:"var(--purple)",marginTop:3}}>IA : {aiC.ideal_guitar}{aiC.guitar_reason?" — "+aiC.guitar_reason:""}</div>}
-      </div></Row>
-      {hist&&<Row icon="📖"><div style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:9,padding:"9px 12px",flex:1,marginBottom:10}}>
-        <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:5}}>Référence — {hist.guitarist}</div>
-        <div style={{display:"flex",flexDirection:"column",gap:3}}>
-          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}><span style={{fontSize:10,color:"var(--text-muted)",flexShrink:0}}>🎸</span><span style={{fontSize:11,color:"var(--text-bright)"}}>{hist.guitar}</span></div>
-          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}><span style={{fontSize:10,color:"var(--text-muted)",flexShrink:0}}>🔊</span><span style={{fontSize:11,color:"var(--text-bright)"}}>{hist.amp}</span></div>
-          {hist.effects&&<div style={{display:"flex",gap:5,flexWrap:"wrap"}}><span style={{fontSize:10,color:"var(--text-muted)",flexShrink:0}}>🎚</span><span style={{fontSize:11,color:"var(--text-sec)"}}>{hist.effects}</span></div>}
-        </div>
-      </div></Row>}
+        {g&&aiC?.ideal_guitar&&<div style={{fontSize:11,color:"var(--text-sec)",marginTop:3}}>IA : {aiC.ideal_guitar}{aiC.guitar_reason?" — "+aiC.guitar_reason:""}</div>}
+      </div>
+      {hist&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:10,lineHeight:1.6}}>
+        <span style={{fontWeight:700,color:"var(--text-muted)",fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>{hist.guitarist}</span><br/>
+        🎸 {hist.guitar} · 🔊 {hist.amp}{hist.effects?" · 🎚 "+hist.effects:""}
+      </div>}
       {!song.isCustom&&<>
         <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
           <PBlock device="Pédale" emoji="📦" presetName={pA?.l} gType={gId?type:null} banks={banksAnn} adapted={adapted} gs={g?.short} availableSources={availableSources}/>
-          <PBlock device="ToneX Plug" emoji="🔌" presetName={pP?.l} gType={gId?type:null} banks={banksPlug} adapted={adapted} gs={g?.short} bg2="rgba(99,102,241,0.06)" availableSources={availableSources}/>
+          <PBlock device="ToneX Plug" emoji="🔌" presetName={pP?.l} gType={gId?type:null} banks={banksPlug} adapted={adapted} gs={g?.short} availableSources={availableSources}/>
         </div>
-        {(set?.p||set?.g)&&<div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:8}}>
-          {set?.p&&<div style={{fontSize:11,background:"rgba(251,191,36,0.07)",border:"1px solid var(--yellow-border)",borderRadius:7,padding:"6px 10px",color:"var(--yellow)"}}><b style={{color:"var(--yellow)"}}>Preset · </b>{set.p}</div>}
-          {set?.g&&<div style={{fontSize:11,background:"rgba(34,197,94,0.07)",border:"1px solid rgba(34,197,94,0.15)",borderRadius:7,padding:"6px 10px",color:"var(--green)"}}><b style={{color:"var(--green)"}}>Guitare · </b>{set.g}</div>}
+        {(set?.p||set?.g)&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:8,lineHeight:1.6}}>
+          {set?.p&&<div>💡 <b>Preset :</b> {set.p}</div>}
+          {set?.g&&<div>💡 <b>Guitare :</b> {set.g}</div>}
         </div>}
       </>}
       {song.isCustom&&reloading&&<div style={{textAlign:"center",padding:"16px 0"}}>
@@ -3816,29 +3814,25 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
         <div style={{fontSize:12,color:"var(--text-muted)"}}>Analyse en cours pour {g?.short||"cette guitare"}...</div>
       </div>}
       {song.isCustom&&!reloading&&aiC&&<>
-        {aiC.ideal_guitar&&<div style={{fontSize:11,color:"var(--purple)",marginBottom:6}}>IA recommande : {aiC.ideal_guitar}{aiC.guitar_reason?" — "+aiC.guitar_reason:""}</div>}
-        {aiC.ideal_preset&&<div style={{display:"flex",alignItems:"center",gap:8,background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",borderRadius:8,padding:"6px 10px",marginBottom:6}}>
-          <span style={{fontSize:10,color:"var(--yellow)",fontWeight:700}}>⭐ Idéal</span>
-          <span style={{fontSize:10,color:"var(--text)",fontWeight:600,flex:1}}>{aiC.ideal_preset}</span>
-          {aiC.ideal_preset_score&&<span style={{fontSize:10,color:"var(--yellow)"}}>{aiC.ideal_preset_score}%</span>}
+        {aiC.ideal_guitar&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:6}}>IA : {aiC.ideal_guitar}{aiC.guitar_reason?" — "+aiC.guitar_reason:""}</div>}
+        {aiC.ideal_preset&&<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:11}}>
+          <span style={{fontWeight:700}}>⭐ Idéal : {aiC.ideal_preset}</span>
+          {aiC.ideal_preset_score&&<span style={{fontWeight:700,color:scoreColor(aiC.ideal_preset_score)}}>{aiC.ideal_preset_score}%</span>}
           {(()=>{const loc=findInBanks(aiC.ideal_preset,banksAnn)||findInBanks(aiC.ideal_preset,banksPlug);return loc?<span style={{fontSize:9,color:"var(--green)"}}>✓ installé</span>:<span style={{fontSize:9,color:"var(--text-dim)"}}>non installé</span>;})()}
         </div>}
         <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
           <PBlock device="Pédale" emoji="📦" presetName={aiC.preset_ann?.label} gType={gId?type:null} banks={banksAnn} availableSources={availableSources}/>
-          <PBlock device="ToneX Plug" emoji="🔌" presetName={aiC.preset_plug?.label} gType={gId?type:null} banks={banksPlug} bg2="rgba(99,102,241,0.06)" availableSources={availableSources}/>
+          <PBlock device="ToneX Plug" emoji="🔌" presetName={aiC.preset_plug?.label} gType={gId?type:null} banks={banksPlug} availableSources={availableSources}/>
         </div>
-        {(aiC.settings_preset||aiC.settings_guitar)&&<div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:8}}>
-          {aiC.settings_preset&&<div style={{fontSize:11,background:"rgba(251,191,36,0.07)",border:"1px solid var(--yellow-border)",borderRadius:7,padding:"6px 10px",color:"var(--yellow)"}}><b style={{color:"var(--yellow)"}}>Preset · </b>{aiC.settings_preset}</div>}
-          {aiC.settings_guitar&&<div style={{fontSize:11,background:"rgba(34,197,94,0.07)",border:"1px solid rgba(34,197,94,0.15)",borderRadius:7,padding:"6px 10px",color:"var(--green)"}}><b style={{color:"var(--green)"}}>Guitare · </b>{aiC.settings_guitar}</div>}
+        {(aiC.settings_preset||aiC.settings_guitar)&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:8,lineHeight:1.6}}>
+          {aiC.settings_preset&&<div>💡 <b>Preset :</b> {aiC.settings_preset}</div>}
+          {aiC.settings_guitar&&<div>💡 <b>Guitare :</b> {aiC.settings_guitar}</div>}
         </div>}
-        {(aiC.ref_guitarist||aiC.ref_guitar||aiC.ref_amp)&&<div style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:9,padding:"9px 12px",marginBottom:8}}>
-          <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:5}}>Référence originale</div>
-          <div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.6}}>
-            {aiC.ref_guitarist&&<div><b style={{color:"var(--text-muted)"}}>Guitariste :</b> {aiC.ref_guitarist}</div>}
-            {aiC.ref_guitar&&<div><b style={{color:"var(--text-muted)"}}>Guitare :</b> {aiC.ref_guitar}</div>}
-            {aiC.ref_amp&&<div><b style={{color:"var(--text-muted)"}}>Ampli :</b> {aiC.ref_amp}</div>}
-            {aiC.ref_effects&&aiC.ref_effects!=="Aucun effet"&&<div><b style={{color:"var(--text-muted)"}}>Effets :</b> {aiC.ref_effects}</div>}
-          </div>
+        {(aiC.ref_guitarist||aiC.ref_guitar||aiC.ref_amp)&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:8,lineHeight:1.6}}>
+          <span style={{fontWeight:700,color:"var(--text-muted)",fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>{aiC.ref_guitarist||"Référence"}</span><br/>
+          {aiC.ref_guitar&&<>🎸 {aiC.ref_guitar} · </>}
+          {aiC.ref_amp&&<>🔊 {aiC.ref_amp}</>}
+          {aiC.ref_effects&&aiC.ref_effects!=="Aucun effet"&&<> · 🎚 {aiC.ref_effects}</>}
         </div>}
       </>}
       {song.isCustom&&!reloading&&!aiC&&<div style={{fontSize:12,color:"var(--text-dim)",padding:"10px 0"}}>Aucune analyse IA en cache. Change la guitare pour lancer l'analyse.</div>}
