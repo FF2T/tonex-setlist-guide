@@ -50,6 +50,7 @@ var db=null;
 function saveToFirestore(s){if(!db)return Promise.resolve();try{
   // Strip sensitive data (API keys) before syncing
   var clean=JSON.parse(JSON.stringify(s));
+  clean.lastModified=Date.now();
   if(clean.profiles){for(var pid in clean.profiles){if(clean.profiles[pid].aiKeys)clean.profiles[pid].aiKeys={anthropic:"",gemini:""};delete clean.profiles[pid].password;}}
   return db.collection("sync").doc("state").set(clean).catch(function(e){console.warn("FS save:",e);});
 }catch(e){return Promise.resolve();}}
@@ -5101,27 +5102,32 @@ function App() {
     saveSecrets(secrets);
   },[profiles]);
 
-  // Persist to localStorage + Firestore (skip first render to avoid overwriting remote)
+  // Persist to localStorage + Firestore (skip until Firestore loaded to avoid overwriting remote)
   const hasMounted = useRef(false);
   useEffect(()=>{
-    const state={version:2, activeProfileId, shared:{songDb,theme,setlists}, profiles};
+    const state={version:2, activeProfileId, shared:{songDb,theme,setlists}, profiles, lastModified:Date.now()};
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){}
     if(!hasMounted.current){hasMounted.current=true;return;} // don't push to Firestore on first render
+    if(!firestoreLoaded) return; // don't push until we've checked Firestore for newer data
     lastSaveTime.current = Date.now();
     setSyncStatus("syncing");
     saveToFirestore(state).then(()=>setSyncStatus("synced")).catch(()=>setSyncStatus("error"));
-  },[songDb,theme,setlists,profiles,activeProfileId]);
+  },[songDb,theme,setlists,profiles,activeProfileId,firestoreLoaded]);
 
-  // Load from Firestore on first mount (for new devices)
+  // Load from Firestore on first mount — use remote if newer than local
   useEffect(()=>{
-    if(saved) {setFirestoreLoaded(true);return;} // already have local data
     loadFromFirestore().then(data=>{
       if(data&&data.shared&&data.profiles){
-        if(data.shared.songDb) setSongDb(data.shared.songDb);
-        if(data.shared.theme) setTheme(data.shared.theme);
-        if(data.shared.setlists) setSetlists(data.shared.setlists);
-        if(data.profiles) setProfiles(applySecrets(data.profiles));
-        if(data.activeProfileId) setActiveProfileId(data.activeProfileId);
+        const localTime = saved?.lastModified || 0;
+        const remoteTime = data.lastModified || 0;
+        if(!saved || remoteTime >= localTime){
+          // Remote is newer or no local data — apply remote state
+          if(data.shared.songDb) setSongDb(data.shared.songDb);
+          if(data.shared.theme) setTheme(data.shared.theme);
+          if(data.shared.setlists) setSetlists(data.shared.setlists);
+          if(data.profiles) setProfiles(applySecrets(data.profiles));
+          if(data.activeProfileId) setActiveProfileId(data.activeProfileId);
+        }
       }
       setFirestoreLoaded(true);
     }).catch(()=>setFirestoreLoaded(true));
