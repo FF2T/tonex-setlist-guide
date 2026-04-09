@@ -2383,7 +2383,7 @@ const STYLE_COMPATIBILITY={
 };
 
 // Pondérations des 5 dimensions
-const SCORING_VERSION=5; // Increment to invalidate cached scores
+const SCORING_VERSION=6; // Increment to invalidate cached scores
 const SCORING_WEIGHTS={
   pickup:    0.20,
   guitar:    0.10,
@@ -2655,7 +2655,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.2.04";
+const APP_VERSION = "2.2.05";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -2956,9 +2956,26 @@ function computeBestPresets(gType,style,banksAnn,banksPlug,guitarId,refAmp,targe
   const songTargetGain=targetGain!=null?targetGain:null;
   const scorePreset=(name,info,withBreakdown)=>{
     if(!guitarId) {
-      // Fallback sans guitare : score simple par pickup type
-      const s=info.scores?.[gType]??60;
-      return withBreakdown?{score:s,breakdown:null}:s;
+      // Sans guitare : utiliser le contexte morceau (style, gain, ref_amp) avec pickup statique
+      const presetGain=typeof info.gain==="number"?info.gain:gainToNumeric(info.gain);
+      const presetGainRange=getGainRange(presetGain);
+      const pickupScore=computePickupScore(info.style,presetGainRange,gType);
+      const gainMatchScore=computeGainMatchScore(presetGain,songTargetGain);
+      const refAmpScore=computeRefAmpScore(info.amp,resolvedAmp);
+      const styleScore=computeStyleMatchScore(info.style,style);
+      const dims=[
+        {key:"pickup",score:pickupScore,weight:0.25},
+        {key:"gainMatch",score:gainMatchScore,weight:0.20},
+        {key:"refAmp",score:refAmpScore,weight:0.30},
+        {key:"styleMatch",score:styleScore,weight:0.25}
+      ];
+      const active=dims.filter(d=>d.score!==null);
+      const totalWeight=active.reduce((s,d)=>s+d.weight,0);
+      let final=0;
+      const breakdown={};
+      for(const d of active){const ew=d.weight/totalWeight;final+=ew*d.score;breakdown[d.key]={raw:d.score,weight:Math.round(ew*100),contribution:Math.round(ew*d.score)};}
+      const s=Math.max(0,Math.min(100,Math.round(final)));
+      return withBreakdown?{score:s,breakdown}:s;
     }
     return computeFinalScore(info,guitarId,style,songTargetGain,resolvedAmp,withBreakdown);
   };
@@ -2998,7 +3015,7 @@ function computeBestPresets(gType,style,banksAnn,banksPlug,guitarId,refAmp,targe
     if(catalogBest.length>=3) break;
   }
   // Add breakdown to top presets
-  const addBreakdown=(p)=>{if(!p||!guitarId)return p;const info=findCatalogEntry(p.name);if(!info)return p;const r=scorePreset(p.name,info,true);return{...p,breakdown:r.breakdown||null};};
+  const addBreakdown=(p)=>{if(!p)return p;const info=findCatalogEntry(p.name);if(!info)return p;const r=scorePreset(p.name,info,true);return{...p,score:r.score!=null?r.score:p.score,breakdown:r.breakdown||null};};
   return {annTop:addBreakdown(annPresets[0])||null,plugTop:addBreakdown(plugPresets[0])||null,idealTop:catalogBest[0]||null,idealTop3:catalogBest};
 }
 
