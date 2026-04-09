@@ -2655,7 +2655,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.2.15";
+const APP_VERSION = "2.2.16";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3032,18 +3032,40 @@ function enrichAIResult(aiResult,gType,gId,banksAnn,banksPlug){
 }
 function bestScoreOf(r){return Math.max(r.preset_ann?.score||0,r.preset_plug?.score||0,r.ideal_preset_score||0);}
 
-// Mise en cache avec mémoire du meilleur résultat par guitare
+// Fusionne deux résultats en gardant le meilleur score pour CHAQUE dimension
+function mergeBestResults(prev,next){
+  if(!prev) return next;
+  if(!next) return prev;
+  const merged={...next};
+  // Pédale : garder le meilleur
+  if(prev.preset_ann?.score>0&&(!merged.preset_ann||prev.preset_ann.score>(merged.preset_ann.score||0))){
+    merged.preset_ann=prev.preset_ann;
+  }
+  // Plug : garder le meilleur
+  if(prev.preset_plug?.score>0&&(!merged.preset_plug||prev.preset_plug.score>(merged.preset_plug.score||0))){
+    merged.preset_plug=prev.preset_plug;
+  }
+  // Idéal : garder le meilleur
+  if((prev.ideal_preset_score||0)>(merged.ideal_preset_score||0)){
+    merged.ideal_preset=prev.ideal_preset;
+    merged.ideal_preset_score=prev.ideal_preset_score;
+  }
+  if(prev.ideal_top3?.length&&(!merged.ideal_top3?.length||prev.ideal_top3[0]?.score>merged.ideal_top3[0]?.score)){
+    merged.ideal_top3=prev.ideal_top3;
+  }
+  return merged;
+}
+
+// Mise en cache avec mémoire du meilleur résultat par guitare (par dimension)
 function updateAiCache(existing,gId,newResult){
   const prevBest=existing?.bestByGuitar?.[gId];
-  const best=prevBest&&bestScoreOf(prevBest)>=bestScoreOf(newResult)?prevBest:newResult;
+  const best=mergeBestResults(prevBest,newResult);
   const bestByGuitar={...(existing?.bestByGuitar||{}), [gId]:best};
   return {gId,result:newResult,sv:SCORING_VERSION,bestByGuitar};
 }
 function getBestResult(song,gId,fallback){
   const cached=song.aiCache?.bestByGuitar?.[gId];
-  if(!cached) return fallback;
-  if(!fallback) return cached;
-  return bestScoreOf(cached)>=bestScoreOf(fallback)?cached:fallback;
+  return mergeBestResults(cached,fallback);
 }
 
 function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars,feedback){
@@ -3071,9 +3093,8 @@ function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars,feedback)
   const tryBest=(currentBest,retries)=>{
     if(retries<=0||bestScoreOf(currentBest)>=RETRY_THRESHOLD) return Promise.resolve(currentBest);
     return callAI().then(newResult=>{
-      const pick=bestScoreOf(newResult)>bestScoreOf(currentBest)?newResult:currentBest;
-      return tryBest(pick,retries-1);
-    }).catch(()=>currentBest); // si un retry échoue, garder le meilleur connu
+      return tryBest(mergeBestResults(currentBest,newResult),retries-1);
+    }).catch(()=>currentBest);
   };
   return callAI().then(first=>tryBest(first,MAX_RETRIES));
 }
@@ -3106,7 +3127,7 @@ function AICard({song,gId,onResult,banksAnn,banksPlug,aiProvider,aiKeys,onCacheR
     fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars,feedback||null)
       .then(r=>{
         const best=getBestResult(song,gId,r);
-        const pick=prev&&bestScoreOf(prev)>=bestScoreOf(best)?prev:best;
+        const pick=mergeBestResults(prev,best);
         setRes(pick);onResult(pick);if(onCacheResult)onCacheResult(gId,pick);
       })
       .catch(e=>{if(!prev)setErr(e.message||"Erreur IA");})
@@ -4548,7 +4569,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
             const prev=aiC;
             fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars,fb||null)
               .then(r=>{
-                const pick=prev&&bestScoreOf(prev)>=bestScoreOf(r)?prev:r;
+                const pick=mergeBestResults(prev,r);
                 setLocalAiResult(pick);
                 if(onSongDb)onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:updateAiCache(x.aiCache,gId,pick)}:x));
               })
@@ -5837,7 +5858,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
     const song={id:`tmp_${Date.now()}`,title:confirmedSong.title,artist:confirmedSong.artist};
     fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,feedback.trim())
       .then(r=>{
-        const pick=prev&&bestScoreOf(prev)>=bestScoreOf(r)?prev:r;
+        const pick=mergeBestResults(prev,r);
         setSongResult(pick);setSongBaseAI(pick);setFeedback("");
       })
       .catch(e=>setSongErr(e.message))
