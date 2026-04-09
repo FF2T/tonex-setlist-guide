@@ -2655,7 +2655,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.2.07";
+const APP_VERSION = "2.2.08";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3067,6 +3067,13 @@ function AICard({song,gId,onResult,banksAnn,banksPlug,aiProvider,aiKeys,onCacheR
   const [res,setRes]=useState(null);
   const [loading,setLoading]=useState(false);
   const [err,setErr]=useState(null);
+  const doFetch=useCallback(()=>{
+    setRes(null);setErr(null);setLoading(true);
+    fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars)
+      .then(r=>{setRes(r);onResult(r);if(onCacheResult)onCacheResult(gId,r);})
+      .catch(e=>setErr(e.message||"Erreur IA"))
+      .finally(()=>setLoading(false));
+  },[song.id,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars]);
   useEffect(()=>{
     // Cache valide pour cette guitare ET même version de scoring → pas de recalcul
     if(song.aiCache&&song.aiCache.gId===gId&&song.aiCache.sv===SCORING_VERSION){
@@ -3080,18 +3087,17 @@ function AICard({song,gId,onResult,banksAnn,banksPlug,aiProvider,aiKeys,onCacheR
       setRes(updated);onResult(updated);if(onCacheResult)onCacheResult(gId,updated);
       return;
     }
-    setRes(null);setErr(null);setLoading(true);
-    fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars)
-      .then(r=>{setRes(r);onResult(r);if(onCacheResult)onCacheResult(gId,r);})
-      .catch(e=>setErr(e.message||"Erreur IA"))
-      .finally(()=>setLoading(false));
+    doFetch();
   },[song.id,gId,aiProvider,aiKeys.anthropic,aiKeys.gemini]);
   if(loading) return <div style={{fontSize:12,color:"var(--text-muted)",padding:"8px 0"}}>✨ Analyse IA…</div>;
   if(err) return <div style={{fontSize:12,color:"var(--red)"}}>{err}</div>;
   if(!res) return null;
   return (
     <div style={{display:"flex",flexDirection:"column",gap:9}}>
-      <Row icon="🎯"><div><div style={{fontSize:12,color:"var(--purple)",fontWeight:700,marginBottom:2}}>IA : {res.ideal_guitar}</div><div style={{fontSize:11,color:"var(--text-sec)"}}>{res.guitar_reason}</div></div></Row>
+      <Row icon="🎯"><div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,flex:1}}>
+        <div><div style={{fontSize:12,color:"var(--purple)",fontWeight:700,marginBottom:2}}>IA : {res.ideal_guitar}</div><div style={{fontSize:11,color:"var(--text-sec)"}}>{res.guitar_reason}</div></div>
+        <button onClick={doFetch} title="Relancer l'analyse IA" style={{background:"none",border:"1px solid var(--a10)",borderRadius:6,padding:"3px 7px",cursor:"pointer",fontSize:11,color:"var(--text-muted)",flexShrink:0,lineHeight:1}}>🔄</button>
+      </div></Row>
       <div style={{display:"flex",flexDirection:"column",gap:6}}>
         <PBlock device="Pédale" emoji="📦" presetName={res.preset_ann?.label} gType={gId?(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB":null} banks={banksAnn} noUpgrade finalScore={res.preset_ann?.score} breakdown={res.preset_ann?.breakdown}/>
         <PBlock device="ToneX Plug" emoji="🔌" presetName={res.preset_plug?.label} gType={gId?(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB":null} banks={banksPlug} bg2="rgba(99,102,241,0.06)" noUpgrade finalScore={res.preset_plug?.score} breakdown={res.preset_plug?.breakdown}/>
@@ -5847,10 +5853,19 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
               </div>;
             })()}
 
-            {/* Guitare recommandée + changement */}
+            {/* Guitare recommandée + changement + relancer */}
             <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:6}}>
               {(selectedGuitar||songResult.ideal_guitar)&&<span style={{fontSize:11,background:"var(--green-bg)",border:"1px solid var(--green-border)",borderRadius:7,padding:"4px 10px",color:"var(--green)",fontWeight:600}}>🎸 {selectedGuitar?`${selectedGuitar.name} (${selectedGuitar.type})`:songResult.ideal_guitar}</span>}
               <button onClick={()=>{setShowGuitarPick(p=>!p);}} style={{fontSize:10,background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:6,padding:"3px 8px",cursor:"pointer"}}>Changer</button>
+              <button onClick={()=>{
+                setSongLoading(true);setSongResult(null);
+                const gId=selectedGuitar?.id||"";
+                const song={id:`tmp_${Date.now()}`,title:confirmedSong.title,artist:confirmedSong.artist};
+                fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars)
+                  .then(r=>{setSongResult(r);setSongBaseAI(r);})
+                  .catch(e=>setSongErr(e.message))
+                  .finally(()=>setSongLoading(false));
+              }} title="Relancer l'analyse IA" style={{fontSize:10,background:"none",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:6,padding:"3px 8px",cursor:"pointer"}}> Relancer</button>
             </div>
             {songResult.guitar_reason&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:6}}>{songResult.guitar_reason}</div>}
             {showGuitarPick&&<div style={{marginBottom:10,background:"var(--a4)",borderRadius:8,padding:10}}>
