@@ -2655,7 +2655,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.2.05";
+const APP_VERSION = "2.2.06";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5741,6 +5741,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
   const [splashOpen,setSplashOpen]=useState(()=>{if(sessionStorage.getItem("tonex_splash"))return false;sessionStorage.setItem("tonex_splash","1");return true;});
   const [showOnboarding,setShowOnboarding]=useState(false);
   const [songResult,setSongResult]=useState(null);
+  const [songBaseAI,setSongBaseAI]=useState(null); // résultat AI brut (sans scores guitare)
   const [songLoading,setSongLoading]=useState(false);
   const [songErr,setSongErr]=useState(null);
   const [confirmedSong,setConfirmedSong]=useState(null);
@@ -5804,11 +5805,11 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         <div style={{width:"100%"}}>
           <SongSearchBar aiProvider={aiProvider} aiKeys={aiKeys} onConfirm={(title,artist)=>{
             setConfirmedSong({title,artist});
-            setSongResult(null);setSongErr(null);setSongLoading(true);setSelectedGuitar(null);
+            setSongResult(null);setSongBaseAI(null);setSongErr(null);setSongLoading(true);setSelectedGuitar(null);
             const song={id:`tmp_${Date.now()}`,title,artist};
             fetchAI(song,"",banksAnn,banksPlug,aiProvider,aiKeys,allGuitars)
               .then(r=>{
-                setSongResult(r);
+                setSongResult(r);setSongBaseAI(r);
                 // Save to DB if not existing
                 const existing=songDb.find(s=>normalizePresetName(s.title)===normalizePresetName(title));
                 if(!existing){
@@ -5847,12 +5848,22 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
               <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:6}}>Relancer l'analyse avec une autre guitare :</div>
               <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
                 {allGuitars.map(g=><button key={g.id} onClick={()=>{
-                  setShowGuitarPick(false);setSelectedGuitar(g);setSongLoading(true);setSongResult(null);
-                  const song={id:`tmp_${Date.now()}`,title:confirmedSong.title,artist:confirmedSong.artist};
-                  fetchAI(song,g.id,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars)
-                    .then(r=>{setSongResult(r);})
-                    .catch(e=>setSongErr(e.message))
-                    .finally(()=>setSongLoading(false));
+                  setShowGuitarPick(false);setSelectedGuitar(g);
+                  // Recalcul local des scores sans rappeler l'IA
+                  const base=songBaseAI||songResult;
+                  if(base){
+                    const gType=g.type||"HB";
+                    const targetGain=typeof base.target_gain==="number"?base.target_gain:null;
+                    const best=computeBestPresets(gType,base.song_style||"rock",banksAnn,banksPlug,g.id,base.ref_amp,targetGain);
+                    const updated={...base};
+                    if(best.annTop) updated.preset_ann={bank:best.annTop.bank,col:best.annTop.col,label:best.annTop.name,score:best.annTop.score,breakdown:best.annTop.breakdown||null};
+                    else delete updated.preset_ann;
+                    if(best.plugTop) updated.preset_plug={bank:best.plugTop.bank,col:best.plugTop.col,label:best.plugTop.name,score:best.plugTop.score,breakdown:best.plugTop.breakdown||null};
+                    else delete updated.preset_plug;
+                    if(best.idealTop){updated.ideal_preset=best.idealTop.name;updated.ideal_preset_score=best.idealTop.score;}
+                    updated.ideal_top3=best.idealTop3;
+                    setSongResult(updated);
+                  }
                 }} style={{fontSize:10,background:"var(--a5)",border:"1px solid var(--a8)",borderRadius:6,padding:"4px 8px",cursor:"pointer",color:"var(--text-sec)"}}>{g.short} ({g.type})</button>)}
               </div>
             </div>}
@@ -5924,7 +5935,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
             })()}
 
             {/* Retour accueil */}
-            <button onClick={()=>{setConfirmedSong(null);setSongResult(null);setShowFeedback(false);setFeedback("");}} style={{width:"100%",marginTop:10,background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-sec)",borderRadius:8,padding:"8px",fontSize:12,cursor:"pointer"}}>← Retour à l'accueil</button>
+            <button onClick={()=>{setConfirmedSong(null);setSongResult(null);setSongBaseAI(null);setShowFeedback(false);setFeedback("");}} style={{width:"100%",marginTop:10,background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-sec)",borderRadius:8,padding:"8px",fontSize:12,cursor:"pointer"}}>← Retour à l'accueil</button>
           </div>
         </div>}
       </div>}
