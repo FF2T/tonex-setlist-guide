@@ -2138,15 +2138,15 @@ const BASE_SCORES={
   },
   rock:{
     clean:    {HB:75,SC:80,P90:78},
-    crunch:   {HB:85,SC:76,P90:84},
-    drive:    {HB:88,SC:70,P90:82},
-    high_gain:{HB:82,SC:60,P90:72}
+    crunch:   {HB:85,SC:80,P90:84},
+    drive:    {HB:88,SC:75,P90:82},
+    high_gain:{HB:82,SC:64,P90:72}
   },
   hard_rock:{
     clean:    {HB:70,SC:72,P90:68},
-    crunch:   {HB:85,SC:65,P90:78},
-    drive:    {HB:90,SC:62,P90:78},
-    high_gain:{HB:92,SC:55,P90:72}
+    crunch:   {HB:85,SC:72,P90:78},
+    drive:    {HB:90,SC:70,P90:78},
+    high_gain:{HB:92,SC:60,P90:72}
   },
   jazz:{
     clean:    {HB:68,SC:92,P90:86},
@@ -2196,38 +2196,38 @@ const GUITAR_PROFILES={
   },
   strat61:{
     pickupType:"SC",voicing:"bright",bodyResonance:"solid",
-    gainAffinity:{clean:+4,crunch:+2,drive:-1,high_gain:-5},
-    styleMods:{blues:+5,rock:+2,hard_rock:-3,jazz:+3,pop:+2,metal:-6},
+    gainAffinity:{clean:+4,crunch:+2,drive:0,high_gain:-4},
+    styleMods:{blues:+5,rock:+3,hard_rock:-1,jazz:+3,pop:+2,metal:-6},
     desc:"Vintage 61, cleans cristallins, quack positions 2/4"
   },
   strat_pro2:{
     pickupType:"SC",voicing:"balanced",bodyResonance:"solid",
-    gainAffinity:{clean:+3,crunch:+3,drive:0,high_gain:-4},
-    styleMods:{blues:+4,rock:+3,hard_rock:-2,jazz:+3,pop:+3,metal:-5},
+    gainAffinity:{clean:+3,crunch:+3,drive:+1,high_gain:-3},
+    styleMods:{blues:+4,rock:+3,hard_rock:-1,jazz:+3,pop:+3,metal:-5},
     desc:"Moderne, V-Mod II, polyvalente tous styles"
   },
   strat_ec:{
     pickupType:"SC",voicing:"warm",bodyResonance:"solid",
     gainAffinity:{clean:+3,crunch:+4,drive:+1,high_gain:-3},
-    styleMods:{blues:+6,rock:+2,hard_rock:-2,jazz:+2,pop:+1,metal:-5},
+    styleMods:{blues:+6,rock:+3,hard_rock:-1,jazz:+2,pop:+1,metal:-5},
     desc:"Noiseless, midboost, son Clapton smooth"
   },
   tele63:{
     pickupType:"SC",voicing:"bright",bodyResonance:"solid",
-    gainAffinity:{clean:+4,crunch:+2,drive:-1,high_gain:-5},
-    styleMods:{blues:+3,rock:+3,hard_rock:-3,jazz:+2,pop:+2,metal:-6},
+    gainAffinity:{clean:+4,crunch:+2,drive:0,high_gain:-4},
+    styleMods:{blues:+3,rock:+3,hard_rock:-1,jazz:+2,pop:+2,metal:-6},
     desc:"Twang vintage, attaque percussive, bridge bright"
   },
   tele_ultra:{
     pickupType:"SC",voicing:"balanced",bodyResonance:"solid",
     gainAffinity:{clean:+3,crunch:+3,drive:+1,high_gain:-3},
-    styleMods:{blues:+3,rock:+4,hard_rock:-1,jazz:+2,pop:+3,metal:-4},
+    styleMods:{blues:+3,rock:+4,hard_rock:0,jazz:+2,pop:+3,metal:-4},
     desc:"Noiseless moderne, S1 switch, très polyvalente"
   },
   jazzmaster:{
     pickupType:"SC",voicing:"warm",bodyResonance:"solid",
-    gainAffinity:{clean:+4,crunch:+1,drive:-2,high_gain:-5},
-    styleMods:{blues:+4,rock:+1,hard_rock:-4,jazz:+6,pop:+3,metal:-6},
+    gainAffinity:{clean:+4,crunch:+1,drive:-1,high_gain:-4},
+    styleMods:{blues:+4,rock:+2,hard_rock:-2,jazz:+6,pop:+3,metal:-6},
     desc:"Single coil large, son chaud et rond, peu de twang"
   },
   es335:{
@@ -2383,7 +2383,7 @@ const STYLE_COMPATIBILITY={
 };
 
 // Pondérations des 5 dimensions
-const SCORING_VERSION=4; // Increment to invalidate cached scores
+const SCORING_VERSION=5; // Increment to invalidate cached scores
 const SCORING_WEIGHTS={
   pickup:    0.20,
   guitar:    0.10,
@@ -2655,7 +2655,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.2.03";
+const APP_VERSION = "2.2.04";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4439,20 +4439,12 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
       </div>}
       {!reloading&&aiC&&<>
         {aiC.ideal_preset&&(()=>{
-          const annScore=aiC.preset_ann?.score||0;const plugScore=aiC.preset_plug?.score||0;
-          const installedBest=Math.max(annScore,plugScore);
-          const installedBestName=annScore>=plugScore?aiC.preset_ann?.label:aiC.preset_plug?.label;
-          const installedBestDevice=annScore>=plugScore?"📦":"🔌";
           const idealScore=aiC.ideal_preset_score||0;
-          const installedIsMax=installedBest>0&&installedBest>=idealScore;
-          return installedIsMax
-            ?<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:11,background:"rgba(74,222,128,0.08)",border:"1px solid var(--green-border)",borderRadius:7,padding:"5px 10px"}}>
-              <span style={{fontWeight:700,color:"var(--green)"}}>✅ Meilleur preset : {installedBestDevice} {installedBestName} ({installedBest}%)</span>
-            </div>
-            :<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:11}}>
+          const loc=findInBanks(aiC.ideal_preset,banksAnn)||findInBanks(aiC.ideal_preset,banksPlug);
+          return <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:11}}>
               <span style={{fontWeight:700}}>⭐ Idéal : {aiC.ideal_preset}</span>
               {idealScore>0&&<span style={{fontWeight:700,color:scoreColor(idealScore)}}>{idealScore}%</span>}
-              {(()=>{const loc=findInBanks(aiC.ideal_preset,banksAnn)||findInBanks(aiC.ideal_preset,banksPlug);return loc?<span style={{fontSize:9,color:"var(--green)"}}>✓ installé</span>:<span style={{fontSize:9,color:"var(--text-dim)"}}>non installé</span>;})()}
+              {loc?<span style={{fontSize:9,color:"var(--green)"}}>✓ installé</span>:<span style={{fontSize:9,color:"var(--text-dim)"}}>non installé</span>}
             </div>;
         })()}
         <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
@@ -5858,21 +5850,13 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
 
             {/* Preset idéal (base complète) */}
             {songResult.ideal_preset&&(()=>{
-              const annScore=songResult.preset_ann?.score||0;const plugScore=songResult.preset_plug?.score||0;
-              const installedBest=Math.max(annScore,plugScore);
-              const installedBestName=annScore>=plugScore?songResult.preset_ann?.label:songResult.preset_plug?.label;
-              const installedBestDevice=annScore>=plugScore?"📦":"🔌";
               const idealScore=songResult.ideal_preset_score||0;
-              const installedIsMax=installedBest>0&&installedBest>=idealScore;
-              return installedIsMax
-                ?<div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(74,222,128,0.08)",border:"1px solid var(--green-border)",borderRadius:8,padding:"8px 10px",marginBottom:6}}>
-                  <span style={{fontSize:11,color:"var(--green)",fontWeight:700}}>✅ Meilleur preset : {installedBestDevice} {installedBestName} ({installedBest}%)</span>
-                </div>
-                :<div style={{display:"flex",alignItems:"center",gap:8,background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",borderRadius:8,padding:"8px 10px",marginBottom:6}}>
+              const loc=findInBanks(songResult.ideal_preset,banksAnn)||findInBanks(songResult.ideal_preset,banksPlug);
+              return <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",borderRadius:8,padding:"8px 10px",marginBottom:6}}>
                   <span style={{fontSize:11,color:"var(--yellow)",fontWeight:700,flexShrink:0}}>⭐ Idéal</span>
                   <span style={{fontSize:11,color:"var(--text)",fontWeight:600}}>{songResult.ideal_preset}</span>
                   {idealScore>0&&<span style={{fontSize:10,color:"var(--yellow)",marginLeft:"auto"}}>{idealScore}%</span>}
-                  {(()=>{const loc=findInBanks(songResult.ideal_preset,banksAnn)||findInBanks(songResult.ideal_preset,banksPlug);return loc?<span style={{fontSize:9,color:"var(--green)"}}>✓ installé</span>:<span style={{fontSize:9,color:"var(--text-dim)"}}>non installé</span>;})()}
+                  {loc?<span style={{fontSize:9,color:"var(--green)"}}>✓ installé</span>:<span style={{fontSize:9,color:"var(--text-dim)"}}>non installé</span>}
                 </div>;
             })()}
 
