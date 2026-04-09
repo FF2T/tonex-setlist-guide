@@ -2655,7 +2655,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.2.14";
+const APP_VERSION = "2.2.15";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4761,9 +4761,12 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                   <span style={{color:"#2d3748"}}>·</span>
                   <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,minWidth:0}}>{hist.amp}</span>
                 </div>}
-                {!isExpanded&&<div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",marginTop:g||aiC?.ideal_guitar?4:0}}>
-                  {g&&<><span style={{fontSize:10,color:"var(--text-muted)"}}>🎸</span><span style={{fontSize:10,color:savedGId?"var(--accent)":"var(--green)",background:savedGId?"var(--accent-bg)":"var(--green-bg)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{g.short}{savedGId&&!ig.includes(savedGId)?" (choix perso)":""}</span></>}
-                  {aiC?.ideal_guitar&&<><span style={{fontSize:10,color:"var(--text-muted)"}}>🎸</span><span style={{fontSize:10,color:"var(--purple)",background:"rgba(167,139,250,0.1)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{aiC.ideal_guitar}</span></>}
+                {!isExpanded&&(g||aiC?.ideal_guitar)&&<div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",marginTop:4}}>
+                  <span style={{fontSize:10,color:"var(--text-muted)"}}>🎸</span>
+                  {g
+                    ?<span style={{fontSize:10,color:ig.includes(gId)?"var(--green)":"var(--accent)",background:ig.includes(gId)?"var(--green-bg)":"var(--accent-bg)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{ig.includes(gId)?"⭐ ":""}{g.name} ({g.type}){savedGId&&!ig.includes(savedGId)?" (choix perso)":""}</span>
+                    :aiC?.ideal_guitar&&<span style={{fontSize:10,color:"var(--green)",background:"var(--green-bg)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>⭐ {aiC.ideal_guitar}</span>
+                  }
                 </div>}
                 {!isExpanded&&<div style={{display:"flex",flexDirection:"column",gap:3,marginTop:aiPA||aiPP?4:0}}>
                   {aiPA&&presetRow("📦",aiPA.label,banksAnn,aiPA.score)}
