@@ -2655,7 +2655,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.2.13";
+const APP_VERSION = "2.2.14";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3032,6 +3032,20 @@ function enrichAIResult(aiResult,gType,gId,banksAnn,banksPlug){
 }
 function bestScoreOf(r){return Math.max(r.preset_ann?.score||0,r.preset_plug?.score||0,r.ideal_preset_score||0);}
 
+// Mise en cache avec mémoire du meilleur résultat par guitare
+function updateAiCache(existing,gId,newResult){
+  const prevBest=existing?.bestByGuitar?.[gId];
+  const best=prevBest&&bestScoreOf(prevBest)>=bestScoreOf(newResult)?prevBest:newResult;
+  const bestByGuitar={...(existing?.bestByGuitar||{}), [gId]:best};
+  return {gId,result:newResult,sv:SCORING_VERSION,bestByGuitar};
+}
+function getBestResult(song,gId,fallback){
+  const cached=song.aiCache?.bestByGuitar?.[gId];
+  if(!cached) return fallback;
+  if(!fallback) return cached;
+  return bestScoreOf(cached)>=bestScoreOf(fallback)?cached:fallback;
+}
+
 function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars,feedback){
   guitars=guitars||GUITARS;
   const g=guitars.find(x=>x.id===gId);
@@ -3086,28 +3100,31 @@ function AICard({song,gId,onResult,banksAnn,banksPlug,aiProvider,aiKeys,onCacheR
   const [err,setErr]=useState(null);
   const [showFB,setShowFB]=useState(false);
   const doFetch=useCallback((keepBest,feedback)=>{
-    const prev=keepBest?res:null;
+    const prev=keepBest?getBestResult(song,gId,res):null;
     if(!prev)setRes(null);
     setErr(null);setLoading(true);
     fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars,feedback||null)
       .then(r=>{
-        const pick=prev&&bestScoreOf(prev)>=bestScoreOf(r)?prev:r;
+        const best=getBestResult(song,gId,r);
+        const pick=prev&&bestScoreOf(prev)>=bestScoreOf(best)?prev:best;
         setRes(pick);onResult(pick);if(onCacheResult)onCacheResult(gId,pick);
       })
       .catch(e=>{if(!prev)setErr(e.message||"Erreur IA");})
       .finally(()=>setLoading(false));
   },[song.id,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars,res]);
   useEffect(()=>{
-    // Cache valide pour cette guitare ET même version de scoring → pas de recalcul
+    // Cache valide pour cette guitare ET même version de scoring → utiliser le meilleur connu
     if(song.aiCache&&song.aiCache.gId===gId&&song.aiCache.sv===SCORING_VERSION){
-      setRes(song.aiCache.result);onResult(song.aiCache.result);return;
+      const best=getBestResult(song,gId,song.aiCache.result);
+      setRes(best);onResult(best);return;
     }
     // Cache existant mais guitare différente ou scoring obsolète → recalculer les scores sans rappeler l'IA
     if(song.aiCache&&song.aiCache.result&&gId){
       const cached={...song.aiCache.result};
       const gType=(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB";
-      const updated=enrichAIResult(cached,gType,gId,banksAnn,banksPlug);
-      setRes(updated);onResult(updated);if(onCacheResult)onCacheResult(gId,updated);
+      const recalc=enrichAIResult(cached,gType,gId,banksAnn,banksPlug);
+      const best=getBestResult(song,gId,recalc);
+      setRes(best);onResult(best);if(onCacheResult)onCacheResult(gId,best);
       return;
     }
     doFetch(false);
@@ -3983,7 +4000,7 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
     onSongDb(p=>[...p,ns]);
     if(newSongSlIds.length>0)onSetlists(p=>p.map(sl=>newSongSlIds.includes(sl.id)?{...sl,songIds:[...sl.songIds,ns.id]}:sl));
     fetchAI(ns,"",banksAnn,banksPlug,aiProvider,aiKeys,allGuitars)
-      .then(r=>onSongDb(p=>p.map(x=>x.id===ns.id?{...x,aiCache:{gId:"",result:r,sv:SCORING_VERSION}}:x)))
+      .then(r=>onSongDb(p=>p.map(x=>x.id===ns.id?{...x,aiCache:updateAiCache(x.aiCache,"",r)}:x)))
       .catch(()=>{});
     setNewSongTitle("");setNewSongArtist("");setNewSongSlIds([]);
   };
@@ -4168,7 +4185,7 @@ function MaintenanceTab({songDb,onSongDb,banksAnn,banksPlug,aiProvider,aiKeys,on
       setProgress({done:i,total,current:s.title});
       try{
         const r=await fetchAI(s,"",banksAnn,banksPlug,aiProvider,aiKeys,GUITARS);
-        onSongDb(p=>p.map(x=>x.id===s.id?{...x,aiCache:{gId:"",result:r,sv:SCORING_VERSION}}:x));
+        onSongDb(p=>p.map(x=>x.id===s.id?{...x,aiCache:updateAiCache(x.aiCache,"",r)}:x));
       }catch(e){console.warn("Recalc failed for",s.title,e);}
       // Pause between requests to avoid rate limit
       if(i<songDb.length-1) await new Promise(r=>setTimeout(r,2000));
@@ -4349,7 +4366,7 @@ function AddSongModal({songDb,onSongDb,setlists,onSetlists,activeSlId,onClose,ba
       onSongDb(p=>[...p,ns]);
       onSetlists(p=>p.map(sl=>targetSlIds.includes(sl.id)?{...sl,songIds:[...sl.songIds,ns.id]}:sl));
       fetchAI(ns,"",banksAnn,banksPlug,aiProvider,aiKeys,guitars)
-        .then(r=>onSongDb(p=>p.map(x=>x.id===ns.id?{...x,aiCache:{gId:"",result:r,sv:SCORING_VERSION}}:x)))
+        .then(r=>onSongDb(p=>p.map(x=>x.id===ns.id?{...x,aiCache:updateAiCache(x.aiCache,"",r)}:x)))
         .catch(()=>{});
     }
     onClose();
@@ -4453,7 +4470,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
     fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars)
       .then(r=>{
         setLocalAiResult(r);
-        onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:{gId,result:r,sv:SCORING_VERSION}}:x));
+        onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:updateAiCache(x.aiCache,gId,r)}:x));
       })
       .catch(()=>{})
       .finally(()=>setReloading(false));
@@ -4466,7 +4483,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
       fetchAI(song,v,banksAnn,banksPlug,aiProvider,aiKeys,guitars)
         .then(r=>{
           setLocalAiResult(r);
-          onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:{gId:v,result:r,sv:SCORING_VERSION}}:x));
+          onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:updateAiCache(x.aiCache,v,r)}:x));
         })
         .catch(()=>{})
         .finally(()=>setReloading(false));
@@ -4475,7 +4492,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
   const g=(guitars||GUITARS).find(x=>x.id===gId);
   const type=g?.type||"HB";
   const hist=getSongHist(song);
-  const aiC=localAiResult||song.aiCache?.result||null;
+  const aiC=getBestResult(song,gId,localAiResult||song.aiCache?.result)||null;
   const songInfo=getSongInfo(song);
   return(
     <div className="song-row-detail" style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:"0 0 12px 12px",padding:"12px 14px",marginBottom:8,marginTop:-2}}>
@@ -4533,7 +4550,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
               .then(r=>{
                 const pick=prev&&bestScoreOf(prev)>=bestScoreOf(r)?prev:r;
                 setLocalAiResult(pick);
-                if(onSongDb)onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:{gId,result:pick,sv:SCORING_VERSION}}:x));
+                if(onSongDb)onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:updateAiCache(x.aiCache,gId,pick)}:x));
               })
               .catch(()=>{})
               .finally(()=>setReloading(false));
@@ -4903,7 +4920,7 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
                   </div>
                 </div></Row>
               );})()}
-              <AICard song={s} gId={gId} onResult={r=>setAiR(p=>({...p,[s.id]:r}))} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} onCacheResult={(gid,r)=>onSongDb(p=>p.map(x=>x.id===s.id?{...x,aiCache:{gId:gid,result:r,sv:SCORING_VERSION}}:x))} guitars={allGuitars}/>
+              <AICard song={s} gId={gId} onResult={r=>setAiR(p=>({...p,[s.id]:r}))} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} onCacheResult={(gid,r)=>onSongDb(p=>p.map(x=>x.id===s.id?{...x,aiCache:updateAiCache(x.aiCache,gid,r)}:x))} guitars={allGuitars}/>
             </div>
           </div>
         );
@@ -5553,7 +5570,7 @@ function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked
     onSongDb(p=>[...p,ns]);
     if(newSongSlIds.length>0)onSetlists(p=>p.map(sl=>newSongSlIds.includes(sl.id)?{...sl,songIds:[...sl.songIds,ns.id]}:sl));
     fetchAI(ns,"",banksAnn,banksPlug,aiProvider,aiKeys,allGuitars)
-      .then(r=>onSongDb(p=>p.map(x=>x.id===ns.id?{...x,aiCache:{gId:"",result:r,sv:SCORING_VERSION}}:x)))
+      .then(r=>onSongDb(p=>p.map(x=>x.id===ns.id?{...x,aiCache:updateAiCache(x.aiCache,"",r)}:x)))
       .catch(()=>{});
     setNewSongTitle("");setNewSongArtist("");setNewSongSlIds([]);
   };
@@ -5861,7 +5878,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                 // Save to DB if not existing
                 const existing=songDb.find(s=>normalizePresetName(s.title)===normalizePresetName(title));
                 if(!existing){
-                  const ns={id:`c_${Date.now()}`,title,artist,isCustom:true,ig:[],aiCache:{gId:"",result:r,sv:SCORING_VERSION}};
+                  const ns={id:`c_${Date.now()}`,title,artist,isCustom:true,ig:[],aiCache:updateAiCache(null,"",r)};
                   onSongDb(p=>[...p,ns]);
                 }
               })
