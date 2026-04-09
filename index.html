@@ -2655,7 +2655,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.2.11";
+const APP_VERSION = "2.2.12";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -2883,7 +2883,7 @@ function PBlock({device,emoji,presetName,gType,banks,adapted,gs,bg2,availableSou
         <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
           {displayRec.installed
             ?<span style={{background:`${CC[displayRec.slot]}18`,color:CC[displayRec.slot],border:`1px solid ${CC[displayRec.slot]}40`,borderRadius:5,padding:"1px 7px",fontSize:10,fontWeight:700}}>Banque {displayRec.bank}{displayRec.slot}</span>
-            :<span style={{fontSize:10,color:"var(--yellow)",fontWeight:700}}>⬇ À installer</span>
+            :<><span style={{fontSize:10,color:"var(--yellow)",fontWeight:700}}>⬇ À installer</span>{entry?.src==="TSR"&&entry.pack&&<span style={{fontSize:9,color:"var(--text-dim)"}}>📦 {entry.pack}.zip</span>}</>
           }
           {showBest&&<span style={{fontSize:9,color:"var(--green)",fontWeight:600}}>↑ meilleur choix</span>}
           {best&&best.isCurrent&&<span style={{fontSize:9,color:"var(--green)",fontWeight:600}}>★ top dispo</span>}
@@ -4500,10 +4500,11 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
         {aiC.ideal_preset&&(()=>{
           const idealScore=aiC.ideal_preset_score||0;
           const loc=findInBanks(aiC.ideal_preset,banksAnn)||findInBanks(aiC.ideal_preset,banksPlug);
-          return <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:11}}>
+          const entry=findCatalogEntry(aiC.ideal_preset);
+          return <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:11,flexWrap:"wrap"}}>
               <span style={{fontWeight:700}}>⭐ Idéal : {aiC.ideal_preset}</span>
               {idealScore>0&&<span style={{fontWeight:700,color:scoreColor(idealScore)}}>{idealScore}%</span>}
-              {loc?<span style={{fontSize:9,color:"var(--green)"}}>✓ installé</span>:<span style={{fontSize:9,color:"var(--text-dim)"}}>non installé</span>}
+              {loc?<span style={{fontSize:9,color:"var(--green)"}}>✓ installé</span>:<><span style={{fontSize:9,color:"var(--text-dim)"}}>non installé</span>{entry?.src==="TSR"&&entry.pack&&<span style={{fontSize:9,color:"var(--yellow)"}}>📦 {entry.pack}.zip</span>}</>}
             </div>;
         })()}
         <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
@@ -5954,11 +5955,12 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
             {songResult.ideal_preset&&(()=>{
               const idealScore=songResult.ideal_preset_score||0;
               const loc=findInBanks(songResult.ideal_preset,banksAnn)||findInBanks(songResult.ideal_preset,banksPlug);
-              return <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",borderRadius:8,padding:"8px 10px",marginBottom:6}}>
+              const entry=findCatalogEntry(songResult.ideal_preset);
+              return <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",borderRadius:8,padding:"8px 10px",marginBottom:6,flexWrap:"wrap"}}>
                   <span style={{fontSize:11,color:"var(--yellow)",fontWeight:700,flexShrink:0}}>⭐ Idéal</span>
                   <span style={{fontSize:11,color:"var(--text)",fontWeight:600}}>{songResult.ideal_preset}</span>
                   {idealScore>0&&<span style={{fontSize:10,color:"var(--yellow)",marginLeft:"auto"}}>{idealScore}%</span>}
-                  {loc?<span style={{fontSize:9,color:"var(--green)"}}>✓ installé</span>:<span style={{fontSize:9,color:"var(--text-dim)"}}>non installé</span>}
+                  {loc?<span style={{fontSize:9,color:"var(--green)"}}>✓ installé</span>:<><span style={{fontSize:9,color:"var(--text-dim)"}}>non installé</span>{entry?.src==="TSR"&&entry.pack&&<span style={{fontSize:9,color:"var(--yellow)"}}>📦 {entry.pack}.zip</span>}</>}
                 </div>;
             })()}
 
