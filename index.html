@@ -2655,7 +2655,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.2.09";
+const APP_VERSION = "2.2.10";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3101,7 +3101,7 @@ function AICard({song,gId,onResult,banksAnn,banksPlug,aiProvider,aiKeys,onCacheR
     <div style={{display:"flex",flexDirection:"column",gap:9}}>
       <Row icon="🎯"><div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,flex:1}}>
         <div><div style={{fontSize:12,color:"var(--purple)",fontWeight:700,marginBottom:2}}>IA : {res.ideal_guitar}</div><div style={{fontSize:11,color:"var(--text-sec)"}}>{res.guitar_reason}</div></div>
-        <button onClick={()=>doFetch(true)} title="Relancer l'analyse IA (garde le meilleur)" style={{background:"none",border:"1px solid var(--a10)",borderRadius:6,padding:"3px 7px",cursor:"pointer",fontSize:11,color:"var(--text-muted)",flexShrink:0,lineHeight:1}}>{loading?"⏳":"🔄"}</button>
+        <button onClick={()=>doFetch(true)} title="Relancer l'analyse IA (garde le meilleur)" style={{background:"none",border:"1px solid var(--a10)",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontSize:10,color:"var(--text-muted)",flexShrink:0}}>{loading?"⏳ Analyse...":"🔄 Améliorer"}</button>
       </div></Row>
       <div style={{display:"flex",flexDirection:"column",gap:6}}>
         <PBlock device="Pédale" emoji="📦" presetName={res.preset_ann?.label} gType={gId?(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB":null} banks={banksAnn} noUpgrade finalScore={res.preset_ann?.score} breakdown={res.preset_ann?.breakdown}/>
