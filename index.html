@@ -2655,7 +2655,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.2.16";
+const APP_VERSION = "2.2.18";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5894,13 +5894,23 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         <div style={{width:"100%"}}>
           <SongSearchBar aiProvider={aiProvider} aiKeys={aiKeys} onConfirm={(title,artist)=>{
             setConfirmedSong({title,artist});
-            setSongResult(null);setSongBaseAI(null);setSongErr(null);setSongLoading(true);setSelectedGuitar(null);
+            setSongResult(null);setSongBaseAI(null);setSongErr(null);setSelectedGuitar(null);
+            // Si le morceau existe déjà dans la base avec un cache IA, on l'utilise directement
+            const existing=songDb.find(s=>normalizePresetName(s.title)===normalizePresetName(title));
+            if(existing?.aiCache?.result){
+              const cachedGId=existing.aiCache.gId||"";
+              const cachedG=allGuitars.find(x=>x.id===cachedGId);
+              const gType=cachedG?.type||"HB";
+              const r=enrichAIResult({...existing.aiCache.result},gType,cachedGId,banksAnn,banksPlug);
+              setSongResult(r);setSongBaseAI(r);
+              if(cachedG) setSelectedGuitar(cachedG);
+              return;
+            }
+            setSongLoading(true);
             const song={id:`tmp_${Date.now()}`,title,artist};
             fetchAI(song,"",banksAnn,banksPlug,aiProvider,aiKeys,allGuitars)
               .then(r=>{
                 setSongResult(r);setSongBaseAI(r);
-                // Save to DB if not existing
-                const existing=songDb.find(s=>normalizePresetName(s.title)===normalizePresetName(title));
                 if(!existing){
                   const ns={id:`c_${Date.now()}`,title,artist,isCustom:true,ig:[],aiCache:updateAiCache(null,"",r)};
                   onSongDb(p=>[...p,ns]);
