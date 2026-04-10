@@ -2655,7 +2655,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.2.24";
+const APP_VERSION = "2.2.25";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4527,7 +4527,8 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
   const type=g?.type||"HB";
   const hist=getSongHist(song);
   const aiCraw=getBestResult(song,gId,localAiResult||song.aiCache?.result)||null;
-  const aiC=aiCraw&&gId?enrichAIResult({...aiCraw},type,gId,banksAnn,banksPlug):aiCraw;
+  const needRescore=aiCraw&&gId&&song.aiCache?.gId!==gId&&!localAiResult;
+  const aiC=needRescore?enrichAIResult({...aiCraw},type,gId,banksAnn,banksPlug):aiCraw;
   const songInfo=getSongInfo(song);
   return(
     <div className="song-row-detail" style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:"0 0 12px 12px",padding:"12px 14px",marginBottom:8,marginTop:-2}}>
@@ -4654,10 +4655,12 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
       const ig=getIg(s,guitars);const savedGId=sl?.guitars?.[s.id];const gId=savedGId||ig?.[0]||"";
       const gType=(guitars.find(x=>x.id===gId))?.type||"HB";
       const best=getBestResult(s,gId,s.aiCache?.result);
-      const enriched=best&&gId?enrichAIResult({...best},gType,gId,banksAnn,banksPlug):best;
+      // Only enrich if guitar differs from cache
+      const enriched=(best&&gId&&s.aiCache?.gId!==gId)?enrichAIResult({...best},gType,gId,banksAnn,banksPlug):best;
       return enriched?bestScoreOf(enriched)<IMPROVE_THRESHOLD:false;
     });
   };
+  const improveBadgeCount=useMemo(()=>getSongsToImprove().length,[songDb,activeSl,banksAnn,banksPlug,allGuitars]);
   const improveAll=async()=>{
     improveCancelRef.current=false;
     setImproving(true);
@@ -4788,7 +4791,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
       </div>
       {/* Tout améliorer */}
       {(()=>{
-        const needImprove=getSongsToImprove().length;
+        const needImprove=improveBadgeCount;
         if(needImprove===0&&!improving) return null;
         return <div style={{marginBottom:10}}>
           {!improving
@@ -4815,8 +4818,9 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         const g=gId?(allGuitars||GUITARS).find(x=>x.id===gId):null;
         const gType=g?.type||"HB";
         const aiCraw=getBestResult(s,gId,s.aiCache?.result)||null;
-        // Re-enrich with current guitar to get correct preset scores
-        const aiC=aiCraw&&gId?enrichAIResult({...aiCraw},gType,gId,banksAnn,banksPlug):aiCraw;
+        // Re-enrich only when guitar differs from cache (expensive: scans catalog)
+        const needRescore=aiCraw&&gId&&s.aiCache?.gId!==gId;
+        const aiC=needRescore?enrichAIResult({...aiCraw},gType,gId,banksAnn,banksPlug):aiCraw;
         const aiPA=aiC?.preset_ann||null;
         const aiPP=aiC?.preset_plug||null;
         const hist=getSongHist(s);
