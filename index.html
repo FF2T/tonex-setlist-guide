@@ -2655,7 +2655,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.2.22";
+const APP_VERSION = "2.2.23";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4513,7 +4513,8 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
   const g=(guitars||GUITARS).find(x=>x.id===gId);
   const type=g?.type||"HB";
   const hist=getSongHist(song);
-  const aiC=getBestResult(song,gId,localAiResult||song.aiCache?.result)||null;
+  const aiCraw=getBestResult(song,gId,localAiResult||song.aiCache?.result)||null;
+  const aiC=aiCraw&&gId?enrichAIResult({...aiCraw},type,gId,banksAnn,banksPlug):aiCraw;
   const songInfo=getSongInfo(song);
   return(
     <div className="song-row-detail" style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:"0 0 12px 12px",padding:"12px 14px",marginBottom:8,marginTop:-2}}>
