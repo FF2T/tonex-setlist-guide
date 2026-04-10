@@ -2978,7 +2978,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.2.28";
+const APP_VERSION = "2.2.29";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5290,10 +5290,10 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
       const g=songGuitarMap[s.id];
       const gType=g?.type||"HB";
       const gId=g?.id||"";
-      const ai=s.aiCache?.result;
+      const aiCraw=getBestResult(s,gId,s.aiCache?.result)||null;
       let presetAnn=null,presetPlug=null;
-      if(ai){
-        const enriched=enrichAIResult({...ai},gType,gId,banksAnn,banksPlug);
+      if(aiCraw){
+        const enriched=enrichAIResult({...aiCraw},gType,gId,banksAnn,banksPlug);
         presetAnn=enriched.preset_ann||null;
         presetPlug=enriched.preset_plug||null;
       }
@@ -5437,11 +5437,13 @@ function SynthesisScreen({songs,gps,aiR,onBack,onNavigate,songDb,banksAnn,banksP
   const rows=songs.map(s=>{
     const g=(allGuitars||GUITARS).find(x=>x.id===gps[s.id]);
     const type=g?.type||"HB";
+    const gId=g?.id||"";
     let ann=null,plug=null;
-    const ai=aiR[s.id]||s.aiCache?.result;
+    const aiCraw=getBestResult(s,gId,aiR[s.id]||s.aiCache?.result)||null;
+    const ai=aiCraw?enrichAIResult({...aiCraw},type,gId,banksAnn,banksPlug):null;
     if(ai){
-      if(ai.preset_ann)ann={name:ai.preset_ann.label,rec:getInstallRec(ai.preset_ann.label,type,banksAnn)};
-      if(ai.preset_plug)plug={name:ai.preset_plug.label,rec:getInstallRec(ai.preset_plug.label,type,banksPlug)};
+      if(ai.preset_ann)ann={name:ai.preset_ann.label,rec:getInstallRec(ai.preset_ann.label,type,banksAnn,gId)};
+      if(ai.preset_plug)plug={name:ai.preset_plug.label,rec:getInstallRec(ai.preset_plug.label,type,banksPlug,gId)};
     }
     return {s,g,type,ann,plug};
   });
