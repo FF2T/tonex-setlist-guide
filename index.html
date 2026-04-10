@@ -2655,7 +2655,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.2.21";
+const APP_VERSION = "2.2.22";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4622,6 +4622,51 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
   const toggle=id=>onChecked(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
   const toggleAll=()=>onChecked(checked.length===activeSongs.length?[]:activeSongs.map(s=>s.id));
   const inp={background:"var(--bg-card)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:7,padding:"6px 10px",fontSize:12,boxSizing:"border-box"};
+
+  // ─── Tout améliorer ───
+  const IMPROVE_THRESHOLD=90;
+  const IMPROVE_MAX_ROUNDS=3;
+  const [improving,setImproving]=useState(false);
+  const [improveStatus,setImproveStatus]=useState(null); // {current,total,round,songTitle}
+  const improveCancelRef=useRef(false);
+  const songDbRef=useRef(songDb);
+  songDbRef.current=songDb;
+  const getSongsToImprove=()=>{
+    const guitars=allGuitars||GUITARS;
+    const sl=activeSl;
+    const arr=sl?(sl.songIds||[]).map(id=>songDbRef.current.find(s=>s.id===id)).filter(Boolean):[...songDbRef.current];
+    return arr.filter(s=>{
+      if(!s.aiCache) return false;
+      const ig=getIg(s,guitars);const savedGId=sl?.guitars?.[s.id];const gId=savedGId||ig?.[0]||"";
+      const gType=(guitars.find(x=>x.id===gId))?.type||"HB";
+      const best=getBestResult(s,gId,s.aiCache?.result);
+      const enriched=best&&gId?enrichAIResult({...best},gType,gId,banksAnn,banksPlug):best;
+      return enriched?bestScoreOf(enriched)<IMPROVE_THRESHOLD:false;
+    });
+  };
+  const improveAll=async()=>{
+    improveCancelRef.current=false;
+    setImproving(true);
+    const guitars=allGuitars||GUITARS;
+    for(let round=1;round<=IMPROVE_MAX_ROUNDS;round++){
+      const toImprove=getSongsToImprove();
+      if(toImprove.length===0) break;
+      for(let i=0;i<toImprove.length;i++){
+        if(improveCancelRef.current) break;
+        const s=toImprove[i];
+        const ig=getIg(s,guitars);
+        const savedGId=activeSl?.guitars?.[s.id];
+        const gId=savedGId||ig?.[0]||"";
+        setImproveStatus({current:i+1,total:toImprove.length,round,songTitle:s.title});
+        try{
+          const r=await fetchAI(s,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars);
+          onSongDb(p=>p.map(x=>x.id===s.id?{...x,aiCache:updateAiCache(x.aiCache,gId,r)}:x));
+        }catch(e){/* skip */}
+      }
+      if(improveCancelRef.current) break;
+    }
+    setImproving(false);setImproveStatus(null);
+  };
   return (
     <div>
       {!hideHeader&&<div style={{marginBottom:20,textAlign:"center"}}>
@@ -4727,6 +4772,24 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         </div>
         <button onClick={()=>setShowAdd(true)} style={{background:"rgba(99,102,241,0.15)",border:"1px solid var(--accent-border)",color:"var(--accent)",borderRadius:7,padding:"5px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>+ Ajouter</button>
       </div>
+      {/* Tout améliorer */}
+      {(()=>{
+        const needImprove=getSongsToImprove().length;
+        if(needImprove===0&&!improving) return null;
+        return <div style={{marginBottom:10}}>
+          {!improving
+            ?<button onClick={improveAll} style={{fontSize:11,fontWeight:600,color:"var(--yellow)",background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.25)",borderRadius:8,padding:"6px 14px",cursor:"pointer"}}>✨ Tout améliorer — {needImprove} morceau{needImprove>1?"x":""} &lt; {IMPROVE_THRESHOLD}%</button>
+            :<div style={{display:"flex",alignItems:"center",gap:10,background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:8,padding:"8px 12px"}}>
+              <div style={{fontSize:20,animation:"spin 1.5s linear infinite",display:"inline-block"}}>✨</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,fontWeight:700,color:"var(--yellow)"}}>Tour {improveStatus?.round}/{IMPROVE_MAX_ROUNDS} — {improveStatus?.current}/{improveStatus?.total}</div>
+                <div style={{fontSize:10,color:"var(--text-muted)",marginTop:1}}>{improveStatus?.songTitle}</div>
+              </div>
+              <button onClick={()=>{improveCancelRef.current=true;}} style={{fontSize:10,background:"var(--a7)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:6,padding:"3px 8px",cursor:"pointer"}}>Arrêter</button>
+            </div>
+          }
+        </div>;
+      })()}
       {activeSongs.length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"var(--text-dim)"}}><div style={{fontSize:24,marginBottom:8}}>🎵</div><div style={{fontSize:14}}>Setlist vide — clique sur "+ Ajouter"</div></div>}
       {(()=>{let lastArtist="";return activeSongs.map(s=>{
         const showArtistHeader=sort==="artist"&&s.artist!==lastArtist;
