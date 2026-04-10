@@ -2655,7 +2655,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.2.20";
+const APP_VERSION = "2.2.21";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4737,13 +4737,11 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         const gId=savedGId||ig?.[0]||"";
         const g=gId?(allGuitars||GUITARS).find(x=>x.id===gId):null;
         const gType=g?.type||"HB";
-        const aiC=s.aiCache?.result||null;
-        // Recalculate scoring if cache was computed with a different guitar
-        const needRescore=aiC&&s.aiCache?.gId!==gId&&gId;
-        const targetGain=typeof aiC?.target_gain==="number"?aiC.target_gain:null;
-        const rescored=needRescore?computeBestPresets(gType,aiC.song_style||"rock",banksAnn,banksPlug,gId,aiC.ref_amp,targetGain):null;
-        const aiPA=rescored&&rescored.annTop?{label:rescored.annTop.name,bank:rescored.annTop.bank,col:rescored.annTop.col,score:rescored.annTop.score}:aiC?.preset_ann;
-        const aiPP=rescored&&rescored.plugTop?{label:rescored.plugTop.name,bank:rescored.plugTop.bank,col:rescored.plugTop.col,score:rescored.plugTop.score}:aiC?.preset_plug;
+        const aiCraw=getBestResult(s,gId,s.aiCache?.result)||null;
+        // Re-enrich with current guitar to get correct preset scores
+        const aiC=aiCraw&&gId?enrichAIResult({...aiCraw},gType,gId,banksAnn,banksPlug):aiCraw;
+        const aiPA=aiC?.preset_ann||null;
+        const aiPP=aiC?.preset_plug||null;
         const hist=getSongHist(s);
         const presetRow=(emoji,label,banks,overrideScore)=>{
           const loc=findInBanks(label,banks);
