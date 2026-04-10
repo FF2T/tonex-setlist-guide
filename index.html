@@ -372,56 +372,11 @@ const SONG_HISTORY = {
   deeppurple_smoke:  {guitarist:"Ritchie Blackmore",guitar:"Fender Stratocaster (noir, modifiée)",      amp:"Marshall Major 200W (modifié)",       effects:"Hornby-Skewes Treble Booster"},
 };
 
-// ─── Catalogue de presets disponibles (TSR / ML / AA factory / TJ) ────────────
+// ─── Catalogue ML Sound Lab Essentials + presets custom ────────────────────────
 // scores = pertinence 0-100 selon type de guitare : HB=humbucker, SC=single coil, P90
-// src: TSR=pack TSR, ML=ML Sound Lab, AA=TONEX Anniversary factory, TJ=ToneJunkie factory
 // style: "hard_rock" | "rock" | "blues" | "clean" | "metal"
 // ─ IMPORTANT : même style = alternatives valables pour un même morceau ─────────
 const PRESET_CATALOG = {
-  // ── TSR — Marshall SL800 ──────────────────────────────────────────────────────
-  "TSR Mars 800SL Chnl 1 Cln":       {src:"TSR",pack:"Marshall 800 SL",amp:"Marshall SL800",    gain:"low",  style:"hard_rock",scores:{HB:90,SC:64,P90:80}},
-  "TSR Mars 800SL Chnl 1 Drive":     {src:"TSR",pack:"Marshall 800 SL",amp:"Marshall SL800",    gain:"mid",  style:"hard_rock",scores:{HB:95,SC:62,P90:78}},
-  "TSR Mars 800SL Ch 1 Full Beans":  {src:"TSR",pack:"Marshall 800 SL",amp:"Marshall SL800",    gain:"high", style:"hard_rock",scores:{HB:93,SC:57,P90:75}},
-  // ── TSR — Two Rock Stevie G ───────────────────────────────────────────────────
-  "TSR Stevie G Bright Clean":       {src:"TSR",pack:"Two Rock Stevie G",amp:"Two Rock Stevie G", gain:"low",  style:"blues",    scores:{HB:80,SC:95,P90:88}},
-  "TSR Stevie G Gritty Clean":       {src:"TSR",pack:"Two Rock Stevie G",amp:"Two Rock Stevie G", gain:"low",  style:"blues",    scores:{HB:82,SC:93,P90:87}},
-  "TSR Stevie G High Gain":          {src:"TSR",pack:"Two Rock Stevie G",amp:"Two Rock Stevie G", gain:"high", style:"blues",    scores:{HB:84,SC:88,P90:85}},
-  "TSR Stevie G Low Gain":           {src:"TSR",pack:"Two Rock Stevie G",amp:"Two Rock Stevie G", gain:"low",  style:"blues",    scores:{HB:79,SC:95,P90:88}},
-  "TSR Stevie G Mid Gain":           {src:"TSR",pack:"Two Rock Stevie G",amp:"Two Rock Stevie G", gain:"mid",  style:"blues",    scores:{HB:81,SC:92,P90:87}},
-  // ── TSR — Marshall JTM45 ─────────────────────────────────────────────────────
-  "TSR JTM Clean (ish)":             {src:"TSR",pack:"Marshall JTM",amp:"Marshall JTM45",    gain:"low",  style:"rock",     scores:{HB:88,SC:78,P90:86}},
-  "TSR JTM Clean(ish)":              {src:"TSR",pack:"Marshall JTM",amp:"Marshall JTM45",    gain:"low",  style:"rock",     scores:{HB:88,SC:78,P90:86}},
-  "TSR JTM Jumped":                  {src:"TSR",pack:"Marshall JTM",amp:"Marshall JTM45",    gain:"mid",  style:"rock",     scores:{HB:90,SC:74,P90:85}},
-  "TSR JTM Klone Lead":              {src:"TSR",pack:"Marshall JTM",amp:"Marshall JTM45",    gain:"high", style:"rock",     scores:{HB:88,SC:70,P90:83}},
-  "TSR JTM Klone Drive":             {src:"TSR",pack:"Marshall JTM",amp:"Marshall JTM45",    gain:"mid",  style:"rock",     scores:{HB:87,SC:73,P90:83}},
-  // ── TSR — Two Rock Bloomfield Drive ──────────────────────────────────────────
-  "TSR TWO ROK Bloom Cln":           {src:"TSR",pack:"Two Rock Bloomfield",amp:"Two Rock Bloomfield",gain:"low", style:"blues",    scores:{HB:78,SC:95,P90:88}},
-  "TSR TWO ROK Bloom KOT":           {src:"TSR",pack:"Two Rock Bloomfield",amp:"Two Rock Bloomfield",gain:"mid", style:"blues",    scores:{HB:80,SC:94,P90:87}},
-  "TSR TWO ROK Bloom Duellist":      {src:"TSR",pack:"Two Rock Bloomfield",amp:"Two Rock Bloomfield",gain:"mid", style:"blues",    scores:{HB:79,SC:93,P90:86}},
-  "TSR TWO ROK Bloom Drive":         {src:"TSR",pack:"Two Rock Bloomfield",amp:"Two Rock Bloomfield",gain:"mid", style:"blues",    scores:{HB:80,SC:92,P90:86}},
-  // ── TSR — Fender Super (Super S) ─────────────────────────────────────────────
-  "TSR Super S Clean":               {src:"TSR",pack:"Fender Super S",amp:"Fender Super",      gain:"low",  style:"jazz",    scores:{HB:67,SC:96,P90:88}},
-  // ── TSR — Dumble Deluxe (Bumble Dluxe) ───────────────────────────────────────
-  "TSR Bumble DLX Drive 1":          {src:"TSR",pack:"Bumble Deluxe",amp:"Dumble Deluxe",     gain:"mid",  style:"blues",    scores:{HB:87,SC:85,P90:90}},
-  "TSR Bumble DLX Klon":             {src:"TSR",pack:"Bumble Deluxe",amp:"Dumble Deluxe",     gain:"mid",  style:"blues",    scores:{HB:85,SC:87,P90:91}},
-  "Bumble Deluxe Cln 1":             {src:"TSR",pack:"Bumble Deluxe",amp:"Dumble Deluxe",     gain:"low",  style:"blues",    scores:{HB:88,SC:84,P90:92}},
-  "Bumble Deluxe Drive 1":           {src:"TSR",pack:"Bumble Deluxe",amp:"Dumble Deluxe",     gain:"mid",  style:"blues",    scores:{HB:87,SC:85,P90:90}},
-  "Bumble Deluxe Klon":              {src:"TSR",pack:"Bumble Deluxe",amp:"Dumble Deluxe",     gain:"mid",  style:"blues",    scores:{HB:85,SC:87,P90:91}},
-  // ── TSR — Marshall Plexi ─────────────────────────────────────────────────────
-  "TSR Plexi Rodents Muff":          {src:"TSR",pack:"Marshall Plexi",amp:"Marshall Plexi",    gain:"high", style:"hard_rock",scores:{HB:90,SC:67,P90:80}},
-  "TSR Plexi RodentsMuff":           {src:"TSR",pack:"Marshall Plexi",amp:"Marshall Plexi",    gain:"high", style:"hard_rock",scores:{HB:90,SC:67,P90:80}},
-  // ── TSR — D13 RG7 (Tweed boutique) ───────────────────────────────────────────
-  "TSR D13 Best Tweed Ever Clean":   {src:"TSR",pack:"D13",amp:"D13 RG7",           gain:"low",  style:"blues",    scores:{HB:77,SC:93,P90:89}},
-  // ── TSR — Fender Twin Silverface ─────────────────────────────────────────────
-  "TSR Twin Clean":                  {src:"TSR",pack:"Fender Silverface Twin",amp:"Fender Twin Silverface",gain:"low",  style:"jazz",scores:{HB:72,SC:96,P90:88}},
-  "TSR Fender Twin + Blues Drive":   {src:"TSR",pack:"Fender Silverface Twin",amp:"Fender Twin Silverface",gain:"mid",  style:"blues",scores:{HB:80,SC:91,P90:87}},
-  "TSR Fender Twin + Blues Brkr":    {src:"TSR",pack:"Fender Silverface Twin",amp:"Fender Twin Silverface",gain:"mid",  style:"blues",scores:{HB:81,SC:90,P90:86}},
-  // ── TSR — Marshall JCM900 ────────────────────────────────────────────────────
-  "TSR Mars 900 Clean":              {src:"TSR",pack:"Marshall JCM900",amp:"Marshall JCM900",   gain:"low",  style:"hard_rock",scores:{HB:87,SC:72,P90:82}},
-  "TSR Mars 900 Chnl 1Dirty":        {src:"TSR",pack:"Marshall JCM900",amp:"Marshall JCM900",   gain:"mid",  style:"hard_rock",scores:{HB:92,SC:67,P90:78}},
-  "TSR Mars 900 Chanl 2 OD":         {src:"TSR",pack:"Marshall JCM900",amp:"Marshall JCM900",   gain:"high", style:"hard_rock",scores:{HB:91,SC:63,P90:75}},
-  // ── TSR — TSR20 ──────────────────────────────────────────────────────────────
-  "TSR TSR20 + SLOW":                {src:"TSR",pack:"TSR20",amp:"TSR20",             gain:"high", style:"hard_rock",scores:{HB:88,SC:63,P90:76}},
   // ── ML — Marshall 800 ────────────────────────────────────────────────────────
   "ML MARS 800 Clean":               {src:"ML", amp:"Marshall 800",      gain:"low",  style:"hard_rock",scores:{HB:88,SC:63,P90:77}},
   "ML MARS 800 Drive":               {src:"ML", amp:"Marshall 800",      gain:"mid",  style:"hard_rock",scores:{HB:92,SC:60,P90:75}},
@@ -458,64 +413,12 @@ const PRESET_CATALOG = {
   "ML PEAV Block Clean":             {src:"ML", amp:"Peavey 5150",       gain:"low",  style:"metal",    scores:{HB:82,SC:61,P90:72}},
   "ML PEAV Block Drive":             {src:"ML", amp:"Peavey 5150",       gain:"mid",  style:"metal",    scores:{HB:88,SC:57,P90:67}},
   "ML PEAV Block Lead":              {src:"ML", amp:"Peavey 5150",       gain:"high", style:"metal",    scores:{HB:92,SC:53,P90:64}},
-  // ── AA (TONEX Anniversary factory) — Marshalls ────────────────────────────────
-  "AA MRSH SL100 JU Dimed BAL CAB":  {src:"Anniversary", amp:"Marshall SL100",    gain:"high", style:"hard_rock",scores:{HB:90,SC:67,P90:79}},
-  "MRSH SL100 JU Dimed BAL CAB":     {src:"Anniversary", amp:"Marshall SL100",    gain:"high", style:"hard_rock",scores:{HB:90,SC:67,P90:79}},
-  "AA MRSH JT50 I Drive BAL SCH CAB":{src:"Anniversary", amp:"Marshall JTM50",    gain:"mid",  style:"rock",     scores:{HB:86,SC:74,P90:83}},
-  "MRSH JT50 I Drive BAL SCH CAB":   {src:"Anniversary", amp:"Marshall JTM50",    gain:"mid",  style:"rock",     scores:{HB:86,SC:74,P90:83}},
-  "AA MRSH JC800 Drive BRI CAB":     {src:"Anniversary", amp:"Marshall JC800",    gain:"high", style:"hard_rock",scores:{HB:90,SC:64,P90:78}},
-  "AA MRSH SB100 I Edge WRM CAB":    {src:"Anniversary", amp:"Marshall SB100",    gain:"mid",  style:"rock",     scores:{HB:87,SC:71,P90:81}},
-  "MRSH SB100 I Edge WRM CAB":       {src:"Anniversary", amp:"Marshall SB100",    gain:"mid",  style:"rock",     scores:{HB:87,SC:71,P90:81}},
-  // ── AA — Oranges ─────────────────────────────────────────────────────────────
-  "AA ORNG 120 Dimed BAL CAB":       {src:"Anniversary", amp:"Orange 120",        gain:"high", style:"hard_rock",scores:{HB:90,SC:67,P90:80}},
-  "ORNG 120 Dimed BAL CAB":          {src:"Anniversary", amp:"Orange 120",        gain:"high", style:"hard_rock",scores:{HB:90,SC:67,P90:80}},
-  "AA ORNG GR100 Edge BAL CAB":      {src:"Anniversary", amp:"Orange GR100",      gain:"mid",  style:"hard_rock",scores:{HB:86,SC:71,P90:80}},
-  // ── AA — Fender Blackface Twin ────────────────────────────────────────────────
-  "AA FNDR BFTWN NR Clean BAL CAB":  {src:"Anniversary", amp:"Fender Blackface Twin",gain:"low",  style:"jazz",scores:{HB:67,SC:95,P90:86}},
-  "FNDR BFTWN NR Clean BAL CAB":     {src:"Anniversary", amp:"Fender Blackface Twin",gain:"low",  style:"jazz",scores:{HB:67,SC:95,P90:86}},
-  // ── AA — Fender Blackface Deluxe ─────────────────────────────────────────────
-  "AA FNDR BFDLX NR Edge BAL CAB":   {src:"Anniversary", amp:"Fender BF Deluxe",  gain:"low",  style:"jazz",   scores:{HB:69,SC:93,P90:85}},
-  "AA FNDR BFDLX VB Drive BAL KLN CAB":{src:"Anniversary",amp:"Fender BF Deluxe", gain:"mid",  style:"blues",   scores:{HB:71,SC:90,P90:84}},
-  "FNDR BFDLX NR Edge BAL CAB":      {src:"Anniversary", amp:"Fender BF Deluxe",  gain:"low",  style:"jazz",   scores:{HB:69,SC:93,P90:85}},
-  "FNDR BFDLX VB Drive BAL KLN CAB": {src:"Anniversary", amp:"Fender BF Deluxe",  gain:"mid",  style:"blues",   scores:{HB:71,SC:90,P90:84}},
-  // ── AA — Fender Tweed ────────────────────────────────────────────────────────
-  "AA FNDR TWDLX IN Clean BAL CAB":  {src:"Anniversary", amp:"Fender Tweed Deluxe",gain:"low",  style:"blues",  scores:{HB:69,SC:92,P90:87}},
-  "AA FNDR TWDLX IN Dimed FAT CAB":  {src:"Anniversary", amp:"Fender Tweed Deluxe",gain:"high", style:"blues",  scores:{HB:73,SC:88,P90:85}},
-  "AA FNDR TWBM BR Crunch BAL CAB":  {src:"Anniversary", amp:"Fender Tweed Bassman",gain:"mid", style:"blues",  scores:{HB:74,SC:89,P90:88}},
-  "FNDR TWDLX IN Clean BAL CAB":     {src:"Anniversary", amp:"Fender Tweed Deluxe",gain:"low",  style:"blues",  scores:{HB:69,SC:92,P90:87}},
-  // ── AA — Fender Blonde Bassman ────────────────────────────────────────────────
-  "AA FNDR BLBM NR Clean BAL CAB":   {src:"Anniversary", amp:"Fender Blonde Bassman",gain:"low",style:"blues",  scores:{HB:71,SC:92,P90:87}},
-  "FNDR BLBM NR Clean BAL CAB":      {src:"Anniversary", amp:"Fender Blonde Bassman",gain:"low",style:"blues",  scores:{HB:71,SC:92,P90:87}},
-  // ── AA — Hiwatt CUT100 ───────────────────────────────────────────────────────
-  "AA HWTT CUT100 NR Clean BAL CAB": {src:"Anniversary", amp:"Hiwatt Custom 100", gain:"low",  style:"rock",    scores:{HB:84,SC:82,P90:84}},
-  "AA HWTT CUT100 JU Crunch BRI CAB":{src:"Anniversary", amp:"Hiwatt Custom 100", gain:"mid",  style:"rock",    scores:{HB:85,SC:80,P90:83}},
-  "HWTT CUT100 NR Clean BAL CAB":    {src:"Anniversary", amp:"Hiwatt Custom 100", gain:"low",  style:"rock",    scores:{HB:84,SC:82,P90:84}},
-  "HWTT CUT100 JU Crunch BRI CAB":   {src:"Anniversary", amp:"Hiwatt Custom 100", gain:"mid",  style:"rock",    scores:{HB:85,SC:80,P90:83}},
-  // ── AA — Mesa/Boogie MkIIC+ ───────────────────────────────────────────────────
-  "AA MES MKIICP LD Gain BAL CAB":   {src:"Anniversary", amp:"Mesa Mark IIC+",    gain:"high", style:"metal",   scores:{HB:90,SC:61,P90:73}},
-  // ── TJ (ToneJunkie factory) — Dumble ODS ─────────────────────────────────────
-  "TJ DMBL ODS 124 NRB CLN":         {src:"Anniversary", amp:"Dumble ODS 124",    gain:"low",  style:"blues",   scores:{HB:82,SC:90,P90:90}},
-  "TJ DMBL ODS 124 NR OD":           {src:"Anniversary", amp:"Dumble ODS 124",    gain:"mid",  style:"blues",   scores:{HB:83,SC:89,P90:90}},
-  "TJ DMBL ODS 124 LEAD 2":          {src:"Anniversary", amp:"Dumble ODS 124",    gain:"high", style:"blues",   scores:{HB:84,SC:87,P90:89}},
-  "TJ DMBL ODS 124 Lead 1":          {src:"Anniversary", amp:"Dumble ODS 124",    gain:"high", style:"blues",   scores:{HB:84,SC:87,P90:89}},
-  // ── TJ — Gibson GA5 Skylark ───────────────────────────────────────────────────
-  "TJ 60s GA5 Skylark":              {src:"Anniversary", amp:"Gibson GA5 Skylark",gain:"low",  style:"jazz",   scores:{HB:75,SC:84,P90:95}},
-  // ── TJ — Marshall Plexi ───────────────────────────────────────────────────────
-  "TJ 74 Purple Plexi 1 2":          {src:"Anniversary", amp:"Marshall Plexi 74", gain:"mid",  style:"hard_rock",scores:{HB:88,SC:71,P90:82}},
-  "TJ 74 Purple Plexi J 4":          {src:"Anniversary", amp:"Marshall Plexi 74", gain:"mid",  style:"hard_rock",scores:{HB:88,SC:71,P90:82}},
-  // ── TJ — Matchless ────────────────────────────────────────────────────────────
-  "TJ Match Brave 4":                {src:"Anniversary", amp:"Matchless",         gain:"mid",  style:"rock",     scores:{HB:77,SC:88,P90:91}},
-  // ── Divers ────────────────────────────────────────────────────────────────────
+  // ── Divers / custom ────────────────────────────────────────────────────────
   "Cornford HellCat Clean":          {src:"custom",amp:"Cornford HellCat",gain:"low", style:"rock",    scores:{HB:82,SC:78,P90:85}},
   "Chandler GAV19T Drive":           {src:"custom",amp:"Chandler GAV19T", gain:"mid", style:"rock",    scores:{HB:84,SC:72,P90:80}},
   "Marshall JCM800":                 {src:"custom",amp:"Marshall JCM800", gain:"high",style:"hard_rock",scores:{HB:90,SC:64,P90:76}},
-  // ── Alias presets installés (noms variantes) ─────────────────────────────────
   "Golden Queen":                    {src:"custom",amp:"Vox AC30",        gain:"mid", style:"rock",    scores:{HB:80,SC:82,P90:85}},
   "Brian May":                       {src:"custom",amp:"Vox AC30",        gain:"mid", style:"rock",    scores:{HB:80,SC:82,P90:85}},
-  "TSR JTM 45 Jumped":               {src:"TSR",pack:"Marshall JTM",amp:"Marshall JTM45",    gain:"mid",  style:"rock",     scores:{HB:90,SC:74,P90:85}},
-  "TSR JTM45 Klon Lead":             {src:"TSR",pack:"Marshall JTM",amp:"Marshall JTM45",    gain:"high", style:"rock",     scores:{HB:88,SC:70,P90:83}},
-  "TSR Bing 19 Sparky":              {src:"TSR",pack:"Bogner Ecstasy 101B",amp:"Chandler 19T",gain:"mid",style:"rock",     scores:{HB:82,SC:74,P90:82}},
-  "TSR Basyman Bass Full Grit":      {src:"TSR",pack:"Bass Pack 1",amp:"Ampeg Bass",gain:"high",style:"jazz",   scores:{HB:69,SC:87,P90:82}},
 };
 
 
@@ -3075,7 +2978,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.2.27";
+const APP_VERSION = "2.2.28";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5826,14 +5729,15 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks}) {
     return ctx;
   },[customPacks]);
 
-  // Merge custom packs into catalog — only keep sources the user has
+  // Merge custom packs into catalog — TSR_PACK_CATALOG is authoritative for TSR presets
   const fullCatalog=useMemo(()=>{
-    const existingNorms=new Set(Object.keys(PRESET_CATALOG_FULL).map(normalizePresetName));
-    const tsrDeduped={};
-    for(const [k,v] of Object.entries(TSR_PACK_CATALOG)){
-      if(!existingNorms.has(normalizePresetName(k))) tsrDeduped[k]=v;
+    // Dedup PRESET_CATALOG_FULL: remove entries that are normalized duplicates of TSR_PACK_CATALOG
+    const tsrNorms=new Set(Object.keys(TSR_PACK_CATALOG).map(normalizePresetName));
+    const fullDeduped={};
+    for(const [k,v] of Object.entries(PRESET_CATALOG_FULL)){
+      if(!tsrNorms.has(normalizePresetName(k))) fullDeduped[k]=v;
     }
-    const cat={...PRESET_CATALOG_FULL,...tsrDeduped,...ANNIVERSARY_CATALOG,...FACTORY_CATALOG,...PLUG_FACTORY_CATALOG,...PRESET_CATALOG};
+    const cat={...fullDeduped,...TSR_PACK_CATALOG,...ANNIVERSARY_CATALOG,...FACTORY_CATALOG,...PLUG_FACTORY_CATALOG,...PRESET_CATALOG};
     (customPacks||[]).forEach(pack=>{
       (pack.presets||[]).forEach(p=>{
         if(p.name&&!cat[p.name]) cat[p.name]={src:pack.name,amp:p.amp||"Custom",gain:p.gain||"mid",style:p.style||"rock",scores:p.scores||{HB:78,SC:78,P90:78}};
