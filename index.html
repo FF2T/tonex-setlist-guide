@@ -2978,7 +2978,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.3.2";
+const APP_VERSION = "2.3.3";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4962,7 +4962,11 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
           <div style={{flex:1}}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/></div>
           {(()=>{const gScore=Math.max(aiC?.preset_ann?.score||0,aiC?.preset_plug?.score||0);return gScore>0&&<span style={{fontSize:12,fontWeight:800,color:scoreColor(gScore),background:scoreBg(gScore),borderRadius:6,padding:"3px 8px",border:`1px solid ${scoreColor(gScore)}30`,flexShrink:0}} title={scoreLabel(gScore).tip+"  —  score guitare"}>{gScore}%</span>;})()}
         </div>
-        {g&&aiC?.guitar_reason&&<div style={{fontSize:11,color:"var(--text-sec)",marginTop:3}}>{aiC.ideal_guitar?" "+aiC.ideal_guitar+" — ":""}{aiC.guitar_reason}</div>}
+        {g&&aiC?.guitar_reason&&<div style={{fontSize:11,color:"var(--text-sec)",marginTop:3}}>
+          {aiC.ideal_guitar?" "+aiC.ideal_guitar:""}
+          {aiC.cot_step4_score?.guitar_score!=null&&<span style={{fontSize:10,fontWeight:800,color:scoreColor(aiC.cot_step4_score.guitar_score),marginLeft:4}}>{aiC.cot_step4_score.guitar_score}/100</span>}
+          {aiC.guitar_reason&&<span> — {aiC.guitar_reason}</span>}
+        </div>}
       </div>
       {hist&&!aiC&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:10,lineHeight:1.6}}>
         <span style={{fontWeight:700,color:"var(--text-muted)",fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>{hist.guitarist}</span><br/>
@@ -4973,33 +4977,9 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
         <div style={{fontSize:12,color:"var(--text-muted)"}}>Analyse en cours pour {g?.short||"cette guitare"}...</div>
       </div>}
       {!reloading&&aiC&&<>
-        {aiC.ideal_preset&&(()=>{
-          const idealScore=aiC.ideal_preset_score||0;
-          const loc=findInBanks(aiC.ideal_preset,banksAnn)||findInBanks(aiC.ideal_preset,banksPlug);
-          const entry=findCatalogEntry(aiC.ideal_preset);
-          return <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:11,flexWrap:"wrap"}}>
-              <span style={{fontWeight:700}}>⭐ Idéal : {aiC.ideal_preset}</span>
-              {idealScore>0&&<span style={{fontWeight:700,color:scoreColor(idealScore)}}>{idealScore}%</span>}
-              {loc?<span style={{fontSize:9,color:"var(--green)"}}>✓ installé</span>:<><span style={{fontSize:9,color:"var(--text-dim)"}}>non installé</span>{entry?.src==="TSR"&&entry.pack&&<span style={{fontSize:9,color:"var(--yellow)"}}>📦 {entry.pack}.zip</span>}</>}
-            </div>;
-        })()}
-        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
-          <PBlock device="Pédale" emoji="📦" presetName={aiC.preset_ann?.label} gType={gId?type:null} banks={banksAnn} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_ann?.score} breakdown={aiC.preset_ann?.breakdown}/>
-          <PBlock device="ToneX Plug" emoji="🔌" presetName={aiC.preset_plug?.label} gType={gId?type:null} banks={banksPlug} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_plug?.score} breakdown={aiC.preset_plug?.breakdown}/>
-        </div>
-        {(aiC.settings_preset||aiC.settings_guitar)&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:8,lineHeight:1.6}}>
-          {aiC.settings_preset&&<div>💡 <b>Preset :</b> {aiC.settings_preset}</div>}
-          {aiC.settings_guitar&&<div>💡 <b>Guitare :</b> {aiC.settings_guitar}</div>}
-        </div>}
-        {(aiC.ref_guitarist||aiC.ref_guitar||aiC.ref_amp)&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:8,lineHeight:1.6}}>
-          <span style={{fontWeight:700,color:"var(--text-muted)",fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>{aiC.ref_guitarist||"Référence"}</span><br/>
-          {aiC.ref_guitar&&<>🎸 {aiC.ref_guitar} · </>}
-          {aiC.ref_amp&&<>🔊 {aiC.ref_amp}</>}
-          {aiC.ref_effects&&aiC.ref_effects!=="Aucun effet"&&<> · 🎚 {aiC.ref_effects}</>}
-        </div>}
         {(aiC.cot_step1||aiC.cot_step2_guitars||aiC.cot_step3_amp||aiC.cot_step4_score)&&<div style={{marginBottom:8}}>
           <div onClick={()=>setShowCot(p=>!p)} style={{cursor:"pointer",fontSize:11,color:"var(--text-muted)",fontWeight:600,display:"flex",alignItems:"center",gap:6,userSelect:"none",padding:"4px 0"}}>
-            🧠 Raisonnement IA {aiC.cot_step4_score?.guitar_score!=null&&<span style={{fontSize:10,fontWeight:800,color:scoreColor(aiC.cot_step4_score.guitar_score)}}>{aiC.cot_step4_score.guitar_score}/100</span>} <span style={{fontSize:10,marginLeft:"auto"}}>{showCot?"▲":"▼"}</span>
+            🧠 Raisonnement IA <span style={{fontSize:10,marginLeft:"auto"}}>{showCot?"▲":"▼"}</span>
           </div>
           {showCot&&<div style={{marginTop:6,display:"flex",flexDirection:"column",gap:8}}>
             {aiC.cot_step1&&<div style={{background:"rgba(99,102,241,0.06)",border:"1px solid rgba(99,102,241,0.15)",borderRadius:7,padding:"8px 10px"}}>
@@ -5028,6 +5008,35 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
               </div>
             </div>}
           </div>}
+        </div>}
+        {aiC.ref_amp&&<div style={{fontSize:10,color:"var(--text-muted)",marginBottom:6,display:"flex",alignItems:"center",gap:4}}>
+          🔊 Ampli cible : <span style={{fontWeight:700,color:"var(--text-sec)"}}>{aiC.ref_amp}</span>
+          {aiC.tonal_school&&<span style={{fontSize:9,color:"var(--accent)",background:"var(--accent-bg)",borderRadius:4,padding:"1px 6px"}}>{aiC.tonal_school.replace(/_/g," ")}</span>}
+          <span style={{color:"var(--text-dim)"}}>→ presets ci-dessous</span>
+        </div>}
+        {aiC.ideal_preset&&(()=>{
+          const idealScore=aiC.ideal_preset_score||0;
+          const loc=findInBanks(aiC.ideal_preset,banksAnn)||findInBanks(aiC.ideal_preset,banksPlug);
+          const entry=findCatalogEntry(aiC.ideal_preset);
+          return <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:11,flexWrap:"wrap"}}>
+              <span style={{fontWeight:700}}>⭐ Idéal : {aiC.ideal_preset}</span>
+              {idealScore>0&&<span style={{fontWeight:700,color:scoreColor(idealScore)}}>{idealScore}%</span>}
+              {loc?<span style={{fontSize:9,color:"var(--green)"}}>✓ installé</span>:<><span style={{fontSize:9,color:"var(--text-dim)"}}>non installé</span>{entry?.src==="TSR"&&entry.pack&&<span style={{fontSize:9,color:"var(--yellow)"}}>📦 {entry.pack}.zip</span>}</>}
+            </div>;
+        })()}
+        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
+          <PBlock device="Pédale" emoji="📦" presetName={aiC.preset_ann?.label} gType={gId?type:null} banks={banksAnn} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_ann?.score} breakdown={aiC.preset_ann?.breakdown}/>
+          <PBlock device="ToneX Plug" emoji="🔌" presetName={aiC.preset_plug?.label} gType={gId?type:null} banks={banksPlug} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_plug?.score} breakdown={aiC.preset_plug?.breakdown}/>
+        </div>
+        {(aiC.settings_preset||aiC.settings_guitar)&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:8,lineHeight:1.6}}>
+          {aiC.settings_preset&&<div>💡 <b>Preset :</b> {aiC.settings_preset}</div>}
+          {aiC.settings_guitar&&<div>💡 <b>Guitare :</b> {aiC.settings_guitar}</div>}
+        </div>}
+        {(aiC.ref_guitarist||aiC.ref_guitar||aiC.ref_amp)&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:8,lineHeight:1.6}}>
+          <span style={{fontWeight:700,color:"var(--text-muted)",fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>{aiC.ref_guitarist||"Référence"}</span><br/>
+          {aiC.ref_guitar&&<>🎸 {aiC.ref_guitar} · </>}
+          {aiC.ref_amp&&<>🔊 {aiC.ref_amp}</>}
+          {aiC.ref_effects&&aiC.ref_effects!=="Aucun effet"&&<> · 🎚 {aiC.ref_effects}</>}
         </div>}
       </>}
       {!reloading&&!aiC&&<div style={{fontSize:12,color:"var(--text-dim)",padding:"10px 0"}}>Aucune analyse IA en cache. Sélectionne une guitare pour lancer l'analyse.</div>}
