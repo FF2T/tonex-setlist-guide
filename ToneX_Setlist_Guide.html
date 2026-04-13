@@ -2978,7 +2978,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.4.2";
+const APP_VERSION = "2.5.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3562,9 +3562,9 @@ function AICard({song,gId,onResult,banksAnn,banksPlug,aiProvider,aiKeys,onCacheR
         </div>
         {showFB&&<FeedbackPanel onSubmit={fb=>{setShowFB(false);doFetch(true,fb);}} onCancel={()=>setShowFB(false)}/>}
       </div></Row>
-      {(res.cot_step1||res.cot_step2_guitars||res.cot_step3_amp||res.cot_step4_score)&&<Row icon="🧠"><div style={{flex:1}}>
+      {(res.cot_step1||res.cot_step2_guitars||res.cot_step3_amp)&&<Row icon="🧠"><div style={{flex:1}}>
         <div onClick={()=>setShowCot(p=>!p)} style={{cursor:"pointer",fontSize:11,color:"var(--text-muted)",fontWeight:600,display:"flex",alignItems:"center",gap:6,userSelect:"none"}}>
-          Raisonnement IA {res.cot_step4_score?.guitar_score!=null&&<span style={{fontSize:10,fontWeight:800,color:scoreColor(res.cot_step4_score.guitar_score)}}>{res.cot_step4_score.guitar_score}%</span>} <span style={{fontSize:10,marginLeft:"auto"}}>{showCot?"▲":"▼"}</span>
+          Raisonnement IA <span style={{fontSize:10,marginLeft:"auto"}}>{showCot?"▲":"▼"}</span>
         </div>
         {showCot&&<div style={{marginTop:8,display:"flex",flexDirection:"column",gap:8}}>
           {res.cot_step1&&<div style={{background:"rgba(99,102,241,0.06)",border:"1px solid rgba(99,102,241,0.15)",borderRadius:7,padding:"8px 10px"}}>
@@ -3582,15 +3582,6 @@ function AICard({song,gId,onResult,banksAnn,banksPlug,aiProvider,aiKeys,onCacheR
           {res.cot_step3_amp&&<div style={{background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:7,padding:"8px 10px"}}>
             <div style={{fontSize:10,fontWeight:700,color:"var(--yellow)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.3}}>Etape 3 — Profil ampli ideal</div>
             <div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.4}}>{res.cot_step3_amp}</div>
-          </div>}
-          {res.cot_step4_score&&<div style={{background:"rgba(34,197,94,0.06)",border:"1px solid rgba(34,197,94,0.15)",borderRadius:7,padding:"8px 10px"}}>
-            <div style={{fontSize:10,fontWeight:700,color:"var(--green)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.3}}>Etape 4 — Compatibilite guitare-morceau :<span style={{fontWeight:800,color:scoreColor(res.cot_step4_score.guitar_score)}}>{res.cot_step4_score.guitar_score}%</span></div>
-            <div style={{display:"flex",flexDirection:"column",gap:3}}>
-              {res.cot_step4_score.micro&&<div style={{fontSize:10,color:"var(--text-sec)",display:"flex",gap:4,alignItems:"baseline"}}><span style={{color:"var(--text-muted)",flexShrink:0}}>Micro (25%)</span><b style={{color:scoreColor(res.cot_step4_score.micro.score)}}>{res.cot_step4_score.micro.score}</b><span style={{color:"var(--text-dim)"}}>— {res.cot_step4_score.micro.reason}</span></div>}
-              {res.cot_step4_score.body&&<div style={{fontSize:10,color:"var(--text-sec)",display:"flex",gap:4,alignItems:"baseline"}}><span style={{color:"var(--text-muted)",flexShrink:0}}>Corps (15%)</span><b style={{color:scoreColor(res.cot_step4_score.body.score)}}>{res.cot_step4_score.body.score}</b><span style={{color:"var(--text-dim)"}}>— {res.cot_step4_score.body.reason}</span></div>}
-              {res.cot_step4_score.history&&<div style={{fontSize:10,color:"var(--text-sec)",display:"flex",gap:4,alignItems:"baseline"}}><span style={{color:"var(--text-muted)",flexShrink:0}}>Reference (30%)</span><b style={{color:scoreColor(res.cot_step4_score.history.score)}}>{res.cot_step4_score.history.score}</b><span style={{color:"var(--text-dim)"}}>— {res.cot_step4_score.history.reason}</span></div>}
-              {res.cot_step4_score.amp_match&&<div style={{fontSize:10,color:"var(--text-sec)",display:"flex",gap:4,alignItems:"baseline"}}><span style={{color:"var(--text-muted)",flexShrink:0}}>Ampli (30%)</span><b style={{color:scoreColor(res.cot_step4_score.amp_match.score)}}>{res.cot_step4_score.amp_match.score}</b><span style={{color:"var(--text-dim)"}}>— {res.cot_step4_score.amp_match.reason}</span></div>}
-            </div>
           </div>}
         </div>}
       </div></Row>}
@@ -4977,7 +4968,6 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
       <div style={{marginBottom:10}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <div style={{flex:1}}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/></div>
-          {(()=>{const gScore=Math.max(aiC?.preset_ann?.score||0,aiC?.preset_plug?.score||0);return gScore>0&&<span style={{fontSize:12,fontWeight:800,color:scoreColor(gScore),background:scoreBg(gScore),borderRadius:6,padding:"3px 8px",border:`1px solid ${scoreColor(gScore)}30`,flexShrink:0}} title={scoreLabel(gScore).tip+"  —  score guitare"}>{gScore}%</span>;})()}
         </div>
         {g&&aiC?.guitar_reason&&<div style={{fontSize:11,color:"var(--text-sec)",marginTop:3}}>
           {aiC.ideal_guitar?" "+aiC.ideal_guitar:""}
@@ -4993,7 +4983,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
         <div style={{fontSize:12,color:"var(--text-muted)"}}>Analyse en cours pour {g?.short||"cette guitare"}...</div>
       </div>}
       {!reloading&&aiC&&<>
-        {(aiC.cot_step1||aiC.cot_step2_guitars||aiC.cot_step3_amp||aiC.cot_step4_score)&&<div style={{marginBottom:8}}>
+        {(aiC.cot_step1||aiC.cot_step2_guitars||aiC.cot_step3_amp)&&<div style={{marginBottom:8}}>
           <div onClick={()=>setShowCot(p=>!p)} style={{cursor:"pointer",fontSize:11,color:"var(--text-muted)",fontWeight:600,display:"flex",alignItems:"center",gap:6,userSelect:"none",padding:"4px 0"}}>
             🧠 Raisonnement IA <span style={{fontSize:10,marginLeft:"auto"}}>{showCot?"▲":"▼"}</span>
           </div>
@@ -5011,24 +5001,16 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
               </div>)}
             </div>}
             {aiC.cot_step3_amp&&<div style={{background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:7,padding:"8px 10px"}}>
-              <div style={{fontSize:10,fontWeight:700,color:"var(--yellow)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.3}}>Etape 3 — Profil ampli ideal</div>
-              <div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.4}}>{aiC.cot_step3_amp}</div>
-            </div>}
-            {aiC.cot_step4_score&&<div style={{background:"rgba(34,197,94,0.06)",border:"1px solid rgba(34,197,94,0.15)",borderRadius:7,padding:"8px 10px"}}>
-              <div style={{fontSize:10,fontWeight:700,color:"var(--green)",marginBottom:6,textTransform:"uppercase",letterSpacing:0.3}}>Etape 4 — Compatibilite guitare-morceau :<span style={{fontWeight:800,color:scoreColor(aiC.cot_step4_score.guitar_score)}}>{aiC.cot_step4_score.guitar_score}%</span></div>
-              <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                {aiC.cot_step4_score.micro&&<div style={{fontSize:10,color:"var(--text-sec)"}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:1}}><span style={{color:"var(--text-muted)"}}>Micro (25%)</span><b style={{color:scoreColor(aiC.cot_step4_score.micro.score)}}>{aiC.cot_step4_score.micro.score}%</b></div><div style={{color:"var(--text-dim)",fontSize:9}}>{aiC.cot_step4_score.micro.reason}</div></div>}
-                {aiC.cot_step4_score.body&&<div style={{fontSize:10,color:"var(--text-sec)"}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:1}}><span style={{color:"var(--text-muted)"}}>Corps (15%)</span><b style={{color:scoreColor(aiC.cot_step4_score.body.score)}}>{aiC.cot_step4_score.body.score}%</b></div><div style={{color:"var(--text-dim)",fontSize:9}}>{aiC.cot_step4_score.body.reason}</div></div>}
-                {aiC.cot_step4_score.history&&<div style={{fontSize:10,color:"var(--text-sec)"}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:1}}><span style={{color:"var(--text-muted)"}}>Ref. historique (30%)</span><b style={{color:scoreColor(aiC.cot_step4_score.history.score)}}>{aiC.cot_step4_score.history.score}%</b></div><div style={{color:"var(--text-dim)",fontSize:9}}>{aiC.cot_step4_score.history.reason}</div></div>}
-                {aiC.cot_step4_score.amp_match&&<div style={{fontSize:10,color:"var(--text-sec)"}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:1}}><span style={{color:"var(--text-muted)"}}>Ampli (30%)</span><b style={{color:scoreColor(aiC.cot_step4_score.amp_match.score)}}>{aiC.cot_step4_score.amp_match.score}%</b></div><div style={{color:"var(--text-dim)",fontSize:9}}>{aiC.cot_step4_score.amp_match.reason}</div></div>}
-              </div>
+              <div style={{fontSize:10,fontWeight:700,color:"var(--yellow)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.3}}>Etape 3 — Ampli et presets recommandes</div>
+              <div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.4,marginBottom:6}}>{aiC.cot_step3_amp}</div>
+              {(aiC.preset_ann||aiC.preset_plug||aiC.ideal_preset)&&<div style={{borderTop:"1px solid rgba(251,191,36,0.2)",paddingTop:6,display:"flex",flexDirection:"column",gap:3}}>
+                <div style={{fontSize:9,fontWeight:700,color:"var(--yellow)",textTransform:"uppercase",letterSpacing:0.3,marginBottom:2}}>Meilleurs presets pour ce profil</div>
+                {aiC.preset_ann&&<div style={{fontSize:10,display:"flex",justifyContent:"space-between",alignItems:"baseline"}}><span style={{color:"var(--text-sec)"}}>📦 {aiC.preset_ann.label}</span><b style={{color:scoreColor(aiC.preset_ann.score),flexShrink:0}}>{aiC.preset_ann.score}%</b></div>}
+                {aiC.preset_plug&&<div style={{fontSize:10,display:"flex",justifyContent:"space-between",alignItems:"baseline"}}><span style={{color:"var(--text-sec)"}}>🔌 {aiC.preset_plug.label}</span><b style={{color:scoreColor(aiC.preset_plug.score),flexShrink:0}}>{aiC.preset_plug.score}%</b></div>}
+                {aiC.ideal_preset&&<div style={{fontSize:10,display:"flex",justifyContent:"space-between",alignItems:"baseline"}}><span style={{color:"var(--text-sec)"}}>⭐ {aiC.ideal_preset}</span>{aiC.ideal_preset_score>0&&<b style={{color:scoreColor(aiC.ideal_preset_score),flexShrink:0}}>{aiC.ideal_preset_score}%</b>}</div>}
+              </div>}
             </div>}
           </div>}
-        </div>}
-        {aiC.ref_amp&&<div style={{fontSize:10,color:"var(--text-muted)",marginBottom:6,display:"flex",alignItems:"center",gap:4}}>
-          🔊 Ampli cible : <span style={{fontWeight:700,color:"var(--text-sec)"}}>{aiC.ref_amp}</span>
-          {aiC.tonal_school&&<span style={{fontSize:9,color:"var(--accent)",background:"var(--accent-bg)",borderRadius:4,padding:"1px 6px"}}>{aiC.tonal_school.replace(/_/g," ")}</span>}
-          <span style={{color:"var(--text-dim)"}}>→ les % ci-dessous mesurent le match preset/ampli</span>
         </div>}
         {aiC.ideal_preset&&(()=>{
           const idealScore=aiC.ideal_preset_score||0;
@@ -6577,7 +6559,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
             {songResult.guitar_reason&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:6}}>{songResult.guitar_reason}</div>}
 
             {/* Raisonnement IA (CoT) */}
-            {(songResult.cot_step1||songResult.cot_step2_guitars||songResult.cot_step3_amp||songResult.cot_step4_score)&&<div style={{marginBottom:8}}>
+            {(songResult.cot_step1||songResult.cot_step2_guitars||songResult.cot_step3_amp)&&<div style={{marginBottom:8}}>
               <div onClick={()=>setShowCotSearch(p=>!p)} style={{cursor:"pointer",fontSize:11,color:"var(--text-muted)",fontWeight:600,display:"flex",alignItems:"center",gap:6,userSelect:"none",padding:"4px 0"}}>
                 🧠 Raisonnement IA <span style={{fontSize:10,marginLeft:"auto"}}>{showCotSearch?"▲":"▼"}</span>
               </div>
@@ -6595,17 +6577,14 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                   </div>)}
                 </div>}
                 {songResult.cot_step3_amp&&<div style={{background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:7,padding:"8px 10px"}}>
-                  <div style={{fontSize:10,fontWeight:700,color:"var(--yellow)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.3}}>Etape 3 — Profil ampli ideal</div>
-                  <div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.4}}>{songResult.cot_step3_amp}</div>
-                </div>}
-                {songResult.cot_step4_score&&<div style={{background:"rgba(34,197,94,0.06)",border:"1px solid rgba(34,197,94,0.15)",borderRadius:7,padding:"8px 10px"}}>
-                  <div style={{fontSize:10,fontWeight:700,color:"var(--green)",marginBottom:6,textTransform:"uppercase",letterSpacing:0.3}}>Etape 4 — Compatibilite guitare-morceau :<span style={{fontWeight:800,color:scoreColor(songResult.cot_step4_score.guitar_score)}}>{songResult.cot_step4_score.guitar_score}%</span></div>
-                  <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                    {songResult.cot_step4_score.micro&&<div style={{fontSize:10,color:"var(--text-sec)"}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:1}}><span style={{color:"var(--text-muted)"}}>Micro (25%)</span><b style={{color:scoreColor(songResult.cot_step4_score.micro.score)}}>{songResult.cot_step4_score.micro.score}%</b></div><div style={{color:"var(--text-dim)",fontSize:9}}>{songResult.cot_step4_score.micro.reason}</div></div>}
-                    {songResult.cot_step4_score.body&&<div style={{fontSize:10,color:"var(--text-sec)"}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:1}}><span style={{color:"var(--text-muted)"}}>Corps (15%)</span><b style={{color:scoreColor(songResult.cot_step4_score.body.score)}}>{songResult.cot_step4_score.body.score}%</b></div><div style={{color:"var(--text-dim)",fontSize:9}}>{songResult.cot_step4_score.body.reason}</div></div>}
-                    {songResult.cot_step4_score.history&&<div style={{fontSize:10,color:"var(--text-sec)"}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:1}}><span style={{color:"var(--text-muted)"}}>Ref. historique (30%)</span><b style={{color:scoreColor(songResult.cot_step4_score.history.score)}}>{songResult.cot_step4_score.history.score}%</b></div><div style={{color:"var(--text-dim)",fontSize:9}}>{songResult.cot_step4_score.history.reason}</div></div>}
-                    {songResult.cot_step4_score.amp_match&&<div style={{fontSize:10,color:"var(--text-sec)"}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:1}}><span style={{color:"var(--text-muted)"}}>Ampli (30%)</span><b style={{color:scoreColor(songResult.cot_step4_score.amp_match.score)}}>{songResult.cot_step4_score.amp_match.score}%</b></div><div style={{color:"var(--text-dim)",fontSize:9}}>{songResult.cot_step4_score.amp_match.reason}</div></div>}
-                  </div>
+                  <div style={{fontSize:10,fontWeight:700,color:"var(--yellow)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.3}}>Etape 3 — Ampli et presets recommandes</div>
+                  <div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.4,marginBottom:6}}>{songResult.cot_step3_amp}</div>
+                  {(songResult.preset_ann||songResult.preset_plug||songResult.ideal_preset)&&<div style={{borderTop:"1px solid rgba(251,191,36,0.2)",paddingTop:6,display:"flex",flexDirection:"column",gap:3}}>
+                    <div style={{fontSize:9,fontWeight:700,color:"var(--yellow)",textTransform:"uppercase",letterSpacing:0.3,marginBottom:2}}>Meilleurs presets pour ce profil</div>
+                    {songResult.preset_ann&&<div style={{fontSize:10,display:"flex",justifyContent:"space-between",alignItems:"baseline"}}><span style={{color:"var(--text-sec)"}}>📦 {songResult.preset_ann.label}</span><b style={{color:scoreColor(songResult.preset_ann.score),flexShrink:0}}>{songResult.preset_ann.score}%</b></div>}
+                    {songResult.preset_plug&&<div style={{fontSize:10,display:"flex",justifyContent:"space-between",alignItems:"baseline"}}><span style={{color:"var(--text-sec)"}}>🔌 {songResult.preset_plug.label}</span><b style={{color:scoreColor(songResult.preset_plug.score),flexShrink:0}}>{songResult.preset_plug.score}%</b></div>}
+                    {songResult.ideal_preset&&<div style={{fontSize:10,display:"flex",justifyContent:"space-between",alignItems:"baseline"}}><span style={{color:"var(--text-sec)"}}>⭐ {songResult.ideal_preset}</span>{songResult.ideal_preset_score>0&&<b style={{color:scoreColor(songResult.ideal_preset_score),flexShrink:0}}>{songResult.ideal_preset_score}%</b>}</div>}
+                  </div>}
                 </div>}
               </div>}
             </div>}
