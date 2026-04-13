@@ -2978,7 +2978,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.5.2";
+const APP_VERSION = "3.0.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4959,89 +4959,125 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
   const needRescore=aiCraw&&gId&&song.aiCache?.gId!==gId&&!localAiResult;
   const aiC=needRescore?enrichAIResult({...aiCraw},type,gId,banksAnn,banksPlug):aiCraw;
   const songInfo=getSongInfo(song);
+  // Compute ideal guitar score from CoT step 2
+  const idealGuitarObj=aiC?.cot_step2_guitars?.[0];
+  const idealGuitarScore=idealGuitarObj?.score||null;
+  // Compute chosen guitar score from CoT step 2
+  const chosenGuitarCot=aiC?.cot_step2_guitars?.find(gt=>g&&(gt.name===g.name||gt.name===g.short));
+  const chosenGuitarScore=chosenGuitarCot?.score||idealGuitarScore;
+  // Section styling helper
+  const sectionStyle={background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:10,padding:"10px 12px",marginBottom:8};
+  const sectionTitle=(icon,label)=><div style={{fontSize:10,fontWeight:700,color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8,display:"flex",alignItems:"center",gap:5}}>{icon} {label}</div>;
   return(
-    <div className="song-row-detail" style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:"0 0 12px 12px",padding:"12px 14px",marginBottom:8,marginTop:-2}}>
-      {/* Song info */}
-      {(songInfo.desc||songInfo.year)&&<div style={{marginBottom:10}}>
-        {(songInfo.year||songInfo.album)&&<div style={{fontSize:10,color:"var(--text-muted)",marginBottom:3}}>{songInfo.year}{songInfo.album?" · "+songInfo.album:""}</div>}
-        {songInfo.desc&&<div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.5}}>{songInfo.desc}</div>}
-      </div>}
-      <div style={{marginBottom:10}}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <div style={{flex:1}}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/></div>
-        </div>
-        {g&&aiC?.guitar_reason&&<div style={{fontSize:11,color:"var(--text-sec)",marginTop:3}}>
-          {aiC.ideal_guitar?" "+aiC.ideal_guitar:""}
-          {aiC.guitar_reason&&<span> — {aiC.guitar_reason}</span>}
-        </div>}
-      </div>
-      {hist&&!aiC&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:10,lineHeight:1.6}}>
-        <span style={{fontWeight:700,color:"var(--text-muted)",fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>{hist.guitarist}</span><br/>
-        🎸 {hist.guitar} · 🔊 {hist.amp}{hist.effects?" · 🎚 "+hist.effects:""}
-      </div>}
-      {reloading&&<div style={{textAlign:"center",padding:"16px 0"}}>
-        <div style={{fontSize:28,marginBottom:6,animation:"spin 1.5s linear infinite",display:"inline-block"}}>&#9203;</div>
-        <div style={{fontSize:12,color:"var(--text-muted)"}}>Analyse en cours pour {g?.short||"cette guitare"}...</div>
-      </div>}
-      {!reloading&&aiC&&<>
-        {(aiC.cot_step1||aiC.cot_step2_guitars||aiC.cot_step3_amp)&&<div style={{marginBottom:8}}>
-          <div onClick={()=>setShowCot(p=>!p)} style={{cursor:"pointer",fontSize:11,color:"var(--text-muted)",fontWeight:600,display:"flex",alignItems:"center",gap:6,userSelect:"none",padding:"4px 0"}}>
-            🧠 Raisonnement IA <span style={{fontSize:10,marginLeft:"auto"}}>{showCot?"▲":"▼"}</span>
-          </div>
-          {showCot&&<div style={{marginTop:6,display:"flex",flexDirection:"column",gap:8}}>
-            {aiC.cot_step1&&<div style={{background:"rgba(99,102,241,0.06)",border:"1px solid rgba(99,102,241,0.15)",borderRadius:7,padding:"8px 10px"}}>
-              <div style={{fontSize:10,fontWeight:700,color:"var(--accent)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.3}}>Etape 1 — Profil tonal</div>
-              <div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.4}}>{aiC.cot_step1}</div>
-            </div>}
-            {aiC.cot_step2_guitars?.length>0&&<div style={{background:"rgba(168,85,247,0.06)",border:"1px solid rgba(168,85,247,0.15)",borderRadius:7,padding:"8px 10px"}}>
-              <div style={{fontSize:10,fontWeight:700,color:"var(--purple)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.3}}>Etape 2 — Scoring guitares</div>
-              {aiC.cot_step2_guitars.map((gt,i)=><div key={i} style={{fontSize:11,color:"var(--text-sec)",marginBottom:i<aiC.cot_step2_guitars.length-1?4:0,display:"flex",gap:6,alignItems:"baseline",flexWrap:"wrap"}}>
-                <span style={{fontWeight:600,color:"var(--text-bright)",flexShrink:0}}>{gt.name}</span>
-                <span style={{fontWeight:800,color:scoreColor(gt.score),flexShrink:0}}>{gt.score}%</span>
-                <span style={{color:"var(--text-dim)"}}>{gt.reason}</span>
-              </div>)}
-            </div>}
-            {aiC.cot_step3_amp&&<div style={{background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:7,padding:"8px 10px"}}>
-              <div style={{fontSize:10,fontWeight:700,color:"var(--yellow)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.3}}>Etape 3 — Ampli et presets recommandes</div>
-              <div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.4,marginBottom:6}}>{aiC.cot_step3_amp}</div>
-              {(aiC.preset_ann||aiC.preset_plug||aiC.ideal_preset)&&<div style={{borderTop:"1px solid rgba(251,191,36,0.2)",paddingTop:6,display:"flex",flexDirection:"column",gap:3}}>
-                <div style={{fontSize:9,fontWeight:700,color:"var(--yellow)",textTransform:"uppercase",letterSpacing:0.3,marginBottom:2}}>Meilleurs presets pour ce profil</div>
-                {aiC.preset_ann&&<div style={{fontSize:10,display:"flex",justifyContent:"space-between",alignItems:"baseline"}}><span style={{color:"var(--text-sec)"}}>📦 {aiC.preset_ann.label}</span><b style={{color:scoreColor(aiC.preset_ann.score),flexShrink:0}}>{aiC.preset_ann.score}%</b></div>}
-                {aiC.preset_plug&&<div style={{fontSize:10,display:"flex",justifyContent:"space-between",alignItems:"baseline"}}><span style={{color:"var(--text-sec)"}}>🔌 {aiC.preset_plug.label}</span><b style={{color:scoreColor(aiC.preset_plug.score),flexShrink:0}}>{aiC.preset_plug.score}%</b></div>}
-                {aiC.ideal_preset&&<div style={{fontSize:10,display:"flex",justifyContent:"space-between",alignItems:"baseline"}}><span style={{color:"var(--text-sec)"}}>⭐ {aiC.ideal_preset}</span>{aiC.ideal_preset_score>0&&<b style={{color:scoreColor(aiC.ideal_preset_score),flexShrink:0}}>{aiC.ideal_preset_score}%</b>}</div>}
-              </div>}
-            </div>}
-          </div>}
-        </div>}
-        {aiC.ideal_preset&&(()=>{
-          const idealScore=aiC.ideal_preset_score||0;
-          const loc=findInBanks(aiC.ideal_preset,banksAnn)||findInBanks(aiC.ideal_preset,banksPlug);
-          const entry=findCatalogEntry(aiC.ideal_preset);
-          return <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6,fontSize:11,flexWrap:"wrap"}}>
-              <span style={{fontWeight:700}}>⭐ Idéal : {aiC.ideal_preset}</span>
-              {idealScore>0&&<span style={{fontWeight:700,color:scoreColor(idealScore)}}>{idealScore}%</span>}
-              {loc?<span style={{fontSize:9,color:"var(--green)"}}>✓ installé</span>:<><span style={{fontSize:9,color:"var(--text-dim)"}}>non installé</span>{entry?.src==="TSR"&&entry.pack&&<span style={{fontSize:9,color:"var(--yellow)"}}>📦 {entry.pack}.zip</span>}</>}
-            </div>;
-        })()}
-        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
-          <PBlock device="Pédale" emoji="📦" presetName={aiC.preset_ann?.label} gType={gId?type:null} banks={banksAnn} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_ann?.score} breakdown={aiC.preset_ann?.breakdown}/>
-          <PBlock device="ToneX Plug" emoji="🔌" presetName={aiC.preset_plug?.label} gType={gId?type:null} banks={banksPlug} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_plug?.score} breakdown={aiC.preset_plug?.breakdown}/>
-        </div>
-        {(aiC.settings_preset||aiC.settings_guitar)&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:8,lineHeight:1.6}}>
-          {aiC.settings_preset&&<div>💡 <b>Preset :</b> {aiC.settings_preset}</div>}
-          {aiC.settings_guitar&&<div>💡 <b>Guitare :</b> {aiC.settings_guitar}</div>}
-        </div>}
-        {(aiC.ref_guitarist||aiC.ref_guitar||aiC.ref_amp)&&<div style={{fontSize:11,color:"var(--text-sec)",marginBottom:8,lineHeight:1.6}}>
-          <span style={{fontWeight:700,color:"var(--text-muted)",fontSize:10,textTransform:"uppercase",letterSpacing:0.5}}>{aiC.ref_guitarist||"Référence"}</span><br/>
+    <div className="song-row-detail" style={{background:"var(--a2)",borderRadius:"0 0 12px 12px",padding:"10px 12px",marginBottom:8,marginTop:-2,display:"flex",flexDirection:"column",gap:6}}>
+
+      {/* ── SECTION 1 : Infos morceau ── */}
+      <div style={sectionStyle}>
+        {sectionTitle("📖","Infos morceau")}
+        {(songInfo.year||songInfo.album)&&<div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>{songInfo.year}{songInfo.album?" · "+songInfo.album:""}</div>}
+        {songInfo.desc&&<div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.5,marginBottom:6}}>{songInfo.desc}</div>}
+        {aiC&&(aiC.ref_guitarist||aiC.ref_guitar||aiC.ref_amp)&&<div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.6}}>
+          <span style={{fontWeight:700,color:"var(--text-muted)",fontSize:10}}>{aiC.ref_guitarist||"Référence"}</span><br/>
           {aiC.ref_guitar&&<>🎸 {aiC.ref_guitar} · </>}
           {aiC.ref_amp&&<>🔊 {aiC.ref_amp}</>}
           {aiC.ref_effects&&aiC.ref_effects!=="Aucun effet"&&<> · 🎚 {aiC.ref_effects}</>}
         </div>}
+        {hist&&!aiC&&<div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.6}}>
+          <span style={{fontWeight:700,color:"var(--text-muted)",fontSize:10}}>{hist.guitarist}</span><br/>
+          🎸 {hist.guitar} · 🔊 {hist.amp}{hist.effects?" · 🎚 "+hist.effects:""}
+        </div>}
+      </div>
+
+      {/* ── Loading ── */}
+      {reloading&&<div style={{textAlign:"center",padding:"16px 0"}}>
+        <div style={{fontSize:28,marginBottom:6,animation:"spin 1.5s linear infinite",display:"inline-block"}}>&#9203;</div>
+        <div style={{fontSize:12,color:"var(--text-muted)"}}>Analyse en cours pour {g?.short||"cette guitare"}...</div>
+      </div>}
+
+      {!reloading&&aiC&&<>
+
+      {/* ── SECTION 2 : Raisonnement IA ── */}
+      {(aiC.cot_step1||aiC.cot_step2_guitars||aiC.cot_step3_amp)&&<div style={sectionStyle}>
+        <div onClick={()=>setShowCot(p=>!p)} style={{cursor:"pointer",fontSize:10,fontWeight:700,color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:0.5,display:"flex",alignItems:"center",gap:5,userSelect:"none"}}>
+          🧠 Raisonnement IA <span style={{fontSize:10,marginLeft:"auto",fontWeight:400}}>{showCot?"▲":"▼"}</span>
+        </div>
+        {showCot&&<div style={{marginTop:8,display:"flex",flexDirection:"column",gap:8}}>
+          {aiC.cot_step1&&<div style={{background:"rgba(99,102,241,0.06)",border:"1px solid rgba(99,102,241,0.15)",borderRadius:7,padding:"8px 10px"}}>
+            <div style={{fontSize:10,fontWeight:700,color:"var(--accent)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.3}}>Etape 1 — Profil tonal</div>
+            <div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.4}}>{aiC.cot_step1}</div>
+          </div>}
+          {aiC.cot_step2_guitars?.length>0&&<div style={{background:"rgba(168,85,247,0.06)",border:"1px solid rgba(168,85,247,0.15)",borderRadius:7,padding:"8px 10px"}}>
+            <div style={{fontSize:10,fontWeight:700,color:"var(--purple)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.3}}>Etape 2 — Scoring guitares</div>
+            {aiC.cot_step2_guitars.map((gt,i)=><div key={i} style={{fontSize:11,color:"var(--text-sec)",marginBottom:i<aiC.cot_step2_guitars.length-1?4:0,display:"flex",gap:6,alignItems:"baseline",flexWrap:"wrap"}}>
+              <span style={{fontWeight:600,color:"var(--text-bright)",flexShrink:0}}>{gt.name}</span>
+              <span style={{fontWeight:800,color:scoreColor(gt.score),flexShrink:0}}>{gt.score}%</span>
+              <span style={{color:"var(--text-dim)"}}>{gt.reason}</span>
+            </div>)}
+          </div>}
+          {aiC.cot_step3_amp&&<div style={{background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:7,padding:"8px 10px"}}>
+            <div style={{fontSize:10,fontWeight:700,color:"var(--yellow)",marginBottom:4,textTransform:"uppercase",letterSpacing:0.3}}>Etape 3 — Profil ampli</div>
+            <div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.4}}>{aiC.cot_step3_amp}</div>
+          </div>}
+        </div>}
+      </div>}
+
+      {/* ── SECTION 3 : Recommandations idéales ── */}
+      <div style={sectionStyle}>
+        {sectionTitle("⭐","Recommandation ideale")}
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          {/* Guitare idéale */}
+          {aiC.ideal_guitar&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",fontSize:11}}>
+            <div><span style={{color:"var(--text-muted)",fontSize:10}}>🎸 Guitare</span> <span style={{fontWeight:600,color:"var(--text-bright)"}}>{aiC.ideal_guitar}</span></div>
+            {idealGuitarScore&&<b style={{color:scoreColor(idealGuitarScore),flexShrink:0}}>{idealGuitarScore}%</b>}
+          </div>}
+          {aiC.guitar_reason&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:-2,marginBottom:2}}>{aiC.guitar_reason}</div>}
+          {/* Preset idéal */}
+          {aiC.ideal_preset&&(()=>{
+            const idealScore=aiC.ideal_preset_score||0;
+            const loc=findInBanks(aiC.ideal_preset,banksAnn)||findInBanks(aiC.ideal_preset,banksPlug);
+            const entry=findCatalogEntry(aiC.ideal_preset);
+            return <div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",fontSize:11}}>
+                <div><span style={{color:"var(--text-muted)",fontSize:10}}>🔊 Preset</span> <span style={{fontWeight:600,color:"var(--text-bright)"}}>{aiC.ideal_preset}</span></div>
+                {idealScore>0&&<b style={{color:scoreColor(idealScore),flexShrink:0}}>{idealScore}%</b>}
+              </div>
+              <div style={{fontSize:9,color:loc?"var(--green)":"var(--text-dim)",marginTop:1}}>
+                {loc?"✓ Installé":"Non installé"}{!loc&&entry?.src==="TSR"&&entry.pack&&<span style={{color:"var(--yellow)"}}> · 📦 {entry.pack}.zip</span>}
+              </div>
+            </div>;
+          })()}
+          {/* Réglages idéaux */}
+          {(aiC.settings_preset||aiC.settings_guitar)&&<div style={{marginTop:4,display:"flex",flexDirection:"column",gap:3}}>
+            {aiC.settings_preset&&<div style={{fontSize:10,background:"rgba(251,191,36,0.07)",border:"1px solid var(--yellow-border)",borderRadius:6,padding:"5px 8px",color:"var(--yellow)"}}><b>Preset :</b> {aiC.settings_preset}</div>}
+            {aiC.settings_guitar&&<div style={{fontSize:10,background:"rgba(34,197,94,0.07)",border:"1px solid rgba(34,197,94,0.15)",borderRadius:6,padding:"5px 8px",color:"var(--green)"}}><b>Guitare :</b> {aiC.settings_guitar}</div>}
+          </div>}
+        </div>
+      </div>
+
+      {/* ── SECTION 4 : Paramétrage (guitare choisie + presets installés) ── */}
+      <div style={sectionStyle}>
+        {sectionTitle("🎛","Parametrage")}
+        <div style={{marginBottom:8}}>
+          <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Guitare choisie</div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div style={{flex:1}}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/></div>
+          </div>
+          {g&&chosenGuitarScore&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:3}}>Compatibilite : <b style={{color:scoreColor(chosenGuitarScore)}}>{chosenGuitarScore}%</b></div>}
+        </div>
+        <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Meilleurs presets installes pour {g?.short||"cette guitare"}</div>
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          <PBlock device="Pedale" emoji="📦" presetName={aiC.preset_ann?.label} gType={gId?type:null} banks={banksAnn} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_ann?.score} breakdown={aiC.preset_ann?.breakdown}/>
+          <PBlock device="ToneX Plug" emoji="🔌" presetName={aiC.preset_plug?.label} gType={gId?type:null} banks={banksPlug} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_plug?.score} breakdown={aiC.preset_plug?.breakdown}/>
+        </div>
+      </div>
+
       </>}
-      {!reloading&&!aiC&&<div style={{fontSize:12,color:"var(--text-dim)",padding:"10px 0"}}>Aucune analyse IA en cache. Sélectionne une guitare pour lancer l'analyse.</div>}
-      {!reloading&&aiC&&<div style={{marginBottom:8}}>
+      {!reloading&&!aiC&&<div style={{fontSize:12,color:"var(--text-dim)",padding:"10px 0"}}>Aucune analyse IA en cache. Selectionne une guitare pour lancer l'analyse.</div>}
+
+      {/* ── SECTION 6 : Améliorer ── */}
+      {!reloading&&aiC&&<div>
         {!showFeedback
-          ?<button onClick={()=>setShowFeedback(true)} style={{fontSize:10,background:"none",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:6,padding:"4px 8px",cursor:"pointer"}}>🔄 Améliorer</button>
+          ?<button onClick={()=>setShowFeedback(true)} style={{fontSize:10,background:"none",border:"1px solid var(--a10)",color:"var(--text-dim)",borderRadius:6,padding:"3px 8px",cursor:"pointer"}}>🔄 Affiner l'analyse</button>
           :<FeedbackPanel onSubmit={fb=>{
             setShowFeedback(false);setReloading(true);
             const prev=aiC;
@@ -5056,7 +5092,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
           }} onCancel={()=>setShowFeedback(false)}/>
         }
       </div>}
-      <button onClick={onClose} style={{fontSize:11,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",textDecoration:"underline",padding:0}}>Fermer ↑</button>
+      <button onClick={onClose} style={{fontSize:11,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",textDecoration:"underline",padding:0,marginTop:4}}>Fermer ↑</button>
     </div>
   );
 }
