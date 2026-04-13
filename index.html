@@ -193,6 +193,23 @@ const TSR_PACK_ZIPS = {
   "50-51":"TSR-50-51-TONEX-Pack-ithoaj","Ampeg Pro 4":"TSR-A-Peg-Pro-4-TONEX-Pack--xqj9tk","Amp Nation ODR":"TSR-Amp-Nation-ODR-0yt0ig","Amp Nation WOD":"TSR-Amp-Nation-WOD-bxkixg","Ample Betty":"TSR-Ample-Betty","Bass Elliot":"TSR-Bass-Elliot-yp8vl7","Bass Pack 1":"TSR-The-Bass-Pack-1-w8fa9b","Bogner Ecstasy 101B":"TSR-Bogner-Ecstasy-101B-wjmrhd","Bogner G-Finger":"TSR-Bogy-GFINGER-Tonex-23sa3p","Bogner Helioclipse":"TSR-Bogy-Helioclipse","British Chime (Budda V20)":"TSR-British-Chime-Pack-zni3bq","British Rock (Vox DC30)":"TSR-British-Rock-Pack-lzwcob","Bumble Deluxe":"TSR-Bumble-Dluxe-fakul2","Cat Cub":"TSR-CAT-CUB-Pack-oqqm9q","Chandler GAV19T":"American-Pack-1-j9zcnx","Cornford Harlequin":"TSR-Cornfield-Harle-dp9nw5","D13":"TSR-D13-Pack","D13 AMP39":"TSR-D13-AMP39-TONEX-Pack-hl0ehr","D13 Best Tweed":"TSR-D13-Pack","Deity (Ironlung)":"TSR-Deity-Pack","Deluxe Reverb II":"TSR-Dlux-Verb-II-3yvqet","Diesel Humbert":"TSR-Diesel-Humbert-8hukym","Drive Pedal Pack 3":"TSR-Drive-Pedal-Pack-3-wk09fp","Electro Dime":"TSR-Electro-Dime-TONEX-Pack-loehp2","Fender Blackface Bassman":"TSR-TONEX-Blackface-Pack--lzzfed","Fender Concert":"TSR-FNDR-Consert-z4zidm","Fender Silverface Twin":"TSR-The-Silverface-Pack-juvwgv","Fender Super S":"TSR-Super-S-a4ad1n","Friedman BE/DE":"TSR-Freeman-BE-DE-id5zii","Friedman Phil X":"Friedman-Phil-X-cnnnxx","GK MBS150 (Bass)":"TSR-GK-MBS150-TONEX-hksx95","Hiwatt HG100":"TSR-High-What-HG100-q28r50","Hiwatt Wizard":"TSR-HOKK-PACK-iy5xyz","Indi 35-2":"TSR-INDI-35-2-9nxtpt","Jimi Hendrix 20W":"TSR-Jimi-H-20-TONEX-qhxcsu","Jivey Drives":"TSR-Jivey-Drives-vrb7o5","Jivey Drives 2":"Jivey-Drives-2-6u19yp","Marshall 800 SL":"TSR-Mars-800SL-TONEX-Pack-a6hrsy","Marshall JCM900":"TSR-Mars-900-JCM-900-1aovpo","Marshall JTM":"TSR-JTM-Pack","Marshall Plexi":"TSR-Plexi-Pack","Marshall SLT60":"TSR-Mars-SLT60-TONEX-Pack-dhqozw","Matchless HC15":"TSR-Tonex-MATCHBOX-HC15-PACK-wthh21","Matchless Independence":"TSR-Matchbox-Pack","Mega Barba Skill":"MEGA-BARBA-SKILL-gitill","Mesa Boogie IIC+":"TSR-MBoogie-IIC-ii0r3b","Mesa Rectifier":"TSR-Rectified--6eqai9","Amplifonics & Gain":"TSR-TONEX-Aliphonivs-And-Gain-Pack-v4mzay","Reinhardt RT-36":"TSR-Reinguard-RT-36-TONEX-uk0r7i","Roland JC":"TSR-JC-Pack-jchfsq","Rouge Plate D50":"TSR-Rouge-Plate-ofucpf","Silver Jubilee":"TSR-Silver-J-Pack-1ykk0n","Soldano 100":"TSR-SLODANO-100-l7ppmu","Soldano GP77":"TSR-SLODANO-GP77-05bqpx","Sons Amp":"TSR-Sons-Amp-TONEX-Pack-2-ealhrl","Synergy SYN 30":"American-Pack-1-j9zcnx","Talon 50":"TSR-Talon-50-nqmscm","TSR20":"TSR-TSR20-mmb5hz","Tube King Imp MK2":"TSR-Tube-King-Imp-MK2-2g9lph","TWS 2864-S":"TWS-2864-S-Pack-yspvyu","Two Rock Bloomfield":"TSR-TWO-ROCK-Bloomfield-Drive-Pack-84jzuk","Two Rock Stevie G":"TSR-Stevie-G-jrfy9q","VMP-1":"TSR-VMP-1--5i4ehm","Zwrek":"TSR-ZWREK-TONEX-Pack",
 };
 
+// Regroupement des packs TSR par famille d'ampli
+const TSR_PACK_GROUPS={
+  "Fender":["Bumble Deluxe","D13 Best Tweed","Deluxe Reverb II","Fender Blackface Bassman","Fender Concert","Fender Silverface Twin","Fender Super S"],
+  "Marshall":["Marshall 800 SL","Marshall JCM900","Marshall JTM","Marshall Plexi","Marshall SLT60","Silver Jubilee","Jimi Hendrix 20W"],
+  "Mesa/Boogie":["Mesa Boogie IIC+","Mesa Rectifier"],
+  "Bogner":["Bogner Ecstasy 101B","Bogner G-Finger","Bogner Helioclipse"],
+  "Matchless":["Matchless HC15","Matchless Independence"],
+  "Two Rock":["Two Rock Bloomfield","Two Rock Stevie G"],
+  "Friedman":["Friedman BE/DE","Friedman Phil X"],
+  "Hiwatt":["Hiwatt HG100","Hiwatt Wizard"],
+  "Soldano":["Soldano 100","Soldano GP77"],
+  "D13":["D13","D13 AMP39"],
+  "Vox / British":["British Chime (Budda V20)","British Rock (Vox DC30)"],
+  "Drives / Pedals":["Drive Pedal Pack 3","Jivey Drives","Jivey Drives 2","Amplifonics & Gain"],
+  "Bass":["Ampeg Pro 4","Bass Elliot","Bass Pack 1","GK MBS150 (Bass)"],
+};
+
 const INIT_BANKS_ANN = {
   0:{cat:"",A:"ML MARS 800 Clean",B:"ML MARS 800 Drive",C:"ML MARS 800 Lead"},
   1:{cat:"",A:"FNDR BFTWN NR Clean BAL CAB",B:"FNDR TWDLX IN Clean BAL CAB",C:"TJ DMBL ODS 124 Lead 1"},
@@ -2999,7 +3016,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "3.2.4";
+const APP_VERSION = "3.3.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5897,15 +5914,46 @@ function PresetList({filtered,selected,setSelected,banksAnn,banksPlug,fullCatalo
   const remaining=displayFiltered.length-shown;
   return(
     <div>
-      {/* Sub-pack chips for TSR */}
-      {subPacks&&subPacks.length>1&&<div style={{marginBottom:12}}>
-        <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Packs Studio Rats</div>
-        <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-          <button onClick={()=>setFilterPacks([])} style={{fontSize:10,fontWeight:filterPacks.length===0?700:500,color:filterPacks.length===0?"var(--yellow)":"var(--text-muted)",background:filterPacks.length===0?"var(--yellow-bg)":"var(--a3)",border:filterPacks.length===0?"1px solid var(--yellow-border)":"1px solid var(--a6)",borderRadius:6,padding:"4px 8px",cursor:"pointer"}}>Tous ({filtered.length})</button>
-          {subPacks.map(([pack,count])=>{const on=filterPacks.includes(pack);return(
-            <button key={pack} onClick={()=>togglePack(pack)} style={{fontSize:10,fontWeight:on?700:500,color:on?"var(--yellow)":"var(--text-sec)",background:on?"var(--yellow-bg)":"var(--a3)",border:on?"1px solid var(--yellow-border)":"1px solid var(--a6)",borderRadius:6,padding:"4px 8px",cursor:"pointer"}}>{pack} ({count})</button>);})}
-        </div>
-      </div>}
+      {/* Sub-pack chips for TSR — grouped by amp brand */}
+      {subPacks&&subPacks.length>1&&(()=>{
+        // Build grouped structure
+        const packCountMap=Object.fromEntries(subPacks);
+        const grouped=[];
+        const assigned=new Set();
+        Object.entries(TSR_PACK_GROUPS||{}).forEach(([group,packs])=>{
+          const members=packs.filter(p=>packCountMap[p]!=null);
+          if(members.length>0){
+            const total=members.reduce((s,p)=>s+(packCountMap[p]||0),0);
+            grouped.push({group,packs:members,total});
+            members.forEach(p=>assigned.add(p));
+          }
+        });
+        const others=subPacks.filter(([p])=>!assigned.has(p));
+        if(others.length>0) grouped.push({group:"Autres",packs:others.map(([p])=>p),total:others.reduce((s,[,c])=>s+c,0)});
+        const chipStyle=(on)=>({fontSize:10,fontWeight:on?700:500,color:on?"var(--accent)":"var(--text-sec)",background:on?"var(--accent-bg)":"var(--a3)",border:on?"1px solid var(--accent-border)":"1px solid var(--a6)",borderRadius:6,padding:"4px 8px",cursor:"pointer"});
+        return <div style={{marginBottom:12}}>
+          <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Packs Studio Rats</div>
+          <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:6}}>
+            <button onClick={()=>setFilterPacks([])} style={chipStyle(filterPacks.length===0)}>Tous ({filtered.length})</button>
+            {grouped.map(g=>{
+              const groupPacks=g.packs;
+              const allSelected=groupPacks.every(p=>filterPacks.includes(p));
+              const someSelected=groupPacks.some(p=>filterPacks.includes(p));
+              return <button key={g.group} onClick={()=>{
+                if(allSelected) setFilterPacks(prev=>prev.filter(p=>!groupPacks.includes(p)));
+                else setFilterPacks(prev=>[...prev.filter(p=>!groupPacks.includes(p)),...groupPacks]);
+              }} style={{...chipStyle(someSelected),fontWeight:700}}>{g.group} ({g.total})</button>;
+            })}
+          </div>
+          {filterPacks.length>0&&<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+            {subPacks.filter(([p])=>filterPacks.some(fp=>{
+              const grp=grouped.find(g=>g.packs.includes(fp));
+              return grp&&grp.packs.includes(p);
+            })||filterPacks.includes(p)).map(([pack,count])=>{const on=filterPacks.includes(pack);return(
+              <button key={pack} onClick={()=>togglePack(pack)} style={chipStyle(on)}>{pack} ({count})</button>);})}
+          </div>}
+        </div>;
+      })()}
       <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>
         {displayFiltered.length} preset{displayFiltered.length>1?"s":""} — clique pour voir la fiche
       </div>
