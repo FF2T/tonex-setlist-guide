@@ -2978,7 +2978,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.4.1";
+const APP_VERSION = "2.4.2";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4919,6 +4919,14 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
   useEffect(()=>{
     if(localAiResult) return;
     if(song.aiCache&&song.aiCache.gId===gId&&song.aiCache.result?.cot_step1) return;
+    // Cache avec CoT mais guitare différente → rescore local seulement, pas de re-fetch IA
+    if(song.aiCache?.result?.cot_step1&&gId){
+      const gType=(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB";
+      const recalc=enrichAIResult({...song.aiCache.result},gType,gId,banksAnn,banksPlug);
+      setLocalAiResult(recalc);
+      onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:updateAiCache(x.aiCache,gId,recalc)}:x));
+      return;
+    }
     if(!gId||!onSongDb) return;
     setReloading(true);
     fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars)
@@ -4933,6 +4941,15 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
     setGId(v);
     if(onGuitarChange)onGuitarChange(song.id,v);
     if(onSongDb){
+      // Si on a déjà du CoT, rescore local sans rappeler l'IA
+      const base=localAiResult||song.aiCache?.result;
+      if(base?.cot_step1){
+        const gType=(guitars||GUITARS).find(x=>x.id===v)?.type||"HB";
+        const recalc=enrichAIResult({...base},gType,v,banksAnn,banksPlug);
+        setLocalAiResult(recalc);
+        onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:updateAiCache(x.aiCache,v,recalc)}:x));
+        return;
+      }
       setReloading(true);setLocalAiResult(null);
       fetchAI(song,v,banksAnn,banksPlug,aiProvider,aiKeys,guitars)
         .then(r=>{
