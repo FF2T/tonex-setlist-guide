@@ -3404,6 +3404,26 @@ function getBestResult(song,gId,fallback){
   return mergeBestResults(cached,fallback);
 }
 
+// Parseur JSON robuste — gère les réponses tronquées par maxOutputTokens
+function safeParseJSON(t){
+  let s=t.replace(/```json|```/g,"").trim();
+  try{return JSON.parse(s);}catch(e){
+    let fixed=s,inStr=false,esc=false,opens=[];
+    for(let i=0;i<fixed.length;i++){
+      const c=fixed[i];
+      if(esc){esc=false;continue;}
+      if(c==='\\'){esc=true;continue;}
+      if(c==='"'){inStr=!inStr;continue;}
+      if(inStr)continue;
+      if(c==='{'||c==='[')opens.push(c);
+      if(c==='}'||c===']')opens.pop();
+    }
+    if(inStr)fixed+='"';
+    while(opens.length){const o=opens.pop();fixed+=o==='{'?'}':']';}
+    return JSON.parse(fixed);
+  }
+}
+
 function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars,feedback){
   guitars=guitars||GUITARS;
   const g=guitars.find(x=>x.id===gId);
@@ -3455,12 +3475,12 @@ Champs spéciaux :
   const key=aiKeys.gemini||aiKeys.anthropic||DEFAULT_GEMINI_KEY;
   const provider=(aiKeys.gemini||DEFAULT_GEMINI_KEY)?"gemini":"anthropic";
   if(!key) return Promise.reject(new Error("Clé API manquante — configure-la dans ⚙️ Paramètres."));
-  const parse=t=>JSON.parse(t.replace(/```json|```/g,"").trim());
+  const parse=safeParseJSON;
   const callAI=()=>{
     const req=provider==="gemini"
-      ?fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${key}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{maxOutputTokens:2048}})})
+      ?fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${key}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{maxOutputTokens:4096}})})
         .then(r=>r.json()).then(d=>{if(d.error)throw new Error(d.error.message||d.error.status);return parse(d.candidates?.[0]?.content?.parts?.[0]?.text||"");})
-      :fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:2048,messages:[{role:"user",content:prompt}]})})
+      :fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:4096,messages:[{role:"user",content:prompt}]})})
         .then(r=>r.json()).then(d=>{if(d.error)throw new Error(d.error.message||d.error.type);return parse(d.content?.map(i=>i.text||"").join("")||"");});
     return req.then(r=>enrichAIResult(r,gType,gId,banksAnn,banksPlug));
   };
@@ -3999,7 +4019,7 @@ Identifie le modèle exact de guitare (marque + modèle + variante si mentionné
 Détermine le type de micro principal : HB (humbucker), SC (single coil) ou P90.
 Propose un nom abrégé court (ex: "Strat 60s", "LP Standard", "Tele 72", "SG 61", "ES-335").
 Réponds UNIQUEMENT en JSON (sans markdown) : {"name":"Nom complet (Marque Modèle)","short":"Abrégé court","type":"HB|SC|P90","confidence":"high|medium|low"}`;
-    const parse=t=>JSON.parse(t.replace(/```json|```/g,"").trim());
+    const parse=safeParseJSON;
     fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${key}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})})
       .then(r=>r.json()).then(d=>{if(d.error)throw new Error(d.error.message);return parse(d.candidates?.[0]?.content?.parts?.[0]?.text||"");})
       .then(s=>setSuggestion(s)).catch(e=>setErr(e.message)).finally(()=>setLoading(false));
@@ -4334,7 +4354,7 @@ Réponds UNIQUEMENT en JSON (sans markdown) :
       }).then(r=>r.json()).then(d=>{
         if(d.error)throw new Error(d.error.message);
         const txt=d.candidates?.[0]?.content?.parts?.[0]?.text||"";
-        const parsed=JSON.parse(txt.replace(/```json|```/g,"").trim());
+        const parsed=safeParseJSON(txt);
         savePack(parsed.presets||[],parsed.ampContext||{});
       }).catch(e=>setErr(e.message)).finally(()=>setLoading(false));
     } else {
@@ -4344,7 +4364,7 @@ Réponds UNIQUEMENT en JSON (sans markdown) :
       }).then(r=>r.json()).then(d=>{
         if(d.error)throw new Error(d.error.message);
         const txt=d.content?.map(i=>i.text||"").join("")||"";
-        const parsed=JSON.parse(txt.replace(/```json|```/g,"").trim());
+        const parsed=safeParseJSON(txt);
         savePack(parsed.presets||[],parsed.ampContext||{});
       }).catch(e=>setErr(e.message)).finally(()=>setLoading(false));
     }
@@ -6230,7 +6250,7 @@ function SongSearchBar({onConfirm,aiProvider,aiKeys}){
     const prompt=`L'utilisateur veut jouer un morceau de guitare. Il a tapé : "${input.trim()}"
 Corrige l'orthographe et identifie le titre exact et l'artiste/groupe.
 Réponds UNIQUEMENT en JSON (sans markdown) : {"title":"Titre exact","artist":"Artiste/Groupe","confidence":"high|medium|low"}`;
-    const parse=t=>JSON.parse(t.replace(/```json|```/g,"").trim());
+    const parse=safeParseJSON;
     const req=provider==="gemini"
       ?fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${key}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})})
         .then(r=>r.json()).then(d=>{if(d.error)throw new Error(d.error.message);return parse(d.candidates?.[0]?.content?.parts?.[0]?.text||"");})
