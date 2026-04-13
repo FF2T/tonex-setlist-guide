@@ -2978,7 +2978,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "3.2.1";
+const APP_VERSION = "3.2.2";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4906,7 +4906,9 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
   const [localAiResult,setLocalAiResult]=useState(null);
   const [showFeedback,setShowFeedback]=useState(false);
   const [showCot,setShowCot]=useState(false);
-  const [installTarget,setInstallTarget]=useState(null); // {presetName, device:"ann"|"plug"}
+  const [installTarget,setInstallTarget]=useState(null); // {preset}
+  const [installBank,setInstallBank]=useState({ann:"",plug:""});
+  const [installSlot,setInstallSlot]=useState({ann:"A",plug:"A"});
   // Auto-trigger AI analysis if no cache for current guitar
   useEffect(()=>{
     if(localAiResult) return;
@@ -5039,16 +5041,34 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
             const locPlug=findInBanks(aiC.ideal_preset,banksPlug);
             const loc=locAnn||locPlug;
             const entry=findCatalogEntry(aiC.ideal_preset);
-            const worstAnn=!locAnn&&onBanksAnn?worstSlot(banksAnn,type):null;
-            const worstPlg=!locPlug&&onBanksPlug?worstSlot(banksPlug,type):null;
+            const canInstallAnn=!locAnn&&onBanksAnn;
+            const canInstallPlug=!locPlug&&onBanksPlug;
             const doInstall=(device)=>{
-              const banks=device==="ann"?banksAnn:banksPlug;
+              const bk=Number(installBank[device]);
+              const sl=installSlot[device];
               const onBanks=device==="ann"?onBanksAnn:onBanksPlug;
-              const ws=worstSlot(banks,type);
-              if(ws.bank!=null&&onBanks){
-                onBanks(p=>({...p,[ws.bank]:{...(p[ws.bank]||{cat:"",A:"",B:"",C:""}),[ws.slot]:aiC.ideal_preset}}));
-                setInstallTarget(null);
-              }
+              if(isNaN(bk)||!sl||!onBanks) return;
+              onBanks(p=>({...p,[bk]:{...(p[bk]||{cat:"",A:"",B:"",C:""}),[sl]:aiC.ideal_preset}}));
+              setInstallTarget(null);
+            };
+            const bankInput=(device,maxBanks)=>{
+              const banks=device==="ann"?banksAnn:banksPlug;
+              const bk=installBank[device];
+              const sl=installSlot[device];
+              const currentPreset=bk!==""&&banks[Number(bk)]?banks[Number(bk)][sl]||"(vide)":"";
+              return <div style={{marginBottom:6}}>
+                <div style={{fontSize:10,color:"var(--text-sec)",marginBottom:4,fontWeight:600}}>{device==="ann"?"📦 Pedale":"🔌 Plug"}</div>
+                <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                  <span style={{fontSize:10,color:"var(--text-muted)"}}>Banque</span>
+                  <input type="number" min={device==="ann"?0:1} max={maxBanks} value={bk} onChange={e=>setInstallBank(p=>({...p,[device]:e.target.value}))} style={{width:50,fontSize:11,background:"var(--bg-card)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:6,padding:"4px 6px",textAlign:"center"}} placeholder={device==="ann"?"0-49":"1-10"}/>
+                  <span style={{fontSize:10,color:"var(--text-muted)"}}>Slot</span>
+                  <select value={sl} onChange={e=>setInstallSlot(p=>({...p,[device]:e.target.value}))} style={{fontSize:11,background:"var(--bg-card)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:6,padding:"4px 6px"}}>
+                    <option value="A">A (Clean)</option><option value="B">B (Drive)</option><option value="C">C (Lead)</option>
+                  </select>
+                  <button onClick={()=>doInstall(device)} disabled={bk===""} style={{fontSize:10,background:bk!==""?"var(--accent)":"var(--bg-disabled)",border:"none",color:"#fff",borderRadius:6,padding:"4px 10px",cursor:bk!==""?"pointer":"not-allowed",fontWeight:700}}>OK</button>
+                </div>
+                {bk!==""&&currentPreset&&<div style={{fontSize:9,color:"var(--text-dim)",marginTop:2}}>Remplace : {currentPreset}</div>}
+              </div>;
             };
             return <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",fontSize:11}}>
@@ -5060,20 +5080,14 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
                 :<>
                   <span style={{color:"var(--text-dim)"}}>Non installe</span>
                   {entry?.src==="TSR"&&entry.pack&&<span style={{color:"var(--yellow)"}}>📦 {entry.pack}.zip</span>}
-                  {!installTarget&&(worstAnn||worstPlg)&&<button onClick={()=>setInstallTarget({preset:aiC.ideal_preset})} style={{fontSize:9,background:"var(--accent-bg)",border:"1px solid var(--accent-border)",color:"var(--accent)",borderRadius:5,padding:"2px 8px",cursor:"pointer",fontWeight:600}}>Installer</button>}
+                  {!installTarget&&(canInstallAnn||canInstallPlug)&&<button onClick={()=>setInstallTarget({preset:aiC.ideal_preset})} style={{fontSize:9,background:"var(--accent-bg)",border:"1px solid var(--accent-border)",color:"var(--accent)",borderRadius:5,padding:"2px 8px",cursor:"pointer",fontWeight:600}}>Installer</button>}
                 </>}
               </div>
               {installTarget?.preset===aiC.ideal_preset&&<div style={{marginTop:6,background:"var(--a4)",border:"1px solid var(--a10)",borderRadius:8,padding:10}}>
-                <div style={{fontSize:10,color:"var(--text-sec)",marginBottom:6,fontWeight:600}}>Installer "{aiC.ideal_preset}" en remplacement de :</div>
-                {worstAnn&&onBanksAnn&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,marginBottom:4}}>
-                  <span style={{fontSize:10,color:"var(--text-sec)"}}>📦 Pedale — Banque {worstAnn.bank}{worstAnn.slot} <span style={{color:"var(--text-dim)"}}>({worstAnn.name})</span></span>
-                  <button onClick={()=>doInstall("ann")} style={{fontSize:9,background:"var(--green)",border:"none",color:"#0f172a",borderRadius:5,padding:"3px 10px",cursor:"pointer",fontWeight:700}}>OK</button>
-                </div>}
-                {worstPlg&&onBanksPlug&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,marginBottom:4}}>
-                  <span style={{fontSize:10,color:"var(--text-sec)"}}>🔌 Plug — Banque {worstPlg.bank}{worstPlg.slot} <span style={{color:"var(--text-dim)"}}>({worstPlg.name})</span></span>
-                  <button onClick={()=>doInstall("plug")} style={{fontSize:9,background:"var(--green)",border:"none",color:"#0f172a",borderRadius:5,padding:"3px 10px",cursor:"pointer",fontWeight:700}}>OK</button>
-                </div>}
-                <button onClick={()=>setInstallTarget(null)} style={{fontSize:9,background:"none",border:"none",color:"var(--text-dim)",cursor:"pointer",marginTop:2}}>Annuler</button>
+                <div style={{fontSize:10,color:"var(--text-sec)",marginBottom:8,fontWeight:600}}>Installer "{aiC.ideal_preset}" sur :</div>
+                {canInstallAnn&&bankInput("ann",49)}
+                {canInstallPlug&&bankInput("plug",10)}
+                <button onClick={()=>setInstallTarget(null)} style={{fontSize:9,background:"none",border:"none",color:"var(--text-dim)",cursor:"pointer"}}>Annuler</button>
               </div>}
             </div>;
           })()}
