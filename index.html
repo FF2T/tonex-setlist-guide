@@ -134,6 +134,27 @@ function saveSharedKey(key){if(!db)return Promise.resolve();return db.collection
     .tab-btn{font-size:12px;padding:12px 4px}
     .tab-icon{font-size:18px}
   }
+  /* ── Tablet ── */
+  @media(min-width:768px){
+    .page-root{max-width:800px;padding:24px;zoom:1.1}
+    .tab-btn{font-size:13px;padding:14px 8px}
+    .tab-icon{font-size:20px}
+    .guitar-grid{grid-template-columns:repeat(4,1fr);gap:10px}
+    .guitar-card{padding:16px 10px}
+    .modal-box{padding:24px}
+    .song-row-detail{padding:16px 18px}
+  }
+  /* ── Desktop / grand écran ── */
+  @media(min-width:1024px){
+    .page-root{max-width:960px;padding:32px;zoom:1.2}
+    .tab-btn{font-size:14px;padding:16px 10px}
+    .tab-icon{font-size:22px}
+    .guitar-grid{grid-template-columns:repeat(5,1fr);gap:12px}
+    .modal-box{padding:28px;max-width:800px}
+  }
+  @media(min-width:1400px){
+    .page-root{max-width:1100px;zoom:1.3}
+  }
   .overflow-x-auto{overflow-x:auto;-webkit-overflow-scrolling:touch}
   .preset-result-card{background:var(--a4);border:1px solid var(--a10);border-radius:10px;padding:10px 12px;margin-bottom:6px}
   /* ── Badges et tags : toujours wrappables ── */
@@ -2978,7 +2999,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "3.2.2";
+const APP_VERSION = "3.2.3";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
