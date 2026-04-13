@@ -2978,7 +2978,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "2.5.1";
+const APP_VERSION = "2.5.2";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5277,9 +5277,10 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         const gId=savedGId||ig?.[0]||"";
         const g=gId?(allGuitars||GUITARS).find(x=>x.id===gId):null;
         const gType=g?.type||"HB";
+        const isExpanded=expandedId===s.id;
         const aiCraw=getBestResult(s,gId,s.aiCache?.result)||null;
-        // Re-enrich only when guitar differs from cache (expensive: scans catalog)
-        const needRescore=aiCraw&&gId&&s.aiCache?.gId!==gId;
+        // Re-enrich only for expanded song (expensive: scans catalog). Collapsed rows use cached data as-is.
+        const needRescore=isExpanded&&aiCraw&&gId&&s.aiCache?.gId!==gId;
         const aiC=needRescore?enrichAIResult({...aiCraw},gType,gId,banksAnn,banksPlug):aiCraw;
         const aiPA=aiC?.preset_ann||null;
         const aiPP=aiC?.preset_plug||null;
@@ -5303,7 +5304,6 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
             </div>
           );
         };
-        const isExpanded=expandedId===s.id;
         return (
           <div key={s.id}>
           {showArtistHeader&&<div style={{fontSize:12,fontWeight:700,color:"var(--text-sec)",marginTop:lastArtist===s.artist?0:12,marginBottom:4,paddingLeft:2,borderBottom:"1px solid var(--a7)",paddingBottom:4}}>{s.artist}</div>}
