@@ -2978,7 +2978,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "3.0.0";
+const APP_VERSION = "3.1.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4899,13 +4899,14 @@ function getJamRecs(guitarId, style, banksAnn, banksPlug, guitars, availableSour
 }
 
 // ─── SongDetailCard ──────────────────────────────────────────────────────────
-function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSources,savedGuitarId,onGuitarChange,aiProvider,aiKeys,onSongDb}){
+function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,guitars,availableSources,savedGuitarId,onGuitarChange,aiProvider,aiKeys,onSongDb}){
   const ig=getIg(song,guitars);
   const [gId,setGId]=useState(savedGuitarId||ig[0]||"");
   const [reloading,setReloading]=useState(false);
   const [localAiResult,setLocalAiResult]=useState(null);
   const [showFeedback,setShowFeedback]=useState(false);
   const [showCot,setShowCot]=useState(false);
+  const [installTarget,setInstallTarget]=useState(null); // {presetName, device:"ann"|"plug"}
   // Auto-trigger AI analysis if no cache for current guitar
   useEffect(()=>{
     if(localAiResult) return;
@@ -5031,19 +5032,49 @@ function SongDetailCard({song,banksAnn,banksPlug,onClose,guitars,availableSource
             {idealGuitarScore&&<b style={{color:scoreColor(idealGuitarScore),flexShrink:0}}>{idealGuitarScore}%</b>}
           </div>}
           {aiC.guitar_reason&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:-2,marginBottom:2}}>{aiC.guitar_reason}</div>}
-          {/* Preset idéal */}
+          {/* Preset idéal + installation */}
           {aiC.ideal_preset&&(()=>{
             const idealScore=aiC.ideal_preset_score||0;
-            const loc=findInBanks(aiC.ideal_preset,banksAnn)||findInBanks(aiC.ideal_preset,banksPlug);
+            const locAnn=findInBanks(aiC.ideal_preset,banksAnn);
+            const locPlug=findInBanks(aiC.ideal_preset,banksPlug);
+            const loc=locAnn||locPlug;
             const entry=findCatalogEntry(aiC.ideal_preset);
+            const worstAnn=!locAnn&&onBanksAnn?worstSlot(banksAnn,type):null;
+            const worstPlg=!locPlug&&onBanksPlug?worstSlot(banksPlug,type):null;
+            const doInstall=(device)=>{
+              const banks=device==="ann"?banksAnn:banksPlug;
+              const onBanks=device==="ann"?onBanksAnn:onBanksPlug;
+              const ws=worstSlot(banks,type);
+              if(ws.bank!=null&&onBanks){
+                onBanks(p=>({...p,[ws.bank]:{...(p[ws.bank]||{cat:"",A:"",B:"",C:""}),[ws.slot]:aiC.ideal_preset}}));
+                setInstallTarget(null);
+              }
+            };
             return <div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",fontSize:11}}>
                 <div><span style={{color:"var(--text-muted)",fontSize:10}}>🔊 Preset</span> <span style={{fontWeight:600,color:"var(--text-bright)"}}>{aiC.ideal_preset}</span></div>
                 {idealScore>0&&<b style={{color:scoreColor(idealScore),flexShrink:0}}>{idealScore}%</b>}
               </div>
-              <div style={{fontSize:9,color:loc?"var(--green)":"var(--text-dim)",marginTop:1}}>
-                {loc?"✓ Installé":"Non installé"}{!loc&&entry?.src==="TSR"&&entry.pack&&<span style={{color:"var(--yellow)"}}> · 📦 {entry.pack}.zip</span>}
+              <div style={{fontSize:9,marginTop:2,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                {loc?<span style={{color:"var(--green)"}}>✓ Installe — Banque {loc.bank}{loc.slot}</span>
+                :<>
+                  <span style={{color:"var(--text-dim)"}}>Non installe</span>
+                  {entry?.src==="TSR"&&entry.pack&&<span style={{color:"var(--yellow)"}}>📦 {entry.pack}.zip</span>}
+                  {!installTarget&&(worstAnn||worstPlg)&&<button onClick={()=>setInstallTarget({preset:aiC.ideal_preset})} style={{fontSize:9,background:"var(--accent-bg)",border:"1px solid var(--accent-border)",color:"var(--accent)",borderRadius:5,padding:"2px 8px",cursor:"pointer",fontWeight:600}}>Installer</button>}
+                </>}
               </div>
+              {installTarget?.preset===aiC.ideal_preset&&<div style={{marginTop:6,background:"var(--a4)",border:"1px solid var(--a10)",borderRadius:8,padding:10}}>
+                <div style={{fontSize:10,color:"var(--text-sec)",marginBottom:6,fontWeight:600}}>Installer "{aiC.ideal_preset}" en remplacement de :</div>
+                {worstAnn&&onBanksAnn&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,marginBottom:4}}>
+                  <span style={{fontSize:10,color:"var(--text-sec)"}}>📦 Pedale — Banque {worstAnn.bank}{worstAnn.slot} <span style={{color:"var(--text-dim)"}}>({worstAnn.name})</span></span>
+                  <button onClick={()=>doInstall("ann")} style={{fontSize:9,background:"var(--green)",border:"none",color:"#0f172a",borderRadius:5,padding:"3px 10px",cursor:"pointer",fontWeight:700}}>OK</button>
+                </div>}
+                {worstPlg&&onBanksPlug&&<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,marginBottom:4}}>
+                  <span style={{fontSize:10,color:"var(--text-sec)"}}>🔌 Plug — Banque {worstPlg.bank}{worstPlg.slot} <span style={{color:"var(--text-dim)"}}>({worstPlg.name})</span></span>
+                  <button onClick={()=>doInstall("plug")} style={{fontSize:9,background:"var(--green)",border:"none",color:"#0f172a",borderRadius:5,padding:"3px 10px",cursor:"pointer",fontWeight:700}}>OK</button>
+                </div>}
+                <button onClick={()=>setInstallTarget(null)} style={{fontSize:9,background:"none",border:"none",color:"var(--text-dim)",cursor:"pointer",marginTop:2}}>Annuler</button>
+              </div>}
             </div>;
           })()}
           {/* Réglages idéaux */}
@@ -5108,7 +5139,7 @@ function InlineRenameInput({initialName,onSave,onCancel,inp,placeholder,buttonLa
   </div>;
 }
 
-function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,banksAnn,banksPlug,aiProvider,aiKeys,hideHeader=false,allGuitars,availableSources,activeProfileId}) {
+function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,banksAnn,onBanksAnn,banksPlug,onBanksPlug,aiProvider,aiKeys,hideHeader=false,allGuitars,availableSources,activeProfileId}) {
   const [activeSlId,setActiveSlId]=useState(setlists[0]?.id||null);
   const activeSl=activeSlId?setlists.find(s=>s.id===activeSlId):null;
   const [showAdd,setShowAdd]=useState(false);
@@ -5376,7 +5407,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                 </div>}
               </div>
             </div>
-            {isExpanded&&<SongDetailCard song={s} banksAnn={banksAnn} banksPlug={banksPlug} onClose={()=>setExpandedId(null)} guitars={allGuitars} availableSources={availableSources} savedGuitarId={activeSl?.guitars?.[s.id]} onGuitarChange={(songId,gId)=>{if(activeSlId)onSetlists(p=>p.map(sl=>sl.id===activeSlId?{...sl,guitars:{...(sl.guitars||{}),[songId]:gId}}:sl));}} aiProvider={aiProvider} aiKeys={aiKeys} onSongDb={onSongDb}/>}
+            {isExpanded&&<SongDetailCard song={s} banksAnn={banksAnn} banksPlug={banksPlug} onBanksAnn={onBanksAnn} onBanksPlug={onBanksPlug} onClose={()=>setExpandedId(null)} guitars={allGuitars} availableSources={availableSources} savedGuitarId={activeSl?.guitars?.[s.id]} onGuitarChange={(songId,gId)=>{if(activeSlId)onSetlists(p=>p.map(sl=>sl.id===activeSlId?{...sl,guitars:{...(sl.guitars||{}),[songId]:gId}}:sl));}} aiProvider={aiProvider} aiKeys={aiKeys} onSongDb={onSongDb}/>}
           </div>
           </div>
         );
@@ -6225,7 +6256,7 @@ function JamScreen({banksAnn,banksPlug,allGuitars,availableSources}){
 }
 
 // ─── SetlistsScreen (onglets Setlists + Morceaux) ────────────────────────────
-function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onNavigate,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,activeProfileId}){
+function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onNavigate,banksAnn,onBanksAnn,banksPlug,onBanksPlug,aiProvider,aiKeys,allGuitars,availableSources,activeProfileId}){
   const [tab,setTab]=useState("setlists");
   const tabBtn=(id,label)=>(
     <button onClick={()=>setTab(id)} style={{background:tab===id?"var(--accent-bg)":"var(--a5)",border:tab===id?"1px solid var(--accent-border)":"1px solid var(--a8)",color:tab===id?"var(--accent)":"var(--text-sec)",borderRadius:8,padding:"7px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{label}</button>
@@ -6258,7 +6289,7 @@ function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked
         {tabBtn("setlists","🎵 Setlists")}
         {tabBtn("songs","🎶 Morceaux")}
       </div>
-      {tab==="setlists"&&<ListScreen songDb={songDb} onSongDb={onSongDb} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} availableSources={availableSources} activeProfileId={activeProfileId}/>}
+      {tab==="setlists"&&<ListScreen songDb={songDb} onSongDb={onSongDb} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} availableSources={availableSources} activeProfileId={activeProfileId}/>}
       {tab==="songs"&&<div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
           <div style={{fontSize:13,color:"var(--text-sec)"}}>{songDb.length} morceaux</div>
@@ -7040,7 +7071,7 @@ function App() {
   if(screen==="profile")      return <div className="page-root"><MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} aiKeys={aiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars}/></div>;
   if(screen==="settings")     return <div className="page-root"><ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} songDb={songDb} onSongDb={setSongDb}/></div>;
   if(screen==="setlists")     return <div className="page-root">
-    <SetlistsScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} activeProfileId={activeProfileId}/>
+    <SetlistsScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} activeProfileId={activeProfileId}/>
   </div>;
   if(screen==="jam") return <div className="page-root">
     <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Jammer"}]} onNavigate={setScreen}/>
