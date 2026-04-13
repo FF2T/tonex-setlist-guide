@@ -3512,13 +3512,15 @@ function AICard({song,gId,onResult,banksAnn,banksPlug,aiProvider,aiKeys,onCacheR
       .finally(()=>setLoading(false));
   },[song.id,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars,res]);
   useEffect(()=>{
-    // Cache valide pour cette guitare ET même version de scoring → utiliser le meilleur connu
-    if(song.aiCache&&song.aiCache.gId===gId&&song.aiCache.sv===SCORING_VERSION){
+    // Cache valide pour cette guitare ET même version de scoring ET CoT présent → utiliser le meilleur connu
+    if(song.aiCache&&song.aiCache.gId===gId&&song.aiCache.sv===SCORING_VERSION&&song.aiCache.result?.cot_step1){
       const best=getBestResult(song,gId,song.aiCache.result);
       setRes(best);onResult(best);return;
     }
     // Cache existant mais guitare différente ou scoring obsolète → recalculer les scores sans rappeler l'IA
+    // Sauf si le résultat n'a pas de CoT (ancien prompt) → forcer un re-fetch
     if(song.aiCache&&song.aiCache.result&&gId){
+      if(!song.aiCache.result.cot_step1){doFetch(false);return;}
       const cached={...song.aiCache.result};
       const gType=(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB";
       const recalc=enrichAIResult(cached,gType,gId,banksAnn,banksPlug);
