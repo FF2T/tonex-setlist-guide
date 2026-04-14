@@ -3016,7 +3016,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "3.6.1";
+const APP_VERSION = "3.7.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -6004,62 +6004,75 @@ function PresetList({filtered,selected,setSelected,banksAnn,banksPlug,fullCatalo
   const [shown,setShown]=useState(PRESET_PAGE_SIZE);
   useEffect(()=>setShown(PRESET_PAGE_SIZE),[filtered,filterPacks]);
 
-  // Sub-pack grouping (show when TSR is among selected sources or all sources shown)
-  const showSubPacks=filterSrcs.length===0||filterSrcs.includes("TSR");
+  // Sub-grouping: par pack (TSR) ou par ampli (autres sources)
   const subPacks=useMemo(()=>{
-    if(!showSubPacks) return null;
-    const packs={};
-    filtered.forEach(([name,info])=>{if(info.pack){packs[info.pack]=(packs[info.pack]||0)+1;}});
-    return Object.entries(packs).sort((a,b)=>a[0].localeCompare(b[0]));
-  },[filtered,showSubPacks]);
+    const groups={};
+    filtered.forEach(([name,info])=>{
+      const key=info.pack||info.amp||"Autre";
+      groups[key]=(groups[key]||0)+1;
+    });
+    return Object.entries(groups).sort((a,b)=>a[0].localeCompare(b[0]));
+  },[filtered]);
+  const isTSROnly=filterSrcs.length===1&&filterSrcs[0]==="TSR";
 
   const displayFiltered=useMemo(()=>{
     if(filterPacks.length===0) return filtered;
-    return filtered.filter(([,info])=>filterPacks.includes(info.pack));
+    return filtered.filter(([,info])=>filterPacks.includes(info.pack||info.amp||"Autre"));
   },[filtered,filterPacks]);
 
   const visible=displayFiltered.slice(0,shown);
   const remaining=displayFiltered.length-shown;
   return(
     <div>
-      {/* Sub-pack chips for TSR — grouped by amp brand */}
+      {/* Sub-filters: par pack (TSR groupé par marque) ou par ampli (autres sources) */}
       {subPacks&&subPacks.length>1&&(()=>{
-        // Build grouped structure
-        const packCountMap=Object.fromEntries(subPacks);
-        const grouped=[];
-        const assigned=new Set();
-        Object.entries(TSR_PACK_GROUPS||{}).forEach(([group,packs])=>{
-          const members=packs.filter(p=>packCountMap[p]!=null);
-          if(members.length>0){
-            const total=members.reduce((s,p)=>s+(packCountMap[p]||0),0);
-            grouped.push({group,packs:members,total});
-            members.forEach(p=>assigned.add(p));
-          }
-        });
-        const others=subPacks.filter(([p])=>!assigned.has(p));
-        if(others.length>0) grouped.push({group:"Autres",packs:others.map(([p])=>p),total:others.reduce((s,[,c])=>s+c,0)});
         const chipStyle=(on)=>({fontSize:10,fontWeight:on?700:500,color:on?"var(--accent)":"var(--text-sec)",background:on?"var(--accent-bg)":"var(--a3)",border:on?"1px solid var(--accent-border)":"1px solid var(--a6)",borderRadius:6,padding:"4px 8px",cursor:"pointer"});
+        // TSR: groupement par marque d'ampli
+        if(isTSROnly){
+          const packCountMap=Object.fromEntries(subPacks);
+          const grouped=[];
+          const assigned=new Set();
+          Object.entries(TSR_PACK_GROUPS||{}).forEach(([group,packs])=>{
+            const members=packs.filter(p=>packCountMap[p]!=null);
+            if(members.length>0){
+              const total=members.reduce((s,p)=>s+(packCountMap[p]||0),0);
+              grouped.push({group,packs:members,total});
+              members.forEach(p=>assigned.add(p));
+            }
+          });
+          const others=subPacks.filter(([p])=>!assigned.has(p));
+          if(others.length>0) grouped.push({group:"Autres",packs:others.map(([p])=>p),total:others.reduce((s,[,c])=>s+c,0)});
+          return <div style={{marginBottom:12}}>
+            <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Filtrer par famille</div>
+            <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:6}}>
+              <button onClick={()=>setFilterPacks([])} style={chipStyle(filterPacks.length===0)}>Tous ({filtered.length})</button>
+              {grouped.map(g=>{
+                const groupPacks=g.packs;
+                const allSelected=groupPacks.every(p=>filterPacks.includes(p));
+                const someSelected=groupPacks.some(p=>filterPacks.includes(p));
+                return <button key={g.group} onClick={()=>{
+                  if(allSelected) setFilterPacks(prev=>prev.filter(p=>!groupPacks.includes(p)));
+                  else setFilterPacks(prev=>[...prev.filter(p=>!groupPacks.includes(p)),...groupPacks]);
+                }} style={{...chipStyle(someSelected),fontWeight:700}}>{g.group} ({g.total})</button>;
+              })}
+            </div>
+            {filterPacks.length>0&&<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+              {subPacks.filter(([p])=>filterPacks.some(fp=>{
+                const grp=grouped.find(g=>g.packs.includes(fp));
+                return grp&&grp.packs.includes(p);
+              })||filterPacks.includes(p)).map(([pack,count])=>{const on=filterPacks.includes(pack);return(
+                <button key={pack} onClick={()=>togglePack(pack)} style={chipStyle(on)}>{pack} ({count})</button>);})}
+            </div>}
+          </div>;
+        }
+        // Autres sources: filtrer par ampli
         return <div style={{marginBottom:12}}>
-          <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Packs Studio Rats</div>
-          <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:6}}>
+          <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Filtrer par ampli</div>
+          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
             <button onClick={()=>setFilterPacks([])} style={chipStyle(filterPacks.length===0)}>Tous ({filtered.length})</button>
-            {grouped.map(g=>{
-              const groupPacks=g.packs;
-              const allSelected=groupPacks.every(p=>filterPacks.includes(p));
-              const someSelected=groupPacks.some(p=>filterPacks.includes(p));
-              return <button key={g.group} onClick={()=>{
-                if(allSelected) setFilterPacks(prev=>prev.filter(p=>!groupPacks.includes(p)));
-                else setFilterPacks(prev=>[...prev.filter(p=>!groupPacks.includes(p)),...groupPacks]);
-              }} style={{...chipStyle(someSelected),fontWeight:700}}>{g.group} ({g.total})</button>;
-            })}
+            {subPacks.map(([amp,count])=>{const on=filterPacks.includes(amp);return(
+              <button key={amp} onClick={()=>togglePack(amp)} style={chipStyle(on)}>{amp} ({count})</button>);})}
           </div>
-          {filterPacks.length>0&&<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-            {subPacks.filter(([p])=>filterPacks.some(fp=>{
-              const grp=grouped.find(g=>g.packs.includes(fp));
-              return grp&&grp.packs.includes(p);
-            })||filterPacks.includes(p)).map(([pack,count])=>{const on=filterPacks.includes(pack);return(
-              <button key={pack} onClick={()=>togglePack(pack)} style={chipStyle(on)}>{pack} ({count})</button>);})}
-          </div>}
         </div>;
       })()}
       <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>
@@ -6078,7 +6091,7 @@ function PresetList({filtered,selected,setSelected,banksAnn,banksPlug,fullCatalo
                   <div style={{fontSize:12,color:isSel?"var(--accent)":"var(--text-bright)",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{name}</div>
                   <div style={{display:"flex",gap:5,alignItems:"center",marginTop:2,flexWrap:"wrap"}}>
                     <span style={{fontSize:10,color:"var(--text-muted)"}}>{info.amp}</span>
-                    {info.pack&&<span style={{fontSize:9,color:"var(--yellow)",background:"rgba(251,191,36,0.08)",borderRadius:3,padding:"1px 5px"}}>{info.pack}</span>}
+                    {(info.pack||info.amp)&&<span style={{fontSize:9,color:"var(--text-muted)",background:"var(--a6)",borderRadius:3,padding:"1px 5px"}}>{info.pack||info.amp}</span>}
                     {annLoc&&<span style={{fontSize:9,color:"var(--blue)",background:"rgba(147,197,253,0.1)",borderRadius:3,padding:"1px 5px",fontWeight:700}}>📦{annLoc.bank}{annLoc.slot}</span>}
                     {plugLoc&&<span style={{fontSize:9,color:"var(--accent)",background:"rgba(165,180,252,0.1)",borderRadius:3,padding:"1px 5px",fontWeight:700}}>🔌{plugLoc.bank}{plugLoc.slot}</span>}
                   </div>
