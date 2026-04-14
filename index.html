@@ -3035,7 +3035,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "3.9.2";
+const APP_VERSION = "3.9.3";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -6801,8 +6801,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           </div>
         ):<div>
         <div style={{fontSize:32,fontWeight:800,color:"var(--text)",marginBottom:6,textAlign:"center"}}>ToneX Poweruser</div>
-        <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:6,textAlign:"center"}}>Quel morceau veux-tu jouer ?</div>
-        <div style={{textAlign:"center",marginBottom:16}}><button onClick={()=>setShowOnboarding(true)} style={{background:"none",border:"none",color:"var(--text-dim)",fontSize:11,cursor:"pointer",textDecoration:"underline"}}>Besoin d'aide ?</button></div>
+        <div style={{fontSize:14,color:"var(--text-muted)",marginBottom:16,textAlign:"center"}}>Quel morceau veux-tu jouer ?</div>
         <div style={{width:"100%"}}>
           <SongSearchBar aiProvider={aiProvider} aiKeys={aiKeys} onConfirm={(title,artist)=>{
             setConfirmedSong({title,artist});
@@ -6996,26 +6995,27 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
       </div>
 
       {/* Tuiles en bas (masquer si résultat ou loading) */}
-      {!songResult&&!songLoading&&<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,paddingBottom:8,marginTop:4}}>
-        <button onClick={onSetlistScreen} style={{background:"rgba(99,102,241,0.1)",border:"1px solid var(--accent-border)",borderRadius:14,padding:"16px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
+      {!songResult&&!songLoading&&<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,paddingBottom:8,marginTop:4}}>
+        <button onClick={onSetlistScreen} style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:14,padding:"16px 10px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
           <div style={{fontSize:24,marginBottom:4}}>🎵</div>
-          <div style={{fontSize:13,fontWeight:700,color:"var(--accent)"}}>Mes setlists</div>
-          <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>{setlists.length} setlist{setlists.length>1?"s":""}</div>
+          <div style={{fontSize:12,fontWeight:700,color:"var(--text)"}}>Setlists</div>
+          <div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>{setlists.length} setlist{setlists.length>1?"s":""}</div>
         </button>
-        <button onClick={()=>onJam()} style={{background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",borderRadius:14,padding:"16px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
+        <button onClick={()=>onJam()} style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:14,padding:"16px 10px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
           <div style={{fontSize:24,marginBottom:4}}>🎲</div>
-          <div style={{fontSize:13,fontWeight:700,color:"var(--yellow)"}}>Jammer</div>
-          <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>Guitare + style</div>
+          <div style={{fontSize:12,fontWeight:700,color:"var(--text)"}}>Jammer</div>
+          <div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>Guitare + style</div>
         </button>
-        <button onClick={()=>onExplore()} style={{background:"rgba(167,139,250,0.1)",border:"1px solid rgba(167,139,250,0.3)",borderRadius:14,padding:"16px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
+        <button onClick={()=>onExplore()} style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:14,padding:"16px 10px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
           <div style={{fontSize:24,marginBottom:4}}>🎛️</div>
-          <div style={{fontSize:13,fontWeight:700,color:"var(--purple)"}}>Explorer</div>
-          <div style={{fontSize:10,color:"var(--text-muted)",marginTop:2}}>Bibliothèque de presets</div>
+          <div style={{fontSize:12,fontWeight:700,color:"var(--text)"}}>Explorer</div>
+          <div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>Profils sonores</div>
         </button>
       </div>}
       <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"24px 0 8px",flexWrap:"wrap"}}>
         {syncStatus&&<span style={{fontSize:10,color:syncStatus==="synced"?"var(--green)":syncStatus==="syncing"?"var(--yellow)":syncStatus==="error"?"var(--red)":"var(--text-dim)"}} title={syncStatus==="synced"?"Synchronisé":syncStatus==="syncing"?"Synchronisation...":"Hors ligne"}>{syncStatus==="synced"?"☁️":syncStatus==="syncing"?"⏳":"⚠️"}</span>}
         <span style={{fontSize:10,color:"var(--text-dim)"}}>ToneX Poweruser v{APP_VERSION}</span>
+        <button onClick={()=>setShowOnboarding(true)} style={{background:"none",border:"none",color:"var(--text-dim)",fontSize:10,cursor:"pointer",textDecoration:"underline"}}>Aide</button>
         <button onClick={onSettings} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:6,padding:"4px 8px",fontSize:9,fontWeight:600,cursor:"pointer"}}>Admin</button>
         <button onClick={()=>{location.reload(true);}} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:6,padding:"4px 8px",fontSize:9,fontWeight:600,cursor:"pointer"}} title="Recharger pour récupérer la dernière version">🔄 MAJ</button>
       </div>
