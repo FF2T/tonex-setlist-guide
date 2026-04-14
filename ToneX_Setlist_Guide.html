@@ -3016,7 +3016,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "3.6.0";
+const APP_VERSION = "3.6.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5894,6 +5894,26 @@ function PresetDetailInline({name,info,banksAnn,banksPlug,presetContext,guitars}
   const STYLE_LABELS={blues:"Blues",rock:"Rock",hard_rock:"Hard Rock",jazz:"Jazz",metal:"Metal",pop:"Pop"};
   const GAIN_LABELS={low:"Low gain — Clean / Edge of breakup",mid:"Mid gain — Crunch / Drive",high:"High gain — Lead / Saturé"};
   const GAIN_SHORT={low:"Clean",mid:"Crunch / Drive",high:"Lead / High gain"};
+  // Styles compatibles selon le gain
+  const GAIN_STYLES={
+    low:{primary:["blues","jazz","pop","rock"],desc:"Son clean : ideal pour blues, jazz, pop, rock rythmique"},
+    mid:{primary:["rock","blues","hard_rock"],desc:"Son crunch/drive : ideal pour rock, blues-rock, hard rock"},
+    high:{primary:["hard_rock","metal","rock"],desc:"Son sature : ideal pour hard rock, metal, rock lead"}
+  };
+  const gainStyles=GAIN_STYLES[info.gain]||GAIN_STYLES.mid;
+  // Artistes connus par registre (heuristique par genre)
+  const CLEAN_ARTISTS=["b.b. king","john mayer","mark knopfler","eric johnson","nile rodgers","chet atkins","jerry garcia","joe pass","wes montgomery","pat metheny","george benson","robert cray","larry carlton"];
+  const DRIVE_ARTISTS=["eric clapton","jimi hendrix","stevie ray vaughan","gary moore","peter green","keith richards","angus young","joe bonamassa","jimmy page","brian may","pete townshend","neil young","billy gibbons"];
+  const HEAVY_ARTISTS=["metallica","james hetfield","kirk hammett","john petrucci","eddie van halen","dimebag darrell","tony iommi","zakk wylde","dave mustaine","tom morello","tool","system of a down","slayer","pantera"];
+  const sortRefs=(refs)=>{
+    if(!refs||refs.length<=1)return refs;
+    const priority=info.gain==="low"?CLEAN_ARTISTS:info.gain==="high"?HEAVY_ARTISTS:DRIVE_ARTISTS;
+    return [...refs].sort((a,b)=>{
+      const aP=priority.some(p=>a.a.toLowerCase().includes(p))?0:1;
+      const bP=priority.some(p=>b.a.toLowerCase().includes(p))?0:1;
+      return aP-bP;
+    });
+  };
   // Parse preset character from name
   const nameLower=name.toLowerCase();
   const presetChar=
@@ -5905,6 +5925,7 @@ function PresetDetailInline({name,info,banksAnn,banksPlug,presetContext,guitars}
     (/\bhigh.?gain\b|\bfull.?beans\b|\bdimed\b|\bmax\b/i.test(nameLower))?"High gain — Saturation maximale, mur de son":
     (/\bboost\b|\bklon\b|\bts\b|\btube.?screamer\b|\brodent\b|\bmuff\b|\bfuzz\b/i.test(nameLower))?"Boost / Pedale — Son avec pedale de drive en amont":
     null;
+  const sortedRefs=sortRefs(ctx?.refs);
   // Compute per-guitar scores
   const guitarScores=allGuitars.map(g=>{
     const sc=computePickupScore(info.style,getGainRange(gainToNumeric(info.gain)),g.type);
@@ -5946,17 +5967,17 @@ function PresetDetailInline({name,info,banksAnn,banksPlug,presetContext,guitars}
       <div style={sectionStyle}>
         {sectionTitle("🎛","Style & gain")}
         <div style={{display:"flex",flexDirection:"column",gap:4}}>
-          <div style={{fontSize:11,color:"var(--text-sec)"}}><span style={{color:"var(--text-muted)",fontSize:10}}>Style</span> <span style={{fontWeight:600}}>{STYLE_LABELS[info.style]||info.style}</span></div>
           <div style={{fontSize:11,color:"var(--text-sec)"}}><span style={{color:"var(--text-muted)",fontSize:10}}>Gain</span> <span style={{fontWeight:600}}>{GAIN_LABELS[info.gain]||info.gain}</span></div>
+          <div style={{fontSize:11,color:"var(--text-sec)"}}><span style={{color:"var(--text-muted)",fontSize:10}}>Style catalogue</span> <span style={{fontWeight:600}}>{STYLE_LABELS[info.style]||info.style}</span></div>
+          <div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>{gainStyles.desc}</div>
         </div>
       </div>
 
       {/* SECTION 3 : Morceaux mythiques */}
-      {ctx?.refs&&ctx.refs.length>0&&<div style={sectionStyle}>
-        {sectionTitle("🎵","Morceaux mythiques")}
-        <div style={{fontSize:9,color:"var(--text-dim)",marginBottom:6,fontStyle:"italic"}}>Artistes ayant utilise cet ampli — ce preset correspond au registre {GAIN_SHORT[info.gain]||info.gain}.</div>
+      {sortedRefs&&sortedRefs.length>0&&<div style={sectionStyle}>
+        {sectionTitle("🎵","Morceaux mythiques — registre "+GAIN_SHORT[info.gain])}
         <div style={{display:"flex",flexDirection:"column",gap:5}}>
-          {ctx.refs.map(r=><div key={r.a} style={{fontSize:11,color:"var(--text-sec)"}}>
+          {sortedRefs.map(r=><div key={r.a} style={{fontSize:11,color:"var(--text-sec)"}}>
             <span style={{fontWeight:600,color:"var(--text-bright)"}}>{r.a}</span>
             {r.t.length>0&&<span style={{color:"var(--text-dim)"}}> — {r.t.join(", ")}</span>}
           </div>)}
