@@ -3016,7 +3016,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "3.5.2";
+const APP_VERSION = "3.6.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5893,6 +5893,18 @@ function PresetDetailInline({name,info,banksAnn,banksPlug,presetContext,guitars}
   const sectionTitle=(icon,label)=><div style={{fontSize:10,fontWeight:700,color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8,display:"flex",alignItems:"center",gap:5}}>{icon} {label}</div>;
   const STYLE_LABELS={blues:"Blues",rock:"Rock",hard_rock:"Hard Rock",jazz:"Jazz",metal:"Metal",pop:"Pop"};
   const GAIN_LABELS={low:"Low gain — Clean / Edge of breakup",mid:"Mid gain — Crunch / Drive",high:"High gain — Lead / Saturé"};
+  const GAIN_SHORT={low:"Clean",mid:"Crunch / Drive",high:"Lead / High gain"};
+  // Parse preset character from name
+  const nameLower=name.toLowerCase();
+  const presetChar=
+    (/\bclean\b|\bclr\b|\bcln\b/i.test(nameLower))?"Clean — Son clair, dynamique, expressif":
+    (/\bedge\b|\beob\b|\bbreakup\b/i.test(nameLower))?"Edge of breakup — A la limite de la saturation, très dynamique":
+    (/\bcrunch\b|\bgrit\b/i.test(nameLower))?"Crunch — Saturation légère, réactif au toucher":
+    (/\bdrive\b|\bod\b|\boverdrive\b/i.test(nameLower))?"Drive — Saturation moyenne, sustain musical":
+    (/\blead\b|\bsolo\b/i.test(nameLower))?"Lead — Saturation prononcée, sustain long pour solos":
+    (/\bhigh.?gain\b|\bfull.?beans\b|\bdimed\b|\bmax\b/i.test(nameLower))?"High gain — Saturation maximale, mur de son":
+    (/\bboost\b|\bklon\b|\bts\b|\btube.?screamer\b|\brodent\b|\bmuff\b|\bfuzz\b/i.test(nameLower))?"Boost / Pedale — Son avec pedale de drive en amont":
+    null;
   // Compute per-guitar scores
   const guitarScores=allGuitars.map(g=>{
     const sc=computePickupScore(info.style,getGainRange(gainToNumeric(info.gain)),g.type);
@@ -5909,9 +5921,10 @@ function PresetDetailInline({name,info,banksAnn,banksPlug,presetContext,guitars}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
           <div style={{flex:1}}>
             <div style={{fontSize:13,fontWeight:700,color:"var(--text-bright)",marginBottom:2}}>{ctx?.emoji&&<span style={{marginRight:4}}>{ctx.emoji}</span>}{info.amp}</div>
-            <div style={{fontSize:10,color:"var(--text-muted)"}}>{name}</div>
+            <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>{name}</div>
           </div>
         </div>
+        {presetChar&&<div style={{fontSize:11,color:"var(--text-sec)",background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:7,padding:"6px 10px",marginBottom:6,fontWeight:500}}>{presetChar}</div>}
         <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:6}}>
           {info.src&&<span style={{fontSize:9,color:"var(--text-muted)",background:"var(--a6)",borderRadius:4,padding:"2px 6px",fontWeight:600}}>{SOURCE_LABELS[info.src]||info.src}</span>}
           {info.pack&&<span style={{fontSize:9,color:"var(--text-muted)",background:"var(--a6)",borderRadius:4,padding:"2px 6px"}}>{info.pack}</span>}
@@ -5929,9 +5942,19 @@ function PresetDetailInline({name,info,banksAnn,banksPlug,presetContext,guitars}
         </div>
       </div>
 
-      {/* SECTION 2 : Morceaux mythiques */}
+      {/* SECTION 2 : Style & gain */}
+      <div style={sectionStyle}>
+        {sectionTitle("🎛","Style & gain")}
+        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          <div style={{fontSize:11,color:"var(--text-sec)"}}><span style={{color:"var(--text-muted)",fontSize:10}}>Style</span> <span style={{fontWeight:600}}>{STYLE_LABELS[info.style]||info.style}</span></div>
+          <div style={{fontSize:11,color:"var(--text-sec)"}}><span style={{color:"var(--text-muted)",fontSize:10}}>Gain</span> <span style={{fontWeight:600}}>{GAIN_LABELS[info.gain]||info.gain}</span></div>
+        </div>
+      </div>
+
+      {/* SECTION 3 : Morceaux mythiques */}
       {ctx?.refs&&ctx.refs.length>0&&<div style={sectionStyle}>
         {sectionTitle("🎵","Morceaux mythiques")}
+        <div style={{fontSize:9,color:"var(--text-dim)",marginBottom:6,fontStyle:"italic"}}>Artistes ayant utilise cet ampli — ce preset correspond au registre {GAIN_SHORT[info.gain]||info.gain}.</div>
         <div style={{display:"flex",flexDirection:"column",gap:5}}>
           {ctx.refs.map(r=><div key={r.a} style={{fontSize:11,color:"var(--text-sec)"}}>
             <span style={{fontWeight:600,color:"var(--text-bright)"}}>{r.a}</span>
@@ -5940,7 +5963,7 @@ function PresetDetailInline({name,info,banksAnn,banksPlug,presetContext,guitars}
         </div>
       </div>}
 
-      {/* SECTION 3 : Guitares adaptées */}
+      {/* SECTION 4 : Guitares adaptées */}
       <div style={sectionStyle}>
         {sectionTitle("🎸","Guitares adaptees")}
         <div style={{display:"flex",flexDirection:"column",gap:4}}>
@@ -5949,15 +5972,6 @@ function PresetDetailInline({name,info,banksAnn,banksPlug,presetContext,guitars}
             <div style={{width:60,height:4,background:"var(--a8)",borderRadius:2,overflow:"hidden",flexShrink:0}}><div style={{width:`${g.score}%`,height:"100%",background:scoreColor(g.score),borderRadius:2}}/></div>
             <span style={{fontSize:10,fontWeight:700,color:scoreColor(g.score),width:32,textAlign:"right",flexShrink:0}}>{g.score}%</span>
           </div>)}
-        </div>
-      </div>
-
-      {/* SECTION 4 : Style & gain */}
-      <div style={sectionStyle}>
-        {sectionTitle("🎛","Style & gain")}
-        <div style={{display:"flex",flexDirection:"column",gap:4}}>
-          <div style={{fontSize:11,color:"var(--text-sec)"}}><span style={{color:"var(--text-muted)",fontSize:10}}>Style</span> <span style={{fontWeight:600}}>{STYLE_LABELS[info.style]||info.style}</span></div>
-          <div style={{fontSize:11,color:"var(--text-sec)"}}><span style={{color:"var(--text-muted)",fontSize:10}}>Gain</span> <span style={{fontWeight:600}}>{GAIN_LABELS[info.gain]||info.gain}</span></div>
         </div>
       </div>
 
