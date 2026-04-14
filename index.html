@@ -3035,7 +3035,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "4.2.3";
+const APP_VERSION = "4.3.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3223,6 +3223,12 @@ function GuitarSelect({value,onChange,ig=[],guitars=GUITARS}) {
 
 // ─── Breadcrumb ──────────────────────────────────────────────────────────────
 // crumbs = [{label,screen},{label,screen},...,{label}]  — le dernier est l'écran courant (non cliquable)
+function StatusDot({status,size}){
+  const s=size||8;
+  const colors={ideal:"var(--green)",weak:"var(--yellow)",normal:"var(--a12)"};
+  const titles={ideal:"Ideal",weak:"Ameliorable",normal:""};
+  return <span title={titles[status]||""} style={{display:"inline-block",width:s,height:s,borderRadius:2,background:colors[status]||colors.normal,flexShrink:0}}/>;
+}
 function AppHeader({profiles,activeProfileId,onSwitch,onProfile,onViewProfile}){
   return <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
     <ProfileSelector profiles={profiles} activeProfileId={activeProfileId} onSwitch={onSwitch} onSettings={onProfile} onViewProfile={onViewProfile}/>
@@ -5119,7 +5125,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
 
       {/* ── SECTION 3 : Recommandations idéales ── */}
       <div style={sectionStyle}>
-        {sectionTitle("⭐","Recommandation ideale")}
+        {sectionTitle(<StatusDot status="ideal" size={10}/>,"Recommandation ideale")}
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {/* Guitare idéale */}
           {aiC.ideal_guitar&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",fontSize:11}}>
@@ -5198,15 +5204,15 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
         <div style={{marginBottom:8}}>
           <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Guitare choisie</div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontSize:12}}>{g&&ig.includes(gId)?"⭐":"🎸"}</span>
+            <StatusDot status={g&&ig.includes(gId)?"ideal":"normal"} size={10}/>
             <div style={{flex:1}}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/></div>
           </div>
           {g&&chosenGuitarScore&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:3,marginLeft:24}}>Compatibilite : <b style={{color:scoreColor(chosenGuitarScore)}}>{chosenGuitarScore}%</b></div>}
         </div>
         <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Meilleurs presets installes pour {g?.short||"cette guitare"}</div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:12}}>{aiC.preset_ann?.label===aiC.ideal_preset?"⭐":(aiC.preset_ann?.score||0)<65?"⚠️":"📦"}</span><div style={{flex:1}}><PBlock device="Pedale" emoji="📦" presetName={aiC.preset_ann?.label} gType={gId?type:null} banks={banksAnn} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_ann?.score} breakdown={aiC.preset_ann?.breakdown}/></div></div>
-          <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:12}}>{aiC.preset_plug?.label===aiC.ideal_preset?"⭐":(aiC.preset_plug?.score||0)<65?"⚠️":"🔌"}</span><div style={{flex:1}}><PBlock device="ToneX Plug" emoji="🔌" presetName={aiC.preset_plug?.label} gType={gId?type:null} banks={banksPlug} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_plug?.score} breakdown={aiC.preset_plug?.breakdown}/></div></div>
+          <div style={{display:"flex",alignItems:"center",gap:4}}><StatusDot status={aiC.preset_ann?.label===aiC.ideal_preset?"ideal":(aiC.preset_ann?.score||0)<65?"weak":"normal"} size={10}/><div style={{flex:1}}><PBlock device="Pedale" emoji="📦" presetName={aiC.preset_ann?.label} gType={gId?type:null} banks={banksAnn} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_ann?.score} breakdown={aiC.preset_ann?.breakdown}/></div></div>
+          <div style={{display:"flex",alignItems:"center",gap:4}}><StatusDot status={aiC.preset_plug?.label===aiC.ideal_preset?"ideal":(aiC.preset_plug?.score||0)<65?"weak":"normal"} size={10}/><div style={{flex:1}}><PBlock device="ToneX Plug" emoji="🔌" presetName={aiC.preset_plug?.label} gType={gId?type:null} banks={banksPlug} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_plug?.score} breakdown={aiC.preset_plug?.breakdown}/></div></div>
         </div>
       </div>
 
@@ -5471,7 +5477,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           const isWeak=sc!=null&&sc<65;
           return(
             <div style={{display:"flex",alignItems:"center",gap:5}}>
-              {isIdeal?<span style={{fontSize:10}} title="Preset ideal">⭐</span>:isWeak?<span style={{fontSize:10}} title="Ameliorable">⚠️</span>:<span style={{fontSize:10,color:"var(--text-muted)"}}>{emoji}</span>}
+              <StatusDot status={isIdeal?"ideal":isWeak?"weak":"normal"}/>
               {loc
                 ?<span style={{fontSize:10,background:`${CC[loc.slot]}18`,color:CC[loc.slot],border:`1px solid ${CC[loc.slot]}40`,borderRadius:4,padding:"1px 6px",fontWeight:700}}>{loc.bank}{loc.slot}</span>
                 :<span style={{fontSize:10,background:"var(--yellow-bg)",color:"var(--yellow)",borderRadius:4,padding:"1px 6px",fontWeight:700}}>⬇</span>
@@ -5509,7 +5515,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                   const gScore=Math.max(aiPA?.score||0,aiPP?.score||0);
                   const isIdealGuitar=g?ig.includes(gId):true;
                   return <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",marginTop:4}}>
-                  <span style={{fontSize:10}}>{isIdealGuitar?"⭐":"🎸"}</span>
+                  <StatusDot status={isIdealGuitar?"ideal":"normal"}/>
                   {g
                     ?<span style={{fontSize:10,color:"var(--text-sec)",background:"var(--a6)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{g.name} ({g.type}){savedGId&&!ig.includes(savedGId)?" (choix perso)":""}</span>
                     :aiC?.ideal_guitar&&<span style={{fontSize:10,color:"var(--text-sec)",background:"var(--a6)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{aiC.ideal_guitar}</span>
@@ -6927,7 +6933,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
 
             {/* SECTION 3 : Recommandation idéale */}
             <div style={sectionStyle}>
-              {sectionTitle("⭐","Recommandation ideale")}
+              {sectionTitle(<StatusDot status="ideal" size={10}/>,"Recommandation ideale")}
               <div style={{display:"flex",flexDirection:"column",gap:6}}>
                 {songResult.ideal_guitar&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",fontSize:11}}>
                   <div><span style={{color:"var(--text-muted)",fontSize:10}}>🎸 Guitare</span> <span style={{fontWeight:600,color:"var(--text-bright)"}}>{songResult.ideal_guitar}</span></div>
