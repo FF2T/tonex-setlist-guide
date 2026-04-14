@@ -844,7 +844,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "5.0.1";
+const APP_VERSION = "5.0.2";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5070,7 +5070,6 @@ function App() {
 
   // Persist to localStorage (immediate) + Firestore (debounced 3s)
   const hasMounted = useRef(false);
-  const justLoadedFromFirestore = useRef(false);
   const firestoreDebounceRef = useRef(null);
   useEffect(()=>{
     const state={version:2, activeProfileId, shared:{songDb,theme,setlists,customGuitars}, profiles, lastModified:Date.now()};
@@ -5078,7 +5077,6 @@ function App() {
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){}
     if(!hasMounted.current){hasMounted.current=true;return;}
     if(!firestoreLoaded) return;
-    if(justLoadedFromFirestore.current){justLoadedFromFirestore.current=false;return;}
     // Debounce Firestore saves: wait 3s of inactivity before writing
     if(firestoreDebounceRef.current) clearTimeout(firestoreDebounceRef.current);
     setSyncStatus("syncing");
@@ -5097,7 +5095,6 @@ function App() {
         const localTime = saved?.lastModified || 0;
         const remoteTime = data.lastModified || 0;
         if(!saved || remoteTime >= localTime){
-          justLoadedFromFirestore.current=true;
           if(data.shared.songDb) setSongDb(prev=>mergeSongDb(prev,data.shared.songDb));
           if(data.shared.theme) setTheme(data.shared.theme);
           if(data.shared.setlists) setSetlists(prev=>mergeSetlists(prev,data.shared.setlists));
