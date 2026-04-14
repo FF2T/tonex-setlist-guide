@@ -1415,7 +1415,7 @@ const ANNIVERSARY_CATALOG = {
   "AA MRSH JT50 I Drive BAL SCH CAB": {src:"Anniversary",amp:"Marshall JTM-50",gain:"mid",style:"rock",scores:{HB:82,SC:74,P90:82}},
   "AA FNDR TWDLX IN Clean BAL CAB": {src:"Anniversary",amp:"Fender Tweed Deluxe",gain:"low",style:"blues",scores:{HB:76,SC:94,P90:89}},
   "AA FNDR TWBM BR Crunch BAL CAB": {src:"Anniversary",amp:"Fender Tweed Bassman",gain:"mid",style:"blues",scores:{HB:80,SC:90,P90:87}},
-  "AA FNDR TWDLX IN Dimed FAT CAB": {src:"Anniversary",amp:"Fender Tweed Deluxe",gain:"mid",style:"blues",scores:{HB:80,SC:90,P90:87}},
+  "AA FNDR TWDLX IN Dimed FAT CAB": {src:"Anniversary",amp:"Fender Tweed Deluxe",gain:"high",style:"blues",scores:{HB:80,SC:90,P90:87}},
   "AA FNDR BFTWN NR Clean BAL CAB": {src:"Anniversary",amp:"Fender Blackface Twin",gain:"low",style:"jazz",scores:{HB:61,SC:97,P90:87}},
   "AA FNDR HPTWN BR Edge BAL CAB": {src:"Anniversary",amp:"Fender Hot Rod Twin",gain:"mid",style:"blues",scores:{HB:80,SC:90,P90:87}},
   "AA FNDR BFDLX VB Drive BAL KLN CAB": {src:"Anniversary",amp:"Fender Deluxe Reverb",gain:"mid",style:"blues",scores:{HB:80,SC:90,P90:87}},
@@ -2430,6 +2430,8 @@ function getSongInfo(song){
     year:init?.year||ai?.song_year||null,
     album:init?.album||ai?.song_album||null,
     desc:init?.desc||ai?.song_desc||null,
+    key:ai?.song_key||null,
+    bpm:ai?.song_bpm||null,
   };
 }
 // Seuils V2 : 80+ excellent (fidèle au son original), 65+ bon, 50+ acceptable, <50 mauvais
@@ -3035,7 +3037,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "4.4.0";
+const APP_VERSION = "4.5.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3540,9 +3542,11 @@ Pour la guitare recommandée, calcule un score global de 0 à 100 basé sur ces 
 Justifie chaque sous-score.
 
 Réponds en JSON pur (sans backticks ni markdown). Tous les textes en français :
-{"cot_step1":"3-5 phrases analysant le profil tonal du morceau","cot_step2_guitars":[{"name":"nom exact guitare de la collection","score":85,"reason":"1-2 phrases"},{"name":"2e guitare","score":75,"reason":"justification"}],"cot_step3_amp":"2-3 phrases décrivant l'ampli idéal et son caractère tonal","cot_step4_score":{"guitar_score":85,"micro":{"score":90,"reason":"justification"},"body":{"score":80,"reason":"justification"},"history":{"score":95,"reason":"justification"},"amp_match":{"score":85,"reason":"justification"}},"song_year":1970,"song_album":"album","song_desc":"2-3 phrases sur le morceau","song_style":"blues/rock/hard_rock/jazz/metal/pop","target_gain":5,"tonal_school":"fender_clean/marshall_crunch/vox_chime/dumble_smooth/mesa_heavy/hiwatt_clean","pickup_preference":"HB/SC/P90/any","ideal_guitar":"nom complet guitare idéale de la collection","guitar_reason":"1-2 phrases expliquant le choix","settings_preset":"conseils réglage preset","settings_guitar":"conseils de jeu guitare","ref_guitarist":"guitariste original","ref_guitar":"guitare(s) originale(s) (modèle précis)","ref_amp":"ampli(s) original(aux) (modèle précis)","ref_effects":"effets ou 'Aucun effet'"}
+{"cot_step1":"3-5 phrases analysant le profil tonal du morceau","cot_step2_guitars":[{"name":"nom exact guitare de la collection","score":85,"reason":"1-2 phrases"},{"name":"2e guitare","score":75,"reason":"justification"}],"cot_step3_amp":"2-3 phrases décrivant l'ampli idéal et son caractère tonal","cot_step4_score":{"guitar_score":85,"micro":{"score":90,"reason":"justification"},"body":{"score":80,"reason":"justification"},"history":{"score":95,"reason":"justification"},"amp_match":{"score":85,"reason":"justification"}},"song_year":1970,"song_album":"album","song_desc":"2-3 phrases sur le morceau","song_key":"tonalite du morceau (ex: Em, A, Bb)","song_bpm":120,"song_style":"blues/rock/hard_rock/jazz/metal/pop","target_gain":5,"tonal_school":"fender_clean/marshall_crunch/vox_chime/dumble_smooth/mesa_heavy/hiwatt_clean","pickup_preference":"HB/SC/P90/any","ideal_guitar":"nom complet guitare idéale de la collection","guitar_reason":"1-2 phrases expliquant le choix","settings_preset":"conseils réglage preset","settings_guitar":"conseils de jeu guitare","ref_guitarist":"guitariste original","ref_guitar":"guitare(s) originale(s) (modèle précis)","ref_amp":"ampli(s) original(aux) (modèle précis)","ref_effects":"effets ou 'Aucun effet'"}
 
 Champs spéciaux :
+- song_key : tonalite du morceau (notation anglaise, ex: Em, A, Bb, F#m)
+- song_bpm : tempo en BPM (nombre entier)
 - target_gain : 0-10 (0=clean cristallin, 3=edge of breakup, 5=crunch, 7=drive, 9=high gain, 10=metal extrême)
 - tonal_school : famille tonale de l'ampli original
 - pickup_preference : type de micro idéal
@@ -5076,7 +5080,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
       {/* ── SECTION 1 : Infos morceau ── */}
       <div style={sectionStyle}>
         {sectionTitle("📖","Infos morceau")}
-        {(songInfo.year||songInfo.album)&&<div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>{songInfo.year}{songInfo.album?" · "+songInfo.album:""}</div>}
+        {(songInfo.year||songInfo.album||songInfo.key||songInfo.bpm)&&<div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>{songInfo.year}{songInfo.album?" · "+songInfo.album:""}{songInfo.key?" · "+songInfo.key:""}{songInfo.bpm?" · "+songInfo.bpm+" BPM":""}</div>}
         {songInfo.desc&&<div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.5,marginBottom:6}}>{songInfo.desc}</div>}
         {aiC&&(aiC.ref_guitarist||aiC.ref_guitar||aiC.ref_amp)&&<div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.6}}>
           <span style={{fontWeight:700,color:"var(--text-muted)",fontSize:10}}>{aiC.ref_guitarist||"Référence"}</span><br/>
@@ -6879,7 +6883,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         {/* Résultat — structure identique à SongDetailCard */}
         {songResult&&confirmedSong&&(()=>{
           const existing=songDb.find(s=>normalizePresetName(s.title)===normalizePresetName(confirmedSong.title));
-          const info=existing?getSongInfo(existing):{year:songResult.song_year,album:songResult.song_album,desc:songResult.song_desc};
+          const info=existing?getSongInfo(existing):{year:songResult.song_year,album:songResult.song_album,desc:songResult.song_desc,key:songResult.song_key,bpm:songResult.song_bpm};
           const idealGuitarObj=songResult.cot_step2_guitars?.[0];
           const idealGuitarScore=idealGuitarObj?.score||null;
           const chosenGuitarCot=selectedGuitar&&songResult.cot_step2_guitars?.find(gt=>gt.name===selectedGuitar.name||gt.name===selectedGuitar.short);
@@ -6893,7 +6897,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
             {/* Titre */}
             <div style={{marginBottom:4}}>
               <div style={{fontSize:16,fontWeight:800,color:"var(--text)",marginBottom:2}}>{confirmedSong.title}</div>
-              <div style={{fontSize:12,color:"var(--text-sec)"}}>{confirmedSong.artist}{info.year?" · "+info.year:""}{info.album?" · "+info.album:""}</div>
+              <div style={{fontSize:12,color:"var(--text-sec)"}}>{confirmedSong.artist}{info.year?" · "+info.year:""}{info.album?" · "+info.album:""}{info.key?" · "+info.key:""}{info.bpm?" · "+info.bpm+" BPM":""}</div>
             </div>
 
             {/* SECTION 1 : Infos morceau */}
@@ -7229,20 +7233,25 @@ function App() {
     saveSecrets(secrets);
   },[profiles]);
 
-  // Persist to localStorage + Firestore (skip until Firestore loaded to avoid overwriting remote)
+  // Persist to localStorage (immediate) + Firestore (debounced 3s)
   const hasMounted = useRef(false);
   const justLoadedFromFirestore = useRef(false);
+  const firestoreDebounceRef = useRef(null);
   useEffect(()=>{
     const state={version:2, activeProfileId, shared:{songDb,theme,setlists,customGuitars}, profiles, lastModified:Date.now()};
     autoBackup();
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){}
     if(!hasMounted.current){hasMounted.current=true;return;}
     if(!firestoreLoaded) return;
-    // Don't push back to Firestore right after loading from it (would overwrite passwords in incognito)
     if(justLoadedFromFirestore.current){justLoadedFromFirestore.current=false;return;}
-    lastSaveTime.current = Date.now();
+    // Debounce Firestore saves: wait 3s of inactivity before writing
+    if(firestoreDebounceRef.current) clearTimeout(firestoreDebounceRef.current);
     setSyncStatus("syncing");
-    saveToFirestore(state).then(()=>setSyncStatus("synced")).catch(()=>setSyncStatus("error"));
+    firestoreDebounceRef.current = setTimeout(()=>{
+      lastSaveTime.current = Date.now();
+      saveToFirestore(state).then(()=>setSyncStatus("synced")).catch(()=>setSyncStatus("error"));
+    }, 3000);
+    return ()=>{if(firestoreDebounceRef.current)clearTimeout(firestoreDebounceRef.current);};
   },[songDb,theme,setlists,customGuitars,profiles,activeProfileId,firestoreLoaded]);
 
   // Load from Firestore on first mount — use remote if newer than local
