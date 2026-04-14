@@ -3016,7 +3016,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "3.5.1";
+const APP_VERSION = "3.5.2";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5850,7 +5850,22 @@ function findAmpContext(ampName,ctxMap){
   if(!ampName)return null;
   const ctx=ctxMap||PRESET_CONTEXT;
   if(ctx[ampName])return ctx[ampName];
-  // Fuzzy: essayer sans "Boogie", sans "Fender ", etc.
+  // Alias table pour les noms volontairement déformés (trademark avoidance)
+  const ALIASES={
+    "Cornfield Harle":"Cornford Harlequin",
+    "Reinguard T-36":"Reinhardt RT-36",
+    "Diesel Humbert":"Diezel Herbert",
+    "Electro Dime":"Electro-Harmonix",
+    "Chandler GAV19T":"Benson Chimera",
+    "Chandler 19T":"Benson Chimera",
+    "Bumble Deluxe":"Dumble Deluxe",
+    "Rouge Plate D50":"Dr. Z",
+    "Sons Amp":"Fender Champ",
+    "Mega Barba":"Mesa Boogie",
+    "Ample Betty":"Supro",
+  };
+  if(ALIASES[ampName]&&ctx[ALIASES[ampName]])return ctx[ALIASES[ampName]];
+  // Fuzzy: essayer variations de marque
   const norm=ampName.replace(/\s+/g," ").trim();
   const variations=[
     norm.replace("Mesa Boogie ","Mesa "),
