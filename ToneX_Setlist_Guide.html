@@ -14,7 +14,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v12';
+const CACHE='tonex-v13';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -48,20 +48,85 @@ self.addEventListener('fetch',e=>{
 <script src="data_catalogs.js"></script>
 <script src="data_context.js"></script>
 <script>
-// Firebase stubs — loaded lazily after page renders
-var db=null;
-// onDbReady: fires callback immediately if db is ready, or queues it until Firebase loads.
-// Unlike dbReadyPromise (5s timeout), this always waits for the real Firebase init.
-var _dbReadyFns=[];var _dbIsReady=false;
-function onDbReady(fn){if(_dbIsReady)fn();else _dbReadyFns.push(fn);}
-function _triggerDbReady(){if(_dbIsReady)return;_dbIsReady=true;_dbReadyFns.forEach(function(fn){fn();});_dbReadyFns=[];}
+// Firestore REST API — no SDK needed, just fetch()
+var FS_BASE="https://firestore.googleapis.com/v1/projects/tonex-guide/databases/(default)/documents";
+var FS_KEY="AIzaSyAnaJMN-a47S9W_cTC60lKAnzRMAgHNMAA";
 var _lastSavedSyncId=null;
-function saveToFirestore(s){return new Promise(function(resolve,reject){onDbReady(function(){if(!db){resolve();return;}try{var clean=JSON.parse(JSON.stringify(s));clean.lastModified=Date.now();var sid=Date.now().toString(36)+Math.random().toString(36).slice(2);_lastSavedSyncId=sid;clean.syncId=sid;if(clean.profiles){for(var pid in clean.profiles){if(clean.profiles[pid].aiKeys)clean.profiles[pid].aiKeys={anthropic:"",gemini:""};}}db.collection("sync").doc("state").set(clean).then(resolve).catch(function(e){console.error("Firestore save error:",e);reject(e);});}catch(e){reject(e);}});});}
-var dbReadyResolve;var dbReadyPromise=new Promise(function(r){dbReadyResolve=r;setTimeout(function(){r();},10000);});
-function loadFromFirestore(){return dbReadyPromise.then(function(){if(!db)return null;return db.collection("sync").doc("state").get().then(function(d){return d.exists?d.data():null;}).catch(function(){return null;});});}
-function onFirestoreChange(cb){if(!db)return function(){};return db.collection("sync").doc("state").onSnapshot(function(d){if(d.exists)cb(d.data());},function(){});}
-function loadSharedKey(){if(!db)return Promise.resolve();return db.collection("config").doc("apikeys").get().then(function(d){if(d.exists&&d.data().gemini)DEFAULT_GEMINI_KEY=d.data().gemini;}).catch(function(){});}
-function saveSharedKey(key){if(!db)return Promise.resolve();return db.collection("config").doc("apikeys").set({gemini:key}).catch(function(e){console.warn("FS key save:",e);});}
+var _lastRemoteSyncId=null;
+
+function saveToFirestore(s){
+  var clean=JSON.parse(JSON.stringify(s));
+  clean.lastModified=Date.now();
+  var sid=Date.now().toString(36)+Math.random().toString(36).slice(2);
+  _lastSavedSyncId=sid;
+  clean.syncId=sid;
+  if(clean.profiles){for(var pid in clean.profiles){if(clean.profiles[pid].aiKeys)clean.profiles[pid].aiKeys={anthropic:"",gemini:""};}}
+  var body={fields:{data:{stringValue:JSON.stringify(clean)},syncId:{stringValue:sid},ts:{integerValue:String(clean.lastModified)}}};
+  return fetch(FS_BASE+"/sync/state?key="+FS_KEY,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
+    .then(function(r){if(!r.ok)throw new Error("Firestore save: "+r.status);return r.json();});
+}
+
+function loadFromFirestore(){
+  return fetch(FS_BASE+"/sync/state?key="+FS_KEY)
+    .then(function(r){if(!r.ok)return null;return r.json();})
+    .then(function(doc){
+      if(!doc||!doc.fields)return null;
+      // New format: JSON stored in a single "data" string field
+      if(doc.fields.data&&doc.fields.data.stringValue){
+        var parsed=JSON.parse(doc.fields.data.stringValue);
+        _lastRemoteSyncId=doc.fields.syncId?doc.fields.syncId.stringValue:null;
+        return parsed;
+      }
+      // Legacy format: native Firestore fields from old SDK — convert inline
+      try{
+        var f=doc.fields;
+        var legacy=firestoreToJs(f);
+        _lastRemoteSyncId=legacy.syncId||null;
+        return legacy;
+      }catch(e){console.warn("Legacy parse failed:",e);return null;}
+    })
+    .catch(function(e){console.error("loadFromFirestore:",e);return null;});
+}
+// Convert Firestore REST value format to plain JS
+function firestoreToJs(fields){
+  var result={};
+  for(var k in fields){
+    result[k]=fsVal(fields[k]);
+  }
+  return result;
+}
+function fsVal(v){
+  if(v.stringValue!==undefined)return v.stringValue;
+  if(v.integerValue!==undefined)return Number(v.integerValue);
+  if(v.doubleValue!==undefined)return v.doubleValue;
+  if(v.booleanValue!==undefined)return v.booleanValue;
+  if(v.nullValue!==undefined)return null;
+  if(v.mapValue)return firestoreToJs(v.mapValue.fields||{});
+  if(v.arrayValue)return(v.arrayValue.values||[]).map(fsVal);
+  return null;
+}
+
+// Poll for remote syncId changes (lightweight — only reads syncId+ts fields)
+function pollRemoteSyncId(){
+  return fetch(FS_BASE+"/sync/state?key="+FS_KEY+"&mask.fieldPaths=syncId&mask.fieldPaths=ts")
+    .then(function(r){if(!r.ok)return null;return r.json();})
+    .then(function(doc){
+      if(!doc||!doc.fields||!doc.fields.syncId)return null;
+      return doc.fields.syncId.stringValue;
+    })
+    .catch(function(){return null;});
+}
+
+function loadSharedKey(){
+  return fetch(FS_BASE+"/config/apikeys?key="+FS_KEY)
+    .then(function(r){if(!r.ok)return;return r.json();})
+    .then(function(doc){if(doc&&doc.fields&&doc.fields.gemini)DEFAULT_GEMINI_KEY=doc.fields.gemini.stringValue;})
+    .catch(function(){});
+}
+function saveSharedKey(key){
+  var body={fields:{gemini:{stringValue:key}}};
+  return fetch(FS_BASE+"/config/apikeys?key="+FS_KEY,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).catch(function(){});
+}
 </script>
 <style>
   :root, [data-theme="dark"] {
@@ -845,7 +910,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "5.0.12";
+const APP_VERSION = "5.1.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5024,7 +5089,7 @@ function App() {
   const [checked, setChecked] = useState([]);
   const [synth,   setSynth]   = useState(null);
   const [syncStatus, setSyncStatus] = useState("idle");
-  const lastSaveTime = useRef(0);
+  // lastSaveTime removed — echo detection now uses syncId
   const [viewProfileId, setViewProfileId] = useState(null);
 
   // Destructure profile fields for convenience
@@ -5069,7 +5134,7 @@ function App() {
     return [...map.values()];
   };
 
-  // Persist to localStorage (immediate) + Firestore (debounced 3s)
+  // Persist to localStorage (immediate) + Firestore (debounced 2s)
   const hasMounted = useRef(false);
   const firestoreDebounceRef = useRef(null);
   useEffect(()=>{
@@ -5078,35 +5143,54 @@ function App() {
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){}
     if(!hasMounted.current){hasMounted.current=true;return;}
     if(!firestoreLoaded) return;
-    // Debounce Firestore saves: wait 3s of inactivity before writing
+    // Debounce Firestore saves: wait 2s of inactivity before writing
     if(firestoreDebounceRef.current) clearTimeout(firestoreDebounceRef.current);
     setSyncStatus("syncing");
     firestoreDebounceRef.current = setTimeout(()=>{
-      lastSaveTime.current = Date.now();
       saveToFirestore(state).then(()=>setSyncStatus("synced")).catch(()=>setSyncStatus("error"));
-    }, 3000);
+    }, 2000);
     return ()=>{if(firestoreDebounceRef.current)clearTimeout(firestoreDebounceRef.current);};
   },[songDb,theme,setlists,customGuitars,profiles,activeProfileId,firestoreLoaded]);
 
-  // Load from Firestore on first mount — use remote if newer than local
+  // Apply remote data into local state (merge, never lose data)
+  const applyRemoteData = (data) => {
+    if(!data||!data.shared) return;
+    if(data.shared.songDb) setSongDb(prev=>{
+      const m=mergeSongDb(prev,data.shared.songDb);
+      if(m.length===prev.length&&m.every((s,i)=>s===prev[i]))return prev;
+      return m;
+    });
+    if(data.shared.theme) setTheme(data.shared.theme);
+    if(data.shared.setlists) setSetlists(prev=>{
+      const m=mergeSetlists(prev,data.shared.setlists);
+      if(JSON.stringify(m)===JSON.stringify(prev))return prev;
+      return m;
+    });
+    if(data.shared.customGuitars) setCustomGuitars(prev=>{
+      if(JSON.stringify(data.shared.customGuitars)===JSON.stringify(prev))return prev;
+      return data.shared.customGuitars;
+    });
+    if(data.profiles) setProfiles(prev=>{
+      const next=applySecrets(data.profiles);
+      if(JSON.stringify(next)===JSON.stringify(prev))return prev;
+      return next;
+    });
+    if(data.activeProfileId) setActiveProfileId(data.activeProfileId);
+  };
+
+  // Load from Firestore on first mount — merge with local
   const [firestoreProfiles,setFirestoreProfiles]=useState(null);
   useEffect(()=>{
+    loadSharedKey().then(()=>console.log("Shared key loaded")).catch(()=>{});
     loadFromFirestore().then(data=>{
       if(data&&data.shared){
-        // Merge songDb and setlists (never lose data), replace the rest
+        applyRemoteData(data);
+        if(data.profiles) setFirestoreProfiles(data.profiles);
+        // If local had more data, push merged result back
         var remoteSongs=data.shared.songDb||[];
         var remoteSl=data.shared.setlists||[];
         var mergedSongs=mergeSongDb(songDb||[],remoteSongs);
         var mergedSl=mergeSetlists(setlists||[],remoteSl);
-
-        setSongDb(mergedSongs);
-        if(data.shared.theme) setTheme(data.shared.theme);
-        setSetlists(mergedSl);
-        if(data.shared.customGuitars) setCustomGuitars(data.shared.customGuitars);
-        if(data.profiles){setProfiles(applySecrets(data.profiles));setFirestoreProfiles(data.profiles);}
-        if(data.activeProfileId) setActiveProfileId(data.activeProfileId);
-
-        // If local had more songs/setlists, push merged result back
         if(mergedSongs.length>remoteSongs.length||mergedSl.length>remoteSl.length){
           var ps={version:2,activeProfileId:data.activeProfileId||activeProfileId,shared:{songDb:mergedSongs,theme:data.shared.theme||theme,setlists:mergedSl,customGuitars:data.shared.customGuitars||customGuitars},profiles:data.profiles||profiles,lastModified:Date.now()};
           saveToFirestore(ps).catch(function(){});
@@ -5116,53 +5200,26 @@ function App() {
     }).catch(()=>setFirestoreLoaded(true));
   },[]);
 
-  // Listen for remote changes from other devices
+  // Poll for remote changes every 5s (replaces onSnapshot — no SDK needed)
   useEffect(()=>{
-    let unsub=()=>{};
-    let firstSnapshot=true;
-    // Use onDbReady (not dbReadyPromise) so the listener is always set up,
-    // even if Firebase loads after the 10s initial timeout.
-    onDbReady(()=>{
-      if(!db) return;
-      unsub = db.collection("sync").doc("state").onSnapshot(function(d){
-        if(!d.exists) return;
-        const data=d.data();
-        // Skip the very first snapshot (reflects current/local state, not a remote change)
-        if(firstSnapshot){firstSnapshot=false;return;}
-        // Skip echoes of our own saves (identified by syncId, not a time window)
-        if(data.syncId&&data.syncId===_lastSavedSyncId) return;
-        if(!data||!data.shared) return;
-        // Apply each field only if the merged result is actually different from current state
-        // (prevents unnecessary re-renders and save feedback loops)
-        if(data.shared.songDb) setSongDb(prev=>{
-          const m=mergeSongDb(prev,data.shared.songDb);
-          // Same object refs → mergeSongDb kept local objects → no actual change
-          if(m.length===prev.length&&m.every((s,i)=>s===prev[i]))return prev;
-          return m;
+    if(!firestoreLoaded) return;
+    const iv=setInterval(()=>{
+      pollRemoteSyncId().then(remoteSid=>{
+        if(!remoteSid) return;
+        // Skip our own saves
+        if(remoteSid===_lastSavedSyncId) return;
+        // Skip if nothing changed since last poll
+        if(remoteSid===_lastRemoteSyncId) return;
+        // New remote change detected — fetch full data
+        loadFromFirestore().then(data=>{
+          if(!data) return;
+          applyRemoteData(data);
+          setSyncStatus("synced");
         });
-        if(data.shared.theme) setTheme(data.shared.theme);
-        if(data.shared.setlists) setSetlists(prev=>{
-          const m=mergeSetlists(prev,data.shared.setlists);
-          // mergeSetlists always creates new objects, so compare by content not reference
-          if(m.length===prev.length&&m.every((sl,i)=>prev[i]&&sl.id===prev[i].id&&
-            sl.songIds.length===prev[i].songIds.length&&
-            sl.songIds.every((id,j)=>id===prev[i].songIds[j])))return prev;
-          return m;
-        });
-        if(data.shared.customGuitars) setCustomGuitars(prev=>{
-          if(JSON.stringify(data.shared.customGuitars)===JSON.stringify(prev))return prev;
-          return data.shared.customGuitars;
-        });
-        if(data.profiles) setProfiles(prev=>{
-          const next=applySecrets(data.profiles);
-          if(JSON.stringify(next)===JSON.stringify(prev))return prev;
-          return next;
-        });
-        setSyncStatus("synced");
-      },function(){});
-    });
-    return ()=>unsub();
-  },[]);
+      });
+    },5000);
+    return ()=>clearInterval(iv);
+  },[firestoreLoaded]);
 
   const recordLogin = id => {
     setProfiles(p=>{if(!p[id])return p;const h=(p[id].loginHistory||[]).slice();h.unshift(Date.now());if(h.length>5)h.length=5;return{...p,[id]:{...p[id],loginHistory:h}};});
@@ -5251,25 +5308,6 @@ function App() {
 
 ReactDOM.render(<App/>, document.getElementById("root"));
 </script>
-<script>
-// Load Firebase lazily — after app renders
-(function(){
-  var s1=document.createElement("script");
-  s1.src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js";
-  s1.onload=function(){
-    var s2=document.createElement("script");
-    s2.src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js";
-    s2.onload=function(){
-      try{
-        firebase.initializeApp({apiKey:"AIzaSyAnaJMN-a47S9W_cTC60lKAnzRMAgHNMAA",authDomain:"tonex-guide.firebaseapp.com",projectId:"tonex-guide",storageBucket:"tonex-guide.firebasestorage.app",messagingSenderId:"891859157059",appId:"1:891859157059:web:519ce30a866f20ab3d54f6"});
-        db=firebase.firestore();
-        loadSharedKey().then(function(){console.log("Firebase ready, key loaded");_triggerDbReady();if(dbReadyResolve)dbReadyResolve();});
-      }catch(e){console.warn("Firebase init failed:",e);}
-    };
-    document.head.appendChild(s2);
-  };
-  document.head.appendChild(s1);
-})();
-</script>
+<!-- Firebase SDK removed — using Firestore REST API directly -->
 </body>
 </html>
