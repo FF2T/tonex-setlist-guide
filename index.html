@@ -3035,7 +3035,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "3.9.1";
+const APP_VERSION = "3.9.2";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -6621,25 +6621,26 @@ function SplashPopup({onClose}){
       <div style={{background:"var(--bg-card)",borderRadius:24,padding:"32px 24px",maxWidth:420,width:"100%",position:"relative",boxShadow:"0 25px 50px rgba(0,0,0,0.5)",textAlign:"center"}} onClick={e=>e.stopPropagation()}>
         <div style={{fontSize:48,marginBottom:12}}>🎸</div>
         <div style={{fontSize:24,fontWeight:800,color:"var(--text)",marginBottom:4}}>ToneX Poweruser</div>
-        <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:16}}>Le compagnon intelligent de ta pédale ToneX</div>
+        <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:16}}>Le guide intelligent pour ta pedale ToneX</div>
 
         <div style={{fontSize:13,color:"var(--accent)",fontWeight:600,fontStyle:"italic",marginBottom:16,padding:"12px 16px",background:"var(--accent-bg)",borderRadius:10,border:"1px solid var(--accent-border)"}}>
           "Quel preset charger pour ce morceau, avec cette guitare ?"
         </div>
 
         <div style={{fontSize:12,color:"var(--text-muted)",marginBottom:16,lineHeight:1.6}}>
-          Tu scrolles, tu testes, tu perds du temps.<br/>Et tu finis par toujours utiliser les 3 mêmes presets.
+          Tu scrolles, tu testes, tu perds du temps.<br/>Et tu finis par toujours utiliser les 3 memes presets.
         </div>
 
         <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:14}}>
-          ToneX Poweruser te recommande automatiquement le meilleur preset pour chaque morceau.
+          L'IA analyse le morceau, raisonne sur le son et recommande le meilleur couple guitare + preset.
         </div>
 
         <div style={{display:"flex",flexDirection:"column",gap:8,textAlign:"left",marginBottom:20}}>
           {[
-            {n:"1",emoji:"🔍",text:"Tape un morceau — l'IA identifie le titre, l'artiste et le son"},
-            {n:"2",emoji:"🎸",text:"Choisis ta guitare — l'IA calcule le meilleur preset"},
-            {n:"3",emoji:"🤘",text:"Rock'n'roll !"},
+            {n:"1",emoji:"🔍",text:"Tape un morceau — l'IA analyse le profil tonal et l'ampli original"},
+            {n:"2",emoji:"🧠",text:"L'IA raisonne : guitare ideale, ampli cible, preset recommande"},
+            {n:"3",emoji:"🎸",text:"Choisis ta guitare — les presets s'adaptent automatiquement"},
+            {n:"4",emoji:"🤘",text:"Rock'n'roll !"},
           ].map(({n,emoji,text})=>(
             <div key={n} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"var(--a3)",borderRadius:10}}>
               <span style={{fontSize:20,flexShrink:0}}>{emoji}</span>
@@ -6648,7 +6649,7 @@ function SplashPopup({onClose}){
           ))}
         </div>
 
-        <button onClick={onClose} style={{background:"linear-gradient(135deg,#7c3aed,#0ea5e9)",border:"none",color:"#fff",borderRadius:12,padding:"12px 32px",fontSize:15,fontWeight:700,cursor:"pointer",width:"100%"}}>C'est parti !</button>
+        <button onClick={onClose} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:12,padding:"12px 32px",fontSize:15,fontWeight:700,cursor:"pointer",width:"100%"}}>C'est parti !</button>
       </div>
     </div>
   );
@@ -6664,27 +6665,29 @@ function OnboardingWizard({onClose,onProfile}){
       <div style={{fontSize:56,marginBottom:16}}>🎸</div>
       <div style={{fontSize:26,fontWeight:800,color:"var(--text)",marginBottom:10}}>ToneX Poweruser</div>
       <div style={{fontSize:15,color:"var(--text-sec)",lineHeight:1.6,marginBottom:24}}>
-        L'app qui te dit quel preset charger sur ta pédale ToneX pour chaque morceau, en fonction de ta guitare.
+        Le guide intelligent pour ta pedale ToneX : quel preset charger pour chaque morceau, avec ta guitare.
       </div>
       <div style={{fontSize:13,color:"var(--text-muted)",lineHeight:2,textAlign:"left",padding:"18px 20px",background:"var(--a3)",borderRadius:14}}>
         <div style={{fontWeight:700,marginBottom:6,color:"var(--text-sec)",fontSize:14}}>En 3 minutes tu pourras :</div>
-        <div>🔍 Chercher un morceau et obtenir le preset idéal</div>
-        <div>🎵 Préparer une setlist pour ton prochain cours</div>
-        <div>📋 Savoir quels presets emporter sur ton plug</div>
+        <div>🔍 Chercher un morceau et obtenir le preset ideal</div>
+        <div>🧠 Voir le raisonnement IA (profil tonal, guitare, ampli)</div>
+        <div>🎵 Preparer une setlist avec les bons presets</div>
+        <div>🎛️ Explorer les presets par profil sonore</div>
       </div>
     </div>,
     // 1: Fonctionnalités
     ()=><div style={{textAlign:"center"}}>
       <div style={{fontSize:48,marginBottom:12}}>🎵</div>
-      <div style={{fontSize:22,fontWeight:800,color:"var(--text)",marginBottom:8}}>Fonctionnalités</div>
+      <div style={{fontSize:22,fontWeight:800,color:"var(--text)",marginBottom:8}}>Fonctionnalites</div>
       <div style={{display:"flex",flexDirection:"column",gap:10,textAlign:"left",padding:"4px 0"}}>
         {[
-          {emoji:"🔍",title:"Recherche intelligente",desc:"Tape \"white room\" ou \"highway to hel\" — l'IA corrige et identifie le morceau, les presets, l'ampli et les effets de référence."},
-          {emoji:"🎵",title:"Setlists de session",desc:"Crée des setlists par contexte (cours, répétition, scène). L'app te dit quelle guitare emporter et génère la liste des presets à charger."},
-          {emoji:"🎲",title:"Jammer",desc:"Choisis une guitare et un style — top 3 des presets installés et meilleurs du catalogue."},
-          {emoji:"🎛️",title:"Explorateur de presets",desc:"500+ presets scorés par guitare, filtrables par style, gain, source et micro."},
-          {emoji:"★",title:"Meilleur preset disponible",desc:"Comparaison automatique avec tout ton catalogue. Installé ? Affiché. Pas installé ? Suggéré avec score et source."},
-          {emoji:"👥",title:"Multi-profils & Sync",desc:"Chaque guitariste a son profil. Idéal pour un prof et ses élèves. Sync temps réel téléphone ↔ PC."},
+          {emoji:"🔍",title:"Recherche intelligente",desc:"Tape un morceau — l'IA analyse le profil tonal, identifie l'ampli et la guitare d'origine, et recommande le meilleur couple guitare + preset."},
+          {emoji:"🧠",title:"Raisonnement IA",desc:"L'IA explique son raisonnement en 3 etapes : profil tonal du morceau, scoring des guitares, profil ampli ideal."},
+          {emoji:"🎵",title:"Setlists de session",desc:"Cree des setlists par contexte (cours, repetition, scene). Chaque morceau a sa fiche avec recommandation ideale et parametrage."},
+          {emoji:"🎲",title:"Jammer",desc:"Choisis une guitare et un style — top 3 des presets installes et meilleurs du catalogue, avec fiches depliables."},
+          {emoji:"🎛️",title:"Explorateur de presets",desc:"Explore par profil sonore (Clean cristallin, Blues vintage, Crunch 70s, Metal...). Chaque preset a sa fiche avec description, morceaux mythiques et guitares adaptees."},
+          {emoji:"📦",title:"Installation directe",desc:"Installe le preset recommande directement sur ta pedale ou ton plug en choisissant la banque et le slot."},
+          {emoji:"👥",title:"Multi-profils & Sync",desc:"Chaque guitariste a son profil. Sync temps reel telephone - PC via Firestore."},
         ].map(({emoji,title,desc})=><div key={title} style={{display:"flex",gap:10,padding:"10px 12px",background:"var(--a3)",borderRadius:10}}>
           <span style={{fontSize:18,flexShrink:0}}>{emoji}</span>
           <div><div style={{fontSize:12,fontWeight:700,color:"var(--text)",marginBottom:2}}>{title}</div><div style={{fontSize:11,color:"var(--text-muted)",lineHeight:1.5}}>{desc}</div></div>
@@ -6696,12 +6699,12 @@ function OnboardingWizard({onClose,onProfile}){
       <div style={{fontSize:48,marginBottom:12}}>⚙️</div>
       <div style={{fontSize:22,fontWeight:800,color:"var(--text)",marginBottom:8}}>Configure ton profil</div>
       <div style={{fontSize:13,color:"var(--text-sec)",lineHeight:1.6,marginBottom:20}}>
-        Pour des recommandations précises, l'app a besoin de connaître :
+        Pour des recommandations precises, l'app a besoin de connaitre :
       </div>
       <div style={{fontSize:13,color:"var(--text-muted)",lineHeight:2.2,textAlign:"left",padding:"18px 20px",background:"var(--a3)",borderRadius:14}}>
-        <div><b style={{color:"var(--text-sec)"}}>🎸 Tes guitares</b> — pour adapter les scores par type de micro (HB, SC, P90) et par modèle</div>
-        <div><b style={{color:"var(--text-sec)"}}>📱 Ton matériel</b> — pédale ToneX Standard/Anniversary et/ou ToneX Plug</div>
-        <div><b style={{color:"var(--text-sec)"}}>📦 Tes sources</b> — quels packs de presets tu possèdes (TSR, ML, Factory...)</div>
+        <div><b style={{color:"var(--text-sec)"}}>🎸 Tes guitares</b> — pour adapter les recommandations par modele et type de micro</div>
+        <div><b style={{color:"var(--text-sec)"}}>📱 Ton materiel</b> — pedale ToneX Anniversary et/ou ToneX Plug</div>
+        <div><b style={{color:"var(--text-sec)"}}>📦 Tes sources</b> — quels packs de presets tu possedes (TSR, ML, Factory...)</div>
       </div>
     </div>,
   ];
