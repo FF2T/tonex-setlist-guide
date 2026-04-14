@@ -2348,6 +2348,7 @@ const PRESET_CONTEXT = {
   "Cornfield Harle":{emoji:"😈",refs:[{a:"Thom Yorke",t:[]},{a:"Nile Rodgers",t:["Le Freak"]}],desc:"Le Cornford Harlequin est la version clean/crunch de Cornford. Son aéré, réponse en cloche, idéal pour les textures sonores et les jeux dynamiques."},
   "Custom 30":{emoji:"🫖",refs:[{a:"Brian May",t:["Bohemian Rhapsody"]},{a:"Tom Petty",t:["Free Fallin'"]}],desc:"Ampli de type Vox AC30 custom. Son british classique avec ses harmoniques chimey caractéristiques. Chime et crunch naturel pour le rock britannique."},
   "Diezel":{emoji:"⚙️",refs:[{a:"Adam Jones",t:["Schism"]},{a:"Bumblefoot",t:[]},{a:"Rivera (Metallica tech)",t:[]}],desc:"Les amplis Diezel allemands sont des machines de guerre du high gain. Son serré, articulé même dans les graves. Référence du metal et du hard rock moderne."},
+  "Divided by 13":{emoji:"🔷",refs:[{a:"John Mayer",t:["Gravity","Waiting on the World to Change"]},{a:"Blake Mills",t:[]},{a:"Matt Schofield",t:[]}],desc:"Divided by 13 fabrique des amplis boutique californiens réputés pour leur dynamique exceptionnelle et leur réponse au toucher. Son clean lumineux qui crunche naturellement en poussant le volume. Favori de John Mayer en studio."},
   "Dr. Z":{emoji:"🩺",refs:[{a:"Brad Paisley",t:["Mud on the Tires"]},{a:"Joe Bonamassa",t:["Sloe Gin"]}],desc:"Les amplis Dr. Z sont des boutiques américains au son vintage inspiré du Vox et du Fender. Chaleur, réponse dynamique et musicalité exceptionnelles."},
   "Dr. Z Wreck":{emoji:"🩺",refs:[{a:"Joe Bonamassa",t:["Sloe Gin"]},{a:"Brad Paisley",t:[]}],desc:"Le Dr. Z Wreck est un ampli boutique inspiré du Trainwreck. Son clair brillant, crunch musical et expressif. Très réactif au volume de la guitare."},
   "Drive Pedals":{emoji:"🎛️",refs:[],desc:"Pédales de drive capturées via ToneX. Ces presets modélisent des pédales d'overdrive, fuzz et distortion populaires, jouées à travers différents amplis."},
@@ -3016,7 +3017,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "3.7.0";
+const APP_VERSION = "3.7.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5863,8 +5864,25 @@ function findAmpContext(ampName,ctxMap){
     "Sons Amp":"Fender Champ",
     "Mega Barba":"Mesa Boogie",
     "Ample Betty":"Supro",
+    "Amplified Nation Overdrive Reverb":"Dumble ODS",
+    "Amplified Nation Wonderland Overdrive":"Dumble ODS",
+    "Bogner Goldfinger":"Bogner G-Finger",
+    "Dumble Overdrive Deluxe":"Dumble Deluxe",
+    "Mega Amp":"Mesa Boogie",
+    "Synergy SYN-30":"Fender Champ",
+    "Suhr PT-100 / 2864-S":"Marshall Plexi",
+    "Divers British":"Marshall Plexi",
+    "Divers basse":"Ampeg SVT",
+    "Divided by 13":"Divided by 13",
+    "Pédales de drive":"Drive Pedals",
   };
   if(ALIASES[ampName]&&ctx[ALIASES[ampName]])return ctx[ALIASES[ampName]];
+  // Combo "ampli + pédale" → chercher l'ampli de base (avant le " + ")
+  if(ampName.includes(" + ")){
+    const baseAmp=ampName.split(" + ")[0].trim();
+    const baseCtx=findAmpContext(baseAmp,ctx);
+    if(baseCtx)return baseCtx;
+  }
   // Fuzzy: essayer variations de marque
   const norm=ampName.replace(/\s+/g," ").trim();
   const variations=[
