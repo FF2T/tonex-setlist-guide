@@ -844,7 +844,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "5.0.4";
+const APP_VERSION = "5.0.5";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -1044,9 +1044,10 @@ function AppHeader({profiles,activeProfileId,onSwitch,onProfile,onViewProfile}){
     <button onClick={onProfile} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 10px",fontSize:10,fontWeight:600,cursor:"pointer"}}>Mon profil</button>
   </div>;
 }
-function AppFooter({syncStatus}){
+function AppFooter({syncStatus,syncDebug}){
   return <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"24px 0 8px",flexWrap:"wrap"}}>
     {syncStatus&&<span style={{fontSize:10,color:syncStatus==="synced"?"var(--green)":syncStatus==="syncing"?"var(--yellow)":syncStatus==="error"?"var(--red)":"var(--text-dim)"}} title={syncStatus==="synced"?"Synchronise":syncStatus==="syncing"?"Synchronisation...":"Hors ligne"}>{syncStatus==="synced"?"☁️":syncStatus==="syncing"?"⏳":"⚠️"}</span>}
+    {syncDebug&&<span style={{fontSize:9,color:"var(--text-dim)"}}>{syncDebug}</span>}
     <span style={{fontSize:10,color:"var(--text-dim)"}}>ToneX Poweruser v{APP_VERSION}</span>
     <button onClick={()=>{location.reload(true);}} style={{background:"none",border:"none",color:"var(--text-dim)",fontSize:10,cursor:"pointer",textDecoration:"underline"}} title="Recharger pour récupérer la dernière version">MAJ</button>
   </div>;
@@ -4868,7 +4869,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           <div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>Profils sonores</div>
         </button>
       </div>}
-      <AppFooter syncStatus={syncStatus}/>
+      <AppFooter syncStatus={syncStatus} syncDebug={syncDebug}/>
       <div style={{textAlign:"center",paddingBottom:8}}><button onClick={()=>setShowOnboarding(true)} style={{background:"none",border:"none",color:"var(--text-dim)",fontSize:10,cursor:"pointer",textDecoration:"underline"}}>Aide</button></div>
     </div>
   );
@@ -5023,6 +5024,7 @@ function App() {
   const [checked, setChecked] = useState([]);
   const [synth,   setSynth]   = useState(null);
   const [syncStatus, setSyncStatus] = useState("idle");
+  const [syncDebug, setSyncDebug] = useState("");
   const lastSaveTime = useRef(0);
   const [viewProfileId, setViewProfileId] = useState(null);
 
@@ -5108,12 +5110,16 @@ function App() {
         if(mergedProfiles){setProfiles(applySecrets(mergedProfiles));setFirestoreProfiles(data.profiles);}
         if(data.activeProfileId) setActiveProfileId(data.activeProfileId);
 
+        // Debug sync info
+        setSyncDebug(`L:${localSongs.length} R:${remoteSongs.length} M:${mergedSongs.length}`);
         // If local had more data, push merged result back to Firestore
         if(mergedSongs.length>remoteSongs.length||mergedSl.length>remoteSl.length){
           const pushState={version:2, activeProfileId:data.activeProfileId||activeProfileId, shared:{songDb:mergedSongs,theme:data.shared.theme||theme,setlists:mergedSl,customGuitars:data.shared.customGuitars||customGuitars}, profiles:mergedProfiles, lastModified:Date.now()};
-          // Direct push — don't rely on React state cycle
-          saveToFirestore(pushState).then(()=>setSyncStatus("synced")).catch(()=>{});
+          setSyncDebug(`L:${localSongs.length} R:${remoteSongs.length} M:${mergedSongs.length} PUSH...`);
+          saveToFirestore(pushState).then(()=>{setSyncStatus("synced");setSyncDebug(`L:${localSongs.length} R:${remoteSongs.length} M:${mergedSongs.length} PUSHED`);}).catch(e=>setSyncDebug(`PUSH ERR: ${e.message}`));
         }
+      } else {
+        setSyncDebug(data?"no data.shared":"no data");
       }
       setFirestoreLoaded(true);
     }).catch(()=>setFirestoreLoaded(true));
@@ -5199,31 +5205,31 @@ function App() {
 
   if(screen==="loading") return <div className="page-root"><div style={{textAlign:"center",padding:"60px 20px"}}><div style={{fontSize:48,marginBottom:16}}>🎸</div><div style={{fontSize:20,fontWeight:800,color:"var(--text)"}}>ToneX Poweruser</div><div style={{fontSize:13,color:"var(--text-muted)",marginTop:8}}>Chargement...</div></div></div>;
   if(screen==="pick") return <div className="page-root"><ProfilePickerScreen profiles={profiles} onPick={pickProfile}/></div>;
-  if(screen==="viewprofile"&&viewProfileId&&profiles[viewProfileId]) return <div className="page-root"><ViewProfileScreen profile={profiles[viewProfileId]} onBack={()=>setScreen("list")} onNavigate={setScreen}/><AppFooter syncStatus={syncStatus}/></div>;
-  if(screen==="exportimport") return <div className="page-root"><ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("settings")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/><AppFooter syncStatus={syncStatus}/></div>;
-  if(screen==="profile")      return <div className="page-root"><MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/><AppFooter syncStatus={syncStatus}/></div>;
-  if(screen==="settings")     return <div className="page-root"><ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} songDb={songDb} onSongDb={setSongDb}/><AppFooter syncStatus={syncStatus}/></div>;
+  if(screen==="viewprofile"&&viewProfileId&&profiles[viewProfileId]) return <div className="page-root"><ViewProfileScreen profile={profiles[viewProfileId]} onBack={()=>setScreen("list")} onNavigate={setScreen}/><AppFooter syncStatus={syncStatus} syncDebug={syncDebug}/></div>;
+  if(screen==="exportimport") return <div className="page-root"><ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("settings")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/><AppFooter syncStatus={syncStatus} syncDebug={syncDebug}/></div>;
+  if(screen==="profile")      return <div className="page-root"><MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/><AppFooter syncStatus={syncStatus} syncDebug={syncDebug}/></div>;
+  if(screen==="settings")     return <div className="page-root"><ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} songDb={songDb} onSongDb={setSongDb}/><AppFooter syncStatus={syncStatus} syncDebug={syncDebug}/></div>;
   if(screen==="setlists")     return <div className="page-root">
     <AppHeader profiles={profiles} activeProfileId={activeProfileId} onSwitch={switchProfile} onProfile={()=>{setProfileInitTab(null);setScreen("profile");}} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}}/>
     <SetlistsScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} activeProfileId={activeProfileId}/>
-    <AppFooter syncStatus={syncStatus}/>
+    <AppFooter syncStatus={syncStatus} syncDebug={syncDebug}/>
   </div>;
   if(screen==="jam") return <div className="page-root">
     <AppHeader profiles={profiles} activeProfileId={activeProfileId} onSwitch={switchProfile} onProfile={()=>{setProfileInitTab(null);setScreen("profile");}} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}}/>
     <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Jammer"}]} onNavigate={setScreen}/>
     <div style={{fontSize:20,fontWeight:800,color:"var(--text)",marginBottom:16}}>🎲 Jammer</div>
     <JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/>
-    <AppFooter syncStatus={syncStatus}/>
+    <AppFooter syncStatus={syncStatus} syncDebug={syncDebug}/>
   </div>;
   if(screen==="explore") return <div className="page-root">
     <AppHeader profiles={profiles} activeProfileId={activeProfileId} onSwitch={switchProfile} onProfile={()=>{setProfileInitTab(null);setScreen("profile");}} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}}/>
     <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Explorer"}]} onNavigate={setScreen}/>
     <div style={{fontSize:20,fontWeight:800,color:"var(--text)",marginBottom:16}}>🎛️ Explorer les presets</div>
     <PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={profile.customPacks} guitars={allGuitars}/>
-    <AppFooter syncStatus={syncStatus}/>
+    <AppFooter syncStatus={syncStatus} syncDebug={syncDebug}/>
   </div>;
-  if(screen==="synthesis"&&synth) return <div className="page-root"><AppHeader profiles={profiles} activeProfileId={activeProfileId} onSwitch={switchProfile} onProfile={()=>{setProfileInitTab(null);setScreen("profile");}} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}}/><SynthesisScreen songs={songs} gps={synth.gps} aiR={synth.aiR} onBack={()=>setScreen("recap")} onNavigate={setScreen} songDb={songDb} banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/><AppFooter syncStatus={syncStatus}/></div>;
-  if(screen==="recap")        return <div className="page-root"><AppHeader profiles={profiles} activeProfileId={activeProfileId} onSwitch={switchProfile} onProfile={()=>{setProfileInitTab(null);setScreen("profile");}} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}}/><RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDb} onSongDb={setSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources}/><AppFooter syncStatus={syncStatus}/></div>;
+  if(screen==="synthesis"&&synth) return <div className="page-root"><AppHeader profiles={profiles} activeProfileId={activeProfileId} onSwitch={switchProfile} onProfile={()=>{setProfileInitTab(null);setScreen("profile");}} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}}/><SynthesisScreen songs={songs} gps={synth.gps} aiR={synth.aiR} onBack={()=>setScreen("recap")} onNavigate={setScreen} songDb={songDb} banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/><AppFooter syncStatus={syncStatus} syncDebug={syncDebug}/></div>;
+  if(screen==="recap")        return <div className="page-root"><AppHeader profiles={profiles} activeProfileId={activeProfileId} onSwitch={switchProfile} onProfile={()=>{setProfileInitTab(null);setScreen("profile");}} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}}/><RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDb} onSongDb={setSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources}/><AppFooter syncStatus={syncStatus} syncDebug={syncDebug}/></div>;
   return <div className="page-root"><HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/></div>;
 }
 
