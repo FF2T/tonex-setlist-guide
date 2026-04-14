@@ -3035,7 +3035,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "3.9.0";
+const APP_VERSION = "3.9.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -6243,10 +6243,14 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars}
   const hasFilter=soundProfile!=="all"||filterSrcs.length>0||search.trim();
   return (
     <div>
-      <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:14}}>Explore ta bibliothèque de presets et découvre leur contexte musical.</div>
+      <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:10}}>Explore ta bibliothèque de presets et découvre leur contexte musical.</div>
+
+      {/* Recherche — en haut, bien visible */}
+      <input placeholder="🔍 Rechercher artiste, morceau, ampli..." value={search} onChange={e=>setSearch(e.target.value)}
+        style={{width:"100%",background:"var(--bg-card)",color:"var(--text)",border:"2px solid var(--a15)",borderRadius:12,padding:"14px 16px",fontSize:15,boxSizing:"border-box",marginBottom:14}}/>
 
       {/* Bouton aléatoire */}
-      <button onClick={pickRandom} style={{width:"100%",background:"linear-gradient(135deg,#7c3aed,#0ea5e9)",border:"none",color:"var(--text)",borderRadius:12,padding:"14px",fontSize:15,fontWeight:700,cursor:"pointer",marginBottom:16}}>
+      <button onClick={pickRandom} style={{width:"100%",background:"var(--accent)",border:"none",color:"#fff",borderRadius:12,padding:"12px",fontSize:14,fontWeight:700,cursor:"pointer",marginBottom:16}}>
         🎲 Preset aléatoire
       </button>
 
@@ -6299,8 +6303,6 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars}
           </div>
         </div>
         {/* Recherche */}
-        <input placeholder="Rechercher artiste, morceau, ampli..." value={search} onChange={e=>setSearch(e.target.value)}
-          style={{width:"100%",background:"var(--bg-body)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:8,padding:"8px 12px",fontSize:12,boxSizing:"border-box"}}/>
         {hasFilter&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <span style={{fontSize:11,color:"var(--text-muted)"}}>{filtered.length} preset{filtered.length>1?"s":""} trouve{filtered.length>1?"s":""}</span>
           <button onClick={()=>{setSoundProfile("all");setFilterSrcs([]);setFilterPacks([]);setSearch("");}} style={{fontSize:11,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Reinitialiser</button>
