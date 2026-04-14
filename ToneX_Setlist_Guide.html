@@ -844,7 +844,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "5.0.5";
+const APP_VERSION = "5.0.6";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5111,12 +5111,12 @@ function App() {
         if(data.activeProfileId) setActiveProfileId(data.activeProfileId);
 
         // Debug sync info
-        setSyncDebug(`L:${localSongs.length} R:${remoteSongs.length} M:${mergedSongs.length}`);
+        setSyncDebug("L:"+localSongs.length+" R:"+remoteSongs.length+" M:"+mergedSongs.length);
         // If local had more data, push merged result back to Firestore
         if(mergedSongs.length>remoteSongs.length||mergedSl.length>remoteSl.length){
           const pushState={version:2, activeProfileId:data.activeProfileId||activeProfileId, shared:{songDb:mergedSongs,theme:data.shared.theme||theme,setlists:mergedSl,customGuitars:data.shared.customGuitars||customGuitars}, profiles:mergedProfiles, lastModified:Date.now()};
-          setSyncDebug(`L:${localSongs.length} R:${remoteSongs.length} M:${mergedSongs.length} PUSH...`);
-          saveToFirestore(pushState).then(()=>{setSyncStatus("synced");setSyncDebug(`L:${localSongs.length} R:${remoteSongs.length} M:${mergedSongs.length} PUSHED`);}).catch(e=>setSyncDebug(`PUSH ERR: ${e.message}`));
+          setSyncDebug("L:"+localSongs.length+" R:"+remoteSongs.length+" M:"+mergedSongs.length+" PUSH...");
+          saveToFirestore(pushState).then(function(){setSyncStatus("synced");setSyncDebug("L:"+localSongs.length+" R:"+remoteSongs.length+" M:"+mergedSongs.length+" PUSHED");}).catch(function(e){setSyncDebug("PUSH ERR: "+e.message);});
         }
       } else {
         setSyncDebug(data?"no data.shared":"no data");
