@@ -3035,7 +3035,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "4.2.2";
+const APP_VERSION = "4.2.3";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5198,14 +5198,15 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
         <div style={{marginBottom:8}}>
           <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Guitare choisie</div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:12}}>{g&&ig.includes(gId)?"⭐":"🎸"}</span>
             <div style={{flex:1}}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/></div>
           </div>
-          {g&&chosenGuitarScore&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:3}}>Compatibilite : <b style={{color:scoreColor(chosenGuitarScore)}}>{chosenGuitarScore}%</b></div>}
+          {g&&chosenGuitarScore&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:3,marginLeft:24}}>Compatibilite : <b style={{color:scoreColor(chosenGuitarScore)}}>{chosenGuitarScore}%</b></div>}
         </div>
         <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Meilleurs presets installes pour {g?.short||"cette guitare"}</div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          <div style={{display:"flex",alignItems:"center",gap:4}}>{aiC.preset_ann?.label===aiC.ideal_preset?<span title="Preset ideal">⭐</span>:(aiC.preset_ann?.score||0)<65?<span title="Ameliorable">⚠️</span>:null}<div style={{flex:1}}><PBlock device="Pedale" emoji="📦" presetName={aiC.preset_ann?.label} gType={gId?type:null} banks={banksAnn} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_ann?.score} breakdown={aiC.preset_ann?.breakdown}/></div></div>
-          <div style={{display:"flex",alignItems:"center",gap:4}}>{aiC.preset_plug?.label===aiC.ideal_preset?<span title="Preset ideal">⭐</span>:(aiC.preset_plug?.score||0)<65?<span title="Ameliorable">⚠️</span>:null}<div style={{flex:1}}><PBlock device="ToneX Plug" emoji="🔌" presetName={aiC.preset_plug?.label} gType={gId?type:null} banks={banksPlug} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_plug?.score} breakdown={aiC.preset_plug?.breakdown}/></div></div>
+          <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:12}}>{aiC.preset_ann?.label===aiC.ideal_preset?"⭐":(aiC.preset_ann?.score||0)<65?"⚠️":"📦"}</span><div style={{flex:1}}><PBlock device="Pedale" emoji="📦" presetName={aiC.preset_ann?.label} gType={gId?type:null} banks={banksAnn} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_ann?.score} breakdown={aiC.preset_ann?.breakdown}/></div></div>
+          <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:12}}>{aiC.preset_plug?.label===aiC.ideal_preset?"⭐":(aiC.preset_plug?.score||0)<65?"⚠️":"🔌"}</span><div style={{flex:1}}><PBlock device="ToneX Plug" emoji="🔌" presetName={aiC.preset_plug?.label} gType={gId?type:null} banks={banksPlug} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_plug?.score} breakdown={aiC.preset_plug?.breakdown}/></div></div>
         </div>
       </div>
 
