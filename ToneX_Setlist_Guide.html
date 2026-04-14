@@ -845,7 +845,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "5.0.10";
+const APP_VERSION = "5.0.11";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5136,13 +5136,17 @@ function App() {
         // (prevents unnecessary re-renders and save feedback loops)
         if(data.shared.songDb) setSongDb(prev=>{
           const m=mergeSongDb(prev,data.shared.songDb);
+          // Same object refs → mergeSongDb kept local objects → no actual change
           if(m.length===prev.length&&m.every((s,i)=>s===prev[i]))return prev;
           return m;
         });
         if(data.shared.theme) setTheme(data.shared.theme);
         if(data.shared.setlists) setSetlists(prev=>{
           const m=mergeSetlists(prev,data.shared.setlists);
-          if(m.length===prev.length&&m.every((s,i)=>s===prev[i]))return prev;
+          // mergeSetlists always creates new objects, so compare by content not reference
+          if(m.length===prev.length&&m.every((sl,i)=>prev[i]&&sl.id===prev[i].id&&
+            sl.songIds.length===prev[i].songIds.length&&
+            sl.songIds.every((id,j)=>id===prev[i].songIds[j])))return prev;
           return m;
         });
         if(data.shared.customGuitars) setCustomGuitars(prev=>{
