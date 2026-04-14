@@ -2876,8 +2876,8 @@ function computeSimpleScore(presetName,guitarId,gType){
 function guitarScore(name,guitarId){return computeSimpleScore(name,guitarId,null);}
 function presetScore(name,gType){return computeSimpleScore(name,null,gType);}
 function srcBadge(name){const s=findCatalogEntry(name)?.src;return s==="TSR"?"TSR":s==="ML"?"ML":s==="Anniversary"?"Pédale":s==="custom"?"Custom":"";}
-function styleBadge(style){const c={hard_rock:"#ef4444",rock:"#f59e0b",blues:"var(--blue)",jazz:"var(--green)",pop:"#ec4899",metal:"#8b5cf6"}[style]||"var(--text-sec)";const l={hard_rock:"Hard Rock",rock:"Rock",blues:"Blues",jazz:"Jazz",pop:"Pop",metal:"Metal"}[style]||style;return <span style={{fontSize:10,background:`${c}20`,color:c,border:`1px solid ${c}40`,borderRadius:4,padding:"1px 7px",fontWeight:700}}>{l}</span>;}
-function gainBadge(gain){const c={low:"var(--green)",mid:"var(--yellow)",high:"var(--red)"}[gain]||"var(--text-sec)";const l={low:"Low",mid:"Mid",high:"High"}[gain]||gain;return <span style={{fontSize:10,background:`${c}20`,color:c,border:`1px solid ${c}40`,borderRadius:4,padding:"1px 7px",fontWeight:700}}>{l} gain</span>;}
+function styleBadge(style){const l={hard_rock:"Hard Rock",rock:"Rock",blues:"Blues",jazz:"Jazz",pop:"Pop",metal:"Metal"}[style]||style;return <span style={{fontSize:10,background:"var(--a6)",color:"var(--text-sec)",border:"1px solid var(--a10)",borderRadius:4,padding:"1px 7px",fontWeight:700}}>{l}</span>;}
+function gainBadge(gain){const l={low:"Low",mid:"Mid",high:"High"}[gain]||gain;return <span style={{fontSize:10,background:"var(--a6)",color:"var(--text-sec)",border:"1px solid var(--a10)",borderRadius:4,padding:"1px 7px",fontWeight:700}}>{l} gain</span>;}
 
 // Normalise un nom de preset pour comparaison souple
 // "TSR - Mars 800SL Ch1 Drive" et "TSR Mars 800SL Chnl 1 Drive" doivent matcher
@@ -3035,7 +3035,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "4.0.0";
+const APP_VERSION = "4.1.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3223,6 +3223,13 @@ function GuitarSelect({value,onChange,ig=[],guitars=GUITARS}) {
 
 // ─── Breadcrumb ──────────────────────────────────────────────────────────────
 // crumbs = [{label,screen},{label,screen},...,{label}]  — le dernier est l'écran courant (non cliquable)
+function AppFooter({syncStatus}){
+  return <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"24px 0 8px",flexWrap:"wrap"}}>
+    {syncStatus&&<span style={{fontSize:10,color:syncStatus==="synced"?"var(--green)":syncStatus==="syncing"?"var(--yellow)":syncStatus==="error"?"var(--red)":"var(--text-dim)"}} title={syncStatus==="synced"?"Synchronise":syncStatus==="syncing"?"Synchronisation...":"Hors ligne"}>{syncStatus==="synced"?"☁️":syncStatus==="syncing"?"⏳":"⚠️"}</span>}
+    <span style={{fontSize:10,color:"var(--text-dim)"}}>ToneX Poweruser v{APP_VERSION}</span>
+    <button onClick={()=>{location.reload(true);}} style={{background:"none",border:"none",color:"var(--text-dim)",fontSize:10,cursor:"pointer",textDecoration:"underline"}} title="Recharger pour récupérer la dernière version">MAJ</button>
+  </div>;
+}
 function Breadcrumb({crumbs,onNavigate}){
   return(
     <nav style={{display:"flex",alignItems:"center",gap:0,marginBottom:16,flexWrap:"wrap",fontSize:13}}>
@@ -3614,7 +3621,7 @@ function AICard({song,gId,onResult,banksAnn,banksPlug,aiProvider,aiKeys,onCacheR
     <div style={{display:"flex",flexDirection:"column",gap:9}}>
       <Row icon="🎯"><div style={{flex:1}}>
         <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
-          <div><div style={{fontSize:12,color:"var(--purple)",fontWeight:700,marginBottom:2}}>IA : {res.ideal_guitar}</div><div style={{fontSize:11,color:"var(--text-sec)"}}>{res.guitar_reason}</div></div>
+          <div><div style={{fontSize:12,color:"var(--text-bright)",fontWeight:700,marginBottom:2}}>IA : {res.ideal_guitar}</div><div style={{fontSize:11,color:"var(--text-sec)"}}>{res.guitar_reason}</div></div>
           <button onClick={()=>setShowFB(p=>!p)} style={{background:"none",border:"1px solid var(--a10)",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontSize:10,color:"var(--text-muted)",flexShrink:0}}>{loading?"⏳ Analyse...":"🔄 Améliorer"}</button>
         </div>
         {showFB&&<FeedbackPanel onSubmit={fb=>{setShowFB(false);doFetch(true,fb);}} onCancel={()=>setShowFB(false)}/>}
@@ -3712,7 +3719,7 @@ function ExportImportScreen({banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,on
 
   return (
     <div>
-      {toast&&<div style={{position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",background:"#16a34a",color:"var(--text)",borderRadius:10,padding:"10px 22px",fontSize:13,fontWeight:700,zIndex:999}}>✅ {toast}</div>}
+      {toast&&<div style={{position:"fixed",top:20,left:"50%",transform:"translateX(-50%)",background:"var(--green)",color:"var(--text)",borderRadius:10,padding:"10px 22px",fontSize:13,fontWeight:700,zIndex:999}}>✅ {toast}</div>}
       <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Paramètres",screen:"settings"},{label:"Import / Export"}]} onNavigate={onNavigate}/>
       <div style={{fontSize:20,fontWeight:800,color:"var(--text)",marginBottom:20}}>📋 Export / Import</div>
 
@@ -3720,7 +3727,7 @@ function ExportImportScreen({banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,on
       <div style={{background:"rgba(74,222,128,0.06)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:12,padding:16,marginBottom:12}}>
         <div style={{fontSize:12,fontWeight:700,color:"var(--green)",marginBottom:10,textTransform:"uppercase",letterSpacing:0.5}}>💾 Sauvegarde complète (JSON)</div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <button onClick={doExportJSON} style={{background:"#16a34a",border:"none",color:"var(--text)",borderRadius:9,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>⬇ Exporter JSON</button>
+          <button onClick={doExportJSON} style={{background:"var(--green)",border:"none",color:"var(--text)",borderRadius:9,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>⬇ Exporter JSON</button>
           <button onClick={()=>jsonRef.current?.click()} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.35)",color:"var(--green)",borderRadius:9,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>📂 Importer JSON</button>
           <input ref={jsonRef} type="file" accept=".json" onChange={handleJSONFile} style={{display:"none"}}/>
         </div>
@@ -3746,7 +3753,7 @@ function ExportImportScreen({banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,on
         {importData&&<div style={{marginTop:14,background:"rgba(99,102,241,0.1)",border:"1px solid var(--accent-border)",borderRadius:10,padding:14}}>
           <div style={{fontSize:13,fontWeight:700,color:"var(--accent)",marginBottom:10}}>Aperçu</div>
           <div style={{display:"flex",gap:10,marginBottom:12,flexWrap:"wrap"}}>
-            {Object.keys(importData.ann).length>0&&<div style={{background:"rgba(59,130,246,0.1)",border:"1px solid rgba(59,130,246,0.3)",borderRadius:7,padding:"6px 12px"}}><div style={{fontSize:12,color:"var(--blue)",fontWeight:700}}>📦 Pédale</div><div style={{fontSize:11,color:"var(--text-muted)"}}>{Object.keys(importData.ann).length} banks</div></div>}
+            {Object.keys(importData.ann).length>0&&<div style={{background:"rgba(59,130,246,0.1)",border:"1px solid rgba(59,130,246,0.3)",borderRadius:7,padding:"6px 12px"}}><div style={{fontSize:12,color:"var(--text-sec)",fontWeight:700}}>📦 Pedale</div><div style={{fontSize:11,color:"var(--text-muted)"}}>{Object.keys(importData.ann).length} banks</div></div>}
             {Object.keys(importData.plug).length>0&&<div style={{background:"rgba(99,102,241,0.1)",border:"1px solid var(--accent-border)",borderRadius:7,padding:"6px 12px"}}><div style={{fontSize:12,color:"var(--accent)",fontWeight:700}}>🔌 Plug</div><div style={{fontSize:11,color:"var(--text-muted)"}}>{Object.keys(importData.plug).length} banks</div></div>}
           </div>
           <div style={{display:"flex",gap:8,marginBottom:12}}>
@@ -3756,13 +3763,13 @@ function ExportImportScreen({banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,on
           </div>
           <div style={{display:"flex",gap:8}}>
             <button onClick={()=>setImportData(null)} style={{flex:1,background:"var(--a7)",border:"1px solid var(--a10)",color:"var(--text-sec)",borderRadius:8,padding:"9px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Annuler</button>
-            <button onClick={confirmCSV} style={{flex:2,background:"#4f46e5",border:"none",color:"var(--text)",borderRadius:8,padding:"9px",fontSize:13,fontWeight:700,cursor:"pointer"}}>✅ Importer</button>
+            <button onClick={confirmCSV} style={{flex:2,background:"var(--accent)",border:"none",color:"var(--text)",borderRadius:8,padding:"9px",fontSize:13,fontWeight:700,cursor:"pointer"}}>✅ Importer</button>
           </div>
         </div>}
       </div>
 
       {/* Tableaux banks */}
-      {[{banks:banksAnn,label:"ToneX Anniversary",color:"#3b82f6"},{banks:banksPlug,label:"ToneX Plug",color:"var(--accent)"}].map(({banks,label,color})=>(
+      {[{banks:banksAnn,label:"ToneX Anniversary",color:"var(--accent)"},{banks:banksPlug,label:"ToneX Plug",color:"var(--accent)"}].map(({banks,label,color})=>(
         <div key={label} style={{marginBottom:20}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}><div style={{width:4,height:18,background:color,borderRadius:2}}/><div style={{fontSize:13,fontWeight:700,color:"var(--text)"}}>{label}</div><div style={{fontSize:11,color:"var(--text-muted)"}}>{Object.keys(banks).length} banks</div></div>
           <div style={{overflowX:"auto",borderRadius:10,border:"1px solid var(--a8)"}}>
@@ -3966,13 +3973,13 @@ function ProfilePickerScreen({profiles,onPick}){
         <div style={{fontSize:12,color:"var(--text-sec)",marginBottom:8,textAlign:"center"}}>Mot de passe pour {profiles[selectedId].name}</div>
         <div style={{display:"flex",gap:8}}>
           <input ref={pwdRef} type="password" inputMode="numeric" autoFocus placeholder="Mot de passe" value={pwd} onChange={e=>{setPwd(e.target.value);setPwdErr(false);}} onKeyDown={e=>e.key==="Enter"&&tryLogin()} style={{flex:1,background:"var(--bg-card)",color:"var(--text)",border:`1px solid ${pwdErr?"var(--red)":"var(--a15)"}`,borderRadius:8,padding:"10px 14px",fontSize:14}}/>
-          <button onClick={tryLogin} style={{background:"#4f46e5",border:"none",color:"#fff",borderRadius:8,padding:"10px 18px",fontSize:14,fontWeight:700,cursor:"pointer"}}>OK</button>
+          <button onClick={tryLogin} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:8,padding:"10px 18px",fontSize:14,fontWeight:700,cursor:"pointer"}}>OK</button>
         </div>
         {pwdErr&&<div style={{fontSize:11,color:"var(--red)",marginTop:6,textAlign:"center"}}>Mot de passe incorrect</div>}
       </div>}
       <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginTop:32}}>
         <span style={{fontSize:10,color:"var(--text-dim)"}}>v{APP_VERSION}</span>
-        <button onClick={()=>{location.reload(true);}} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:6,padding:"4px 8px",fontSize:9,fontWeight:600,cursor:"pointer"}} title="Recharger pour récupérer la dernière version">🔄 MAJ</button>
+        <button onClick={()=>{location.reload(true);}} style={{background:"none",border:"none",color:"var(--text-dim)",fontSize:10,cursor:"pointer",textDecoration:"underline"}} title="Recharger pour récupérer la dernière version">MAJ</button>
       </div>
     </div>
   );
@@ -4029,7 +4036,7 @@ function ProfileSelector({profiles,activeProfileId,onSwitch,onSettings,onViewPro
             </div>
             {isLogin&&<div style={{padding:"4px 8px 8px",display:"flex",gap:6}}>
               <input ref={pwdRef2} type="password" inputMode="numeric" autoFocus placeholder="Mot de passe" value={pwd} onChange={e=>{setPwd(e.target.value);setPwdErr(false);}} onKeyDown={e=>e.key==="Enter"&&tryLogin()} style={{flex:1,background:"var(--bg-body)",color:"var(--text)",border:`1px solid ${pwdErr?"var(--red)":"var(--a15)"}`,borderRadius:6,padding:"5px 8px",fontSize:11}}/>
-              <button onClick={tryLogin} style={{background:"#4f46e5",border:"none",color:"#fff",borderRadius:6,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>OK</button>
+              <button onClick={tryLogin} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:6,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>OK</button>
             </div>}
           </div>;
         })}
@@ -4039,7 +4046,7 @@ function ProfileSelector({profiles,activeProfileId,onSwitch,onSettings,onViewPro
 }
 
 // ─── Profile Tab ──────────────────────────────────────────────────────────────
-const PROFILE_COLORS=["var(--accent)","#f59e0b","#10b981","#ef4444","#8b5cf6","#ec4899"];
+const PROFILE_COLORS=["var(--accent)","var(--text-sec)","var(--text-muted)","var(--accent)","var(--text-sec)","var(--text-muted)"];
 function profileColor(id){
   let h=0;for(let i=0;i<id.length;i++)h=id.charCodeAt(i)+((h<<5)-h);
   return PROFILE_COLORS[Math.abs(h)%PROFILE_COLORS.length];
@@ -4233,7 +4240,7 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp,section,aiK
                     <select value={editGType} onChange={e=>setEditGType(e.target.value)} style={{...inp,flex:"0 0 55px",fontSize:11,padding:"5px 4px"}}><option value="HB">HB</option><option value="SC">SC</option><option value="P90">P90</option></select>
                   </div>
                   <div style={{display:"flex",gap:6}}>
-                    <button onClick={saveEditGuitar} style={{background:"#4f46e5",border:"none",color:"#fff",borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Sauver</button>
+                    <button onClick={saveEditGuitar} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Sauver</button>
                     {isEdited&&<button onClick={()=>resetGuitar(g.id)} style={{background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",color:"var(--yellow)",borderRadius:6,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>Réinitialiser</button>}
                     <button onClick={()=>setEditingGuitarId(null)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:6,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>Annuler</button>
                   </div>
@@ -4258,7 +4265,7 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp,section,aiK
                     <select value={editGType} onChange={e=>setEditGType(e.target.value)} style={{...inp,flex:"0 0 55px",fontSize:11,padding:"5px 4px"}}><option value="HB">HB</option><option value="SC">SC</option><option value="P90">P90</option></select>
                   </div>
                   <div style={{display:"flex",gap:6}}>
-                    <button onClick={saveEditGuitar} style={{background:"#4f46e5",border:"none",color:"#fff",borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Sauver</button>
+                    <button onClick={saveEditGuitar} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:6,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Sauver</button>
                     <button onClick={()=>setEditingGuitarId(null)} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:6,padding:"5px 10px",fontSize:11,cursor:"pointer"}}>Annuler</button>
                   </div>
                 </div>}
@@ -4466,7 +4473,7 @@ Réponds UNIQUEMENT en JSON (sans markdown) :
         {filePreview&&!filePreview.startsWith("data:image")&&<div style={{fontSize:11,color:"var(--text-muted)",marginBottom:10}}>Document joint ({file?.name})</div>}
         {err&&<div style={{fontSize:12,color:"var(--red)",marginBottom:10}}>{err}</div>}
         <button onClick={extractPresets} disabled={!packName.trim()||!filePreview||loading}
-          style={{width:"100%",background:packName.trim()&&filePreview&&!loading?"linear-gradient(135deg,#7c3aed,#4f46e5)":"var(--bg-disabled)",border:"none",color:"#fff",borderRadius:10,padding:"12px",fontSize:13,fontWeight:700,cursor:packName.trim()&&filePreview&&!loading?"pointer":"not-allowed"}}>
+          style={{width:"100%",background:packName.trim()&&filePreview&&!loading?"var(--accent)":"var(--bg-disabled)",border:"none",color:"#fff",borderRadius:10,padding:"12px",fontSize:13,fontWeight:700,cursor:packName.trim()&&filePreview&&!loading?"pointer":"not-allowed"}}>
           {loading?"Extraction IA en cours...":"Extraire les presets avec l'IA"}
         </button>
       </div>
@@ -4599,8 +4606,8 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
           </div>
         </div>
       </div>}
-      {tab==="pedale"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="#f59e0b" maxBanks={50} factoryBanks={FACTORY_BANKS_PEDALE}/>}
-      {tab==="ann"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="#3b82f6" maxBanks={50} factoryBanks={FACTORY_BANKS_PEDALE}/>}
+      {tab==="pedale"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} factoryBanks={FACTORY_BANKS_PEDALE}/>}
+      {tab==="ann"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} factoryBanks={FACTORY_BANKS_PEDALE}/>}
       {tab==="plug"&&<BankEditor banks={banksPlug} onBanks={onBanksPlug} color="var(--accent)" maxBanks={10} startBank={1} factoryBanks={FACTORY_BANKS_PLUG}/>}
       {profile.isAdmin&&tab==="ia"&&<div>
         <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>Configuration de la cle API pour l'IA.</div>
@@ -4646,7 +4653,7 @@ function ParametresScreen({onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAi
           <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>Entrez le code administrateur.</div>
           <div style={{display:"flex",gap:8}}>
             <input ref={pinRef} type="password" inputMode="numeric" autoFocus placeholder="Code admin" value={pin} onChange={e=>{setPin(e.target.value);setPinErr(false);}} onKeyDown={e=>e.key==="Enter"&&tryUnlock()} style={{...inp,flex:1}}/>
-            <button onClick={tryUnlock} style={{background:"#4f46e5",border:"none",color:"#fff",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>OK</button>
+            <button onClick={tryUnlock} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>OK</button>
           </div>
           {pinErr&&<div style={{fontSize:11,color:"var(--red)",marginTop:6}}>Code incorrect</div>}
         </div>
@@ -4829,12 +4836,12 @@ function ProfilesAdmin({profiles,onProfiles}){
             {editNameId===p.id?(
               <>
                 <input value={editNameVal} onChange={e=>setEditNameVal(e.target.value)} onKeyDown={e=>e.key==="Enter"&&saveName(p.id)} style={{...inp,flex:1}} autoFocus/>
-                <button onClick={()=>saveName(p.id)} style={{background:"#4f46e5",border:"none",color:"#fff",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>OK</button>
+                <button onClick={()=>saveName(p.id)} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:6,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>OK</button>
                 <button onClick={()=>setEditNameId(null)} style={{background:"none",border:"none",color:"var(--text-muted)",fontSize:12,cursor:"pointer"}}>✕</button>
               </>
             ):(
               <>
-                <div style={{flex:1,fontSize:13,fontWeight:600,color:"var(--text)"}}>{p.name}{p.isAdmin&&<span style={{fontSize:9,color:"var(--yellow)",marginLeft:6}}>admin</span>}</div>
+                <div style={{flex:1,fontSize:13,fontWeight:600,color:"var(--text)"}}>{p.name}{p.isAdmin&&<span style={{fontSize:9,color:"var(--text-dim)",marginLeft:6}}>admin</span>}</div>
                 <button onClick={()=>{setEditNameId(p.id);setEditNameVal(p.name);}} style={{background:"none",border:"none",color:"var(--text-muted)",fontSize:12,cursor:"pointer",padding:"2px 4px"}}>✏️</button>
                 <span style={{fontSize:10,color:"var(--text-muted)"}}>{p.password?"🔒":"🔓"}</span>
                 <button onClick={()=>{setEditPwdId(editPwdId===p.id?null:p.id);setEditPwdVal(p.password||"");}} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:5,padding:"3px 7px",fontSize:10,cursor:"pointer"}}>Mot de passe</button>
@@ -4844,7 +4851,7 @@ function ProfilesAdmin({profiles,onProfiles}){
           </div>
           {editPwdId===p.id&&editNameId!==p.id&&<div style={{display:"flex",gap:6,marginTop:8}}>
             <input type="text" placeholder="Nouveau mot de passe (vide = sans)" value={editPwdVal} onChange={e=>setEditPwdVal(e.target.value)} style={{...inp,flex:1}}/>
-            <button onClick={()=>savePwd(p.id)} style={{background:"#4f46e5",border:"none",color:"#fff",borderRadius:6,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>OK</button>
+            <button onClick={()=>savePwd(p.id)} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:6,padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>OK</button>
           </div>}
           {(p.loginHistory||[]).length>0&&<div style={{marginTop:8,borderTop:"1px solid var(--a8)",paddingTop:6}}>
             <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Dernières connexions</div>
@@ -5190,8 +5197,8 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
         </div>
         <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Meilleurs presets installes pour {g?.short||"cette guitare"}</div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          <PBlock device="Pedale" emoji="📦" presetName={aiC.preset_ann?.label} gType={gId?type:null} banks={banksAnn} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_ann?.score} breakdown={aiC.preset_ann?.breakdown}/>
-          <PBlock device="ToneX Plug" emoji="🔌" presetName={aiC.preset_plug?.label} gType={gId?type:null} banks={banksPlug} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_plug?.score} breakdown={aiC.preset_plug?.breakdown}/>
+          <div style={{display:"flex",alignItems:"center",gap:4}}>{aiC.preset_ann?.label===aiC.ideal_preset&&<span title="Preset ideal">⭐</span>}<div style={{flex:1}}><PBlock device="Pedale" emoji="📦" presetName={aiC.preset_ann?.label} gType={gId?type:null} banks={banksAnn} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_ann?.score} breakdown={aiC.preset_ann?.breakdown}/></div></div>
+          <div style={{display:"flex",alignItems:"center",gap:4}}>{aiC.preset_plug?.label===aiC.ideal_preset&&<span title="Preset ideal">⭐</span>}<div style={{flex:1}}><PBlock device="ToneX Plug" emoji="🔌" presetName={aiC.preset_plug?.label} gType={gId?type:null} banks={banksPlug} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_plug?.score} breakdown={aiC.preset_plug?.breakdown}/></div></div>
         </div>
       </div>
 
@@ -5509,7 +5516,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           </div>
         );
       })})()}
-      {checked.length>0&&<div className="bottom-action" style={{paddingTop:12}}><button onClick={onNext} style={{width:"100%",background:"#16a34a",border:"none",color:"var(--text)",borderRadius:12,padding:"14px",fontSize:15,fontWeight:700,cursor:"pointer"}}>Générer le récap — {checked.length} morceau{checked.length>1?"x":""} →</button></div>}
+      {checked.length>0&&<div className="bottom-action" style={{paddingTop:12}}><button onClick={onNext} style={{width:"100%",background:"var(--green)",border:"none",color:"var(--text)",borderRadius:12,padding:"14px",fontSize:15,fontWeight:700,cursor:"pointer"}}>Générer le récap — {checked.length} morceau{checked.length>1?"x":""} →</button></div>}
       {showAdd&&<AddSongModal songDb={songDb} onSongDb={onSongDb} setlists={setlists} onSetlists={onSetlists} activeSlId={activeSlId} onClose={()=>setShowAdd(false)} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} guitars={allGuitars}/>}
     </div>
   );
@@ -5643,7 +5650,7 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
       </div>
 
       {/* Recommandation guitare(s) */}
-      <div style={{background:"linear-gradient(135deg,rgba(74,222,128,0.08),rgba(99,102,241,0.08))",border:"1px solid rgba(74,222,128,0.2)",borderRadius:14,padding:16,marginBottom:20}}>
+      <div style={{background:"var(--a4)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:14,padding:16,marginBottom:20}}>
         {mode==="single"?(
           <div>
             <div style={{fontSize:14,fontWeight:800,color:"var(--text)",marginBottom:8}}>🎸 Guitare recommandée</div>
@@ -5725,7 +5732,7 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
       </div>}
 
       <div className="bottom-action" style={{paddingTop:8}}>
-        <button onClick={()=>onValidate(gps,aiR)} style={{width:"100%",background:"linear-gradient(135deg,#0ea5e9,#6366f1)",border:"none",color:"var(--text)",borderRadius:12,padding:"16px",fontSize:15,fontWeight:700,cursor:"pointer"}}>
+        <button onClick={()=>onValidate(gps,aiR)} style={{width:"100%",background:"var(--accent)",border:"none",color:"var(--text)",borderRadius:12,padding:"16px",fontSize:15,fontWeight:700,cursor:"pointer"}}>
           ✅ Valider et voir le tableau de synthèse →
         </button>
       </div>
@@ -5774,13 +5781,13 @@ function SynthesisScreen({songs,gps,aiR,onBack,onNavigate,songDb,banksAnn,banksP
       <div style={{marginBottom:20}}><div style={{fontSize:22,fontWeight:800,color:"var(--text)"}}>Tableau de synthèse</div><div style={{fontSize:12,color:"var(--text-muted)",marginTop:3}}>{songs.length} morceau{songs.length>1?"x":""}</div></div>
       <div style={{overflowX:"auto",borderRadius:12,border:"1px solid var(--a8)"}}>
         <table>
-          <thead><tr style={{background:"var(--a4)"}}><th style={th}>Morceau</th><th style={th}>Guitare</th><th style={{...th,color:"var(--blue)"}}>📦 Pédale</th><th style={{...th,color:"var(--accent)"}}>🔌 Plug</th></tr></thead>
+          <thead><tr style={{background:"var(--a4)"}}><th style={th}>Morceau</th><th style={th}>Guitare</th><th style={{...th,color:"var(--text-sec)"}}>📦 Pedale</th><th style={{...th,color:"var(--accent)"}}>🔌 Plug</th></tr></thead>
           <tbody>
             {rows.map(({s,g,ann,plug},i)=>(
               <tr key={s.id} style={{background:i%2===0?"transparent":"var(--a3)"}}>
                 <td style={td}><div style={{fontWeight:600,color:"var(--text)",fontSize:13}}>{s.title}</div><div style={{fontSize:11,color:"var(--text-muted)"}}>{s.artist}</div></td>
                 <td style={td}>{g?<span style={{fontSize:12,color:"var(--green)",background:"var(--green-bg)",borderRadius:5,padding:"2px 8px",fontWeight:600,whiteSpace:"nowrap"}}>{g.short}</span>:<span style={{color:"var(--text-muted)"}}>—</span>}</td>
-                <td style={td}>{cellPreset(ann,"var(--blue)")}</td>
+                <td style={td}>{cellPreset(ann,"var(--text-sec)")}</td>
                 <td style={td}>{cellPreset(plug,"var(--accent)")}</td>
               </tr>
             ))}
@@ -5831,7 +5838,7 @@ function NewSongExplorer({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug
         <input placeholder="Artiste" value={artist} onChange={e=>setArtist(e.target.value)} style={inp}/>
       </div>
       <button onClick={analyze} disabled={!title.trim()||loading}
-        style={{width:"100%",background:!title.trim()||loading?"#374151":"linear-gradient(135deg,#7c3aed,#4f46e5)",border:"none",color:"var(--text)",borderRadius:10,padding:"12px",fontSize:14,fontWeight:700,cursor:!title.trim()||loading?"not-allowed":"pointer",marginBottom:16}}>
+        style={{width:"100%",background:!title.trim()||loading?"#374151":"var(--accent)",border:"none",color:"var(--text)",borderRadius:10,padding:"12px",fontSize:14,fontWeight:700,cursor:!title.trim()||loading?"not-allowed":"pointer",marginBottom:16}}>
         {loading?"✨ Analyse en cours…":"✨ Analyser avec l'IA"}
       </button>
       {err&&<div style={{fontSize:12,color:"var(--red)",background:"rgba(239,68,68,0.1)",borderRadius:8,padding:"10px 12px",marginBottom:12}}>{err}</div>}
@@ -5839,7 +5846,7 @@ function NewSongExplorer({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug
         <div style={{background:"var(--accent-bg)",border:"1px solid var(--accent-border)",borderRadius:14,padding:16,marginBottom:14}}>
           <div style={{fontSize:13,fontWeight:700,color:"var(--accent)",marginBottom:12}}>{title}{artist?" — "+artist:""}</div>
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            <Row icon="🎯"><div><div style={{fontSize:12,color:"var(--purple)",fontWeight:700,marginBottom:2}}>Guitare idéale : {result.ideal_guitar}</div><div style={{fontSize:11,color:"var(--text-sec)"}}>{result.guitar_reason}</div></div></Row>
+            <Row icon="🎯"><div><div style={{fontSize:12,color:"var(--text-bright)",fontWeight:700,marginBottom:2}}>Guitare idéale : {result.ideal_guitar}</div><div style={{fontSize:11,color:"var(--text-sec)"}}>{result.guitar_reason}</div></div></Row>
             <div style={{display:"flex",flexDirection:"column",gap:6}}>
               <PBlock device="Pédale" emoji="📦" presetName={result.preset_ann?.label} gType={gType} banks={banksAnn}/>
               <PBlock device="ToneX Plug" emoji="🔌" presetName={result.preset_plug?.label} gType={gType} banks={banksPlug} bg2="var(--a4)"/>
@@ -5872,7 +5879,7 @@ function NewSongExplorer({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug
                 );})}
               </div>
             </div>}
-            {addToDb&&<button onClick={doSave} style={{width:"100%",background:"#16a34a",border:"none",color:"var(--text)",borderRadius:10,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer"}}>✅ Sauvegarder dans la base</button>}
+            {addToDb&&<button onClick={doSave} style={{width:"100%",background:"var(--green)",border:"none",color:"var(--text)",borderRadius:10,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer"}}>✅ Sauvegarder dans la base</button>}
           </div>
         ):(
           <div style={{background:"var(--green-bg)",border:"1px solid rgba(74,222,128,0.4)",borderRadius:12,padding:"12px 16px",display:"flex",alignItems:"center",gap:8}}>
@@ -6150,7 +6157,7 @@ function PresetList({filtered,selected,setSelected,banksAnn,banksPlug,fullCatalo
                   <div style={{display:"flex",gap:5,alignItems:"center",marginTop:2,flexWrap:"wrap"}}>
                     <span style={{fontSize:10,color:"var(--text-muted)"}}>{info.amp}</span>
                     {(info.pack||info.amp)&&<span style={{fontSize:9,color:"var(--text-muted)",background:"var(--a6)",borderRadius:3,padding:"1px 5px"}}>{info.pack||info.amp}</span>}
-                    {annLoc&&<span style={{fontSize:9,color:"var(--blue)",background:"rgba(147,197,253,0.1)",borderRadius:3,padding:"1px 5px",fontWeight:700}}>📦{annLoc.bank}{annLoc.slot}</span>}
+                    {annLoc&&<span style={{fontSize:9,color:"var(--accent)",background:"var(--accent-bg)",borderRadius:3,padding:"1px 5px",fontWeight:700}}>📦{annLoc.bank}{annLoc.slot}</span>}
                     {plugLoc&&<span style={{fontSize:9,color:"var(--accent)",background:"rgba(165,180,252,0.1)",borderRadius:3,padding:"1px 5px",fontWeight:700}}>🔌{plugLoc.bank}{plugLoc.slot}</span>}
                   </div>
                 </div>
@@ -6373,17 +6380,17 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars}
 
 // ─── JamScreen ────────────────────────────────────────────────────────────────
 const JAM_STYLES=[
-  {id:"jazz",   label:"Jazz",       emoji:"🎹", color:"74,222,128"},
-  {id:"blues",  label:"Blues",      emoji:"🎷", color:"56,189,248"},
-  {id:"rock",   label:"Rock",       emoji:"🎸", color:"251,191,36"},
-  {id:"hard_rock",label:"Hard Rock",emoji:"🔥", color:"249,115,22"},
-  {id:"metal",  label:"Metal",      emoji:"💀", color:"139,92,246"},
+  {id:"jazz",   label:"Jazz",       emoji:"🎹", color:"148,163,184"},
+  {id:"blues",  label:"Blues",      emoji:"🎷", color:"148,163,184"},
+  {id:"rock",   label:"Rock",       emoji:"🎸", color:"148,163,184"},
+  {id:"hard_rock",label:"Hard Rock",emoji:"🔥", color:"148,163,184"},
+  {id:"metal",  label:"Metal",      emoji:"💀", color:"148,163,184"},
 ];
 const TYPE_LABELS={HB:"Humbucker",SC:"Single Coil",P90:"P-90"};
-const TYPE_COLORS={HB:"249,115,22",SC:"56,189,248",P90:"167,139,250"};
+const TYPE_COLORS={HB:"148,163,184",SC:"148,163,184",P90:"148,163,184"};
 
 function JamPresetItem({p,rank,isSelected,onSelect,banksAnn,banksPlug,guitars}){
-  const rankColors=["var(--yellow)","var(--text-sec)","#cd7c2f"];
+  const rankColors=["var(--accent)","var(--text-sec)","var(--text-muted)"];
   const sc=scoreColor(p.score);
   const sb=scoreBg(p.score);
   const info=findCatalogEntry(p.name);
@@ -6437,7 +6444,7 @@ function JamScreen({banksAnn,banksPlug,allGuitars,availableSources}){
 
         {/* Top 3 Pédale */}
         <div style={{marginBottom:16}}>
-          <div style={{fontSize:12,color:"var(--blue)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>📦 Top 3 — Pédale <span style={{fontSize:10,color:"var(--text-dim)",fontWeight:400,textTransform:"none"}}>(presets installés)</span></div>
+          <div style={{fontSize:12,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>📦 Top 3 — Pedale <span style={{fontSize:10,color:"var(--text-dim)",fontWeight:400,textTransform:"none"}}>(presets installés)</span></div>
           {recs.annTop3.length>0
             ?recs.annTop3.map((p,i)=><JamPresetItem key={p.name} p={p} rank={i} isSelected={selectedJam===p.name} onSelect={()=>setSelectedJam(selectedJam===p.name?null:p.name)} banksAnn={banksAnn} banksPlug={banksPlug} guitars={guitars}/>)
             :<div style={{fontSize:12,color:"var(--text-dim)",padding:"12px",background:"var(--a3)",borderRadius:8,textAlign:"center"}}>Aucun preset {styleInfo?.label} installé sur la Pédale pour ce type de guitare.</div>
@@ -6446,7 +6453,7 @@ function JamScreen({banksAnn,banksPlug,allGuitars,availableSources}){
 
         {/* Best Plug */}
         <div style={{marginBottom:16}}>
-          <div style={{fontSize:12,color:"var(--accent)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>🔌 Top 3 — ToneX Plug <span style={{fontSize:10,color:"var(--text-dim)",fontWeight:400,textTransform:"none"}}>(presets installés)</span></div>
+          <div style={{fontSize:12,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>🔌 Top 3 — ToneX Plug <span style={{fontSize:10,color:"var(--text-dim)",fontWeight:400,textTransform:"none"}}>(presets installés)</span></div>
           {recs.plugBest.length>0
             ?recs.plugBest.map((p,i)=><JamPresetItem key={p.name} p={p} rank={i} isSelected={selectedJam===p.name} onSelect={()=>setSelectedJam(selectedJam===p.name?null:p.name)} banksAnn={banksAnn} banksPlug={banksPlug} guitars={guitars}/>)
             :<div style={{fontSize:12,color:"var(--text-dim)",padding:"12px",background:"var(--a3)",borderRadius:8,textAlign:"center"}}>Aucun preset {styleInfo?.label} installé sur le Plug pour ce type de guitare.</div>
@@ -6455,7 +6462,7 @@ function JamScreen({banksAnn,banksPlug,allGuitars,availableSources}){
 
         {/* Top 3 Full Catalog */}
         <div style={{marginBottom:16}}>
-          <div style={{fontSize:12,color:"var(--green)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>🌐 Top 3 — Catalogue complet <span style={{fontSize:10,color:"var(--text-dim)",fontWeight:400,textTransform:"none"}}>(tous presets, installés ou non)</span></div>
+          <div style={{fontSize:12,color:"var(--text-muted)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>🌐 Top 3 — Catalogue complet <span style={{fontSize:10,color:"var(--text-dim)",fontWeight:400,textTransform:"none"}}>(tous presets, installés ou non)</span></div>
           {recs.fullTop3.map((p,i)=><JamPresetItem key={p.name} p={p} rank={i} isSelected={selectedJam===p.name} onSelect={()=>setSelectedJam(selectedJam===p.name?null:p.name)} banksAnn={banksAnn} banksPlug={banksPlug} guitars={guitars}/>)}
         </div>
       </div>
@@ -6758,7 +6765,7 @@ function OnboardingWizard({onClose,onProfile}){
           {isLast
             ?<div style={{display:"flex",gap:8}}>
               <button onClick={onClose} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:10,padding:"12px 20px",fontSize:13,fontWeight:600,cursor:"pointer"}}>Fermer</button>
-              <button onClick={()=>{onClose();onProfile();}} style={{background:"linear-gradient(135deg,#7c3aed,#0ea5e9)",border:"none",color:"#fff",borderRadius:10,padding:"12px 24px",fontSize:14,fontWeight:700,cursor:"pointer"}}>Configurer mon profil →</button>
+              <button onClick={()=>{onClose();onProfile();}} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:10,padding:"12px 24px",fontSize:14,fontWeight:700,cursor:"pointer"}}>Configurer mon profil →</button>
             </div>
             :<button onClick={()=>setStep(s=>s+1)} style={{background:"var(--accent)",border:"none",color:"#fff",borderRadius:8,padding:"8px 20px",fontSize:13,fontWeight:700,cursor:"pointer"}}>Suivant →</button>
           }
@@ -7031,12 +7038,8 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           <div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>Profils sonores</div>
         </button>
       </div>}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"24px 0 8px",flexWrap:"wrap"}}>
-        {syncStatus&&<span style={{fontSize:10,color:syncStatus==="synced"?"var(--green)":syncStatus==="syncing"?"var(--yellow)":syncStatus==="error"?"var(--red)":"var(--text-dim)"}} title={syncStatus==="synced"?"Synchronisé":syncStatus==="syncing"?"Synchronisation...":"Hors ligne"}>{syncStatus==="synced"?"☁️":syncStatus==="syncing"?"⏳":"⚠️"}</span>}
-        <span style={{fontSize:10,color:"var(--text-dim)"}}>ToneX Poweruser v{APP_VERSION}</span>
-        <button onClick={()=>setShowOnboarding(true)} style={{background:"none",border:"none",color:"var(--text-dim)",fontSize:10,cursor:"pointer",textDecoration:"underline"}}>Aide</button>
-        <button onClick={()=>{location.reload(true);}} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:6,padding:"4px 8px",fontSize:9,fontWeight:600,cursor:"pointer"}} title="Recharger pour récupérer la dernière version">🔄 MAJ</button>
-      </div>
+      <AppFooter syncStatus={syncStatus}/>
+      <div style={{textAlign:"center",paddingBottom:8}}><button onClick={()=>setShowOnboarding(true)} style={{background:"none",border:"none",color:"var(--text-dim)",fontSize:10,cursor:"pointer",textDecoration:"underline"}}>Aide</button></div>
     </div>
   );
 }
@@ -7071,7 +7074,7 @@ function ViewProfileScreen({profile,onBack,onNavigate}){
         <div style={{fontSize:12,fontWeight:700,color:"var(--text)",marginBottom:6}}>Guitares ({guitars.length+customG.length})</div>
         <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
           {guitars.map(g=><span key={g.id} style={{fontSize:10,background:"var(--a5)",borderRadius:5,padding:"2px 8px",color:"var(--text-sec)"}}>{g.short} ({g.type})</span>)}
-          {customG.map(g=><span key={g.id} style={{fontSize:10,background:"var(--purple-bg)",borderRadius:5,padding:"2px 8px",color:"var(--purple)"}}>{g.short} ({g.type})</span>)}
+          {customG.map(g=><span key={g.id} style={{fontSize:10,background:"var(--a6)",borderRadius:5,padding:"2px 8px",color:"var(--text-bright)"}}>{g.short} ({g.type})</span>)}
         </div>
       </div>
 
@@ -7335,11 +7338,13 @@ function App() {
     <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Jammer"}]} onNavigate={setScreen}/>
     <div style={{fontSize:20,fontWeight:800,color:"var(--text)",marginBottom:16}}>🎲 Jammer</div>
     <JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/>
+    <AppFooter syncStatus={syncStatus}/>
   </div>;
   if(screen==="explore") return <div className="page-root">
     <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Explorer"}]} onNavigate={setScreen}/>
     <div style={{fontSize:20,fontWeight:800,color:"var(--text)",marginBottom:16}}>🎛️ Explorer les presets</div>
     <PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={profile.customPacks} guitars={allGuitars}/>
+    <AppFooter syncStatus={syncStatus}/>
   </div>;
   if(screen==="synthesis"&&synth) return <div className="page-root"><SynthesisScreen songs={songs} gps={synth.gps} aiR={synth.aiR} onBack={()=>setScreen("recap")} onNavigate={setScreen} songDb={songDb} banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/></div>;
   if(screen==="recap")        return <div className="page-root"><RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDb} onSongDb={setSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources}/></div>;
