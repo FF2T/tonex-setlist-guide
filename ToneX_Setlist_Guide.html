@@ -3035,7 +3035,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "3.9.3";
+const APP_VERSION = "4.0.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4476,7 +4476,7 @@ Réponds UNIQUEMENT en JSON (sans markdown) :
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 // ─── Mon Profil Screen ────────────────────────────────────────────────────────
-function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,onNavigate,aiProvider,aiKeys,theme,onTheme,profile,profiles,onProfiles,activeProfileId,allGuitars,initTab,customGuitars,onCustomGuitars}) {
+function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAiKeys,theme,onTheme,profile,profiles,onProfiles,activeProfileId,allGuitars,initTab,customGuitars,onCustomGuitars,fullState,onImportState,onLogout}) {
   const [tab,setTab]=useState(initTab||"profile");
   const [newSlName,setNewSlName]=useState("");
   const [editSlId,setEditSlId]=useState(null);
@@ -4512,12 +4512,16 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
       <div style={{fontSize:20,fontWeight:800,color:"var(--text)",marginBottom:16}}>👤 Mon profil</div>
       <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
         {tabBtn("profile","🎸 Guitares")}
-        {tabBtn("devices","📱 Matériel")}
+        {tabBtn("devices","📱 Materiel")}
         {tabBtn("sources","📦 Sources")}
-        {profile.devices?.pedale&&tabBtn("pedale","🎛 Pédale ToneX")}
+        {profile.devices?.pedale&&tabBtn("pedale","🎛 Pedale ToneX")}
         {profile.devices?.anniversary&&tabBtn("ann","🎛 ToneX Ann.")}
         {profile.devices?.plug&&tabBtn("plug","🔌 ToneX Plug")}
         {tabBtn("display","🎨 Affichage")}
+        {profile.isAdmin&&tabBtn("ia","🔑 Cle API")}
+        {profile.isAdmin&&tabBtn("maintenance","🔧 Maintenance")}
+        {profile.isAdmin&&tabBtn("export","📋 Export / Import")}
+        {profile.isAdmin&&tabBtn("admin_profiles","👥 Profils")}
       </div>
       {tab==="profile"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="guitars" aiKeys={aiKeys} customGuitars={customGuitars} onCustomGuitars={onCustomGuitars}/>}
       {tab==="devices"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="devices"/>}
@@ -4598,6 +4602,24 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
       {tab==="pedale"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="#f59e0b" maxBanks={50} factoryBanks={FACTORY_BANKS_PEDALE}/>}
       {tab==="ann"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="#3b82f6" maxBanks={50} factoryBanks={FACTORY_BANKS_PEDALE}/>}
       {tab==="plug"&&<BankEditor banks={banksPlug} onBanks={onBanksPlug} color="var(--accent)" maxBanks={10} startBank={1} factoryBanks={FACTORY_BANKS_PLUG}/>}
+      {profile.isAdmin&&tab==="ia"&&<div>
+        <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>Configuration de la cle API pour l'IA.</div>
+        <div style={{fontSize:11,color:"var(--text-muted)",background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:8,padding:"8px 12px",marginBottom:12,display:"flex",alignItems:"center",gap:6}}>
+          <span style={{fontWeight:700}}>Modele actif :</span>
+          <span style={{color:"var(--green)",fontWeight:600}}>{aiProvider==="gemini"?"gemini-3-flash-preview":"claude-haiku-4-5"}</span>
+        </div>
+        <div style={{fontSize:12,fontWeight:600,color:"var(--text)",marginBottom:6}}>Cle Gemini</div>
+        <input type="password" placeholder="AIza..." value={aiKeys.gemini} onChange={e=>onAiKeys(p=>({...p,gemini:e.target.value}))} style={{...inp,width:"100%",marginBottom:8,fontFamily:"monospace"}}/>
+        <div style={{fontSize:12,fontWeight:600,color:"var(--text)",marginBottom:6}}>Cle Anthropic (fallback)</div>
+        <input type="password" placeholder="sk-ant-..." value={aiKeys.anthropic} onChange={e=>onAiKeys(p=>({...p,anthropic:e.target.value}))} style={{...inp,width:"100%",fontFamily:"monospace"}}/>
+      </div>}
+      {profile.isAdmin&&tab==="maintenance"&&<MaintenanceTab songDb={songDb} onSongDb={onSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys}/>}
+      {profile.isAdmin&&tab==="export"&&<ExportImportScreen banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} onBack={()=>setTab("profile")} onNavigate={onNavigate} fullState={fullState} onImportState={onImportState} inline={true}/>}
+      {profile.isAdmin&&tab==="admin_profiles"&&<ProfilesAdmin profiles={profiles} onProfiles={onProfiles}/>}
+      {/* Déconnexion */}
+      <div style={{marginTop:24,paddingTop:16,borderTop:"1px solid var(--a8)"}}>
+        {onLogout&&<button onClick={onLogout} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"8px 16px",fontSize:12,cursor:"pointer"}}>Se deconnecter</button>}
+      </div>
     </div>
   );
 }
@@ -6782,12 +6804,9 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
       {splashOpen&&<SplashPopup onClose={()=>setSplashOpen(false)}/>}
       {showOnboarding&&<OnboardingWizard onClose={()=>setShowOnboarding(false)} onProfile={onProfile}/>}
       {/* Header nav */}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,marginBottom:8}}>
-        <div style={{display:"flex",gap:6,alignItems:"center"}}>
-          <ProfileSelector profiles={profiles} activeProfileId={activeProfileId} onSwitch={onSwitchProfile} onSettings={onProfile} onViewProfile={onViewProfile}/>
-          <button onClick={onProfile} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 10px",fontSize:10,fontWeight:600,cursor:"pointer"}}>Mon profil</button>
-        </div>
-        <button onClick={onLogout} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 8px",fontSize:10,cursor:"pointer"}}>Se déconnecter</button>
+      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+        <ProfileSelector profiles={profiles} activeProfileId={activeProfileId} onSwitch={onSwitchProfile} onSettings={onProfile} onViewProfile={onViewProfile}/>
+        <button onClick={onProfile} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:8,padding:"6px 10px",fontSize:10,fontWeight:600,cursor:"pointer"}}>Mon profil</button>
       </div>
 
       {/* Zone centrale style Google */}
@@ -7016,7 +7035,6 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         {syncStatus&&<span style={{fontSize:10,color:syncStatus==="synced"?"var(--green)":syncStatus==="syncing"?"var(--yellow)":syncStatus==="error"?"var(--red)":"var(--text-dim)"}} title={syncStatus==="synced"?"Synchronisé":syncStatus==="syncing"?"Synchronisation...":"Hors ligne"}>{syncStatus==="synced"?"☁️":syncStatus==="syncing"?"⏳":"⚠️"}</span>}
         <span style={{fontSize:10,color:"var(--text-dim)"}}>ToneX Poweruser v{APP_VERSION}</span>
         <button onClick={()=>setShowOnboarding(true)} style={{background:"none",border:"none",color:"var(--text-dim)",fontSize:10,cursor:"pointer",textDecoration:"underline"}}>Aide</button>
-        <button onClick={onSettings} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:6,padding:"4px 8px",fontSize:9,fontWeight:600,cursor:"pointer"}}>Admin</button>
         <button onClick={()=>{location.reload(true);}} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:6,padding:"4px 8px",fontSize:9,fontWeight:600,cursor:"pointer"}} title="Recharger pour récupérer la dernière version">🔄 MAJ</button>
       </div>
     </div>
@@ -7308,7 +7326,7 @@ function App() {
   if(screen==="pick") return <div className="page-root"><ProfilePickerScreen profiles={profiles} onPick={pickProfile}/></div>;
   if(screen==="viewprofile"&&viewProfileId&&profiles[viewProfileId]) return <div className="page-root"><ViewProfileScreen profile={profiles[viewProfileId]} onBack={()=>setScreen("list")} onNavigate={setScreen}/></div>;
   if(screen==="exportimport") return <div className="page-root"><ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("settings")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/></div>;
-  if(screen==="profile")      return <div className="page-root"><MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} aiKeys={aiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars}/></div>;
+  if(screen==="profile")      return <div className="page-root"><MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/></div>;
   if(screen==="settings")     return <div className="page-root"><ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} songDb={songDb} onSongDb={setSongDb}/></div>;
   if(screen==="setlists")     return <div className="page-root">
     <SetlistsScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} activeProfileId={activeProfileId}/>
