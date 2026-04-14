@@ -3035,7 +3035,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "4.3.2";
+const APP_VERSION = "4.4.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3225,9 +3225,9 @@ function GuitarSelect({value,onChange,ig=[],guitars=GUITARS}) {
 // crumbs = [{label,screen},{label,screen},...,{label}]  — le dernier est l'écran courant (non cliquable)
 function StatusDot({score,ideal,size}){
   const s=size||8;
-  const bg=score!=null?scoreColor(score):"var(--a12)";
+  const bg=ideal?"#d4a017":(score!=null?scoreColor(score):"var(--a12)");
   const title=ideal?"Ideal":(score!=null?scoreLabel(score).t:"");
-  return <span title={title} style={{display:"inline-block",width:s,height:s,borderRadius:2,flexShrink:0,background:bg,border:ideal?"2px solid var(--text-bright)":"none"}}/>;
+  return <span title={title} style={{display:"inline-block",width:s,height:s,borderRadius:2,flexShrink:0,background:bg,border:ideal?"2px solid #f0d060":"none"}}/>;
 }
 function AppHeader({profiles,activeProfileId,onSwitch,onProfile,onViewProfile}){
   return <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
@@ -5128,8 +5128,9 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
         {sectionTitle(<StatusDot score={100} ideal={true} size={10}/>,"Recommandation ideale")}
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {/* Guitare idéale */}
-          {aiC.ideal_guitar&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",fontSize:11}}>
-            <div><span style={{color:"var(--text-muted)",fontSize:10}}>🎸 Guitare</span> <span style={{fontWeight:600,color:"var(--text-bright)"}}>{aiC.ideal_guitar}</span></div>
+          {aiC.ideal_guitar&&<div style={{display:"flex",alignItems:"center",gap:6,fontSize:11}}>
+            <StatusDot score={idealGuitarScore} ideal={true}/>
+            <div style={{flex:1}}>Guitare <span style={{fontWeight:600,color:"var(--text-bright)"}}>{aiC.ideal_guitar}</span></div>
             {idealGuitarScore&&<b style={{color:scoreColor(idealGuitarScore),flexShrink:0}}>{idealGuitarScore}%</b>}
           </div>}
           {aiC.guitar_reason&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:-2,marginBottom:2}}>{aiC.guitar_reason}</div>}
@@ -5170,8 +5171,9 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
               </div>;
             };
             return <div>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",fontSize:11}}>
-                <div><span style={{color:"var(--text-muted)",fontSize:10}}>🔊 Preset</span> <span style={{fontWeight:600,color:"var(--text-bright)"}}>{aiC.ideal_preset}</span></div>
+              <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11}}>
+                <StatusDot score={idealScore} ideal={true}/>
+                <div style={{flex:1}}>Preset <span style={{fontWeight:600,color:"var(--text-bright)"}}>{aiC.ideal_preset}</span></div>
                 {idealScore>0&&<b style={{color:scoreColor(idealScore),flexShrink:0}}>{idealScore}%</b>}
               </div>
               <div style={{fontSize:9,marginTop:2,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
@@ -6935,8 +6937,9 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
             <div style={sectionStyle}>
               {sectionTitle(<StatusDot score={100} ideal={true} size={10}/>,"Recommandation ideale")}
               <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                {songResult.ideal_guitar&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",fontSize:11}}>
-                  <div><span style={{color:"var(--text-muted)",fontSize:10}}>🎸 Guitare</span> <span style={{fontWeight:600,color:"var(--text-bright)"}}>{songResult.ideal_guitar}</span></div>
+                {songResult.ideal_guitar&&<div style={{display:"flex",alignItems:"center",gap:6,fontSize:11}}>
+                  <StatusDot score={idealGuitarScore} ideal={true}/>
+                  <div style={{flex:1}}>Guitare <span style={{fontWeight:600,color:"var(--text-bright)"}}>{songResult.ideal_guitar}</span></div>
                   {idealGuitarScore&&<b style={{color:scoreColor(idealGuitarScore),flexShrink:0}}>{idealGuitarScore}%</b>}
                 </div>}
                 {songResult.guitar_reason&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:-2,marginBottom:2}}>{songResult.guitar_reason}</div>}
@@ -6946,7 +6949,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                   const entry=findCatalogEntry(songResult.ideal_preset);
                   return <div>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",fontSize:11}}>
-                      <div><span style={{color:"var(--text-muted)",fontSize:10}}>🔊 Preset</span> <span style={{fontWeight:600,color:"var(--text-bright)"}}>{songResult.ideal_preset}</span></div>
+                      <div style={{display:"flex",alignItems:"center",gap:6}}><StatusDot score={idealScore} ideal={true}/><span style={{color:"var(--text-muted)",fontSize:10}}>Preset</span> <span style={{fontWeight:600,color:"var(--text-bright)"}}>{songResult.ideal_preset}</span></div>
                       {idealScore>0&&<b style={{color:scoreColor(idealScore),flexShrink:0}}>{idealScore}%</b>}
                     </div>
                     <div style={{fontSize:9,color:loc?"var(--green)":"var(--text-dim)",marginTop:1}}>
@@ -6967,7 +6970,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
               <div style={{marginBottom:8}}>
                 <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Guitare choisie</div>
                 <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:4}}>
-                  {(selectedGuitar||songResult.ideal_guitar)&&<span style={{fontSize:11,background:"var(--a5)",border:"1px solid var(--a10)",borderRadius:7,padding:"4px 10px",color:"var(--text-bright)",fontWeight:600}}>🎸 {selectedGuitar?`${selectedGuitar.name} (${selectedGuitar.type})`:songResult.ideal_guitar}</span>}
+                  {(selectedGuitar||songResult.ideal_guitar)&&<span style={{fontSize:11,background:"var(--a5)",border:"1px solid var(--a10)",borderRadius:7,padding:"4px 10px",color:"var(--text-bright)",fontWeight:600,display:"inline-flex",alignItems:"center",gap:6}}><StatusDot score={chosenGuitarScore} ideal={!selectedGuitar||songResult.cot_step2_guitars?.[0]?.name===selectedGuitar?.name}/>{selectedGuitar?`${selectedGuitar.name} (${selectedGuitar.type})`:songResult.ideal_guitar}</span>}
                   <button onClick={()=>setShowGuitarPick(p=>!p)} style={{fontSize:10,background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:6,padding:"3px 8px",cursor:"pointer"}}>Changer</button>
                 </div>
                 {selectedGuitar&&chosenGuitarScore&&<div style={{fontSize:10,color:"var(--text-dim)",marginBottom:4}}>Compatibilite : <b style={{color:scoreColor(chosenGuitarScore)}}>{chosenGuitarScore}%</b></div>}
@@ -6984,13 +6987,15 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
               <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Meilleurs presets installes</div>
               <div style={{display:"flex",flexDirection:"column",gap:6}}>
                 {songResult.preset_ann&&<div style={{display:"flex",alignItems:"center",gap:8,background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:8,padding:"8px 10px",flexWrap:"wrap"}}>
-                  <span style={{fontSize:11,color:"var(--text-muted)",fontWeight:700,flexShrink:0}}>📦 Pedale</span>
+                  <StatusDot score={songResult.preset_ann.score} ideal={songResult.preset_ann.label===songResult.ideal_preset}/>
+                  <span style={{fontSize:11,color:"var(--text-muted)",fontWeight:700,flexShrink:0}}>Pedale</span>
                   <span style={{fontSize:11,color:"var(--text)",fontWeight:600,flex:1}}>{songResult.preset_ann.label}</span>
                   {songResult.preset_ann.score&&<span style={{fontSize:10,fontWeight:700,color:scoreColor(songResult.preset_ann.score)}}>{songResult.preset_ann.score}%</span>}
                   <span style={{fontSize:10,color:"var(--text-muted)"}}>Banque {songResult.preset_ann.bank}{songResult.preset_ann.col}</span>
                 </div>}
                 {songResult.preset_plug&&<div style={{display:"flex",alignItems:"center",gap:8,background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:8,padding:"8px 10px",flexWrap:"wrap"}}>
-                  <span style={{fontSize:11,color:"var(--text-muted)",fontWeight:700,flexShrink:0}}>🔌 Plug</span>
+                  <StatusDot score={songResult.preset_plug.score} ideal={songResult.preset_plug.label===songResult.ideal_preset}/>
+                  <span style={{fontSize:11,color:"var(--text-muted)",fontWeight:700,flexShrink:0}}>Plug</span>
                   <span style={{fontSize:11,color:"var(--text)",fontWeight:600,flex:1}}>{songResult.preset_plug.label}</span>
                   {songResult.preset_plug.score&&<span style={{fontSize:10,fontWeight:700,color:scoreColor(songResult.preset_plug.score)}}>{songResult.preset_plug.score}%</span>}
                   <span style={{fontSize:10,color:"var(--text-muted)"}}>Banque {songResult.preset_plug.bank}{songResult.preset_plug.col}</span>
