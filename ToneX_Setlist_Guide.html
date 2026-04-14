@@ -844,7 +844,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "5.0.7";
+const APP_VERSION = "5.0.8";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5092,26 +5092,23 @@ function App() {
   useEffect(()=>{
     loadFromFirestore().then(data=>{
       if(data&&data.shared){
-        // Always merge local + remote (never lose data)
-        const localSongs=songDb||[];
-        const remoteSongs=data.shared.songDb||[];
-        const localSl=setlists||[];
-        const remoteSl=data.shared.setlists||[];
-        const mergedSongs=mergeSongDb(localSongs,remoteSongs);
-        const mergedSl=mergeSetlists(localSl,remoteSl);
-        const mergedProfiles=data.profiles?{...profiles,...data.profiles}:profiles;
+        // Merge songDb and setlists (never lose data), replace the rest
+        var remoteSongs=data.shared.songDb||[];
+        var remoteSl=data.shared.setlists||[];
+        var mergedSongs=mergeSongDb(songDb||[],remoteSongs);
+        var mergedSl=mergeSetlists(setlists||[],remoteSl);
 
         setSongDb(mergedSongs);
         if(data.shared.theme) setTheme(data.shared.theme);
         setSetlists(mergedSl);
         if(data.shared.customGuitars) setCustomGuitars(data.shared.customGuitars);
-        if(mergedProfiles){setProfiles(applySecrets(mergedProfiles));setFirestoreProfiles(data.profiles);}
+        if(data.profiles){setProfiles(applySecrets(data.profiles));setFirestoreProfiles(data.profiles);}
         if(data.activeProfileId) setActiveProfileId(data.activeProfileId);
 
-        // If local had more data, push merged result back to Firestore
+        // If local had more songs/setlists, push merged result back
         if(mergedSongs.length>remoteSongs.length||mergedSl.length>remoteSl.length){
-          var pushState={version:2, activeProfileId:data.activeProfileId||activeProfileId, shared:{songDb:mergedSongs,theme:data.shared.theme||theme,setlists:mergedSl,customGuitars:data.shared.customGuitars||customGuitars}, profiles:mergedProfiles, lastModified:Date.now()};
-          saveToFirestore(pushState).then(function(){setSyncStatus("synced");}).catch(function(){});
+          var ps={version:2,activeProfileId:data.activeProfileId||activeProfileId,shared:{songDb:mergedSongs,theme:data.shared.theme||theme,setlists:mergedSl,customGuitars:data.shared.customGuitars||customGuitars},profiles:data.profiles||profiles,lastModified:Date.now()};
+          saveToFirestore(ps).catch(function(){});
         }
       }
       setFirestoreLoaded(true);
@@ -5134,7 +5131,7 @@ function App() {
         if(data.shared.theme) setTheme(data.shared.theme);
         if(data.shared.setlists) setSetlists(prev=>mergeSetlists(prev,data.shared.setlists));
         if(data.shared.customGuitars) setCustomGuitars(data.shared.customGuitars);
-        if(data.profiles) setProfiles(prev=>applySecrets({...prev,...data.profiles}));
+        if(data.profiles) setProfiles(applySecrets(data.profiles));
         setSyncStatus("synced");
       },function(){});
     });
