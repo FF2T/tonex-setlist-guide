@@ -50,13 +50,13 @@ self.addEventListener('fetch',e=>{
 <script>
 // Firebase stubs — loaded lazily after page renders
 var db=null;
-function saveToFirestore(s){return dbReadyPromise.then(function(){if(!db)return;try{
-  var clean=JSON.parse(JSON.stringify(s));
-  clean.lastModified=Date.now();
-  if(clean.profiles){for(var pid in clean.profiles){if(clean.profiles[pid].aiKeys)clean.profiles[pid].aiKeys={anthropic:"",gemini:""};}}
-  return db.collection("sync").doc("state").set(clean).catch(function(e){console.warn("FS save:",e);});
-}catch(e){}});}
-var dbReadyResolve;var dbReadyPromise=new Promise(function(r){dbReadyResolve=r;setTimeout(function(){r();},5000);});
+// onDbReady: fires callback immediately if db is ready, or queues it until Firebase loads.
+// Unlike dbReadyPromise (5s timeout), this always waits for the real Firebase init.
+var _dbReadyFns=[];var _dbIsReady=false;
+function onDbReady(fn){if(_dbIsReady)fn();else _dbReadyFns.push(fn);}
+function _triggerDbReady(){if(_dbIsReady)return;_dbIsReady=true;_dbReadyFns.forEach(function(fn){fn();});_dbReadyFns=[];}
+function saveToFirestore(s){return new Promise(function(resolve){onDbReady(function(){if(!db){resolve();return;}try{var clean=JSON.parse(JSON.stringify(s));clean.lastModified=Date.now();if(clean.profiles){for(var pid in clean.profiles){if(clean.profiles[pid].aiKeys)clean.profiles[pid].aiKeys={anthropic:"",gemini:""};}}db.collection("sync").doc("state").set(clean).then(resolve).catch(function(e){console.warn("FS save:",e);resolve();});}catch(e){resolve();}});});}
+var dbReadyResolve;var dbReadyPromise=new Promise(function(r){dbReadyResolve=r;setTimeout(function(){r();},10000);});
 function loadFromFirestore(){return dbReadyPromise.then(function(){if(!db)return null;return db.collection("sync").doc("state").get().then(function(d){return d.exists?d.data():null;}).catch(function(){return null;});});}
 function onFirestoreChange(cb){if(!db)return function(){};return db.collection("sync").doc("state").onSnapshot(function(d){if(d.exists)cb(d.data());},function(){});}
 function loadSharedKey(){if(!db)return Promise.resolve();return db.collection("config").doc("apikeys").get().then(function(d){if(d.exists&&d.data().gemini)DEFAULT_GEMINI_KEY=d.data().gemini;}).catch(function(){});}
@@ -844,7 +844,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "5.0.8";
+const APP_VERSION = "5.0.9";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5119,13 +5119,17 @@ function App() {
   useEffect(()=>{
     let unsub=()=>{};
     let firstSnapshot=true;
-    dbReadyPromise.then(()=>{
+    // Use onDbReady (not dbReadyPromise) so the listener is always set up,
+    // even if Firebase loads after the 10s initial timeout.
+    onDbReady(()=>{
       if(!db) return;
       unsub = db.collection("sync").doc("state").onSnapshot(function(d){
         if(!d.exists) return;
         const data=d.data();
-        if(Date.now()-lastSaveTime.current<5000)return;
+        // Skip the very first snapshot (reflects current/local state, not a remote change)
         if(firstSnapshot){firstSnapshot=false;return;}
+        // Skip if we just saved locally (avoid echoing our own write back)
+        if(Date.now()-lastSaveTime.current<5000)return;
         if(!data||!data.shared) return;
         if(data.shared.songDb) setSongDb(prev=>mergeSongDb(prev,data.shared.songDb));
         if(data.shared.theme) setTheme(data.shared.theme);
@@ -5237,7 +5241,7 @@ ReactDOM.render(<App/>, document.getElementById("root"));
       try{
         firebase.initializeApp({apiKey:"AIzaSyAnaJMN-a47S9W_cTC60lKAnzRMAgHNMAA",authDomain:"tonex-guide.firebaseapp.com",projectId:"tonex-guide",storageBucket:"tonex-guide.firebasestorage.app",messagingSenderId:"891859157059",appId:"1:891859157059:web:519ce30a866f20ab3d54f6"});
         db=firebase.firestore();
-        loadSharedKey().then(function(){console.log("Firebase ready, key loaded");if(dbReadyResolve)dbReadyResolve();});
+        loadSharedKey().then(function(){console.log("Firebase ready, key loaded");_triggerDbReady();if(dbReadyResolve)dbReadyResolve();});
       }catch(e){console.warn("Firebase init failed:",e);}
     };
     document.head.appendChild(s2);
