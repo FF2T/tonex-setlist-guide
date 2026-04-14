@@ -844,7 +844,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "5.0.2";
+const APP_VERSION = "5.0.3";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5094,13 +5094,23 @@ function App() {
       if(data&&data.shared&&data.profiles){
         const localTime = saved?.lastModified || 0;
         const remoteTime = data.lastModified || 0;
-        if(!saved || remoteTime >= localTime){
-          if(data.shared.songDb) setSongDb(prev=>mergeSongDb(prev,data.shared.songDb));
-          if(data.shared.theme) setTheme(data.shared.theme);
-          if(data.shared.setlists) setSetlists(prev=>mergeSetlists(prev,data.shared.setlists));
-          if(data.shared.customGuitars) setCustomGuitars(data.shared.customGuitars);
-          if(data.profiles){setProfiles(applySecrets(data.profiles));setFirestoreProfiles(data.profiles);}
-          if(data.activeProfileId) setActiveProfileId(data.activeProfileId);
+        // Merge local + remote (never lose data)
+        const mergedSongs=data.shared.songDb?mergeSongDb(songDb,data.shared.songDb):songDb;
+        const mergedSetlists=data.shared.setlists?mergeSetlists(setlists,data.shared.setlists):setlists;
+        setSongDb(mergedSongs);
+        if(data.shared.theme) setTheme(data.shared.theme);
+        setSetlists(mergedSetlists);
+        if(data.shared.customGuitars) setCustomGuitars(data.shared.customGuitars);
+        if(data.profiles){setProfiles(applySecrets(data.profiles));setFirestoreProfiles(data.profiles);}
+        if(data.activeProfileId) setActiveProfileId(data.activeProfileId);
+        // If merged has more data than Firestore, push back immediately
+        const remoteSongCount=(data.shared.songDb||[]).length;
+        const remoteSlCount=(data.shared.setlists||[]).length;
+        if(mergedSongs.length>remoteSongCount||mergedSetlists.length>remoteSlCount){
+          setTimeout(()=>{
+            const state={version:2, activeProfileId, shared:{songDb:mergedSongs,theme,setlists:mergedSetlists,customGuitars}, profiles, lastModified:Date.now()};
+            saveToFirestore(state).then(()=>setSyncStatus("synced")).catch(()=>{});
+          },2000);
         }
       }
       setFirestoreLoaded(true);
