@@ -3035,7 +3035,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "4.2.1";
+const APP_VERSION = "4.2.2";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5062,6 +5062,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
   const chosenGuitarScore=chosenGuitarCot?.score||idealGuitarScore;
   // Section styling helper
   const sectionStyle={background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:10,padding:"10px 12px",marginBottom:8};
+  const customSectionStyle={background:"var(--a5)",border:"1px solid var(--a10)",borderRadius:10,padding:"10px 12px",marginBottom:8};
   const sectionTitle=(icon,label)=><div style={{fontSize:10,fontWeight:700,color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8,display:"flex",alignItems:"center",gap:5}}>{icon} {label}</div>;
   return(
     <div className="song-row-detail" style={{background:"var(--a2)",borderRadius:"0 0 12px 12px",padding:"10px 12px",marginBottom:8,marginTop:-2,display:"flex",flexDirection:"column",gap:6}}>
@@ -5192,8 +5193,8 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
       </div>
 
       {/* ── SECTION 4 : Paramétrage (guitare choisie + presets installés) ── */}
-      <div style={sectionStyle}>
-        {sectionTitle("🎛","Parametrage")}
+      <div style={customSectionStyle}>
+        {sectionTitle("🎛","Parametrage — mon choix")}
         <div style={{marginBottom:8}}>
           <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Guitare choisie</div>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -6875,6 +6876,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           const chosenGuitarCot=selectedGuitar&&songResult.cot_step2_guitars?.find(gt=>gt.name===selectedGuitar.name||gt.name===selectedGuitar.short);
           const chosenGuitarScore=chosenGuitarCot?.score||idealGuitarScore;
           const sectionStyle={background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:10,padding:"10px 12px",marginBottom:8};
+          const customSectionStyle={background:"var(--a5)",border:"1px solid var(--a10)",borderRadius:10,padding:"10px 12px",marginBottom:8};
           const sectionTitle=(icon,label)=><div style={{fontSize:10,fontWeight:700,color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8,display:"flex",alignItems:"center",gap:5}}>{icon} {label}</div>;
           return <div style={{width:"100%",maxWidth:500,animation:"slideDown .2s ease-out"}}>
           <div style={{background:"var(--a2)",border:"1px solid var(--a7)",borderRadius:14,padding:14,marginTop:8,display:"flex",flexDirection:"column",gap:6}}>
@@ -6953,8 +6955,8 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
             </div>
 
             {/* SECTION 4 : Paramétrage */}
-            <div style={sectionStyle}>
-              {sectionTitle("🎛","Parametrage")}
+            <div style={customSectionStyle}>
+              {sectionTitle("🎛","Parametrage — mon choix")}
               <div style={{marginBottom:8}}>
                 <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Guitare choisie</div>
                 <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:4}}>
