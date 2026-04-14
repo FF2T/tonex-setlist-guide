@@ -206,7 +206,7 @@ const TSR_PACK_GROUPS={
   "Soldano":["Soldano 100","Soldano GP77"],
   "D13":["D13","D13 AMP39"],
   "Vox / British":["British Chime (Budda V20)","British Rock (Vox DC30)"],
-  "Drives / Pedals":["Drive Pedal Pack 3","Jivey Drives","Jivey Drives 2","Amplifonics & Gain"],
+  "Drives / Pedals":["Drive Pedal Pack 3","Jivey Drives","Jivey Drives 2"],
   "Bass":["Ampeg Pro 4","Bass Elliot","Bass Pack 1","GK MBS150 (Bass)"],
 };
 
@@ -2349,6 +2349,8 @@ const PRESET_CONTEXT = {
   "Custom 30":{emoji:"🫖",refs:[{a:"Brian May",t:["Bohemian Rhapsody"]},{a:"Tom Petty",t:["Free Fallin'"]}],desc:"Ampli de type Vox AC30 custom. Son british classique avec ses harmoniques chimey caractéristiques. Chime et crunch naturel pour le rock britannique."},
   "Diezel":{emoji:"⚙️",refs:[{a:"Adam Jones",t:["Schism"]},{a:"Bumblefoot",t:[]},{a:"Rivera (Metallica tech)",t:[]}],desc:"Les amplis Diezel allemands sont des machines de guerre du high gain. Son serré, articulé même dans les graves. Référence du metal et du hard rock moderne."},
   "Divided by 13":{emoji:"🔷",refs:[{a:"John Mayer",t:["Gravity","Waiting on the World to Change"]},{a:"Blake Mills",t:[]},{a:"Matt Schofield",t:[]}],desc:"Divided by 13 fabrique des amplis boutique californiens réputés pour leur dynamique exceptionnelle et leur réponse au toucher. Son clean lumineux qui crunche naturellement en poussant le volume. Favori de John Mayer en studio."},
+  "Sons Amp":{emoji:"🔊",refs:[{a:"Session musicians",t:[]}],desc:"Sons Amplification est un fabricant d'amplis boutique britannique. Connus pour leur polyvalence, du clean cristallin au crunch rock classique. Amplis à lampes construits à la main avec un caractère british prononcé."},
+  "Amplifonics":{emoji:"🔊",refs:[],desc:"Amplifonics est une marque d'amplis boutique orientée gain et polyvalence. Ces presets capturent différentes configurations de gain, du clean au lead, pour explorer la palette complète de l'ampli."},
   "Dr. Z":{emoji:"🩺",refs:[{a:"Brad Paisley",t:["Mud on the Tires"]},{a:"Joe Bonamassa",t:["Sloe Gin"]}],desc:"Les amplis Dr. Z sont des boutiques américains au son vintage inspiré du Vox et du Fender. Chaleur, réponse dynamique et musicalité exceptionnelles."},
   "Dr. Z Wreck":{emoji:"🩺",refs:[{a:"Joe Bonamassa",t:["Sloe Gin"]},{a:"Brad Paisley",t:[]}],desc:"Le Dr. Z Wreck est un ampli boutique inspiré du Trainwreck. Son clair brillant, crunch musical et expressif. Très réactif au volume de la guitare."},
   "Drive Pedals":{emoji:"🎛️",refs:[],desc:"Pédales de drive capturées via ToneX. Ces presets modélisent des pédales d'overdrive, fuzz et distortion populaires. A utiliser en standalone ou devant un ampli clean pour ajouter du gain et de la couleur."},
@@ -3033,7 +3035,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "3.7.2";
+const APP_VERSION = "3.7.3";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5877,7 +5879,7 @@ function findAmpContext(ampName,ctxMap){
     "Chandler 19T":"Benson Chimera",
     "Bumble Deluxe":"Dumble Deluxe",
     "Rouge Plate D50":"Dr. Z",
-    "Sons Amp":"Fender Champ",
+    "Sons Amplification":"Sons Amp",
     "Mega Barba":"Mesa Boogie",
     "Ample Betty":"Supro",
     "Amplified Nation Overdrive Reverb":"Dumble ODS",
