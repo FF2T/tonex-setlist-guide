@@ -3016,7 +3016,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "3.5.0";
+const APP_VERSION = "3.5.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5846,8 +5846,31 @@ function NewSongExplorer({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug
 
 // ─── PresetBrowser ────────────────────────────────────────────────────────────
 const PRESET_PAGE_SIZE=30;
+function findAmpContext(ampName,ctxMap){
+  if(!ampName)return null;
+  const ctx=ctxMap||PRESET_CONTEXT;
+  if(ctx[ampName])return ctx[ampName];
+  // Fuzzy: essayer sans "Boogie", sans "Fender ", etc.
+  const norm=ampName.replace(/\s+/g," ").trim();
+  const variations=[
+    norm.replace("Mesa Boogie ","Mesa "),
+    norm.replace("Mesa ","Mesa Boogie "),
+    norm.replace("Marshall ","Mars "),
+    norm.replace("Mars ","Marshall "),
+    norm.replace("Fender ","FNDR "),
+    norm.replace("FNDR ","Fender "),
+  ];
+  for(const v of variations){if(ctx[v])return ctx[v];}
+  // Substring match: chercher une clé qui contient le nom ou vice-versa
+  const lower=norm.toLowerCase();
+  for(const [k,v] of Object.entries(ctx)){
+    if(k.toLowerCase().includes(lower)||lower.includes(k.toLowerCase())) return v;
+  }
+  return null;
+}
+
 function PresetDetailInline({name,info,banksAnn,banksPlug,presetContext,guitars}){
-  const ctx=(presetContext||PRESET_CONTEXT)[info.amp];
+  const ctx=findAmpContext(info.amp,presetContext||PRESET_CONTEXT);
   const annLoc=findInBanks(name,banksAnn);
   const plugLoc=findInBanks(name,banksPlug);
   const allGuitars=guitars||GUITARS;
