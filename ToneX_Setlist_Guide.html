@@ -844,7 +844,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "5.0.0";
+const APP_VERSION = "5.0.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5040,6 +5040,34 @@ function App() {
     saveSecrets(secrets);
   },[profiles]);
 
+  // Merge songDb: union by id (never lose songs)
+  const mergeSongDb=(local,remote)=>{
+    if(!remote)return local;
+    if(!local)return remote;
+    const map=new Map(local.map(s=>[s.id,s]));
+    remote.forEach(s=>{
+      const existing=map.get(s.id);
+      if(!existing){map.set(s.id,s);}
+      else{
+        // Keep the one with the most recent/complete aiCache
+        if(s.aiCache&&(!existing.aiCache||s.aiCache.sv>(existing.aiCache.sv||0))){map.set(s.id,s);}
+      }
+    });
+    return [...map.values()];
+  };
+  // Merge setlists: keep all, merge songIds (union)
+  const mergeSetlists=(local,remote)=>{
+    if(!remote)return local;
+    if(!local)return remote;
+    const map=new Map(local.map(sl=>[sl.id,sl]));
+    remote.forEach(sl=>{
+      const existing=map.get(sl.id);
+      if(!existing){map.set(sl.id,sl);}
+      else{map.set(sl.id,{...existing,...sl,songIds:[...new Set([...existing.songIds,...sl.songIds])]});}
+    });
+    return [...map.values()];
+  };
+
   // Persist to localStorage (immediate) + Firestore (debounced 3s)
   const hasMounted = useRef(false);
   const justLoadedFromFirestore = useRef(false);
@@ -5070,9 +5098,9 @@ function App() {
         const remoteTime = data.lastModified || 0;
         if(!saved || remoteTime >= localTime){
           justLoadedFromFirestore.current=true;
-          if(data.shared.songDb) setSongDb(data.shared.songDb);
+          if(data.shared.songDb) setSongDb(prev=>mergeSongDb(prev,data.shared.songDb));
           if(data.shared.theme) setTheme(data.shared.theme);
-          if(data.shared.setlists) setSetlists(data.shared.setlists);
+          if(data.shared.setlists) setSetlists(prev=>mergeSetlists(prev,data.shared.setlists));
           if(data.shared.customGuitars) setCustomGuitars(data.shared.customGuitars);
           if(data.profiles){setProfiles(applySecrets(data.profiles));setFirestoreProfiles(data.profiles);}
           if(data.activeProfileId) setActiveProfileId(data.activeProfileId);
@@ -5094,9 +5122,9 @@ function App() {
         if(Date.now()-lastSaveTime.current<5000)return;
         if(firstSnapshot){firstSnapshot=false;return;}
         if(!data||!data.shared||!data.profiles) return;
-        if(data.shared.songDb) setSongDb(data.shared.songDb);
+        if(data.shared.songDb) setSongDb(prev=>mergeSongDb(prev,data.shared.songDb));
         if(data.shared.theme) setTheme(data.shared.theme);
-        if(data.shared.setlists) setSetlists(data.shared.setlists);
+        if(data.shared.setlists) setSetlists(prev=>mergeSetlists(prev,data.shared.setlists));
         if(data.shared.customGuitars) setCustomGuitars(data.shared.customGuitars);
         if(data.profiles) setProfiles(applySecrets(data.profiles));
         setSyncStatus("synced");
