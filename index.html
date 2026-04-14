@@ -3035,7 +3035,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "4.2.0";
+const APP_VERSION = "4.2.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5505,11 +5505,12 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                 </div>}
                 {!isExpanded&&(g||aiC?.ideal_guitar)&&(()=>{
                   const gScore=Math.max(aiPA?.score||0,aiPP?.score||0);
+                  const isIdealGuitar=g?ig.includes(gId):true;
                   return <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",marginTop:4}}>
-                  <span style={{fontSize:10,color:"var(--text-muted)"}}>🎸</span>
+                  <span style={{fontSize:10}}>{isIdealGuitar?"⭐":"🎸"}</span>
                   {g
-                    ?<span style={{fontSize:10,color:ig.includes(gId)?"var(--green)":"var(--accent)",background:ig.includes(gId)?"var(--green-bg)":"var(--accent-bg)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{ig.includes(gId)?"⭐ ":""}{g.name} ({g.type}){savedGId&&!ig.includes(savedGId)?" (choix perso)":""}</span>
-                    :aiC?.ideal_guitar&&<span style={{fontSize:10,color:"var(--green)",background:"var(--green-bg)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>⭐ {aiC.ideal_guitar}</span>
+                    ?<span style={{fontSize:10,color:"var(--text-sec)",background:"var(--a6)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{g.name} ({g.type}){savedGId&&!ig.includes(savedGId)?" (choix perso)":""}</span>
+                    :aiC?.ideal_guitar&&<span style={{fontSize:10,color:"var(--text-sec)",background:"var(--a6)",borderRadius:4,padding:"1px 7px",fontWeight:600}}>{aiC.ideal_guitar}</span>
                   }
                   {gScore>0&&<span style={{fontSize:10,fontWeight:800,color:scoreColor(gScore),background:scoreBg(gScore),borderRadius:4,padding:"1px 6px",border:`1px solid ${scoreColor(gScore)}30`}} title={scoreLabel(gScore).tip+"  —  score guitare"}>{gScore}%</span>}
                 </div>;})()}
