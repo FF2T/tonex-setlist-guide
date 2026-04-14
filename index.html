@@ -56,7 +56,7 @@ var _dbReadyFns=[];var _dbIsReady=false;
 function onDbReady(fn){if(_dbIsReady)fn();else _dbReadyFns.push(fn);}
 function _triggerDbReady(){if(_dbIsReady)return;_dbIsReady=true;_dbReadyFns.forEach(function(fn){fn();});_dbReadyFns=[];}
 var _lastSavedSyncId=null;
-function saveToFirestore(s){return new Promise(function(resolve){onDbReady(function(){if(!db){resolve();return;}try{var clean=JSON.parse(JSON.stringify(s));clean.lastModified=Date.now();var sid=Date.now().toString(36)+Math.random().toString(36).slice(2);_lastSavedSyncId=sid;clean.syncId=sid;if(clean.profiles){for(var pid in clean.profiles){if(clean.profiles[pid].aiKeys)clean.profiles[pid].aiKeys={anthropic:"",gemini:""};}}db.collection("sync").doc("state").set(clean).then(resolve).catch(function(e){console.warn("FS save:",e);resolve();});}catch(e){resolve();}});});}
+function saveToFirestore(s){return new Promise(function(resolve,reject){onDbReady(function(){if(!db){resolve();return;}try{var clean=JSON.parse(JSON.stringify(s));clean.lastModified=Date.now();var sid=Date.now().toString(36)+Math.random().toString(36).slice(2);_lastSavedSyncId=sid;clean.syncId=sid;if(clean.profiles){for(var pid in clean.profiles){if(clean.profiles[pid].aiKeys)clean.profiles[pid].aiKeys={anthropic:"",gemini:""};}}db.collection("sync").doc("state").set(clean).then(resolve).catch(function(e){console.error("Firestore save error:",e);reject(e);});}catch(e){reject(e);}});});}
 var dbReadyResolve;var dbReadyPromise=new Promise(function(r){dbReadyResolve=r;setTimeout(function(){r();},10000);});
 function loadFromFirestore(){return dbReadyPromise.then(function(){if(!db)return null;return db.collection("sync").doc("state").get().then(function(d){return d.exists?d.data():null;}).catch(function(){return null;});});}
 function onFirestoreChange(cb){if(!db)return function(){};return db.collection("sync").doc("state").onSnapshot(function(d){if(d.exists)cb(d.data());},function(){});}
@@ -845,7 +845,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "5.0.11";
+const APP_VERSION = "5.0.12";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
