@@ -910,7 +910,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "5.1.1";
+const APP_VERSION = "5.2.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3424,6 +3424,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
 function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources}) {
   const guitars=allGuitars||GUITARS;
   const [mode,setMode]=useState("single"); // "single" | "multi"
+  const [selectedGuitarId,setSelectedGuitarId]=useState(null);
 
   // Compute top guitars ranked by song affinity
   const rankedGuitars=useMemo(()=>{
@@ -3453,12 +3454,13 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
 
   const topGuitar=rankedGuitars[0]?guitars.find(g=>g.id===rankedGuitars[0].gId):null;
   const top3=rankedGuitars.slice(0,3).map(r=>({...r,guitar:guitars.find(g=>g.id===r.gId)})).filter(r=>r.guitar);
+  const chosenGuitar=guitars.find(g=>g.id===selectedGuitarId)||topGuitar;
 
   // Assign guitar per song based on mode
   const songGuitarMap=useMemo(()=>{
     const map={};
-    if(mode==="single"&&topGuitar){
-      songs.forEach(s=>{map[s.id]=topGuitar;});
+    if(mode==="single"&&chosenGuitar){
+      songs.forEach(s=>{map[s.id]=chosenGuitar;});
     } else {
       // Multi: assign best guitar per song from top 3
       const top3Ids=new Set(top3.map(r=>r.gId));
@@ -3488,7 +3490,7 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
       });
     }
     return map;
-  },[mode,songs,guitars,topGuitar,top3,banksAnn,banksPlug]);
+  },[mode,songs,guitars,chosenGuitar,top3,banksAnn,banksPlug]);
 
   // Compute preset for each song based on assigned guitar
   const songRows=useMemo(()=>{
@@ -3499,7 +3501,8 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
       const aiCraw=getBestResult(s,gId,s.aiCache?.result)||null;
       let presetAnn=null,presetPlug=null;
       if(aiCraw){
-        const enriched=enrichAIResult({...aiCraw},gType,gId,banksAnn,banksPlug);
+        var cleaned={...aiCraw,preset_ann:null,preset_plug:null,ideal_preset:null,ideal_preset_score:0,ideal_top3:null};
+        const enriched=enrichAIResult(cleaned,gType,gId,banksAnn,banksPlug);
         presetAnn=enriched.preset_ann||null;
         presetPlug=enriched.preset_plug||null;
       }
@@ -3551,16 +3554,12 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
       <div style={{background:"var(--a4)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:14,padding:16,marginBottom:20}}>
         {mode==="single"?(
           <div>
-            <div style={{fontSize:14,fontWeight:800,color:"var(--text)",marginBottom:8}}>🎸 Guitare recommandée</div>
-            {topGuitar?(()=>{
-              const rgb=TYPE_COLORS[topGuitar.type]||"148,163,184";
-              const count=rankedGuitars[0]?.count||0;
-              return <div style={{display:"flex",alignItems:"center",gap:10}}>
-                <span style={{fontSize:15,fontWeight:800,color:`rgb(${rgb})`}}>{topGuitar.name}</span>
-                <span style={{fontSize:11,color:`rgb(${rgb})`,background:`rgba(${rgb},0.12)`,border:`1px solid rgba(${rgb},0.3)`,borderRadius:6,padding:"2px 8px",fontWeight:600}}>{TYPE_LABELS[topGuitar.type]||topGuitar.type}</span>
-                <span style={{fontSize:10,color:"var(--text-dim)"}}>{count}/{songs.length} morceau{count>1?"x":""}</span>
-              </div>;
-            })():<div style={{fontSize:12,color:"var(--text-muted)"}}>Aucune guitare configurée</div>}
+            <div style={{fontSize:14,fontWeight:800,color:"var(--text)",marginBottom:4}}>🎸 Guitare pour cette session</div>
+            {topGuitar&&<div style={{fontSize:10,color:"var(--text-dim)",marginBottom:8}}>Recommandee : {topGuitar.name} ({rankedGuitars[0]?.count||0}/{songs.length} morceaux)</div>}
+            <div style={{marginBottom:4}}>
+              <GuitarSelect value={chosenGuitar?.id||""} onChange={v=>setSelectedGuitarId(v)} ig={rankedGuitars.map(r=>r.gId)} guitars={guitars}/>
+            </div>
+            {chosenGuitar&&chosenGuitar.id!==topGuitar?.id&&<div style={{fontSize:10,color:"var(--text-muted)",marginTop:4}}>Choix perso — les presets sont recalcules pour {chosenGuitar.short||chosenGuitar.name} ({chosenGuitar.type})</div>}
           </div>
         ):(
           <div>
