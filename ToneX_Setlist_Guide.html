@@ -910,7 +910,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "5.1.0";
+const APP_VERSION = "5.1.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -2891,7 +2891,8 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
     // Cache avec CoT mais guitare différente → rescore local seulement, pas de re-fetch IA
     if(song.aiCache?.result?.cot_step1&&gId){
       const gType=(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB";
-      const recalc=enrichAIResult({...song.aiCache.result},gType,gId,banksAnn,banksPlug);
+      var cleaned2={...song.aiCache.result,preset_ann:null,preset_plug:null,ideal_preset:null,ideal_preset_score:0,ideal_top3:null};
+      const recalc=enrichAIResult(cleaned2,gType,gId,banksAnn,banksPlug);
       setLocalAiResult(recalc);
       // Defer cache update to avoid blocking render
       setTimeout(()=>onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:updateAiCache(x.aiCache,gId,recalc)}:x)),0);
@@ -2915,7 +2916,8 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
       const base=localAiResult||song.aiCache?.result;
       if(base?.cot_step1){
         const gType=(guitars||GUITARS).find(x=>x.id===v)?.type||"HB";
-        const recalc=enrichAIResult({...base},gType,v,banksAnn,banksPlug);
+        var cleaned={...base,preset_ann:null,preset_plug:null,ideal_preset:null,ideal_preset_score:0,ideal_top3:null};
+        const recalc=enrichAIResult(cleaned,gType,v,banksAnn,banksPlug);
         setLocalAiResult(recalc);
         setTimeout(()=>onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:updateAiCache(x.aiCache,v,recalc)}:x)),0);
         return;
