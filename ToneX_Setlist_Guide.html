@@ -910,7 +910,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "5.2.1";
+const APP_VERSION = "5.2.2";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3863,18 +3863,26 @@ function PresetDetailInline({name,info,banksAnn,banksPlug,presetContext,guitars}
     high:{primary:["hard_rock","metal","rock"],desc:"Son sature : ideal pour hard rock, metal, rock lead"}
   };
   const gainStyles=GAIN_STYLES[info.gain]||GAIN_STYLES.mid;
-  // Artistes connus par registre (heuristique par genre)
-  const CLEAN_ARTISTS=["b.b. king","john mayer","mark knopfler","eric johnson","nile rodgers","chet atkins","jerry garcia","joe pass","wes montgomery","pat metheny","george benson","robert cray","larry carlton"];
-  const DRIVE_ARTISTS=["eric clapton","jimi hendrix","stevie ray vaughan","gary moore","peter green","keith richards","angus young","joe bonamassa","jimmy page","brian may","pete townshend","neil young","billy gibbons"];
-  const HEAVY_ARTISTS=["metallica","james hetfield","kirk hammett","john petrucci","eddie van halen","dimebag darrell","tony iommi","zakk wylde","dave mustaine","tom morello","tool","system of a down","slayer","pantera"];
-  const sortRefs=(refs)=>{
-    if(!refs||refs.length<=1)return refs;
-    const priority=info.gain==="low"?CLEAN_ARTISTS:info.gain==="high"?HEAVY_ARTISTS:DRIVE_ARTISTS;
-    return [...refs].sort((a,b)=>{
-      const aP=priority.some(p=>a.a.toLowerCase().includes(p))?0:1;
-      const bP=priority.some(p=>b.a.toLowerCase().includes(p))?0:1;
-      return aP-bP;
+  // Morceaux connus par registre (pour filtrer les refs par gain)
+  const CLEAN_TRACKS=["gravity","waiting on the world","sultans of swing","romeo","juliet","wonderful tonight","tears in heaven","blackbird","dust in the wind","stairway","hotel california intro","wish you were here","under the bridge","hallelujah","the thrill is gone","truckin"];
+  const HEAVY_TRACKS=["money for nothing","paranoid","back in black","highway to hell","thunderstruck","smoke on the water","purple haze","whole lotta love","eruption","master of puppets","enter sandman","schism","b.y.o.b.","ace of spades","crazy train","iron man"];
+  const filterRefs=(refs)=>{
+    if(!refs||refs.length===0)return refs;
+    var gain=info.gain;
+    // Filter tracks within each artist ref based on gain
+    var filtered=refs.map(function(r){
+      if(!r.t||r.t.length===0) return r;
+      var tracks=r.t.filter(function(t){
+        var tl=t.toLowerCase();
+        if(gain==="low") return !HEAVY_TRACKS.some(function(h){return tl.includes(h);});
+        if(gain==="high") return !CLEAN_TRACKS.some(function(c){return tl.includes(c);});
+        return true;
+      });
+      return {...r,t:tracks};
     });
+    // Remove artists with no remaining tracks (unless they had none to begin with)
+    filtered=filtered.filter(function(r){return r.t.length>0||(refs.find(function(o){return o.a===r.a;})?.t||[]).length===0;});
+    return filtered.length>0?filtered:refs; // fallback to all if filter empties everything
   };
   // Parse preset character from name
   const nameLower=name.toLowerCase();
@@ -3887,7 +3895,7 @@ function PresetDetailInline({name,info,banksAnn,banksPlug,presetContext,guitars}
     (/\bhigh.?gain\b|\bfull.?beans\b|\bdimed\b|\bmax\b/i.test(nameLower))?"High gain — Saturation maximale, mur de son":
     (/\bboost\b|\bklon\b|\bts\b|\btube.?screamer\b|\brodent\b|\bmuff\b|\bfuzz\b/i.test(nameLower))?"Boost / Pedale — Son avec pedale de drive en amont":
     null;
-  const sortedRefs=sortRefs(ctx?.refs);
+  const filteredRefs=filterRefs(ctx?.refs);
   // Compute per-guitar scores
   const guitarScores=allGuitars.map(g=>{
     const sc=computePickupScore(info.style,getGainRange(gainToNumeric(info.gain)),g.type);
@@ -3936,10 +3944,10 @@ function PresetDetailInline({name,info,banksAnn,banksPlug,presetContext,guitars}
       </div>
 
       {/* SECTION 3 : Morceaux mythiques */}
-      {sortedRefs&&sortedRefs.length>0&&<div style={sectionStyle}>
+      {filteredRefs&&filteredRefs.length>0&&<div style={sectionStyle}>
         {sectionTitle("🎵","Morceaux mythiques — registre "+GAIN_SHORT[info.gain])}
         <div style={{display:"flex",flexDirection:"column",gap:5}}>
-          {sortedRefs.map(r=><div key={r.a} style={{fontSize:11,color:"var(--text-sec)"}}>
+          {filteredRefs.map(r=><div key={r.a} style={{fontSize:11,color:"var(--text-sec)"}}>
             <span style={{fontWeight:600,color:"var(--text-bright)"}}>{r.a}</span>
             {r.t.length>0&&<span style={{color:"var(--text-dim)"}}> — {r.t.join(", ")}</span>}
           </div>)}
