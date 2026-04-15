@@ -910,7 +910,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "5.2.0";
+const APP_VERSION = "5.2.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3645,10 +3645,10 @@ function SynthesisScreen({songs,gps,aiR,onBack,onNavigate,songDb,banksAnn,banksP
     const gId=g?.id||"";
     let ann=null,plug=null;
     const aiCraw=getBestResult(s,gId,aiR[s.id]||s.aiCache?.result)||null;
-    const ai=aiCraw?enrichAIResult({...aiCraw},type,gId,banksAnn,banksPlug):null;
+    const ai=aiCraw?enrichAIResult({...aiCraw,preset_ann:null,preset_plug:null,ideal_preset:null,ideal_preset_score:0,ideal_top3:null},type,gId,banksAnn,banksPlug):null;
     if(ai){
-      if(ai.preset_ann)ann={name:ai.preset_ann.label,rec:getInstallRec(ai.preset_ann.label,type,banksAnn,gId)};
-      if(ai.preset_plug)plug={name:ai.preset_plug.label,rec:getInstallRec(ai.preset_plug.label,type,banksPlug,gId)};
+      if(ai.preset_ann){var recA=getInstallRec(ai.preset_ann.label,type,banksAnn,gId);ann={name:ai.preset_ann.label,score:ai.preset_ann.score,rec:recA};}
+      if(ai.preset_plug){var recP=getInstallRec(ai.preset_plug.label,type,banksPlug,gId);plug={name:ai.preset_plug.label,score:ai.preset_plug.score,rec:recP};}
     }
     return {s,g,type,ann,plug};
   });
@@ -3656,8 +3656,8 @@ function SynthesisScreen({songs,gps,aiR,onBack,onNavigate,songDb,banksAnn,banksP
   const td={fontSize:12,padding:"10px",borderBottom:"1px solid var(--a5)",verticalAlign:"top"};
   const cellPreset=(item,accentColor)=>{
     if(!item) return <span style={{color:"var(--text-muted)"}}>—</span>;
-    const {name,rec}=item;
-    const sc=rec?.score;
+    const {name,score,rec}=item;
+    const sc=score!=null?score:rec?.score;
     const scC=sc!=null?scoreColor(sc):"#888";
     const scB=sc!=null?scoreBg(sc):"transparent";
     return (
