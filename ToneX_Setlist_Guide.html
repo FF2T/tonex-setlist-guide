@@ -910,7 +910,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "5.2.2";
+const APP_VERSION = "5.3.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3095,6 +3095,37 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
           <div style={{display:"flex",alignItems:"center",gap:4}}><StatusDot score={aiC.preset_ann?.score} ideal={aiC.preset_ann?.label===aiC.ideal_preset} size={10}/><div style={{flex:1}}><PBlock device="Pedale" emoji="📦" presetName={aiC.preset_ann?.label} gType={gId?type:null} banks={banksAnn} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_ann?.score} breakdown={aiC.preset_ann?.breakdown}/></div></div>
           <div style={{display:"flex",alignItems:"center",gap:4}}><StatusDot score={aiC.preset_plug?.score} ideal={aiC.preset_plug?.label===aiC.ideal_preset} size={10}/><div style={{flex:1}}><PBlock device="ToneX Plug" emoji="🔌" presetName={aiC.preset_plug?.label} gType={gId?type:null} banks={banksPlug} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={aiC.preset_plug?.score} breakdown={aiC.preset_plug?.breakdown}/></div></div>
         </div>
+        {/* Suggestion si score < 90% */}
+        {(()=>{
+          var bestScore=Math.max(aiC.preset_ann?.score||0,aiC.preset_plug?.score||0,aiC.ideal_preset_score||0);
+          if(bestScore>=90||bestScore===0) return null;
+          var bestBreakdown=aiC.preset_ann?.breakdown||aiC.preset_plug?.breakdown;
+          var refAmp=aiC.ref_amp||"l'ampli original";
+          var weakest=null;var weakLabel="";var weakScore=100;
+          if(bestBreakdown){
+            var dims=[
+              {key:"refAmp",label:"Ampli",score:bestBreakdown.refAmp?.raw},
+              {key:"gainMatch",label:"Gain",score:bestBreakdown.gainMatch?.raw},
+              {key:"styleMatch",label:"Style",score:bestBreakdown.styleMatch?.raw},
+              {key:"pickup",label:"Micro",score:bestBreakdown.pickup?.raw}
+            ];
+            dims.forEach(function(d){if(d.score!=null&&d.score<weakScore){weakScore=d.score;weakest=d.key;weakLabel=d.label;}});
+          }
+          var suggestion="";
+          if(weakest==="refAmp") suggestion="Aucun preset ne simule "+refAmp+". Cherchez une capture \""+refAmp+"\" sur ToneNET (IK Multimedia) ou chez Amalgam Audio.";
+          else if(weakest==="gainMatch") suggestion="Le gain des presets disponibles ne correspond pas au son original. Cherchez un preset avec le bon niveau de gain pour "+refAmp+" sur ToneNET.";
+          else if(weakest==="styleMatch") suggestion="Le style des presets disponibles ne matche pas bien. Cherchez un preset "+aiC.song_style+" pour "+refAmp+" sur ToneNET.";
+          else if(weakest==="pickup") suggestion="Les presets disponibles ne sont pas optimises pour votre type de micro ("+type+"). Cherchez un preset adapte aux "+(type==="HB"?"humbuckers":type==="SC"?"single coils":"P90")+".";
+          else suggestion="Cherchez un preset type \""+refAmp+"\" sur ToneNET (IK Multimedia) ou chez Amalgam Audio pour un meilleur match.";
+          return <div style={{marginTop:8,background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:8,padding:"10px 12px"}}>
+            <div style={{fontSize:10,fontWeight:700,color:"var(--yellow)",textTransform:"uppercase",letterSpacing:0.3,marginBottom:4}}>Ameliorable — {bestScore}% max</div>
+            <div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.5,marginBottom:4}}>
+              {weakest&&<span>Point faible : <b>{weakLabel}</b> ({weakScore}%). </span>}
+              {suggestion}
+            </div>
+            <div style={{fontSize:10,color:"var(--text-dim)"}}>ToneNET : tonenet.ikmultimedia.com · Amalgam Audio : amalgamaudio.com</div>
+          </div>;
+        })()}
       </div>
 
       </>}
