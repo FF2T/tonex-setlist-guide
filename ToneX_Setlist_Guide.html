@@ -910,7 +910,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "5.4.0";
+const APP_VERSION = "5.5.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3165,8 +3165,8 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
                 {e.family&&<span style={{fontSize:9,color:"var(--text-dim)"}}>[famille similaire]</span>}
               </div>;})}
             </div>}
-            {extMatches.length===0&&<div style={{fontSize:10,color:"var(--text-dim)",marginBottom:6}}>Aucun pack connu pour "{refAmp}". Cherchez sur ToneNET.</div>}
-            <div style={{fontSize:10,color:"var(--text-dim)"}}>ToneNET : tonenet.ikmultimedia.com</div>
+            {extMatches.length===0&&<div style={{fontSize:10,color:"var(--text-dim)",marginBottom:6}}>Aucun pack connu pour "{refAmp}" dans notre base.</div>}
+            <a href={"https://www.tonenet.ikmultimedia.com/search?q="+encodeURIComponent(refAmp)} target="_blank" rel="noopener noreferrer" style={{display:"inline-block",fontSize:11,color:"var(--accent)",background:"var(--accent-bg)",border:"1px solid var(--accent-border)",borderRadius:6,padding:"5px 12px",textDecoration:"none",fontWeight:600,marginTop:4}}>Chercher "{refAmp}" sur ToneNET →</a>
           </div>;
         })()}
       </div>

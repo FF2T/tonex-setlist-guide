@@ -366,5 +366,45 @@ const EXTERNAL_PACK_CATALOG = [
     {name:"ORNG Rock (Orange)",amps:["orange"]},
     {name:"FMAN BE (Friedman BE)",amps:["friedman be","friedman"]},
   ]},
+  {creator:"Tone Junkie",url:"tonejunkiestore.com/tonex",packs:[
+    {name:"Sparkle 30 (Matchless SC30)",amps:["matchless"]},
+    {name:"62 Pro Amp (Fender Pro)",amps:["fender pro"]},
+    {name:"64 Tuxedo Prince (Fender Princeton)",amps:["fender princeton","princeton"]},
+    {name:"DMBL WATT (Dumble)",amps:["dumble"]},
+    {name:"Purple Plexi (Marshall Plexi)",amps:["marshall plexi","plexi"]},
+    {name:"Wreck Collection (Dr. Z)",amps:["dr. z","z-wreck"]},
+  ]},
+  {creator:"Jason Sadites",url:"sadites.com/tonex-presets",packs:[
+    {name:"Cali V (Mesa Mark V)",amps:["mesa mark v","mark v","mesa boogie"]},
+    {name:"Voxy 20 (Morgan/Vox)",amps:["vox","morgan"]},
+    {name:"Deluxe (Fender Deluxe)",amps:["fender deluxe","deluxe reverb"]},
+    {name:"Vintage 67 BMaster (Fender Bassman)",amps:["fender bassman","bassman"]},
+    {name:"Vintage 63 PrinceTone (Princeton)",amps:["fender princeton","princeton"]},
+    {name:"Vintage Brit 2203 (Marshall JCM800)",amps:["marshall jcm800","jcm800","marshall 800"]},
+    {name:"D-Style (Dumble)",amps:["dumble","d-style"]},
+  ]},
+  {creator:"New Vintage Audio",url:"newvintageaudio.com",packs:[
+    {name:"67 Plexi Pack",amps:["marshall plexi","plexi"]},
+    {name:"Metal Pack",amps:["mesa rectifier","peavey 5150","5150","high gain"]},
+    {name:"Peaveys Pack",amps:["peavey 5150","5150","peavey"]},
+    {name:"Crystal Cleans Pack",amps:["fender twin","fender deluxe","clean"]},
+    {name:"Handwired Pack",amps:["marshall","vox","handwired"]},
+    {name:"Small Amps Pack",amps:["fender champ","princeton","small amp"]},
+  ]},
+  {creator:"Liveplayrock",url:"liveplayrock.com/collections/tonex-ik-multimedia",packs:[
+    {name:"Marshall JCM800 Pack",amps:["marshall jcm800","jcm800","marshall 800"]},
+    {name:"Dual Rectifier Pack",amps:["mesa rectifier","dual rectifier","rectifier"]},
+    {name:"Mark V Pack",amps:["mesa mark v","mark v"]},
+    {name:"EVH 5150 Pack",amps:["evh 5150","5150","peavey 5150"]},
+  ]},
+  {creator:"MirrorProfiles",url:"mirrorprofiles.myshopify.com",packs:[
+    {name:"Gain Legends (70s-2000s)",amps:["marshall","mesa","high gain"]},
+  ]},
+  {creator:"ChopTones",url:"choptones.com",packs:[
+    {name:"Marshall Collection",amps:["marshall","plexi","jcm800"]},
+    {name:"Fender Collection",amps:["fender","twin","deluxe"]},
+    {name:"Mesa Collection",amps:["mesa","rectifier","mark"]},
+    {name:"High Gain Collection",amps:["5150","soldano","high gain"]},
+  ]},
 ];
 
