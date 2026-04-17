@@ -910,7 +910,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "5.3.0";
+const APP_VERSION = "5.3.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3111,18 +3111,65 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
             ];
             dims.forEach(function(d){if(d.score!=null&&d.score<weakScore){weakScore=d.score;weakest=d.key;weakLabel=d.label;}});
           }
+          // Chercher dans le catalogue complet les meilleurs candidats par source
+          var candidates=[];
+          var refAmpLower=(refAmp||"").toLowerCase();
+          var allCats=[
+            {cat:typeof TSR_PACK_CATALOG!=="undefined"?TSR_PACK_CATALOG:{},label:"64 Studio Rats (TSR)"},
+            {cat:typeof PRESET_CATALOG_FULL!=="undefined"?PRESET_CATALOG_FULL:{},label:"Catalogue complet"},
+            {cat:typeof ANNIVERSARY_CATALOG!=="undefined"?ANNIVERSARY_CATALOG:{},label:"ToneX Anniversary"},
+            {cat:typeof FACTORY_CATALOG!=="undefined"?FACTORY_CATALOG:{},label:"ToneX Factory"}
+          ];
+          allCats.forEach(function(src){
+            for(var name in src.cat){
+              var info=src.cat[name];
+              if(!info||!info.amp) continue;
+              var ampLower=info.amp.toLowerCase();
+              if(refAmpLower&&(ampLower.includes(refAmpLower)||refAmpLower.includes(ampLower))){
+                var already=candidates.find(function(c){return c.source===src.label;});
+                if(!already) candidates.push({name:name,amp:info.amp,source:src.label,pack:info.pack||null});
+              }
+            }
+          });
+          // Aussi chercher par famille d'ampli dans AMP_TAXONOMY
+          if(candidates.length===0&&typeof AMP_TAXONOMY!=="undefined"){
+            var refTax=AMP_TAXONOMY[refAmp];
+            if(refTax){
+              allCats.forEach(function(src){
+                for(var name in src.cat){
+                  var info=src.cat[name];
+                  if(!info||!info.amp) continue;
+                  var presetTax=AMP_TAXONOMY[info.amp];
+                  if(presetTax&&presetTax.family===refTax.family){
+                    var already=candidates.find(function(c){return c.source===src.label;});
+                    if(!already) candidates.push({name:name,amp:info.amp,source:src.label,pack:info.pack||null,family:true});
+                  }
+                }
+              });
+            }
+          }
           var suggestion="";
-          if(weakest==="refAmp") suggestion="Aucun preset ne simule "+refAmp+". Cherchez une capture \""+refAmp+"\" sur ToneNET (IK Multimedia) ou chez Amalgam Audio.";
-          else if(weakest==="gainMatch") suggestion="Le gain des presets disponibles ne correspond pas au son original. Cherchez un preset avec le bon niveau de gain pour "+refAmp+" sur ToneNET.";
-          else if(weakest==="styleMatch") suggestion="Le style des presets disponibles ne matche pas bien. Cherchez un preset "+aiC.song_style+" pour "+refAmp+" sur ToneNET.";
-          else if(weakest==="pickup") suggestion="Les presets disponibles ne sont pas optimises pour votre type de micro ("+type+"). Cherchez un preset adapte aux "+(type==="HB"?"humbuckers":type==="SC"?"single coils":"P90")+".";
-          else suggestion="Cherchez un preset type \""+refAmp+"\" sur ToneNET (IK Multimedia) ou chez Amalgam Audio pour un meilleur match.";
+          if(weakest==="refAmp") suggestion="Aucun preset installe ne simule "+refAmp+".";
+          else if(weakest==="gainMatch") suggestion="Le gain des presets disponibles ne correspond pas au son original.";
+          else if(weakest==="styleMatch") suggestion="Le style des presets disponibles ne matche pas bien.";
+          else if(weakest==="pickup") suggestion="Les presets ne sont pas optimises pour votre type de micro ("+type+").";
+          else suggestion="Le meilleur preset installe n'atteint pas 90%.";
           return <div style={{marginTop:8,background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:8,padding:"10px 12px"}}>
             <div style={{fontSize:10,fontWeight:700,color:"var(--yellow)",textTransform:"uppercase",letterSpacing:0.3,marginBottom:4}}>Ameliorable — {bestScore}% max</div>
-            <div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.5,marginBottom:4}}>
+            <div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.5,marginBottom:6}}>
               {weakest&&<span>Point faible : <b>{weakLabel}</b> ({weakScore}%). </span>}
               {suggestion}
             </div>
+            {candidates.length>0&&<div style={{marginBottom:6}}>
+              <div style={{fontSize:10,fontWeight:700,color:"var(--text-muted)",marginBottom:4}}>Candidats dans le catalogue :</div>
+              {candidates.map(function(c,i){return <div key={i} style={{fontSize:10,color:"var(--text-sec)",marginBottom:2}}>
+                <span style={{fontWeight:600,color:"var(--text-bright)"}}>{c.amp}</span>
+                <span style={{color:"var(--text-dim)"}}> — {c.source}</span>
+                {c.pack&&<span style={{color:"var(--text-dim)"}}> ({c.pack})</span>}
+                {c.family&&<span style={{color:"var(--text-dim)"}}> [meme famille]</span>}
+              </div>;})}
+            </div>}
+            {candidates.length===0&&<div style={{fontSize:10,color:"var(--text-dim)",marginBottom:6}}>Aucun preset type "{refAmp}" dans le catalogue. Cherchez sur :</div>}
             <div style={{fontSize:10,color:"var(--text-dim)"}}>ToneNET : tonenet.ikmultimedia.com · Amalgam Audio : amalgamaudio.com</div>
           </div>;
         })()}
