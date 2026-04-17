@@ -910,7 +910,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "5.5.0";
+const APP_VERSION = "5.5.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3113,9 +3113,19 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
           }
           // Chercher dans les catalogues externes (packs disponibles a l'achat)
           var extMatches=[];
+          var refLower=(refAmp||"").toLowerCase();
+          // D'abord chercher dans TSR_PACK_ZIPS (64 packs complets)
+          if(typeof TSR_PACK_ZIPS!=="undefined"){
+            for(var packName in TSR_PACK_ZIPS){
+              if(packName.toLowerCase().includes(refLower)||refLower.includes(packName.toLowerCase())){
+                extMatches.push({creator:"The Studio Rats",url:"thestudiorats.com",pack:packName});
+              }
+            }
+          }
+          // Puis les autres createurs via EXTERNAL_PACK_CATALOG
           if(typeof EXTERNAL_PACK_CATALOG!=="undefined"){
-            var refLower=(refAmp||"").toLowerCase();
             EXTERNAL_PACK_CATALOG.forEach(function(creator){
+              if(creator.creator==="The Studio Rats") return; // deja couvert par TSR_PACK_ZIPS
               creator.packs.forEach(function(pack){
                 var match=pack.amps.some(function(a){return refLower.includes(a)||a.includes(refLower);});
                 if(match){
@@ -3126,10 +3136,26 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
             });
           }
           // Aussi chercher par famille dans AMP_TAXONOMY si pas de match direct
-          if(extMatches.length===0&&typeof AMP_TAXONOMY!=="undefined"&&typeof EXTERNAL_PACK_CATALOG!=="undefined"){
+          if(extMatches.length===0&&typeof AMP_TAXONOMY!=="undefined"){
             var refTax=AMP_TAXONOMY[refAmp];
             if(refTax){
-              EXTERNAL_PACK_CATALOG.forEach(function(creator){
+              // Chercher dans TSR_PACK_ZIPS par famille
+              if(typeof TSR_PACK_ZIPS!=="undefined"){
+                for(var pn in TSR_PACK_ZIPS){
+                  var pnLower=pn.toLowerCase();
+                  for(var ampName in AMP_TAXONOMY){
+                    if(pnLower.includes(ampName.toLowerCase().split(" ")[0])&&AMP_TAXONOMY[ampName].family===refTax.family){
+                      var alr=extMatches.find(function(e){return e.creator==="The Studio Rats"&&e.pack===pn;});
+                      if(!alr) extMatches.push({creator:"The Studio Rats",url:"thestudiorats.com",pack:pn,family:true});
+                      break;
+                    }
+                  }
+                }
+              }
+              // Chercher dans les autres createurs
+              if(typeof EXTERNAL_PACK_CATALOG!=="undefined"){
+                EXTERNAL_PACK_CATALOG.forEach(function(creator){
+                  if(creator.creator==="The Studio Rats") return;
                 creator.packs.forEach(function(pack){
                   pack.amps.forEach(function(a){
                     for(var ampName in AMP_TAXONOMY){
@@ -3142,6 +3168,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
                   });
                 });
               });
+              }
             }
           }
           var suggestion="";
