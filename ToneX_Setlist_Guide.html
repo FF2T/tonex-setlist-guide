@@ -910,7 +910,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "5.3.1";
+const APP_VERSION = "5.4.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3111,40 +3111,36 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
             ];
             dims.forEach(function(d){if(d.score!=null&&d.score<weakScore){weakScore=d.score;weakest=d.key;weakLabel=d.label;}});
           }
-          // Chercher dans le catalogue complet les meilleurs candidats par source
-          var candidates=[];
-          var refAmpLower=(refAmp||"").toLowerCase();
-          var allCats=[
-            {cat:typeof TSR_PACK_CATALOG!=="undefined"?TSR_PACK_CATALOG:{},label:"64 Studio Rats (TSR)"},
-            {cat:typeof PRESET_CATALOG_FULL!=="undefined"?PRESET_CATALOG_FULL:{},label:"Catalogue complet"},
-            {cat:typeof ANNIVERSARY_CATALOG!=="undefined"?ANNIVERSARY_CATALOG:{},label:"ToneX Anniversary"},
-            {cat:typeof FACTORY_CATALOG!=="undefined"?FACTORY_CATALOG:{},label:"ToneX Factory"}
-          ];
-          allCats.forEach(function(src){
-            for(var name in src.cat){
-              var info=src.cat[name];
-              if(!info||!info.amp) continue;
-              var ampLower=info.amp.toLowerCase();
-              if(refAmpLower&&(ampLower.includes(refAmpLower)||refAmpLower.includes(ampLower))){
-                var already=candidates.find(function(c){return c.source===src.label;});
-                if(!already) candidates.push({name:name,amp:info.amp,source:src.label,pack:info.pack||null});
-              }
-            }
-          });
-          // Aussi chercher par famille d'ampli dans AMP_TAXONOMY
-          if(candidates.length===0&&typeof AMP_TAXONOMY!=="undefined"){
+          // Chercher dans les catalogues externes (packs disponibles a l'achat)
+          var extMatches=[];
+          if(typeof EXTERNAL_PACK_CATALOG!=="undefined"){
+            var refLower=(refAmp||"").toLowerCase();
+            EXTERNAL_PACK_CATALOG.forEach(function(creator){
+              creator.packs.forEach(function(pack){
+                var match=pack.amps.some(function(a){return refLower.includes(a)||a.includes(refLower);});
+                if(match){
+                  var already=extMatches.find(function(e){return e.creator===creator.creator&&e.pack===pack.name;});
+                  if(!already) extMatches.push({creator:creator.creator,url:creator.url,pack:pack.name});
+                }
+              });
+            });
+          }
+          // Aussi chercher par famille dans AMP_TAXONOMY si pas de match direct
+          if(extMatches.length===0&&typeof AMP_TAXONOMY!=="undefined"&&typeof EXTERNAL_PACK_CATALOG!=="undefined"){
             var refTax=AMP_TAXONOMY[refAmp];
             if(refTax){
-              allCats.forEach(function(src){
-                for(var name in src.cat){
-                  var info=src.cat[name];
-                  if(!info||!info.amp) continue;
-                  var presetTax=AMP_TAXONOMY[info.amp];
-                  if(presetTax&&presetTax.family===refTax.family){
-                    var already=candidates.find(function(c){return c.source===src.label;});
-                    if(!already) candidates.push({name:name,amp:info.amp,source:src.label,pack:info.pack||null,family:true});
-                  }
-                }
+              EXTERNAL_PACK_CATALOG.forEach(function(creator){
+                creator.packs.forEach(function(pack){
+                  pack.amps.forEach(function(a){
+                    for(var ampName in AMP_TAXONOMY){
+                      if(ampName.toLowerCase().includes(a)&&AMP_TAXONOMY[ampName].family===refTax.family){
+                        var already=extMatches.find(function(e){return e.creator===creator.creator&&e.pack===pack.name;});
+                        if(!already) extMatches.push({creator:creator.creator,url:creator.url,pack:pack.name,family:true});
+                        return;
+                      }
+                    }
+                  });
+                });
               });
             }
           }
@@ -3160,17 +3156,17 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
               {weakest&&<span>Point faible : <b>{weakLabel}</b> ({weakScore}%). </span>}
               {suggestion}
             </div>
-            {candidates.length>0&&<div style={{marginBottom:6}}>
-              <div style={{fontSize:10,fontWeight:700,color:"var(--text-muted)",marginBottom:4}}>Candidats dans le catalogue :</div>
-              {candidates.map(function(c,i){return <div key={i} style={{fontSize:10,color:"var(--text-sec)",marginBottom:2}}>
-                <span style={{fontWeight:600,color:"var(--text-bright)"}}>{c.amp}</span>
-                <span style={{color:"var(--text-dim)"}}> — {c.source}</span>
-                {c.pack&&<span style={{color:"var(--text-dim)"}}> ({c.pack})</span>}
-                {c.family&&<span style={{color:"var(--text-dim)"}}> [meme famille]</span>}
+            {extMatches.length>0&&<div style={{marginBottom:6}}>
+              <div style={{fontSize:10,fontWeight:700,color:"var(--text-muted)",marginBottom:4}}>Packs recommandes a l'achat :</div>
+              {extMatches.map(function(e,i){return <div key={i} style={{fontSize:10,color:"var(--text-sec)",marginBottom:3,display:"flex",alignItems:"baseline",gap:4}}>
+                <StatusDot score={e.family?65:85} size={6}/>
+                <span style={{fontWeight:600,color:"var(--text-bright)"}}>{e.pack}</span>
+                <span style={{color:"var(--text-dim)"}}>{e.creator}</span>
+                {e.family&&<span style={{fontSize:9,color:"var(--text-dim)"}}>[famille similaire]</span>}
               </div>;})}
             </div>}
-            {candidates.length===0&&<div style={{fontSize:10,color:"var(--text-dim)",marginBottom:6}}>Aucun preset type "{refAmp}" dans le catalogue. Cherchez sur :</div>}
-            <div style={{fontSize:10,color:"var(--text-dim)"}}>ToneNET : tonenet.ikmultimedia.com · Amalgam Audio : amalgamaudio.com</div>
+            {extMatches.length===0&&<div style={{fontSize:10,color:"var(--text-dim)",marginBottom:6}}>Aucun pack connu pour "{refAmp}". Cherchez sur ToneNET.</div>}
+            <div style={{fontSize:10,color:"var(--text-dim)"}}>ToneNET : tonenet.ikmultimedia.com</div>
           </div>;
         })()}
       </div>
