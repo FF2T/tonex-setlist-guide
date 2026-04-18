@@ -2490,8 +2490,57 @@ Réponds UNIQUEMENT en JSON (sans markdown) :
 // ─── ToneNET : auto-inférence ampli/gain/style depuis le nom du preset ───────
 function inferPresetInfo(presetName){
   if(!presetName||presetName.length<3) return null;
+  const n=presetName.toLowerCase();
   // 1. Detect amp via resolveRefAmp (uses AMP_ALIASES)
-  const detectedAmp=resolveRefAmp(presetName);
+  let detectedAmp=resolveRefAmp(presetName);
+  // If resolveRefAmp returned the raw name (no alias found), try AMP_TAXONOMY substring match
+  if(detectedAmp===presetName||!AMP_TAXONOMY[detectedAmp]){
+    const norm=n.replace(/[^a-z0-9\s]/g,"").trim();
+    // Try common ToneNET naming patterns: "Brand Model Variant"
+    const TONENET_PATTERNS=[
+      [/\b(ac\s?30|ac30)\b/,"Vox AC30"],
+      [/\b(ac\s?15|ac15)\b/,"Vox AC15"],
+      [/\b(twin\s?reverb|twin\s?rev)\b/,"Fender Twin Silverface"],
+      [/\b(blues?\s?junior|blues?\s?jr)\b/,"Fender Blues Junior"],
+      [/\b(deluxe\s?reverb|dlx\s?rev)\b/,"Fender Deluxe Reverb"],
+      [/\b(princeton)\b/,"Fender Princeton"],
+      [/\b(bassman)\b/,"Fender Tweed Bassman"],
+      [/\b(super\s?reverb)\b/,"Fender Twin Silverface"],
+      [/\b(jcm\s?800|jcm800)\b/,"Marshall JCM800"],
+      [/\b(jcm\s?900|jcm900)\b/,"Marshall JCM900"],
+      [/\b(jtm\s?45|jtm45)\b/,"Marshall JTM45"],
+      [/\b(silver\s?jubilee|2555)\b/,"Marshall Silver Jubilee"],
+      [/\b(superlead|super\s?lead|1959)\b/,"Marshall SL800"],
+      [/\b(dual\s?rec|recto|rectifier)\b/,"Mesa Rectifier"],
+      [/\b(mark\s?(iv|4|iic|2c))\b/,"Mesa Mark IV"],
+      [/\b(5150|evh|block\s?letter)\b/,"Peavey 5150"],
+      [/\b(slo|slo.?100)\b/,"Soldano SLO-100"],
+      [/\b(rockerverb|rocker\s?verb)\b/,"Orange Rockerverb"],
+      [/\b(or.?120|orange)\b/i,"Orange Rockerverb"],
+      [/\b(be.?100|friedman)\b/,"Friedman BE-100"],
+      [/\b(bogner|ecstasy)\b/,"Bogner Ecstasy"],
+      [/\b(matchless|dc.?30)\b/,"Matchless DC30"],
+      [/\b(dumble|ods)\b/,"Dumble ODS"],
+      [/\b(two\s?rock)\b/,"Two Rock Stevie G"],
+      [/\b(dr\.?\s?z|carmen\s?ghia)\b/,"Dr. Z"],
+      [/\b(supro)\b/,"Supro"],
+      [/\b(hiwatt|dr.?103)\b/,"Hiwatt HG100"],
+      [/\b(roland\s?jc|jazz\s?chorus)\b/,"Roland JC-120"],
+      [/\b(ampeg|svt)\b/,"Ampeg SVT"],
+      [/\b(diezel|herbert|vh4)\b/,"Diezel Herbert"],
+      [/\b(engl|powerball|savage)\b/,"ENGL"],
+      [/\b(soldano)\b/,"Soldano SLO-100"],
+    ];
+    for(const [rx,amp] of TONENET_PATTERNS){
+      if(rx.test(norm)){detectedAmp=amp;break;}
+    }
+    // Still nothing? Try AMP_TAXONOMY keys by substring
+    if(detectedAmp===presetName||!AMP_TAXONOMY[detectedAmp]){
+      for(const k of Object.keys(AMP_TAXONOMY)){
+        if(norm.includes(k.toLowerCase())){detectedAmp=k;break;}
+      }
+    }
+  }
   // 2. Detect gain via inferGainFromName (returns numeric 0-10)
   const gainNum=inferGainFromName(presetName);
   const gain=gainNum<=3?"low":gainNum>=8?"high":"mid";
@@ -2502,12 +2551,14 @@ function inferPresetInfo(presetName){
     const school=AMP_TAXONOMY[detectedAmp].school;
     if(school&&SCHOOL_STYLE[school]) style=SCHOOL_STYLE[school];
   }
-  // Bump style for high gain names
-  const n=presetName.toLowerCase();
+  // Override style from explicit keywords in name
   if(/\bmetal\b|\bheavy\b|\bdjent\b|\bbrutal\b/.test(n)) style="metal";
   else if(/\bblues\b/.test(n)) style="blues";
   else if(/\bjazz\b/.test(n)) style="jazz";
-  return {amp:detectedAmp||"",gain,style};
+  else if(/\bfunk\b|\bpop\b/.test(n)) style="pop";
+  // Resolved amp or empty
+  const finalAmp=(detectedAmp&&detectedAmp!==presetName)?detectedAmp:"";
+  return {amp:finalAmp,gain,style};
 }
 
 // ─── ToneNET Tab ─────────────────────────────────────────────────────────────
