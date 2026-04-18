@@ -16,7 +16,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v14';
+const CACHE='tonex-v15';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -868,7 +868,7 @@ function computeSimpleScore(presetName,guitarId,gType){
 // V2 wrappers — delegate to computeSimpleScore
 function guitarScore(name,guitarId){return computeSimpleScore(name,guitarId,null);}
 function presetScore(name,gType){return computeSimpleScore(name,null,gType);}
-function srcBadge(name){const s=findCatalogEntry(name)?.src;return s==="TSR"?"TSR":s==="ML"?"ML":s==="Anniversary"?"Pédale":s==="custom"?"Custom":"";}
+function srcBadge(name){const s=findCatalogEntry(name)?.src;return s==="TSR"?"TSR":s==="ML"?"ML":s==="Anniversary"?"Pédale":s==="custom"?"Custom":s==="ToneNET"?"ToneNET":"";}
 function styleBadge(style){const l={hard_rock:"Hard Rock",rock:"Rock",blues:"Blues",jazz:"Jazz",pop:"Pop",metal:"Metal"}[style]||style;return <span className="badge badge-brass">{l}</span>;}
 function gainBadge(gain){const l={low:"Low",mid:"Mid",high:"High"}[gain]||gain;return <span className="badge badge-wine">{l} gain</span>;}
 
@@ -1028,7 +1028,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.0.0";
+const APP_VERSION = "6.0.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -1038,7 +1038,7 @@ function makeDefaultProfile(id, name, isAdmin=false, password="") {
     customGuitars: [],
     editedGuitars: {},
     devices: {pedale:false, anniversary:isAdmin, plug:false},
-    availableSources: {TSR:true, ML:true, Anniversary:true, Factory:true},
+    availableSources: {TSR:true, ML:true, Anniversary:true, Factory:true, ToneNET:true},
     customPacks: [],
     banksAnn: isAdmin ? {...INIT_BANKS_ANN} : {...FACTORY_BANKS_PEDALE},
     banksPlug: isAdmin ? {...INIT_BANKS_PLUG} : {...FACTORY_BANKS_PLUG},
@@ -1056,7 +1056,7 @@ function migrateV1toV2(v1) {
     customGuitars: [],
     editedGuitars: {},
     devices: {pedale:false, anniversary:true, plug:true},
-    availableSources: {TSR:true, ML:true, Anniversary:true, Factory:true},
+    availableSources: {TSR:true, ML:true, Anniversary:true, Factory:true, ToneNET:true},
     customPacks: [],
     banksAnn: mergeBanks(v1.banksAnn, INIT_BANKS_ANN),
     banksPlug: mergeBanks(v1.banksPlug, INIT_BANKS_PLUG),
@@ -2059,7 +2059,7 @@ function profileColor(id){
   return PROFILE_COLORS[Math.abs(h)%PROFILE_COLORS.length];
 }
 
-const SOURCE_LABELS={TSR:"64 Studio Rats",ML:"ML Sound Lab Essentials",Anniversary:"ToneX Anniversary Factory",Factory:"ToneX Factory",PlugFactory:"ToneX Plug Factory"};
+const SOURCE_LABELS={TSR:"64 Studio Rats",ML:"ML Sound Lab Essentials",Anniversary:"ToneX Anniversary Factory",Factory:"ToneX Factory",PlugFactory:"ToneX Plug Factory",ToneNET:"ToneNET"};
 
 function GuitarSearchAdd({inp,aiKeys,onAdd}){
   const [query,setQuery]=useState("");
@@ -2488,9 +2488,77 @@ Réponds UNIQUEMENT en JSON (sans markdown) :
   );
 }
 
+// ─── ToneNET Tab ─────────────────────────────────────────────────────────────
+function ToneNetTab({toneNetPresets,onToneNetPresets,inp}){
+  const [name,setName]=useState("");
+  const [amp,setAmp]=useState("");
+  const [gain,setGain]=useState("mid");
+  const [style,setStyle]=useState("rock");
+  const [editId,setEditId]=useState(null);
+  const GAIN_OPTS=["low","mid","high"];
+  const STYLE_OPTS=[{v:"blues",l:"Blues"},{v:"rock",l:"Rock"},{v:"hard_rock",l:"Hard Rock"},{v:"jazz",l:"Jazz"},{v:"pop",l:"Pop"},{v:"metal",l:"Metal"}];
+  const resetForm=()=>{setName("");setAmp("");setGain("mid");setStyle("rock");setEditId(null);};
+  const addPreset=()=>{
+    if(!name.trim())return;
+    const p={id:`tn_${Date.now()}`,name:name.trim(),amp:amp.trim()||"ToneNET",gain,style,scores:{HB:75,SC:75,P90:75}};
+    onToneNetPresets(prev=>[...prev,p]);resetForm();
+  };
+  const saveEdit=()=>{
+    if(!name.trim()||!editId)return;
+    onToneNetPresets(prev=>prev.map(p=>p.id===editId?{...p,name:name.trim(),amp:amp.trim()||"ToneNET",gain,style}:p));resetForm();
+  };
+  const startEdit=(p)=>{setEditId(p.id);setName(p.name);setAmp(p.amp==="ToneNET"?"":p.amp);setGain(p.gain);setStyle(p.style);};
+  const deletePreset=(id)=>onToneNetPresets(prev=>prev.filter(p=>p.id!==id));
+  return(
+    <div>
+      <div style={{fontSize:13,fontWeight:700,color:"var(--text-primary)",marginBottom:4}}>Presets ToneNET</div>
+      <div style={{fontSize:11,color:"var(--text-tertiary)",marginBottom:12}}>Ajoute les presets que tu as téléchargés depuis ToneNET.</div>
+      {/* Formulaire d'ajout */}
+      <div style={{background:"var(--accent-soft)",border:"1px solid var(--border-accent)",borderRadius:"var(--r-lg)",padding:"var(--s-4)",marginBottom:"var(--s-4)"}}>
+        <div style={{fontFamily:"var(--font-mono)",fontSize:"var(--fs-xs)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",color:"var(--accent)",marginBottom:"var(--s-3)"}}>{editId?"Modifier le preset":"Ajouter un preset"}</div>
+        <div style={{display:"flex",flexDirection:"column",gap:"var(--s-2)"}}>
+          <input placeholder="Nom du preset *" value={name} onChange={e=>setName(e.target.value)} style={{...inp,fontSize:13}}/>
+          <input placeholder="Modèle d'ampli (ex: Fender Twin)" value={amp} onChange={e=>setAmp(e.target.value)} style={{...inp,fontSize:13}}/>
+          <div style={{display:"flex",gap:"var(--s-2)"}}>
+            <select value={gain} onChange={e=>setGain(e.target.value)} style={{...inp,flex:1,fontSize:13}}>
+              {GAIN_OPTS.map(g=><option key={g} value={g}>{g==="low"?"Low gain":g==="mid"?"Mid gain":"High gain"}</option>)}
+            </select>
+            <select value={style} onChange={e=>setStyle(e.target.value)} style={{...inp,flex:1,fontSize:13}}>
+              {STYLE_OPTS.map(s=><option key={s.v} value={s.v}>{s.l}</option>)}
+            </select>
+          </div>
+          <div style={{display:"flex",gap:"var(--s-2)"}}>
+            {editId?<>
+              <button onClick={saveEdit} disabled={!name.trim()} style={{flex:1,background:name.trim()?"var(--accent)":"var(--bg-elev-3)",border:"none",color:"var(--text-inverse)",borderRadius:"var(--r-md)",padding:"8px",fontSize:12,fontWeight:700,cursor:name.trim()?"pointer":"not-allowed"}}>Sauver</button>
+              <button onClick={resetForm} style={{background:"var(--bg-elev-2)",border:"1px solid var(--border-subtle)",color:"var(--text-secondary)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:12,cursor:"pointer"}}>Annuler</button>
+            </>:<button onClick={addPreset} disabled={!name.trim()} style={{width:"100%",background:name.trim()?"linear-gradient(180deg,var(--brass-200),var(--brass-400))":"var(--bg-elev-3)",border:"none",color:name.trim()?"var(--tolex-900)":"var(--text-tertiary)",borderRadius:"var(--r-md)",padding:"8px",fontSize:12,fontWeight:700,cursor:name.trim()?"pointer":"not-allowed",boxShadow:name.trim()?"var(--shadow-sm)":"none"}}>+ Ajouter</button>}
+          </div>
+        </div>
+      </div>
+      {/* Liste des presets */}
+      {toneNetPresets.length===0?<div style={{textAlign:"center",padding:"20px",color:"var(--text-tertiary)",fontSize:12}}>Aucun preset ToneNET ajouté</div>
+      :<div style={{display:"flex",flexDirection:"column",gap:"var(--s-2)"}}>
+        <div style={{fontFamily:"var(--font-mono)",fontSize:"var(--fs-xs)",color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:2}}>{toneNetPresets.length} preset{toneNetPresets.length>1?"s":""}</div>
+        {toneNetPresets.map(p=>(
+          <div key={p.id} style={{background:editId===p.id?"var(--accent-soft)":"var(--bg-elev-1)",border:editId===p.id?"1px solid var(--border-accent)":"1px solid var(--border-subtle)",borderRadius:"var(--r-lg)",padding:"var(--s-3) var(--s-4)",display:"flex",alignItems:"center",gap:"var(--s-3)"}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</div>
+              <div style={{fontSize:11,color:"var(--text-secondary)",marginTop:2}}>{p.amp}{p.amp&&p.amp!=="ToneNET"?" · ":""}{p.gain} gain · {STYLE_OPTS.find(s=>s.v===p.style)?.l||p.style}</div>
+            </div>
+            <div style={{display:"flex",gap:4,flexShrink:0}}>
+              <button onClick={()=>startEdit(p)} style={{background:"var(--bg-elev-2)",border:"none",borderRadius:"var(--r-sm)",padding:"4px 8px",fontSize:10,color:"var(--text-secondary)",cursor:"pointer"}}>✏️</button>
+              <button onClick={()=>deletePreset(p.id)} style={{background:"var(--red-bg)",border:"none",borderRadius:"var(--r-sm)",padding:"4px 8px",fontSize:10,color:"var(--danger)",cursor:"pointer"}}>🗑</button>
+            </div>
+          </div>
+        ))}
+      </div>}
+    </div>
+  );
+}
+
 // ─── Settings ─────────────────────────────────────────────────────────────────
 // ─── Mon Profil Screen ────────────────────────────────────────────────────────
-function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAiKeys,theme,onTheme,profile,profiles,onProfiles,activeProfileId,allGuitars,initTab,customGuitars,onCustomGuitars,fullState,onImportState,onLogout}) {
+function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAiKeys,theme,onTheme,profile,profiles,onProfiles,activeProfileId,allGuitars,initTab,customGuitars,onCustomGuitars,toneNetPresets,onToneNetPresets,fullState,onImportState,onLogout}) {
   const [tab,setTab]=useState(initTab||"profile");
   const [newSlName,setNewSlName]=useState("");
   const [editSlId,setEditSlId]=useState(null);
@@ -2528,6 +2596,7 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
         {tabBtn("profile","🎸 Guitares")}
         {tabBtn("devices","📱 Materiel")}
         {tabBtn("sources","📦 Sources")}
+        {tabBtn("tonenet","🌐 ToneNET")}
         {profile.devices?.pedale&&tabBtn("pedale","🎛 Pedale ToneX")}
         {profile.devices?.anniversary&&tabBtn("ann","🎛 ToneX Ann.")}
         {profile.devices?.plug&&tabBtn("plug","🔌 ToneX Plug")}
@@ -2540,6 +2609,7 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
       {tab==="profile"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="guitars" aiKeys={aiKeys} customGuitars={customGuitars} onCustomGuitars={onCustomGuitars}/>}
       {tab==="devices"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="devices"/>}
       {tab==="sources"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="sources"/>}
+      {tab==="tonenet"&&<ToneNetTab toneNetPresets={toneNetPresets} onToneNetPresets={onToneNetPresets} inp={inp}/>}
       {tab==="setlists"&&<div>
         <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>{setlists.length} setlist{setlists.length>1?"s":""}</div>
         {setlists.map(sl=>(
@@ -4308,7 +4378,7 @@ function PresetList({filtered,selected,setSelected,banksAnn,banksPlug,fullCatalo
   );
 }
 
-function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars}) {
+function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,toneNetPresets}) {
   const [soundProfile,setSoundProfile]=useState("all");
   const [filterSrcs,setFilterSrcs]=useState([]); // empty = all
   const [search,setSearch]=useState("");
@@ -4344,6 +4414,9 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars}
         if(p.name&&!cat[p.name]) cat[p.name]={src:pack.name,amp:p.amp||"Custom",gain:p.gain||"mid",style:p.style||"rock",scores:p.scores||{HB:78,SC:78,P90:78}};
       });
     });
+    (toneNetPresets||[]).forEach(p=>{
+      if(p.name&&!cat[p.name]) cat[p.name]={src:"ToneNET",amp:p.amp||"ToneNET",gain:p.gain||"mid",style:p.style||"rock",scores:p.scores||{HB:75,SC:75,P90:75}};
+    });
     // Filter to only sources the user has
     if(availableSources){
       for(const k of Object.keys(cat)){
@@ -4351,7 +4424,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars}
       }
     }
     return cat;
-  },[customPacks,availableSources]);
+  },[customPacks,toneNetPresets,availableSources]);
 
   // Profils sonores : combinaison style + gain orientée finalité
   const SOUND_PROFILES={
@@ -4394,7 +4467,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars}
     setSelected(null);
   };
 
-  const ALL_SRC_OPTS={TSR:"64 Studio Rats",ML:"ML Sound Lab Essentials",Anniversary:"ToneX Anniversary Factory",Factory:"ToneX Factory",PlugFactory:"ToneX Plug Factory",custom:"Custom"};
+  const ALL_SRC_OPTS={TSR:"64 Studio Rats",ML:"ML Sound Lab Essentials",Anniversary:"ToneX Anniversary Factory",Factory:"ToneX Factory",PlugFactory:"ToneX Plug Factory",custom:"Custom",ToneNET:"ToneNET"};
   const SRC_OPTS={all:"Toutes sources",...Object.fromEntries(Object.entries(ALL_SRC_OPTS).filter(([k])=>!availableSources||availableSources[k]!==false))};
 
   const hasFilter=soundProfile!=="all"||filterSrcs.length>0||search.trim();
@@ -5266,7 +5339,7 @@ function App() {
   const initDefault = saved || {
     version:2,
     activeProfileId:"sebastien",
-    shared:{songDb:INIT_SONG_DB_META, theme:"dark", setlists:[{id:"sl_main",name:"Ma Setlist",songIds:INIT_SONG_DB_META.map(s=>s.id),profileIds:["sebastien"]}]},
+    shared:{songDb:INIT_SONG_DB_META, theme:"dark", setlists:[{id:"sl_main",name:"Ma Setlist",songIds:INIT_SONG_DB_META.map(s=>s.id),profileIds:["sebastien"]}], toneNetPresets:[]},
     profiles:{sebastien:makeDefaultProfile("sebastien","Sébastien",true)}
   };
 
@@ -5284,6 +5357,13 @@ function App() {
     }
     return migrated;
   });
+  const [toneNetPresets, setToneNetPresets] = useState(initDefault.shared?.toneNetPresets || []);
+
+  // Sync ToneNET presets into global catalog for scoring engine
+  useEffect(()=>{
+    for(const k of Object.keys(PRESET_CATALOG_MERGED)){if(PRESET_CATALOG_MERGED[k].src==="ToneNET")delete PRESET_CATALOG_MERGED[k];}
+    (toneNetPresets||[]).forEach(p=>{if(p.name)PRESET_CATALOG_MERGED[p.name]={src:"ToneNET",amp:p.amp||"ToneNET",gain:p.gain||"mid",style:p.style||"rock",scores:p.scores||{HB:75,SC:75,P90:75}};});
+  },[toneNetPresets]);
 
   // Profiles state — merge banks + apply local secrets (aiKeys, passwords)
   const mergedProfiles = useMemo(()=>{
@@ -5370,7 +5450,7 @@ function App() {
   const hasMounted = useRef(false);
   const firestoreDebounceRef = useRef(null);
   useEffect(()=>{
-    const state={version:2, activeProfileId, shared:{songDb,theme,setlists,customGuitars}, profiles, lastModified:Date.now()};
+    const state={version:2, activeProfileId, shared:{songDb,theme,setlists,customGuitars,toneNetPresets}, profiles, lastModified:Date.now()};
     autoBackup();
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){}
     if(!hasMounted.current){hasMounted.current=true;return;}
@@ -5382,7 +5462,7 @@ function App() {
       saveToFirestore(state).then(()=>setSyncStatus("synced")).catch(()=>setSyncStatus("error"));
     }, 2000);
     return ()=>{if(firestoreDebounceRef.current)clearTimeout(firestoreDebounceRef.current);};
-  },[songDb,theme,setlists,customGuitars,profiles,activeProfileId,firestoreLoaded]);
+  },[songDb,theme,setlists,customGuitars,toneNetPresets,profiles,activeProfileId,firestoreLoaded]);
 
   // Apply remote data into local state (merge, never lose data)
   const applyRemoteData = (data) => {
@@ -5401,6 +5481,10 @@ function App() {
     if(data.shared.customGuitars) setCustomGuitars(prev=>{
       if(JSON.stringify(data.shared.customGuitars)===JSON.stringify(prev))return prev;
       return data.shared.customGuitars;
+    });
+    if(data.shared.toneNetPresets) setToneNetPresets(prev=>{
+      if(JSON.stringify(data.shared.toneNetPresets)===JSON.stringify(prev))return prev;
+      return data.shared.toneNetPresets;
     });
     if(data.profiles) setProfiles(prev=>{
       const next=applySecrets(data.profiles);
@@ -5512,7 +5596,7 @@ function App() {
   if(screen==="pick") return <div className="page-root"><ProfilePickerScreen profiles={profiles} onPick={pickProfile}/></div>;
   if(screen==="viewprofile"&&viewProfileId&&profiles[viewProfileId]) return <div className="page-root"><ViewProfileScreen profile={profiles[viewProfileId]} onBack={()=>setScreen("list")} onNavigate={setScreen}/><AppFooter syncStatus={syncStatus}/></div>;
   if(screen==="exportimport") return <div className="page-root"><ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("settings")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/><AppFooter syncStatus={syncStatus}/></div>;
-  if(screen==="profile")      return <div className="page-root"><MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/><AppFooter syncStatus={syncStatus}/></div>;
+  if(screen==="profile")      return <div className="page-root"><MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/><AppFooter syncStatus={syncStatus}/></div>;
   if(screen==="settings")     return <div className="page-root"><ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} songDb={songDb} onSongDb={setSongDb}/><AppFooter syncStatus={syncStatus}/></div>;
   if(screen==="setlists")     return <div className="page-root">
     <AppHeader profiles={profiles} activeProfileId={activeProfileId} onSwitch={switchProfile} onProfile={()=>{setProfileInitTab(null);setScreen("profile");}} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}}/>
@@ -5530,7 +5614,7 @@ function App() {
     <AppHeader profiles={profiles} activeProfileId={activeProfileId} onSwitch={switchProfile} onProfile={()=>{setProfileInitTab(null);setScreen("profile");}} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}}/>
     <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Explorer"}]} onNavigate={setScreen}/>
     <div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>🎛️ Explorer les presets</div>
-    <PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={profile.customPacks} guitars={allGuitars}/>
+    <PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={profile.customPacks} guitars={allGuitars} toneNetPresets={toneNetPresets}/>
     <AppFooter syncStatus={syncStatus}/>
   </div>;
   if(screen==="synthesis"&&synth) return <div className="page-root"><AppHeader profiles={profiles} activeProfileId={activeProfileId} onSwitch={switchProfile} onProfile={()=>{setProfileInitTab(null);setScreen("profile");}} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}}/><SynthesisScreen songs={songs} gps={synth.gps} aiR={synth.aiR} onBack={()=>setScreen("recap")} onNavigate={setScreen} songDb={songDb} banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/><AppFooter syncStatus={syncStatus}/></div>;
