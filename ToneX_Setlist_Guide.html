@@ -1803,8 +1803,7 @@ function ExportImportScreen({banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,on
 function PresetSearchModal({onSelect,onClose}){
   const [q,setQ]=useState("");
   const allPresets=useMemo(()=>{
-    const cat={...PRESET_CATALOG,...PRESET_CATALOG_FULL,...ANNIVERSARY_CATALOG,...FACTORY_CATALOG,...PLUG_FACTORY_CATALOG};
-    return Object.entries(cat).sort((a,b)=>a[0].localeCompare(b[0]));
+    return Object.entries(PRESET_CATALOG_MERGED).sort((a,b)=>a[0].localeCompare(b[0]));
   },[]);
   const results=useMemo(()=>{
     if(!q.trim()) return allPresets.slice(0,30);
