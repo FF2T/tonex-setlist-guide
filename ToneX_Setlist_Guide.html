@@ -2488,6 +2488,29 @@ Réponds UNIQUEMENT en JSON (sans markdown) :
   );
 }
 
+// ─── ToneNET : auto-inférence ampli/gain/style depuis le nom du preset ───────
+function inferPresetInfo(presetName){
+  if(!presetName||presetName.length<3) return null;
+  // 1. Detect amp via resolveRefAmp (uses AMP_ALIASES)
+  const detectedAmp=resolveRefAmp(presetName);
+  // 2. Detect gain via inferGainFromName (returns numeric 0-10)
+  const gainNum=inferGainFromName(presetName);
+  const gain=gainNum<=3?"low":gainNum>=8?"high":"mid";
+  // 3. Detect style from amp taxonomy school → default style mapping
+  const SCHOOL_STYLE={"fender_clean":"blues","marshall_crunch":"rock","vox_chime":"rock","dumble_smooth":"blues","mesa_heavy":"hard_rock","hiwatt_clean":"rock","orange_crunch":"hard_rock","friedman_modern":"hard_rock","bogner_versatile":"rock","matchless_chime":"blues","soldano_lead":"hard_rock","diezel_modern":"metal","peavey_heavy":"metal","two_rock_boutique":"blues"};
+  let style="rock";
+  if(detectedAmp&&AMP_TAXONOMY[detectedAmp]){
+    const school=AMP_TAXONOMY[detectedAmp].school;
+    if(school&&SCHOOL_STYLE[school]) style=SCHOOL_STYLE[school];
+  }
+  // Bump style for high gain names
+  const n=presetName.toLowerCase();
+  if(/\bmetal\b|\bheavy\b|\bdjent\b|\bbrutal\b/.test(n)) style="metal";
+  else if(/\bblues\b/.test(n)) style="blues";
+  else if(/\bjazz\b/.test(n)) style="jazz";
+  return {amp:detectedAmp||"",gain,style};
+}
+
 // ─── ToneNET Tab ─────────────────────────────────────────────────────────────
 function ToneNetTab({toneNetPresets,onToneNetPresets,inp}){
   const [name,setName]=useState("");
@@ -2495,9 +2518,21 @@ function ToneNetTab({toneNetPresets,onToneNetPresets,inp}){
   const [gain,setGain]=useState("mid");
   const [style,setStyle]=useState("rock");
   const [editId,setEditId]=useState(null);
+  const [autoFilled,setAutoFilled]=useState(false);
   const GAIN_OPTS=["low","mid","high"];
   const STYLE_OPTS=[{v:"blues",l:"Blues"},{v:"rock",l:"Rock"},{v:"hard_rock",l:"Hard Rock"},{v:"jazz",l:"Jazz"},{v:"pop",l:"Pop"},{v:"metal",l:"Metal"}];
-  const resetForm=()=>{setName("");setAmp("");setGain("mid");setStyle("rock");setEditId(null);};
+  const resetForm=()=>{setName("");setAmp("");setGain("mid");setStyle("rock");setEditId(null);setAutoFilled(false);};
+  const onNameChange=(val)=>{
+    setName(val);
+    if(editId) return; // don't auto-fill in edit mode
+    const info=inferPresetInfo(val);
+    if(info){
+      if(info.amp) setAmp(info.amp);
+      setGain(info.gain);
+      setStyle(info.style);
+      setAutoFilled(true);
+    }
+  };
   const addPreset=()=>{
     if(!name.trim())return;
     const p={id:`tn_${Date.now()}`,name:name.trim(),amp:amp.trim()||"ToneNET",gain,style,scores:{HB:75,SC:75,P90:75}};
@@ -2507,7 +2542,7 @@ function ToneNetTab({toneNetPresets,onToneNetPresets,inp}){
     if(!name.trim()||!editId)return;
     onToneNetPresets(prev=>prev.map(p=>p.id===editId?{...p,name:name.trim(),amp:amp.trim()||"ToneNET",gain,style}:p));resetForm();
   };
-  const startEdit=(p)=>{setEditId(p.id);setName(p.name);setAmp(p.amp==="ToneNET"?"":p.amp);setGain(p.gain);setStyle(p.style);};
+  const startEdit=(p)=>{setEditId(p.id);setName(p.name);setAmp(p.amp==="ToneNET"?"":p.amp);setGain(p.gain);setStyle(p.style);setAutoFilled(false);};
   const deletePreset=(id)=>onToneNetPresets(prev=>prev.filter(p=>p.id!==id));
   return(
     <div>
@@ -2517,8 +2552,11 @@ function ToneNetTab({toneNetPresets,onToneNetPresets,inp}){
       <div style={{background:"var(--accent-soft)",border:"1px solid var(--border-accent)",borderRadius:"var(--r-lg)",padding:"var(--s-4)",marginBottom:"var(--s-4)"}}>
         <div style={{fontFamily:"var(--font-mono)",fontSize:"var(--fs-xs)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",color:"var(--accent)",marginBottom:"var(--s-3)"}}>{editId?"Modifier le preset":"Ajouter un preset"}</div>
         <div style={{display:"flex",flexDirection:"column",gap:"var(--s-2)"}}>
-          <input placeholder="Nom du preset *" value={name} onChange={e=>setName(e.target.value)} style={{...inp,fontSize:13}}/>
-          <input placeholder="Modèle d'ampli (ex: Fender Twin)" value={amp} onChange={e=>setAmp(e.target.value)} style={{...inp,fontSize:13}}/>
+          <input placeholder="Nom du preset *" value={name} onChange={e=>onNameChange(e.target.value)} style={{...inp,fontSize:13}}/>
+          <div style={{position:"relative"}}>
+            <input placeholder="Modèle d'ampli (ex: Fender Twin)" value={amp} onChange={e=>{setAmp(e.target.value);setAutoFilled(false);}} style={{...inp,fontSize:13}}/>
+            {autoFilled&&amp&&<span style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",fontSize:9,color:"var(--accent)",fontFamily:"var(--font-mono)"}}>auto</span>}
+          </div>
           <div style={{display:"flex",gap:"var(--s-2)"}}>
             <select value={gain} onChange={e=>setGain(e.target.value)} style={{...inp,flex:1,fontSize:13}}>
               {GAIN_OPTS.map(g=><option key={g} value={g}>{g==="low"?"Low gain":g==="mid"?"Mid gain":"High gain"}</option>)}
