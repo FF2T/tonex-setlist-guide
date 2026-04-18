@@ -1800,16 +1800,16 @@ function ExportImportScreen({banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,on
 }
 
 // ─── BankEditor ───────────────────────────────────────────────────────────────
-function PresetSearchModal({onSelect,onClose}){
+function PresetSearchModal({onSelect,onClose,toneNetPresets}){
   const [q,setQ]=useState("");
   const allPresets=useMemo(()=>{
     return Object.entries(PRESET_CATALOG_MERGED).sort((a,b)=>a[0].localeCompare(b[0]));
-  },[]);
+  },[toneNetPresets]);
   const results=useMemo(()=>{
     if(!q.trim()) return allPresets.slice(0,30);
     const lq=q.toLowerCase();
     return allPresets.filter(([n,info])=>n.toLowerCase().includes(lq)||info.amp.toLowerCase().includes(lq)).slice(0,30);
-  },[q]);
+  },[q,allPresets]);
   return(
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box" onClick={e=>e.stopPropagation()}>
@@ -1869,7 +1869,7 @@ function FuzzyPresetMatch({name,bank,slot,onAccept,onSearch,onManual,onClose}){
   );
 }
 
-function BankEditor({banks,onBanks,color,maxBanks,startBank,factoryBanks}) {
+function BankEditor({banks,onBanks,color,maxBanks,startBank,factoryBanks,toneNetPresets}) {
   const start=startBank||0;
   const max=maxBanks||50;
   const [confirmReset,setConfirmReset]=useState(false);
@@ -1899,7 +1899,7 @@ function BankEditor({banks,onBanks,color,maxBanks,startBank,factoryBanks}) {
       </div>}
 
       {/* Search modal */}
-      {editingPreset&&<PresetSearchModal onClose={()=>setEditingPreset(null)} onSelect={name=>{
+      {editingPreset&&<PresetSearchModal toneNetPresets={toneNetPresets} onClose={()=>setEditingPreset(null)} onSelect={name=>{
         edit(editingPreset.bank,editingPreset.slot,name);
         setEditingPreset(null);
       }}/>}
@@ -2720,9 +2720,9 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
           </div>
         </div>
       </div>}
-      {tab==="pedale"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} factoryBanks={FACTORY_BANKS_PEDALE}/>}
-      {tab==="ann"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} factoryBanks={FACTORY_BANKS_PEDALE}/>}
-      {tab==="plug"&&<BankEditor banks={banksPlug} onBanks={onBanksPlug} color="var(--accent)" maxBanks={10} startBank={1} factoryBanks={FACTORY_BANKS_PLUG}/>}
+      {tab==="pedale"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} factoryBanks={FACTORY_BANKS_PEDALE} toneNetPresets={toneNetPresets}/>}
+      {tab==="ann"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} factoryBanks={FACTORY_BANKS_PEDALE} toneNetPresets={toneNetPresets}/>}
+      {tab==="plug"&&<BankEditor banks={banksPlug} onBanks={onBanksPlug} color="var(--accent)" maxBanks={10} startBank={1} factoryBanks={FACTORY_BANKS_PLUG} toneNetPresets={toneNetPresets}/>}
       {profile.isAdmin&&tab==="ia"&&<div>
         <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>Configuration de la cle API pour l'IA.</div>
         <div style={{fontSize:11,color:"var(--text-muted)",background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-md)",padding:"8px 12px",marginBottom:12,display:"flex",alignItems:"center",gap:6}}>
