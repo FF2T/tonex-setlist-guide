@@ -16,7 +16,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v35';
+const CACHE='tonex-v36';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -1028,7 +1028,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.4.2";
+const APP_VERSION = "6.4.3";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3948,7 +3948,7 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
   const standardBanks=useMemo(()=>{
     const styleCounts={};
     songs.forEach(s=>{const st=s.aiCache?.result?.song_style||"rock";styleCounts[st]=(styleCounts[st]||0)+1;});
-    const topStyles=Object.entries(styleCounts).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([s])=>s);
+    const topStyles=Object.entries(styleCounts).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([s])=>s);
     if(!topStyles.length) return [];
     const STYLE_LABELS={blues:"Blues",rock:"Rock",hard_rock:"Hard Rock",jazz:"Jazz",metal:"Metal",pop:"Pop"};
     const SLOT_GAINS=[{slot:"A",label:"Clean",targetGain:2,gainRange:"clean"},{slot:"B",label:"Drive",targetGain:7,gainRange:"drive"},{slot:"C",label:"Lead",targetGain:9,gainRange:"high_gain"}];
