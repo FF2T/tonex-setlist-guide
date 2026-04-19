@@ -16,7 +16,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v39';
+const CACHE='tonex-v40';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -1036,7 +1036,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.4.6";
+const APP_VERSION = "6.4.7";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4065,8 +4065,10 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
   </div>;
 
   // Song rows avec suggestion inline
-  const renderSongRows=(rows,banks,onBanks)=>{
-    const alreadySuggested=[];
+  const [songInstall,setSongInstall]=useState(null); // {songId,presetName,deviceKey,bank:0,slot:"A"}
+  const renderSongRows=(rows,banks,onBanks,deviceKey)=>{
+    const maxBank=deviceKey==="ann"?49:9;
+    const startBank=deviceKey==="ann"?0:1;
     return <div style={{display:"flex",flexDirection:"column",gap:4}}>
     {rows.map(({song,installed,installedScore,ideal,idealScore,delta,noAI,guitar})=>{
       if(noAI) return <div key={song.id} style={{display:"flex",alignItems:"center",gap:"var(--s-2)",padding:"4px var(--s-2)",background:"var(--bg-elev-2)",borderRadius:"var(--r-sm)",border:"1px solid var(--border-subtle)",opacity:0.5}}>
@@ -4075,10 +4077,9 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
         <span style={{fontSize:9,color:"var(--text-tertiary)"}}>Non analysé</span>
       </div>;
       const needsSuggestion=delta>5&&ideal&&!findInBanks(ideal.name,banks);
-      let ws=null;
-      if(needsSuggestion){ws=worstSlot(banks,guitar?.type||"HB",[ideal.name,...alreadySuggested]);alreadySuggested.push(ws?.name||"");}
+      const isInstalling=songInstall?.songId===song.id&&songInstall?.deviceKey===deviceKey;
       return <div key={song.id}>
-        <div style={{display:"flex",alignItems:"center",gap:"var(--s-2)",padding:"4px var(--s-2)",background:"var(--bg-elev-2)",borderRadius:needsSuggestion?"var(--r-sm) var(--r-sm) 0 0":"var(--r-sm)",border:"1px solid var(--border-subtle)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:"var(--s-2)",padding:"4px var(--s-2)",background:"var(--bg-elev-2)",borderRadius:needsSuggestion||isInstalling?"var(--r-sm) var(--r-sm) 0 0":"var(--r-sm)",border:"1px solid var(--border-subtle)"}}>
           <span style={{fontSize:12}}>{installedScore>=80?"✅":installedScore>=50?"⚠️":"❌"}</span>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:11,fontWeight:600,color:"var(--text-primary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{song.title}</div>
@@ -4088,11 +4089,22 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
             <div style={{fontFamily:"var(--font-mono)",fontSize:11,fontWeight:800,color:scoreColor(installedScore)}}>{installedScore}%</div>
           </div>
         </div>
-        {needsSuggestion&&<div style={{display:"flex",alignItems:"center",gap:"var(--s-2)",padding:"3px var(--s-2) 3px var(--s-6)",background:"var(--accent-soft)",borderRadius:"0 0 var(--r-sm) var(--r-sm)",border:"1px solid var(--border-accent)",borderTop:"none",fontSize:10}}>
+        {needsSuggestion&&!isInstalling&&<div style={{display:"flex",alignItems:"center",gap:"var(--s-2)",padding:"3px var(--s-2) 3px var(--s-6)",background:"var(--accent-soft)",borderRadius:"0 0 var(--r-sm) var(--r-sm)",border:"1px solid var(--border-accent)",borderTop:"none",fontSize:10}}>
           <span style={{color:"var(--accent)"}}>💡</span>
           <span style={{flex:1,color:"var(--text-secondary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ideal.name} <span style={{color:"var(--text-tertiary)"}}>({ideal.amp})</span></span>
           <span style={{fontFamily:"var(--font-mono)",fontWeight:700,color:"var(--success)",flexShrink:0}}>{idealScore}%</span>
-          {ws?.bank!=null&&<button onClick={()=>{onBanks(p=>({...p,[ws.bank]:{...(p[ws.bank]||{cat:"",A:"",B:"",C:""}),[ws.slot]:ideal.name}}));}} style={{background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-sm)",padding:"2px 6px",fontSize:8,fontWeight:700,cursor:"pointer",flexShrink:0}}>B{ws.bank}{ws.slot}</button>}
+          <button onClick={()=>setSongInstall({songId:song.id,presetName:ideal.name,deviceKey,bank:startBank,slot:"B"})} style={{background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-sm)",padding:"2px 6px",fontSize:8,fontWeight:700,cursor:"pointer",flexShrink:0}}>Installer</button>
+        </div>}
+        {isInstalling&&<div style={{display:"flex",alignItems:"center",gap:"var(--s-2)",padding:"4px var(--s-2)",background:"var(--accent-soft)",borderRadius:"0 0 var(--r-sm) var(--r-sm)",border:"1px solid var(--border-accent)",borderTop:"none",fontSize:10,flexWrap:"wrap"}}>
+          <span style={{fontSize:9,color:"var(--text-secondary)",flexShrink:0}}>{songInstall.presetName}</span>
+          <select value={songInstall.bank} onChange={e=>setSongInstall(p=>({...p,bank:Number(e.target.value)}))} style={{background:"var(--bg-elev-1)",color:"var(--text-primary)",border:"1px solid var(--border-strong)",borderRadius:"var(--r-xs)",padding:"2px 4px",fontSize:10}}>
+            {Array.from({length:maxBank-startBank+1},(_,i)=>i+startBank).map(b=><option key={b} value={b}>B{b}</option>)}
+          </select>
+          <select value={songInstall.slot} onChange={e=>setSongInstall(p=>({...p,slot:e.target.value}))} style={{background:"var(--bg-elev-1)",color:"var(--text-primary)",border:"1px solid var(--border-strong)",borderRadius:"var(--r-xs)",padding:"2px 4px",fontSize:10}}>
+            <option value="A">A</option><option value="B">B</option><option value="C">C</option>
+          </select>
+          <button onClick={()=>{onBanks(p=>({...p,[songInstall.bank]:{...(p[songInstall.bank]||{cat:"",A:"",B:"",C:""}),[songInstall.slot]:songInstall.presetName}}));setSongInstall(null);}} style={{background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-sm)",padding:"2px 8px",fontSize:9,fontWeight:700,cursor:"pointer"}}>OK</button>
+          <button onClick={()=>setSongInstall(null)} style={{background:"none",border:"none",color:"var(--text-tertiary)",fontSize:9,cursor:"pointer"}}>✕</button>
         </div>}
       </div>;
     })}
@@ -4195,7 +4207,7 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
           </div>
           {renderStats(annAnalysis)}
           {showReconfig==="ann"&&reconfigPlan&&renderReconfigInline(reconfigPlan)}
-          {showReconfig!=="ann"&&<>{renderSongRows(annAnalysis.songRows,banksAnn,onBanksAnn)}{renderUnused(annAnalysis.unusedPresets)}</>}
+          {showReconfig!=="ann"&&<>{renderSongRows(annAnalysis.songRows,banksAnn,onBanksAnn,"ann")}{renderUnused(annAnalysis.unusedPresets)}</>}
         </div>
         {/* Plug */}
         <div style={sectionStyle}>
@@ -4205,7 +4217,7 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
           </div>
           {renderStats(plugAnalysis)}
           {showReconfig==="plug"&&reconfigPlan&&renderReconfigInline(reconfigPlan)}
-          {showReconfig!=="plug"&&<>{renderSongRows(plugAnalysis.songRows,banksPlug,onBanksPlug)}{renderUnused(plugAnalysis.unusedPresets)}</>}
+          {showReconfig!=="plug"&&<>{renderSongRows(plugAnalysis.songRows,banksPlug,onBanksPlug,"plug")}{renderUnused(plugAnalysis.unusedPresets)}</>}
         </div>
       </div>
 
