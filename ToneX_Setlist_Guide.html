@@ -2925,10 +2925,28 @@ function MaintenanceTab({songDb,onSongDb,banksAnn,banksPlug,aiProvider,aiKeys,on
           </div>
         </div>
         :done?<div style={{fontSize:12,color:"var(--green)",fontWeight:600}}>Terminé !</div>
-        :<div style={{display:"flex",gap:8}}>
+        :<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           <button onClick={recalcAll} style={{background:"var(--accent)",border:"none",color:"var(--text-inverse)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Recalculer tout ({songDb.length} morceaux)</button>
           <button onClick={clearCache} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:12,cursor:"pointer"}}>Vider le cache uniquement</button>
         </div>}
+      </div>
+
+      {/* Rescorer les presets (local, instantané) */}
+      <div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-lg)",padding:16,marginBottom:12}}>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:4}}>Rescorer les presets</div>
+        <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:10}}>Recalcule les scores de presets pour tous les morceaux sans rappeler l'IA. Utile après avoir ajouté des presets ToneNET ou changé tes banks.</div>
+        <button onClick={()=>{
+          const allG=(guitars||GUITARS);
+          onSongDb(p=>p.map(s=>{
+            if(!s.aiCache?.result?.cot_step1) return s;
+            const gId=s.aiCache.gId||"";
+            const gType=allG.find(x=>x.id===gId)?.type||"HB";
+            const cleaned={...s.aiCache.result,preset_ann:null,preset_plug:null,ideal_preset:null,ideal_preset_score:0,ideal_top3:null};
+            const recalc=enrichAIResult(cleaned,gType,gId,banksAnn,banksPlug);
+            return {...s,aiCache:{...updateAiCache(s.aiCache,gId,recalc),sv:SCORING_VERSION}};
+          }));
+          setDone(true);setTimeout(()=>setDone(false),3000);
+        }} style={{background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)"}}>⚡ Rescorer ({songDb.filter(s=>s.aiCache).length} morceaux en cache)</button>
       </div>
 
       {/* Backups automatiques */}
@@ -3170,17 +3188,18 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
   const [installBank,setInstallBank]=useState({ann:"",plug:""});
   const [installSlot,setInstallSlot]=useState({ann:"A",plug:"A"});
   // Auto-trigger AI analysis if no cache for current guitar
+  const needsRescore=song.aiCache?.sv!==SCORING_VERSION;
   useEffect(()=>{
-    if(localAiResult) return;
-    const svMatch=song.aiCache?.sv===SCORING_VERSION;
-    if(song.aiCache&&song.aiCache.gId===gId&&svMatch&&song.aiCache.result?.cot_step1) return;
-    // Cache avec CoT mais guitare différente ou scoring obsolète → rescore local
+    // Si localAiResult existe ET le scoring est à jour → rien à faire
+    if(localAiResult&&!needsRescore) return;
+    // Cache valide, même guitare, scoring à jour → utiliser le cache
+    if(song.aiCache&&song.aiCache.gId===gId&&!needsRescore&&song.aiCache.result?.cot_step1) return;
+    // Cache avec CoT → rescore local (guitare diff, ou scoring obsolète, ou catalogue changé)
     if(song.aiCache?.result?.cot_step1&&gId){
       const gType=(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB";
       var cleaned2={...song.aiCache.result,preset_ann:null,preset_plug:null,ideal_preset:null,ideal_preset_score:0,ideal_top3:null};
       const recalc=enrichAIResult(cleaned2,gType,gId,banksAnn,banksPlug);
       setLocalAiResult(recalc);
-      // Defer cache update to avoid blocking render
       setTimeout(()=>onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:{...updateAiCache(x.aiCache,gId,recalc),sv:SCORING_VERSION}}:x)),0);
       return;
     }
@@ -3189,11 +3208,11 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
     fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars)
       .then(r=>{
         setLocalAiResult(r);
-        onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:updateAiCache(x.aiCache,gId,r)}:x));
+        onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:{...updateAiCache(x.aiCache,gId,r),sv:SCORING_VERSION}}:x));
       })
       .catch(()=>{})
       .finally(()=>setReloading(false));
-  },[song.id,gId]);
+  },[song.id,gId,needsRescore]);
   const handleGuitarChange=(v)=>{
     setGId(v);
     if(onGuitarChange)onGuitarChange(song.id,v);
