@@ -16,7 +16,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v22';
+const CACHE='tonex-v23';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -1028,7 +1028,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.0.8";
+const APP_VERSION = "6.0.9";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -2942,12 +2942,15 @@ function MaintenanceTab({songDb,onSongDb,banksAnn,banksPlug,aiProvider,aiKeys,on
         <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:10}}>Recalcule les scores de presets pour tous les morceaux sans rappeler l'IA. Utile après avoir ajouté des presets ToneNET ou changé tes banks.</div>
         <button onClick={()=>{
           const allG=GUITARS;
+          const tnCheck=Object.entries(PRESET_CATALOG_MERGED).filter(([,v])=>v.src==="ToneNET");
+          console.log("[RESCORE] ToneNET in PRESET_CATALOG_MERGED:",tnCheck.map(([n,v])=>n+" → amp:"+v.amp));
           onSongDb(p=>p.map(s=>{
             if(!s.aiCache?.result?.cot_step1) return s;
             const gId=s.aiCache.gId||"";
             const gType=allG.find(x=>x.id===gId)?.type||"HB";
             const cleaned={...s.aiCache.result,preset_ann:null,preset_plug:null,ideal_preset:null,ideal_preset_score:0,ideal_top3:null};
             const recalc=enrichAIResult(cleaned,gType,gId,banksAnn,banksPlug);
+            console.log("[RESCORE]",s.title,"| ref_amp:",s.aiCache.result?.ref_amp,"→ ideal:",recalc.ideal_preset,"| top3:",recalc.ideal_top3?.map(p=>p.name+" ("+p.score+"/"+p.amp+")"));
             return {...s,aiCache:{...updateAiCache(s.aiCache,gId,recalc),sv:SCORING_VERSION}};
           }));
           setDone(true);setTimeout(()=>setDone(false),3000);
