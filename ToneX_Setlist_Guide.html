@@ -16,7 +16,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v43';
+const CACHE='tonex-v44';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -1036,7 +1036,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.4.10";
+const APP_VERSION = "6.4.11";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3931,22 +3931,21 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
       const gType=g?.type||"HB";const gId=g?.id||"";
       const style=ai.song_style||"rock";
       const targetGain=typeof ai.target_gain==="number"?ai.target_gain:null;
-      const best=computeBestPresets(gType,style,deviceKey==="ann"?banks:{},deviceKey==="plug"?banks:{},gId,ai.ref_amp,targetGain);
-      let top=deviceKey==="ann"?best.annTop:best.plugTop;
-      // Cohérence avec la setlist : utiliser le cache s'il a un meilleur score
+      // Score installé : cache setlist en priorité (source de vérité), sinon recalcul
       const cachedPreset=deviceKey==="ann"?ai.preset_ann:ai.preset_plug;
+      let top=null;
       if(cachedPreset?.label&&cachedPreset.score>0){
-        const loc=findInBanks(cachedPreset.label,banks);
-        if(loc&&(!top||cachedPreset.score>top.score)){
-          top={name:cachedPreset.label,score:cachedPreset.score,bank:loc.bank,col:loc.slot,amp:"",style:"",breakdown:cachedPreset.breakdown};
-        } else if(top&&cachedPreset.score>top.score){
-          // Le preset du cache n'est plus installé mais le score est plus haut — garder le score
-          top={...top,score:Math.max(top.score,cachedPreset.score)};
-        }
+        top={name:cachedPreset.label,score:cachedPreset.score,bank:cachedPreset.bank,col:cachedPreset.col,amp:"",style:"",breakdown:cachedPreset.breakdown};
       }
+      if(!top){
+        const bestInstalled=computeBestPresets(gType,style,deviceKey==="ann"?banks:{},deviceKey==="plug"?banks:{},gId,ai.ref_amp,targetGain);
+        top=deviceKey==="ann"?bestInstalled.annTop:bestInstalled.plugTop;
+      }
+      // IdealTop depuis le catalogue complet
+      const bestCatalog=computeBestPresets(gType,style,{},{},gId,ai.ref_amp,targetGain);
       // Filtrer idealTop par compatibilité source/device
-      const idealRaw=best.idealTop3||[];
-      const idealTop=idealRaw.find(p=>{const e=findCatalogEntry(p.name);return !e||isSrcCompatible(e.src,deviceKey);})||best.idealTop;
+      const idealRaw=bestCatalog.idealTop3||[];
+      const idealTop=idealRaw.find(p=>{const e=findCatalogEntry(p.name);return !e||isSrcCompatible(e.src,deviceKey);})||bestCatalog.idealTop;
       if(top){
         if(!usedPresets.has(top.name)) usedPresets.set(top.name,{songs:[],bestScore:0});
         const u=usedPresets.get(top.name);u.songs.push(s.title);if(top.score>u.bestScore) u.bestScore=top.score;
