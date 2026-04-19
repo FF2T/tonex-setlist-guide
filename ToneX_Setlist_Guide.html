@@ -16,7 +16,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v36';
+const CACHE='tonex-v37';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -1028,7 +1028,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.4.3";
+const APP_VERSION = "6.4.4";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3879,6 +3879,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
 function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBanksPlug,allGuitars,availableSources,onNavigate}) {
   const [slId,setSlId]=useState(setlists[0]?.id||"");
   const [showReconfig,setShowReconfig]=useState(null); // "ann"|"plug"|null
+  const [installTarget,setInstallTarget]=useState(null); // {style,device:"ann"|"plug",bank:0}
   const sl=setlists.find(s=>s.id===slId);
   const songs=sl?sl.songIds.map(id=>songDb.find(s=>s.id===id)).filter(Boolean):[];
   // Types de micros du rig
@@ -4032,8 +4033,8 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
     setShowReconfig(null);
   };
 
-  const installStandardBank=(bankStyle,targetBank,onBanks)=>{
-    const sb=standardBanks.find(b=>b.style===bankStyle);
+  const installStandardBank=(bankStyle,pType,targetBank,onBanks)=>{
+    const sb=standardBanks.find(b=>b.style===bankStyle&&b.pType===pType);
     if(!sb) return;
     onBanks(prev=>({...prev,[targetBank]:{cat:sb.label,A:sb.slots[0].preset,B:sb.slots[1].preset,C:sb.slots[2].preset}}));
   };
@@ -4121,22 +4122,15 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
       <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Optimiseur"}]} onNavigate={onNavigate}/>
       <div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:"var(--s-4)"}}>🔧 Optimiseur de Banks</div>
 
-      {/* Sélecteur setlist */}
-      <div style={{marginBottom:"var(--s-4)"}}>
-        <select value={slId} onChange={e=>setSlId(e.target.value)} style={{width:"100%",background:"var(--bg-elev-1)",color:"var(--text-primary)",border:"1px solid var(--border-strong)",borderRadius:"var(--r-md)",padding:"8px 12px",fontSize:13}}>
-          {setlists.map(s=><option key={s.id} value={s.id}>{s.name} ({s.songIds.length})</option>)}
-        </select>
-        <div style={{fontSize:10,color:"var(--text-tertiary)",marginTop:4}}>🎸 {allGuitars.map(g=>g.short||g.name).join(", ")} — chaque morceau utilise la guitare idéale</div>
-      </div>
-
-      {songs.length===0?<div style={{textAlign:"center",padding:"40px",color:"var(--text-tertiary)"}}>Setlist vide</div>:<>
-
       {/* Banques standard passe-partout */}
       {standardBanks.length>0&&<div style={sectionStyle}>
         {eyebrow("💡","Banques standard — tes goûts musicaux")}
+        <div style={{fontSize:10,color:"var(--text-tertiary)",marginBottom:"var(--s-3)"}}>🎸 {allGuitars.map(g=>g.short||g.name).join(", ")}</div>
         <div style={{display:"flex",flexDirection:"column",gap:"var(--s-3)"}}>
-          {standardBanks.map(sb=>(
-            <div key={sb.style} style={{background:"var(--bg-elev-2)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-md)",padding:"var(--s-3)"}}>
+          {standardBanks.map(sb=>{
+            const key=sb.style+"_"+sb.pType;
+            const isInstalling=installTarget?.style===sb.style&&installTarget?.pType===sb.pType;
+            return <div key={key} style={{background:"var(--bg-elev-2)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-md)",padding:"var(--s-3)"}}>
               <div style={{fontSize:12,fontWeight:700,color:"var(--text-primary)",marginBottom:"var(--s-2)"}}>{sb.label}</div>
               <div style={{display:"flex",gap:"var(--s-2)",marginBottom:"var(--s-2)"}}>
                 {sb.slots.map(s=>(
@@ -4148,18 +4142,35 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
                   </div>
                 ))}
               </div>
-              <div style={{display:"flex",gap:"var(--s-2)"}}>
-                {[{label:"📦 Pédale",onB:onBanksAnn,max:49},{label:"🔌 Plug",onB:onBanksPlug,max:9}].map(({label,onB,max})=>{
-                  const [targetBank,setTargetBank]=[null,null]; // we use inline state workaround
-                  return <div key={label} style={{flex:1,display:"flex",gap:4,alignItems:"center"}}>
-                    <button onClick={()=>{const bk=prompt("Banque cible pour "+sb.label+" ("+label+") ?");if(bk!=null&&!isNaN(Number(bk))) installStandardBank(sb.style,Number(bk),onB);}} style={{flex:1,background:"var(--bg-elev-3)",border:"1px solid var(--border-subtle)",color:"var(--text-secondary)",borderRadius:"var(--r-sm)",padding:"4px 8px",fontSize:10,cursor:"pointer"}}>{label}</button>
-                  </div>;
-                })}
+              {!isInstalling?<div style={{display:"flex",gap:"var(--s-2)"}}>
+                <button onClick={()=>setInstallTarget({style:sb.style,pType:sb.pType,device:"ann",bank:0})} style={{flex:1,background:"var(--bg-elev-3)",border:"1px solid var(--border-subtle)",color:"var(--text-secondary)",borderRadius:"var(--r-sm)",padding:"4px 8px",fontSize:10,cursor:"pointer"}}>📦 Pédale</button>
+                <button onClick={()=>setInstallTarget({style:sb.style,pType:sb.pType,device:"plug",bank:1})} style={{flex:1,background:"var(--bg-elev-3)",border:"1px solid var(--border-subtle)",color:"var(--text-secondary)",borderRadius:"var(--r-sm)",padding:"4px 8px",fontSize:10,cursor:"pointer"}}>🔌 Plug</button>
               </div>
-            </div>
-          ))}
+              :<div style={{background:"var(--accent-soft)",border:"1px solid var(--border-accent)",borderRadius:"var(--r-sm)",padding:"var(--s-2)",marginTop:4}}>
+                <div style={{display:"flex",gap:"var(--s-2)",alignItems:"center",marginBottom:4}}>
+                  <span style={{fontSize:10,color:"var(--text-secondary)"}}>{installTarget.device==="ann"?"📦 Pédale":"🔌 Plug"} — Banque :</span>
+                  <select value={installTarget.bank} onChange={e=>setInstallTarget(p=>({...p,bank:Number(e.target.value)}))} style={{background:"var(--bg-elev-1)",color:"var(--text-primary)",border:"1px solid var(--border-strong)",borderRadius:"var(--r-sm)",padding:"4px 8px",fontSize:11}}>
+                    {Array.from({length:installTarget.device==="ann"?50:10},(_,i)=>i+(installTarget.device==="ann"?0:1)).map(b=><option key={b} value={b}>Banque {b}</option>)}
+                  </select>
+                </div>
+                <div style={{display:"flex",gap:"var(--s-2)"}}>
+                  <button onClick={()=>{installStandardBank(sb.style,sb.pType,installTarget.bank,installTarget.device==="ann"?onBanksAnn:onBanksPlug);setInstallTarget(null);}} style={{flex:1,background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-sm)",padding:"4px 8px",fontSize:10,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)"}}>Installer</button>
+                  <button onClick={()=>setInstallTarget(null)} style={{background:"var(--bg-elev-2)",border:"1px solid var(--border-subtle)",color:"var(--text-tertiary)",borderRadius:"var(--r-sm)",padding:"4px 8px",fontSize:10,cursor:"pointer"}}>Annuler</button>
+                </div>
+              </div>}
+            </div>;
+          })}
         </div>
       </div>}
+
+      {songs.length===0?<div style={{textAlign:"center",padding:"40px",color:"var(--text-tertiary)"}}>Setlist vide</div>:<>
+
+      {/* Sélecteur setlist */}
+      <div style={{marginBottom:"var(--s-3)"}}>
+        <select value={slId} onChange={e=>setSlId(e.target.value)} style={{width:"100%",background:"var(--bg-elev-1)",color:"var(--text-primary)",border:"1px solid var(--border-strong)",borderRadius:"var(--r-md)",padding:"8px 12px",fontSize:13}}>
+          {setlists.map(s=><option key={s.id} value={s.id}>{s.name} ({s.songIds.length})</option>)}
+        </select>
+      </div>
 
       {/* Deux colonnes : Pédale + Plug */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"var(--s-3)"}}>
