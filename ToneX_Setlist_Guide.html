@@ -16,7 +16,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v26';
+const CACHE='tonex-v27';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -1028,7 +1028,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.1.1";
+const APP_VERSION = "6.2.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3875,6 +3875,178 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
   );
 }
 
+// ─── Bank Optimizer Screen ───────────────────────────────────────────────────
+function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBanksPlug,allGuitars,availableSources,onNavigate}) {
+  const [slId,setSlId]=useState(setlists[0]?.id||"");
+  const [gId,setGId]=useState(allGuitars[0]?.id||"");
+  const [device,setDevice]=useState("ann");
+  const guitar=allGuitars.find(g=>g.id===gId)||allGuitars[0];
+  const gType=guitar?.type||"HB";
+  const banks=device==="ann"?banksAnn:banksPlug;
+  const onBanks=device==="ann"?onBanksAnn:onBanksPlug;
+  const sl=setlists.find(s=>s.id===slId);
+  const songs=sl?sl.songIds.map(id=>songDb.find(s=>s.id===id)).filter(Boolean):[];
+
+  // Analyse : scorer chaque morceau avec les presets installés + catalogue
+  const analysis=useMemo(()=>{
+    const usedPresets=new Map(); // presetName → {songs[], bestScore}
+    const songRows=songs.map(s=>{
+      const ai=s.aiCache?.result;
+      if(!ai?.cot_step1) return {song:s,installed:null,installedScore:0,ideal:null,idealScore:0,delta:0};
+      const style=ai.song_style||"rock";
+      const targetGain=typeof ai.target_gain==="number"?ai.target_gain:null;
+      const best=computeBestPresets(gType,style,device==="ann"?banksAnn:{},device==="plug"?banksPlug:{},gId,ai.ref_amp,targetGain);
+      const top=device==="ann"?best.annTop:best.plugTop;
+      const idealTop=best.idealTop;
+      if(top){
+        const key=top.name;
+        if(!usedPresets.has(key)) usedPresets.set(key,{songs:[],bestScore:0});
+        const u=usedPresets.get(key);
+        u.songs.push(s.title);
+        if(top.score>u.bestScore) u.bestScore=top.score;
+      }
+      return {song:s,installed:top,installedScore:top?.score||0,ideal:idealTop,idealScore:idealTop?.score||0,delta:(idealTop?.score||0)-(top?.score||0)};
+    });
+    // Presets inutiles : installés mais jamais "meilleur" pour aucun morceau
+    const allInstalled=[];
+    for(const [k,v] of Object.entries(banks)){
+      for(const slot of ["A","B","C"]){
+        if(v[slot]) allInstalled.push({name:v[slot],bank:Number(k),slot});
+      }
+    }
+    const unusedPresets=allInstalled.filter(p=>!usedPresets.has(p.name));
+    // Suggestions : presets catalogue qui améliorent la couverture
+    const suggestionMap=new Map();
+    songRows.forEach(({song,installedScore,ideal})=>{
+      if(!ideal||ideal.score<=installedScore) return;
+      const loc=findInBanks(ideal.name,banks);
+      if(loc) return; // déjà installé
+      const key=ideal.name;
+      if(!suggestionMap.has(key)) suggestionMap.set(key,{name:ideal.name,amp:ideal.amp||"",src:ideal.src||"",score:ideal.score,songs:[],totalDelta:0});
+      const sg=suggestionMap.get(key);
+      sg.songs.push(song.title);
+      sg.totalDelta+=(ideal.score-installedScore);
+    });
+    const suggestions=[...suggestionMap.values()].sort((a,b)=>b.totalDelta-a.totalDelta||b.songs.length-a.songs.length);
+    // Stats
+    const covered=songRows.filter(r=>r.installedScore>=80).length;
+    const acceptable=songRows.filter(r=>r.installedScore>=50&&r.installedScore<80).length;
+    const poor=songRows.filter(r=>r.installedScore<50).length;
+    return {songRows,usedPresets,unusedPresets,suggestions,covered,acceptable,poor};
+  },[songs,gId,gType,device,banksAnn,banksPlug]);
+
+  const doInstall=(presetName)=>{
+    const ws=worstSlot(banks,gType,[presetName]);
+    if(ws.bank===null) return;
+    onBanks(p=>({...p,[ws.bank]:{...(p[ws.bank]||{cat:"",A:"",B:"",C:""}),[ws.slot]:presetName}}));
+  };
+
+  const sectionStyle={background:"var(--bg-elev-1)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-lg)",padding:"var(--s-4)",marginBottom:"var(--s-4)"};
+  const eyebrow=(icon,label)=><div style={{fontFamily:"var(--font-mono)",fontSize:"var(--fs-xs)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",color:"var(--accent)",marginBottom:"var(--s-3)",display:"flex",alignItems:"center",gap:5}}>{icon} {label}</div>;
+
+  return(
+    <div>
+      <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Optimiseur"}]} onNavigate={onNavigate}/>
+      <div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:"var(--s-4)"}}>🔧 Optimiseur de Banks</div>
+
+      {/* Sélecteurs */}
+      <div style={{display:"flex",gap:"var(--s-2)",marginBottom:"var(--s-4)",flexWrap:"wrap"}}>
+        <select value={slId} onChange={e=>setSlId(e.target.value)} style={{flex:1,background:"var(--bg-elev-1)",color:"var(--text-primary)",border:"1px solid var(--border-strong)",borderRadius:"var(--r-md)",padding:"8px 12px",fontSize:13}}>
+          {setlists.map(s=><option key={s.id} value={s.id}>{s.name} ({s.songIds.length})</option>)}
+        </select>
+        <select value={gId} onChange={e=>setGId(e.target.value)} style={{flex:1,background:"var(--bg-elev-1)",color:"var(--text-primary)",border:"1px solid var(--border-strong)",borderRadius:"var(--r-md)",padding:"8px 12px",fontSize:13}}>
+          {allGuitars.map(g=><option key={g.id} value={g.id}>{g.short||g.name} ({g.type})</option>)}
+        </select>
+        <div style={{display:"flex",gap:4}}>
+          {["ann","plug"].map(d=><button key={d} onClick={()=>setDevice(d)} style={{background:device===d?"var(--accent-soft)":"var(--bg-elev-2)",border:device===d?"1px solid var(--border-accent)":"1px solid var(--border-subtle)",color:device===d?"var(--accent)":"var(--text-secondary)",borderRadius:"var(--r-md)",padding:"8px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{d==="ann"?"📦 Pédale":"🔌 Plug"}</button>)}
+        </div>
+      </div>
+
+      {songs.length===0?<div style={{textAlign:"center",padding:"40px",color:"var(--text-tertiary)"}}>Setlist vide</div>:<>
+
+      {/* Stats résumé */}
+      <div style={{display:"flex",gap:"var(--s-2)",marginBottom:"var(--s-4)"}}>
+        <div style={{flex:1,background:"var(--green-bg)",border:"1px solid var(--green-border)",borderRadius:"var(--r-md)",padding:"var(--s-3)",textAlign:"center"}}>
+          <div style={{fontFamily:"var(--font-mono)",fontSize:"var(--fs-xl)",fontWeight:800,color:"var(--success)"}}>{analysis.covered}</div>
+          <div style={{fontSize:10,color:"var(--text-secondary)"}}>Bien couverts</div>
+        </div>
+        <div style={{flex:1,background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",borderRadius:"var(--r-md)",padding:"var(--s-3)",textAlign:"center"}}>
+          <div style={{fontFamily:"var(--font-mono)",fontSize:"var(--fs-xl)",fontWeight:800,color:"var(--yellow)"}}>{analysis.acceptable}</div>
+          <div style={{fontSize:10,color:"var(--text-secondary)"}}>Acceptables</div>
+        </div>
+        <div style={{flex:1,background:"var(--red-bg)",border:"1px solid var(--red-border)",borderRadius:"var(--r-md)",padding:"var(--s-3)",textAlign:"center"}}>
+          <div style={{fontFamily:"var(--font-mono)",fontSize:"var(--fs-xl)",fontWeight:800,color:"var(--danger)"}}>{analysis.poor}</div>
+          <div style={{fontSize:10,color:"var(--text-secondary)"}}>Mal couverts</div>
+        </div>
+      </div>
+
+      {/* Section 1 : Couverture setlist */}
+      <div style={sectionStyle}>
+        {eyebrow("🎵","Couverture setlist")}
+        <div style={{display:"flex",flexDirection:"column",gap:"var(--s-2)"}}>
+          {analysis.songRows.map(({song,installed,installedScore,ideal,idealScore,delta})=>(
+            <div key={song.id} style={{display:"flex",alignItems:"center",gap:"var(--s-3)",padding:"var(--s-2) var(--s-3)",background:"var(--bg-elev-2)",borderRadius:"var(--r-md)",border:"1px solid var(--border-subtle)"}}>
+              <span style={{fontSize:14}}>{installedScore>=80?"✅":installedScore>=50?"⚠️":"❌"}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:12,fontWeight:600,color:"var(--text-primary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{song.title}</div>
+                <div style={{fontSize:10,color:"var(--text-tertiary)"}}>{installed?installed.name:"Aucun preset adapté"}</div>
+              </div>
+              <div style={{textAlign:"right",flexShrink:0}}>
+                <div style={{fontFamily:"var(--font-mono)",fontSize:12,fontWeight:800,color:scoreColor(installedScore)}}>{installedScore}%</div>
+                {delta>5&&<div style={{fontSize:9,color:"var(--accent)"}}>+{delta} possible</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Section 2 : Presets inutiles */}
+      {analysis.unusedPresets.length>0&&<div style={sectionStyle}>
+        {eyebrow("🗑","Presets non utilisés par cette setlist")}
+        <div style={{fontSize:11,color:"var(--text-tertiary)",marginBottom:"var(--s-3)"}}>{analysis.unusedPresets.length} preset{analysis.unusedPresets.length>1?"s":""} installé{analysis.unusedPresets.length>1?"s":""} mais jamais recommandé{analysis.unusedPresets.length>1?"s":""} pour cette setlist.</div>
+        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          {analysis.unusedPresets.slice(0,15).map((p,i)=>{
+            const entry=findCatalogEntry(p.name);
+            return <div key={i} style={{display:"flex",alignItems:"center",gap:"var(--s-2)",fontSize:11,color:"var(--text-secondary)",padding:"4px var(--s-2)",background:"var(--bg-elev-2)",borderRadius:"var(--r-sm)"}}>
+              <span style={{fontFamily:"var(--font-mono)",fontSize:10,color:"var(--text-tertiary)",flexShrink:0}}>B{p.bank}{p.slot}</span>
+              <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</span>
+              {entry&&<span style={{fontSize:9,color:"var(--text-tertiary)"}}>{entry.amp}</span>}
+            </div>;
+          })}
+          {analysis.unusedPresets.length>15&&<div style={{fontSize:10,color:"var(--text-tertiary)",textAlign:"center"}}>+{analysis.unusedPresets.length-15} autres</div>}
+        </div>
+      </div>}
+
+      {/* Section 3 : Suggestions d'installation */}
+      {analysis.suggestions.length>0&&<div style={sectionStyle}>
+        {eyebrow("💡","Suggestions d'installation")}
+        <div style={{fontSize:11,color:"var(--text-tertiary)",marginBottom:"var(--s-3)"}}>Presets du catalogue qui amélioreraient ta couverture.</div>
+        <div style={{display:"flex",flexDirection:"column",gap:"var(--s-2)"}}>
+          {analysis.suggestions.slice(0,10).map((sg,i)=>{
+            const entry=findCatalogEntry(sg.name);
+            const ws=worstSlot(banks,gType,[sg.name]);
+            return <div key={i} style={{background:"var(--bg-elev-2)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-md)",padding:"var(--s-3)"}}>
+              <div style={{display:"flex",alignItems:"center",gap:"var(--s-2)",marginBottom:4}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:600,color:"var(--text-primary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sg.name}</div>
+                  <div style={{fontSize:10,color:"var(--text-tertiary)"}}>{sg.amp}{entry?.src?" · "+entry.src:""}</div>
+                </div>
+                <div style={{fontFamily:"var(--font-mono)",fontSize:11,fontWeight:700,color:"var(--success)",flexShrink:0}}>+{sg.totalDelta}</div>
+              </div>
+              <div style={{fontSize:10,color:"var(--text-secondary)",marginBottom:6}}>Améliore : {sg.songs.slice(0,3).join(", ")}{sg.songs.length>3?" +"+( sg.songs.length-3):""}</div>
+              <div style={{display:"flex",alignItems:"center",gap:"var(--s-2)"}}>
+                {ws.bank!==null&&<button onClick={()=>doInstall(sg.name)} style={{background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-md)",padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)"}}>Installer → B{ws.bank}{ws.slot}</button>}
+                {ws.name&&<span style={{fontSize:9,color:"var(--text-tertiary)"}}>remplace {ws.name}</span>}
+              </div>
+            </div>;
+          })}
+        </div>
+      </div>}
+      </>}
+    </div>
+  );
+}
+
 // ─── Recap Screen ─────────────────────────────────────────────────────────────
 function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources}) {
   const guitars=allGuitars||GUITARS;
@@ -5141,7 +5313,7 @@ function OnboardingWizard({onClose,onProfile}){
 }
 
 // ─── HomeScreen (style Google) ────────────────────────────────────────────────
-function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onProfile,onSetlistScreen,onJam,onExplore,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profiles,activeProfileId,onSwitchProfile,onProfiles,customPacks,syncStatus,onViewProfile,onLogout}) {
+function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onProfile,onSetlistScreen,onJam,onExplore,onOptimizer,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profiles,activeProfileId,onSwitchProfile,onProfiles,customPacks,syncStatus,onViewProfile,onLogout}) {
   const profileName=(profiles[activeProfileId]||{}).name||"Profil";
   const profile=profiles[activeProfileId]||{};
   const [splashOpen,setSplashOpen]=useState(()=>{if(sessionStorage.getItem("tonex_splash"))return false;sessionStorage.setItem("tonex_splash","1");return true;});
@@ -5386,7 +5558,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
       </div>
 
       {/* Tuiles en bas (masquer si résultat ou loading) */}
-      {!songResult&&!songLoading&&<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"var(--s-2)",paddingBottom:"var(--s-2)",marginTop:"var(--s-1)"}}>
+      {!songResult&&!songLoading&&<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"var(--s-2)",paddingBottom:"var(--s-2)",marginTop:"var(--s-1)"}}>
         <button onClick={onSetlistScreen} style={{background:"var(--surface-card)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-lg)",padding:"var(--s-4) var(--s-3)",cursor:"pointer",textAlign:"center",transition:"all var(--dur-fast) var(--ease-out)",boxShadow:"var(--shadow-xs)"}}>
           <div style={{fontSize:24,marginBottom:4}}>🎵</div>
           <div style={{fontSize:"var(--fs-sm)",fontWeight:700,color:"var(--text-primary)",fontFamily:"var(--font-ui)"}}>Setlists</div>
@@ -5401,6 +5573,11 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           <div style={{fontSize:24,marginBottom:4}}>🎛️</div>
           <div style={{fontSize:"var(--fs-sm)",fontWeight:700,color:"var(--text-primary)",fontFamily:"var(--font-ui)"}}>Explorer</div>
           <div style={{fontSize:"var(--fs-xs)",color:"var(--text-tertiary)",marginTop:2,fontFamily:"var(--font-mono)"}}>Profils sonores</div>
+        </button>
+        <button onClick={()=>onOptimizer()} style={{background:"var(--surface-card)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-lg)",padding:"var(--s-4) var(--s-3)",cursor:"pointer",textAlign:"center",transition:"all var(--dur-fast) var(--ease-out)",boxShadow:"var(--shadow-xs)"}}>
+          <div style={{fontSize:24,marginBottom:4}}>🔧</div>
+          <div style={{fontSize:"var(--fs-sm)",fontWeight:700,color:"var(--text-primary)",fontFamily:"var(--font-ui)"}}>Optimiser</div>
+          <div style={{fontSize:"var(--fs-xs)",color:"var(--text-tertiary)",marginTop:2,fontFamily:"var(--font-mono)"}}>Banks</div>
         </button>
       </div>}
       <AppFooter syncStatus={syncStatus}/>
@@ -5787,9 +5964,14 @@ function App() {
     <PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={profile.customPacks} guitars={allGuitars} toneNetPresets={toneNetPresets}/>
     <AppFooter syncStatus={syncStatus}/>
   </div>;
+  if(screen==="optimizer") return <div className="page-root">
+    <AppHeader profiles={profiles} activeProfileId={activeProfileId} onSwitch={switchProfile} onProfile={()=>{setProfileInitTab(null);setScreen("profile");}} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}}/>
+    <BankOptimizerScreen songDb={songDb} setlists={mySetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} allGuitars={allGuitars} availableSources={availableSources} onNavigate={setScreen}/>
+    <AppFooter syncStatus={syncStatus}/>
+  </div>;
   if(screen==="synthesis"&&synth) return <div className="page-root"><AppHeader profiles={profiles} activeProfileId={activeProfileId} onSwitch={switchProfile} onProfile={()=>{setProfileInitTab(null);setScreen("profile");}} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}}/><SynthesisScreen songs={songs} gps={synth.gps} aiR={synth.aiR} onBack={()=>setScreen("recap")} onNavigate={setScreen} songDb={songDb} banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/><AppFooter syncStatus={syncStatus}/></div>;
   if(screen==="recap")        return <div className="page-root"><AppHeader profiles={profiles} activeProfileId={activeProfileId} onSwitch={switchProfile} onProfile={()=>{setProfileInitTab(null);setScreen("profile");}} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}}/><RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDb} onSongDb={setSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources}/><AppFooter syncStatus={syncStatus}/></div>;
-  return <div className="page-root"><HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/></div>;
+  return <div className="page-root"><HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} onOptimizer={()=>setScreen("optimizer")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/></div>;
 }
 
 ReactDOM.render(<App/>, document.getElementById("root"));
