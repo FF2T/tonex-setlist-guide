@@ -16,7 +16,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v38';
+const CACHE='tonex-v39';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -869,6 +869,14 @@ function computeSimpleScore(presetName,guitarId,gType){
 function guitarScore(name,guitarId){return computeSimpleScore(name,guitarId,null);}
 function presetScore(name,gType){return computeSimpleScore(name,null,gType);}
 function srcBadge(name){const s=findCatalogEntry(name)?.src;return s==="TSR"?"TSR":s==="ML"?"ML":s==="Anniversary"?"Pédale":s==="custom"?"Custom":s==="ToneNET"?"ToneNET":"";}
+// Vérifie si un preset (par sa source) est compatible avec un device
+// Anniversary + Factory = pédale only, PlugFactory = plug only, le reste = les deux
+function isSrcCompatible(src,deviceKey){
+  if(!src) return true;
+  if(deviceKey==="ann") return src!=="PlugFactory";
+  if(deviceKey==="plug") return src!=="Anniversary"&&src!=="Factory";
+  return true;
+}
 function styleBadge(style){const l={hard_rock:"Hard Rock",rock:"Rock",blues:"Blues",jazz:"Jazz",pop:"Pop",metal:"Metal"}[style]||style;return <span className="badge badge-brass">{l}</span>;}
 function gainBadge(gain){const l={low:"Low",mid:"Mid",high:"High"}[gain]||gain;return <span className="badge badge-wine">{l} gain</span>;}
 
@@ -1028,7 +1036,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.4.5";
+const APP_VERSION = "6.4.6";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3925,7 +3933,9 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
       const targetGain=typeof ai.target_gain==="number"?ai.target_gain:null;
       const best=computeBestPresets(gType,style,deviceKey==="ann"?banks:{},deviceKey==="plug"?banks:{},gId,ai.ref_amp,targetGain);
       const top=deviceKey==="ann"?best.annTop:best.plugTop;
-      const idealTop=best.idealTop;
+      // Filtrer idealTop par compatibilité source/device
+      const idealRaw=best.idealTop3||[];
+      const idealTop=idealRaw.find(p=>{const e=findCatalogEntry(p.name);return !e||isSrcCompatible(e.src,deviceKey);})||best.idealTop;
       if(top){
         if(!usedPresets.has(top.name)) usedPresets.set(top.name,{songs:[],bestScore:0});
         const u=usedPresets.get(top.name);u.songs.push(s.title);if(top.score>u.bestScore) u.bestScore=top.score;
@@ -4010,7 +4020,9 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
       const slots=SLOT_GAINS.map(({slot,label,targetGain})=>{
         const currentPreset=current[slot];
         const best=computeBestPresets(bankGType,dominantStyle,{},{},bankGId,dominantAmp,targetGain);
-        const idealPreset=best.idealTop;
+        // Filtrer par compatibilité source/device
+        const idealRaw=best.idealTop3||[];
+        const idealPreset=idealRaw.find(p=>{const e=findCatalogEntry(p.name);return !e||isSrcCompatible(e.src,showReconfig);})||best.idealTop;
         return {slot,label,current:currentPreset||"(vide)",proposed:idealPreset?.name||currentPreset||"—",proposedAmp:idealPreset?.amp||"",proposedScore:idealPreset?.score||0,changed:idealPreset&&idealPreset.name!==currentPreset};
       });
       return {bank:bankNum,cat:current.cat,dominantStyle,bankGType,slots};
