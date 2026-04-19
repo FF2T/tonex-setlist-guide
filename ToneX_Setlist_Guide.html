@@ -16,7 +16,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v27';
+const CACHE='tonex-v28';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -1028,7 +1028,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.2.0";
+const APP_VERSION = "6.2.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3879,63 +3879,50 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
 function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBanksPlug,allGuitars,availableSources,onNavigate}) {
   const [slId,setSlId]=useState(setlists[0]?.id||"");
   const [gId,setGId]=useState(allGuitars[0]?.id||"");
-  const [device,setDevice]=useState("ann");
   const guitar=allGuitars.find(g=>g.id===gId)||allGuitars[0];
   const gType=guitar?.type||"HB";
-  const banks=device==="ann"?banksAnn:banksPlug;
-  const onBanks=device==="ann"?onBanksAnn:onBanksPlug;
   const sl=setlists.find(s=>s.id===slId);
   const songs=sl?sl.songIds.map(id=>songDb.find(s=>s.id===id)).filter(Boolean):[];
 
-  // Analyse : scorer chaque morceau avec les presets installés + catalogue
-  const analysis=useMemo(()=>{
-    const usedPresets=new Map(); // presetName → {songs[], bestScore}
+  // Analyse pour un device donné
+  const analyzeDevice=(banks,deviceKey)=>{
+    const usedPresets=new Map();
     const songRows=songs.map(s=>{
       const ai=s.aiCache?.result;
       if(!ai?.cot_step1) return {song:s,installed:null,installedScore:0,ideal:null,idealScore:0,delta:0};
       const style=ai.song_style||"rock";
       const targetGain=typeof ai.target_gain==="number"?ai.target_gain:null;
-      const best=computeBestPresets(gType,style,device==="ann"?banksAnn:{},device==="plug"?banksPlug:{},gId,ai.ref_amp,targetGain);
-      const top=device==="ann"?best.annTop:best.plugTop;
+      const best=computeBestPresets(gType,style,deviceKey==="ann"?banks:{},deviceKey==="plug"?banks:{},gId,ai.ref_amp,targetGain);
+      const top=deviceKey==="ann"?best.annTop:best.plugTop;
       const idealTop=best.idealTop;
       if(top){
-        const key=top.name;
-        if(!usedPresets.has(key)) usedPresets.set(key,{songs:[],bestScore:0});
-        const u=usedPresets.get(key);
-        u.songs.push(s.title);
-        if(top.score>u.bestScore) u.bestScore=top.score;
+        if(!usedPresets.has(top.name)) usedPresets.set(top.name,{songs:[],bestScore:0});
+        const u=usedPresets.get(top.name);u.songs.push(s.title);if(top.score>u.bestScore) u.bestScore=top.score;
       }
       return {song:s,installed:top,installedScore:top?.score||0,ideal:idealTop,idealScore:idealTop?.score||0,delta:(idealTop?.score||0)-(top?.score||0)};
     });
-    // Presets inutiles : installés mais jamais "meilleur" pour aucun morceau
     const allInstalled=[];
-    for(const [k,v] of Object.entries(banks)){
-      for(const slot of ["A","B","C"]){
-        if(v[slot]) allInstalled.push({name:v[slot],bank:Number(k),slot});
-      }
-    }
+    for(const [k,v] of Object.entries(banks)){for(const slot of ["A","B","C"]){if(v[slot]) allInstalled.push({name:v[slot],bank:Number(k),slot});}}
     const unusedPresets=allInstalled.filter(p=>!usedPresets.has(p.name));
-    // Suggestions : presets catalogue qui améliorent la couverture
     const suggestionMap=new Map();
     songRows.forEach(({song,installedScore,ideal})=>{
       if(!ideal||ideal.score<=installedScore) return;
-      const loc=findInBanks(ideal.name,banks);
-      if(loc) return; // déjà installé
+      if(findInBanks(ideal.name,banks)) return;
       const key=ideal.name;
       if(!suggestionMap.has(key)) suggestionMap.set(key,{name:ideal.name,amp:ideal.amp||"",src:ideal.src||"",score:ideal.score,songs:[],totalDelta:0});
-      const sg=suggestionMap.get(key);
-      sg.songs.push(song.title);
-      sg.totalDelta+=(ideal.score-installedScore);
+      const sg=suggestionMap.get(key);sg.songs.push(song.title);sg.totalDelta+=(ideal.score-installedScore);
     });
     const suggestions=[...suggestionMap.values()].sort((a,b)=>b.totalDelta-a.totalDelta||b.songs.length-a.songs.length);
-    // Stats
     const covered=songRows.filter(r=>r.installedScore>=80).length;
     const acceptable=songRows.filter(r=>r.installedScore>=50&&r.installedScore<80).length;
     const poor=songRows.filter(r=>r.installedScore<50).length;
     return {songRows,usedPresets,unusedPresets,suggestions,covered,acceptable,poor};
-  },[songs,gId,gType,device,banksAnn,banksPlug]);
+  };
 
-  const doInstall=(presetName)=>{
+  const annAnalysis=useMemo(()=>analyzeDevice(banksAnn,"ann"),[songs,gId,gType,banksAnn]);
+  const plugAnalysis=useMemo(()=>analyzeDevice(banksPlug,"plug"),[songs,gId,gType,banksPlug]);
+
+  const doInstall=(banks,onBanks,presetName)=>{
     const ws=worstSlot(banks,gType,[presetName]);
     if(ws.bank===null) return;
     onBanks(p=>({...p,[ws.bank]:{...(p[ws.bank]||{cat:"",A:"",B:"",C:""}),[ws.slot]:presetName}}));
@@ -3943,6 +3930,62 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
 
   const sectionStyle={background:"var(--bg-elev-1)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-lg)",padding:"var(--s-4)",marginBottom:"var(--s-4)"};
   const eyebrow=(icon,label)=><div style={{fontFamily:"var(--font-mono)",fontSize:"var(--fs-xs)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",color:"var(--accent)",marginBottom:"var(--s-3)",display:"flex",alignItems:"center",gap:5}}>{icon} {label}</div>;
+
+  const renderStats=(a)=><div style={{display:"flex",gap:"var(--s-2)",marginBottom:"var(--s-3)"}}>
+    <div style={{flex:1,background:"var(--green-bg)",border:"1px solid var(--green-border)",borderRadius:"var(--r-md)",padding:"var(--s-2)",textAlign:"center"}}>
+      <div style={{fontFamily:"var(--font-mono)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--success)"}}>{a.covered}</div>
+      <div style={{fontSize:9,color:"var(--text-secondary)"}}>Couverts</div>
+    </div>
+    <div style={{flex:1,background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",borderRadius:"var(--r-md)",padding:"var(--s-2)",textAlign:"center"}}>
+      <div style={{fontFamily:"var(--font-mono)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--yellow)"}}>{a.acceptable}</div>
+      <div style={{fontSize:9,color:"var(--text-secondary)"}}>Moyens</div>
+    </div>
+    <div style={{flex:1,background:"var(--red-bg)",border:"1px solid var(--red-border)",borderRadius:"var(--r-md)",padding:"var(--s-2)",textAlign:"center"}}>
+      <div style={{fontFamily:"var(--font-mono)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--danger)"}}>{a.poor}</div>
+      <div style={{fontSize:9,color:"var(--text-secondary)"}}>Faibles</div>
+    </div>
+  </div>;
+
+  const renderSongRows=(rows)=><div style={{display:"flex",flexDirection:"column",gap:4}}>
+    {rows.map(({song,installed,installedScore,delta})=>(
+      <div key={song.id} style={{display:"flex",alignItems:"center",gap:"var(--s-2)",padding:"4px var(--s-2)",background:"var(--bg-elev-2)",borderRadius:"var(--r-sm)",border:"1px solid var(--border-subtle)"}}>
+        <span style={{fontSize:12}}>{installedScore>=80?"✅":installedScore>=50?"⚠️":"❌"}</span>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:11,fontWeight:600,color:"var(--text-primary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{song.title}</div>
+          <div style={{fontSize:9,color:"var(--text-tertiary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{installed?installed.name:"—"}</div>
+        </div>
+        <div style={{textAlign:"right",flexShrink:0}}>
+          <div style={{fontFamily:"var(--font-mono)",fontSize:11,fontWeight:800,color:scoreColor(installedScore)}}>{installedScore}%</div>
+          {delta>5&&<div style={{fontSize:8,color:"var(--accent)"}}>+{delta}</div>}
+        </div>
+      </div>
+    ))}
+  </div>;
+
+  const renderUnused=(unused)=>unused.length>0&&<div style={{marginTop:"var(--s-3)"}}>
+    <div style={{fontSize:10,fontWeight:700,color:"var(--text-tertiary)",fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:4}}>🗑 Non utilisés ({unused.length})</div>
+    <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+      {unused.slice(0,10).map((p,i)=><span key={i} style={{fontSize:9,background:"var(--bg-elev-2)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-sm)",padding:"2px 6px",color:"var(--text-tertiary)"}} title={`B${p.bank}${p.slot}`}>{p.name}</span>)}
+      {unused.length>10&&<span style={{fontSize:9,color:"var(--text-tertiary)"}}>+{unused.length-10}</span>}
+    </div>
+  </div>;
+
+  const renderSuggestions=(suggestions,banks,onBanks)=>suggestions.length>0&&<div style={{marginTop:"var(--s-3)"}}>
+    <div style={{fontSize:10,fontWeight:700,color:"var(--text-tertiary)",fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:4}}>💡 Suggestions ({suggestions.length})</div>
+    <div style={{display:"flex",flexDirection:"column",gap:4}}>
+      {suggestions.slice(0,5).map((sg,i)=>{
+        const ws=worstSlot(banks,gType,[sg.name]);
+        return <div key={i} style={{display:"flex",alignItems:"center",gap:"var(--s-2)",padding:"4px var(--s-2)",background:"var(--bg-elev-2)",borderRadius:"var(--r-sm)",border:"1px solid var(--border-subtle)"}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:11,fontWeight:600,color:"var(--text-primary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sg.name}</div>
+            <div style={{fontSize:9,color:"var(--text-tertiary)"}}>{sg.amp} · {sg.songs.length} morceau{sg.songs.length>1?"x":""}</div>
+          </div>
+          <span style={{fontFamily:"var(--font-mono)",fontSize:10,fontWeight:700,color:"var(--success)",flexShrink:0}}>+{sg.totalDelta}</span>
+          {ws.bank!==null&&<button onClick={()=>doInstall(banks,onBanks,sg.name)} style={{background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-sm)",padding:"3px 8px",fontSize:9,fontWeight:700,cursor:"pointer",flexShrink:0}}>B{ws.bank}{ws.slot}</button>}
+        </div>;
+      })}
+    </div>
+  </div>;
 
   return(
     <div>
@@ -3957,91 +4000,29 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
         <select value={gId} onChange={e=>setGId(e.target.value)} style={{flex:1,background:"var(--bg-elev-1)",color:"var(--text-primary)",border:"1px solid var(--border-strong)",borderRadius:"var(--r-md)",padding:"8px 12px",fontSize:13}}>
           {allGuitars.map(g=><option key={g.id} value={g.id}>{g.short||g.name} ({g.type})</option>)}
         </select>
-        <div style={{display:"flex",gap:4}}>
-          {["ann","plug"].map(d=><button key={d} onClick={()=>setDevice(d)} style={{background:device===d?"var(--accent-soft)":"var(--bg-elev-2)",border:device===d?"1px solid var(--border-accent)":"1px solid var(--border-subtle)",color:device===d?"var(--accent)":"var(--text-secondary)",borderRadius:"var(--r-md)",padding:"8px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{d==="ann"?"📦 Pédale":"🔌 Plug"}</button>)}
-        </div>
       </div>
 
       {songs.length===0?<div style={{textAlign:"center",padding:"40px",color:"var(--text-tertiary)"}}>Setlist vide</div>:<>
 
-      {/* Stats résumé */}
-      <div style={{display:"flex",gap:"var(--s-2)",marginBottom:"var(--s-4)"}}>
-        <div style={{flex:1,background:"var(--green-bg)",border:"1px solid var(--green-border)",borderRadius:"var(--r-md)",padding:"var(--s-3)",textAlign:"center"}}>
-          <div style={{fontFamily:"var(--font-mono)",fontSize:"var(--fs-xl)",fontWeight:800,color:"var(--success)"}}>{analysis.covered}</div>
-          <div style={{fontSize:10,color:"var(--text-secondary)"}}>Bien couverts</div>
+      {/* Deux colonnes : Pédale + Plug */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"var(--s-3)"}}>
+        {/* Pédale */}
+        <div style={sectionStyle}>
+          {eyebrow("📦","Pédale")}
+          {renderStats(annAnalysis)}
+          {renderSongRows(annAnalysis.songRows)}
+          {renderUnused(annAnalysis.unusedPresets)}
+          {renderSuggestions(annAnalysis.suggestions,banksAnn,onBanksAnn)}
         </div>
-        <div style={{flex:1,background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",borderRadius:"var(--r-md)",padding:"var(--s-3)",textAlign:"center"}}>
-          <div style={{fontFamily:"var(--font-mono)",fontSize:"var(--fs-xl)",fontWeight:800,color:"var(--yellow)"}}>{analysis.acceptable}</div>
-          <div style={{fontSize:10,color:"var(--text-secondary)"}}>Acceptables</div>
-        </div>
-        <div style={{flex:1,background:"var(--red-bg)",border:"1px solid var(--red-border)",borderRadius:"var(--r-md)",padding:"var(--s-3)",textAlign:"center"}}>
-          <div style={{fontFamily:"var(--font-mono)",fontSize:"var(--fs-xl)",fontWeight:800,color:"var(--danger)"}}>{analysis.poor}</div>
-          <div style={{fontSize:10,color:"var(--text-secondary)"}}>Mal couverts</div>
-        </div>
-      </div>
-
-      {/* Section 1 : Couverture setlist */}
-      <div style={sectionStyle}>
-        {eyebrow("🎵","Couverture setlist")}
-        <div style={{display:"flex",flexDirection:"column",gap:"var(--s-2)"}}>
-          {analysis.songRows.map(({song,installed,installedScore,ideal,idealScore,delta})=>(
-            <div key={song.id} style={{display:"flex",alignItems:"center",gap:"var(--s-3)",padding:"var(--s-2) var(--s-3)",background:"var(--bg-elev-2)",borderRadius:"var(--r-md)",border:"1px solid var(--border-subtle)"}}>
-              <span style={{fontSize:14}}>{installedScore>=80?"✅":installedScore>=50?"⚠️":"❌"}</span>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:12,fontWeight:600,color:"var(--text-primary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{song.title}</div>
-                <div style={{fontSize:10,color:"var(--text-tertiary)"}}>{installed?installed.name:"Aucun preset adapté"}</div>
-              </div>
-              <div style={{textAlign:"right",flexShrink:0}}>
-                <div style={{fontFamily:"var(--font-mono)",fontSize:12,fontWeight:800,color:scoreColor(installedScore)}}>{installedScore}%</div>
-                {delta>5&&<div style={{fontSize:9,color:"var(--accent)"}}>+{delta} possible</div>}
-              </div>
-            </div>
-          ))}
+        {/* Plug */}
+        <div style={sectionStyle}>
+          {eyebrow("🔌","Plug")}
+          {renderStats(plugAnalysis)}
+          {renderSongRows(plugAnalysis.songRows)}
+          {renderUnused(plugAnalysis.unusedPresets)}
+          {renderSuggestions(plugAnalysis.suggestions,banksPlug,onBanksPlug)}
         </div>
       </div>
-
-      {/* Section 2 : Presets inutiles */}
-      {analysis.unusedPresets.length>0&&<div style={sectionStyle}>
-        {eyebrow("🗑","Presets non utilisés par cette setlist")}
-        <div style={{fontSize:11,color:"var(--text-tertiary)",marginBottom:"var(--s-3)"}}>{analysis.unusedPresets.length} preset{analysis.unusedPresets.length>1?"s":""} installé{analysis.unusedPresets.length>1?"s":""} mais jamais recommandé{analysis.unusedPresets.length>1?"s":""} pour cette setlist.</div>
-        <div style={{display:"flex",flexDirection:"column",gap:4}}>
-          {analysis.unusedPresets.slice(0,15).map((p,i)=>{
-            const entry=findCatalogEntry(p.name);
-            return <div key={i} style={{display:"flex",alignItems:"center",gap:"var(--s-2)",fontSize:11,color:"var(--text-secondary)",padding:"4px var(--s-2)",background:"var(--bg-elev-2)",borderRadius:"var(--r-sm)"}}>
-              <span style={{fontFamily:"var(--font-mono)",fontSize:10,color:"var(--text-tertiary)",flexShrink:0}}>B{p.bank}{p.slot}</span>
-              <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</span>
-              {entry&&<span style={{fontSize:9,color:"var(--text-tertiary)"}}>{entry.amp}</span>}
-            </div>;
-          })}
-          {analysis.unusedPresets.length>15&&<div style={{fontSize:10,color:"var(--text-tertiary)",textAlign:"center"}}>+{analysis.unusedPresets.length-15} autres</div>}
-        </div>
-      </div>}
-
-      {/* Section 3 : Suggestions d'installation */}
-      {analysis.suggestions.length>0&&<div style={sectionStyle}>
-        {eyebrow("💡","Suggestions d'installation")}
-        <div style={{fontSize:11,color:"var(--text-tertiary)",marginBottom:"var(--s-3)"}}>Presets du catalogue qui amélioreraient ta couverture.</div>
-        <div style={{display:"flex",flexDirection:"column",gap:"var(--s-2)"}}>
-          {analysis.suggestions.slice(0,10).map((sg,i)=>{
-            const entry=findCatalogEntry(sg.name);
-            const ws=worstSlot(banks,gType,[sg.name]);
-            return <div key={i} style={{background:"var(--bg-elev-2)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-md)",padding:"var(--s-3)"}}>
-              <div style={{display:"flex",alignItems:"center",gap:"var(--s-2)",marginBottom:4}}>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:12,fontWeight:600,color:"var(--text-primary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sg.name}</div>
-                  <div style={{fontSize:10,color:"var(--text-tertiary)"}}>{sg.amp}{entry?.src?" · "+entry.src:""}</div>
-                </div>
-                <div style={{fontFamily:"var(--font-mono)",fontSize:11,fontWeight:700,color:"var(--success)",flexShrink:0}}>+{sg.totalDelta}</div>
-              </div>
-              <div style={{fontSize:10,color:"var(--text-secondary)",marginBottom:6}}>Améliore : {sg.songs.slice(0,3).join(", ")}{sg.songs.length>3?" +"+( sg.songs.length-3):""}</div>
-              <div style={{display:"flex",alignItems:"center",gap:"var(--s-2)"}}>
-                {ws.bank!==null&&<button onClick={()=>doInstall(sg.name)} style={{background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-md)",padding:"4px 12px",fontSize:11,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)"}}>Installer → B{ws.bank}{ws.slot}</button>}
-                {ws.name&&<span style={{fontSize:9,color:"var(--text-tertiary)"}}>remplace {ws.name}</span>}
-              </div>
-            </div>;
-          })}
-        </div>
-      </div>}
       </>}
     </div>
   );
