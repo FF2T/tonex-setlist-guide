@@ -16,7 +16,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v41';
+const CACHE='tonex-v42';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -1036,7 +1036,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.4.8";
+const APP_VERSION = "6.4.9";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4120,7 +4120,7 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
   const renderUnused=(unused)=>unused.length>0&&<div style={{marginTop:"var(--s-3)"}}>
     <div style={{fontSize:10,fontWeight:700,color:"var(--text-tertiary)",fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:4}}>🗑 Non utilisés ({unused.length})</div>
     <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-      {unused.slice(0,10).map((p,i)=><span key={i} style={{fontSize:9,background:"var(--bg-elev-2)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-sm)",padding:"2px 6px",color:"var(--text-tertiary)"}} title={`B${p.bank}${p.slot}`}>{p.name}</span>)}
+      {unused.slice(0,10).map((p,i)=><span key={i} style={{fontSize:9,background:"var(--bg-elev-2)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-sm)",padding:"2px 6px",color:"var(--text-tertiary)"}}><span style={{fontFamily:"var(--font-mono)",color:"var(--accent)",marginRight:3}}>B{p.bank}{p.slot}</span>{p.name}</span>)}
       {unused.length>10&&<span style={{fontSize:9,color:"var(--text-tertiary)"}}>+{unused.length-10}</span>}
     </div>
   </div>;
