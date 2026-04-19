@@ -3198,7 +3198,11 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
     if(song.aiCache?.result?.cot_step1&&gId){
       const gType=(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB";
       var cleaned2={...song.aiCache.result,preset_ann:null,preset_plug:null,ideal_preset:null,ideal_preset_score:0,ideal_top3:null};
+      // DEBUG ToneNET scoring
+      const tnInCat=Object.entries(PRESET_CATALOG_MERGED).filter(([,v])=>v.src==="ToneNET");
+      console.log("[DEBUG] Song:",song.title,"| ref_amp:",song.aiCache?.result?.ref_amp,"| ToneNET in catalog:",tnInCat.length,tnInCat.map(([n])=>n));
       const recalc=enrichAIResult(cleaned2,gType,gId,banksAnn,banksPlug);
+      console.log("[DEBUG] After enrichAIResult → ideal_preset:",recalc.ideal_preset,"| ideal_top3:",recalc.ideal_top3?.map(p=>p.name+" ("+p.score+") "+p.amp));
       setLocalAiResult(recalc);
       setTimeout(()=>onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:{...updateAiCache(x.aiCache,gId,recalc),sv:SCORING_VERSION}}:x)),0);
       return;
