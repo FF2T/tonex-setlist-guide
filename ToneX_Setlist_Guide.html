@@ -16,7 +16,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v28';
+const CACHE='tonex-v29';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -1028,7 +1028,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.2.1";
+const APP_VERSION = "6.2.2";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3970,11 +3970,16 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
     </div>
   </div>;
 
-  const renderSuggestions=(suggestions,banks,onBanks)=>suggestions.length>0&&<div style={{marginTop:"var(--s-3)"}}>
+  const renderSuggestions=(suggestions,banks,onBanks)=>{
+    if(!suggestions.length) return null;
+    // Track already-suggested preset names so worstSlot excludes them progressively
+    const alreadySuggested=[];
+    return <div style={{marginTop:"var(--s-3)"}}>
     <div style={{fontSize:10,fontWeight:700,color:"var(--text-tertiary)",fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:4}}>💡 Suggestions ({suggestions.length})</div>
     <div style={{display:"flex",flexDirection:"column",gap:4}}>
       {suggestions.slice(0,5).map((sg,i)=>{
-        const ws=worstSlot(banks,gType,[sg.name]);
+        const ws=worstSlot(banks,gType,[sg.name,...alreadySuggested]);
+        alreadySuggested.push(ws.name||"");
         return <div key={i} style={{display:"flex",alignItems:"center",gap:"var(--s-2)",padding:"4px var(--s-2)",background:"var(--bg-elev-2)",borderRadius:"var(--r-sm)",border:"1px solid var(--border-subtle)"}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:11,fontWeight:600,color:"var(--text-primary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sg.name}</div>
@@ -3986,6 +3991,7 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
       })}
     </div>
   </div>;
+  };
 
   return(
     <div>
