@@ -16,7 +16,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v20';
+const CACHE='tonex-v21';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -1028,7 +1028,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.0.6";
+const APP_VERSION = "6.0.7";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -1333,6 +1333,8 @@ const AMP_ALIASES={
   // Laney
   "laney supergroup":"Laney Supergroup","laney super group":"Laney Supergroup","laney sg":"Laney Supergroup",
   "laney aor":"Laney AOR","laney gh100":"Laney GH100L","laney gh":"Laney GH100L",
+  "laney vh100":"Laney VH100","laney vh":"Laney VH100",
+  "laney vc50":"Laney VC50","laney vc30":"Laney VC30","laney vc":"Laney VC50",
   "laney lionheart":"Laney Lionheart","laney lion":"Laney Lionheart",
   "laney irt":"Laney IRT","laney":"Laney",
 };
@@ -2535,7 +2537,10 @@ function inferPresetInfo(presetName){
       [/\b(diezel|herbert|vh4)\b/,"Diezel Herbert"],
       [/\b(engl|powerball|savage)\b/,"ENGL"],
       [/\b(soldano)\b/,"Soldano SLO-100"],
-      [/\b(laney\s?supergroup|laney\s?sg)\b/,"Laney Supergroup"],
+      [/\b(laney\s?supergroup|supergroup\s?bass|supergroup)/,"Laney Supergroup"],
+      [/\b(laney\s?vh\s?100|vh\s?100)\b/,"Laney VH100"],
+      [/\b(laney\s?vc\s?50|vc\s?50)\b/,"Laney VC50"],
+      [/\b(laney\s?vc\s?30|vc\s?30)\b/,"Laney VC30"],
       [/\b(laney\s?aor)\b/,"Laney AOR"],
       [/\b(laney\s?lionheart|laney\s?lion)\b/,"Laney Lionheart"],
       [/\b(laney)\b/,"Laney"],
@@ -5501,7 +5506,13 @@ function App() {
   // Sync ToneNET presets into global catalog for scoring engine
   useEffect(()=>{
     for(const k of Object.keys(PRESET_CATALOG_MERGED)){if(PRESET_CATALOG_MERGED[k].src==="ToneNET")delete PRESET_CATALOG_MERGED[k];}
-    (toneNetPresets||[]).forEach(p=>{if(p.name)PRESET_CATALOG_MERGED[p.name]={src:"ToneNET",amp:p.amp||"ToneNET",gain:p.gain||"mid",style:p.style||"rock",scores:p.scores||{HB:75,SC:75,P90:75}};});
+    (toneNetPresets||[]).forEach(p=>{
+      if(!p.name) return;
+      // Re-infer amp from name if it's still "ToneNET" (user didn't set it manually)
+      let amp=p.amp||"ToneNET";
+      if(amp==="ToneNET"){const info=inferPresetInfo(p.name);if(info&&info.amp) amp=info.amp;}
+      PRESET_CATALOG_MERGED[p.name]={src:"ToneNET",amp,gain:p.gain||"mid",style:p.style||"rock",scores:p.scores||{HB:75,SC:75,P90:75}};
+    });
   },[toneNetPresets]);
 
   // Profiles state — merge banks + apply local secrets (aiKeys, passwords)
