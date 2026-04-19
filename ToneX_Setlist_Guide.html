@@ -16,7 +16,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v42';
+const CACHE='tonex-v43';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -1036,7 +1036,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.4.9";
+const APP_VERSION = "6.4.10";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3933,11 +3933,16 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
       const targetGain=typeof ai.target_gain==="number"?ai.target_gain:null;
       const best=computeBestPresets(gType,style,deviceKey==="ann"?banks:{},deviceKey==="plug"?banks:{},gId,ai.ref_amp,targetGain);
       let top=deviceKey==="ann"?best.annTop:best.plugTop;
-      // Utiliser le score du cache s'il est supérieur (cohérence avec la setlist)
+      // Cohérence avec la setlist : utiliser le cache s'il a un meilleur score
       const cachedPreset=deviceKey==="ann"?ai.preset_ann:ai.preset_plug;
-      if(cachedPreset?.score>0&&(!top||cachedPreset.score>top.score)){
+      if(cachedPreset?.label&&cachedPreset.score>0){
         const loc=findInBanks(cachedPreset.label,banks);
-        if(loc) top={name:cachedPreset.label,score:cachedPreset.score,bank:loc.bank,col:loc.slot,amp:"",style:"",breakdown:cachedPreset.breakdown};
+        if(loc&&(!top||cachedPreset.score>top.score)){
+          top={name:cachedPreset.label,score:cachedPreset.score,bank:loc.bank,col:loc.slot,amp:"",style:"",breakdown:cachedPreset.breakdown};
+        } else if(top&&cachedPreset.score>top.score){
+          // Le preset du cache n'est plus installé mais le score est plus haut — garder le score
+          top={...top,score:Math.max(top.score,cachedPreset.score)};
+        }
       }
       // Filtrer idealTop par compatibilité source/device
       const idealRaw=best.idealTop3||[];
