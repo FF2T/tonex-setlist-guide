@@ -16,7 +16,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v30';
+const CACHE='tonex-v31';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -1028,7 +1028,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.3.0";
+const APP_VERSION = "6.3.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3890,7 +3890,7 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
     const usedPresets=new Map();
     const songRows=songs.map(s=>{
       const ai=s.aiCache?.result;
-      if(!ai?.cot_step1) return {song:s,installed:null,installedScore:0,ideal:null,idealScore:0,delta:0};
+      if(!ai?.cot_step1) return {song:s,installed:null,installedScore:-1,ideal:null,idealScore:0,delta:0,noAI:true};
       const style=ai.song_style||"rock";
       const targetGain=typeof ai.target_gain==="number"?ai.target_gain:null;
       const best=computeBestPresets(gType,style,deviceKey==="ann"?banks:{},deviceKey==="plug"?banks:{},gId,ai.ref_amp,targetGain);
@@ -3905,10 +3905,12 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
     const allInstalled=[];
     for(const [k,v] of Object.entries(banks)){for(const slot of ["A","B","C"]){if(v[slot]) allInstalled.push({name:v[slot],bank:Number(k),slot});}}
     const unusedPresets=allInstalled.filter(p=>!usedPresets.has(p.name));
-    const covered=songRows.filter(r=>r.installedScore>=80).length;
-    const acceptable=songRows.filter(r=>r.installedScore>=50&&r.installedScore<80).length;
-    const poor=songRows.filter(r=>r.installedScore<50).length;
-    return {songRows,usedPresets,unusedPresets,covered,acceptable,poor};
+    const analyzed=songRows.filter(r=>!r.noAI);
+    const covered=analyzed.filter(r=>r.installedScore>=80).length;
+    const acceptable=analyzed.filter(r=>r.installedScore>=50&&r.installedScore<80).length;
+    const poor=analyzed.filter(r=>r.installedScore<50).length;
+    const noAICount=songRows.filter(r=>r.noAI).length;
+    return {songRows,usedPresets,unusedPresets,covered,acceptable,poor,noAICount};
   };
 
   const annAnalysis=useMemo(()=>analyzeDevice(banksAnn,"ann"),[songs,gId,gType,banksAnn]);
@@ -3921,12 +3923,38 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
     const topStyles=Object.entries(styleCounts).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([s])=>s);
     if(!topStyles.length) return [];
     const STYLE_LABELS={blues:"Blues",rock:"Rock",hard_rock:"Hard Rock",jazz:"Jazz",metal:"Metal",pop:"Pop"};
-    const SLOT_GAINS=[{slot:"A",label:"Clean",targetGain:2},{slot:"B",label:"Drive",targetGain:7},{slot:"C",label:"Lead",targetGain:9}];
+    const SLOT_GAINS=[{slot:"A",label:"Clean",targetGain:2,gainRange:"clean"},{slot:"B",label:"Drive",targetGain:7,gainRange:"drive"},{slot:"C",label:"Lead",targetGain:9,gainRange:"high_gain"}];
+    // Trouver le refAmp le plus fréquent dans la setlist pour ce style
+    const findDominantAmp=(style)=>{
+      const ampCounts={};
+      songs.forEach(s=>{const ai=s.aiCache?.result;if(ai&&ai.song_style===style&&ai.ref_amp){const r=resolveRefAmp(ai.ref_amp);ampCounts[r]=(ampCounts[r]||0)+1;}});
+      return Object.entries(ampCounts).sort((a,b)=>b[1]-a[1])[0]?.[0]||null;
+    };
     return topStyles.map(style=>{
-      const slots=SLOT_GAINS.map(({slot,label,targetGain})=>{
-        const best=computeBestPresets(gType,style,{},{},gId,null,targetGain);
-        const top=best.idealTop;
-        return {slot,label,preset:top?.name||"—",amp:top?.amp||"",score:top?.score||0};
+      const dominantAmp=findDominantAmp(style);
+      const usedAmps=new Set();
+      const usedNames=new Set();
+      const slots=SLOT_GAINS.map(({slot,label,targetGain,gainRange})=>{
+        // Score tous les presets du catalogue pour ce style+gain, avec diversification
+        const candidates=Object.entries(PRESET_CATALOG_MERGED)
+          .filter(([,info])=>{
+            const g=getGainRange(gainToNumeric(info.gain));
+            return g===gainRange||(gainRange==="drive"&&g==="crunch");
+          })
+          .map(([name,info])=>{
+            const pickupScore=computePickupScore(info.style,gainRange,gType);
+            const styleScore=computeStyleMatchScore(info.style,style);
+            const refAmpScore=dominantAmp?computeRefAmpScore(info.amp,dominantAmp):null;
+            const dims=[{s:pickupScore,w:0.25},{s:styleScore,w:0.35},{s:refAmpScore,w:0.40}].filter(d=>d.s!==null);
+            const tw=dims.reduce((s,d)=>s+d.w,0);
+            const score=Math.round(dims.reduce((s,d)=>s+d.s*(d.w/tw),0));
+            return {name,amp:info.amp,src:info.src,score};
+          })
+          .sort((a,b)=>b.score-a.score);
+        // Prendre le meilleur avec diversification d'ampli entre les slots
+        const pick=candidates.find(c=>!usedAmps.has(c.amp)&&!usedNames.has(c.name))||candidates[0];
+        if(pick){usedAmps.add(pick.amp);usedNames.add(pick.name);}
+        return {slot,label,preset:pick?.name||"—",amp:pick?.amp||"",src:pick?.src||"",score:pick?.score||0};
       });
       return {style,label:STYLE_LABELS[style]||style,slots};
     });
@@ -4008,7 +4036,12 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
   const renderSongRows=(rows,banks,onBanks)=>{
     const alreadySuggested=[];
     return <div style={{display:"flex",flexDirection:"column",gap:4}}>
-    {rows.map(({song,installed,installedScore,ideal,idealScore,delta})=>{
+    {rows.map(({song,installed,installedScore,ideal,idealScore,delta,noAI})=>{
+      if(noAI) return <div key={song.id} style={{display:"flex",alignItems:"center",gap:"var(--s-2)",padding:"4px var(--s-2)",background:"var(--bg-elev-2)",borderRadius:"var(--r-sm)",border:"1px solid var(--border-subtle)",opacity:0.5}}>
+        <span style={{fontSize:12}}>⏳</span>
+        <div style={{flex:1,fontSize:11,color:"var(--text-tertiary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{song.title}</div>
+        <span style={{fontSize:9,color:"var(--text-tertiary)"}}>Non analysé</span>
+      </div>;
       const needsSuggestion=delta>5&&ideal&&!findInBanks(ideal.name,banks);
       let ws=null;
       if(needsSuggestion){ws=worstSlot(banks,gType,[ideal.name,...alreadySuggested]);alreadySuggested.push(ws?.name||"");}
@@ -4071,7 +4104,7 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
                   <div key={s.slot} style={{flex:1,textAlign:"center"}}>
                     <div style={{fontFamily:"var(--font-mono)",fontSize:9,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:2}}>{s.slot} · {s.label}</div>
                     <div style={{fontSize:10,fontWeight:600,color:"var(--text-primary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.preset}</div>
-                    <div style={{fontSize:9,color:"var(--text-tertiary)"}}>{s.amp}</div>
+                    <div style={{fontSize:9,color:"var(--text-tertiary)"}}>{s.amp}{s.src?" · "+s.src:""}</div>
                     <div style={{fontFamily:"var(--font-mono)",fontSize:10,fontWeight:700,color:scoreColor(s.score)}}>{s.score}%</div>
                   </div>
                 ))}
