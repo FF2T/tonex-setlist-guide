@@ -16,7 +16,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v33';
+const CACHE='tonex-v34';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -1028,7 +1028,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.4.0";
+const APP_VERSION = "6.4.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4051,7 +4051,7 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
       </div>;
       const needsSuggestion=delta>5&&ideal&&!findInBanks(ideal.name,banks);
       let ws=null;
-      if(needsSuggestion){ws=worstSlot(banks,gType,[ideal.name,...alreadySuggested]);alreadySuggested.push(ws?.name||"");}
+      if(needsSuggestion){ws=worstSlot(banks,guitar?.type||"HB",[ideal.name,...alreadySuggested]);alreadySuggested.push(ws?.name||"");}
       return <div key={song.id}>
         <div style={{display:"flex",alignItems:"center",gap:"var(--s-2)",padding:"4px var(--s-2)",background:"var(--bg-elev-2)",borderRadius:needsSuggestion?"var(--r-sm) var(--r-sm) 0 0":"var(--r-sm)",border:"1px solid var(--border-subtle)"}}>
           <span style={{fontSize:12}}>{installedScore>=80?"✅":installedScore>=50?"⚠️":"❌"}</span>
