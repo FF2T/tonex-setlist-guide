@@ -756,7 +756,7 @@ const STYLE_COMPATIBILITY={
 };
 
 // Pondérations des 5 dimensions
-const SCORING_VERSION=7; // Increment to invalidate cached scores (v7: CoT prompt)
+const SCORING_VERSION=8; // Increment to invalidate cached scores (v8: ToneNET + Laney support)
 const SCORING_WEIGHTS={
   pickup:    0.20,
   guitar:    0.10,
@@ -1330,6 +1330,11 @@ const AMP_ALIASES={
   "soldano slo":"Soldano SLO-100","soldano slo-100":"Soldano SLO-100","soldano slo 100":"Soldano SLO-100",
   "matchless dc30":"Matchless DC30","matchless dc 30":"Matchless DC30",
   "roland jc-120":"Roland JC-120","roland jc120":"Roland JC-120","roland jazz chorus":"Roland JC-120",
+  // Laney
+  "laney supergroup":"Laney Supergroup","laney super group":"Laney Supergroup","laney sg":"Laney Supergroup",
+  "laney aor":"Laney AOR","laney gh100":"Laney GH100L","laney gh":"Laney GH100L",
+  "laney lionheart":"Laney Lionheart","laney lion":"Laney Lionheart",
+  "laney irt":"Laney IRT","laney":"Laney",
 };
 // Résout un ref_amp texte vers un nom canonique du catalogue via AMP_ALIASES
 function resolveRefAmp(refAmp){
@@ -2530,6 +2535,10 @@ function inferPresetInfo(presetName){
       [/\b(diezel|herbert|vh4)\b/,"Diezel Herbert"],
       [/\b(engl|powerball|savage)\b/,"ENGL"],
       [/\b(soldano)\b/,"Soldano SLO-100"],
+      [/\b(laney\s?supergroup|laney\s?sg)\b/,"Laney Supergroup"],
+      [/\b(laney\s?aor)\b/,"Laney AOR"],
+      [/\b(laney\s?lionheart|laney\s?lion)\b/,"Laney Lionheart"],
+      [/\b(laney)\b/,"Laney"],
     ];
     for(const [rx,amp] of TONENET_PATTERNS){
       if(rx.test(norm)){detectedAmp=amp;break;}

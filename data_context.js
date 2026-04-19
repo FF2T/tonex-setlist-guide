@@ -163,7 +163,11 @@ const PRESET_CONTEXT = {
   "Tone King Imperial":{emoji:"👑",refs:[{a:"Session guitarists",t:[]},{a:"Nashville players",t:[]}],desc:"Le Tone King Imperial est un ampli boutique américain au son Fender vintage premium. Atténuateur intégré, réverb exceptionnelle. Le son clean et breakup de Nashville."},
   "Trainwreck OD100":{emoji:"💥",refs:[{a:"Ken Fischer (builder)",t:[]},{a:"Brad Paisley",t:[]}],desc:"Le Trainwreck OD100 est l'un des amplis les plus rares et recherchés au monde. Construit par Ken Fischer, son gain organique et sa réponse au toucher sont légendaires."},
   "Two Rock":{emoji:"🌊",refs:[{a:"John Mayer",t:["Gravity"]},{a:"Matt Schofield",t:[]}],desc:"Les amplis Two Rock sont des boutiques californiens au son Dumble-like. Cleans aériens, overdrive musical et transparent. Le son du blues moderne haut de gamme."},
-  "Unknown":{emoji:"❓",refs:[],desc:"Ampli non identifié. Preset capturé sans référence d'ampli spécifique."}
+  "Unknown":{emoji:"❓",refs:[],desc:"Ampli non identifié. Preset capturé sans référence d'ampli spécifique."},
+  "Laney Supergroup":{emoji:"🔥",refs:[{a:"Tony Iommi (Black Sabbath)",t:["Paranoid","Iron Man","War Pigs","Black Sabbath"]},{a:"Ritchie Blackmore",t:["Smoke on the Water (early)"]},{a:"Paul Gilbert",t:[]}],desc:"Le Laney Supergroup est l'ampli emblématique de Tony Iommi. Son mid-range agressif et son sustain épais ont défini le son du heavy metal originel. Un ampli britannique brut, sans compromis."},
+  "Laney":{emoji:"🔥",refs:[{a:"Tony Iommi (Black Sabbath)",t:["Paranoid","Iron Man","War Pigs"]},{a:"Paul Gilbert",t:[]},{a:"Opeth",t:[]}],desc:"Laney est un fabricant britannique d'amplificateurs. Du Supergroup de Tony Iommi aux modernes IRT et GH, Laney couvre le spectre du blues au metal avec un caractère mid-range distinctif."},
+  "Laney AOR":{emoji:"🔥",refs:[{a:"80s rock players",t:[]}],desc:"Le Laney AOR (Advanced Overdrive Response) est un ampli high-gain britannique des années 80. Son caractère agressif et ses médiums proéminents en font un classique du hard rock et du metal."},
+  "Laney Lionheart":{emoji:"🦁",refs:[{a:"Blues-rock players",t:[]}],desc:"Le Laney Lionheart est un ampli Class A au son chaud et dynamique. Inspiré des amplis britanniques vintage, il excelle en clean et crunch avec un breakup musical et harmonique."}
 };
 
 // AMP_TAXONOMY
@@ -298,6 +302,12 @@ const AMP_TAXONOMY={
   "Sons Amplification":{brand:"sons",family:"sons",school:"marshall_crunch"},
   "Amplifonics":{brand:"amplifonics",family:"amplifonics",school:"marshall_crunch"},
   "Reinguard T-36":{brand:"reinhardt",family:"rt36",school:"fender_clean"},
+  "Laney Supergroup":{brand:"laney",family:"supergroup",school:"marshall_crunch"},
+  "Laney AOR":{brand:"laney",family:"aor",school:"marshall_crunch"},
+  "Laney GH100L":{brand:"laney",family:"gh",school:"marshall_crunch"},
+  "Laney Lionheart":{brand:"laney",family:"lionheart",school:"vox_chime"},
+  "Laney IRT":{brand:"laney",family:"irt",school:"marshall_crunch"},
+  "Laney":{brand:"laney",family:"supergroup",school:"marshall_crunch"},
 };
 
 // Catalogues des createurs de presets (packs disponibles a l'achat)
