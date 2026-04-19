@@ -16,7 +16,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v24';
+const CACHE='tonex-v25';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -1028,7 +1028,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.0.10";
+const APP_VERSION = "6.1.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -2555,10 +2555,23 @@ function inferPresetInfo(presetName){
       }
     }
   }
-  // 2. Detect gain via inferGainFromName (returns numeric 0-10)
+  // 2. Detect channel from name
+  let channel="";
+  const chMatch=n.match(/\b(ch\.?\s*\d|channel\s*\d|clean\s*ch|drive\s*ch|lead\s*ch|crunch\s*ch)/i);
+  if(chMatch) channel=chMatch[1].trim();
+  // 3. Detect gain via inferGainFromName + channel hint
   const gainNum=inferGainFromName(presetName);
-  const gain=gainNum<=3?"low":gainNum>=8?"high":"mid";
-  // 3. Detect style from amp taxonomy school → default style mapping
+  // Channel can override gain if name was ambiguous (default 6)
+  let finalGainNum=gainNum;
+  if(gainNum===6&&channel){
+    const chLow=channel.toLowerCase();
+    if(/clean/i.test(chLow)) finalGainNum=2;
+    else if(/crunch/i.test(chLow)) finalGainNum=5;
+    else if(/drive|od/i.test(chLow)) finalGainNum=7;
+    else if(/lead|high/i.test(chLow)) finalGainNum=9;
+  }
+  const gain=finalGainNum<=3?"low":finalGainNum>=8?"high":"mid";
+  // 4. Detect style from amp taxonomy school → default style mapping
   const SCHOOL_STYLE={"fender_clean":"blues","marshall_crunch":"rock","vox_chime":"rock","dumble_smooth":"blues","mesa_heavy":"hard_rock","hiwatt_clean":"rock","orange_crunch":"hard_rock","friedman_modern":"hard_rock","bogner_versatile":"rock","matchless_chime":"blues","soldano_lead":"hard_rock","diezel_modern":"metal","peavey_heavy":"metal","two_rock_boutique":"blues"};
   let style="rock";
   if(detectedAmp&&AMP_TAXONOMY[detectedAmp]){
@@ -2572,7 +2585,7 @@ function inferPresetInfo(presetName){
   else if(/\bfunk\b|\bpop\b/.test(n)) style="pop";
   // Resolved amp or empty
   const finalAmp=(detectedAmp&&detectedAmp!==presetName)?detectedAmp:"";
-  return {amp:finalAmp,gain,style};
+  return {amp:finalAmp,gain,style,channel};
 }
 
 // ─── ToneNET Tab ─────────────────────────────────────────────────────────────
@@ -2581,32 +2594,36 @@ function ToneNetTab({toneNetPresets,onToneNetPresets,inp}){
   const [amp,setAmp]=useState("");
   const [gain,setGain]=useState("mid");
   const [style,setStyle]=useState("rock");
+  const [channel,setChannel]=useState("");
+  const [cab,setCab]=useState("");
+  const [comment,setComment]=useState("");
   const [editId,setEditId]=useState(null);
   const [autoFilled,setAutoFilled]=useState(false);
   const GAIN_OPTS=["low","mid","high"];
   const STYLE_OPTS=[{v:"blues",l:"Blues"},{v:"rock",l:"Rock"},{v:"hard_rock",l:"Hard Rock"},{v:"jazz",l:"Jazz"},{v:"pop",l:"Pop"},{v:"metal",l:"Metal"}];
-  const resetForm=()=>{setName("");setAmp("");setGain("mid");setStyle("rock");setEditId(null);setAutoFilled(false);};
+  const resetForm=()=>{setName("");setAmp("");setGain("mid");setStyle("rock");setChannel("");setCab("");setComment("");setEditId(null);setAutoFilled(false);};
   const onNameChange=(val)=>{
     setName(val);
-    if(editId) return; // don't auto-fill in edit mode
+    if(editId) return;
     const info=inferPresetInfo(val);
     if(info){
       if(info.amp) setAmp(info.amp);
       setGain(info.gain);
       setStyle(info.style);
+      if(info.channel) setChannel(info.channel);
       setAutoFilled(true);
     }
   };
   const addPreset=()=>{
     if(!name.trim())return;
-    const p={id:`tn_${Date.now()}`,name:name.trim(),amp:amp.trim()||"ToneNET",gain,style,scores:{HB:75,SC:75,P90:75}};
+    const p={id:`tn_${Date.now()}`,name:name.trim(),amp:amp.trim()||"ToneNET",gain,style,channel:channel.trim(),cab:cab.trim(),comment:comment.trim(),scores:{HB:75,SC:75,P90:75}};
     onToneNetPresets(prev=>[...prev,p]);resetForm();
   };
   const saveEdit=()=>{
     if(!name.trim()||!editId)return;
-    onToneNetPresets(prev=>prev.map(p=>p.id===editId?{...p,name:name.trim(),amp:amp.trim()||"ToneNET",gain,style}:p));resetForm();
+    onToneNetPresets(prev=>prev.map(p=>p.id===editId?{...p,name:name.trim(),amp:amp.trim()||"ToneNET",gain,style,channel:channel.trim(),cab:cab.trim(),comment:comment.trim()}:p));resetForm();
   };
-  const startEdit=(p)=>{setEditId(p.id);setName(p.name);setAmp(p.amp==="ToneNET"?"":p.amp);setGain(p.gain);setStyle(p.style);setAutoFilled(false);};
+  const startEdit=(p)=>{setEditId(p.id);setName(p.name);setAmp(p.amp==="ToneNET"?"":p.amp);setGain(p.gain);setStyle(p.style);setChannel(p.channel||"");setCab(p.cab||"");setComment(p.comment||"");setAutoFilled(false);};
   const deletePreset=(id)=>onToneNetPresets(prev=>prev.filter(p=>p.id!==id));
   return(
     <div>
@@ -2630,6 +2647,11 @@ function ToneNetTab({toneNetPresets,onToneNetPresets,inp}){
             </select>
           </div>
           <div style={{display:"flex",gap:"var(--s-2)"}}>
+            <input placeholder="Canal (ex: Ch1, Clean, Lead)" value={channel} onChange={e=>setChannel(e.target.value)} style={{...inp,flex:1,fontSize:12}}/>
+            <input placeholder="Cab (ex: 4x12 Greenback)" value={cab} onChange={e=>setCab(e.target.value)} style={{...inp,flex:1,fontSize:12}}/>
+          </div>
+          <input placeholder="Notes (optionnel)" value={comment} onChange={e=>setComment(e.target.value)} style={{...inp,fontSize:12}}/>
+          <div style={{display:"flex",gap:"var(--s-2)"}}>
             {editId?<>
               <button onClick={saveEdit} disabled={!name.trim()} style={{flex:1,background:name.trim()?"var(--accent)":"var(--bg-elev-3)",border:"none",color:"var(--text-inverse)",borderRadius:"var(--r-md)",padding:"8px",fontSize:12,fontWeight:700,cursor:name.trim()?"pointer":"not-allowed"}}>Sauver</button>
               <button onClick={resetForm} style={{background:"var(--bg-elev-2)",border:"1px solid var(--border-subtle)",color:"var(--text-secondary)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:12,cursor:"pointer"}}>Annuler</button>
@@ -2645,7 +2667,8 @@ function ToneNetTab({toneNetPresets,onToneNetPresets,inp}){
           <div key={p.id} style={{background:editId===p.id?"var(--accent-soft)":"var(--bg-elev-1)",border:editId===p.id?"1px solid var(--border-accent)":"1px solid var(--border-subtle)",borderRadius:"var(--r-lg)",padding:"var(--s-3) var(--s-4)",display:"flex",alignItems:"center",gap:"var(--s-3)"}}>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</div>
-              <div style={{fontSize:11,color:"var(--text-secondary)",marginTop:2}}>{p.amp}{p.amp&&p.amp!=="ToneNET"?" · ":""}{p.gain} gain · {STYLE_OPTS.find(s=>s.v===p.style)?.l||p.style}</div>
+              <div style={{fontSize:11,color:"var(--text-secondary)",marginTop:2}}>{p.amp&&p.amp!=="ToneNET"?p.amp+" · ":""}{p.channel?p.channel+" · ":""}{p.gain} gain · {STYLE_OPTS.find(s=>s.v===p.style)?.l||p.style}{p.cab?" · "+p.cab:""}</div>
+              {p.comment&&<div style={{fontSize:10,color:"var(--text-tertiary)",fontStyle:"italic",marginTop:1}}>{p.comment}</div>}
             </div>
             <div style={{display:"flex",gap:4,flexShrink:0}}>
               <button onClick={()=>startEdit(p)} style={{background:"var(--bg-elev-2)",border:"none",borderRadius:"var(--r-sm)",padding:"4px 8px",fontSize:10,color:"var(--text-secondary)",cursor:"pointer"}}>✏️</button>
@@ -2942,19 +2965,15 @@ function MaintenanceTab({songDb,onSongDb,banksAnn,banksPlug,aiProvider,aiKeys,on
         <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:10}}>Recalcule les scores de presets pour tous les morceaux sans rappeler l'IA. Utile après avoir ajouté des presets ToneNET ou changé tes banks.</div>
         <button onClick={()=>{
           try{
-            const tnCheck=Object.entries(PRESET_CATALOG_MERGED).filter(([,v])=>v.src==="ToneNET");
-            console.log("[RESCORE] ToneNET in catalog:",tnCheck.map(([n,v])=>n+" → "+v.amp));
             const updated=songDb.map(s=>{
               if(!s.aiCache?.result?.cot_step1) return s;
               const gId=s.aiCache.gId||"";
               const gType=GUITARS.find(x=>x.id===gId)?.type||"HB";
               const cleaned={...s.aiCache.result,preset_ann:null,preset_plug:null,ideal_preset:null,ideal_preset_score:0,ideal_top3:null};
               const recalc=enrichAIResult(cleaned,gType,gId,banksAnn,banksPlug);
-              console.log("[RESCORE]",s.title,"→ ideal:",recalc.ideal_preset,"| top3:",recalc.ideal_top3?.map(p=>p.name+" ("+p.score+"/"+p.amp+")"));
               return {...s,aiCache:{...updateAiCache(s.aiCache,gId,recalc),sv:SCORING_VERSION}};
             });
             onSongDb(()=>updated);
-          }catch(e){console.error("[RESCORE] Error:",e);}
           setDone(true);setTimeout(()=>setDone(false),3000);
         }} style={{background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)"}}>⚡ Rescorer ({songDb.filter(s=>s.aiCache).length} morceaux en cache)</button>
       </div>
@@ -3200,9 +3219,6 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
   // Auto-trigger AI analysis if no cache for current guitar
   const needsRescore=song.aiCache?.sv!==SCORING_VERSION;
   useEffect(()=>{
-    // DEBUG — toujours loguer avant tout early-return
-    const tnInCat=Object.entries(PRESET_CATALOG_MERGED).filter(([,v])=>v.src==="ToneNET");
-    console.log("[DEBUG-SDC]",song.title,"| needsRescore:",needsRescore,"| cacheSv:",song.aiCache?.sv,"| SV:",SCORING_VERSION,"| hasLocal:",!!localAiResult,"| ref_amp:",song.aiCache?.result?.ref_amp,"| ToneNET:",tnInCat.map(([n,v])=>n+"→"+v.amp));
     // Si localAiResult existe ET le scoring est à jour → rien à faire
     if(localAiResult&&!needsRescore) return;
     // Cache valide, même guitare, scoring à jour → utiliser le cache
@@ -3211,11 +3227,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
     if(song.aiCache?.result?.cot_step1&&gId){
       const gType=(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB";
       var cleaned2={...song.aiCache.result,preset_ann:null,preset_plug:null,ideal_preset:null,ideal_preset_score:0,ideal_top3:null};
-      // DEBUG ToneNET scoring
-      const tnInCat=Object.entries(PRESET_CATALOG_MERGED).filter(([,v])=>v.src==="ToneNET");
-      console.log("[DEBUG] Song:",song.title,"| ref_amp:",song.aiCache?.result?.ref_amp,"| ToneNET in catalog:",tnInCat.length,tnInCat.map(([n])=>n));
       const recalc=enrichAIResult(cleaned2,gType,gId,banksAnn,banksPlug);
-      console.log("[DEBUG] After enrichAIResult → ideal_preset:",recalc.ideal_preset,"| ideal_top3:",recalc.ideal_top3?.map(p=>p.name+" ("+p.score+") "+p.amp));
       setLocalAiResult(recalc);
       setTimeout(()=>onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:{...updateAiCache(x.aiCache,gId,recalc),sv:SCORING_VERSION}}:x)),0);
       return;
@@ -4354,15 +4366,17 @@ function PresetDetailInline({name,info,banksAnn,banksPlug,presetContext,guitars}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
           <div style={{flex:1}}>
             <div style={{fontSize:13,fontWeight:700,color:"var(--text-bright)",marginBottom:2}}>{ctx?.emoji&&<span style={{marginRight:4}}>{ctx.emoji}</span>}{info.amp}</div>
-            <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>{name}</div>
+            <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>{name}{info.channel?" · "+info.channel:""}</div>
           </div>
         </div>
         {presetChar&&<div style={{fontSize:11,color:"var(--text-sec)",background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-md)",padding:"6px 10px",marginBottom:6,fontWeight:500}}>{presetChar}</div>}
         <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:6}}>
           {info.src&&<span style={{fontSize:9,color:"var(--text-muted)",background:"var(--a6)",borderRadius:"var(--r-sm)",padding:"2px 6px",fontWeight:600}}>{SOURCE_LABELS[info.src]||info.src}</span>}
+          {info.cab&&<span style={{fontSize:9,color:"var(--text-muted)",background:"var(--a6)",borderRadius:"var(--r-sm)",padding:"2px 6px"}}>🔈 {info.cab}</span>}
           {info.pack&&<span style={{fontSize:9,color:"var(--text-muted)",background:"var(--a6)",borderRadius:"var(--r-sm)",padding:"2px 6px"}}>{info.pack}</span>}
           {info.pack&&TSR_PACK_ZIPS[info.pack]&&<span style={{fontSize:9,color:"var(--text-dim)"}}>📁 {TSR_PACK_ZIPS[info.pack]}.zip</span>}
         </div>
+        {info.comment&&<div style={{fontSize:10,color:"var(--text-sec)",fontStyle:"italic",marginBottom:6}}>{info.comment}</div>}
         {ctx?.desc&&<div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.5}}>{ctx.desc}</div>}
         {!ctx?.desc&&<div style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic"}}>Pas de description disponible pour cet ampli.</div>}
         <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:6}}>
@@ -4564,7 +4578,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,
       });
     });
     (toneNetPresets||[]).forEach(p=>{
-      if(p.name&&!cat[p.name]) cat[p.name]={src:"ToneNET",amp:p.amp||"ToneNET",gain:p.gain||"mid",style:p.style||"rock",scores:p.scores||{HB:75,SC:75,P90:75}};
+      if(p.name&&!cat[p.name]) cat[p.name]={src:"ToneNET",amp:p.amp||"ToneNET",gain:p.gain||"mid",style:p.style||"rock",channel:p.channel||"",cab:p.cab||"",comment:p.comment||"",scores:p.scores||{HB:75,SC:75,P90:75}};
     });
     // Filter to only sources the user has
     if(availableSources){
@@ -5516,7 +5530,7 @@ function App() {
       // Re-infer amp from name if it's still "ToneNET" (user didn't set it manually)
       let amp=p.amp||"ToneNET";
       if(amp==="ToneNET"){const info=inferPresetInfo(p.name);if(info&&info.amp) amp=info.amp;}
-      PRESET_CATALOG_MERGED[p.name]={src:"ToneNET",amp,gain:p.gain||"mid",style:p.style||"rock",scores:p.scores||{HB:75,SC:75,P90:75}};
+      PRESET_CATALOG_MERGED[p.name]={src:"ToneNET",amp,gain:p.gain||"mid",style:p.style||"rock",channel:p.channel||"",cab:p.cab||"",comment:p.comment||"",scores:p.scores||{HB:75,SC:75,P90:75}};
     });
   },[toneNetPresets]);
 
