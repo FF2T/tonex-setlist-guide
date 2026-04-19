@@ -16,7 +16,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v16';
+const CACHE='tonex-v17';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -1028,7 +1028,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.0.2";
+const APP_VERSION = "6.0.3";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3172,15 +3172,16 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
   // Auto-trigger AI analysis if no cache for current guitar
   useEffect(()=>{
     if(localAiResult) return;
-    if(song.aiCache&&song.aiCache.gId===gId&&song.aiCache.result?.cot_step1) return;
-    // Cache avec CoT mais guitare différente → rescore local seulement, pas de re-fetch IA
+    const svMatch=song.aiCache?.sv===SCORING_VERSION;
+    if(song.aiCache&&song.aiCache.gId===gId&&svMatch&&song.aiCache.result?.cot_step1) return;
+    // Cache avec CoT mais guitare différente ou scoring obsolète → rescore local
     if(song.aiCache?.result?.cot_step1&&gId){
       const gType=(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB";
       var cleaned2={...song.aiCache.result,preset_ann:null,preset_plug:null,ideal_preset:null,ideal_preset_score:0,ideal_top3:null};
       const recalc=enrichAIResult(cleaned2,gType,gId,banksAnn,banksPlug);
       setLocalAiResult(recalc);
       // Defer cache update to avoid blocking render
-      setTimeout(()=>onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:updateAiCache(x.aiCache,gId,recalc)}:x)),0);
+      setTimeout(()=>onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:{...updateAiCache(x.aiCache,gId,recalc),sv:SCORING_VERSION}}:x)),0);
       return;
     }
     if(!gId||!onSongDb) return;
@@ -3356,6 +3357,21 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
               </div>}
             </div>;
           })()}
+          {/* Top 3 catalogue */}
+          {aiC.ideal_top3?.length>1&&<div style={{marginTop:6}}>
+            <div style={{fontSize:9,fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",color:"var(--text-tertiary)",marginBottom:4}}>Alternatives catalogue</div>
+            {aiC.ideal_top3.slice(1).map((p,i)=>{
+              const loc=findInBanks(p.name,banksAnn)||findInBanks(p.name,banksPlug);
+              const entry=findCatalogEntry(p.name);
+              return <div key={i} style={{display:"flex",alignItems:"center",gap:6,fontSize:10,marginBottom:2}}>
+                <StatusDot score={p.score} size={6}/>
+                <span style={{flex:1,color:"var(--text-secondary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name} <span style={{color:"var(--text-tertiary)"}}>({entry?.amp||p.amp})</span></span>
+                <span style={{fontFamily:"var(--font-mono)",fontWeight:700,color:scoreColor(p.score),flexShrink:0}}>{p.score}%</span>
+                {loc&&<span style={{color:"var(--success)",fontSize:8}}>✓</span>}
+                {entry?.src==="ToneNET"&&<span className="badge badge-brass" style={{fontSize:8,padding:"0 4px"}}>ToneNET</span>}
+              </div>;
+            })}
+          </div>}
           {/* Réglages idéaux */}
           {(aiC.settings_preset||aiC.settings_guitar)&&<div style={{marginTop:4,display:"flex",flexDirection:"column",gap:3}}>
             {aiC.settings_preset&&<div style={{fontSize:10,background:"var(--a4)",border:"1px solid var(--a10)",borderRadius:"var(--r-md)",padding:"5px 8px",color:"var(--text-sec)"}}><b style={{color:"var(--text-muted)"}}>Preset :</b> {aiC.settings_preset}</div>}
