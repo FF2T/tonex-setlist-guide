@@ -16,7 +16,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v31';
+const CACHE='tonex-v32';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -1028,7 +1028,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.3.1";
+const APP_VERSION = "6.3.2";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4075,6 +4075,29 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
     </div>
   </div>;
 
+  const renderReconfigInline=(plan)=><div>
+    <div style={{overflowX:"auto",marginBottom:"var(--s-2)"}}>
+      {plan.map(({bank,slots})=>(
+        <div key={bank} style={{background:"var(--bg-elev-2)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-sm)",padding:"var(--s-2)",marginBottom:4}}>
+          <div style={{fontFamily:"var(--font-mono)",fontSize:10,fontWeight:700,color:"var(--text-primary)",marginBottom:4}}>Banque {bank}</div>
+          <div style={{display:"flex",gap:4}}>
+            {slots.map(s=>(
+              <div key={s.slot} style={{flex:1,textAlign:"center",background:s.changed?"var(--accent-soft)":"transparent",borderRadius:"var(--r-xs)",padding:"3px 2px"}}>
+                <div style={{fontFamily:"var(--font-mono)",fontSize:8,color:"var(--text-tertiary)",textTransform:"uppercase"}}>{s.slot}·{s.label}</div>
+                <div style={{fontSize:9,fontWeight:s.changed?700:400,color:s.changed?"var(--accent)":"var(--text-secondary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.proposed}</div>
+                {s.changed&&<div style={{fontSize:7,color:"var(--text-tertiary)"}}>← {s.current}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+    <div style={{display:"flex",gap:"var(--s-2)"}}>
+      <button onClick={applyReconfig} style={{flex:1,background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-sm)",padding:"6px",fontSize:10,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)"}}>Appliquer</button>
+      <button onClick={()=>setShowReconfig(null)} style={{background:"var(--bg-elev-2)",border:"1px solid var(--border-subtle)",color:"var(--text-tertiary)",borderRadius:"var(--r-sm)",padding:"6px 10px",fontSize:10,cursor:"pointer"}}>Annuler</button>
+    </div>
+  </div>;
+
   return(
     <div>
       <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Optimiseur"}]} onNavigate={onNavigate}/>
@@ -4131,8 +4154,8 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
             <button onClick={()=>setShowReconfig(showReconfig==="ann"?null:"ann")} style={{background:showReconfig==="ann"?"var(--accent-soft)":"var(--bg-elev-2)",border:"1px solid "+(showReconfig==="ann"?"var(--border-accent)":"var(--border-subtle)"),color:showReconfig==="ann"?"var(--accent)":"var(--text-tertiary)",borderRadius:"var(--r-sm)",padding:"3px 8px",fontSize:9,fontWeight:600,cursor:"pointer"}}>🔄 A/B/C</button>
           </div>
           {renderStats(annAnalysis)}
-          {renderSongRows(annAnalysis.songRows,banksAnn,onBanksAnn)}
-          {renderUnused(annAnalysis.unusedPresets)}
+          {showReconfig==="ann"&&reconfigPlan&&renderReconfigInline(reconfigPlan)}
+          {showReconfig!=="ann"&&<>{renderSongRows(annAnalysis.songRows,banksAnn,onBanksAnn)}{renderUnused(annAnalysis.unusedPresets)}</>}
         </div>
         {/* Plug */}
         <div style={sectionStyle}>
@@ -4141,43 +4164,11 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
             <button onClick={()=>setShowReconfig(showReconfig==="plug"?null:"plug")} style={{background:showReconfig==="plug"?"var(--accent-soft)":"var(--bg-elev-2)",border:"1px solid "+(showReconfig==="plug"?"var(--border-accent)":"var(--border-subtle)"),color:showReconfig==="plug"?"var(--accent)":"var(--text-tertiary)",borderRadius:"var(--r-sm)",padding:"3px 8px",fontSize:9,fontWeight:600,cursor:"pointer"}}>🔄 A/B/C</button>
           </div>
           {renderStats(plugAnalysis)}
-          {renderSongRows(plugAnalysis.songRows,banksPlug,onBanksPlug)}
-          {renderUnused(plugAnalysis.unusedPresets)}
+          {showReconfig==="plug"&&reconfigPlan&&renderReconfigInline(reconfigPlan)}
+          {showReconfig!=="plug"&&<>{renderSongRows(plugAnalysis.songRows,banksPlug,onBanksPlug)}{renderUnused(plugAnalysis.unusedPresets)}</>}
         </div>
       </div>
 
-      {/* Panneau Reconfiguration A/B/C */}
-      {showReconfig&&reconfigPlan&&<div style={{...sectionStyle,border:"2px solid var(--border-accent)"}}>
-        {eyebrow("🔄","Reconfiguration "+(showReconfig==="ann"?"Pédale":"Plug")+" — A=Clean B=Drive C=Lead")}
-        <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",fontSize:11}}>
-            <thead><tr style={{borderBottom:"1px solid var(--border-strong)"}}>
-              <th style={{textAlign:"left",padding:"4px 8px",fontFamily:"var(--font-mono)",fontSize:9,color:"var(--text-tertiary)"}}>Banque</th>
-              <th style={{textAlign:"center",padding:"4px 8px",fontFamily:"var(--font-mono)",fontSize:9,color:"var(--text-tertiary)"}}>A · Clean</th>
-              <th style={{textAlign:"center",padding:"4px 8px",fontFamily:"var(--font-mono)",fontSize:9,color:"var(--text-tertiary)"}}>B · Drive</th>
-              <th style={{textAlign:"center",padding:"4px 8px",fontFamily:"var(--font-mono)",fontSize:9,color:"var(--text-tertiary)"}}>C · Lead</th>
-            </tr></thead>
-            <tbody>
-              {reconfigPlan.map(({bank,dominantStyle,slots})=>(
-                <tr key={bank} style={{borderBottom:"1px solid var(--border-subtle)"}}>
-                  <td style={{padding:"6px 8px",fontWeight:700,fontFamily:"var(--font-mono)",color:"var(--text-primary)"}}>{bank}</td>
-                  {slots.map(s=>(
-                    <td key={s.slot} style={{padding:"6px 8px",textAlign:"center",background:s.changed?"var(--accent-soft)":"transparent"}}>
-                      <div style={{fontSize:10,fontWeight:s.changed?700:400,color:s.changed?"var(--accent)":"var(--text-secondary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:120}}>{s.proposed}</div>
-                      {s.changed&&<div style={{fontSize:8,color:"var(--text-tertiary)"}}>← {s.current}</div>}
-                      <div style={{fontFamily:"var(--font-mono)",fontSize:9,color:scoreColor(s.proposedScore)}}>{s.proposedScore}%</div>
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div style={{display:"flex",gap:"var(--s-2)",marginTop:"var(--s-3)"}}>
-          <button onClick={applyReconfig} style={{flex:1,background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-md)",padding:"8px",fontSize:12,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)"}}>Appliquer la reconfiguration</button>
-          <button onClick={()=>setShowReconfig(null)} style={{background:"var(--bg-elev-2)",border:"1px solid var(--border-subtle)",color:"var(--text-secondary)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:12,cursor:"pointer"}}>Annuler</button>
-        </div>
-      </div>}
       </>}
     </div>
   );
