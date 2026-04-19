@@ -16,7 +16,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v37';
+const CACHE='tonex-v38';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -1028,7 +1028,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.4.4";
+const APP_VERSION = "6.4.5";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3882,8 +3882,9 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
   const [installTarget,setInstallTarget]=useState(null); // {style,device:"ann"|"plug",bank:0}
   const sl=setlists.find(s=>s.id===slId);
   const songs=sl?sl.songIds.map(id=>songDb.find(s=>s.id===id)).filter(Boolean):[];
-  // Types de micros du rig
-  const pickupTypes=[...new Set(allGuitars.map(g=>g.type))];
+  // Types de micros du rig — ordre : SC, P90, HB
+  const PICKUP_ORDER=["SC","P90","HB"];
+  const pickupTypes=PICKUP_ORDER.filter(t=>allGuitars.some(g=>g.type===t));
   const TYPE_LABELS={HB:"Humbucker",SC:"Single Coil",P90:"P-90"};
 
   // Pour chaque morceau, trouver la meilleure guitare du rig
@@ -3979,7 +3980,7 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
           if(pick){usedAmps.add(pick.amp);usedNames.add(pick.name);}
           return {slot,label,preset:pick?.name||"—",amp:pick?.amp||"",src:pick?.src||"",score:pick?.score||0};
         });
-        results.push({style,pType,label:STYLE_LABELS[style]+" · "+TYPE_LABELS[pType],slots});
+        results.push({style,pType,label:(STYLE_LABELS[style]||style)+" · "+(TYPE_LABELS[pType]||pType),slots});
       });
     });
     return results;
