@@ -16,7 +16,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v40';
+const CACHE='tonex-v41';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -1036,7 +1036,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.4.7";
+const APP_VERSION = "6.4.8";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3932,7 +3932,13 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
       const style=ai.song_style||"rock";
       const targetGain=typeof ai.target_gain==="number"?ai.target_gain:null;
       const best=computeBestPresets(gType,style,deviceKey==="ann"?banks:{},deviceKey==="plug"?banks:{},gId,ai.ref_amp,targetGain);
-      const top=deviceKey==="ann"?best.annTop:best.plugTop;
+      let top=deviceKey==="ann"?best.annTop:best.plugTop;
+      // Utiliser le score du cache s'il est supérieur (cohérence avec la setlist)
+      const cachedPreset=deviceKey==="ann"?ai.preset_ann:ai.preset_plug;
+      if(cachedPreset?.score>0&&(!top||cachedPreset.score>top.score)){
+        const loc=findInBanks(cachedPreset.label,banks);
+        if(loc) top={name:cachedPreset.label,score:cachedPreset.score,bank:loc.bank,col:loc.slot,amp:"",style:"",breakdown:cachedPreset.breakdown};
+      }
       // Filtrer idealTop par compatibilité source/device
       const idealRaw=best.idealTop3||[];
       const idealTop=idealRaw.find(p=>{const e=findCatalogEntry(p.name);return !e||isSrcCompatible(e.src,deviceKey);})||best.idealTop;
