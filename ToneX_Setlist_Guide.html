@@ -1005,16 +1005,28 @@ function getGr(song, type) {
   return p.gr[type] || p.gr["HB"] || "";
 }
 function getIg(song, guitars) {
-  // AI ideal guitar takes priority
-  const aiG=song.aiCache?.result?.ideal_guitar;
+  // AI ideal guitar takes priority — but only if in user's collection
+  var aiG=song.aiCache?.result?.ideal_guitar;
+  var allG=guitars||GUITARS;
   if(aiG){
-    const allG=guitars||GUITARS;
-    const m=allG.find(g=>g.name===aiG||g.short===aiG||aiG.toLowerCase().includes(g.name.toLowerCase())||g.name.toLowerCase().includes(aiG.toLowerCase()));
+    var m=allG.find(function(g){return g.name===aiG||g.short===aiG||aiG.toLowerCase().includes(g.name.toLowerCase())||g.name.toLowerCase().includes(aiG.toLowerCase());});
     if(m) return [m.id];
+    // Ideal guitar not in user's collection — find best match by pickup type
+    var aiPickup=song.aiCache?.result?.pickup_preference;
+    if(aiPickup&&aiPickup!=="any"){
+      var typeMatch=allG.filter(function(g){return g.type===aiPickup;});
+      if(typeMatch.length) return [typeMatch[0].id];
+    }
+    if(allG.length) return [allG[0].id];
   }
-  const p = SONG_PRESETS[song.id];
-  const ig=song.ig?.length?song.ig:p?.ig;
-  return ig?.length?ig:[];
+  var p = SONG_PRESETS[song.id];
+  var ig=song.ig?.length?song.ig:p?.ig;
+  if(ig?.length){
+    var filtered=ig.filter(function(id){return allG.some(function(g){return g.id===id;});});
+    if(filtered.length) return filtered;
+    if(allG.length) return [allG[0].id];
+  }
+  return [];
 }
 function getTsr(song, type) {
   const p = SONG_PRESETS[song.id];
@@ -1036,7 +1048,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.4.12";
+const APP_VERSION = "6.4.13";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
