@@ -1048,7 +1048,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.6.0";
+const APP_VERSION = "7.0.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4175,244 +4175,151 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
       <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Optimiseur"}]} onNavigate={onNavigate}/>
       <div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:"var(--s-4)"}}>🔧 Optimiseur de Banks</div>
 
-      {/* Banques standard passe-partout */}
-      {standardBanks.length>0&&<div style={sectionStyle}>
-        {eyebrow("💡","Banques standard — tes goûts musicaux")}
-        <div style={{fontSize:10,color:"var(--text-tertiary)",marginBottom:"var(--s-3)"}}>🎸 {allGuitars.map(g=>g.short||g.name).join(", ")}</div>
-        <div style={{display:"flex",flexDirection:"column",gap:"var(--s-3)"}}>
-          {standardBanks.map(sb=>{
-            const key=sb.style+"_"+sb.pType;
-            const isInstalling=installTarget?.style===sb.style&&installTarget?.pType===sb.pType;
-            return <div key={key} style={{background:"var(--bg-elev-2)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-md)",padding:"var(--s-3)"}}>
-              <div style={{fontSize:12,fontWeight:700,color:"var(--text-primary)",marginBottom:"var(--s-2)"}}>{sb.label}</div>
-              <div style={{display:"flex",gap:"var(--s-2)",marginBottom:"var(--s-2)"}}>
-                {sb.slots.map(s=>(
-                  <div key={s.slot} style={{flex:1,textAlign:"center"}}>
-                    <div style={{fontFamily:"var(--font-mono)",fontSize:9,color:"var(--text-tertiary)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:2}}>{s.slot} · {s.label}</div>
-                    <div style={{fontSize:10,fontWeight:600,color:"var(--text-primary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.preset}</div>
-                    <div style={{fontSize:9,color:"var(--text-tertiary)"}}>{s.amp}{s.src?" · "+s.src:""}</div>
-                    <div style={{fontFamily:"var(--font-mono)",fontSize:10,fontWeight:700,color:scoreColor(s.score)}}>{s.score}%</div>
-                  </div>
-                ))}
-              </div>
-              {!isInstalling?<div style={{display:"flex",gap:"var(--s-2)"}}>
-                <button onClick={()=>setInstallTarget({style:sb.style,pType:sb.pType,device:"ann",bank:0})} style={{flex:1,background:"var(--bg-elev-3)",border:"1px solid var(--border-subtle)",color:"var(--text-secondary)",borderRadius:"var(--r-sm)",padding:"4px 8px",fontSize:10,cursor:"pointer"}}>📦 Pédale</button>
-                <button onClick={()=>setInstallTarget({style:sb.style,pType:sb.pType,device:"plug",bank:1})} style={{flex:1,background:"var(--bg-elev-3)",border:"1px solid var(--border-subtle)",color:"var(--text-secondary)",borderRadius:"var(--r-sm)",padding:"4px 8px",fontSize:10,cursor:"pointer"}}>🔌 Plug</button>
-              </div>
-              :<div style={{background:"var(--accent-soft)",border:"1px solid var(--border-accent)",borderRadius:"var(--r-sm)",padding:"var(--s-2)",marginTop:4}}>
-                <div style={{display:"flex",gap:"var(--s-2)",alignItems:"center",marginBottom:4}}>
-                  <span style={{fontSize:10,color:"var(--text-secondary)"}}>{installTarget.device==="ann"?"📦 Pédale":"🔌 Plug"} — Banque :</span>
-                  <select value={installTarget.bank} onChange={e=>setInstallTarget(p=>({...p,bank:Number(e.target.value)}))} style={{background:"var(--bg-elev-1)",color:"var(--text-primary)",border:"1px solid var(--border-strong)",borderRadius:"var(--r-sm)",padding:"4px 8px",fontSize:11}}>
-                    {Array.from({length:installTarget.device==="ann"?50:10},(_,i)=>i+(installTarget.device==="ann"?0:1)).map(b=><option key={b} value={b}>Banque {b}</option>)}
-                  </select>
-                </div>
-                <div style={{display:"flex",gap:"var(--s-2)"}}>
-                  <button onClick={()=>{installStandardBank(sb.style,sb.pType,installTarget.bank,installTarget.device==="ann"?onBanksAnn:onBanksPlug);setInstallTarget(null);}} style={{flex:1,background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-sm)",padding:"4px 8px",fontSize:10,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)"}}>Installer</button>
-                  <button onClick={()=>setInstallTarget(null)} style={{background:"var(--bg-elev-2)",border:"1px solid var(--border-subtle)",color:"var(--text-tertiary)",borderRadius:"var(--r-sm)",padding:"4px 8px",fontSize:10,cursor:"pointer"}}>Annuler</button>
-                </div>
-              </div>}
-            </div>;
-          })}
+      {/* ── SECTION 1 : DIAGNOSTIC ── */}
+      <div style={sectionStyle}>
+        {eyebrow("📊","Diagnostic")}
+        <div style={{marginBottom:"var(--s-3)"}}>
+          <select value={slId} onChange={e=>setSlId(e.target.value)} style={{width:"100%",background:"var(--bg-elev-1)",color:"var(--text-primary)",border:"1px solid var(--border-strong)",borderRadius:"var(--r-md)",padding:"8px 12px",fontSize:13}}>
+            {setlists.map(s=><option key={s.id} value={s.id}>{s.name} ({s.songIds.length})</option>)}
+          </select>
         </div>
-      </div>}
-
-      {songs.length===0?<div style={{textAlign:"center",padding:"40px",color:"var(--text-tertiary)"}}>Setlist vide</div>:<>
-
-      {/* Sélecteur setlist */}
-      <div style={{marginBottom:"var(--s-3)"}}>
-        <select value={slId} onChange={e=>setSlId(e.target.value)} style={{width:"100%",background:"var(--bg-elev-1)",color:"var(--text-primary)",border:"1px solid var(--border-strong)",borderRadius:"var(--r-md)",padding:"8px 12px",fontSize:13}}>
-          {setlists.map(s=><option key={s.id} value={s.id}>{s.name} ({s.songIds.length})</option>)}
-        </select>
-      </div>
-
-      {/* Carte visuelle des banques */}
-      {(()=>{
-        var buildBankMap=function(banks,maxBanks,startBank,deviceKey){
-          var usedBanks={};
-          songs.forEach(function(s){
-            var ai=s.aiCache?.result;
-            if(!ai?.cot_step1) return;
-            var g=bestGuitarForSong(s);
-            var preset=deviceKey==="ann"?ai.preset_ann:ai.preset_plug;
-            if(preset?.label){
-              var loc=findInBanks(preset.label,banks);
-              if(loc){
-                if(!usedBanks[loc.bank]) usedBanks[loc.bank]={songs:[],score:0,slot:loc.slot,preset:preset.label};
+        {songs.length===0?<div style={{textAlign:"center",padding:"20px",color:"var(--text-tertiary)"}}>Setlist vide</div>:<>
+        <div style={{fontSize:10,color:"var(--text-tertiary)",marginBottom:"var(--s-3)"}}>🎸 {allGuitars.map(g=>g.short||g.name).join(", ")} · {songs.length} morceau{songs.length>1?"x":""}</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"var(--s-3)",marginBottom:"var(--s-3)"}}>
+          <div>{renderStats(annAnalysis)}<div style={{fontSize:9,color:"var(--text-tertiary)",textAlign:"center"}}>📦 Pedale</div></div>
+          <div>{renderStats(plugAnalysis)}<div style={{fontSize:9,color:"var(--text-tertiary)",textAlign:"center"}}>🔌 Plug</div></div>
+        </div>
+        {/* Carte visuelle compacte */}
+        {(()=>{
+          var buildBankMap=function(banks,deviceKey){
+            var usedBanks={};
+            songs.forEach(function(s){
+              var ai=s.aiCache?.result;if(!ai?.cot_step1) return;
+              var preset=deviceKey==="ann"?ai.preset_ann:ai.preset_plug;
+              if(preset?.label){var loc=findInBanks(preset.label,banks);if(loc){
+                if(!usedBanks[loc.bank]) usedBanks[loc.bank]={songs:[],score:0,preset:preset.label};
                 usedBanks[loc.bank].songs.push(s.title);
                 usedBanks[loc.bank].score=Math.max(usedBanks[loc.bank].score,preset.score||0);
-              }
-            }
-          });
-          return usedBanks;
-        };
-        var renderBankGrid=function(banks,maxBanks,startBank,deviceKey,emoji,label){
-          var usedBanks=buildBankMap(banks,maxBanks,startBank,deviceKey);
-          var bankNumbers=[];
-          for(var i=startBank;i<startBank+maxBanks;i++) bankNumbers.push(i);
-          return <div style={{marginBottom:"var(--s-4)"}}>
-            <div style={{fontSize:11,fontWeight:700,color:"var(--text-secondary)",marginBottom:"var(--s-2)"}}>{emoji} {label}</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:4}}>
-              {bankNumbers.map(function(b){
-                var used=usedBanks[b];
-                var bk=banks[b]||{};
-                var hasPreset=bk.A||bk.B||bk.C;
-                var borderColor=used?(used.score>=80?"var(--status-success)":used.score>=65?"var(--accent-primary,#818cf8)":"var(--status-warning)"):(hasPreset?"var(--border-subtle)":"var(--border-subtle)");
-                var bgColor=used?(used.score>=80?"rgba(74,222,128,0.06)":used.score>=65?"rgba(129,140,248,0.06)":"rgba(251,191,36,0.06)"):"var(--bg-elev-1)";
-                var slotColor=function(name){
-                  if(!name) return "var(--text-tertiary)";
-                  if(used&&used.preset===name) return used.score>=80?"var(--status-success)":"var(--status-warning)";
-                  return "var(--text-secondary)";
-                };
-                return <div key={b} style={{background:bgColor,border:"2px solid "+borderColor,borderRadius:6,padding:"4px 6px",opacity:hasPreset||used?1:0.3}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-                    <span style={{fontSize:10,fontWeight:800,color:used?"var(--text-primary)":"var(--text-tertiary)"}}>{b}</span>
-                    {used&&<span style={{fontSize:8,fontWeight:700,color:used.score>=80?"var(--status-success)":"var(--status-warning)"}}>{used.score}%</span>}
-                  </div>
-                  {["A","B","C"].map(function(slot){
-                    var name=bk[slot]||"";
-                    var isUsed=used&&used.preset===name&&name;
-                    var slotLabel=slot==="A"?"Cln":slot==="B"?"Drv":"Led";
-                    return <div key={slot} style={{fontSize:8,display:"flex",gap:3,alignItems:"baseline",marginBottom:1}}>
-                      <span style={{fontWeight:700,color:"var(--text-tertiary)",width:18,flexShrink:0}}>{slot}</span>
-                      <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:slotColor(name),fontWeight:isUsed?700:400}}>{name||"—"}</span>
-                      {isUsed&&<span style={{fontSize:7,color:used.score>=80?"var(--status-success)":"var(--status-warning)",flexShrink:0}}>●</span>}
-                    </div>;
-                  })}
-                  {used&&used.songs.length>0&&<div style={{fontSize:7,color:"var(--text-tertiary)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{used.songs.join(", ")}</div>}
-                </div>;
-              })}
-            </div>
-            <div style={{display:"flex",gap:"var(--s-3)",marginTop:"var(--s-2)",fontSize:9,color:"var(--text-tertiary)"}}>
-              <span><span style={{display:"inline-block",width:8,height:8,borderRadius:2,background:"var(--status-success)",marginRight:3,verticalAlign:"middle"}}></span>Utilise (80%+)</span>
-              <span><span style={{display:"inline-block",width:8,height:8,borderRadius:2,background:"var(--accent-primary,#818cf8)",marginRight:3,verticalAlign:"middle"}}></span>Utilise (65-79%)</span>
-              <span><span style={{display:"inline-block",width:8,height:8,borderRadius:2,background:"var(--status-warning)",marginRight:3,verticalAlign:"middle"}}></span>Utilise (&lt;65%)</span>
-              <span><span style={{display:"inline-block",width:8,height:8,borderRadius:2,background:"var(--bg-elev-3)",border:"1px solid var(--border-subtle)",marginRight:3,verticalAlign:"middle"}}></span>Non utilise</span>
+              }}
+            });return usedBanks;
+          };
+          var miniGrid=function(banks,max,start,deviceKey,label){
+            var used=buildBankMap(banks,deviceKey);
+            var nums=[];for(var i=start;i<start+max;i++) nums.push(i);
+            var usedCount=Object.keys(used).length;
+            var spread=usedCount>0?Math.max(...Object.keys(used).map(Number))-Math.min(...Object.keys(used).map(Number)):0;
+            return <div style={{marginBottom:"var(--s-2)"}}>
+              <div style={{fontSize:10,color:"var(--text-secondary)",marginBottom:3}}>{label} — <b>{usedCount}</b> banques utilisees{spread>usedCount+2?<span style={{color:"var(--status-warning)"}}> (dispersees sur {spread} banques)</span>:""}</div>
+              <div style={{display:"flex",gap:2,flexWrap:"wrap"}}>
+                {nums.map(function(b){
+                  var u=used[b];var has=banks[b]&&(banks[b].A||banks[b].B||banks[b].C);
+                  var bg=u?(u.score>=80?"var(--status-success)":u.score>=65?"var(--accent-primary,#818cf8)":"var(--status-warning)"):(has?"var(--bg-elev-3)":"var(--bg-elev-1)");
+                  return <div key={b} title={u?b+": "+u.preset+" ("+u.score+"%) — "+u.songs.join(", "):(has?b+": "+((banks[b]||{}).A||"")+"/"+((banks[b]||{}).B||"")+"/"+((banks[b]||{}).C||""):b+": vide")} style={{width:14,height:14,borderRadius:2,background:bg,border:u?"none":"1px solid var(--border-subtle)",opacity:has||u?1:0.3,cursor:"default"}}></div>;
+                })}
+              </div>
+            </div>;
+          };
+          var hasAnn=Object.keys(banksAnn||{}).length>0;
+          var hasPlug=Object.keys(banksPlug||{}).length>0;
+          return <div>
+            {hasAnn&&miniGrid(banksAnn,50,0,"ann","📦 Pedale")}
+            {hasPlug&&miniGrid(banksPlug,10,1,"plug","🔌 Plug")}
+            <div style={{display:"flex",gap:"var(--s-3)",marginTop:4,fontSize:8,color:"var(--text-tertiary)"}}>
+              <span><span style={{display:"inline-block",width:6,height:6,borderRadius:1,background:"var(--status-success)",marginRight:2,verticalAlign:"middle"}}></span>80%+</span>
+              <span><span style={{display:"inline-block",width:6,height:6,borderRadius:1,background:"var(--accent-primary,#818cf8)",marginRight:2,verticalAlign:"middle"}}></span>65-79%</span>
+              <span><span style={{display:"inline-block",width:6,height:6,borderRadius:1,background:"var(--status-warning)",marginRight:2,verticalAlign:"middle"}}></span>&lt;65%</span>
+              <span><span style={{display:"inline-block",width:6,height:6,borderRadius:1,background:"var(--bg-elev-3)",border:"1px solid var(--border-subtle)",marginRight:2,verticalAlign:"middle"}}></span>Non utilise</span>
             </div>
           </div>;
-        };
-        var hasAnn=Object.keys(banksAnn||{}).length>0;
-        var hasPlug=Object.keys(banksPlug||{}).length>0;
-        if(!hasAnn&&!hasPlug) return null;
-        return <div style={sectionStyle}>
-          {eyebrow("🗺","Carte des banques — setlist "+sl?.name)}
-          {hasAnn&&renderBankGrid(banksAnn,50,0,"ann","📦","Pedale")}
-          {hasPlug&&renderBankGrid(banksPlug,10,1,"plug","🔌","Plug")}
-          <div style={{fontSize:10,color:"var(--text-tertiary)",marginTop:"var(--s-2)"}}>Survolez une banque pour voir son contenu. Objectif : regrouper les banques utilisees pour faciliter le live.</div>
-        </div>;
-      })()}
-
-      {/* Deux colonnes : Pédale + Plug */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"var(--s-3)"}}>
-        {/* Pédale */}
-        <div style={sectionStyle}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"var(--s-3)"}}>
-            {eyebrow("📦","Pédale")}
-            <button onClick={()=>setShowReconfig(showReconfig==="ann"?null:"ann")} style={{background:showReconfig==="ann"?"var(--accent-soft)":"var(--bg-elev-2)",border:"1px solid "+(showReconfig==="ann"?"var(--border-accent)":"var(--border-subtle)"),color:showReconfig==="ann"?"var(--accent)":"var(--text-tertiary)",borderRadius:"var(--r-sm)",padding:"3px 8px",fontSize:9,fontWeight:600,cursor:"pointer"}}>🔄 A/B/C</button>
-          </div>
-          {renderStats(annAnalysis)}
-          {showReconfig==="ann"&&reconfigPlan&&renderReconfigInline(reconfigPlan)}
-          {showReconfig!=="ann"&&<>{renderSongRows(annAnalysis.songRows,banksAnn,onBanksAnn,"ann")}{renderUnused(annAnalysis.unusedPresets)}</>}
-        </div>
-        {/* Plug */}
-        <div style={sectionStyle}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"var(--s-3)"}}>
-            {eyebrow("🔌","Plug")}
-            <button onClick={()=>setShowReconfig(showReconfig==="plug"?null:"plug")} style={{background:showReconfig==="plug"?"var(--accent-soft)":"var(--bg-elev-2)",border:"1px solid "+(showReconfig==="plug"?"var(--border-accent)":"var(--border-subtle)"),color:showReconfig==="plug"?"var(--accent)":"var(--text-tertiary)",borderRadius:"var(--r-sm)",padding:"3px 8px",fontSize:9,fontWeight:600,cursor:"pointer"}}>🔄 A/B/C</button>
-          </div>
-          {renderStats(plugAnalysis)}
-          {showReconfig==="plug"&&reconfigPlan&&renderReconfigInline(reconfigPlan)}
-          {showReconfig!=="plug"&&<>{renderSongRows(plugAnalysis.songRows,banksPlug,onBanksPlug,"plug")}{renderUnused(plugAnalysis.unusedPresets)}</>}
-        </div>
+        })()}
+        </>}
       </div>
 
-      {/* Réorganisation recommandée */}
+      {songs.length>0&&<>
+
+      {/* ── SECTION 2 : PLAN DE REORGANISATION ── */}
       {(()=>{
-        var buildReorg=function(banks,maxBanks,startBank,deviceKey){
+        var buildReorg=function(banks,maxBanks,startBank){
           var plan=[];var bankIdx=startBank;
-          // 1. Banques standard (goûts musicaux)
           standardBanks.forEach(function(sb){
             if(bankIdx>=startBank+maxBanks) return;
-            plan.push({bank:bankIdx,label:sb.label,type:"standard",A:sb.slots[0].preset,B:sb.slots[1].preset,C:sb.slots[2].preset,ampA:sb.slots[0].amp,ampB:sb.slots[1].amp,ampC:sb.slots[2].amp,scoreA:sb.slots[0].score,scoreB:sb.slots[1].score,scoreC:sb.slots[2].score});
+            plan.push({bank:bankIdx,label:sb.label,type:"standard",A:sb.slots[0].preset,B:sb.slots[1].preset,C:sb.slots[2].preset,scoreA:sb.slots[0].score,scoreB:sb.slots[1].score,scoreC:sb.slots[2].score});
             bankIdx++;
           });
-          // 2. Banques par morceau
           var usedPresets=new Set();
           plan.forEach(function(p){usedPresets.add(p.A);usedPresets.add(p.B);usedPresets.add(p.C);});
           songs.forEach(function(s){
             if(bankIdx>=startBank+maxBanks) return;
-            var ai=s.aiCache?.result;
-            if(!ai?.cot_step1) return;
-            var g=bestGuitarForSong(s);
-            var gType=g?.type||"HB";
+            var ai=s.aiCache?.result;if(!ai?.cot_step1) return;
+            var g=bestGuitarForSong(s);var gType=g?.type||"HB";
             var style=ai.song_style||"rock";
             var refAmp=ai.ref_amp?resolveRefAmp(ai.ref_amp):null;
             var findBest=function(gainRange){
-              var cands=Object.entries(PRESET_CATALOG_MERGED).filter(function(e){
-                var info=e[1];var gr=getGainRange(gainToNumeric(info.gain));
+              return Object.entries(PRESET_CATALOG_MERGED).filter(function(e){
+                var gr=getGainRange(gainToNumeric(e[1].gain));
                 return (gr===gainRange||(gainRange==="drive"&&gr==="crunch"))&&!usedPresets.has(e[0]);
               }).map(function(e){
                 var info=e[1];
-                var pSc=computePickupScore(info.style,gainRange,gType);
-                var sSc=computeStyleMatchScore(info.style,style);
-                var aSc=refAmp?computeRefAmpScore(info.amp,refAmp):null;
-                var dims=[{s:pSc,w:0.20},{s:sSc,w:0.25},{s:aSc,w:0.35}].filter(function(d){return d.s!==null;});
+                var dims=[{s:computePickupScore(info.style,gainRange,gType),w:0.20},{s:computeStyleMatchScore(info.style,style),w:0.25},{s:refAmp?computeRefAmpScore(info.amp,refAmp):null,w:0.35}].filter(function(d){return d.s!==null;});
                 var tw=dims.reduce(function(s2,d){return s2+d.w;},0);
                 return {name:e[0],amp:info.amp,score:Math.round(dims.reduce(function(s2,d){return s2+d.s*(d.w/tw);},0))};
-              }).sort(function(a,b){return b.score-a.score;});
-              return cands[0]||null;
+              }).sort(function(a,b){return b.score-a.score;})[0]||null;
             };
             var cP=findBest("clean"),dP=findBest("drive"),lP=findBest("high_gain");
             if(!cP&&!dP&&!lP) return;
             if(cP) usedPresets.add(cP.name);if(dP) usedPresets.add(dP.name);if(lP) usedPresets.add(lP.name);
-            plan.push({bank:bankIdx,label:s.title+" — "+s.artist,type:"song",A:cP?.name||"—",B:dP?.name||"—",C:lP?.name||"—",ampA:cP?.amp||"",ampB:dP?.amp||"",ampC:lP?.amp||"",scoreA:cP?.score||0,scoreB:dP?.score||0,scoreC:lP?.score||0});
+            plan.push({bank:bankIdx,label:s.title+" — "+s.artist,type:"song",A:cP?.name||"—",B:dP?.name||"—",C:lP?.name||"—",scoreA:cP?.score||0,scoreB:dP?.score||0,scoreC:lP?.score||0});
             bankIdx++;
           });
           return plan;
         };
         var hasAnn2=Object.keys(banksAnn||{}).length>0;
         var hasPlug2=Object.keys(banksPlug||{}).length>0;
+        var annPlan=hasAnn2?buildReorg(banksAnn,50,0):[];
+        var plugPlan=hasPlug2?buildReorg(banksPlug,10,1):[];
+        if(!annPlan.length&&!plugPlan.length) return null;
         var renderPlan=function(plan,emoji,label,onBanks){
           if(!plan.length) return null;
+          var stdCount=plan.filter(function(p){return p.type==="standard";}).length;
+          var songCount=plan.filter(function(p){return p.type==="song";}).length;
           return <div style={{marginBottom:"var(--s-4)"}}>
-            <div style={{fontSize:11,fontWeight:700,color:"var(--text-secondary)",marginBottom:"var(--s-2)"}}>{emoji} {label} — {plan.length} banques</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:4,marginBottom:"var(--s-3)"}}>
+            <div style={{fontSize:11,fontWeight:700,color:"var(--text-secondary)",marginBottom:"var(--s-2)"}}>{emoji} {label} — {stdCount} standard{stdCount>1?"s":""} + {songCount} morceau{songCount>1?"x":""}</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:4,marginBottom:"var(--s-3)"}}>
               {plan.map(function(p){
                 var isSong=p.type==="song";
                 return <div key={p.bank} style={{background:isSong?"var(--bg-elev-2)":"var(--accent-soft,rgba(129,140,248,0.06))",border:"1px solid "+(isSong?"var(--border-subtle)":"var(--border-accent,rgba(129,140,248,0.3))"),borderRadius:6,padding:"6px 8px"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-                    <span style={{fontSize:10,fontWeight:800,color:"var(--text-primary)"}}>{p.bank}</span>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
+                    <span style={{fontSize:11,fontWeight:800,color:"var(--text-primary)"}}>{p.bank}</span>
                     <span style={{fontSize:8,fontWeight:600,color:isSong?"var(--text-tertiary)":"var(--accent)",textTransform:"uppercase"}}>{isSong?"Morceau":"Standard"}</span>
                   </div>
-                  <div style={{fontSize:8,color:"var(--text-tertiary)",marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:600}}>{p.label}</div>
-                  {[{s:"A",n:p.A,sc:p.scoreA},{s:"B",n:p.B,sc:p.scoreB},{s:"C",n:p.C,sc:p.scoreC}].map(function(x){
-                    return <div key={x.s} style={{fontSize:8,display:"flex",gap:3,alignItems:"baseline",marginBottom:1}}>
-                      <span style={{fontWeight:700,color:"var(--text-tertiary)",width:12,flexShrink:0}}>{x.s}</span>
+                  <div style={{fontSize:9,color:"var(--text-tertiary)",marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontWeight:600}}>{p.label}</div>
+                  {[{s:"A",l:"Clean",n:p.A,sc:p.scoreA},{s:"B",l:"Drive",n:p.B,sc:p.scoreB},{s:"C",l:"Lead",n:p.C,sc:p.scoreC}].map(function(x){
+                    return <div key={x.s} style={{fontSize:9,display:"flex",gap:3,alignItems:"baseline",marginBottom:1}}>
+                      <span style={{fontWeight:700,color:"var(--text-tertiary)",width:14,flexShrink:0}}>{x.s}</span>
                       <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,color:x.n==="—"?"var(--text-tertiary)":"var(--text-secondary)"}}>{x.n}</span>
-                      {x.sc>0&&<span style={{fontWeight:700,color:scoreColor(x.sc),flexShrink:0}}>{x.sc}%</span>}
+                      {x.sc>0&&<span style={{fontFamily:"var(--font-mono)",fontWeight:700,color:scoreColor(x.sc),flexShrink:0}}>{x.sc}%</span>}
                     </div>;
                   })}
                 </div>;
               })}
             </div>
+
+            {/* ── SECTION 3 : APPLIQUER ── */}
             <button onClick={function(){
-              if(!confirm("Appliquer cette reorganisation ? Les banques "+plan[0].bank+" a "+(plan[plan.length-1].bank)+" seront ecrasees.")) return;
+              if(!confirm("Appliquer cette reorganisation sur les banques "+plan[0].bank+" a "+(plan[plan.length-1].bank)+" ?")) return;
               onBanks(function(prev){
                 var next={};for(var k in prev) next[k]=prev[k];
                 plan.forEach(function(p){next[p.bank]={cat:p.label,A:p.A==="—"?"":p.A,B:p.B==="—"?"":p.B,C:p.C==="—"?"":p.C};});
                 return next;
               });
-            }} style={{width:"100%",background:"linear-gradient(180deg,var(--brass-200,#d4a017),var(--brass-400,#b8860b))",border:"none",color:"var(--tolex-900,#1a1a1a)",borderRadius:"var(--r-md)",padding:"8px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Appliquer cette reorganisation</button>
+            }} style={{width:"100%",background:"linear-gradient(180deg,var(--brass-200,#d4a017),var(--brass-400,#b8860b))",border:"none",color:"var(--tolex-900,#1a1a1a)",borderRadius:"var(--r-md)",padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm,0 1px 3px rgba(0,0,0,0.3))"}}>Appliquer cette reorganisation</button>
           </div>;
         };
-        if(!songs.length) return null;
-        var annPlan2=hasAnn2?buildReorg(banksAnn,50,0,"ann"):[];
-        var plugPlan2=hasPlug2?buildReorg(banksPlug,10,1,"plug"):[];
-        if(!annPlan2.length&&!plugPlan2.length) return null;
         return <div style={sectionStyle}>
-          {eyebrow("🎯","Reorganisation recommandee")}
-          <div style={{fontSize:10,color:"var(--text-tertiary)",marginBottom:"var(--s-3)"}}>Banques regroupees pour le live : standards (tes gouts) en premier, puis une banque par morceau. A=Clean, B=Drive, C=Lead, meme univers sonore.</div>
-          {hasAnn2&&renderPlan(annPlan2,"📦","Pedale",onBanksAnn)}
-          {hasPlug2&&renderPlan(plugPlan2,"🔌","Plug",onBanksPlug)}
+          {eyebrow("🎯","Plan de reorganisation")}
+          <div style={{fontSize:10,color:"var(--text-tertiary)",marginBottom:"var(--s-3)"}}>Banques regroupees pour le live. Standards (tes gouts) en premier, puis une banque par morceau. A=Clean, B=Drive, C=Lead.</div>
+          {hasAnn2&&renderPlan(annPlan,"📦","Pedale",onBanksAnn)}
+          {hasPlug2&&renderPlan(plugPlan,"🔌","Plug",onBanksPlug)}
         </div>;
       })()}
 
