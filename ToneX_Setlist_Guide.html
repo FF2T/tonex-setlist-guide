@@ -1048,7 +1048,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.4.13";
+const APP_VERSION = "6.5.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4224,6 +4224,64 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
           {setlists.map(s=><option key={s.id} value={s.id}>{s.name} ({s.songIds.length})</option>)}
         </select>
       </div>
+
+      {/* Carte visuelle des banques */}
+      {(()=>{
+        var buildBankMap=function(banks,maxBanks,startBank,deviceKey){
+          var usedBanks={};
+          songs.forEach(function(s){
+            var ai=s.aiCache?.result;
+            if(!ai?.cot_step1) return;
+            var g=bestGuitarForSong(s);
+            var preset=deviceKey==="ann"?ai.preset_ann:ai.preset_plug;
+            if(preset?.label){
+              var loc=findInBanks(preset.label,banks);
+              if(loc){
+                if(!usedBanks[loc.bank]) usedBanks[loc.bank]={songs:[],score:0,slot:loc.slot,preset:preset.label};
+                usedBanks[loc.bank].songs.push(s.title);
+                usedBanks[loc.bank].score=Math.max(usedBanks[loc.bank].score,preset.score||0);
+              }
+            }
+          });
+          return usedBanks;
+        };
+        var renderBankGrid=function(banks,maxBanks,startBank,deviceKey,emoji,label){
+          var usedBanks=buildBankMap(banks,maxBanks,startBank,deviceKey);
+          var bankNumbers=[];
+          for(var i=startBank;i<startBank+maxBanks;i++) bankNumbers.push(i);
+          return <div style={{marginBottom:"var(--s-4)"}}>
+            <div style={{fontSize:11,fontWeight:700,color:"var(--text-secondary)",marginBottom:"var(--s-2)"}}>{emoji} {label}</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(10,1fr)",gap:3}}>
+              {bankNumbers.map(function(b){
+                var used=usedBanks[b];
+                var hasPreset=banks[b]&&(banks[b].A||banks[b].B||banks[b].C);
+                var bg=used?(used.score>=80?"var(--status-success)":used.score>=65?"var(--accent-primary,#818cf8)":"var(--status-warning)"):(hasPreset?"var(--bg-elev-3)":"var(--bg-elev-1)");
+                var color=used?"#fff":(hasPreset?"var(--text-tertiary)":"var(--text-tertiary)");
+                var border=used?"none":"1px solid var(--border-subtle)";
+                var title=used?(b+": "+used.preset+" ("+used.score+"%) — "+used.songs.join(", ")):(hasPreset?b+": "+(banks[b].A||"")+" / "+(banks[b].B||"")+" / "+(banks[b].C||""):b+": vide");
+                return <div key={b} title={title} style={{textAlign:"center",fontSize:9,fontWeight:used?800:500,color:color,background:bg,border:border,borderRadius:3,padding:"4px 0",cursor:"default",opacity:hasPreset||used?1:0.4}}>
+                  {b}
+                </div>;
+              })}
+            </div>
+            <div style={{display:"flex",gap:"var(--s-3)",marginTop:"var(--s-2)",fontSize:9,color:"var(--text-tertiary)"}}>
+              <span><span style={{display:"inline-block",width:8,height:8,borderRadius:2,background:"var(--status-success)",marginRight:3,verticalAlign:"middle"}}></span>Utilise (80%+)</span>
+              <span><span style={{display:"inline-block",width:8,height:8,borderRadius:2,background:"var(--accent-primary,#818cf8)",marginRight:3,verticalAlign:"middle"}}></span>Utilise (65-79%)</span>
+              <span><span style={{display:"inline-block",width:8,height:8,borderRadius:2,background:"var(--status-warning)",marginRight:3,verticalAlign:"middle"}}></span>Utilise (&lt;65%)</span>
+              <span><span style={{display:"inline-block",width:8,height:8,borderRadius:2,background:"var(--bg-elev-3)",border:"1px solid var(--border-subtle)",marginRight:3,verticalAlign:"middle"}}></span>Non utilise</span>
+            </div>
+          </div>;
+        };
+        var hasAnn=Object.keys(banksAnn||{}).length>0;
+        var hasPlug=Object.keys(banksPlug||{}).length>0;
+        if(!hasAnn&&!hasPlug) return null;
+        return <div style={sectionStyle}>
+          {eyebrow("🗺","Carte des banques — setlist "+sl?.name)}
+          {hasAnn&&renderBankGrid(banksAnn,50,0,"ann","📦","Pedale")}
+          {hasPlug&&renderBankGrid(banksPlug,10,1,"plug","🔌","Plug")}
+          <div style={{fontSize:10,color:"var(--text-tertiary)",marginTop:"var(--s-2)"}}>Survolez une banque pour voir son contenu. Objectif : regrouper les banques utilisees pour faciliter le live.</div>
+        </div>;
+      })()}
 
       {/* Deux colonnes : Pédale + Plug */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"var(--s-3)"}}>
