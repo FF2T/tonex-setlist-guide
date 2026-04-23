@@ -830,8 +830,14 @@ function computeGainMatchScore(presetGain,songTargetGain){
 function computeRefAmpScore(presetAmp,songRefAmp){
   if(!songRefAmp||!presetAmp) return null;
   if(presetAmp===songRefAmp) return 100;
-  const preset=AMP_TAXONOMY[presetAmp];
-  const song=AMP_TAXONOMY[songRefAmp];
+  // Partial name match (e.g. "Laney Supergroup" vs "Laney")
+  var pLow=presetAmp.toLowerCase(),sLow=songRefAmp.toLowerCase();
+  if(pLow.includes(sLow)||sLow.includes(pLow)) return 95;
+  var preset=AMP_TAXONOMY[presetAmp];
+  var song=AMP_TAXONOMY[songRefAmp];
+  // Try resolving via aliases if not found
+  if(!preset){for(var k in AMP_TAXONOMY){if(k.toLowerCase().includes(pLow)||pLow.includes(k.toLowerCase())){preset=AMP_TAXONOMY[k];break;}}}
+  if(!song){for(var k2 in AMP_TAXONOMY){if(k2.toLowerCase().includes(sLow)||sLow.includes(k2.toLowerCase())){song=AMP_TAXONOMY[k2];break;}}}
   if(!preset||!song) return 25;
   if(preset.family===song.family) return 85;
   if(preset.brand===song.brand) return 50;
@@ -1075,7 +1081,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.0.2";
+const APP_VERSION = "7.0.3";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
