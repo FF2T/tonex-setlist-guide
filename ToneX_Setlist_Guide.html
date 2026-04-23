@@ -1097,7 +1097,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.1.1";
+const APP_VERSION = "7.1.2";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3515,7 +3515,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
         {/* Suggestion si score < 90% */}
         {(()=>{
           var bestScore=Math.max(aiC.preset_ann?.score||0,aiC.preset_plug?.score||0,aiC.ideal_preset_score||0);
-          if(bestScore>=90||bestScore===0) return null;
+          if(bestScore>=90) return null;
           var bestBreakdown=aiC.preset_ann?.breakdown||aiC.preset_plug?.breakdown;
           var refAmp=aiC.ref_amp||"l'ampli original";
           var weakest=null;var weakLabel="";var weakScore=100;
