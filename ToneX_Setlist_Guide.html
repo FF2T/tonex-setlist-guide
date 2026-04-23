@@ -615,13 +615,24 @@ function guessPresetInfo(name){
   // Deviner l'ampli depuis le nom
   var amp="Unknown";
   var ampKeywords=[
-    ["laney","Laney Supergroup"],["marshall","Marshall"],["fender","Fender"],["vox","Vox AC30"],
-    ["mesa","Mesa Boogie"],["bogner","Bogner"],["orange","Orange"],["hiwatt","Hiwatt"],
-    ["soldano","Soldano"],["friedman","Friedman"],["matchless","Matchless"],["dumble","Dumble"],
-    ["peavey","Peavey 5150"],["5150","Peavey 5150"],["plexi","Marshall Plexi"],["jcm","Marshall JCM800"],
-    ["twin","Fender Twin"],["deluxe","Fender Deluxe"],["bassman","Fender Bassman"],["princeton","Fender Princeton"],
-    ["rectifier","Mesa Rectifier"],["two rock","Two Rock"],["dr z","Dr. Z"],["supro","Supro"],
-    ["engl","ENGL"],["diezel","Diezel"],["ac30","Vox AC30"],["ac15","Vox AC15"],
+    ["supergroup","Laney Supergroup"],["laney","Laney Supergroup"],
+    ["plexi","Marshall Plexi"],["jcm","Marshall JCM800"],["jubilee","Marshall Silver Jubilee"],["jtm","Marshall JTM45"],["marshall","Marshall"],
+    ["blackface","Fender Twin"],["twin","Fender Twin"],["deluxe","Fender Deluxe"],["bassman","Fender Bassman"],["princeton","Fender Princeton"],["champ","Fender Champ"],["fender","Fender"],
+    ["ac30","Vox AC30"],["ac15","Vox AC15"],["vox","Vox AC30"],
+    ["rectifier","Mesa Rectifier"],["boogie","Mesa Boogie"],["mark v","Mesa Mark V"],["mesa","Mesa Boogie"],
+    ["bogner","Bogner"],["ecstasy","Bogner Ecstasy"],
+    ["orange","Orange"],["rockerverb","Orange Rockerverb"],
+    ["hiwatt","Hiwatt"],["soldano","Soldano"],["slo","Soldano"],
+    ["friedman","Friedman"],["matchless","Matchless"],
+    ["dumble","Dumble"],["ods","Dumble ODS"],["d-style","Dumble"],
+    ["peavey","Peavey 5150"],["5150","Peavey 5150"],["evh","Peavey 5150"],
+    ["two rock","Two Rock"],["tworock","Two Rock"],
+    ["dr z","Dr. Z"],["z-wreck","Dr. Z"],["wreck","Dr. Z"],
+    ["supro","Supro"],["engl","ENGL"],["diezel","Diezel"],
+    ["traynor","Traynor"],["ampeg","Ampeg"],["park","Park"],
+    ["divided","Divided by 13"],["d13","Divided by 13"],
+    ["budda","Budda"],["bad cat","Bad Cat"],["carr","Carr"],
+    ["cornford","Cornford"],["reinhardt","Reinhardt"],
   ];
   for(var i=0;i<ampKeywords.length;i++){
     if(nl.includes(ampKeywords[i][0])){amp=ampKeywords[i][1];break;}
@@ -629,8 +640,8 @@ function guessPresetInfo(name){
   // Deviner le gain
   var gain="mid";
   if(/\bclean\b|\bcln\b|\bclr\b/i.test(nl)) gain="low";
-  else if(/\bhigh\b|\blead\b|\bfull\b|\bdimed\b|\bmax\b/i.test(nl)) gain="high";
-  else if(/\bdrive\b|\bod\b|\bcrunch\b|\bgrit\b/i.test(nl)) gain="mid";
+  else if(/\bhigh.?gain\b|\blead\b|\bdimed\b|\bmax\b|\bfull.?beans\b/i.test(nl)) gain="high";
+  else if(/\bdrive\b|\bod\b|\bcrunch\b|\bgrit\b|\bboost\b/i.test(nl)) gain="mid";
   // Deviner le style depuis l'ampli
   var style="rock";
   if(amp.includes("Fender")||amp.includes("Princeton")||amp.includes("Twin")) style="blues";
@@ -1081,7 +1092,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.0.3";
+const APP_VERSION = "7.0.4";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
