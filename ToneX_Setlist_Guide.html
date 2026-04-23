@@ -1048,7 +1048,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "6.5.0";
+const APP_VERSION = "6.5.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4251,16 +4251,34 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
           for(var i=startBank;i<startBank+maxBanks;i++) bankNumbers.push(i);
           return <div style={{marginBottom:"var(--s-4)"}}>
             <div style={{fontSize:11,fontWeight:700,color:"var(--text-secondary)",marginBottom:"var(--s-2)"}}>{emoji} {label}</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(10,1fr)",gap:3}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:4}}>
               {bankNumbers.map(function(b){
                 var used=usedBanks[b];
-                var hasPreset=banks[b]&&(banks[b].A||banks[b].B||banks[b].C);
-                var bg=used?(used.score>=80?"var(--status-success)":used.score>=65?"var(--accent-primary,#818cf8)":"var(--status-warning)"):(hasPreset?"var(--bg-elev-3)":"var(--bg-elev-1)");
-                var color=used?"#fff":(hasPreset?"var(--text-tertiary)":"var(--text-tertiary)");
-                var border=used?"none":"1px solid var(--border-subtle)";
-                var title=used?(b+": "+used.preset+" ("+used.score+"%) — "+used.songs.join(", ")):(hasPreset?b+": "+(banks[b].A||"")+" / "+(banks[b].B||"")+" / "+(banks[b].C||""):b+": vide");
-                return <div key={b} title={title} style={{textAlign:"center",fontSize:9,fontWeight:used?800:500,color:color,background:bg,border:border,borderRadius:3,padding:"4px 0",cursor:"default",opacity:hasPreset||used?1:0.4}}>
-                  {b}
+                var bk=banks[b]||{};
+                var hasPreset=bk.A||bk.B||bk.C;
+                var borderColor=used?(used.score>=80?"var(--status-success)":used.score>=65?"var(--accent-primary,#818cf8)":"var(--status-warning)"):(hasPreset?"var(--border-subtle)":"var(--border-subtle)");
+                var bgColor=used?(used.score>=80?"rgba(74,222,128,0.06)":used.score>=65?"rgba(129,140,248,0.06)":"rgba(251,191,36,0.06)"):"var(--bg-elev-1)";
+                var slotColor=function(name){
+                  if(!name) return "var(--text-tertiary)";
+                  if(used&&used.preset===name) return used.score>=80?"var(--status-success)":"var(--status-warning)";
+                  return "var(--text-secondary)";
+                };
+                return <div key={b} style={{background:bgColor,border:"2px solid "+borderColor,borderRadius:6,padding:"4px 6px",opacity:hasPreset||used?1:0.3}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                    <span style={{fontSize:10,fontWeight:800,color:used?"var(--text-primary)":"var(--text-tertiary)"}}>{b}</span>
+                    {used&&<span style={{fontSize:8,fontWeight:700,color:used.score>=80?"var(--status-success)":"var(--status-warning)"}}>{used.score}%</span>}
+                  </div>
+                  {["A","B","C"].map(function(slot){
+                    var name=bk[slot]||"";
+                    var isUsed=used&&used.preset===name&&name;
+                    var slotLabel=slot==="A"?"Cln":slot==="B"?"Drv":"Led";
+                    return <div key={slot} style={{fontSize:8,display:"flex",gap:3,alignItems:"baseline",marginBottom:1}}>
+                      <span style={{fontWeight:700,color:"var(--text-tertiary)",width:18,flexShrink:0}}>{slot}</span>
+                      <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:slotColor(name),fontWeight:isUsed?700:400}}>{name||"—"}</span>
+                      {isUsed&&<span style={{fontSize:7,color:used.score>=80?"var(--status-success)":"var(--status-warning)",flexShrink:0}}>●</span>}
+                    </div>;
+                  })}
+                  {used&&used.songs.length>0&&<div style={{fontSize:7,color:"var(--text-tertiary)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{used.songs.join(", ")}</div>}
                 </div>;
               })}
             </div>
