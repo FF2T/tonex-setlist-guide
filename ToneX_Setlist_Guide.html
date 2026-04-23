@@ -594,6 +594,11 @@ const PRESET_CATALOG_MERGED = {...PRESET_CATALOG_FULL, ...TSR_PACK_CATALOG, ...A
 function findCatalogEntry(name){
   if(!name) return null;
   if(PRESET_CATALOG_MERGED[name]) return PRESET_CATALOG_MERGED[name];
+  // Chercher dans les presets ToneNET saisis par l'utilisateur
+  if(window._toneNetLookup){
+    var tnMatch=window._toneNetLookup[name];
+    if(tnMatch) return tnMatch;
+  }
   if(PRESET_CATALOG_MERGED["AA "+name]) return PRESET_CATALOG_MERGED["AA "+name];
   if(name.startsWith("AA ")&&PRESET_CATALOG_MERGED[name.slice(3)]) return PRESET_CATALOG_MERGED[name.slice(3)];
   const norm=normalizePresetName(name);
@@ -1092,7 +1097,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.0.4";
+const APP_VERSION = "7.1.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -6022,6 +6027,14 @@ function App() {
     return migrated;
   });
   const [toneNetPresets, setToneNetPresets] = useState(initDefault.shared?.toneNetPresets || []);
+  // Sync ToneNET presets to global lookup for findCatalogEntry
+  useEffect(()=>{
+    var lookup={};
+    (toneNetPresets||[]).forEach(function(p){
+      if(p.name) lookup[p.name]={src:"ToneNET",amp:p.amp||"ToneNET",gain:p.gain||"mid",style:p.style||"rock",scores:p.scores||{HB:75,SC:75,P90:75}};
+    });
+    window._toneNetLookup=lookup;
+  },[toneNetPresets]);
 
   // Sync ToneNET presets into global catalog for scoring engine
   useEffect(()=>{
