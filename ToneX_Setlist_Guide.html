@@ -594,22 +594,49 @@ const PRESET_CATALOG_MERGED = {...PRESET_CATALOG_FULL, ...TSR_PACK_CATALOG, ...A
 function findCatalogEntry(name){
   if(!name) return null;
   if(PRESET_CATALOG_MERGED[name]) return PRESET_CATALOG_MERGED[name];
-  // Try with "AA " prefix (Anniversary presets often stored without it)
   if(PRESET_CATALOG_MERGED["AA "+name]) return PRESET_CATALOG_MERGED["AA "+name];
-  // Try without "AA " prefix
   if(name.startsWith("AA ")&&PRESET_CATALOG_MERGED[name.slice(3)]) return PRESET_CATALOG_MERGED[name.slice(3)];
   const norm=normalizePresetName(name);
   for(const [k,v] of Object.entries(PRESET_CATALOG_MERGED)){
     if(normalizePresetName(k)===norm) return v;
   }
-  // Partial match: try stripping trailing numbers/suffixes (e.g. "Skylark 2" → "Skylark")
   const normBase=norm.replace(/\s+\d+$/,"");
   if(normBase!==norm){
     for(const [k,v] of Object.entries(PRESET_CATALOG_MERGED)){
       if(normalizePresetName(k)===normBase) return v;
     }
   }
-  return null;
+  // Preset inconnu (ToneNET, custom) — deviner les caractéristiques depuis le nom
+  return guessPresetInfo(name);
+}
+function guessPresetInfo(name){
+  if(!name) return null;
+  var nl=name.toLowerCase();
+  // Deviner l'ampli depuis le nom
+  var amp="Unknown";
+  var ampKeywords=[
+    ["laney","Laney Supergroup"],["marshall","Marshall"],["fender","Fender"],["vox","Vox AC30"],
+    ["mesa","Mesa Boogie"],["bogner","Bogner"],["orange","Orange"],["hiwatt","Hiwatt"],
+    ["soldano","Soldano"],["friedman","Friedman"],["matchless","Matchless"],["dumble","Dumble"],
+    ["peavey","Peavey 5150"],["5150","Peavey 5150"],["plexi","Marshall Plexi"],["jcm","Marshall JCM800"],
+    ["twin","Fender Twin"],["deluxe","Fender Deluxe"],["bassman","Fender Bassman"],["princeton","Fender Princeton"],
+    ["rectifier","Mesa Rectifier"],["two rock","Two Rock"],["dr z","Dr. Z"],["supro","Supro"],
+    ["engl","ENGL"],["diezel","Diezel"],["ac30","Vox AC30"],["ac15","Vox AC15"],
+  ];
+  for(var i=0;i<ampKeywords.length;i++){
+    if(nl.includes(ampKeywords[i][0])){amp=ampKeywords[i][1];break;}
+  }
+  // Deviner le gain
+  var gain="mid";
+  if(/\bclean\b|\bcln\b|\bclr\b/i.test(nl)) gain="low";
+  else if(/\bhigh\b|\blead\b|\bfull\b|\bdimed\b|\bmax\b/i.test(nl)) gain="high";
+  else if(/\bdrive\b|\bod\b|\bcrunch\b|\bgrit\b/i.test(nl)) gain="mid";
+  // Deviner le style depuis l'ampli
+  var style="rock";
+  if(amp.includes("Fender")||amp.includes("Princeton")||amp.includes("Twin")) style="blues";
+  else if(amp.includes("Mesa")||amp.includes("Rectifier")||amp.includes("5150")||amp.includes("ENGL")||amp.includes("Diezel")) style="hard_rock";
+  else if(amp.includes("Vox")) style="rock";
+  return {src:"ToneNET",amp:amp,gain:gain,style:style,scores:{HB:75,SC:75,P90:75},guessed:true};
 }
 // ─── Scoring V2 : 5 dimensions normalisées 0-100 ────────────────────────────
 
@@ -1048,7 +1075,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.0.0";
+const APP_VERSION = "7.0.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
