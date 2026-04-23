@@ -846,14 +846,16 @@ function computeGainMatchScore(presetGain,songTargetGain){
 function computeRefAmpScore(presetAmp,songRefAmp){
   if(!songRefAmp||!presetAmp) return null;
   if(presetAmp===songRefAmp) return 100;
-  // Partial name match (e.g. "Laney Supergroup" vs "Laney")
-  var pLow=presetAmp.toLowerCase(),sLow=songRefAmp.toLowerCase();
-  if(pLow.includes(sLow)||sLow.includes(pLow)) return 95;
+  // Normalize: strip common suffixes (bass, 100w, mkI, combo, head, etc.)
+  var normalize=function(s){return s.toLowerCase().replace(/\b(bass|head|combo|cab|cabinet|\d+w|\d+watt|mk\s*[iv]+|mk\s*\d+|super|100|50|20|amp)\b/g,"").replace(/\s+/g," ").trim();};
+  var pNorm=normalize(presetAmp),sNorm=normalize(songRefAmp);
+  if(pNorm===sNorm) return 100;
+  if(pNorm.includes(sNorm)||sNorm.includes(pNorm)) return 95;
+  // AMP_TAXONOMY lookup
   var preset=AMP_TAXONOMY[presetAmp];
   var song=AMP_TAXONOMY[songRefAmp];
-  // Try resolving via aliases if not found
-  if(!preset){for(var k in AMP_TAXONOMY){if(k.toLowerCase().includes(pLow)||pLow.includes(k.toLowerCase())){preset=AMP_TAXONOMY[k];break;}}}
-  if(!song){for(var k2 in AMP_TAXONOMY){if(k2.toLowerCase().includes(sLow)||sLow.includes(k2.toLowerCase())){song=AMP_TAXONOMY[k2];break;}}}
+  if(!preset){for(var k in AMP_TAXONOMY){if(normalize(k)===pNorm||k.toLowerCase().includes(pNorm)||pNorm.includes(k.toLowerCase())){preset=AMP_TAXONOMY[k];break;}}}
+  if(!song){for(var k2 in AMP_TAXONOMY){if(normalize(k2)===sNorm||k2.toLowerCase().includes(sNorm)||sNorm.includes(k2.toLowerCase())){song=AMP_TAXONOMY[k2];break;}}}
   if(!preset||!song) return 25;
   if(preset.family===song.family) return 85;
   if(preset.brand===song.brand) return 50;
@@ -1097,7 +1099,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.1.2";
+const APP_VERSION = "7.2.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -2670,6 +2672,21 @@ function ToneNetTab({toneNetPresets,onToneNetPresets,inp}){
   const [autoFilled,setAutoFilled]=useState(false);
   const GAIN_OPTS=["low","mid","high"];
   const STYLE_OPTS=[{v:"blues",l:"Blues"},{v:"rock",l:"Rock"},{v:"hard_rock",l:"Hard Rock"},{v:"jazz",l:"Jazz"},{v:"pop",l:"Pop"},{v:"metal",l:"Metal"}];
+  const suggestStyleFromAmp=function(ampName){
+    if(!ampName) return null;
+    var al=ampName.toLowerCase();
+    if(/laney|mesa|rectifier|5150|peavey|engl|diezel|soldano|bogner|friedman/.test(al)) return "hard_rock";
+    if(/fender|princeton|twin|deluxe|bassman|champ/.test(al)) return "blues";
+    if(/vox|ac30|ac15|matchless|budda/.test(al)) return "rock";
+    if(/dumble|two rock|carr/.test(al)) return "blues";
+    if(/roland|jazz/.test(al)) return "jazz";
+    return null;
+  };
+  const onAmpChange=function(val){
+    setAmp(val);
+    var suggested=suggestStyleFromAmp(val);
+    if(suggested) setStyle(suggested);
+  };
   const resetForm=()=>{setName("");setAmp("");setGain("mid");setStyle("rock");setChannel("");setCab("");setComment("");setEditId(null);setAutoFilled(false);};
   const onNameChange=(val)=>{
     setName(val);
@@ -2704,7 +2721,7 @@ function ToneNetTab({toneNetPresets,onToneNetPresets,inp}){
         <div style={{display:"flex",flexDirection:"column",gap:"var(--s-2)"}}>
           <input placeholder="Nom du preset *" value={name} onChange={e=>onNameChange(e.target.value)} style={{...inp,fontSize:13}}/>
           <div style={{position:"relative"}}>
-            <input placeholder="Modèle d'ampli (ex: Fender Twin)" value={amp} onChange={e=>{setAmp(e.target.value);setAutoFilled(false);}} style={{...inp,fontSize:13}}/>
+            <input placeholder="Modèle d'ampli (ex: Fender Twin)" value={amp} onChange={e=>{onAmpChange(e.target.value);setAutoFilled(false);}} style={{...inp,fontSize:13}}/>
             {autoFilled&&amp&&<span style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",fontSize:9,color:"var(--accent)",fontFamily:"var(--font-mono)"}}>auto</span>}
           </div>
           <div style={{display:"flex",gap:"var(--s-2)"}}>
