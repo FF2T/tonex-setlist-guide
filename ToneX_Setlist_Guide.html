@@ -16,7 +16,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v46';
+const CACHE='tonex-v47';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -1099,7 +1099,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.2.1";
+const APP_VERSION = "7.2.2";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3967,7 +3967,7 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
   const sl=setlists.find(s=>s.id===slId);
   const songs=sl?sl.songIds.map(id=>songDb.find(s=>s.id===id)).filter(Boolean):[];
   // Types de micros du rig — ordre : SC, P90, HB
-  const PICKUP_ORDER=["SC","P90","HB"];
+  const PICKUP_ORDER=["SC","HB","P90"];
   const pickupTypes=PICKUP_ORDER.filter(t=>allGuitars.some(g=>g.type===t));
   const TYPE_LABELS={HB:"Humbucker",SC:"Single Coil",P90:"P-90"};
 
@@ -4042,12 +4042,10 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
   const annAnalysis=useMemo(()=>analyzeDevice(banksAnn,"ann"),[songs,allGuitars,banksAnn]);
   const plugAnalysis=useMemo(()=>analyzeDevice(banksPlug,"plug"),[songs,allGuitars,banksPlug]);
 
-  // Banques standard passe-partout — par type de micro × style dominant
+  // Banques standard passe-partout — ordre fixe : Rock, Hard Rock, Blues
   const standardBanks=useMemo(()=>{
-    const styleCounts={};
-    songs.forEach(s=>{const st=s.aiCache?.result?.song_style||"rock";styleCounts[st]=(styleCounts[st]||0)+1;});
-    const topStyles=Object.entries(styleCounts).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([s])=>s);
-    if(!topStyles.length) return [];
+    const topStyles=["rock","hard_rock","blues"];
+    if(!pickupTypes.length) return [];
     const STYLE_LABELS={blues:"Blues",rock:"Rock",hard_rock:"Hard Rock",jazz:"Jazz",metal:"Metal",pop:"Pop"};
     const SLOT_GAINS=[{slot:"A",label:"Clean",targetGain:2,gainRange:"clean"},{slot:"B",label:"Drive",targetGain:7,gainRange:"drive"},{slot:"C",label:"Lead",targetGain:9,gainRange:"high_gain"}];
     const findDominantAmp=(style)=>{
@@ -4305,8 +4303,12 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
       {(()=>{
         var buildReorg=function(banks,maxBanks,startBank,deviceKey){
           var plan=[];var bankIdx=startBank;
+          var seenSigs=new Set();
           standardBanks.forEach(function(sb){
             if(bankIdx>=startBank+maxBanks) return;
+            var sig=(sb.slots[0].preset||"")+"|"+(sb.slots[1].preset||"")+"|"+(sb.slots[2].preset||"");
+            if(seenSigs.has(sig)) return;
+            seenSigs.add(sig);
             plan.push({bank:bankIdx,label:sb.label,type:"standard",A:sb.slots[0].preset,B:sb.slots[1].preset,C:sb.slots[2].preset,scoreA:sb.slots[0].score,scoreB:sb.slots[1].score,scoreC:sb.slots[2].score});
             bankIdx++;
           });
