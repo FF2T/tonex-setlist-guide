@@ -16,7 +16,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v47';
+const CACHE='tonex-v48';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -1099,7 +1099,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.2.2";
+const APP_VERSION = "7.2.3";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3963,7 +3963,6 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
 function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBanksPlug,allGuitars,availableSources,onNavigate}) {
   const [slId,setSlId]=useState(setlists[0]?.id||"");
   const [showReconfig,setShowReconfig]=useState(null); // "ann"|"plug"|null
-  const [installTarget,setInstallTarget]=useState(null); // {style,device:"ann"|"plug",bank:0}
   const sl=setlists.find(s=>s.id===slId);
   const songs=sl?sl.songIds.map(id=>songDb.find(s=>s.id===id)).filter(Boolean):[];
   // Types de micros du rig — ordre : SC, P90, HB
@@ -4042,49 +4041,49 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
   const annAnalysis=useMemo(()=>analyzeDevice(banksAnn,"ann"),[songs,allGuitars,banksAnn]);
   const plugAnalysis=useMemo(()=>analyzeDevice(banksPlug,"plug"),[songs,allGuitars,banksPlug]);
 
-  // Banques standard passe-partout — ordre fixe : Rock, Hard Rock, Blues
+  // Banques standard "univers" — un ampli iconique par banque, 3 slots Clean/Drive/Lead
   const standardBanks=useMemo(()=>{
-    const topStyles=["rock","hard_rock","blues"];
-    if(!pickupTypes.length) return [];
-    const STYLE_LABELS={blues:"Blues",rock:"Rock",hard_rock:"Hard Rock",jazz:"Jazz",metal:"Metal",pop:"Pop"};
-    const SLOT_GAINS=[{slot:"A",label:"Clean",targetGain:2,gainRange:"clean"},{slot:"B",label:"Drive",targetGain:7,gainRange:"drive"},{slot:"C",label:"Lead",targetGain:9,gainRange:"high_gain"}];
-    const findDominantAmp=(style)=>{
-      const ampCounts={};
-      songs.forEach(s=>{const ai=s.aiCache?.result;if(ai&&ai.song_style===style&&ai.ref_amp){const r=resolveRefAmp(ai.ref_amp);ampCounts[r]=(ampCounts[r]||0)+1;}});
-      return Object.entries(ampCounts).sort((a,b)=>b[1]-a[1])[0]?.[0]||null;
-    };
-    const results=[];
-    topStyles.forEach(style=>{
-      pickupTypes.forEach(pType=>{
-        const dominantAmp=findDominantAmp(style);
-        const usedAmps=new Set();const usedNames=new Set();
-        const slots=SLOT_GAINS.map(({slot,label,targetGain,gainRange})=>{
-          const candidates=Object.entries(PRESET_CATALOG_MERGED)
-            .filter(([,info])=>{
-              const g=getGainRange(gainToNumeric(info.gain));
-              if(g!==gainRange&&!(gainRange==="drive"&&g==="crunch")) return false;
-              // Exclure les sources spécifiques à un device (pour que la banque marche partout)
-              if(info.src==="Anniversary"||info.src==="Factory"||info.src==="PlugFactory") return false;
-              return true;
-            })
-            .map(([name,info])=>{
-              const pickupScore=computePickupScore(info.style,gainRange,pType);
-              const styleScore=computeStyleMatchScore(info.style,style);
-              const refAmpScore=dominantAmp?computeRefAmpScore(info.amp,dominantAmp):null;
-              const dims=[{s:pickupScore,w:0.25},{s:styleScore,w:0.35},{s:refAmpScore,w:0.40}].filter(d=>d.s!==null);
-              const tw=dims.reduce((s,d)=>s+d.w,0);
-              const score=Math.round(dims.reduce((s,d)=>s+d.s*(d.w/tw),0));
-              return {name,amp:info.amp,src:info.src,score};
-            }).sort((a,b)=>b.score-a.score);
-          const pick=candidates.find(c=>!usedAmps.has(c.amp)&&!usedNames.has(c.name))||candidates[0];
-          if(pick){usedAmps.add(pick.amp);usedNames.add(pick.name);}
-          return {slot,label,preset:pick?.name||"—",amp:pick?.amp||"",src:pick?.src||"",score:pick?.score||0};
-        });
-        results.push({style,pType,label:(STYLE_LABELS[style]||style)+" · "+(TYPE_LABELS[pType]||pType),slots});
+    const UNIVERSES=[
+      {label:"Marshall Plexi",          amp:"Marshall Plexi",        style:"rock"},
+      {label:"Marshall JCM800",         amp:"Marshall JCM800",       style:"hard_rock"},
+      {label:"Fender Deluxe Reverb",    amp:"Fender Deluxe Reverb",  style:"blues"},
+      {label:"Fender Twin Reverb",      amp:"Fender Twin Reverb",    style:"rock"},
+      {label:"Fender Bassman",          amp:"Fender Bassman",        style:"blues"},
+      {label:"Vox AC30",                amp:"Vox AC30",              style:"rock"},
+      {label:"Mesa Dual Rectifier",     amp:"Mesa Boogie Rectifier", style:"hard_rock"},
+      {label:"Hiwatt DR103",            amp:"Hiwatt DR103",          style:"rock"},
+      {label:"Dumble ODS",              amp:"Dumble ODS",            style:"blues"},
+      {label:"Soldano SLO 100",         amp:"Soldano SLO-100",       style:"hard_rock"},
+    ];
+    const SLOT_GAINS=[{slot:"A",label:"Clean",gainRange:"clean"},{slot:"B",label:"Drive",gainRange:"drive"},{slot:"C",label:"Lead",gainRange:"high_gain"}];
+    const dominantPickup=pickupTypes[0]||"HB";
+    return UNIVERSES.map(u=>{
+      const usedNames=new Set();
+      const slots=SLOT_GAINS.map(({slot,label,gainRange})=>{
+        const candidates=Object.entries(PRESET_CATALOG_MERGED)
+          .filter(([,info])=>{
+            const g=getGainRange(gainToNumeric(info.gain));
+            if(g!==gainRange&&!(gainRange==="drive"&&g==="crunch")) return false;
+            if(info.src==="Anniversary"||info.src==="Factory"||info.src==="PlugFactory") return false;
+            if(availableSources&&info.src&&availableSources[info.src]===false) return false;
+            return true;
+          })
+          .map(([name,info])=>{
+            const ampScore=computeRefAmpScore(info.amp,u.amp);
+            const styleScore=computeStyleMatchScore(info.style,u.style);
+            const pickupScore=computePickupScore(info.style,gainRange,dominantPickup);
+            const dims=[{s:ampScore,w:0.60},{s:styleScore,w:0.25},{s:pickupScore,w:0.15}].filter(d=>d.s!==null);
+            const tw=dims.reduce((s,d)=>s+d.w,0);
+            const score=Math.round(dims.reduce((s,d)=>s+d.s*(d.w/tw),0));
+            return {name,amp:info.amp,src:info.src,score};
+          }).sort((a,b)=>b.score-a.score);
+        const pick=candidates.find(c=>!usedNames.has(c.name))||candidates[0];
+        if(pick) usedNames.add(pick.name);
+        return {slot,label,preset:pick?.name||"—",amp:pick?.amp||"",src:pick?.src||"",score:pick?.score||0};
       });
+      return {label:u.label,amp:u.amp,style:u.style,slots};
     });
-    return results;
-  },[songs,pickupTypes]);
+  },[pickupTypes,availableSources]);
 
   // Reconfig A/B/C pour un device
   const reconfigPlan=useMemo(()=>{
@@ -4134,12 +4133,6 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
       return next;
     });
     setShowReconfig(null);
-  };
-
-  const installStandardBank=(bankStyle,pType,targetBank,onBanks)=>{
-    const sb=standardBanks.find(b=>b.style===bankStyle&&b.pType===pType);
-    if(!sb) return;
-    onBanks(prev=>({...prev,[targetBank]:{cat:sb.label,A:sb.slots[0].preset,B:sb.slots[1].preset,C:sb.slots[2].preset}}));
   };
 
   const sectionStyle={background:"var(--bg-elev-1)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-lg)",padding:"var(--s-4)",marginBottom:"var(--s-4)"};
@@ -4271,11 +4264,11 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
             var usedCount=Object.keys(used).length;
             var spread=usedCount>0?Math.max(...Object.keys(used).map(Number))-Math.min(...Object.keys(used).map(Number)):0;
             return <div style={{marginBottom:"var(--s-2)"}}>
-              <div style={{fontSize:10,color:"var(--text-secondary)",marginBottom:3}}>{label} — <b>{usedCount}</b> banques utilisees{spread>usedCount+2?<span style={{color:"var(--status-warning)"}}> (dispersees sur {spread} banques)</span>:""}</div>
+              <div style={{fontSize:10,color:"var(--text-secondary)",marginBottom:3}}>{label} — <b>{usedCount}</b> banques utilisees{spread>usedCount+2?<span style={{color:"var(--red)"}}> (dispersees sur {spread} banques)</span>:""}</div>
               <div style={{display:"flex",gap:2,flexWrap:"wrap"}}>
                 {nums.map(function(b){
                   var u=used[b];var has=banks[b]&&(banks[b].A||banks[b].B||banks[b].C);
-                  var bg=u?(u.score>=80?"var(--status-success)":u.score>=65?"var(--accent-primary,#818cf8)":"var(--status-warning)"):(has?"var(--bg-elev-3)":"var(--bg-elev-1)");
+                  var bg=u?(u.score>=80?"var(--green)":u.score>=65?"var(--accent-primary,#818cf8)":"var(--red)"):(has?"var(--bg-elev-3)":"var(--bg-elev-1)");
                   return <div key={b} title={u?b+": "+u.preset+" ("+u.score+"%) — "+u.songs.join(", "):(has?b+": "+((banks[b]||{}).A||"")+"/"+((banks[b]||{}).B||"")+"/"+((banks[b]||{}).C||""):b+": vide")} style={{width:14,height:14,borderRadius:2,background:bg,border:u?"none":"1px solid var(--border-subtle)",opacity:has||u?1:0.3,cursor:"default"}}></div>;
                 })}
               </div>
@@ -4287,9 +4280,9 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
             {hasAnn&&miniGrid(banksAnn,50,0,"ann","📦 Pedale")}
             {hasPlug&&miniGrid(banksPlug,10,1,"plug","🔌 Plug")}
             <div style={{display:"flex",gap:"var(--s-3)",marginTop:4,fontSize:8,color:"var(--text-tertiary)"}}>
-              <span><span style={{display:"inline-block",width:6,height:6,borderRadius:1,background:"var(--status-success)",marginRight:2,verticalAlign:"middle"}}></span>80%+</span>
+              <span><span style={{display:"inline-block",width:6,height:6,borderRadius:1,background:"var(--green)",marginRight:2,verticalAlign:"middle"}}></span>80%+</span>
               <span><span style={{display:"inline-block",width:6,height:6,borderRadius:1,background:"var(--accent-primary,#818cf8)",marginRight:2,verticalAlign:"middle"}}></span>65-79%</span>
-              <span><span style={{display:"inline-block",width:6,height:6,borderRadius:1,background:"var(--status-warning)",marginRight:2,verticalAlign:"middle"}}></span>&lt;65%</span>
+              <span><span style={{display:"inline-block",width:6,height:6,borderRadius:1,background:"var(--red)",marginRight:2,verticalAlign:"middle"}}></span>&lt;65%</span>
               <span><span style={{display:"inline-block",width:6,height:6,borderRadius:1,background:"var(--bg-elev-3)",border:"1px solid var(--border-subtle)",marginRight:2,verticalAlign:"middle"}}></span>Non utilise</span>
             </div>
           </div>;
@@ -4358,6 +4351,14 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:4,marginBottom:"var(--s-3)"}}>
               {plan.map(function(p){
                 var isSong=p.type==="song";
+                var applyOne=function(){
+                  if(!confirm("Appliquer la banque "+p.bank+" ("+p.label+") ?")) return;
+                  onBanks(function(prev){
+                    var next={};for(var k in prev) next[k]=prev[k];
+                    next[p.bank]={cat:p.label,A:p.A==="—"?"":p.A,B:p.B==="—"?"":p.B,C:p.C==="—"?"":p.C};
+                    return next;
+                  });
+                };
                 return <div key={p.bank} style={{background:isSong?"var(--bg-elev-2)":"var(--accent-soft,rgba(129,140,248,0.06))",border:"1px solid "+(isSong?"var(--border-subtle)":"var(--border-accent,rgba(129,140,248,0.3))"),borderRadius:6,padding:"6px 8px"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:2}}>
                     <span style={{fontSize:11,fontWeight:800,color:"var(--text-primary)"}}>{p.bank}</span>
@@ -4371,6 +4372,7 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
                       {x.sc>0&&<span style={{fontFamily:"var(--font-mono)",fontWeight:700,color:scoreColor(x.sc),flexShrink:0}}>{x.sc}%</span>}
                     </div>;
                   })}
+                  <button onClick={applyOne} style={{marginTop:6,width:"100%",background:"var(--bg-elev-1)",border:"1px solid var(--border-subtle)",color:"var(--text-secondary)",borderRadius:"var(--r-sm)",padding:"3px 6px",fontSize:9,fontWeight:700,cursor:"pointer"}}>Appliquer cette banque</button>
                 </div>;
               })}
             </div>
@@ -4383,7 +4385,7 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
                 plan.forEach(function(p){next[p.bank]={cat:p.label,A:p.A==="—"?"":p.A,B:p.B==="—"?"":p.B,C:p.C==="—"?"":p.C};});
                 return next;
               });
-            }} style={{width:"100%",background:"linear-gradient(180deg,var(--brass-200,#d4a017),var(--brass-400,#b8860b))",border:"none",color:"var(--tolex-900,#1a1a1a)",borderRadius:"var(--r-md)",padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm,0 1px 3px rgba(0,0,0,0.3))"}}>Appliquer cette reorganisation</button>
+            }} style={{width:"100%",background:"linear-gradient(180deg,var(--brass-200,#d4a017),var(--brass-400,#b8860b))",border:"none",color:"var(--tolex-900,#1a1a1a)",borderRadius:"var(--r-md)",padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm,0 1px 3px rgba(0,0,0,0.3))"}}>Tout appliquer ({plan.length} banques)</button>
           </div>;
         };
         return <div style={sectionStyle}>
