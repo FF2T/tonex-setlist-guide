@@ -16,7 +16,7 @@
 <script>
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v45';
+const CACHE='tonex-v46';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'ToneX_Setlist_Guide.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -1099,7 +1099,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.2.0";
+const APP_VERSION = "7.2.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4303,7 +4303,7 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
 
       {/* ── SECTION 2 : PLAN DE REORGANISATION ── */}
       {(()=>{
-        var buildReorg=function(banks,maxBanks,startBank){
+        var buildReorg=function(banks,maxBanks,startBank,deviceKey){
           var plan=[];var bankIdx=startBank;
           standardBanks.forEach(function(sb){
             if(bankIdx>=startBank+maxBanks) return;
@@ -4320,8 +4320,13 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
             var refAmp=ai.ref_amp?resolveRefAmp(ai.ref_amp):null;
             var findBest=function(gainRange){
               return Object.entries(PRESET_CATALOG_MERGED).filter(function(e){
-                var gr=getGainRange(gainToNumeric(e[1].gain));
-                return (gr===gainRange||(gainRange==="drive"&&gr==="crunch"))&&!usedPresets.has(e[0]);
+                var info=e[1];
+                var gr=getGainRange(gainToNumeric(info.gain));
+                if(gr!==gainRange&&!(gainRange==="drive"&&gr==="crunch")) return false;
+                if(usedPresets.has(e[0])) return false;
+                if(!isSrcCompatible(info.src,deviceKey)) return false;
+                if(availableSources&&info.src&&availableSources[info.src]===false) return false;
+                return true;
               }).map(function(e){
                 var info=e[1];
                 var dims=[{s:computePickupScore(info.style,gainRange,gType),w:0.20},{s:computeStyleMatchScore(info.style,style),w:0.25},{s:refAmp?computeRefAmpScore(info.amp,refAmp):null,w:0.35}].filter(function(d){return d.s!==null;});
@@ -4339,8 +4344,8 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
         };
         var hasAnn2=Object.keys(banksAnn||{}).length>0;
         var hasPlug2=Object.keys(banksPlug||{}).length>0;
-        var annPlan=hasAnn2?buildReorg(banksAnn,50,0):[];
-        var plugPlan=hasPlug2?buildReorg(banksPlug,10,1):[];
+        var annPlan=hasAnn2?buildReorg(banksAnn,50,0,"ann"):[];
+        var plugPlan=hasPlug2?buildReorg(banksPlug,10,1,"plug"):[];
         if(!annPlan.length&&!plugPlan.length) return null;
         var renderPlan=function(plan,emoji,label,onBanks){
           if(!plan.length) return null;
