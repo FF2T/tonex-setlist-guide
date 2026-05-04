@@ -850,6 +850,49 @@ function localGuitarSongScore(g,aiC){
   return Math.max(30,Math.min(99,Math.round(pickupScore*0.6+styleScore*0.4)));
 }
 
+// Réglages concrets à appliquer sur la guitare choisie pour ce morceau (sélecteur de micros, tone, volume).
+function localGuitarSettings(g,aiC){
+  if(!g||!aiC) return null;
+  const profile=GUITAR_PROFILES[g.id]||{};
+  const voicing=profile.voicing||"balanced";
+  const pickupType=g.type;
+  const targetGain=typeof aiC.target_gain==="number"?aiC.target_gain:5;
+  const gainRange=getGainRange(targetGain);
+  const wantedPickup=aiC.pickup_preference;
+  const style=aiC.song_style;
+  // Position des micros
+  let pickupAdvice;
+  if(gainRange==="clean"||style==="jazz"){
+    pickupAdvice=pickupType==="SC"?"Micro manche (pos. 5)":"Micro manche";
+  }else if(gainRange==="high_gain"||style==="metal"||style==="hard_rock"){
+    pickupAdvice="Micro chevalet";
+  }else if(gainRange==="drive"||style==="rock"){
+    pickupAdvice=pickupType==="SC"?"Chevalet ou intermediaire (pos. 4)":"Micro chevalet";
+  }else{ // crunch / blues
+    if(pickupType==="SC") pickupAdvice="Position intermediaire (2 ou 4) ou manche";
+    else if(pickupType==="P90") pickupAdvice="Au choix selon attaque";
+    else pickupAdvice="Manche pour rondeur, chevalet pour mordant";
+  }
+  // Tone
+  let tone;
+  if(style==="jazz") tone="4-6";
+  else if(voicing==="bright"&&(gainRange==="drive"||gainRange==="high_gain")) tone="6-7";
+  else if(voicing==="warm"&&gainRange==="clean") tone="8-10";
+  else if(gainRange==="high_gain") tone="8-10";
+  else tone="7-9";
+  // Volume
+  const volume=gainRange==="clean"?"7-9":"10";
+  // Hint si la guitare ne correspond pas au pickup ideal
+  let mismatchHint="";
+  if(wantedPickup&&wantedPickup!=="any"&&wantedPickup!==pickupType){
+    if(wantedPickup==="HB"&&pickupType==="SC") mismatchHint=" — l'ideal serait un humbucker, baisse le tone pour epaissir";
+    else if(wantedPickup==="SC"&&pickupType==="HB") mismatchHint=" — l'ideal serait un single coil, split le HB si possible";
+    else if(wantedPickup==="P90") mismatchHint=" — l'ideal serait un P90 (mordant)";
+    else if(pickupType==="P90"&&wantedPickup==="HB") mismatchHint=" — pour plus de chaleur, monte le volume";
+  }
+  return `${pickupAdvice} · Tone ${tone} · Volume ${volume}${mismatchHint}`;
+}
+
 function computeGainMatchScore(presetGain,songTargetGain){
   if(songTargetGain==null) return null;
   const diff=Math.abs(presetGain-songTargetGain);
@@ -1112,7 +1155,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.2.5";
+const APP_VERSION = "7.2.6";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3573,6 +3616,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
             <div style={{flex:1}}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/></div>
           </div>
           {g&&chosenGuitarScore&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:3,marginLeft:24}}>Compatibilite : <b style={{color:scoreColor(chosenGuitarScore)}}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated&&<span style={{marginLeft:6,color:"var(--text-tertiary)",fontStyle:"italic"}}>(estime)</span>}</div>}
+          {g&&aiC&&(()=>{const s=localGuitarSettings(g,aiC);return s?<div style={{fontSize:10,background:"var(--a4)",border:"1px solid var(--a10)",borderRadius:"var(--r-md)",padding:"5px 8px",color:"var(--text-sec)",marginTop:5,marginLeft:24}}><b style={{color:"var(--text-muted)"}}>Reglages :</b> {s}</div>:null;})()}
         </div>
         <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Meilleurs presets installes pour {g?.short||"cette guitare"}</div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
@@ -5897,6 +5941,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                   <button onClick={()=>setShowGuitarPick(p=>!p)} style={{fontSize:10,background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:"var(--r-md)",padding:"3px 8px",cursor:"pointer"}}>Changer</button>
                 </div>
                 {selectedGuitar&&chosenGuitarScore&&<div style={{fontSize:10,color:"var(--text-dim)",marginBottom:4}}>Compatibilite : <b style={{color:scoreColor(chosenGuitarScore)}}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated&&<span style={{marginLeft:6,color:"var(--text-tertiary)",fontStyle:"italic"}}>(estime)</span>}</div>}
+                {selectedGuitar&&(()=>{const s=localGuitarSettings(selectedGuitar,songResult);return s?<div style={{fontSize:10,background:"var(--a4)",border:"1px solid var(--a10)",borderRadius:"var(--r-md)",padding:"5px 8px",color:"var(--text-sec)",marginBottom:4}}><b style={{color:"var(--text-muted)"}}>Reglages :</b> {s}</div>:null;})()}
                 {showGuitarPick&&<div style={{marginBottom:8,background:"var(--a4)",borderRadius:"var(--r-md)",padding:10}}>
                   <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
                     {allGuitars.map(g=><button key={g.id} onClick={()=>{
