@@ -1155,7 +1155,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.2.6";
+const APP_VERSION = "7.2.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -2091,7 +2091,7 @@ function ProfilePickerScreen({profiles,onPick}){
   const [selectedId,setSelectedId]=useState(null);
   const [pwd,setPwd]=useState("");
   const [pwdErr,setPwdErr]=useState(false);
-  const [remember,setRemember]=useState(true);
+  const [rememberMe,setRememberMe]=useState(()=>localStorage.getItem("tonex_remember_profile")==="true");
   const pwdRef=useRef(null);
   useEffect(()=>{if(selectedId&&profiles[selectedId]?.password)setTimeout(()=>pwdRef.current?.focus(),50);},[selectedId]);
   const pickWith=(id)=>{
@@ -2104,7 +2104,8 @@ function ProfilePickerScreen({profiles,onPick}){
     const p=profiles[selectedId];
     if(!p)return;
     if(!p.password||p.password===pwd){
-      if(p.password)setTrusted(selectedId,remember);
+      if(rememberMe) localStorage.setItem("tonex_remember_profile",selectedId);
+      else localStorage.removeItem("tonex_remember_profile");
       onPick(selectedId);
     }
     else{setPwdErr(true);}
@@ -2118,15 +2119,18 @@ function ProfilePickerScreen({profiles,onPick}){
         {Object.values(profiles).sort((a,b)=>a.name.localeCompare(b.name)).map(p=>{
           const c=profileColor(p.id);
           const sel=selectedId===p.id;
-          const trusted=p.password&&isTrusted(p.id);
-          return <button key={p.id} onClick={()=>pickWith(p.id)} style={{background:sel?"var(--accent-bg)":"var(--a4)",border:sel?"2px solid var(--accent)":"2px solid var(--a10)",borderRadius:"var(--r-xl)",padding:"24px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
+          return <button key={p.id} onClick={()=>{setSelectedId(p.id);setPwd("");setPwdErr(false);if(!p.password){if(rememberMe)localStorage.setItem("tonex_remember_profile",p.id);else localStorage.removeItem("tonex_remember_profile");onPick(p.id);}}} style={{background:sel?"var(--accent-bg)":"var(--a4)",border:sel?"2px solid var(--accent)":"2px solid var(--a10)",borderRadius:"var(--r-xl)",padding:"24px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
             <div style={{background:c,color:"var(--text-inverse)",borderRadius:"var(--r-pill)",width:48,height:48,fontSize:22,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 10px"}}>{p.name[0].toUpperCase()}</div>
             <div style={{fontSize:14,fontWeight:700,color:"var(--text)"}}>{p.name}</div>
             {p.password&&<div style={{fontSize:11,color:"var(--text-muted)",marginTop:4}}>{trusted?"🔓":"🔒"}</div>}
           </button>;
         })}
       </div>
-      {selectedId&&profiles[selectedId]?.password&&!isTrusted(selectedId)&&<div style={{width:"100%",maxWidth:300}}>
+      <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginBottom:16}}>
+        <input type="checkbox" checked={rememberMe} onChange={e=>{setRememberMe(e.target.checked);if(!e.target.checked)localStorage.removeItem("tonex_remember_profile");}} style={{width:18,height:18,accentColor:"var(--accent)"}}/>
+        <span style={{fontSize:12,color:"var(--text-muted)"}}>Rester connecte sur cet appareil</span>
+      </label>
+      {selectedId&&profiles[selectedId]?.password&&<div style={{width:"100%",maxWidth:300}}>
         <div style={{fontSize:12,color:"var(--text-sec)",marginBottom:8,textAlign:"center"}}>Mot de passe pour {profiles[selectedId].name}</div>
         <div style={{display:"flex",gap:8}}>
           <input ref={pwdRef} type="password" inputMode="numeric" autoFocus placeholder="Mot de passe" value={pwd} onChange={e=>{setPwd(e.target.value);setPwdErr(false);}} onKeyDown={e=>e.key==="Enter"&&tryLogin()} style={{flex:1,background:"var(--bg-card)",color:"var(--text)",border:`1px solid ${pwdErr?"var(--red)":"var(--a15)"}`,borderRadius:"var(--r-md)",padding:"10px 14px",fontSize:14}}/>
@@ -6354,8 +6358,11 @@ function App() {
     const profileCount=Object.keys(allProfiles).length;
     // Check if a session was active before reload
     const sessionProfile=sessionStorage.getItem("tonex_active_profile");
+    const rememberedProfile=localStorage.getItem("tonex_remember_profile");
     if(sessionProfile&&allProfiles[sessionProfile]){
       setActiveProfileId(sessionProfile);recordLogin(sessionProfile);loginRecorded.current=true;setScreen("list");
+    } else if(rememberedProfile&&allProfiles[rememberedProfile]){
+      setActiveProfileId(rememberedProfile);sessionStorage.setItem("tonex_active_profile",rememberedProfile);recordLogin(rememberedProfile);loginRecorded.current=true;setScreen("list");
     } else if(profileCount>1){setScreen("pick");}
     else{recordLogin(activeProfileId);loginRecorded.current=true;setScreen("list");}
   },[firestoreLoaded,firestoreProfiles]);
@@ -6401,7 +6408,7 @@ function App() {
   if(screen==="pick") return <div className="page-root"><ProfilePickerScreen profiles={profiles} onPick={pickProfile}/></div>;
   if(screen==="viewprofile"&&viewProfileId&&profiles[viewProfileId]) return <div className="page-root"><ViewProfileScreen profile={profiles[viewProfileId]} onBack={()=>setScreen("list")} onNavigate={setScreen}/><AppFooter syncStatus={syncStatus}/></div>;
   if(screen==="exportimport") return <div className="page-root"><ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("settings")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/><AppFooter syncStatus={syncStatus}/></div>;
-  if(screen==="profile")      return <div className="page-root"><MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/><AppFooter syncStatus={syncStatus}/></div>;
+  if(screen==="profile")      return <div className="page-root"><MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");localStorage.removeItem("tonex_remember_profile");setScreen("pick");}}/><AppFooter syncStatus={syncStatus}/></div>;
   if(screen==="settings")     return <div className="page-root"><ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} songDb={songDb} onSongDb={setSongDb}/><AppFooter syncStatus={syncStatus}/></div>;
   if(screen==="setlists")     return <div className="page-root">
     <AppHeader profiles={profiles} activeProfileId={activeProfileId} onSwitch={switchProfile} onProfile={()=>{setProfileInitTab(null);setScreen("profile");}} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}}/>
@@ -6429,7 +6436,7 @@ function App() {
   </div>;
   if(screen==="synthesis"&&synth) return <div className="page-root"><AppHeader profiles={profiles} activeProfileId={activeProfileId} onSwitch={switchProfile} onProfile={()=>{setProfileInitTab(null);setScreen("profile");}} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}}/><SynthesisScreen songs={songs} gps={synth.gps} aiR={synth.aiR} onBack={()=>setScreen("recap")} onNavigate={setScreen} songDb={songDb} banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/><AppFooter syncStatus={syncStatus}/></div>;
   if(screen==="recap")        return <div className="page-root"><AppHeader profiles={profiles} activeProfileId={activeProfileId} onSwitch={switchProfile} onProfile={()=>{setProfileInitTab(null);setScreen("profile");}} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}}/><RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDb} onSongDb={setSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources}/><AppFooter syncStatus={syncStatus}/></div>;
-  return <div className="page-root"><HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} onOptimizer={()=>setScreen("optimizer")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/></div>;
+  return <div className="page-root"><HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} onOptimizer={()=>setScreen("optimizer")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");localStorage.removeItem("tonex_remember_profile");setScreen("pick");}}/></div>;
 }
 
 ReactDOM.render(<App/>, document.getElementById("root"));
