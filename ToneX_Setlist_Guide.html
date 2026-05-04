@@ -837,6 +837,19 @@ function computeGuitarScoreV2(guitarId,presetStyle,presetGainRange,presetVoicing
   return Math.max(0,Math.min(100,50+(styleMod+gainMod+voicingMod+resonanceMod)*3));
 }
 
+// Score local de compatibilité guitare ↔ morceau, utilisé quand l'IA ne renvoie pas cette guitare dans cot_step2_guitars (top 2-3 only).
+function localGuitarSongScore(g,aiC){
+  if(!g||!aiC) return null;
+  const pref=aiC.pickup_preference;
+  let pickupScore;
+  if(!pref||pref==="any") pickupScore=80;
+  else if(pref===g.type) pickupScore=95;
+  else pickupScore=55;
+  const presetGainRange=getGainRange(typeof aiC.target_gain==="number"?aiC.target_gain:5);
+  const styleScore=aiC.song_style?computeGuitarScoreV2(g.id,aiC.song_style,presetGainRange,null):70;
+  return Math.max(30,Math.min(99,Math.round(pickupScore*0.6+styleScore*0.4)));
+}
+
 function computeGainMatchScore(presetGain,songTargetGain){
   if(songTargetGain==null) return null;
   const diff=Math.abs(presetGain-songTargetGain);
@@ -1099,7 +1112,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.2.4";
+const APP_VERSION = "7.2.5";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3397,9 +3410,10 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
   // Compute ideal guitar score from CoT step 2
   const idealGuitarObj=aiC?.cot_step2_guitars?.[0];
   const idealGuitarScore=idealGuitarObj?.score||null;
-  // Compute chosen guitar score from CoT step 2
+  // Compute chosen guitar score from CoT step 2 — l'IA ne renvoie que le top 2-3, donc fallback local sinon
   const chosenGuitarCot=aiC?.cot_step2_guitars?.find(gt=>g&&(gt.name===g.name||gt.name===g.short));
-  const chosenGuitarScore=chosenGuitarCot?.score||idealGuitarScore;
+  const chosenGuitarScore=chosenGuitarCot?.score||localGuitarSongScore(g,aiC);
+  const chosenGuitarScoreEstimated=!chosenGuitarCot&&chosenGuitarScore!=null;
   // Section styling helper
   const sectionStyle={background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:"var(--r-lg)",padding:"10px 12px",marginBottom:8};
   const customSectionStyle={background:"var(--a5)",border:"1px solid var(--a10)",borderRadius:"var(--r-lg)",padding:"10px 12px",marginBottom:8};
@@ -3558,7 +3572,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
             <StatusDot score={chosenGuitarScore} ideal={g&&ig.includes(gId)} size={10}/>
             <div style={{flex:1}}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/></div>
           </div>
-          {g&&chosenGuitarScore&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:3,marginLeft:24}}>Compatibilite : <b style={{color:scoreColor(chosenGuitarScore)}}>{chosenGuitarScore}%</b></div>}
+          {g&&chosenGuitarScore&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:3,marginLeft:24}}>Compatibilite : <b style={{color:scoreColor(chosenGuitarScore)}}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated&&<span style={{marginLeft:6,color:"var(--text-tertiary)",fontStyle:"italic"}}>(estime)</span>}</div>}
         </div>
         <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Meilleurs presets installes pour {g?.short||"cette guitare"}</div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
@@ -5791,7 +5805,8 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           const idealGuitarObj=songResult.cot_step2_guitars?.[0];
           const idealGuitarScore=idealGuitarObj?.score||null;
           const chosenGuitarCot=selectedGuitar&&songResult.cot_step2_guitars?.find(gt=>gt.name===selectedGuitar.name||gt.name===selectedGuitar.short);
-          const chosenGuitarScore=chosenGuitarCot?.score||idealGuitarScore;
+          const chosenGuitarScore=chosenGuitarCot?.score||(selectedGuitar?localGuitarSongScore(selectedGuitar,songResult):idealGuitarScore);
+          const chosenGuitarScoreEstimated=!!selectedGuitar&&!chosenGuitarCot&&chosenGuitarScore!=null;
           const sectionStyle={background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:"var(--r-lg)",padding:"10px 12px",marginBottom:8};
           const customSectionStyle={background:"var(--a5)",border:"1px solid var(--a10)",borderRadius:"var(--r-lg)",padding:"10px 12px",marginBottom:8};
           const sectionTitle=(icon,label)=><div style={{fontSize:10,fontWeight:700,color:"var(--text-muted)",fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:8,display:"flex",alignItems:"center",gap:5}}>{icon} {label}</div>;
@@ -5881,7 +5896,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                   {(selectedGuitar||songResult.ideal_guitar)&&<span style={{fontSize:11,background:"var(--a5)",border:"1px solid var(--a10)",borderRadius:"var(--r-md)",padding:"4px 10px",color:"var(--text-bright)",fontWeight:600,display:"inline-flex",alignItems:"center",gap:6}}><StatusDot score={chosenGuitarScore} ideal={!selectedGuitar||songResult.cot_step2_guitars?.[0]?.name===selectedGuitar?.name}/>{selectedGuitar?`${selectedGuitar.name} (${selectedGuitar.type})`:songResult.ideal_guitar}</span>}
                   <button onClick={()=>setShowGuitarPick(p=>!p)} style={{fontSize:10,background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:"var(--r-md)",padding:"3px 8px",cursor:"pointer"}}>Changer</button>
                 </div>
-                {selectedGuitar&&chosenGuitarScore&&<div style={{fontSize:10,color:"var(--text-dim)",marginBottom:4}}>Compatibilite : <b style={{color:scoreColor(chosenGuitarScore)}}>{chosenGuitarScore}%</b></div>}
+                {selectedGuitar&&chosenGuitarScore&&<div style={{fontSize:10,color:"var(--text-dim)",marginBottom:4}}>Compatibilite : <b style={{color:scoreColor(chosenGuitarScore)}}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated&&<span style={{marginLeft:6,color:"var(--text-tertiary)",fontStyle:"italic"}}>(estime)</span>}</div>}
                 {showGuitarPick&&<div style={{marginBottom:8,background:"var(--a4)",borderRadius:"var(--r-md)",padding:10}}>
                   <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
                     {allGuitars.map(g=><button key={g.id} onClick={()=>{
