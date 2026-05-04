@@ -1099,7 +1099,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.2.3";
+const APP_VERSION = "7.2.4";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -1145,6 +1145,12 @@ function migrateV1toV2(v1) {
 const LS_SECRETS_KEY = "tonex_secrets";
 function loadSecrets(){try{return JSON.parse(localStorage.getItem(LS_SECRETS_KEY))||{};}catch(e){return {};}}
 function saveSecrets(secrets){try{localStorage.setItem(LS_SECRETS_KEY,JSON.stringify(secrets));}catch(e){}}
+
+// Trusted devices — per-device only, never synced. Skips password prompt for the listed profiles.
+const LS_TRUSTED_KEY = "tonex_trusted_devices";
+function loadTrusted(){try{return JSON.parse(localStorage.getItem(LS_TRUSTED_KEY))||{};}catch(e){return {};}}
+function isTrusted(id){return !!loadTrusted()[id];}
+function setTrusted(id,v){const t=loadTrusted();if(v)t[id]=true;else delete t[id];try{localStorage.setItem(LS_TRUSTED_KEY,JSON.stringify(t));}catch(e){}}
 
 function loadState() {
   try {
@@ -2029,12 +2035,22 @@ function ProfilePickerScreen({profiles,onPick}){
   const [selectedId,setSelectedId]=useState(null);
   const [pwd,setPwd]=useState("");
   const [pwdErr,setPwdErr]=useState(false);
+  const [remember,setRemember]=useState(true);
   const pwdRef=useRef(null);
   useEffect(()=>{if(selectedId&&profiles[selectedId]?.password)setTimeout(()=>pwdRef.current?.focus(),50);},[selectedId]);
+  const pickWith=(id)=>{
+    const p=profiles[id];if(!p)return;
+    if(!p.password){onPick(id);return;}
+    if(isTrusted(id)){onPick(id);return;}
+    setSelectedId(id);setPwd("");setPwdErr(false);setRemember(true);
+  };
   const tryLogin=()=>{
     const p=profiles[selectedId];
     if(!p)return;
-    if(!p.password||p.password===pwd){onPick(selectedId);}
+    if(!p.password||p.password===pwd){
+      if(p.password)setTrusted(selectedId,remember);
+      onPick(selectedId);
+    }
     else{setPwdErr(true);}
   };
   return(
@@ -2046,19 +2062,24 @@ function ProfilePickerScreen({profiles,onPick}){
         {Object.values(profiles).sort((a,b)=>a.name.localeCompare(b.name)).map(p=>{
           const c=profileColor(p.id);
           const sel=selectedId===p.id;
-          return <button key={p.id} onClick={()=>{setSelectedId(p.id);setPwd("");setPwdErr(false);if(!p.password)onPick(p.id);}} style={{background:sel?"var(--accent-bg)":"var(--a4)",border:sel?"2px solid var(--accent)":"2px solid var(--a10)",borderRadius:"var(--r-xl)",padding:"24px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
+          const trusted=p.password&&isTrusted(p.id);
+          return <button key={p.id} onClick={()=>pickWith(p.id)} style={{background:sel?"var(--accent-bg)":"var(--a4)",border:sel?"2px solid var(--accent)":"2px solid var(--a10)",borderRadius:"var(--r-xl)",padding:"24px 12px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
             <div style={{background:c,color:"var(--text-inverse)",borderRadius:"var(--r-pill)",width:48,height:48,fontSize:22,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 10px"}}>{p.name[0].toUpperCase()}</div>
             <div style={{fontSize:14,fontWeight:700,color:"var(--text)"}}>{p.name}</div>
-            {p.password&&<div style={{fontSize:11,color:"var(--text-muted)",marginTop:4}}>🔒</div>}
+            {p.password&&<div style={{fontSize:11,color:"var(--text-muted)",marginTop:4}}>{trusted?"🔓":"🔒"}</div>}
           </button>;
         })}
       </div>
-      {selectedId&&profiles[selectedId]?.password&&<div style={{width:"100%",maxWidth:300}}>
+      {selectedId&&profiles[selectedId]?.password&&!isTrusted(selectedId)&&<div style={{width:"100%",maxWidth:300}}>
         <div style={{fontSize:12,color:"var(--text-sec)",marginBottom:8,textAlign:"center"}}>Mot de passe pour {profiles[selectedId].name}</div>
         <div style={{display:"flex",gap:8}}>
           <input ref={pwdRef} type="password" inputMode="numeric" autoFocus placeholder="Mot de passe" value={pwd} onChange={e=>{setPwd(e.target.value);setPwdErr(false);}} onKeyDown={e=>e.key==="Enter"&&tryLogin()} style={{flex:1,background:"var(--bg-card)",color:"var(--text)",border:`1px solid ${pwdErr?"var(--red)":"var(--a15)"}`,borderRadius:"var(--r-md)",padding:"10px 14px",fontSize:14}}/>
           <button onClick={tryLogin} style={{background:"var(--accent)",border:"none",color:"var(--text-inverse)",borderRadius:"var(--r-md)",padding:"10px 18px",fontSize:14,fontWeight:700,cursor:"pointer"}}>OK</button>
         </div>
+        <label style={{display:"flex",alignItems:"center",gap:6,marginTop:10,fontSize:12,color:"var(--text-sec)",cursor:"pointer",justifyContent:"center"}}>
+          <input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)} style={{cursor:"pointer"}}/>
+          Mémoriser sur cet appareil
+        </label>
         {pwdErr&&<div style={{fontSize:11,color:"var(--red)",marginTop:6,textAlign:"center"}}>Mot de passe incorrect</div>}
       </div>}
       <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginTop:32}}>
@@ -2075,6 +2096,7 @@ function ProfileSelector({profiles,activeProfileId,onSwitch,onSettings,onViewPro
   const [loginId,setLoginId]=useState(null);
   const [pwd,setPwd]=useState("");
   const [pwdErr,setPwdErr]=useState(false);
+  const [remember,setRemember]=useState(true);
   const ref=useRef(null);
   const pwdRef2=useRef(null);
   useEffect(()=>{if(loginId)setTimeout(()=>pwdRef2.current?.focus(),50);},[loginId]);
@@ -2087,13 +2109,16 @@ function ProfileSelector({profiles,activeProfileId,onSwitch,onSettings,onViewPro
   const trySwitch=(id)=>{
     const p=profiles[id];
     if(!p)return;
-    if(!p.password){onSwitch(id);setOpen(false);setLoginId(null);return;}
-    setLoginId(id);setPwd("");setPwdErr(false);
+    if(!p.password||isTrusted(id)){onSwitch(id);setOpen(false);setLoginId(null);return;}
+    setLoginId(id);setPwd("");setPwdErr(false);setRemember(true);
   };
   const tryLogin=()=>{
     const p=profiles[loginId];
     if(!p)return;
-    if(p.password===pwd){onSwitch(loginId);setOpen(false);setLoginId(null);}
+    if(p.password===pwd){
+      setTrusted(loginId,remember);
+      onSwitch(loginId);setOpen(false);setLoginId(null);
+    }
     else setPwdErr(true);
   };
   const active=profiles[activeProfileId];
@@ -2113,14 +2138,20 @@ function ProfileSelector({profiles,activeProfileId,onSwitch,onSettings,onViewPro
               <button onClick={()=>trySwitch(p.id)} style={{display:"flex",alignItems:"center",gap:8,flex:1,background:"transparent",border:"none",cursor:"pointer",padding:0}}>
                 <div style={{background:c,color:"var(--text-inverse)",borderRadius:"var(--r-pill)",width:26,height:26,fontSize:12,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{p.name[0].toUpperCase()}</div>
                 <span style={{fontSize:13,color:isActive?"var(--text)":"var(--text-sec)",fontWeight:isActive?700:400}}>{p.name}</span>
-                {p.password&&<span style={{fontSize:9,color:"var(--text-dim)"}}>🔒</span>}
+                {p.password&&<span style={{fontSize:9,color:"var(--text-dim)"}}>{isTrusted(p.id)?"🔓":"🔒"}</span>}
               </button>
               {isActive&&<span style={{fontSize:11,color:"var(--green)"}}>✓</span>}
               {!isActive&&<button onClick={()=>{if(onViewProfile){onViewProfile(p.id);setOpen(false);}}} style={{background:"var(--a5)",border:"none",color:"var(--text-dim)",borderRadius:"var(--r-sm)",padding:"2px 6px",fontSize:9,cursor:"pointer"}} title="Voir la config">👁</button>}
             </div>
-            {isLogin&&<div style={{padding:"4px 8px 8px",display:"flex",gap:6}}>
-              <input ref={pwdRef2} type="password" inputMode="numeric" autoFocus placeholder="Mot de passe" value={pwd} onChange={e=>{setPwd(e.target.value);setPwdErr(false);}} onKeyDown={e=>e.key==="Enter"&&tryLogin()} style={{flex:1,background:"var(--bg-elev-1)",color:"var(--text)",border:`1px solid ${pwdErr?"var(--red)":"var(--a15)"}`,borderRadius:"var(--r-md)",padding:"5px 8px",fontSize:11}}/>
-              <button onClick={tryLogin} style={{background:"var(--accent)",border:"none",color:"var(--text-inverse)",borderRadius:"var(--r-md)",padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>OK</button>
+            {isLogin&&<div style={{padding:"4px 8px 8px"}}>
+              <div style={{display:"flex",gap:6}}>
+                <input ref={pwdRef2} type="password" inputMode="numeric" autoFocus placeholder="Mot de passe" value={pwd} onChange={e=>{setPwd(e.target.value);setPwdErr(false);}} onKeyDown={e=>e.key==="Enter"&&tryLogin()} style={{flex:1,background:"var(--bg-elev-1)",color:"var(--text)",border:`1px solid ${pwdErr?"var(--red)":"var(--a15)"}`,borderRadius:"var(--r-md)",padding:"5px 8px",fontSize:11}}/>
+                <button onClick={tryLogin} style={{background:"var(--accent)",border:"none",color:"var(--text-inverse)",borderRadius:"var(--r-md)",padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>OK</button>
+              </div>
+              <label style={{display:"flex",alignItems:"center",gap:5,marginTop:5,fontSize:10,color:"var(--text-muted)",cursor:"pointer"}}>
+                <input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)} style={{cursor:"pointer"}}/>
+                Mémoriser sur cet appareil
+              </label>
             </div>}
           </div>;
         })}
@@ -3127,8 +3158,12 @@ function ProfilesAdmin({profiles,onProfiles}){
   };
   const savePwd=(id)=>{
     onProfiles(p=>({...p,[id]:{...p[id],password:editPwdVal}}));
+    // Password changed → invalidate any trusted-device flag for this profile so the new password gets prompted next time.
+    setTrusted(id,false);
     setEditPwdId(null);setEditPwdVal("");
   };
+  const [trustTick,setTrustTick]=useState(0);
+  const forgetDevice=(id)=>{setTrusted(id,false);setTrustTick(t=>t+1);};
   const saveName=(id)=>{
     if(!editNameVal.trim())return;
     onProfiles(p=>({...p,[id]:{...p[id],name:editNameVal.trim()}}));
@@ -3151,8 +3186,9 @@ function ProfilesAdmin({profiles,onProfiles}){
               <>
                 <div style={{flex:1,fontSize:13,fontWeight:600,color:"var(--text)"}}>{p.name}{p.isAdmin&&<span style={{fontSize:9,color:"var(--text-dim)",marginLeft:6}}>admin</span>}</div>
                 <button onClick={()=>{setEditNameId(p.id);setEditNameVal(p.name);}} style={{background:"none",border:"none",color:"var(--text-muted)",fontSize:12,cursor:"pointer",padding:"2px 4px"}}>✏️</button>
-                <span style={{fontSize:10,color:"var(--text-muted)"}}>{p.password?"🔒":"🔓"}</span>
+                <span style={{fontSize:10,color:"var(--text-muted)"}}>{p.password?(isTrusted(p.id)?"🔓":"🔒"):"🔓"}</span>
                 <button onClick={()=>{setEditPwdId(editPwdId===p.id?null:p.id);setEditPwdVal(p.password||"");}} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:"var(--r-sm)",padding:"3px 7px",fontSize:10,cursor:"pointer"}}>Mot de passe</button>
+                {p.password&&isTrusted(p.id)&&<button onClick={()=>forgetDevice(p.id)} title="Le mot de passe sera redemandé au prochain login sur cet appareil" style={{background:"var(--a5)",border:"none",color:"var(--text-muted)",borderRadius:"var(--r-sm)",padding:"3px 7px",fontSize:10,cursor:"pointer"}}>Oublier appareil</button>}
                 {Object.keys(profiles).length>1&&!p.isAdmin&&<button onClick={()=>deleteProfile(p.id)} style={{background:"var(--red-bg)",border:"1px solid var(--red-border)",color:"var(--red)",borderRadius:"var(--r-md)",padding:"3px 8px",fontSize:11,cursor:"pointer"}}>Supprimer</button>}
               </>
             )}
