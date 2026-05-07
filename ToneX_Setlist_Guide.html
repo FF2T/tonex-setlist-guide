@@ -1038,6 +1038,24 @@ function normalizePresetName(n){
     .replace(/\s+/g," ").trim();      // espaces multiples → un seul
 }
 
+// Patch one-shot : certaines entrées TSR de PRESET_CATALOG_FULL n'ont pas le
+// champ `pack` alors que TSR_PACK_CATALOG l'a. On enrichit PRESET_CATALOG_MERGED
+// en cross-référençant via le nom normalisé pour que presetSourceInfo affiche
+// le bon « <pack>.zip ».
+(function patchTsrPacks(){
+  if(typeof TSR_PACK_CATALOG==="undefined") return;
+  const byNorm={};
+  for(const [k,v] of Object.entries(TSR_PACK_CATALOG)){
+    if(v?.src==="TSR"&&v.pack) byNorm[normalizePresetName(k)]=v.pack;
+  }
+  for(const [k,v] of Object.entries(PRESET_CATALOG_MERGED)){
+    if(v?.src==="TSR"&&!v.pack){
+      const p=byNorm[normalizePresetName(k)];
+      if(p) PRESET_CATALOG_MERGED[k]={...v,pack:p};
+    }
+  }
+})();
+
 // Normalise un titre de morceau pour détection de doublons stricte
 // "T.N.T." === "TNT", "Romeo & Juliet" === "Romeo and Juliet"
 function normalizeSongTitle(t){
@@ -1210,7 +1228,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.3.4";
+const APP_VERSION = "7.3.5";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -1462,7 +1480,7 @@ function PBlock({device,emoji,presetName,gType,banks,adapted,gs,bg2,availableSou
         <div style={{fontSize:12,color:"var(--text-bright)",fontWeight:600,marginBottom:4}}>{displayName}</div>
         <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
           {displayRec.installed
-            ?<span style={{background:`${CC[displayRec.slot]}18`,color:CC[displayRec.slot],border:`1px solid ${CC[displayRec.slot]}40`,borderRadius:"var(--r-sm)",padding:"1px 7px",fontSize:10,fontWeight:700}}>Banque {displayRec.bank}{displayRec.slot}</span>
+            ?<span title={`Slot ${displayRec.slot} — ${CL[displayRec.slot]}`} style={{background:`${CC[displayRec.slot]}18`,color:CC[displayRec.slot],border:`1px solid ${CC[displayRec.slot]}40`,borderRadius:"var(--r-sm)",padding:"1px 7px",fontSize:10,fontWeight:700}}>Banque {displayRec.bank}{displayRec.slot}</span>
             :<><span style={{fontSize:10,color:"var(--yellow)",fontWeight:700}}>⬇ À installer</span>{entry?.src==="TSR"&&entry.pack&&<span style={{fontSize:9,color:"var(--text-dim)"}}>📦 {entry.pack}.zip</span>}</>
           }
           {showBest&&<span style={{fontSize:9,color:"var(--green)",fontWeight:600}}>↑ meilleur choix</span>}
@@ -4146,7 +4164,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
             <div style={{display:"flex",alignItems:"center",gap:5}}>
               <StatusDot score={sc} ideal={isIdeal}/>
               {loc
-                ?<span style={{fontSize:10,background:`${CC[loc.slot]}18`,color:CC[loc.slot],border:`1px solid ${CC[loc.slot]}40`,borderRadius:"var(--r-sm)",padding:"1px 6px",fontWeight:700}}>{loc.bank}{loc.slot}</span>
+                ?<span title={`Banque ${loc.bank}, slot ${loc.slot} — ${CL[loc.slot]}`} style={{fontSize:10,background:`${CC[loc.slot]}18`,color:CC[loc.slot],border:`1px solid ${CC[loc.slot]}40`,borderRadius:"var(--r-sm)",padding:"1px 6px",fontWeight:700}}>{loc.bank}{loc.slot}</span>
                 :<span style={{fontSize:10,background:"var(--yellow-bg)",color:"var(--yellow)",borderRadius:"var(--r-sm)",padding:"1px 6px",fontWeight:700}}>⬇</span>
               }
               {ampName&&<span style={{fontSize:10,color:scColor||"var(--text-sec)",background:scBg||"transparent",border:scColor?`1px solid ${scColor}30`:"none",borderRadius:"var(--r-sm)",padding:"1px 6px",fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:120}}>{ampName}</span>}
