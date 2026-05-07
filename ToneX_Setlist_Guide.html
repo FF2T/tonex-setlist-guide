@@ -1230,7 +1230,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.4.3";
+const APP_VERSION = "7.4.4";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4428,8 +4428,9 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
 
   // Actions prioritaires PAR DEVICE — chaque pédale/plug a ses propres top 3.
   // Pour chaque morceau, on parcourt tout le top 3 catalogue (pas juste le 1er).
-  // Groupé par preset, classé par bénéfice total. Seuil 3%.
-  const PRIO_DELTA_MIN=3;
+  // Groupé par preset, classé par bénéfice total. Seuil bas (1%) pour ne plus rater
+  // les micro-gains qui s'accumulent quand un même preset profite à plusieurs morceaux.
+  const PRIO_DELTA_MIN=1;
   const computePriority=(rows,deviceKey,banks)=>{
     const grouped={};
     for(const r of rows){
@@ -4687,9 +4688,11 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
 
       {/* ── TOP 3 ACTIONS PRIORITAIRES PAR DEVICE ── */}
       {songs.length>0&&(()=>{
-        const renderDeviceBlock=(deviceKey,deviceLabel,curMean,projMean,actions,bgAccent)=>{
+        const renderDeviceBlock=(deviceKey,deviceLabel,curMean,projMean,actions,rows)=>{
           if(curMean==null) return null;
           const delta=projMean!=null?projMean-curMean:0;
+          // Morceaux sous 80% sans action générée — ils sont "bloqués au plafond catalogue"
+          const stuck=rows.filter(r=>!r.noAI&&r.installedScore<80&&!actions.some(a=>a.songs.some(s=>s.song.id===r.song.id)));
           return <div style={{background:"var(--bg-elev-2)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-md)",padding:"var(--s-3)"}}>
             <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:"var(--s-2)"}}>
               <span style={{fontSize:13,fontWeight:700,color:"var(--text-primary)"}}>{deviceLabel}</span>
@@ -4702,7 +4705,24 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
               </>}
             </div>
             {actions.length===0
-              ?<div style={{fontSize:11,color:"var(--success)",padding:"6px 0"}}>✓ Rien à optimiser sur ce device</div>
+              ?<div>
+                {stuck.length===0
+                  ?<div style={{fontSize:11,color:"var(--success)",padding:"6px 0"}}>✓ Rien à optimiser sur ce device</div>
+                  :<div>
+                    <div style={{fontSize:11,color:"var(--text-secondary)",marginBottom:5}}>Pas de meilleur preset disponible pour {stuck.length} morceau{stuck.length>1?"x":""} (déjà au plafond du catalogue compatible) :</div>
+                    <div style={{display:"flex",flexDirection:"column",gap:3}}>
+                      {stuck.map(r=>(
+                        <div key={r.song.id} style={{fontSize:10,color:"var(--text-tertiary)",display:"flex",gap:6,alignItems:"baseline"}}>
+                          <span style={{fontFamily:"var(--font-mono)",fontWeight:700,color:scoreColor(r.installedScore),minWidth:32}}>{r.installedScore}%</span>
+                          <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.song.title}</span>
+                          {r.installed?.name&&<span style={{color:"var(--text-tertiary)",fontStyle:"italic"}}>· {r.installed.name}</span>}
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{fontSize:9,color:"var(--text-tertiary)",marginTop:6,fontStyle:"italic"}}>Pour faire mieux : changer la guitare assignée, activer un pack non coché dans Profil → Sources, ou créer un preset custom.</div>
+                  </div>
+                }
+              </div>
               :<>
                 <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:8}}>
                   {actions.map((a,i)=>{
@@ -4731,8 +4751,8 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
         return <div style={sectionStyle}>
           {eyebrow("⚡","Actions prioritaires")}
           <div style={{display:"flex",flexDirection:"column",gap:"var(--s-2)"}}>
-            {renderDeviceBlock("ann","📦 Pédale",annMean,annProjected,annPriority)}
-            {renderDeviceBlock("plug","🔌 Plug",plugMean,plugProjected,plugPriority)}
+            {renderDeviceBlock("ann","📦 Pédale",annMean,annProjected,annPriority,annAnalysis.songRows)}
+            {renderDeviceBlock("plug","🔌 Plug",plugMean,plugProjected,plugPriority,plugAnalysis.songRows)}
           </div>
         </div>;
       })()}
