@@ -1195,7 +1195,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.3.0";
+const APP_VERSION = "7.3.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3546,9 +3546,14 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
   const needRescore=!localAiResult&&aiCraw&&gId&&song.aiCache?.gId!==gId;
   const aiC=needRescore?enrichAIResult({...aiCraw,preset_ann:null,preset_plug:null,ideal_preset:null,ideal_preset_score:0,ideal_top3:null},type,gId,banksAnn,banksPlug):aiCraw;
   const songInfo=getSongInfo(song);
-  // Compute ideal guitar score from CoT step 2
-  const idealGuitarObj=aiC?.cot_step2_guitars?.[0];
-  const idealGuitarScore=idealGuitarObj?.score||null;
+  // "Recommandation idéale" : on score la guitare RÉELLEMENT affichée (ideal_guitar texte),
+  // pas blindly cot[0] qui peut référer à une autre guitare. Cohérence avec "Mon choix".
+  const idealGuitarFromCollection=aiC?.ideal_guitar?findGuitarByAIName(aiC.ideal_guitar,guitars):null;
+  const idealGuitarCot=idealGuitarFromCollection?findCotEntryForGuitar(aiC?.cot_step2_guitars,idealGuitarFromCollection):null;
+  const idealGuitarObj=idealGuitarCot||aiC?.cot_step2_guitars?.[0];
+  const idealGuitarScore=idealGuitarCot?.score
+    ||(idealGuitarFromCollection?localGuitarSongScore(idealGuitarFromCollection,aiC):null)
+    ||idealGuitarObj?.score||null;
   // Compute chosen guitar score from CoT step 2 — l'IA ne renvoie que le top 2-3, donc fallback local sinon
   const chosenGuitarCot=findCotEntryForGuitar(aiC?.cot_step2_guitars,g);
   const chosenGuitarScore=chosenGuitarCot?.score||localGuitarSongScore(g,aiC);
@@ -6067,8 +6072,15 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         {songResult&&confirmedSong&&(()=>{
           const existing=songDb.find(s=>normalizePresetName(s.title)===normalizePresetName(confirmedSong.title));
           const info=existing?getSongInfo(existing):{year:songResult.song_year,album:songResult.song_album,desc:songResult.song_desc,key:songResult.song_key,bpm:songResult.song_bpm};
-          const idealGuitarObj=songResult.cot_step2_guitars?.[0];
-          const idealGuitarScore=idealGuitarObj?.score||null;
+          // "Recommandation idéale" : on score la guitare RÉELLEMENT affichée (ideal_guitar texte),
+          // pas blindly cot[0] qui peut référer à une autre guitare. Garantit la cohérence avec
+          // "Mon choix" quand l'utilisateur a sélectionné la même guitare que l'idéale.
+          const idealGuitarFromCollection=songResult.ideal_guitar?findGuitarByAIName(songResult.ideal_guitar,allGuitars):null;
+          const idealGuitarCot=idealGuitarFromCollection?findCotEntryForGuitar(songResult.cot_step2_guitars,idealGuitarFromCollection):null;
+          const idealGuitarObj=idealGuitarCot||songResult.cot_step2_guitars?.[0];
+          const idealGuitarScore=idealGuitarCot?.score
+            ||(idealGuitarFromCollection?localGuitarSongScore(idealGuitarFromCollection,songResult):null)
+            ||idealGuitarObj?.score||null;
           const chosenGuitarCot=selectedGuitar?findCotEntryForGuitar(songResult.cot_step2_guitars,selectedGuitar):null;
           const chosenGuitarScore=chosenGuitarCot?.score||(selectedGuitar?localGuitarSongScore(selectedGuitar,songResult):idealGuitarScore);
           const chosenGuitarScoreEstimated=!!selectedGuitar&&!chosenGuitarCot&&chosenGuitarScore!=null;
