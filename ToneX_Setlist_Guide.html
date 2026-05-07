@@ -311,13 +311,17 @@ function saveSharedKey(key){
   /* ── Mobile ── */
   @media(max-width:639px){
     body{font-size:var(--fs-base)}
-    .page-root{font-size:var(--fs-base)}
+    .page-root{font-size:var(--fs-base);padding-bottom:70px}
     .tab-btn{font-size:var(--fs-sm);padding:var(--s-3) var(--s-1)}
     .tab-icon{font-size:18px}
+    .nav-mobile{display:flex!important}
+    .nav-desktop{display:none!important}
   }
   /* ── Tablet ── */
   @media(min-width:640px){
     .page-root{max-width:92%;padding:var(--s-6);font-size:var(--fs-base)}
+    .nav-mobile{display:none!important}
+    .nav-desktop{display:flex!important}
     .tab-btn{font-size:var(--fs-sm);padding:var(--s-4) var(--s-2)}
     .tab-icon{font-size:20px}
     .guitar-grid{grid-template-columns:repeat(4,1fr);gap:var(--s-3)}
@@ -1230,7 +1234,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.4.4";
+const APP_VERSION = "8.0.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -1430,18 +1434,55 @@ function StatusDot({score,ideal,size}){
   const title=ideal?"Ideal":(score!=null?scoreLabel(score).t:"");
   return <span title={title} style={{display:"inline-block",width:s,height:s,borderRadius:"var(--r-xs)",flexShrink:0,background:bg,border:ideal?"2px solid var(--brass-200)":"none"}}/>;
 }
-function AppHeader({profiles,activeProfileId,onSwitch,onProfile,onViewProfile}){
-  return <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
-    <ProfileSelector profiles={profiles} activeProfileId={activeProfileId} onSwitch={onSwitch} onSettings={onProfile} onViewProfile={onViewProfile}/>
-    <button onClick={onProfile} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:"var(--r-md)",padding:"6px 10px",fontSize:10,fontWeight:600,cursor:"pointer"}}>Mon profil</button>
+function AppHeader({profiles,activeProfileId,onProfile,screen,onNavigate,isAdmin,syncStatus}){
+  var profileName=(profiles[activeProfileId]||{}).name||"";
+  var c=profileColor(activeProfileId);
+  var NAV_ITEMS=[
+    {id:"list",icon:"🏠",label:"Accueil"},
+    {id:"setlists",icon:"🎵",label:"Setlists"},
+    {id:"explore",icon:"🎛️",label:"Explorer"},
+    {id:"jam",icon:"🎲",label:"Jammer"},
+    {id:"optimizer",icon:"🔧",label:"Optimiser"},
+  ];
+  return <div>
+    {/* Header bar */}
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,padding:"0"}}>
+      <button onClick={onProfile} style={{background:c,color:"var(--text-inverse)",border:"none",borderRadius:"var(--r-pill,50%)",width:32,height:32,fontSize:14,fontWeight:800,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}} title={profileName}>{profileName[0]?.toUpperCase()||"?"}</button>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:14,fontWeight:800,color:"var(--text-primary)",fontFamily:"var(--font-display,system-ui)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>ToneX Poweruser</div>
+      </div>
+      {syncStatus&&<span style={{fontSize:10,color:syncStatus==="synced"?"var(--status-success,var(--green))":syncStatus==="syncing"?"var(--status-warning,var(--yellow))":"var(--text-dim)"}}>{syncStatus==="synced"?"☁️":syncStatus==="syncing"?"⏳":"⚠️"}</span>}
+      <span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"var(--font-mono,monospace)"}}>v{APP_VERSION}</span>
+    </div>
+    {/* Desktop nav — inline tabs in header */}
+    <div className="nav-desktop" style={{display:"none",gap:4,marginBottom:12}}>
+      {NAV_ITEMS.map(function(item){
+        var active=screen===item.id;
+        return <button key={item.id} onClick={function(){onNavigate(item.id);}} style={{background:active?"var(--accent-soft,rgba(129,140,248,0.1))":"transparent",border:active?"1px solid var(--border-accent,rgba(129,140,248,0.3))":"1px solid transparent",color:active?"var(--accent,#818cf8)":"var(--text-tertiary,var(--text-muted))",borderRadius:"var(--r-md,8px)",padding:"6px 12px",fontSize:12,fontWeight:active?700:500,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:14}}>{item.icon}</span>{item.label}</button>;
+      })}
+    </div>
+  </div>;
+}
+function AppNavBottom({screen,onNavigate}){
+  var NAV_ITEMS=[
+    {id:"list",icon:"🏠",label:"Accueil"},
+    {id:"setlists",icon:"🎵",label:"Setlists"},
+    {id:"explore",icon:"🎛️",label:"Explorer"},
+    {id:"jam",icon:"🎲",label:"Jammer"},
+    {id:"optimizer",icon:"🔧",label:"Optimiser"},
+  ];
+  return <div className="nav-mobile" style={{display:"flex",position:"fixed",bottom:0,left:0,right:0,background:"var(--surface-card,var(--bg-card))",borderTop:"1px solid var(--border-subtle,var(--a8))",zIndex:50,paddingBottom:"max(4px,env(safe-area-inset-bottom))"}}>
+    {NAV_ITEMS.map(function(item){
+      var active=screen===item.id;
+      return <button key={item.id} onClick={function(){onNavigate(item.id);}} style={{flex:1,background:"none",border:"none",color:active?"var(--accent,#818cf8)":"var(--text-tertiary,var(--text-muted))",padding:"8px 0 4px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+        <span style={{fontSize:18}}>{item.icon}</span>
+        <span style={{fontSize:9,fontWeight:active?700:500}}>{item.label}</span>
+      </button>;
+    })}
   </div>;
 }
 function AppFooter({syncStatus}){
-  return <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"24px 0 8px",flexWrap:"wrap"}}>
-    {syncStatus&&<span style={{fontSize:10,color:syncStatus==="synced"?"var(--green)":syncStatus==="syncing"?"var(--yellow)":syncStatus==="error"?"var(--red)":"var(--text-dim)"}} title={syncStatus==="synced"?"Synchronise":syncStatus==="syncing"?"Synchronisation...":"Hors ligne"}>{syncStatus==="synced"?"☁️":syncStatus==="syncing"?"⏳":"⚠️"}</span>}
-    <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"var(--font-mono)"}}>ToneX Poweruser v{APP_VERSION}</span>
-    <button onClick={()=>{location.reload(true);}} style={{background:"none",border:"none",color:"var(--text-dim)",fontSize:10,cursor:"pointer",textDecoration:"underline"}} title="Recharger pour récupérer la dernière version">MAJ</button>
-  </div>;
+  return <div style={{height:60}}></div>;
 }
 function Breadcrumb({crumbs,onNavigate}){
   return(
@@ -6312,7 +6353,6 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
     <div style={{display:"flex",flexDirection:"column",minHeight:"80vh"}}>
       {splashOpen&&<SplashPopup onClose={()=>setSplashOpen(false)}/>}
       {showOnboarding&&<OnboardingWizard onClose={()=>setShowOnboarding(false)} onProfile={onProfile}/>}
-      <AppHeader profiles={profiles} activeProfileId={activeProfileId} onSwitch={onSwitchProfile} onProfile={onProfile} onViewProfile={onViewProfile}/>
 
       {/* Zone centrale style Google */}
       <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"stretch",padding:"8px 0 4px"}}>
@@ -6550,31 +6590,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
       </div>}
       </div>
 
-      {/* Tuiles en bas (masquer si résultat ou loading) */}
-      {!songResult&&!songLoading&&<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"var(--s-2)",paddingBottom:"var(--s-2)",marginTop:"var(--s-1)"}}>
-        <button onClick={onSetlistScreen} style={{background:"var(--surface-card)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-lg)",padding:"var(--s-4) var(--s-3)",cursor:"pointer",textAlign:"center",transition:"all var(--dur-fast) var(--ease-out)",boxShadow:"var(--shadow-xs)"}}>
-          <div style={{fontSize:24,marginBottom:4}}>🎵</div>
-          <div style={{fontSize:"var(--fs-sm)",fontWeight:700,color:"var(--text-primary)",fontFamily:"var(--font-ui)"}}>Setlists</div>
-          <div style={{fontSize:"var(--fs-xs)",color:"var(--text-tertiary)",marginTop:2,fontFamily:"var(--font-mono)"}}>{setlists.length} setlist{setlists.length>1?"s":""}</div>
-        </button>
-        <button onClick={()=>onJam()} style={{background:"var(--surface-card)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-lg)",padding:"var(--s-4) var(--s-3)",cursor:"pointer",textAlign:"center",transition:"all var(--dur-fast) var(--ease-out)",boxShadow:"var(--shadow-xs)"}}>
-          <div style={{fontSize:24,marginBottom:4}}>🎲</div>
-          <div style={{fontSize:"var(--fs-sm)",fontWeight:700,color:"var(--text-primary)",fontFamily:"var(--font-ui)"}}>Jammer</div>
-          <div style={{fontSize:"var(--fs-xs)",color:"var(--text-tertiary)",marginTop:2,fontFamily:"var(--font-mono)"}}>Guitare + style</div>
-        </button>
-        <button onClick={()=>onExplore()} style={{background:"var(--surface-card)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-lg)",padding:"var(--s-4) var(--s-3)",cursor:"pointer",textAlign:"center",transition:"all var(--dur-fast) var(--ease-out)",boxShadow:"var(--shadow-xs)"}}>
-          <div style={{fontSize:24,marginBottom:4}}>🎛️</div>
-          <div style={{fontSize:"var(--fs-sm)",fontWeight:700,color:"var(--text-primary)",fontFamily:"var(--font-ui)"}}>Explorer</div>
-          <div style={{fontSize:"var(--fs-xs)",color:"var(--text-tertiary)",marginTop:2,fontFamily:"var(--font-mono)"}}>Profils sonores</div>
-        </button>
-        <button onClick={()=>onOptimizer()} style={{background:"var(--surface-card)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-lg)",padding:"var(--s-4) var(--s-3)",cursor:"pointer",textAlign:"center",transition:"all var(--dur-fast) var(--ease-out)",boxShadow:"var(--shadow-xs)"}}>
-          <div style={{fontSize:24,marginBottom:4}}>🔧</div>
-          <div style={{fontSize:"var(--fs-sm)",fontWeight:700,color:"var(--text-primary)",fontFamily:"var(--font-ui)"}}>Optimiser</div>
-          <div style={{fontSize:"var(--fs-xs)",color:"var(--text-tertiary)",marginTop:2,fontFamily:"var(--font-mono)"}}>Banks</div>
-        </button>
-      </div>}
-      <AppFooter syncStatus={syncStatus}/>
-      <div style={{textAlign:"center",paddingBottom:8}}><button onClick={()=>setShowOnboarding(true)} style={{background:"none",border:"none",color:"var(--text-dim)",fontSize:10,cursor:"pointer",textDecoration:"underline"}}>Aide</button></div>
+      <div style={{textAlign:"center",padding:"var(--s-4) 0 var(--s-2)"}}><button onClick={()=>setShowOnboarding(true)} style={{background:"none",border:"none",color:"var(--text-dim)",fontSize:10,cursor:"pointer",textDecoration:"underline"}}>Aide</button></div>
     </div>
   );
 }
@@ -6984,40 +7000,31 @@ function App() {
   };
 
   const [profileInitTab,setProfileInitTab]=useState(null);
+  var headerProps={profiles:profiles,activeProfileId:activeProfileId,onProfile:function(){setProfileInitTab(null);setScreen("profile");},screen:screen,onNavigate:setScreen,isAdmin:isAdmin,syncStatus:syncStatus};
+  var mainScreens=["list","setlists","explore","jam","optimizer","recap","synthesis","profile","settings","viewprofile","exportimport"];
+  var showNav=mainScreens.includes(screen);
 
   if(screen==="loading") return <div className="page-root"><div style={{textAlign:"center",padding:"60px 20px"}}><div style={{fontSize:48,marginBottom:16}}>🎸</div><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)"}}>ToneX Poweruser</div><div style={{fontSize:13,color:"var(--text-muted)",marginTop:8}}>Chargement...</div></div></div>;
   if(screen==="pick") return <div className="page-root"><ProfilePickerScreen profiles={profiles} onPick={pickProfile}/></div>;
-  if(screen==="viewprofile"&&viewProfileId&&profiles[viewProfileId]) return <div className="page-root"><ViewProfileScreen profile={profiles[viewProfileId]} onBack={()=>setScreen("list")} onNavigate={setScreen}/><AppFooter syncStatus={syncStatus}/></div>;
-  if(screen==="exportimport") return <div className="page-root"><ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("settings")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/><AppFooter syncStatus={syncStatus}/></div>;
-  if(screen==="profile")      return <div className="page-root"><MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/><AppFooter syncStatus={syncStatus}/></div>;
-  if(screen==="settings")     return <div className="page-root"><ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} songDb={songDb} onSongDb={setSongDb} setlists={setlists} onSetlists={setSetlists}/><AppFooter syncStatus={syncStatus}/></div>;
-  if(screen==="setlists")     return <div className="page-root">
-    <AppHeader profiles={profiles} activeProfileId={activeProfileId} onSwitch={switchProfile} onProfile={()=>{setProfileInitTab(null);setScreen("profile");}} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}}/>
-    <SetlistsScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} activeProfileId={activeProfileId}/>
-    <AppFooter syncStatus={syncStatus}/>
+
+  var screenContent=null;
+  if(screen==="viewprofile"&&viewProfileId&&profiles[viewProfileId]) screenContent=<ViewProfileScreen profile={profiles[viewProfileId]} onBack={()=>setScreen("list")} onNavigate={setScreen}/>;
+  else if(screen==="exportimport") screenContent=<ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("settings")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/>;
+  else if(screen==="profile") screenContent=<MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/>;
+  else if(screen==="settings") screenContent=<ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} songDb={songDb} onSongDb={setSongDb} setlists={setlists} onSetlists={setSetlists}/>;
+  else if(screen==="setlists") screenContent=<SetlistsScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} activeProfileId={activeProfileId}/>;
+  else if(screen==="jam") screenContent=<div><Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Jammer"}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>🎲 Jammer</div><JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/></div>;
+  else if(screen==="explore") screenContent=<div><Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Explorer"}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>🎛️ Explorer les presets</div><PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={profile.customPacks} guitars={allGuitars} toneNetPresets={toneNetPresets}/></div>;
+  else if(screen==="optimizer") screenContent=<BankOptimizerScreen songDb={songDb} setlists={mySetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} allGuitars={allGuitars} availableSources={availableSources} onNavigate={setScreen}/>;
+  else if(screen==="synthesis"&&synth) screenContent=<SynthesisScreen songs={songs} gps={synth.gps} aiR={synth.aiR} onBack={()=>setScreen("recap")} onNavigate={setScreen} songDb={songDb} banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/>;
+  else if(screen==="recap") screenContent=<RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDb} onSongDb={setSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources}/>;
+  else screenContent=<HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} onOptimizer={()=>setScreen("optimizer")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/>;
+
+  return <div className="page-root">
+    <AppHeader {...headerProps}/>
+    {screenContent}
+    {showNav&&<AppNavBottom screen={screen} onNavigate={setScreen}/>}
   </div>;
-  if(screen==="jam") return <div className="page-root">
-    <AppHeader profiles={profiles} activeProfileId={activeProfileId} onSwitch={switchProfile} onProfile={()=>{setProfileInitTab(null);setScreen("profile");}} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}}/>
-    <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Jammer"}]} onNavigate={setScreen}/>
-    <div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>🎲 Jammer</div>
-    <JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/>
-    <AppFooter syncStatus={syncStatus}/>
-  </div>;
-  if(screen==="explore") return <div className="page-root">
-    <AppHeader profiles={profiles} activeProfileId={activeProfileId} onSwitch={switchProfile} onProfile={()=>{setProfileInitTab(null);setScreen("profile");}} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}}/>
-    <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Explorer"}]} onNavigate={setScreen}/>
-    <div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>🎛️ Explorer les presets</div>
-    <PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={profile.customPacks} guitars={allGuitars} toneNetPresets={toneNetPresets}/>
-    <AppFooter syncStatus={syncStatus}/>
-  </div>;
-  if(screen==="optimizer") return <div className="page-root">
-    <AppHeader profiles={profiles} activeProfileId={activeProfileId} onSwitch={switchProfile} onProfile={()=>{setProfileInitTab(null);setScreen("profile");}} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}}/>
-    <BankOptimizerScreen songDb={songDb} setlists={mySetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} allGuitars={allGuitars} availableSources={availableSources} onNavigate={setScreen}/>
-    <AppFooter syncStatus={syncStatus}/>
-  </div>;
-  if(screen==="synthesis"&&synth) return <div className="page-root"><AppHeader profiles={profiles} activeProfileId={activeProfileId} onSwitch={switchProfile} onProfile={()=>{setProfileInitTab(null);setScreen("profile");}} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}}/><SynthesisScreen songs={songs} gps={synth.gps} aiR={synth.aiR} onBack={()=>setScreen("recap")} onNavigate={setScreen} songDb={songDb} banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/><AppFooter syncStatus={syncStatus}/></div>;
-  if(screen==="recap")        return <div className="page-root"><AppHeader profiles={profiles} activeProfileId={activeProfileId} onSwitch={switchProfile} onProfile={()=>{setProfileInitTab(null);setScreen("profile");}} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}}/><RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDb} onSongDb={setSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources}/><AppFooter syncStatus={syncStatus}/></div>;
-  return <div className="page-root"><HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} onOptimizer={()=>setScreen("optimizer")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/></div>;
 }
 
 ReactDOM.render(<App/>, document.getElementById("root"));
