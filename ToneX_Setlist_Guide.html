@@ -954,7 +954,8 @@ function computeFinalScore(preset,guitarId,songStyle,songTargetGain,songRefAmp,_
   }
   for(const d of dims){if(d.score===null)breakdown[d.key]={raw:null,weight:0,contribution:0};}
   const result=Math.max(0,Math.min(100,Math.round(final)));
-  if(_returnBreakdown) return {score:result,breakdown};
+  const rawResult=Math.max(0,Math.min(100,final));
+  if(_returnBreakdown) return {score:result,rawScore:rawResult,breakdown};
   return result;
 }
 
@@ -998,6 +999,23 @@ function normalizePresetName(n){
     .replace(/\bchnl\b/g,"ch")        // chnl → ch
     .replace(/\bchanl?\b/g,"ch")      // chanl/chan → ch
     .replace(/\s+/g," ").trim();      // espaces multiples → un seul
+}
+
+// Normalise un titre de morceau pour détection de doublons stricte
+// "T.N.T." === "TNT", "Romeo & Juliet" === "Romeo and Juliet"
+function normalizeSongTitle(t){
+  if(!t) return "";
+  return t.toLowerCase()
+    .replace(/&/g,"and")
+    .replace(/[^a-z0-9]/g,"");
+}
+function normalizeArtist(a){
+  if(!a) return "";
+  return a.toLowerCase().replace(/&/g,"and").replace(/[^a-z0-9]/g,"");
+}
+function findDuplicateSong(songDb,title,artist){
+  const nt=normalizeSongTitle(title), na=normalizeArtist(artist);
+  return songDb.find(s=>normalizeSongTitle(s.title)===nt&&(!na||!s.artist||normalizeArtist(s.artist)===na));
 }
 
 // Cherche un preset dans les banks d'une pédale (comparaison souple)
@@ -1155,7 +1173,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.2.7";
+const APP_VERSION = "7.2.8";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -1602,11 +1620,24 @@ function mergeBestResults(prev,next){
 }
 
 // Mise en cache avec mémoire du meilleur résultat par guitare (par dimension)
+// Préserve les faits historiques (matériel original de l'artiste, infos morceau)
+// — une optimisation ne doit JAMAIS réécrire ces faits, seulement la recommandation.
+const HISTORICAL_FIELDS=["ref_guitarist","ref_guitar","ref_amp","ref_effects","song_year","song_album","song_desc","song_key","song_bpm"];
+function preserveHistorical(prev,next){
+  if(!prev) return next;
+  const merged={...next};
+  for(const k of HISTORICAL_FIELDS){
+    if(prev[k]!=null&&prev[k]!=="") merged[k]=prev[k];
+  }
+  return merged;
+}
 function updateAiCache(existing,gId,newResult){
+  const prevResult=existing?.result;
+  const merged=preserveHistorical(prevResult,newResult);
   const prevBest=existing?.bestByGuitar?.[gId];
-  const best=mergeBestResults(prevBest,newResult);
+  const best=mergeBestResults(prevBest,merged);
   const bestByGuitar={...(existing?.bestByGuitar||{}), [gId]:best};
-  return {gId,result:newResult,sv:SCORING_VERSION,bestByGuitar};
+  return {gId,result:merged,sv:SCORING_VERSION,bestByGuitar};
 }
 function getBestResult(song,gId,fallback){
   const cached=song.aiCache?.bestByGuitar?.[gId];
@@ -2872,12 +2903,34 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
     <button onClick={()=>setTab(id)} style={{background:tab===id?"var(--accent-bg)":"var(--a5)",border:tab===id?"1px solid var(--border-accent)":"1px solid var(--a8)",color:tab===id?"var(--accent)":"var(--text-sec)",borderRadius:"var(--r-md)",padding:"7px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{label}</button>
   );
   const createSetlist=()=>{if(!newSlName.trim())return;onSetlists(p=>[...p,{id:`sl_${Date.now()}`,name:newSlName.trim(),songIds:[],profileIds:[activeProfileId]}]);setNewSlName("");};
-  const deleteSetlist=id=>onSetlists(p=>p.filter(s=>s.id!==id));
+  const deleteSetlist=id=>{
+    const sl=setlists.find(s=>s.id===id);
+    if(!sl) return;
+    const n=sl.songIds.length;
+    if(!window.confirm(`Supprimer la setlist "${sl.name}" ?${n>0?"\nElle contient "+n+" morceau"+(n>1?"x":"")+" (les morceaux ne sont pas supprimés de la base).":""}`)) return;
+    onSetlists(p=>p.filter(s=>s.id!==id));
+  };
   const renameSetlist=(id,name)=>onSetlists(p=>p.map(s=>s.id===id?{...s,name}:s));
   const removeSongFromSetlist=(slId,songId)=>onSetlists(p=>p.map(sl=>sl.id===slId?{...sl,songIds:sl.songIds.filter(x=>x!==songId)}:sl));
   const addSongToDb=()=>{
     if(!newSongTitle.trim())return;
-    const ns={id:`c_${Date.now()}`,title:newSongTitle.trim(),artist:newSongArtist.trim()||"Artiste inconnu",isCustom:true,ig:[],aiCache:null};
+    const title=newSongTitle.trim();
+    const artist=newSongArtist.trim()||"Artiste inconnu";
+    const dup=findDuplicateSong(songDb,title,artist);
+    if(dup){
+      const slCount=newSongSlIds.length;
+      const msg=`"${dup.title}" (${dup.artist}) est déjà dans la base.${slCount>0?"\n\nVoulez-vous l'ajouter "+(slCount>1?"aux setlists sélectionnées":"à la setlist sélectionnée")+" ?":""}`;
+      if(slCount>0){
+        if(window.confirm(msg)){
+          onSetlists(p=>p.map(sl=>newSongSlIds.includes(sl.id)&&!sl.songIds.includes(dup.id)?{...sl,songIds:[...sl.songIds,dup.id]}:sl));
+        }
+      }else{
+        window.alert(msg);
+      }
+      setNewSongTitle("");setNewSongArtist("");setNewSongSlIds([]);
+      return;
+    }
+    const ns={id:`c_${Date.now()}`,title,artist,isCustom:true,ig:[],aiCache:null};
     onSongDb(p=>[...p,ns]);
     if(newSongSlIds.length>0)onSetlists(p=>p.map(sl=>newSongSlIds.includes(sl.id)?{...sl,songIds:[...sl.songIds,ns.id]}:sl));
     fetchAI(ns,"",banksAnn,banksPlug,aiProvider,aiKeys,allGuitars)
@@ -2885,7 +2938,12 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
       .catch(()=>{});
     setNewSongTitle("");setNewSongArtist("");setNewSongSlIds([]);
   };
-  const deleteSongFromDb=id=>{onSongDb(p=>p.filter(s=>s.id!==id));onSetlists(p=>p.map(sl=>({...sl,songIds:sl.songIds.filter(x=>x!==id)})));};
+  const deleteSongFromDb=id=>{
+    const s=songDb.find(x=>x.id===id);
+    if(!s) return;
+    if(!window.confirm(`Supprimer "${s.title}" (${s.artist}) de la base ?\nLe morceau sera retiré de toutes les setlists.`)) return;
+    onSongDb(p=>p.filter(x=>x.id!==id));onSetlists(p=>p.map(sl=>({...sl,songIds:sl.songIds.filter(x=>x!==id)})));
+  };
   return (
     <div>
       <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Mon profil"}]} onNavigate={onNavigate}/>
@@ -3360,12 +3418,28 @@ function getJamRecs(guitarId, style, banksAnn, banksPlug, guitars, availableSour
     .filter(([,info])=>!style||compat.includes(info.style))
     .filter(([,info])=>!availableSources||availableSources[info.src]!==false)
     .map(([name,info])=>{
-      const score=guitarId?computeFinalScore(info,guitarId,style,null,null):(info.scores?.[gType]??60);
-      return{name,score,sortScore:score,amp:info.amp,gain:info.gain,style:info.style,src:info.src};
+      let score,rawScore;
+      if(guitarId){
+        const r=computeFinalScore(info,guitarId,style,null,null,true);
+        score=r.score;rawScore=r.rawScore;
+      }else{
+        score=info.scores?.[gType]??60;rawScore=score;
+      }
+      return{name,score,rawScore,sortScore:rawScore,amp:info.amp,gain:info.gain,style:info.style,src:info.src};
     })
     .sort((a,b)=>b.sortScore-a.sortScore);
   // Installed top 3 — diversify amps
   const pickTop3=(list)=>{const out=[];const amps=new Set();for(const p of list){if(!amps.has(p.amp)){out.push(p);amps.add(p.amp);}if(out.length>=3)break;}return out;};
+  // Casse les ex-aequo visuels : si plusieurs items du top affichent le même score arrondi,
+  // on bascule en affichage à une décimale (rawScore) pour rendre la variance lisible.
+  const labelTies=(list)=>{
+    if(!list.length) return list;
+    const counts={};list.forEach(p=>{counts[p.score]=(counts[p.score]||0)+1;});
+    return list.map(p=>{
+      const tied=counts[p.score]>1&&typeof p.rawScore==="number"&&p.rawScore!==p.score;
+      return {...p,scoreLabel:tied?p.rawScore.toFixed(1)+"%":p.score+"%"};
+    });
+  };
   const annInstalled=scored.map(p=>{const loc=findInBanks(p.name,banksAnn);return loc?{...p,...loc}:null;}).filter(Boolean);
   const plugInstalled=scored.map(p=>{const loc=findInBanks(p.name,banksPlug);return loc?{...p,...loc}:null;}).filter(Boolean);
   // Full catalog top 3 — diversify amps, exclude already in installed tops
@@ -3381,7 +3455,7 @@ function getJamRecs(guitarId, style, banksAnn, banksPlug, guitars, availableSour
     fullAmps.add(p.amp);
     if(fullTop3.length>=3) break;
   }
-  return{annTop3:pickTop3(annInstalled),plugBest:pickTop3(plugInstalled),fullTop3,gType};
+  return{annTop3:labelTies(pickTop3(annInstalled)),plugBest:labelTies(pickTop3(plugInstalled)),fullTop3:labelTies(fullTop3),gType};
 }
 
 // ─── SongDetailCard ──────────────────────────────────────────────────────────
@@ -3787,7 +3861,13 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
   const [editSlId,setEditSlId]=useState(null);
   const [editSlName,setEditSlName]=useState("");
   const createSetlist=()=>{if(!newSlName.trim())return;onSetlists(p=>[...p,{id:`sl_${Date.now()}`,name:newSlName.trim(),songIds:[],profileIds:[activeProfileId]}]);setNewSlName("");};
-  const deleteSetlist=id=>{onSetlists(p=>p.filter(s=>s.id!==id));if(activeSlId===id){setActiveSlId(null);onChecked([]);}};
+  const deleteSetlist=id=>{
+    const sl=setlists.find(s=>s.id===id);
+    if(!sl) return;
+    const n=sl.songIds.length;
+    if(!window.confirm(`Supprimer la setlist "${sl.name}" ?${n>0?"\nElle contient "+n+" morceau"+(n>1?"x":"")+" (les morceaux ne sont pas supprimés de la base).":""}`)) return;
+    onSetlists(p=>p.filter(s=>s.id!==id));if(activeSlId===id){setActiveSlId(null);onChecked([]);}
+  };
   const renameSetlist=(id,name)=>{onSetlists(p=>p.map(s=>s.id===id?{...s,name}:s));setEditSlId(null);};
   const toggle=id=>onChecked(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
   const toggleAll=()=>onChecked(checked.length===activeSongs.length?[]:activeSongs.map(s=>s.id));
@@ -3798,6 +3878,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
   const IMPROVE_MAX_ROUNDS=3;
   const [improving,setImproving]=useState(false);
   const [improveStatus,setImproveStatus]=useState(null); // {current,total,round,songTitle}
+  const [cancelRequested,setCancelRequested]=useState(false);
   const improveCancelRef=useRef(false);
   const songDbRef=useRef(songDb);
   songDbRef.current=songDb;
@@ -3818,9 +3899,20 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
   const improveBadgeCount=useMemo(()=>getSongsToImprove().length,[songDb,activeSl,banksAnn,banksPlug,allGuitars]);
   const improveAll=async()=>{
     improveCancelRef.current=false;
+    setCancelRequested(false);
     setImproving(true);
     const guitars=allGuitars||GUITARS;
+    // Race fetchAI against the cancel flag so "Arrêter" interrompt aussitôt l'attente IA
+    const waitOrCancel=(p)=>new Promise((resolve,reject)=>{
+      let done=false;
+      const tick=setInterval(()=>{
+        if(improveCancelRef.current&&!done){done=true;clearInterval(tick);reject(new Error("cancelled"));}
+      },120);
+      p.then(r=>{if(!done){done=true;clearInterval(tick);resolve(r);}},
+            e=>{if(!done){done=true;clearInterval(tick);reject(e);}});
+    });
     for(let round=1;round<=IMPROVE_MAX_ROUNDS;round++){
+      if(improveCancelRef.current) break;
       const toImprove=getSongsToImprove();
       if(toImprove.length===0) break;
       for(let i=0;i<toImprove.length;i++){
@@ -3831,13 +3923,14 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         const gId=savedGId||ig?.[0]||"";
         setImproveStatus({current:i+1,total:toImprove.length,round,songTitle:s.title});
         try{
-          const r=await fetchAI(s,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars);
+          const r=await waitOrCancel(fetchAI(s,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars));
+          if(improveCancelRef.current) break;
           onSongDb(p=>p.map(x=>x.id===s.id?{...x,aiCache:updateAiCache(x.aiCache,gId,r)}:x));
-        }catch(e){/* skip */}
+        }catch(e){if(improveCancelRef.current) break; /* skip */}
       }
       if(improveCancelRef.current) break;
     }
-    setImproving(false);setImproveStatus(null);
+    setImproving(false);setImproveStatus(null);setCancelRequested(false);
   };
   return (
     <div>
@@ -3952,12 +4045,12 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           {!improving
             ?<button onClick={improveAll} style={{fontSize:11,fontWeight:600,color:"var(--yellow)",background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.25)",borderRadius:"var(--r-md)",padding:"6px 14px",cursor:"pointer"}}>✨ Tout améliorer — {needImprove} morceau{needImprove>1?"x":""} &lt; {IMPROVE_THRESHOLD}%</button>
             :<div style={{display:"flex",alignItems:"center",gap:10,background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:"var(--r-md)",padding:"8px 12px"}}>
-              <div style={{fontSize:20,animation:"spin 1.5s linear infinite",display:"inline-block"}}>✨</div>
+              <div style={{fontSize:20,animation:"spin 1.5s linear infinite",display:"inline-block"}}>{cancelRequested?"⏹":"✨"}</div>
               <div style={{flex:1}}>
-                <div style={{fontSize:11,fontWeight:700,color:"var(--yellow)"}}>Tour {improveStatus?.round}/{IMPROVE_MAX_ROUNDS} — {improveStatus?.current}/{improveStatus?.total}</div>
+                <div style={{fontSize:11,fontWeight:700,color:cancelRequested?"var(--text-muted)":"var(--yellow)"}}>{cancelRequested?"Arrêt en cours…":`Tour ${improveStatus?.round}/${IMPROVE_MAX_ROUNDS} — ${improveStatus?.current}/${improveStatus?.total}`}</div>
                 <div style={{fontSize:10,color:"var(--text-muted)",marginTop:1}}>{improveStatus?.songTitle}</div>
               </div>
-              <button onClick={()=>{improveCancelRef.current=true;}} style={{fontSize:10,background:"var(--a7)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:"var(--r-md)",padding:"3px 8px",cursor:"pointer"}}>Arrêter</button>
+              <button disabled={cancelRequested} onClick={()=>{improveCancelRef.current=true;setCancelRequested(true);}} style={{fontSize:10,background:cancelRequested?"var(--a5)":"var(--a7)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:"var(--r-md)",padding:"3px 8px",cursor:cancelRequested?"default":"pointer",opacity:cancelRequested?0.6:1}}>{cancelRequested?"…":"Arrêter"}</button>
             </div>
           }
         </div>;
@@ -4125,9 +4218,10 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
     for(const [k,v] of Object.entries(banks)){for(const slot of ["A","B","C"]){if(v[slot]) allInstalled.push({name:v[slot],bank:Number(k),slot});}}
     const unusedPresets=allInstalled.filter(p=>!usedPresets.has(p.name));
     const analyzed=songRows.filter(r=>!r.noAI);
+    // Seuils alignés avec le perçu utilisateur : <70% = Faible, 70-80% = Moyen, ≥80% = Couvert
     const covered=analyzed.filter(r=>r.installedScore>=80).length;
-    const acceptable=analyzed.filter(r=>r.installedScore>=50&&r.installedScore<80).length;
-    const poor=analyzed.filter(r=>r.installedScore<50).length;
+    const acceptable=analyzed.filter(r=>r.installedScore>=70&&r.installedScore<80).length;
+    const poor=analyzed.filter(r=>r.installedScore<70).length;
     const noAICount=songRows.filter(r=>r.noAI).length;
     return {songRows,usedPresets,unusedPresets,covered,acceptable,poor,noAICount};
   };
@@ -4257,7 +4351,7 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
       const isInstalling=songInstall?.songId===song.id&&songInstall?.deviceKey===deviceKey;
       return <div key={song.id}>
         <div style={{display:"flex",alignItems:"center",gap:"var(--s-2)",padding:"4px var(--s-2)",background:"var(--bg-elev-2)",borderRadius:needsSuggestion||isInstalling?"var(--r-sm) var(--r-sm) 0 0":"var(--r-sm)",border:"1px solid var(--border-subtle)"}}>
-          <span style={{fontSize:12}}>{installedScore>=80?"✅":installedScore>=50?"⚠️":"❌"}</span>
+          <span style={{fontSize:12}}>{installedScore>=80?"✅":installedScore>=70?"⚠️":"❌"}</span>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:11,fontWeight:600,color:"var(--text-primary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{song.title}</div>
             <div style={{fontSize:9,color:"var(--text-tertiary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{installed?installed.name:"—"}{guitar?" · "+guitar.short:""}</div>
@@ -5385,7 +5479,7 @@ function JamPresetItem({p,rank,isSelected,onSelect,banksAnn,banksPlug,guitars}){
         <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
           <span style={{fontSize:18,fontWeight:900,color:rankColors[rank]||"var(--text-muted)",minWidth:22}}>#{rank+1}</span>
           {"bank" in p&&<span style={{background:"var(--accent-bg)",color:"var(--accent)",border:"1px solid var(--accent-border)",borderRadius:"var(--r-sm)",padding:"2px 8px",fontSize:11,fontWeight:700}}>Banque {p.bank}{p.slot}</span>}
-          <span style={{fontSize:11,fontWeight:800,color:sc,background:sb,borderRadius:"var(--r-sm)",padding:"1px 7px",border:`1px solid ${sc}40`}}>{p.score}%</span>
+          <span style={{fontSize:11,fontWeight:800,color:sc,background:sb,borderRadius:"var(--r-sm)",padding:"1px 7px",border:`1px solid ${sc}40`}}>{p.scoreLabel||p.score+"%"}</span>
           {gainBadge(p.gain)}
           <span style={{fontSize:9,color:"var(--text-muted)",background:"var(--a6)",borderRadius:"var(--r-sm)",padding:"1px 5px",fontWeight:600}}>{p.src}</span>
           <span style={{fontSize:10,color:"var(--text-dim)",marginLeft:"auto"}}>{isSelected?"▲":"▼"}</span>
@@ -5512,7 +5606,23 @@ function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked
   const toggleSongInSetlist=(songId,slId)=>onSetlists(p=>p.map(sl=>sl.id!==slId?sl:{...sl,songIds:sl.songIds.includes(songId)?sl.songIds.filter(x=>x!==songId):[...sl.songIds,songId]}));
   const addSongToDb=()=>{
     if(!newSongTitle.trim())return;
-    const ns={id:`c_${Date.now()}`,title:newSongTitle.trim(),artist:newSongArtist.trim()||"Artiste inconnu",isCustom:true,ig:[],aiCache:null};
+    const title=newSongTitle.trim();
+    const artist=newSongArtist.trim()||"Artiste inconnu";
+    const dup=findDuplicateSong(songDb,title,artist);
+    if(dup){
+      const slCount=newSongSlIds.length;
+      const msg=`"${dup.title}" (${dup.artist}) est déjà dans la base.${slCount>0?"\n\nVoulez-vous l'ajouter "+(slCount>1?"aux setlists sélectionnées":"à la setlist sélectionnée")+" ?":""}`;
+      if(slCount>0){
+        if(window.confirm(msg)){
+          onSetlists(p=>p.map(sl=>newSongSlIds.includes(sl.id)&&!sl.songIds.includes(dup.id)?{...sl,songIds:[...sl.songIds,dup.id]}:sl));
+        }
+      }else{
+        window.alert(msg);
+      }
+      setNewSongTitle("");setNewSongArtist("");setNewSongSlIds([]);
+      return;
+    }
+    const ns={id:`c_${Date.now()}`,title,artist,isCustom:true,ig:[],aiCache:null};
     onSongDb(p=>[...p,ns]);
     if(newSongSlIds.length>0)onSetlists(p=>p.map(sl=>newSongSlIds.includes(sl.id)?{...sl,songIds:[...sl.songIds,ns.id]}:sl));
     fetchAI(ns,"",banksAnn,banksPlug,aiProvider,aiKeys,allGuitars)
@@ -5520,7 +5630,12 @@ function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked
       .catch(()=>{});
     setNewSongTitle("");setNewSongArtist("");setNewSongSlIds([]);
   };
-  const deleteSongFromDb=id=>{onSongDb(p=>p.filter(s=>s.id!==id));onSetlists(p=>p.map(sl=>({...sl,songIds:sl.songIds.filter(x=>x!==id)})));};
+  const deleteSongFromDb=id=>{
+    const s=songDb.find(x=>x.id===id);
+    if(!s) return;
+    if(!window.confirm(`Supprimer "${s.title}" (${s.artist}) de la base ?\nLe morceau sera retiré de toutes les setlists.`)) return;
+    onSongDb(p=>p.filter(x=>x.id!==id));onSetlists(p=>p.map(sl=>({...sl,songIds:sl.songIds.filter(x=>x!==id)})));
+  };
   const inp={background:"var(--bg-card)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:"var(--r-md)",padding:"6px 10px",fontSize:12,boxSizing:"border-box"};
   return(
     <div>
@@ -5584,20 +5699,51 @@ function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked
 }
 
 // ─── SongSearchBar — free text → AI correction → validate ────────────────────
-function SongSearchBar({onConfirm,aiProvider,aiKeys}){
+function SongSearchBar({onConfirm,aiProvider,aiKeys,songDb}){
   const [input,setInput]=useState("");
   const [loading,setLoading]=useState(false);
   const [suggestion,setSuggestion]=useState(null);
   const [err,setErr]=useState(null);
+  const [showSuggest,setShowSuggest]=useState(false);
+  const [highlight,setHighlight]=useState(0);
+
+  // Bug 10 — autocomplete : filtre la base locale en direct
+  const localSuggestions=useMemo(()=>{
+    const q=normalizeSongTitle(input);
+    const qa=normalizeArtist(input);
+    if(!q&&!qa) return [];
+    if(!songDb||!songDb.length) return [];
+    return songDb
+      .map(s=>{
+        const nt=normalizeSongTitle(s.title);
+        const na=normalizeArtist(s.artist);
+        let rank=0;
+        if(nt.startsWith(q)) rank=3;
+        else if(nt.includes(q)) rank=2;
+        else if(na.includes(qa)) rank=1;
+        return rank>0?{s,rank}:null;
+      })
+      .filter(Boolean)
+      .sort((a,b)=>b.rank-a.rank||a.s.title.localeCompare(b.s.title,"fr"))
+      .slice(0,6)
+      .map(x=>x.s);
+  },[input,songDb]);
+
+  // Bug 9 — détecte les réponses non identifiées (titre/artiste "Inconnu" ou confiance basse)
+  const isUnknown=suggestion&&((suggestion.confidence||"").toLowerCase()==="low"
+    ||/^inconnu/i.test(suggestion.title||"")
+    ||/^inconnu/i.test(suggestion.artist||""));
 
   const search=()=>{
     if(!input.trim())return;
     const key=aiKeys?.gemini||aiKeys?.anthropic||DEFAULT_GEMINI_KEY;
     const provider=(aiKeys?.gemini||DEFAULT_GEMINI_KEY)?"gemini":"anthropic";
     if(!key){setErr("Clé API manquante — configure-la dans les paramètres.");return;}
+    setShowSuggest(false);
     setLoading(true);setErr(null);setSuggestion(null);
     const prompt=`L'utilisateur veut jouer un morceau de guitare. Il a tapé : "${input.trim()}"
 Corrige l'orthographe et identifie le titre exact et l'artiste/groupe.
+Si tu n'es pas sûr du tout, mets confidence="low" et title/artist="Inconnu".
 Réponds UNIQUEMENT en JSON (sans markdown) : {"title":"Titre exact","artist":"Artiste/Groupe","confidence":"high|medium|low"}`;
     const parse=safeParseJSON;
     const req=provider==="gemini"
@@ -5608,15 +5754,52 @@ Réponds UNIQUEMENT en JSON (sans markdown) : {"title":"Titre exact","artist":"A
     req.then(s=>setSuggestion(s)).catch(e=>setErr(e.message)).finally(()=>setLoading(false));
   };
 
+  const pickLocal=(s)=>{onConfirm(s.title,s.artist);setShowSuggest(false);setInput("");setSuggestion(null);};
+
   const inp={background:"var(--bg-elev-1)",color:"var(--text-primary)",border:"2px solid var(--border-strong)",borderRadius:"var(--r-lg)",padding:"16px 18px",fontSize:17,width:"100%",boxSizing:"border-box",fontFamily:"var(--font-ui)"};
   return(
-    <div>
+    <div style={{position:"relative"}}>
       <div style={{display:"flex",gap:8,marginBottom:10}}>
-        <input placeholder="Titre, artiste..." value={input} onChange={e=>{setInput(e.target.value);setSuggestion(null);}} onKeyDown={e=>e.key==="Enter"&&search()} style={{...inp,flex:1}}/>
+        <input
+          placeholder="Titre, artiste..."
+          value={input}
+          onChange={e=>{setInput(e.target.value);setSuggestion(null);setShowSuggest(true);setHighlight(0);}}
+          onFocus={()=>setShowSuggest(true)}
+          onBlur={()=>setTimeout(()=>setShowSuggest(false),150)}
+          onKeyDown={e=>{
+            if(showSuggest&&localSuggestions.length>0){
+              if(e.key==="ArrowDown"){e.preventDefault();setHighlight(h=>Math.min(h+1,localSuggestions.length-1));return;}
+              if(e.key==="ArrowUp"){e.preventDefault();setHighlight(h=>Math.max(h-1,0));return;}
+              if(e.key==="Tab"){e.preventDefault();pickLocal(localSuggestions[highlight]);return;}
+              if(e.key==="Escape"){setShowSuggest(false);return;}
+            }
+            if(e.key==="Enter") search();
+          }}
+          style={{...inp,flex:1}}
+        />
         <button onClick={search} disabled={!input.trim()||loading} style={{background:!input.trim()||loading?"var(--bg-elev-3)":"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-lg)",padding:"0 22px",fontSize:17,fontWeight:700,cursor:!input.trim()||loading?"not-allowed":"pointer",flexShrink:0,boxShadow:"var(--shadow-sm)",fontFamily:"var(--font-ui)"}}>{loading?"...":"OK"}</button>
       </div>
+      {showSuggest&&localSuggestions.length>0&&!suggestion&&!loading&&<div style={{position:"absolute",top:"54px",left:0,right:0,background:"var(--bg-elev-1)",border:"1px solid var(--border-strong)",borderRadius:"var(--r-lg)",boxShadow:"var(--shadow-md)",zIndex:50,maxHeight:240,overflowY:"auto"}}>
+        {localSuggestions.map((s,i)=>(
+          <div key={s.id}
+               onMouseDown={e=>{e.preventDefault();pickLocal(s);}}
+               onMouseEnter={()=>setHighlight(i)}
+               style={{padding:"8px 14px",cursor:"pointer",background:i===highlight?"var(--accent-bg)":"transparent",borderBottom:i<localSuggestions.length-1?"1px solid var(--a6)":"none"}}>
+            <div style={{fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>{s.title}</div>
+            <div style={{fontSize:11,color:"var(--text-sec)"}}>{s.artist}</div>
+          </div>
+        ))}
+      </div>}
       {err&&<div style={{fontSize:12,color:"var(--red)",marginBottom:8}}>{err}</div>}
-      {suggestion&&<div style={{background:"var(--green-bg)",border:"1px solid var(--green-border)",borderRadius:"var(--r-lg)",padding:14,marginBottom:8}}>
+      {suggestion&&isUnknown&&<div style={{background:"var(--yellow-bg,rgba(251,191,36,0.12))",border:"1px solid var(--yellow-border,rgba(251,191,36,0.4))",borderRadius:"var(--r-lg)",padding:14,marginBottom:8}}>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--yellow,#f59e0b)",marginBottom:4}}>⚠️ Morceau non reconnu</div>
+        <div style={{fontSize:12,color:"var(--text-sec)",marginBottom:10}}>Vérifie l'orthographe ou ajoute des précisions (artiste, album).</div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>{setSuggestion(null);}} style={{background:"var(--accent)",border:"none",color:"var(--text-inverse,var(--bg))",borderRadius:"var(--r-md)",padding:"8px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>Corriger</button>
+          <button onClick={()=>{onConfirm(suggestion.title,suggestion.artist);setSuggestion(null);setInput("");}} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:13,cursor:"pointer"}}>Forcer quand même</button>
+        </div>
+      </div>}
+      {suggestion&&!isUnknown&&<div style={{background:"var(--green-bg)",border:"1px solid var(--green-border)",borderRadius:"var(--r-lg)",padding:14,marginBottom:8}}>
         <div style={{fontSize:14,fontWeight:700,color:"var(--text)",marginBottom:2}}>{suggestion.title}</div>
         <div style={{fontSize:12,color:"var(--text-sec)",marginBottom:10}}>{suggestion.artist}</div>
         <div style={{display:"flex",gap:8}}>
@@ -5810,11 +5993,14 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         <div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-2xl)",fontWeight:800,color:"var(--text-primary)",marginBottom:6,textAlign:"center"}}>ToneX Poweruser</div>
         <div style={{fontSize:14,color:"var(--text-muted)",marginBottom:16,textAlign:"center"}}>Quel morceau veux-tu jouer ?</div>
         <div style={{width:"100%"}}>
-          <SongSearchBar aiProvider={aiProvider} aiKeys={aiKeys} onConfirm={(title,artist)=>{
-            setConfirmedSong({title,artist});
+          <SongSearchBar songDb={songDb} aiProvider={aiProvider} aiKeys={aiKeys} onConfirm={(title,artist)=>{
+            // Détection de doublon stricte (T.N.T. === TNT, & === and)
+            const existing=findDuplicateSong(songDb,title,artist)||songDb.find(s=>normalizePresetName(s.title)===normalizePresetName(title));
+            // On adopte le titre/artiste canoniques du doublon trouvé pour éviter d'afficher des variantes
+            const canonTitle=existing?existing.title:title;
+            const canonArtist=existing?existing.artist:artist;
+            setConfirmedSong({title:canonTitle,artist:canonArtist});
             setSongResult(null);setSongBaseAI(null);setSongErr(null);setSelectedGuitar(null);
-            // Si le morceau existe déjà dans la base avec un cache IA, on l'utilise directement
-            const existing=songDb.find(s=>normalizePresetName(s.title)===normalizePresetName(title));
             if(existing?.aiCache?.result?.cot_step1){
               const cachedGId=existing.aiCache.gId||"";
               const cachedG=allGuitars.find(x=>x.id===cachedGId);
@@ -5822,15 +6008,24 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
               const r=enrichAIResult({...existing.aiCache.result},gType,cachedGId,banksAnn,banksPlug);
               setSongResult(r);setSongBaseAI(r);
               if(cachedG) setSelectedGuitar(cachedG);
+              else if(r.ideal_guitar){
+                const m=allGuitars.find(g=>g.name===r.ideal_guitar||g.short===r.ideal_guitar);
+                if(m) setSelectedGuitar(m);
+              }
               return;
             }
             setSongLoading(true);
-            const song={id:`tmp_${Date.now()}`,title,artist};
+            const song={id:`tmp_${Date.now()}`,title:canonTitle,artist:canonArtist};
             fetchAI(song,"",banksAnn,banksPlug,aiProvider,aiKeys,allGuitars)
               .then(r=>{
                 setSongResult(r);setSongBaseAI(r);
+                // Auto-sélectionne la guitare idéale (Bug 4 : "Guitare choisie" reflète un vrai choix)
+                if(r.ideal_guitar){
+                  const m=allGuitars.find(g=>g.name===r.ideal_guitar||g.short===r.ideal_guitar);
+                  if(m) setSelectedGuitar(m);
+                }
                 if(!existing){
-                  const ns={id:`c_${Date.now()}`,title,artist,isCustom:true,ig:[],aiCache:updateAiCache(null,"",r)};
+                  const ns={id:`c_${Date.now()}`,title:canonTitle,artist:canonArtist,isCustom:true,ig:[],aiCache:updateAiCache(null,"",r)};
                   onSongDb(p=>[...p,ns]);
                 }
               })
