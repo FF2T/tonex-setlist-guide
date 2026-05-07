@@ -1230,7 +1230,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.3.8";
+const APP_VERSION = "7.3.9";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -1644,6 +1644,24 @@ function enrichAIResult(aiResult,gType,gId,banksAnn,banksPlug,availableSources){
     if(e?.src&&availableSources[e.src]===false){
       aiResult.ideal_preset=null;aiResult.ideal_preset_score=0;
     }
+  }
+  // Idem pour le top3 : retire les entrées dont la source est décochée maintenant,
+  // sinon la logique "never regress" plus bas garde l'ancien top3 si son score est
+  // supérieur à la nouvelle version filtrée.
+  if(availableSources&&aiResult.ideal_top3?.length){
+    aiResult.ideal_top3=aiResult.ideal_top3.filter(p=>{
+      const e=findCatalogEntry(p.name);
+      return !e?.src||availableSources[e.src]!==false;
+    });
+    if(!aiResult.ideal_top3.length) aiResult.ideal_top3=null;
+  }
+  if(availableSources&&aiResult.preset_ann){
+    const e=findCatalogEntry(aiResult.preset_ann.label);
+    if(e?.src&&availableSources[e.src]===false) aiResult.preset_ann=null;
+  }
+  if(availableSources&&aiResult.preset_plug){
+    const e=findCatalogEntry(aiResult.preset_plug.label);
+    if(e?.src&&availableSources[e.src]===false) aiResult.preset_plug=null;
   }
   // Never regress: keep the better of old vs new for each dimension
   if(best.annTop){
@@ -3727,6 +3745,9 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
             const locPlug=findInBanks(aiC.ideal_preset,banksPlug);
             const loc=locAnn||locPlug;
             const entry=findCatalogEntry(aiC.ideal_preset);
+            // Garde-fou : si le pack n'est plus possédé (cache antérieur au décochage),
+            // on n'affiche pas la reco — l'utilisateur ne peut pas l'utiliser.
+            if(availableSources&&entry?.src&&availableSources[entry.src]===false) return null;
             const canInstallAnn=!locAnn&&onBanksAnn;
             const canInstallPlug=!locPlug&&onBanksPlug;
             const doInstall=(device)=>{
@@ -3777,9 +3798,15 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
             </div>;
           })()}
           {/* Top 3 catalogue */}
-          {aiC.ideal_top3?.length>1&&<div style={{marginTop:6}}>
+          {(()=>{
+            const filteredTop3=(aiC.ideal_top3||[]).filter(p=>{
+              const e=findCatalogEntry(p.name);
+              return !availableSources||!e?.src||availableSources[e.src]!==false;
+            });
+            if(filteredTop3.length<=1) return null;
+            return <div style={{marginTop:6}}>
             <div style={{fontSize:9,fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",color:"var(--text-tertiary)",marginBottom:4}}>Alternatives catalogue</div>
-            {aiC.ideal_top3.slice(1).map((p,i)=>{
+            {filteredTop3.slice(1).map((p,i)=>{
               const loc=findInBanks(p.name,banksAnn)||findInBanks(p.name,banksPlug);
               const entry=findCatalogEntry(p.name);
               const si=presetSourceInfo(entry);
@@ -6253,6 +6280,8 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                   const idealScore=songResult.ideal_preset_score||0;
                   const loc=findInBanks(songResult.ideal_preset,banksAnn)||findInBanks(songResult.ideal_preset,banksPlug);
                   const entry=findCatalogEntry(songResult.ideal_preset);
+                  // Garde-fou : ne pas afficher si la source est décochée
+                  if(availableSources&&entry?.src&&availableSources[entry.src]===false) return null;
                   const srcInfo=presetSourceInfo(entry);
                   return <div>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",fontSize:11}}>
