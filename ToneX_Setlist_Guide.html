@@ -1230,7 +1230,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.4.0";
+const APP_VERSION = "7.4.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4394,6 +4394,75 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
   const annAnalysis=useMemo(()=>analyzeDevice(banksAnn,"ann"),[songs,allGuitars,banksAnn]);
   const plugAnalysis=useMemo(()=>analyzeDevice(banksPlug,"plug"),[songs,allGuitars,banksPlug]);
 
+  // Auto-pick d'une banque/slot vide pour installer un preset
+  const autoPlace=(banks,presetName,deviceKey)=>{
+    const entry=findCatalogEntry(presetName);
+    if(!entry) return null;
+    const gain=typeof entry.gain==="number"?entry.gain:gainToNumeric(entry.gain);
+    const gainRange=getGainRange(gain);
+    const slot=gainRange==="clean"?"A":gainRange==="high_gain"?"C":"B";
+    const startBank=deviceKey==="ann"?0:1;
+    const maxBank=deviceKey==="ann"?49:9;
+    for(let i=startBank;i<=maxBank;i++){
+      const b=banks[i];
+      if(!b||!b[slot]) return {bank:i,slot};
+    }
+    return null;
+  };
+
+  // Actions prioritaires : groupées par (device, preset). Chaque action peut couvrir
+  // plusieurs morceaux d'un coup. On classe par bénéfice total (somme des deltas).
+  const priorityActions=useMemo(()=>{
+    const grouped={};
+    const consider=(rows,deviceKey,banks)=>{
+      for(const r of rows){
+        if(r.noAI||!r.ideal||r.delta<5) continue;
+        if(findInBanks(r.ideal.name,banks)) continue;
+        const k=deviceKey+"|"+r.ideal.name;
+        if(!grouped[k]) grouped[k]={device:deviceKey,deviceLabel:deviceKey==="ann"?"📦 Pédale":"🔌 Plug",preset:r.ideal,songs:[],totalDelta:0,place:autoPlace(banks,r.ideal.name,deviceKey)};
+        grouped[k].songs.push({song:r.song,currentScore:r.installedScore,newScore:r.idealScore,delta:r.delta});
+        grouped[k].totalDelta+=r.delta;
+      }
+    };
+    consider(annAnalysis.songRows,"ann",banksAnn);
+    consider(plugAnalysis.songRows,"plug",banksPlug);
+    return Object.values(grouped).filter(g=>g.place).sort((a,b)=>b.totalDelta-a.totalDelta).slice(0,3);
+  },[annAnalysis,plugAnalysis,banksAnn,banksPlug]);
+
+  // Score moyen actuel + projection si toutes les actions sont appliquées
+  const computeMean=(rows)=>{
+    const ar=rows.filter(r=>!r.noAI);
+    if(!ar.length) return null;
+    return Math.round(ar.reduce((s,r)=>s+r.installedScore,0)/ar.length);
+  };
+  const annMean=computeMean(annAnalysis.songRows);
+  const plugMean=computeMean(plugAnalysis.songRows);
+  const computeProjected=(rows,deviceKey)=>{
+    const ar=rows.filter(r=>!r.noAI);
+    if(!ar.length) return null;
+    const upgrades={};
+    priorityActions.filter(a=>a.device===deviceKey).forEach(a=>{
+      a.songs.forEach(s=>{if((upgrades[s.song.id]||0)<s.newScore) upgrades[s.song.id]=s.newScore;});
+    });
+    return Math.round(ar.reduce((sum,r)=>sum+(upgrades[r.song.id]!=null?Math.max(upgrades[r.song.id],r.installedScore):r.installedScore),0)/ar.length);
+  };
+  const annProjected=computeProjected(annAnalysis.songRows,"ann");
+  const plugProjected=computeProjected(plugAnalysis.songRows,"plug");
+  const meanOf2=(a,b)=>a==null?b:b==null?a:Math.round((a+b)/2);
+  const globalMean=meanOf2(annMean,plugMean);
+  const globalProjected=meanOf2(annProjected,plugProjected);
+
+  const applyAction=(action)=>{
+    if(!action.place) return;
+    const onBanks=action.device==="ann"?onBanksAnn:onBanksPlug;
+    onBanks(prev=>({...prev,[action.place.bank]:{...(prev[action.place.bank]||{cat:"",A:"",B:"",C:""}),[action.place.slot]:action.preset.name}}));
+  };
+  const applyAllActions=()=>{
+    if(!priorityActions.length) return;
+    if(!window.confirm(`Appliquer les ${priorityActions.length} actions prioritaires ?\nGain estimé : +${(globalProjected||0)-(globalMean||0)}%`)) return;
+    priorityActions.forEach(applyAction);
+  };
+
   // Banques standard "univers" — un ampli iconique par banque, 3 slots Clean/Drive/Lead
   const standardBanks=useMemo(()=>{
     const UNIVERSES=[
@@ -4583,14 +4652,62 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
       <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Optimiseur"}]} onNavigate={onNavigate}/>
       <div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:"var(--s-4)"}}>🔧 Optimiseur de Banks</div>
 
+      {/* Sélecteur de setlist commun aux sections */}
+      <div style={{marginBottom:"var(--s-3)"}}>
+        <select value={slId} onChange={e=>setSlId(e.target.value)} style={{width:"100%",background:"var(--bg-elev-1)",color:"var(--text-primary)",border:"1px solid var(--border-strong)",borderRadius:"var(--r-md)",padding:"8px 12px",fontSize:13}}>
+          {setlists.map(s=><option key={s.id} value={s.id}>{s.name} ({s.songIds.length})</option>)}
+        </select>
+      </div>
+
+      {/* ── TOP 3 ACTIONS PRIORITAIRES ── */}
+      {songs.length>0&&globalMean!=null&&<div style={sectionStyle}>
+        {eyebrow("⚡","Top 3 actions prioritaires")}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"var(--s-2)",marginBottom:priorityActions.length>0?"var(--s-3)":0}}>
+          <div style={{background:"var(--bg-elev-2)",padding:"10px 8px",borderRadius:"var(--r-md)",textAlign:"center",border:"1px solid var(--border-subtle)"}}>
+            <div style={{fontSize:9,color:"var(--text-tertiary)",fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:4}}>Score actuel</div>
+            <div style={{fontSize:28,fontWeight:800,color:scoreColor(globalMean),lineHeight:1}}>{globalMean}%</div>
+            <div style={{fontSize:9,color:"var(--text-secondary)",marginTop:4}}>{annMean!=null?"📦 "+annMean+"%":""}{annMean!=null&&plugMean!=null?" · ":""}{plugMean!=null?"🔌 "+plugMean+"%":""}</div>
+          </div>
+          {priorityActions.length>0
+            ?<div style={{background:"var(--accent-soft)",padding:"10px 8px",borderRadius:"var(--r-md)",textAlign:"center",border:"1px solid var(--border-accent)"}}>
+              <div style={{fontSize:9,color:"var(--accent)",fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:4}}>Avec ces {priorityActions.length} action{priorityActions.length>1?"s":""}</div>
+              <div style={{fontSize:28,fontWeight:800,color:scoreColor(globalProjected),lineHeight:1}}>{globalProjected}%<span style={{fontSize:14,color:"var(--success)",marginLeft:6,fontWeight:700}}>+{globalProjected-globalMean}</span></div>
+              <div style={{fontSize:9,color:"var(--text-secondary)",marginTop:4}}>{annProjected!=null?"📦 "+annProjected+"%":""}{annProjected!=null&&plugProjected!=null?" · ":""}{plugProjected!=null?"🔌 "+plugProjected+"%":""}</div>
+            </div>
+            :<div style={{background:"var(--green-bg)",padding:"10px 8px",borderRadius:"var(--r-md)",textAlign:"center",border:"1px solid var(--green-border)"}}>
+              <div style={{fontSize:9,color:"var(--success)",fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:4}}>Statut</div>
+              <div style={{fontSize:13,fontWeight:700,color:"var(--success)",marginTop:8}}>✓ Setlist optimale</div>
+              <div style={{fontSize:9,color:"var(--text-secondary)",marginTop:4}}>Aucune action utile détectée</div>
+            </div>
+          }
+        </div>
+        {priorityActions.length>0&&<>
+          <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:"var(--s-2)"}}>
+            {priorityActions.map((a,i)=>{
+              const songsList=a.songs.map(s=>s.song.title);
+              const songsPreview=songsList.slice(0,3).join(", ")+(songsList.length>3?` +${songsList.length-3}`:"");
+              return <div key={i} style={{background:"var(--bg-elev-2)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-md)",padding:"8px 10px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap"}}>
+                  <span style={{fontSize:14,fontWeight:800,color:"var(--accent)",minWidth:18}}>#{i+1}</span>
+                  <span style={{fontSize:11,color:"var(--text-secondary)",fontWeight:600}}>{a.deviceLabel}</span>
+                  <span style={{fontSize:10,background:"var(--green-bg)",color:"var(--success)",borderRadius:"var(--r-sm)",padding:"1px 6px",fontWeight:700,border:"1px solid var(--green-border)"}}>+{a.totalDelta}%</span>
+                  <span style={{fontSize:9,color:"var(--text-tertiary)",marginLeft:"auto"}}>{a.songs.length} morceau{a.songs.length>1?"x":""}</span>
+                </div>
+                <div style={{fontSize:11,fontWeight:700,color:"var(--text-primary)",marginBottom:2,overflow:"hidden",textOverflow:"ellipsis"}}>Installer "{a.preset.name}"</div>
+                <div style={{fontSize:10,color:"var(--text-tertiary)",marginBottom:6}}>
+                  → Banque <span style={{fontFamily:"var(--font-mono)",color:CC[a.place.slot],fontWeight:700}}>{a.place.bank}{a.place.slot}</span> · {songsPreview}
+                </div>
+                <button onClick={()=>applyAction(a)} style={{background:"var(--accent)",border:"none",color:"var(--text-inverse)",borderRadius:"var(--r-sm)",padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Installer</button>
+              </div>;
+            })}
+          </div>
+          {priorityActions.length>1&&<button onClick={applyAllActions} style={{width:"100%",background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-sm)",padding:"8px",fontSize:11,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)"}}>⚡ Tout appliquer ({priorityActions.length})</button>}
+        </>}
+      </div>}
+
       {/* ── SECTION 1 : DIAGNOSTIC ── */}
       <div style={sectionStyle}>
         {eyebrow("📊","Diagnostic")}
-        <div style={{marginBottom:"var(--s-3)"}}>
-          <select value={slId} onChange={e=>setSlId(e.target.value)} style={{width:"100%",background:"var(--bg-elev-1)",color:"var(--text-primary)",border:"1px solid var(--border-strong)",borderRadius:"var(--r-md)",padding:"8px 12px",fontSize:13}}>
-            {setlists.map(s=><option key={s.id} value={s.id}>{s.name} ({s.songIds.length})</option>)}
-          </select>
-        </div>
         {songs.length===0?<div style={{textAlign:"center",padding:"20px",color:"var(--text-tertiary)"}}>Setlist vide</div>:<>
         <div style={{fontSize:10,color:"var(--text-tertiary)",marginBottom:"var(--s-3)"}}>🎸 {allGuitars.map(g=>g.short||g.name).join(", ")} · {songs.length} morceau{songs.length>1?"x":""}</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"var(--s-3)",marginBottom:"var(--s-3)"}}>
