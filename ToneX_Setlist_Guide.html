@@ -1004,7 +1004,7 @@ function srcBadge(name){const s=findCatalogEntry(name)?.src;return s==="TSR"?"TS
 function presetSourceInfo(entry){
   if(!entry?.src) return null;
   switch(entry.src){
-    case "TSR":         return {icon:"📦",label:entry.pack?`Pack ToneNET « ${entry.pack}.zip »`:"Pack ToneNET (zip)"};
+    case "TSR":         return {icon:"📦",label:entry.pack?`Pack 64 Studio Rats « ${entry.pack}.zip »`:"Pack 64 Studio Rats (zip)"};
     case "ML":          return {icon:"🎚",label:"AmpliTube — Modeled Lab"};
     case "ToneNET":     return {icon:"🌐",label:"ToneNET (téléchargement direct)"};
     case "Anniversary": return {icon:"🏭",label:"Pédale ToneX (preset Anniversary d'usine)"};
@@ -1228,7 +1228,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.3.5";
+const APP_VERSION = "7.3.6";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -6434,7 +6434,22 @@ function App() {
   // Shared state
   const [songDb,  setSongDb]  = useState(initDefault.shared.songDb);
   const [theme,   setTheme]   = useState(initDefault.shared.theme);
-  const [setlists, setSetlists] = useState(initDefault.shared?.setlists || [{id:"sl_main",name:"Ma Setlist",songIds:INIT_SONG_DB_META.map(s=>s.id),profileIds:[initDefault.activeProfileId]}]);
+  const [setlists, setSetlistsRaw] = useState(initDefault.shared?.setlists || [{id:"sl_main",name:"Ma Setlist",songIds:INIT_SONG_DB_META.map(s=>s.id),profileIds:[initDefault.activeProfileId]}]);
+  // Tombstones : IDs de setlists explicitement supprimées par l'utilisateur.
+  // Synchronisés via Firestore pour que le poll/merge ne les re-ressuscite pas.
+  const [deletedSetlistIds, setDeletedSetlistIds] = useState(initDefault.shared?.deletedSetlistIds || []);
+  // Wrapper qui détecte les suppressions (IDs présents avant et plus après) et les
+  // ajoute aux tombstones. Tous les écrans utilisent setSetlists comme avant.
+  const setSetlists = (updater) => {
+    setSetlistsRaw(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      const prevIds = new Set(prev.map(s=>s.id));
+      const nextIds = new Set(next.map(s=>s.id));
+      const removed = [...prevIds].filter(id=>!nextIds.has(id));
+      if(removed.length) setDeletedSetlistIds(d=>[...new Set([...(d||[]),...removed])]);
+      return next;
+    });
+  };
   // Migrate custom guitars from profiles to shared (one-time)
   const [customGuitars, setCustomGuitars] = useState(()=>{
     const shared=initDefault.shared?.customGuitars||[];
@@ -6541,12 +6556,17 @@ function App() {
     });
     return [...map.values()];
   };
-  // Merge setlists: keep all, merge songIds (union)
-  const mergeSetlists=(local,remote)=>{
+  // Merge setlists: keep all, merge songIds (union), mais exclut les IDs supprimés
+  // explicitement (tombstones) pour éviter qu'une setlist supprimée localement ne
+  // soit ressuscitée par le poll Firestore.
+  const mergeSetlists=(local,remote,deletedIds)=>{
     if(!remote)return local;
     if(!local)return remote;
-    const map=new Map(local.map(sl=>[sl.id,sl]));
+    const dead=new Set(deletedIds||[]);
+    const map=new Map();
+    for(const sl of local){if(!dead.has(sl.id)) map.set(sl.id,sl);}
     remote.forEach(sl=>{
+      if(dead.has(sl.id)) return;
       const existing=map.get(sl.id);
       if(!existing){map.set(sl.id,sl);}
       else{map.set(sl.id,{...existing,...sl,songIds:[...new Set([...existing.songIds,...sl.songIds])]});}
@@ -6558,7 +6578,7 @@ function App() {
   const hasMounted = useRef(false);
   const firestoreDebounceRef = useRef(null);
   useEffect(()=>{
-    const state={version:2, activeProfileId, shared:{songDb,theme,setlists,customGuitars,toneNetPresets}, profiles, lastModified:Date.now()};
+    const state={version:2, activeProfileId, shared:{songDb,theme,setlists,customGuitars,toneNetPresets,deletedSetlistIds}, profiles, lastModified:Date.now()};
     autoBackup();
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){}
     if(!hasMounted.current){hasMounted.current=true;return;}
@@ -6570,7 +6590,7 @@ function App() {
       saveToFirestore(state).then(()=>setSyncStatus("synced")).catch(()=>setSyncStatus("error"));
     }, 2000);
     return ()=>{if(firestoreDebounceRef.current)clearTimeout(firestoreDebounceRef.current);};
-  },[songDb,theme,setlists,customGuitars,toneNetPresets,profiles,activeProfileId,firestoreLoaded]);
+  },[songDb,theme,setlists,customGuitars,toneNetPresets,deletedSetlistIds,profiles,activeProfileId,firestoreLoaded]);
 
   // Apply remote data into local state (merge, never lose data)
   const applyRemoteData = (data) => {
@@ -6581,8 +6601,18 @@ function App() {
       return m;
     });
     if(data.shared.theme) setTheme(data.shared.theme);
-    if(data.shared.setlists) setSetlists(prev=>{
-      const m=mergeSetlists(prev,data.shared.setlists);
+    // Fusion des tombstones (union locale ∪ remote) AVANT le merge des setlists,
+    // pour qu'une suppression effectuée sur un autre appareil soit appliquée ici.
+    const remoteDel=data.shared.deletedSetlistIds||[];
+    const allDel=[...new Set([...(deletedSetlistIds||[]),...remoteDel])];
+    if(remoteDel.length){
+      setDeletedSetlistIds(prev=>{
+        const m=[...new Set([...(prev||[]),...remoteDel])];
+        return m.length===(prev||[]).length?prev:m;
+      });
+    }
+    if(data.shared.setlists) setSetlistsRaw(prev=>{
+      const m=mergeSetlists(prev,data.shared.setlists,allDel);
       if(JSON.stringify(m)===JSON.stringify(prev))return prev;
       return m;
     });
@@ -6613,10 +6643,12 @@ function App() {
         // If local had more data, push merged result back
         var remoteSongs=data.shared.songDb||[];
         var remoteSl=data.shared.setlists||[];
+        var remoteDel=data.shared.deletedSetlistIds||[];
+        var mergedDel=[...new Set([...(deletedSetlistIds||[]),...remoteDel])];
         var mergedSongs=mergeSongDb(songDb||[],remoteSongs);
-        var mergedSl=mergeSetlists(setlists||[],remoteSl);
-        if(mergedSongs.length>remoteSongs.length||mergedSl.length>remoteSl.length){
-          var ps={version:2,activeProfileId:data.activeProfileId||activeProfileId,shared:{songDb:mergedSongs,theme:data.shared.theme||theme,setlists:mergedSl,customGuitars:data.shared.customGuitars||customGuitars},profiles:data.profiles||profiles,lastModified:Date.now()};
+        var mergedSl=mergeSetlists(setlists||[],remoteSl,mergedDel);
+        if(mergedSongs.length>remoteSongs.length||mergedSl.length>remoteSl.length||mergedDel.length>remoteDel.length){
+          var ps={version:2,activeProfileId:data.activeProfileId||activeProfileId,shared:{songDb:mergedSongs,theme:data.shared.theme||theme,setlists:mergedSl,customGuitars:data.shared.customGuitars||customGuitars,deletedSetlistIds:mergedDel},profiles:data.profiles||profiles,lastModified:Date.now()};
           saveToFirestore(ps).catch(function(){});
         }
       }
