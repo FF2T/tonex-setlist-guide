@@ -1003,13 +1003,15 @@ function srcBadge(name){const s=findCatalogEntry(name)?.src;return s==="TSR"?"TS
 // (pack ToneNET .zip, AmpliTube ML, packs factory pré-installés, custom user…)
 function presetSourceInfo(entry){
   if(!entry?.src) return null;
+  // Libellés alignés avec SOURCE_LABELS (cf. L.2326) — la source canonique
+  // affichée partout ailleurs dans l'app (filtres, profil, navigateur).
   switch(entry.src){
     case "TSR":         return {icon:"📦",label:entry.pack?`Pack 64 Studio Rats « ${entry.pack}.zip »`:"Pack 64 Studio Rats (zip)"};
-    case "ML":          return {icon:"🎚",label:"AmpliTube — Modeled Lab"};
-    case "ToneNET":     return {icon:"🌐",label:"ToneNET (téléchargement direct)"};
-    case "Anniversary": return {icon:"🏭",label:"Pédale ToneX (preset Anniversary d'usine)"};
-    case "Factory":     return {icon:"🏭",label:"Pédale ToneX (preset Factory d'usine)"};
-    case "PlugFactory": return {icon:"🔌",label:"ToneX Plug (preset Factory d'usine)"};
+    case "ML":          return {icon:"🎚",label:"ML Sound Lab Essentials"};
+    case "ToneNET":     return {icon:"🌐",label:"ToneNET (preset partagé)"};
+    case "Anniversary": return {icon:"🏭",label:"ToneX Anniversary Factory"};
+    case "Factory":     return {icon:"🏭",label:"ToneX Factory"};
+    case "PlugFactory": return {icon:"🔌",label:"ToneX Plug Factory"};
     case "custom":      return {icon:"✨",label:entry.pack?`Custom — ${entry.pack}`:"Preset custom"};
     default:            return {icon:"📁",label:String(entry.src)};
   }
@@ -1228,7 +1230,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.3.6";
+const APP_VERSION = "7.3.7";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
