@@ -1210,7 +1210,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.3.3";
+const APP_VERSION = "7.3.4";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -1538,7 +1538,10 @@ function resolveRefAmp(refAmp){
   return refAmp; // retourne tel quel si non trouvé
 }
 
-function computeBestPresets(gType,style,banksAnn,banksPlug,guitarId,refAmp,targetGain){
+function computeBestPresets(gType,style,banksAnn,banksPlug,guitarId,refAmp,targetGain,availableSources){
+  // Fallback : si l'appelant n'a pas passé availableSources, on lit la config
+  // active publiée par App() — évite de threader le param dans toute l'app.
+  if(availableSources===undefined&&typeof window!=="undefined") availableSources=window.__activeSources;
   const resolvedAmp=resolveRefAmp(refAmp);
   const songTargetGain=targetGain!=null?targetGain:null;
   const scorePreset=(name,info,withBreakdown)=>{
@@ -1589,7 +1592,9 @@ function computeBestPresets(gType,style,banksAnn,banksPlug,guitarId,refAmp,targe
   }
   plugPresets.sort((a,b)=>b.score-a.score);
   // Best from full catalog — diversify amps (no 2 presets from same amp in top 3)
+  // Filtre par sources possédées (ne pas recommander un preset d'un pack que je n'ai pas)
   const catalogAll=Object.entries(PRESET_CATALOG_MERGED)
+    .filter(([,info])=>!availableSources||!info?.src||availableSources[info.src]!==false)
     .map(([name,info])=>{
       const score=scorePreset(name,info);
       return {name,score,rawScore:score,amp:info.amp,style:info.style,src:info.src};
@@ -1607,10 +1612,19 @@ function computeBestPresets(gType,style,banksAnn,banksPlug,guitarId,refAmp,targe
 }
 
 // ─── fetchAI (helper partagé) ─────────────────────────────────────────────────
-function enrichAIResult(aiResult,gType,gId,banksAnn,banksPlug){
+function enrichAIResult(aiResult,gType,gId,banksAnn,banksPlug,availableSources){
+  if(availableSources===undefined&&typeof window!=="undefined") availableSources=window.__activeSources;
   const style=aiResult.song_style||"rock";
   const targetGain=typeof aiResult.target_gain==="number"?aiResult.target_gain:null;
-  const best=computeBestPresets(gType,style,banksAnn,banksPlug,gId,aiResult.ref_amp,targetGain);
+  const best=computeBestPresets(gType,style,banksAnn,banksPlug,gId,aiResult.ref_amp,targetGain,availableSources);
+  // Si l'IA a proposé un ideal_preset depuis un pack non possédé, on l'oublie pour
+  // forcer le remplacement par best.idealTop (qui respecte availableSources).
+  if(availableSources&&aiResult.ideal_preset){
+    const e=findCatalogEntry(aiResult.ideal_preset);
+    if(e?.src&&availableSources[e.src]===false){
+      aiResult.ideal_preset=null;aiResult.ideal_preset_score=0;
+    }
+  }
   // Never regress: keep the better of old vs new for each dimension
   if(best.annTop){
     const newAnn={bank:best.annTop.bank,col:best.annTop.col,label:best.annTop.name,score:best.annTop.score,breakdown:best.annTop.breakdown||null};
@@ -1701,7 +1715,7 @@ function safeParseJSON(t){
   }
 }
 
-function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars,feedback){
+function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars,feedback,availableSources){
   guitars=guitars||GUITARS;
   const g=guitars.find(x=>x.id===gId);
   const gType=g?.type||"HB";
@@ -1761,7 +1775,7 @@ Champs spéciaux :
         .then(r=>r.json()).then(d=>{if(d.error)throw new Error(d.error.message||d.error.status);return parse(d.candidates?.[0]?.content?.parts?.[0]?.text||"");})
       :fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:4096,messages:[{role:"user",content:prompt}]})})
         .then(r=>r.json()).then(d=>{if(d.error)throw new Error(d.error.message||d.error.type);return parse(d.content?.map(i=>i.text||"").join("")||"");});
-    return req.then(r=>enrichAIResult(r,gType,gId,banksAnn,banksPlug));
+    return req.then(r=>enrichAIResult(r,gType,gId,banksAnn,banksPlug,availableSources));
   };
   // Retry intelligent : si le meilleur score < 85%, relancer l'IA (max 2 retries)
   const RETRY_THRESHOLD=85;
@@ -4151,7 +4165,15 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
               <div onClick={()=>{
                 const newId=isExpanded?null:s.id;
                 setExpandedId(newId);
-                if(newId){setTimeout(()=>{const el=document.getElementById("song-"+s.id);if(el)el.scrollIntoView({behavior:"smooth",block:"start"});},50);}
+                if(newId){
+                  // Double rAF : attend que React ait rendu le SongDetailCard avant de scroller,
+                  // sinon scrollIntoView se base sur la hauteur d'avant expansion et on finit
+                  // au milieu/bas du contenu déplié.
+                  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+                    const el=document.getElementById("song-"+s.id);
+                    if(el) el.scrollIntoView({behavior:"smooth",block:"start"});
+                  }));
+                }
               }} style={{flex:1,background:isC?"rgba(74,222,128,0.05)":"var(--a3)",border:isC?"1px solid var(--green-border)":"1px solid var(--a7)",borderLeft:"none",borderRadius:isExpanded?"0 10px 0 0":"0 10px 10px 0",padding:"10px 13px",cursor:"pointer"}}>
                 <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:2}}>
                   <span style={{fontSize:14,fontWeight:600,color:"var(--text)"}}>{s.title}</span>
@@ -6440,6 +6462,12 @@ function App() {
 
   // Current profile (derived)
   const profile = profiles[activeProfileId] || Object.values(profiles)[0];
+
+  // Publie availableSources du profil actif vers window pour que le scoring
+  // (computeBestPresets / enrichAIResult) le lise sans qu'on doive le threader
+  // dans tous les call-sites de fetchAI/enrichAIResult. Sync pendant le render
+  // pour être disponible dès le premier appel (avant useEffect).
+  if(typeof window!=="undefined") window.__activeSources=profile?.availableSources||null;
 
   // Per-profile convenience setters
   const setProfileField = (field, value) => {
