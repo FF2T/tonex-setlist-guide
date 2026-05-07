@@ -1230,7 +1230,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.4.1";
+const APP_VERSION = "7.4.2";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4370,14 +4370,15 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
       }
       // IdealTop depuis le catalogue complet
       const bestCatalog=computeBestPresets(gType,style,{},{},gId,ai.ref_amp,targetGain);
-      // Filtrer idealTop par compatibilité source/device
+      // Filtrer idealTop par compatibilité source/device — on conserve la liste complète pour les priorités
       const idealRaw=bestCatalog.idealTop3||[];
-      const idealTop=idealRaw.find(p=>{const e=findCatalogEntry(p.name);return !e||isSrcCompatible(e.src,deviceKey);})||bestCatalog.idealTop;
+      const idealCompat=idealRaw.filter(p=>{const e=findCatalogEntry(p.name);return !e||isSrcCompatible(e.src,deviceKey);});
+      const idealTop=idealCompat[0]||bestCatalog.idealTop;
       if(top){
         if(!usedPresets.has(top.name)) usedPresets.set(top.name,{songs:[],bestScore:0});
         const u=usedPresets.get(top.name);u.songs.push(s.title);if(top.score>u.bestScore) u.bestScore=top.score;
       }
-      return {song:s,installed:top,installedScore:top?.score||0,ideal:idealTop,idealScore:idealTop?.score||0,delta:(idealTop?.score||0)-(top?.score||0),guitar:g};
+      return {song:s,installed:top,installedScore:top?.score||0,ideal:idealTop,idealTop3:idealCompat,idealScore:idealTop?.score||0,delta:(idealTop?.score||0)-(top?.score||0),guitar:g};
     });
     const allInstalled=[];
     for(const [k,v] of Object.entries(banks)){for(const slot of ["A","B","C"]){if(v[slot]) allInstalled.push({name:v[slot],bank:Number(k),slot});}}
@@ -4394,8 +4395,10 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
   const annAnalysis=useMemo(()=>analyzeDevice(banksAnn,"ann"),[songs,allGuitars,banksAnn]);
   const plugAnalysis=useMemo(()=>analyzeDevice(banksPlug,"plug"),[songs,allGuitars,banksPlug]);
 
-  // Auto-pick d'une banque/slot vide pour installer un preset
-  const autoPlace=(banks,presetName,deviceKey)=>{
+  // Auto-pick d'une banque/slot pour installer un preset.
+  // 1ère passe : un slot vide du bon gain. 2e passe : remplace le slot le plus faible
+  // de la même famille de gain (banks plein → on fait une vraie optimisation, pas un blocage).
+  const autoPlace=(banks,presetName,deviceKey,songRows)=>{
     const entry=findCatalogEntry(presetName);
     if(!entry) return null;
     const gain=typeof entry.gain==="number"?entry.gain:gainToNumeric(entry.gain);
@@ -4403,30 +4406,59 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
     const slot=gainRange==="clean"?"A":gainRange==="high_gain"?"C":"B";
     const startBank=deviceKey==="ann"?0:1;
     const maxBank=deviceKey==="ann"?49:9;
+    // 1ère passe : slot vide
     for(let i=startBank;i<=maxBank;i++){
       const b=banks[i];
-      if(!b||!b[slot]) return {bank:i,slot};
+      if(!b||!b[slot]) return {bank:i,slot,replaces:null};
     }
+    // 2e passe : remplace le preset le plus faible de ce slot dans les banques utilisées par la setlist
+    let worstBank=null,worstScore=101,worstPreset=null;
+    const usedBanks=new Set();
+    (songRows||[]).forEach(r=>{if(r.installed?.bank!=null&&r.installed?.col===slot) usedBanks.add(r.installed.bank);});
+    for(const i of usedBanks){
+      const cur=banks[i]?.[slot];if(!cur) continue;
+      // Score = pire score qu'il sert dans la setlist
+      let s=100;
+      (songRows||[]).forEach(r=>{if(r.installed?.bank===i&&r.installed?.col===slot&&r.installedScore<s) s=r.installedScore;});
+      if(s<worstScore){worstScore=s;worstBank=i;worstPreset=cur;}
+    }
+    if(worstBank!=null) return {bank:worstBank,slot,replaces:worstPreset,replacesScore:worstScore};
     return null;
   };
 
-  // Actions prioritaires : groupées par (device, preset). Chaque action peut couvrir
-  // plusieurs morceaux d'un coup. On classe par bénéfice total (somme des deltas).
+  // Actions prioritaires : pour chaque morceau, on parcourt TOUT le top 3 catalogue
+  // (pas juste le 1er) pour offrir des alternatives. Groupé par (device, preset),
+  // ranking par bénéfice total. Seuil delta abaissé à 3% pour ne plus rater
+  // les gains modestes mais cumulables.
+  const PRIO_DELTA_MIN=3;
   const priorityActions=useMemo(()=>{
     const grouped={};
     const consider=(rows,deviceKey,banks)=>{
       for(const r of rows){
-        if(r.noAI||!r.ideal||r.delta<5) continue;
-        if(findInBanks(r.ideal.name,banks)) continue;
-        const k=deviceKey+"|"+r.ideal.name;
-        if(!grouped[k]) grouped[k]={device:deviceKey,deviceLabel:deviceKey==="ann"?"📦 Pédale":"🔌 Plug",preset:r.ideal,songs:[],totalDelta:0,place:autoPlace(banks,r.ideal.name,deviceKey)};
-        grouped[k].songs.push({song:r.song,currentScore:r.installedScore,newScore:r.idealScore,delta:r.delta});
-        grouped[k].totalDelta+=r.delta;
+        if(r.noAI) continue;
+        const candidates=r.idealTop3?.length?r.idealTop3:(r.ideal?[r.ideal]:[]);
+        for(const cand of candidates){
+          if(!cand?.name) continue;
+          if(findInBanks(cand.name,banks)) continue;
+          const candScore=cand.score||0;
+          const delta=candScore-r.installedScore;
+          if(delta<PRIO_DELTA_MIN) continue;
+          const k=deviceKey+"|"+cand.name;
+          if(!grouped[k]){
+            const place=autoPlace(banks,cand.name,deviceKey,rows);
+            if(!place) continue;
+            grouped[k]={device:deviceKey,deviceLabel:deviceKey==="ann"?"📦 Pédale":"🔌 Plug",preset:cand,songs:[],totalDelta:0,place,coveredIds:new Set()};
+          }
+          if(grouped[k].coveredIds.has(r.song.id)) continue; // 1 morceau ne génère qu'1 entrée par action
+          grouped[k].coveredIds.add(r.song.id);
+          grouped[k].songs.push({song:r.song,currentScore:r.installedScore,newScore:candScore,delta});
+          grouped[k].totalDelta+=delta;
+        }
       }
     };
     consider(annAnalysis.songRows,"ann",banksAnn);
     consider(plugAnalysis.songRows,"plug",banksPlug);
-    return Object.values(grouped).filter(g=>g.place).sort((a,b)=>b.totalDelta-a.totalDelta).slice(0,3);
+    return Object.values(grouped).sort((a,b)=>b.totalDelta-a.totalDelta).slice(0,3);
   },[annAnalysis,plugAnalysis,banksAnn,banksPlug]);
 
   // Score moyen actuel + projection si toutes les actions sont appliquées
@@ -4695,7 +4727,9 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
                 </div>
                 <div style={{fontSize:11,fontWeight:700,color:"var(--text-primary)",marginBottom:2,overflow:"hidden",textOverflow:"ellipsis"}}>Installer "{a.preset.name}"</div>
                 <div style={{fontSize:10,color:"var(--text-tertiary)",marginBottom:6}}>
-                  → Banque <span style={{fontFamily:"var(--font-mono)",color:CC[a.place.slot],fontWeight:700}}>{a.place.bank}{a.place.slot}</span> · {songsPreview}
+                  → Banque <span style={{fontFamily:"var(--font-mono)",color:CC[a.place.slot],fontWeight:700}}>{a.place.bank}{a.place.slot}</span>
+                  {a.place.replaces&&<span style={{color:"var(--yellow)",marginLeft:4}}>· remplace "{a.place.replaces}" ({a.place.replacesScore}%)</span>}
+                  <span style={{display:"block",marginTop:2}}>{songsPreview}</span>
                 </div>
                 <button onClick={()=>applyAction(a)} style={{background:"var(--accent)",border:"none",color:"var(--text-inverse)",borderRadius:"var(--r-sm)",padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Installer</button>
               </div>;
