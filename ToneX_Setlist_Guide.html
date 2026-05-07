@@ -837,6 +837,28 @@ function computeGuitarScoreV2(guitarId,presetStyle,presetGainRange,presetVoicing
   return Math.max(0,Math.min(100,50+(styleMod+gainMod+voicingMod+resonanceMod)*3));
 }
 
+// Matcher tolérant pour aligner un nom renvoyé par l'IA (ideal_guitar, cot_step2_guitars[].name)
+// avec une guitare de la collection. Évite que "SG Ebony" rate "SG Standard Ebony".
+function matchGuitarName(name,g){
+  if(!name||!g) return false;
+  const n=String(name).toLowerCase().replace(/\s+/g," ").trim();
+  const a=String(g.name||"").toLowerCase().replace(/\s+/g," ").trim();
+  const b=String(g.short||"").toLowerCase().replace(/\s+/g," ").trim();
+  if(!n) return false;
+  if(n===a||n===b) return true;
+  if(a&&(n.includes(a)||a.includes(n))) return true;
+  if(b&&(n.includes(b)||b.includes(n))) return true;
+  return false;
+}
+function findGuitarByAIName(name,guitars){
+  if(!name||!guitars) return null;
+  return guitars.find(g=>matchGuitarName(name,g))||null;
+}
+function findCotEntryForGuitar(cotList,g){
+  if(!cotList||!g) return null;
+  return cotList.find(gt=>matchGuitarName(gt?.name,g))||null;
+}
+
 // Score local de compatibilité guitare ↔ morceau, utilisé quand l'IA ne renvoie pas cette guitare dans cot_step2_guitars (top 2-3 only).
 function localGuitarSongScore(g,aiC){
   if(!g||!aiC) return null;
@@ -1173,7 +1195,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.2.9";
+const APP_VERSION = "7.3.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3528,7 +3550,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
   const idealGuitarObj=aiC?.cot_step2_guitars?.[0];
   const idealGuitarScore=idealGuitarObj?.score||null;
   // Compute chosen guitar score from CoT step 2 — l'IA ne renvoie que le top 2-3, donc fallback local sinon
-  const chosenGuitarCot=aiC?.cot_step2_guitars?.find(gt=>g&&(gt.name===g.name||gt.name===g.short));
+  const chosenGuitarCot=findCotEntryForGuitar(aiC?.cot_step2_guitars,g);
   const chosenGuitarScore=chosenGuitarCot?.score||localGuitarSongScore(g,aiC);
   const chosenGuitarScoreEstimated=!chosenGuitarCot&&chosenGuitarScore!=null;
   // Section styling helper
@@ -3989,7 +4011,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
             });
             const aiG=s.aiCache?.result?.ideal_guitar;
             if(aiG){
-              const m=guitars.find(g=>g.name===aiG||g.short===aiG);
+              const m=findGuitarByAIName(aiG,guitars);
               if(m){if(!songsByGuitar[m.id]) songsByGuitar[m.id]=new Set();songsByGuitar[m.id].add(s.id);matched=true;}
             }
             if(!matched){
@@ -4121,7 +4143,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                 {!isExpanded&&(g||aiC?.ideal_guitar)&&(()=>{
                   // Même métrique que la vue dépliée : compatibilité guitare↔morceau (cot_step2_guitars)
                   // avec fallback localGuitarSongScore, et idealGuitarScore quand on affiche la guitare idéale
-                  const chosenGuitarCot=aiC?.cot_step2_guitars?.find(gt=>g&&(gt.name===g.name||gt.name===g.short));
+                  const chosenGuitarCot=findCotEntryForGuitar(aiC?.cot_step2_guitars,g);
                   const idealGuitarScore=aiC?.cot_step2_guitars?.[0]?.score||null;
                   const gScore=chosenGuitarCot?.score||(g?localGuitarSongScore(g,aiC):idealGuitarScore);
                   const isIdealGuitar=g?ig.includes(gId):true;
@@ -4170,7 +4192,7 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
     if(!ai) return allGuitars[0];
     // 2. Guitare idéale recommandée par l'IA
     if(ai.ideal_guitar){
-      const m=allGuitars.find(g=>g.name===ai.ideal_guitar||g.short===ai.ideal_guitar);
+      const m=findGuitarByAIName(ai.ideal_guitar,allGuitars);
       if(m) return m;
     }
     // 3. Type de micro recommandé
@@ -4611,7 +4633,7 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
       });
       const aiG=s.aiCache?.result?.ideal_guitar;
       if(aiG){
-        const m=guitars.find(g=>g.name===aiG||g.short===aiG);
+        const m=findGuitarByAIName(aiG,guitars);
         if(m){if(!songsByGuitar[m.id]) songsByGuitar[m.id]=new Set();songsByGuitar[m.id].add(s.id);matched=true;}
       }
       if(!matched){
@@ -4643,7 +4665,7 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
         const aiG=s.aiCache?.result?.ideal_guitar;
         let best=null;
         // Prefer a guitar that's in top 3
-        if(aiG){const m=guitars.find(g=>g.name===aiG||g.short===aiG);if(m&&top3Ids.has(m.id)) best=m;}
+        if(aiG){const m=findGuitarByAIName(aiG,guitars);if(m&&top3Ids.has(m.id)) best=m;}
         if(!best&&ig.length){const m=guitars.find(g=>g.id===ig[0]);if(m&&top3Ids.has(m.id)) best=m;}
         // Fallback: best type match from top 3
         if(!best){
@@ -6013,7 +6035,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
               setSongResult(r);setSongBaseAI(r);
               if(cachedG) setSelectedGuitar(cachedG);
               else if(r.ideal_guitar){
-                const m=allGuitars.find(g=>g.name===r.ideal_guitar||g.short===r.ideal_guitar);
+                const m=findGuitarByAIName(r.ideal_guitar,allGuitars);
                 if(m) setSelectedGuitar(m);
               }
               return;
@@ -6025,7 +6047,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                 setSongResult(r);setSongBaseAI(r);
                 // Auto-sélectionne la guitare idéale (Bug 4 : "Guitare choisie" reflète un vrai choix)
                 if(r.ideal_guitar){
-                  const m=allGuitars.find(g=>g.name===r.ideal_guitar||g.short===r.ideal_guitar);
+                  const m=findGuitarByAIName(r.ideal_guitar,allGuitars);
                   if(m) setSelectedGuitar(m);
                 }
                 if(!existing){
@@ -6047,7 +6069,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           const info=existing?getSongInfo(existing):{year:songResult.song_year,album:songResult.song_album,desc:songResult.song_desc,key:songResult.song_key,bpm:songResult.song_bpm};
           const idealGuitarObj=songResult.cot_step2_guitars?.[0];
           const idealGuitarScore=idealGuitarObj?.score||null;
-          const chosenGuitarCot=selectedGuitar&&songResult.cot_step2_guitars?.find(gt=>gt.name===selectedGuitar.name||gt.name===selectedGuitar.short);
+          const chosenGuitarCot=selectedGuitar?findCotEntryForGuitar(songResult.cot_step2_guitars,selectedGuitar):null;
           const chosenGuitarScore=chosenGuitarCot?.score||(selectedGuitar?localGuitarSongScore(selectedGuitar,songResult):idealGuitarScore);
           const chosenGuitarScoreEstimated=!!selectedGuitar&&!chosenGuitarCot&&chosenGuitarScore!=null;
           const sectionStyle={background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:"var(--r-lg)",padding:"10px 12px",marginBottom:8};
@@ -6136,7 +6158,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
               <div style={{marginBottom:8}}>
                 <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Guitare choisie</div>
                 <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:4}}>
-                  {(selectedGuitar||songResult.ideal_guitar)&&<span style={{fontSize:11,background:"var(--a5)",border:"1px solid var(--a10)",borderRadius:"var(--r-md)",padding:"4px 10px",color:"var(--text-bright)",fontWeight:600,display:"inline-flex",alignItems:"center",gap:6}}><StatusDot score={chosenGuitarScore} ideal={!selectedGuitar||songResult.cot_step2_guitars?.[0]?.name===selectedGuitar?.name}/>{selectedGuitar?`${selectedGuitar.name} (${selectedGuitar.type})`:songResult.ideal_guitar}</span>}
+                  {(selectedGuitar||songResult.ideal_guitar)&&<span style={{fontSize:11,background:"var(--a5)",border:"1px solid var(--a10)",borderRadius:"var(--r-md)",padding:"4px 10px",color:"var(--text-bright)",fontWeight:600,display:"inline-flex",alignItems:"center",gap:6}}><StatusDot score={chosenGuitarScore} ideal={!selectedGuitar||matchGuitarName(songResult.cot_step2_guitars?.[0]?.name,selectedGuitar)}/>{selectedGuitar?`${selectedGuitar.name} (${selectedGuitar.type})`:songResult.ideal_guitar}</span>}
                   <button onClick={()=>setShowGuitarPick(p=>!p)} style={{fontSize:10,background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:"var(--r-md)",padding:"3px 8px",cursor:"pointer"}}>Changer</button>
                 </div>
                 {selectedGuitar&&chosenGuitarScore&&<div style={{fontSize:10,color:"var(--text-dim)",marginBottom:4}}>Compatibilite : <b style={{color:scoreColor(chosenGuitarScore)}}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated&&<span style={{marginLeft:6,color:"var(--text-tertiary)",fontStyle:"italic"}}>(estime)</span>}</div>}
