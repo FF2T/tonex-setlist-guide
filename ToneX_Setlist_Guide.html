@@ -1173,7 +1173,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.2.8";
+const APP_VERSION = "7.2.9";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4119,7 +4119,11 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                   <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,minWidth:0}}>{hist.amp}</span>
                 </div>}
                 {!isExpanded&&(g||aiC?.ideal_guitar)&&(()=>{
-                  const gScore=Math.max(aiPA?.score||0,aiPP?.score||0);
+                  // Même métrique que la vue dépliée : compatibilité guitare↔morceau (cot_step2_guitars)
+                  // avec fallback localGuitarSongScore, et idealGuitarScore quand on affiche la guitare idéale
+                  const chosenGuitarCot=aiC?.cot_step2_guitars?.find(gt=>g&&(gt.name===g.name||gt.name===g.short));
+                  const idealGuitarScore=aiC?.cot_step2_guitars?.[0]?.score||null;
+                  const gScore=chosenGuitarCot?.score||(g?localGuitarSongScore(g,aiC):idealGuitarScore);
                   const isIdealGuitar=g?ig.includes(gId):true;
                   return <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",marginTop:4}}>
                   <StatusDot score={gScore||null} ideal={isIdealGuitar}/>
