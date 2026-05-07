@@ -1210,7 +1210,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.3.2";
+const APP_VERSION = "7.3.3";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3703,12 +3703,18 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
             {aiC.ideal_top3.slice(1).map((p,i)=>{
               const loc=findInBanks(p.name,banksAnn)||findInBanks(p.name,banksPlug);
               const entry=findCatalogEntry(p.name);
-              return <div key={i} style={{display:"flex",alignItems:"center",gap:6,fontSize:10,marginBottom:2}}>
-                <StatusDot score={p.score} size={6}/>
-                <span style={{flex:1,color:"var(--text-secondary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name} <span style={{color:"var(--text-tertiary)"}}>({entry?.amp||p.amp})</span></span>
-                <span style={{fontFamily:"var(--font-mono)",fontWeight:700,color:scoreColor(p.score),flexShrink:0}}>{p.score}%</span>
-                {loc&&<span style={{color:"var(--success)",fontSize:8}}>✓</span>}
-                {entry?.src==="ToneNET"&&<span className="badge badge-brass" style={{fontSize:8,padding:"0 4px"}}>ToneNET</span>}
+              const si=presetSourceInfo(entry);
+              return <div key={i} style={{display:"flex",flexDirection:"column",gap:1,marginBottom:3}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,fontSize:10}}>
+                  <StatusDot score={p.score} size={6}/>
+                  <span style={{flex:1,color:"var(--text-secondary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name} <span style={{color:"var(--text-tertiary)"}}>({entry?.amp||p.amp})</span></span>
+                  <span style={{fontFamily:"var(--font-mono)",fontWeight:700,color:scoreColor(p.score),flexShrink:0}}>{p.score}%</span>
+                </div>
+                <div style={{fontSize:9,marginLeft:14,display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
+                  {loc?<span style={{color:"var(--green)"}}>✓ Installe — Banque {loc.bank}{loc.slot}</span>
+                    :<span style={{color:"var(--yellow)"}}>⬇ Non installe</span>}
+                  {si&&<span style={{color:loc?"var(--text-tertiary)":"var(--text-sec)"}}>· {si.icon} {si.label}</span>}
+                </div>
               </div>;
             })}
           </div>}
