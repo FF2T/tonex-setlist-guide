@@ -1230,7 +1230,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.4.2";
+const APP_VERSION = "7.4.3";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4426,40 +4426,37 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
     return null;
   };
 
-  // Actions prioritaires : pour chaque morceau, on parcourt TOUT le top 3 catalogue
-  // (pas juste le 1er) pour offrir des alternatives. Groupé par (device, preset),
-  // ranking par bénéfice total. Seuil delta abaissé à 3% pour ne plus rater
-  // les gains modestes mais cumulables.
+  // Actions prioritaires PAR DEVICE — chaque pédale/plug a ses propres top 3.
+  // Pour chaque morceau, on parcourt tout le top 3 catalogue (pas juste le 1er).
+  // Groupé par preset, classé par bénéfice total. Seuil 3%.
   const PRIO_DELTA_MIN=3;
-  const priorityActions=useMemo(()=>{
+  const computePriority=(rows,deviceKey,banks)=>{
     const grouped={};
-    const consider=(rows,deviceKey,banks)=>{
-      for(const r of rows){
-        if(r.noAI) continue;
-        const candidates=r.idealTop3?.length?r.idealTop3:(r.ideal?[r.ideal]:[]);
-        for(const cand of candidates){
-          if(!cand?.name) continue;
-          if(findInBanks(cand.name,banks)) continue;
-          const candScore=cand.score||0;
-          const delta=candScore-r.installedScore;
-          if(delta<PRIO_DELTA_MIN) continue;
-          const k=deviceKey+"|"+cand.name;
-          if(!grouped[k]){
-            const place=autoPlace(banks,cand.name,deviceKey,rows);
-            if(!place) continue;
-            grouped[k]={device:deviceKey,deviceLabel:deviceKey==="ann"?"📦 Pédale":"🔌 Plug",preset:cand,songs:[],totalDelta:0,place,coveredIds:new Set()};
-          }
-          if(grouped[k].coveredIds.has(r.song.id)) continue; // 1 morceau ne génère qu'1 entrée par action
-          grouped[k].coveredIds.add(r.song.id);
-          grouped[k].songs.push({song:r.song,currentScore:r.installedScore,newScore:candScore,delta});
-          grouped[k].totalDelta+=delta;
+    for(const r of rows){
+      if(r.noAI) continue;
+      const candidates=r.idealTop3?.length?r.idealTop3:(r.ideal?[r.ideal]:[]);
+      for(const cand of candidates){
+        if(!cand?.name) continue;
+        if(findInBanks(cand.name,banks)) continue;
+        const candScore=cand.score||0;
+        const delta=candScore-r.installedScore;
+        if(delta<PRIO_DELTA_MIN) continue;
+        const k=cand.name;
+        if(!grouped[k]){
+          const place=autoPlace(banks,cand.name,deviceKey,rows);
+          if(!place) continue;
+          grouped[k]={device:deviceKey,preset:cand,songs:[],totalDelta:0,place,coveredIds:new Set()};
         }
+        if(grouped[k].coveredIds.has(r.song.id)) continue;
+        grouped[k].coveredIds.add(r.song.id);
+        grouped[k].songs.push({song:r.song,currentScore:r.installedScore,newScore:candScore,delta});
+        grouped[k].totalDelta+=delta;
       }
-    };
-    consider(annAnalysis.songRows,"ann",banksAnn);
-    consider(plugAnalysis.songRows,"plug",banksPlug);
+    }
     return Object.values(grouped).sort((a,b)=>b.totalDelta-a.totalDelta).slice(0,3);
-  },[annAnalysis,plugAnalysis,banksAnn,banksPlug]);
+  };
+  const annPriority=useMemo(()=>computePriority(annAnalysis.songRows,"ann",banksAnn),[annAnalysis,banksAnn]);
+  const plugPriority=useMemo(()=>computePriority(plugAnalysis.songRows,"plug",banksPlug),[plugAnalysis,banksPlug]);
 
   // Score moyen actuel + projection si toutes les actions sont appliquées
   const computeMean=(rows)=>{
@@ -4469,30 +4466,27 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
   };
   const annMean=computeMean(annAnalysis.songRows);
   const plugMean=computeMean(plugAnalysis.songRows);
-  const computeProjected=(rows,deviceKey)=>{
+  const computeProjected=(rows,priorityList)=>{
     const ar=rows.filter(r=>!r.noAI);
     if(!ar.length) return null;
     const upgrades={};
-    priorityActions.filter(a=>a.device===deviceKey).forEach(a=>{
+    priorityList.forEach(a=>{
       a.songs.forEach(s=>{if((upgrades[s.song.id]||0)<s.newScore) upgrades[s.song.id]=s.newScore;});
     });
     return Math.round(ar.reduce((sum,r)=>sum+(upgrades[r.song.id]!=null?Math.max(upgrades[r.song.id],r.installedScore):r.installedScore),0)/ar.length);
   };
-  const annProjected=computeProjected(annAnalysis.songRows,"ann");
-  const plugProjected=computeProjected(plugAnalysis.songRows,"plug");
-  const meanOf2=(a,b)=>a==null?b:b==null?a:Math.round((a+b)/2);
-  const globalMean=meanOf2(annMean,plugMean);
-  const globalProjected=meanOf2(annProjected,plugProjected);
+  const annProjected=computeProjected(annAnalysis.songRows,annPriority);
+  const plugProjected=computeProjected(plugAnalysis.songRows,plugPriority);
 
   const applyAction=(action)=>{
     if(!action.place) return;
     const onBanks=action.device==="ann"?onBanksAnn:onBanksPlug;
     onBanks(prev=>({...prev,[action.place.bank]:{...(prev[action.place.bank]||{cat:"",A:"",B:"",C:""}),[action.place.slot]:action.preset.name}}));
   };
-  const applyAllActions=()=>{
-    if(!priorityActions.length) return;
-    if(!window.confirm(`Appliquer les ${priorityActions.length} actions prioritaires ?\nGain estimé : +${(globalProjected||0)-(globalMean||0)}%`)) return;
-    priorityActions.forEach(applyAction);
+  const applyAllForDevice=(list,deviceLabel,curMean,projMean)=>{
+    if(!list.length) return;
+    if(!window.confirm(`Appliquer les ${list.length} actions ${deviceLabel} ?\nGain estimé : ${curMean}% → ${projMean}% (+${projMean-curMean}%)`)) return;
+    list.forEach(applyAction);
   };
 
   // Banques standard "univers" — un ampli iconique par banque, 3 slots Clean/Drive/Lead
@@ -4691,53 +4685,57 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
         </select>
       </div>
 
-      {/* ── TOP 3 ACTIONS PRIORITAIRES ── */}
-      {songs.length>0&&globalMean!=null&&<div style={sectionStyle}>
-        {eyebrow("⚡","Top 3 actions prioritaires")}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"var(--s-2)",marginBottom:priorityActions.length>0?"var(--s-3)":0}}>
-          <div style={{background:"var(--bg-elev-2)",padding:"10px 8px",borderRadius:"var(--r-md)",textAlign:"center",border:"1px solid var(--border-subtle)"}}>
-            <div style={{fontSize:9,color:"var(--text-tertiary)",fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:4}}>Score actuel</div>
-            <div style={{fontSize:28,fontWeight:800,color:scoreColor(globalMean),lineHeight:1}}>{globalMean}%</div>
-            <div style={{fontSize:9,color:"var(--text-secondary)",marginTop:4}}>{annMean!=null?"📦 "+annMean+"%":""}{annMean!=null&&plugMean!=null?" · ":""}{plugMean!=null?"🔌 "+plugMean+"%":""}</div>
-          </div>
-          {priorityActions.length>0
-            ?<div style={{background:"var(--accent-soft)",padding:"10px 8px",borderRadius:"var(--r-md)",textAlign:"center",border:"1px solid var(--border-accent)"}}>
-              <div style={{fontSize:9,color:"var(--accent)",fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:4}}>Avec ces {priorityActions.length} action{priorityActions.length>1?"s":""}</div>
-              <div style={{fontSize:28,fontWeight:800,color:scoreColor(globalProjected),lineHeight:1}}>{globalProjected}%<span style={{fontSize:14,color:"var(--success)",marginLeft:6,fontWeight:700}}>+{globalProjected-globalMean}</span></div>
-              <div style={{fontSize:9,color:"var(--text-secondary)",marginTop:4}}>{annProjected!=null?"📦 "+annProjected+"%":""}{annProjected!=null&&plugProjected!=null?" · ":""}{plugProjected!=null?"🔌 "+plugProjected+"%":""}</div>
+      {/* ── TOP 3 ACTIONS PRIORITAIRES PAR DEVICE ── */}
+      {songs.length>0&&(()=>{
+        const renderDeviceBlock=(deviceKey,deviceLabel,curMean,projMean,actions,bgAccent)=>{
+          if(curMean==null) return null;
+          const delta=projMean!=null?projMean-curMean:0;
+          return <div style={{background:"var(--bg-elev-2)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-md)",padding:"var(--s-3)"}}>
+            <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:"var(--s-2)"}}>
+              <span style={{fontSize:13,fontWeight:700,color:"var(--text-primary)"}}>{deviceLabel}</span>
+              <span style={{fontSize:11,color:"var(--text-tertiary)",marginLeft:"auto"}}>Score</span>
+              <span style={{fontFamily:"var(--font-mono)",fontSize:18,fontWeight:800,color:scoreColor(curMean)}}>{curMean}%</span>
+              {actions.length>0&&projMean!=null&&<>
+                <span style={{fontSize:11,color:"var(--text-tertiary)"}}>→</span>
+                <span style={{fontFamily:"var(--font-mono)",fontSize:18,fontWeight:800,color:scoreColor(projMean)}}>{projMean}%</span>
+                <span style={{fontSize:11,color:"var(--success)",fontWeight:700}}>+{delta}</span>
+              </>}
             </div>
-            :<div style={{background:"var(--green-bg)",padding:"10px 8px",borderRadius:"var(--r-md)",textAlign:"center",border:"1px solid var(--green-border)"}}>
-              <div style={{fontSize:9,color:"var(--success)",fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:4}}>Statut</div>
-              <div style={{fontSize:13,fontWeight:700,color:"var(--success)",marginTop:8}}>✓ Setlist optimale</div>
-              <div style={{fontSize:9,color:"var(--text-secondary)",marginTop:4}}>Aucune action utile détectée</div>
-            </div>
-          }
-        </div>
-        {priorityActions.length>0&&<>
-          <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:"var(--s-2)"}}>
-            {priorityActions.map((a,i)=>{
-              const songsList=a.songs.map(s=>s.song.title);
-              const songsPreview=songsList.slice(0,3).join(", ")+(songsList.length>3?` +${songsList.length-3}`:"");
-              return <div key={i} style={{background:"var(--bg-elev-2)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-md)",padding:"8px 10px"}}>
-                <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4,flexWrap:"wrap"}}>
-                  <span style={{fontSize:14,fontWeight:800,color:"var(--accent)",minWidth:18}}>#{i+1}</span>
-                  <span style={{fontSize:11,color:"var(--text-secondary)",fontWeight:600}}>{a.deviceLabel}</span>
-                  <span style={{fontSize:10,background:"var(--green-bg)",color:"var(--success)",borderRadius:"var(--r-sm)",padding:"1px 6px",fontWeight:700,border:"1px solid var(--green-border)"}}>+{a.totalDelta}%</span>
-                  <span style={{fontSize:9,color:"var(--text-tertiary)",marginLeft:"auto"}}>{a.songs.length} morceau{a.songs.length>1?"x":""}</span>
+            {actions.length===0
+              ?<div style={{fontSize:11,color:"var(--success)",padding:"6px 0"}}>✓ Rien à optimiser sur ce device</div>
+              :<>
+                <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:8}}>
+                  {actions.map((a,i)=>{
+                    const songsList=a.songs.map(s=>s.song.title);
+                    const songsPreview=songsList.slice(0,3).join(", ")+(songsList.length>3?` +${songsList.length-3}`:"");
+                    return <div key={i} style={{background:"var(--bg-elev-1)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-sm)",padding:"7px 9px"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3,flexWrap:"wrap"}}>
+                        <span style={{fontSize:12,fontWeight:800,color:"var(--accent)",minWidth:18}}>#{i+1}</span>
+                        <span style={{fontSize:10,background:"var(--green-bg)",color:"var(--success)",borderRadius:"var(--r-sm)",padding:"1px 6px",fontWeight:700,border:"1px solid var(--green-border)"}}>+{a.totalDelta}%</span>
+                        <span style={{fontSize:9,color:"var(--text-tertiary)",marginLeft:"auto"}}>{a.songs.length} morceau{a.songs.length>1?"x":""}</span>
+                      </div>
+                      <div style={{fontSize:11,fontWeight:700,color:"var(--text-primary)",marginBottom:2,overflow:"hidden",textOverflow:"ellipsis"}}>Installer "{a.preset.name}"</div>
+                      <div style={{fontSize:10,color:"var(--text-tertiary)",marginBottom:5}}>
+                        → Banque <span style={{fontFamily:"var(--font-mono)",color:CC[a.place.slot],fontWeight:700}}>{a.place.bank}{a.place.slot}</span>
+                        {a.place.replaces&&<span style={{color:"var(--yellow)",marginLeft:4}}>· remplace "{a.place.replaces}" ({a.place.replacesScore}%)</span>}
+                        <span style={{display:"block",marginTop:2}}>{songsPreview}</span>
+                      </div>
+                      <button onClick={()=>applyAction(a)} style={{background:"var(--accent)",border:"none",color:"var(--text-inverse)",borderRadius:"var(--r-sm)",padding:"4px 10px",fontSize:10,fontWeight:700,cursor:"pointer"}}>Installer</button>
+                    </div>;
+                  })}
                 </div>
-                <div style={{fontSize:11,fontWeight:700,color:"var(--text-primary)",marginBottom:2,overflow:"hidden",textOverflow:"ellipsis"}}>Installer "{a.preset.name}"</div>
-                <div style={{fontSize:10,color:"var(--text-tertiary)",marginBottom:6}}>
-                  → Banque <span style={{fontFamily:"var(--font-mono)",color:CC[a.place.slot],fontWeight:700}}>{a.place.bank}{a.place.slot}</span>
-                  {a.place.replaces&&<span style={{color:"var(--yellow)",marginLeft:4}}>· remplace "{a.place.replaces}" ({a.place.replacesScore}%)</span>}
-                  <span style={{display:"block",marginTop:2}}>{songsPreview}</span>
-                </div>
-                <button onClick={()=>applyAction(a)} style={{background:"var(--accent)",border:"none",color:"var(--text-inverse)",borderRadius:"var(--r-sm)",padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Installer</button>
-              </div>;
-            })}
+                {actions.length>1&&<button onClick={()=>applyAllForDevice(actions,deviceLabel,curMean,projMean)} style={{width:"100%",background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-sm)",padding:"7px",fontSize:11,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)"}}>⚡ Tout appliquer {deviceLabel} ({actions.length})</button>}
+              </>}
+          </div>;
+        };
+        return <div style={sectionStyle}>
+          {eyebrow("⚡","Actions prioritaires")}
+          <div style={{display:"flex",flexDirection:"column",gap:"var(--s-2)"}}>
+            {renderDeviceBlock("ann","📦 Pédale",annMean,annProjected,annPriority)}
+            {renderDeviceBlock("plug","🔌 Plug",plugMean,plugProjected,plugPriority)}
           </div>
-          {priorityActions.length>1&&<button onClick={applyAllActions} style={{width:"100%",background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-sm)",padding:"8px",fontSize:11,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)"}}>⚡ Tout appliquer ({priorityActions.length})</button>}
-        </>}
-      </div>}
+        </div>;
+      })()}
 
       {/* ── SECTION 1 : DIAGNOSTIC ── */}
       <div style={sectionStyle}>
