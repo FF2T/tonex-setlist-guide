@@ -999,6 +999,21 @@ function computeSimpleScore(presetName,guitarId,gType){
 function guitarScore(name,guitarId){return computeSimpleScore(name,guitarId,null);}
 function presetScore(name,gType){return computeSimpleScore(name,null,gType);}
 function srcBadge(name){const s=findCatalogEntry(name)?.src;return s==="TSR"?"TSR":s==="ML"?"ML":s==="Anniversary"?"Pédale":s==="custom"?"Custom":s==="ToneNET"?"ToneNET":"";}
+// Description longue de la source d'un preset, pour aider l'utilisateur à le retrouver
+// (pack ToneNET .zip, AmpliTube ML, packs factory pré-installés, custom user…)
+function presetSourceInfo(entry){
+  if(!entry?.src) return null;
+  switch(entry.src){
+    case "TSR":         return {icon:"📦",label:entry.pack?`Pack ToneNET « ${entry.pack}.zip »`:"Pack ToneNET (zip)"};
+    case "ML":          return {icon:"🎚",label:"AmpliTube — Modeled Lab"};
+    case "ToneNET":     return {icon:"🌐",label:"ToneNET (téléchargement direct)"};
+    case "Anniversary": return {icon:"🏭",label:"Pédale ToneX (preset Anniversary d'usine)"};
+    case "Factory":     return {icon:"🏭",label:"Pédale ToneX (preset Factory d'usine)"};
+    case "PlugFactory": return {icon:"🔌",label:"ToneX Plug (preset Factory d'usine)"};
+    case "custom":      return {icon:"✨",label:entry.pack?`Custom — ${entry.pack}`:"Preset custom"};
+    default:            return {icon:"📁",label:String(entry.src)};
+  }
+}
 // Vérifie si un preset (par sa source) est compatible avec un device
 // Anniversary + Factory = pédale only, PlugFactory = plug only, le reste = les deux
 function isSrcCompatible(src,deviceKey){
@@ -1195,7 +1210,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "7.3.1";
+const APP_VERSION = "7.3.2";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3670,11 +3685,9 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
               </div>
               <div style={{fontSize:9,marginTop:2,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                 {loc?<span style={{color:"var(--green)"}}>✓ Installe — Banque {loc.bank}{loc.slot}</span>
-                :<>
-                  <span style={{color:"var(--text-dim)"}}>Non installe</span>
-                  {entry?.src==="TSR"&&entry.pack&&<span style={{color:"var(--yellow)"}}>📦 {entry.pack}.zip</span>}
-                  {!installTarget&&(canInstallAnn||canInstallPlug)&&<button onClick={()=>setInstallTarget({preset:aiC.ideal_preset})} style={{fontSize:9,background:"var(--accent-bg)",border:"1px solid var(--accent-border)",color:"var(--accent)",borderRadius:"var(--r-sm)",padding:"2px 8px",cursor:"pointer",fontWeight:600}}>Installer</button>}
-                </>}
+                  :<span style={{color:"var(--yellow)"}}>⬇ Non installe</span>}
+                {(()=>{const si=presetSourceInfo(entry);return si?<span style={{color:loc?"var(--text-tertiary)":"var(--text-sec)"}}>· {si.icon} {si.label}</span>:null;})()}
+                {!loc&&!installTarget&&(canInstallAnn||canInstallPlug)&&<button onClick={()=>setInstallTarget({preset:aiC.ideal_preset})} style={{fontSize:9,background:"var(--accent-bg)",border:"1px solid var(--accent-border)",color:"var(--accent)",borderRadius:"var(--r-sm)",padding:"2px 8px",cursor:"pointer",fontWeight:600,marginLeft:"auto"}}>Installer</button>}
               </div>
               {installTarget?.preset===aiC.ideal_preset&&<div style={{marginTop:6,background:"var(--a4)",border:"1px solid var(--a10)",borderRadius:"var(--r-md)",padding:10}}>
                 <div style={{fontSize:10,color:"var(--text-sec)",marginBottom:8,fontWeight:600}}>Installer "{aiC.ideal_preset}" sur :</div>
@@ -6147,13 +6160,18 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                   const idealScore=songResult.ideal_preset_score||0;
                   const loc=findInBanks(songResult.ideal_preset,banksAnn)||findInBanks(songResult.ideal_preset,banksPlug);
                   const entry=findCatalogEntry(songResult.ideal_preset);
+                  const srcInfo=presetSourceInfo(entry);
                   return <div>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",fontSize:11}}>
                       <div style={{display:"flex",alignItems:"center",gap:6}}><StatusDot score={idealScore} ideal={true}/><span style={{color:"var(--text-muted)",fontSize:10}}>Preset</span> <span style={{fontWeight:600,color:"var(--text-bright)"}}>{songResult.ideal_preset}</span></div>
                       {idealScore>0&&<b style={{color:scoreColor(idealScore),flexShrink:0}}>{idealScore}%</b>}
                     </div>
-                    <div style={{fontSize:9,color:loc?"var(--green)":"var(--text-dim)",marginTop:1}}>
-                      {loc?"✓ Installé":"Non installé"}{!loc&&entry?.src==="TSR"&&entry.pack&&<span style={{color:"var(--yellow)"}}> · 📦 {entry.pack}.zip</span>}
+                    <div style={{fontSize:9,marginTop:2,display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                      {loc
+                        ?<span style={{color:"var(--green)"}}>✓ Installé · Banque {loc.bank}{loc.slot}</span>
+                        :<span style={{color:"var(--yellow)"}}>⬇ Non installé</span>
+                      }
+                      {srcInfo&&<span style={{color:loc?"var(--text-tertiary)":"var(--text-sec)"}}>· {srcInfo.icon} {srcInfo.label}</span>}
                     </div>
                   </div>;
                 })()}
