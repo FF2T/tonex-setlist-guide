@@ -1237,7 +1237,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.2.2";
+const APP_VERSION = "8.2.3";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -6775,16 +6775,33 @@ function App() {
   const mergeSongDb=(local,remote)=>{
     if(!remote)return local;
     if(!local)return remote;
-    const map=new Map(local.map(s=>[s.id,s]));
-    remote.forEach(s=>{
-      const existing=map.get(s.id);
+    var map=new Map(local.map(s=>[s.id,s]));
+    remote.forEach(function(s){
+      var existing=map.get(s.id);
       if(!existing){map.set(s.id,s);}
       else{
-        // Keep the one with the most recent/complete aiCache
         if(s.aiCache&&(!existing.aiCache||s.aiCache.sv>(existing.aiCache.sv||0))){map.set(s.id,s);}
       }
     });
-    return [...map.values()];
+    // Dedup by title+artist (same song added on different devices with different IDs)
+    var byKey=new Map();
+    var idRemap={};
+    map.forEach(function(s){
+      var key=(s.title||"").toLowerCase().trim()+"|||"+(s.artist||"").toLowerCase().trim();
+      var prev=byKey.get(key);
+      if(!prev){byKey.set(key,s);}
+      else{
+        if(s.aiCache&&(!prev.aiCache||(s.aiCache.sv||0)>(prev.aiCache.sv||0))){
+          idRemap[prev.id]=s.id;
+          byKey.set(key,s);
+        } else {
+          idRemap[s.id]=prev.id;
+        }
+      }
+    });
+    var result=[...byKey.values()];
+    result._idRemap=idRemap;
+    return result;
   };
   // Merge setlists: keep all, merge songIds (union), mais exclut les IDs supprimés
   // explicitement (tombstones) pour éviter qu'une setlist supprimée localement ne
@@ -6825,8 +6842,10 @@ function App() {
   // Apply remote data into local state (merge, never lose data)
   const applyRemoteData = (data) => {
     if(!data||!data.shared) return;
+    var pollRemap={};
     if(data.shared.songDb) setSongDb(prev=>{
       const m=mergeSongDb(prev,data.shared.songDb);
+      pollRemap=m._idRemap||{};
       if(m.length===prev.length&&m.every((s,i)=>s===prev[i]))return prev;
       return m;
     });
@@ -6842,7 +6861,10 @@ function App() {
       });
     }
     if(data.shared.setlists) setSetlistsRaw(prev=>{
-      const m=mergeSetlists(prev,data.shared.setlists,allDel);
+      var m=mergeSetlists(prev,data.shared.setlists,allDel);
+      if(Object.keys(pollRemap).length>0){
+        m=m.map(function(sl){var ids=sl.songIds.map(function(id){return pollRemap[id]||id;});return{...sl,songIds:[...new Set(ids)]};});
+      }
       if(JSON.stringify(m)===JSON.stringify(prev))return prev;
       return m;
     });
@@ -6877,6 +6899,14 @@ function App() {
         var mergedDel=[...new Set([...(deletedSetlistIds||[]),...remoteDel])];
         var mergedSongs=mergeSongDb(songDb||[],remoteSongs);
         var mergedSl=mergeSetlists(setlists||[],remoteSl,mergedDel);
+        // Remap duplicated song IDs in setlists
+        var remap=mergedSongs._idRemap||{};
+        if(Object.keys(remap).length>0){
+          mergedSl=mergedSl.map(function(sl){
+            var ids=sl.songIds.map(function(id){return remap[id]||id;});
+            return {...sl,songIds:[...new Set(ids)]};
+          });
+        }
         if(mergedSongs.length>remoteSongs.length||mergedSl.length>remoteSl.length||mergedDel.length>remoteDel.length){
           var ps={version:2,activeProfileId:data.activeProfileId||activeProfileId,shared:{songDb:mergedSongs,theme:data.shared.theme||theme,setlists:mergedSl,customGuitars:data.shared.customGuitars||customGuitars,deletedSetlistIds:mergedDel},profiles:data.profiles||profiles,lastModified:Date.now()};
           saveToFirestore(ps).catch(function(){});
