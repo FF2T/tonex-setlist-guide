@@ -1264,7 +1264,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.6.1";
+const APP_VERSION = "8.6.2";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5684,6 +5684,13 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,
     pedales:{label:"Pedales de drive",desc:"Captures pedales seules",filter:i=>(i.amp||"").includes("drive")||(i.amp||"").includes("Pedal")||(i.amp||"").toLowerCase().includes("pédale")},
   };
 
+  const ampFamilyOf=function(amp){
+    var tax=AMP_TAXONOMY[amp];
+    if(tax) return tax.family;
+    for(var k in AMP_TAXONOMY){if(amp.includes(k)||k.includes(amp)) return AMP_TAXONOMY[k].family;}
+    return amp;
+  };
+
   // Build amp brand grouping
   const ampBrands=useMemo(()=>{
     var brands={};
@@ -5725,13 +5732,6 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,
 
   const ALL_SRC_OPTS={TSR:"64 Studio Rats",ML:"ML Sound Lab Essentials",Anniversary:"ToneX Anniversary Factory",Factory:"ToneX Factory",PlugFactory:"ToneX Plug Factory",custom:"Custom",ToneNET:"ToneNET"};
   const SRC_OPTS={all:"Toutes sources",...Object.fromEntries(Object.entries(ALL_SRC_OPTS).filter(([k])=>!availableSources||availableSources[k]!==false))};
-
-  const ampFamilyOf=function(amp){
-    var tax=AMP_TAXONOMY[amp];
-    if(tax) return tax.family;
-    for(var k in AMP_TAXONOMY){if(amp.includes(k)||k.includes(amp)) return AMP_TAXONOMY[k].family;}
-    return amp;
-  };
   const ampFamilies=useMemo(()=>{
     if(!filterBrand) return [];
     var fams={};
