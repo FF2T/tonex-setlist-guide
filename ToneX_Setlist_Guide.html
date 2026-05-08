@@ -1264,7 +1264,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.4.2";
+const APP_VERSION = "8.4.3";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -1466,24 +1466,14 @@ function StatusDot({score,ideal,size}){
 }
 function GuitarSilhouette({id,size}){
   var s=size||40;
-  var st={width:s,height:s};
   var n=(id||"").toLowerCase();
-  // Les Paul — 3+3 headstock, single cutaway, thick rounded body
-  if(n.includes("lp")||n.includes("les paul")) return <svg style={st} viewBox="0 0 24 48" fill="currentColor" opacity="0.7"><path d="M9 0H15V2H17V5H15L14 6V22Q18 22 21 27Q23 32 22 37Q20 43 12 47Q4 43 2 37Q1 32 3 27Q5 22 10 20V6L9 5H7V2H9Z"/></svg>;
-  // SG — 3+3 headstock, double cutaway, pointed devil horns, thin body
-  if(n.includes("sg")) return <svg style={st} viewBox="0 0 24 48" fill="currentColor" opacity="0.7"><path d="M9 0H15V2H17V5H15L14 6V16L18 13Q21 13 21 18Q22 26 19 34Q16 40 12 42Q8 40 5 34Q2 26 3 18Q3 13 6 13L10 16V6L9 5H7V2H9Z"/></svg>;
-  // ES-335 — 3+3 headstock, wide semi-hollow body
-  if(n.includes("es-335")||n.includes("es335")||n.includes("335")) return <svg style={st} viewBox="0 0 24 48" fill="currentColor" opacity="0.7"><path d="M9 0H15V2H17V5H15L14 6V20Q18 19 21 22Q23 27 23 32Q23 38 20 42Q16 46 12 47Q8 46 4 42Q1 38 1 32Q1 27 3 22Q6 19 10 20V6L9 5H7V2H9Z"/></svg>;
-  // Strat — 6-inline headstock, double cutaway, longer treble horn
-  if(n.includes("strat")) return <svg style={st} viewBox="0 0 24 48" fill="currentColor" opacity="0.7"><path d="M10 0H14V1H17V7H14L13 8V22Q17 19 19 17Q21 18 21 22Q23 28 22 36Q20 43 12 47Q4 43 2 36Q1 28 3 22Q4 19 7 20Q9 21 11 22V8L10 7V0Z"/></svg>;
-  // Tele — 6-inline headstock, single cutaway, slab body
-  if(n.includes("tele")) return <svg style={st} viewBox="0 0 24 48" fill="currentColor" opacity="0.7"><path d="M10 0H14V1H17V7H14L13 8V23H20L22 26V37Q20 44 12 47Q4 44 2 37V26L4 23L11 20V8L10 7V0Z"/></svg>;
-  // Jazzmaster — 6-inline headstock, offset body, wide curves
-  if(n.includes("jazz")||n.includes("jazzmaster")) return <svg style={st} viewBox="0 0 24 48" fill="currentColor" opacity="0.7"><path d="M10 0H14V1H17V7H14L13 8V21Q16 19 19 18Q22 19 22 24Q23 30 22 38Q20 44 12 47Q4 44 2 38Q1 30 2 24Q3 20 6 21Q9 22 11 21V8L10 7V0Z"/></svg>;
-  // P90 — LP body with pickup bar
-  if(n.includes("p90")) return <svg style={st} viewBox="0 0 24 48" fill="currentColor" opacity="0.7"><path d="M9 0H15V2H17V5H15L14 6V22Q18 22 21 27Q23 32 22 37Q20 43 12 47Q4 43 2 37Q1 32 3 27Q5 22 10 20V6L9 5H7V2H9Z"/><rect x="7" y="31" width="10" height="2.5" rx="1.2" opacity="0.15"/></svg>;
-  // Default
-  return <svg style={st} viewBox="0 0 24 48" fill="currentColor" opacity="0.7"><path d="M9 0H15V2H17V5H15L14 6V22Q18 22 21 27Q23 32 22 37Q20 43 12 47Q4 43 2 37Q1 32 3 27Q5 22 10 20V6L9 5H7V2H9Z"/></svg>;
+  var file="lespaul.svg";
+  if(n.includes("sg")) file="sg.svg";
+  else if(n.includes("es-335")||n.includes("es335")||n.includes("335")) file="es335.svg";
+  else if(n.includes("strat")) file="strat.svg";
+  else if(n.includes("tele")) file="tele.svg";
+  else if(n.includes("jazz")||n.includes("jazzmaster")) file="jazzmaster.svg";
+  return <img src={file} alt="" style={{width:s*1.6,height:s,objectFit:"contain",filter:"invert(0.75)",opacity:0.85}}/>;
 }
 function NavIcon({id,size}){
   var s=size||20;var st={width:s,height:s,fill:"none",stroke:"currentColor",strokeWidth:1.8,strokeLinecap:"round",strokeLinejoin:"round"};
