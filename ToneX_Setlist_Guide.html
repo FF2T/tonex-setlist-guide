@@ -1473,7 +1473,7 @@ function GuitarSilhouette({id,size}){
   else if(n.includes("strat")) file="strat.svg";
   else if(n.includes("tele")) file="tele.svg";
   else if(n.includes("jazz")||n.includes("jazzmaster")) file="jazzmaster.svg";
-  return <img src={file} alt="" style={{width:s*1.6,height:s,objectFit:"contain",filter:"invert(0.75)",opacity:0.85}}/>;
+  return <img src={file} alt="" style={{width:s*1.6,height:s,objectFit:"contain",filter:"invert(1) brightness(1.2)",opacity:1}}/>;
 }
 function NavIcon({id,size}){
   var s=size||20;var st={width:s,height:s,fill:"none",stroke:"currentColor",strokeWidth:1.8,strokeLinecap:"round",strokeLinejoin:"round"};
