@@ -317,6 +317,8 @@ function saveSharedKey(key){
     .nav-mobile{display:flex!important}
     .nav-desktop{display:none!important}
     .breadcrumb-nav{display:none!important}
+    .app-header-bar{position:fixed!important;top:0;left:0;right:0;z-index:40}
+    .page-root{padding-top:52px!important}
   }
   /* ── Tablet ── */
   @media(min-width:640px){
@@ -1235,7 +1237,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.2.1";
+const APP_VERSION = "8.2.2";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -1455,8 +1457,8 @@ function AppHeader({profiles,activeProfileId,onProfile,screen,onNavigate,isAdmin
     {id:"optimizer",label:"Optimiser"},
   ];
   return <div>
-    {/* Header bar */}
-    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,padding:"0"}}>
+    {/* Header bar — fixed on mobile */}
+    <div className="app-header-bar" style={{display:"flex",alignItems:"center",gap:8,padding:"8px var(--s-3,12px)",background:"var(--surface-card,var(--bg-card))",borderBottom:"1px solid var(--border-subtle,var(--a8))"}}>
       <button onClick={onProfile} style={{background:c,color:"var(--text-inverse)",border:"none",borderRadius:"var(--r-pill,50%)",width:32,height:32,fontSize:14,fontWeight:800,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}} title={profileName}>{profileName[0]?.toUpperCase()||"?"}</button>
       <div style={{flex:1,minWidth:0}}>
         <div style={{fontSize:14,fontWeight:800,color:"var(--text-primary)",fontFamily:"var(--font-display,system-ui)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>ToneX Poweruser</div>
