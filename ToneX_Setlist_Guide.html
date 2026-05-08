@@ -254,7 +254,7 @@ function saveSharedKey(key){
   .badge-solid{background:var(--accent);border-color:var(--accent);color:var(--text-inverse)}
 
   /* ── Responsive ── */
-  .page-root{padding:var(--s-3);max-width:700px;margin:0 auto;min-height:100vh;min-height:100dvh;overflow-x:hidden;word-break:break-word}
+  .page-root{padding:var(--s-3);max-width:700px;margin:0 auto;overflow-x:hidden;word-break:break-word}
   @media(min-width:400px){.page-root{padding:var(--s-4)}}
   @media(min-width:640px){.page-root{padding:var(--s-5)}}
 
@@ -1234,7 +1234,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.0.1";
+const APP_VERSION = "8.0.2";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3195,9 +3195,11 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
       {profile.isAdmin&&tab==="maintenance"&&<MaintenanceTab songDb={songDb} onSongDb={onSongDb} setlists={allSetlists} onSetlists={onSetlists} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys}/>}
       {profile.isAdmin&&tab==="export"&&<ExportImportScreen banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} onBack={()=>setTab("profile")} onNavigate={onNavigate} fullState={fullState} onImportState={onImportState} inline={true}/>}
       {profile.isAdmin&&tab==="admin_profiles"&&<ProfilesAdmin profiles={profiles} onProfiles={onProfiles}/>}
-      {/* Déconnexion */}
-      <div style={{marginTop:24,paddingTop:16,borderTop:"1px solid var(--a8)"}}>
-        {onLogout&&<button onClick={onLogout} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:"var(--r-md)",padding:"8px 16px",fontSize:12,cursor:"pointer"}}>Se deconnecter</button>}
+      {/* Aide, MAJ, Déconnexion */}
+      <div style={{marginTop:24,paddingTop:16,borderTop:"1px solid var(--a8)",display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
+        <button onClick={()=>{if(typeof setShowOnboarding==="function")setShowOnboarding(true);else{var e=new CustomEvent("showOnboarding");window.dispatchEvent(e);}}} style={{background:"none",border:"none",color:"var(--text-dim)",fontSize:12,cursor:"pointer",textDecoration:"underline"}}>Aide</button>
+        <button onClick={()=>{location.reload(true);}} style={{background:"none",border:"none",color:"var(--text-dim)",fontSize:12,cursor:"pointer",textDecoration:"underline"}}>Mise a jour</button>
+        {onLogout&&<button onClick={onLogout} style={{background:"var(--a5)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:"var(--r-md)",padding:"8px 16px",fontSize:12,cursor:"pointer",marginLeft:"auto"}}>Se deconnecter</button>}
       </div>
     </div>
   );
@@ -6359,12 +6361,12 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
   };
 
   return (
-    <div style={{display:"flex",flexDirection:"column",minHeight:"80vh"}}>
+    <div style={{display:"flex",flexDirection:"column"}}>
       {splashOpen&&<SplashPopup onClose={()=>setSplashOpen(false)}/>}
       {showOnboarding&&<OnboardingWizard onClose={()=>setShowOnboarding(false)} onProfile={onProfile}/>}
 
       {/* Zone centrale style Google */}
-      <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"stretch",padding:"8px 0 4px"}}>
+      <div style={{padding:"8px 0 4px"}}>
         {songLoading?(
           <div style={{textAlign:"center",padding:"40px 0"}}>
             <div style={{fontSize:48,marginBottom:16,animation:"spin 1.5s linear infinite"}}>&#9203;</div>
