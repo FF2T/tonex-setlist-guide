@@ -879,7 +879,34 @@ function localGuitarSongScore(g,aiC){
   return Math.max(30,Math.min(99,Math.round(pickupScore*0.6+styleScore*0.4)));
 }
 
-// Réglages concrets à appliquer sur la guitare choisie pour ce morceau (sélecteur de micros, tone, volume).
+function guitarChoiceFeedback(g,aiC,cotEntry){
+  if(!g||!aiC) return null;
+  if(cotEntry?.reason) return cotEntry.reason;
+  var profile=GUITAR_PROFILES[g.id];
+  if(!profile) return null;
+  var pros=[],cons=[];
+  var pref=aiC.pickup_preference;
+  var style=aiC.song_style;
+  var gain=getGainRange(typeof aiC.target_gain==="number"?aiC.target_gain:5);
+  if(pref&&pref!=="any"){
+    if(pref===g.type) pros.push("micros "+g.type+" adaptés au morceau");
+    else cons.push("micros "+g.type+" — le morceau demande plutôt des "+pref);
+  }
+  if(style&&profile.styleMods[style]!=null){
+    var sm=profile.styleMods[style];
+    if(sm>=4) pros.push("excellente affinité "+style.replace("_"," "));
+    else if(sm<=-2) cons.push("peu naturelle en "+style.replace("_"," "));
+  }
+  if(gain&&profile.gainAffinity[gain]!=null){
+    var gm=profile.gainAffinity[gain];
+    if(gm>=3) pros.push("à l'aise en "+gain.replace("_"," "));
+    else if(gm<=-3) cons.push("moins adaptée au registre "+gain.replace("_"," "));
+  }
+  var parts=[];
+  if(pros.length) parts.push("✓ "+pros.join(", "));
+  if(cons.length) parts.push("⚠ "+cons.join(", "));
+  return parts.length?parts.join(" · "):profile.desc;
+}
 function localGuitarSettings(g,aiC){
   if(!g||!aiC) return null;
   const profile=GUITAR_PROFILES[g.id]||{};
@@ -1237,7 +1264,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.4.1";
+const APP_VERSION = "8.4.2";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3919,6 +3946,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
             <div style={{flex:1}}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/></div>
           </div>
           {g&&chosenGuitarScore&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:3,marginLeft:24}}>Compatibilite : <b style={{color:scoreColor(chosenGuitarScore)}}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated&&<span style={{marginLeft:6,color:"var(--text-tertiary)",fontStyle:"italic"}}>(estime)</span>}</div>}
+          {g&&aiC&&(()=>{const fb=guitarChoiceFeedback(g,aiC,chosenGuitarCot);return fb?<div style={{fontSize:10,color:"var(--text-sec)",marginTop:3,marginLeft:24,lineHeight:1.4}}>{fb}</div>:null;})()}
           {g&&aiC&&(()=>{const s=localGuitarSettings(g,aiC);return s?<div style={{fontSize:10,background:"var(--a4)",border:"1px solid var(--a10)",borderRadius:"var(--r-md)",padding:"5px 8px",color:"var(--text-sec)",marginTop:5,marginLeft:24}}><b style={{color:"var(--text-muted)"}}>Reglages :</b> {s}</div>:null;})()}
         </div>
         <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Meilleurs presets installes pour {g?.short||"cette guitare"}</div>
