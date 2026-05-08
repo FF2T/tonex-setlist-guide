@@ -657,7 +657,7 @@ function guessPresetInfo(name){
   // Deviner le style depuis l'ampli
   var style="rock";
   if(amp.includes("Fender")||amp.includes("Princeton")||amp.includes("Twin")) style="blues";
-  else if(amp.includes("Mesa")||amp.includes("Rectifier")||amp.includes("5150")||amp.includes("ENGL")||amp.includes("Diezel")) style="hard_rock";
+  else if(amp.includes("Mesa")||amp.includes("Rectifier")||amp.includes("5150")||amp.includes("ENGL")||amp.includes("Diezel")||amp.includes("Laney")) style="hard_rock";
   else if(amp.includes("Vox")) style="rock";
   return {src:"ToneNET",amp:amp,gain:gain,style:style,scores:{HB:75,SC:75,P90:75},guessed:true};
 }
@@ -1264,7 +1264,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.5.0";
+const APP_VERSION = "8.5.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5707,7 +5707,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,
       if(profile&&!profile.filter(info))return false;
       if(filterBrand){var b=info.amp?info.amp.split(" ")[0]:"";if(b==="Dr."||b==="Two"||b==="Bad"||b==="Divided")b=info.amp.split(" ").slice(0,2).join(" ");if(b!==filterBrand)return false;}
       if(filterModel&&info.amp!==filterModel)return false;
-      if(filterBrand&&filterFamily&&!filterModel){var STRIP2=/^(tweed|blackface|silverface|blonde|bf|sf|hot\s?rod|5[eE]\d+)\s+/i;var mdl=info.amp.startsWith(filterBrand)?info.amp.slice(filterBrand.length).trim():info.amp;var fk=mdl.replace(STRIP2,"").split(/\s+/)[0]||mdl.split(/\s+/)[0]||mdl;if(fk!==filterFamily)return false;}
+      if(filterBrand&&filterFamily&&!filterModel){if(ampFamilyKey(info.amp,filterBrand)!==filterFamily)return false;}
       if(search.trim()){
         const q=search.toLowerCase();
         const ctx=mergedContext[info.amp];
@@ -5732,10 +5732,15 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,
   const SRC_OPTS={all:"Toutes sources",...Object.fromEntries(Object.entries(ALL_SRC_OPTS).filter(([k])=>!availableSources||availableSources[k]!==false))};
 
   const [filterFamily,setFilterFamily]=useState("");
+  const ampFamilyKey=function(amp,brand){
+    var model=amp.startsWith(brand)?amp.slice(brand.length).trim():amp;
+    if(!model) return amp;
+    var cleaned=model.replace(/\b(tweed|blackface|silverface|blonde|bf|sf|hot\s?rod|blues?|reverb|plus|II|III|IV|5[eE]\d\w*|\d{4,}\w*)\b/gi,"").replace(/\s+/g," ").trim();
+    return (cleaned.split(/\s+/)[0]||model.split(/\s+/)[0]||model);
+  };
   const ampFamilies=useMemo(()=>{
     if(!filterBrand) return [];
     var fams={};
-    var STRIP=/^(tweed|blackface|silverface|blonde|bf|sf|hot\s?rod|5[eE]\d+)\s+/i;
     Object.values(fullCatalog).forEach(function(info){
       if(!info.amp) return;
       var b=info.amp.split(" ")[0];
@@ -5743,9 +5748,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,
       if(b!==filterBrand) return;
       var profile=SOUND_PROFILES[soundProfile];
       if(profile&&!profile.filter(info)) return;
-      var model=info.amp.startsWith(filterBrand)?info.amp.slice(filterBrand.length).trim():info.amp;
-      var family=model.replace(STRIP,"").split(/\s+/)[0]||model.split(/\s+/)[0]||model;
-      if(!family) family=model;
+      var family=ampFamilyKey(info.amp,filterBrand);
       if(!fams[family]) fams[family]={count:0,variants:{}};
       fams[family].count++;
       if(!fams[family].variants[info.amp]) fams[family].variants[info.amp]=0;
