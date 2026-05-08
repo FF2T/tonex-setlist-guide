@@ -1473,7 +1473,10 @@ function GuitarSilhouette({id,size}){
   else if(n.includes("strat")) file="strat.svg";
   else if(n.includes("tele")) file="tele.svg";
   else if(n.includes("jazz")||n.includes("jazzmaster")) file="jazzmaster.svg";
-  return <img src={file} alt="" style={{width:s*1.6,height:s,objectFit:"contain",filter:"invert(1) brightness(1.2)",opacity:1}}/>;
+  var gc={lp60:"sunburst",lp50p90:"gold",sg_ebony:"black",sg61:"cherry",es335:"cherry",strat61:"red",strat_pro2:"sunburst",strat_ec:"black",tele63:"green",tele_ultra:"black",jazzmaster:"blue"};
+  var gf={red:"invert(1) sepia(1) saturate(8) hue-rotate(335deg) brightness(0.9)",gold:"invert(1) sepia(1) saturate(3) hue-rotate(5deg) brightness(1.1)",green:"invert(1) sepia(1) saturate(5) hue-rotate(85deg) brightness(0.85)",blue:"invert(1) sepia(1) saturate(5) hue-rotate(180deg) brightness(0.85)",cherry:"invert(1) sepia(1) saturate(6) hue-rotate(335deg) brightness(0.65)",sunburst:"invert(1) sepia(1) saturate(2) hue-rotate(350deg) brightness(0.9)",black:"invert(0.3)"};
+  var f=gf[gc[id]]||"invert(1) brightness(1.2)";
+  return <img src={file} alt="" style={{width:s*1.6,height:s,objectFit:"contain",filter:f,opacity:1}}/>;
 }
 function NavIcon({id,size}){
   var s=size||20;var st={width:s,height:s,fill:"none",stroke:"currentColor",strokeWidth:1.8,strokeLinecap:"round",strokeLinejoin:"round"};
