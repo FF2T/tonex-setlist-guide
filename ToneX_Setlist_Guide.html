@@ -1237,7 +1237,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.2.4";
+const APP_VERSION = "8.2.5";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5761,19 +5761,12 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,
             </div>
           </div>)}
         </div>
-        {/* Marque d'ampli */}
-        <div>
-          <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:5}}>Marque d'ampli</div>
-          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-            <button onClick={()=>setFilterBrand("")} style={tile(!filterBrand)}>Toutes</button>
-            {ampBrands.slice(0,15).map(([brand,count])=>{
-              var on=filterBrand===brand;
-              return <button key={brand} onClick={()=>setFilterBrand(on?"":brand)} style={tile(on)}>{brand} <span style={{fontSize:9,opacity:0.7}}>({count})</span></button>;
-            })}
-          </div>
-        </div>
         {hasFilter&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span style={{fontSize:11,color:"var(--text-muted)"}}>{filtered.length} preset{filtered.length>1?"s":""} trouve{filtered.length>1?"s":""}</span>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            {filterBrand&&<button onClick={()=>setFilterBrand("")} style={{fontSize:11,color:"var(--accent)",background:"none",border:"none",cursor:"pointer",padding:0}}>← Amplis</button>}
+            {filterBrand&&<span style={{fontSize:12,fontWeight:700,color:"var(--text-primary)"}}>{filterBrand}</span>}
+            <span style={{fontSize:11,color:"var(--text-muted)"}}>{filtered.length} preset{filtered.length>1?"s":""}</span>
+          </div>
           <button onClick={()=>{setSoundProfile("all");setFilterBrand("");setFilterPacks([]);setSearch("");}} style={{fontSize:11,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Reinitialiser</button>
         </div>}
       </div>;})()}
