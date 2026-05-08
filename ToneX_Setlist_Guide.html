@@ -1264,7 +1264,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.6.3";
+const APP_VERSION = "8.6.4";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5620,6 +5620,63 @@ function PresetList({filtered,selected,setSelected,banksAnn,banksPlug,fullCatalo
   );
 }
 
+// Curated amp families for Explorer level-2 grouping. Each entry = [familyName, [substring patterns]]
+// Order matters: more specific patterns first (Plexi catches "Super Lead" before SL800 / JCM800 are tested).
+const CURATED_FAMILIES={
+  "Fender":[
+    ["Bassman",    ["Bassman"]],
+    ["Twin",       ["Twin"]],
+    ["Princeton",  ["Princeton"]],
+    ["Deluxe",     ["Deluxe"]],
+    ["Champ",      ["Champ"]],
+    ["Super",      ["Super Reverb","Super S","Super "]],
+    ["Concert",    ["Concert"]],
+    ["Pro",        ["Pro Amp"]],
+    ["Cambridge",  ["Cambridge"]],
+    ["Bandmaster", ["Bandmaster"]],
+    ["Texas Star", ["Texas Star"]],
+    ["Tweed",      ["Tweed"]],
+  ],
+  "Marshall":[
+    ["Plexi",          ["Plexi","Super Lead","Super 100","1974X","Major"]],
+    ["JCM800",         ["JCM800","JC800"]],
+    ["JCM900",         ["JCM900"]],
+    ["SL800",          ["SL800"]],
+    ["SL100",          ["SL100"]],
+    ["JTM",            ["JTM"]],
+    ["SLT60",          ["SLT60"]],
+    ["Silver Jubilee", ["Silver Jubilee","Silver J"]],
+    ["Super Bass",     ["Super Bass","SB100"]],
+    ["18W",            ["18W"]],
+  ],
+};
+function familyForAmp(amp,brand){
+  if(!amp) return "Autre";
+  // Pédales : la "famille" est la pédale citée après le +
+  if(brand==="Pédales"){
+    var after=amp.split(" + ").slice(1).join(" + ").trim();
+    return after||amp;
+  }
+  // Pour les combos "Ampli + Pédale", on regroupe par l'ampli
+  var base=amp.split(" + ")[0].trim();
+  var curated=CURATED_FAMILIES[brand];
+  if(curated){
+    for(var i=0;i<curated.length;i++){
+      var fam=curated[i][0],pats=curated[i][1];
+      for(var j=0;j<pats.length;j++){
+        if(base.indexOf(pats[j])!==-1) return fam;
+      }
+    }
+  }
+  // Heuristique : on enlève la marque, les qualifiants d'époque, les références de circuit, les années
+  var name=base;
+  if(brand&&name.indexOf(brand)===0) name=name.substring(brand.length).trim();
+  name=name.replace(/^(Tweed|Blonde|Silverface|Blackface|BF|SF|Custom|Hot Rod)\s+/i,"");
+  name=name.replace(/^(5E\d+|505\d+|AA\d+|AB\d+|6G\d+)\s+/i,"");
+  name=name.replace(/\b(19[5-9]\d|20[0-2]\d)\b/g,"").trim().replace(/\s+/g," ");
+  return name||base||"Autre";
+}
+
 function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,toneNetPresets}) {
   const [soundProfile,setSoundProfile]=useState("all");
   const [filterBrand,setFilterBrand]=useState("");
@@ -5702,7 +5759,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,
       const profile=SOUND_PROFILES[soundProfile];
       if(profile&&!profile.filter(info))return false;
       if(filterBrand){var b=info.amp?info.amp.split(" ")[0]:"";if(b==="Dr."||b==="Two"||b==="Bad"||b==="Divided")b=info.amp.split(" ").slice(0,2).join(" ");if(b!==filterBrand)return false;}
-      if(filterModel&&info.amp!==filterModel)return false;
+      if(filterModel&&familyForAmp(info.amp,filterBrand)!==filterModel)return false;
       if(search.trim()){
         const q=search.toLowerCase();
         const ctx=mergedContext[info.amp];
@@ -5725,9 +5782,9 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,
 
   const ALL_SRC_OPTS={TSR:"64 Studio Rats",ML:"ML Sound Lab Essentials",Anniversary:"ToneX Anniversary Factory",Factory:"ToneX Factory",PlugFactory:"ToneX Plug Factory",custom:"Custom",ToneNET:"ToneNET"};
   const SRC_OPTS={all:"Toutes sources",...Object.fromEntries(Object.entries(ALL_SRC_OPTS).filter(([k])=>!availableSources||availableSources[k]!==false))};
-  const ampModels=useMemo(()=>{
+  const ampFamilies=useMemo(()=>{
     if(!filterBrand) return [];
-    var models={};
+    var fams={};
     Object.values(fullCatalog).forEach(function(info){
       if(!info.amp) return;
       var b=info.amp.split(" ")[0];
@@ -5735,10 +5792,14 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,
       if(b!==filterBrand) return;
       var profile=SOUND_PROFILES[soundProfile];
       if(profile&&!profile.filter(info)) return;
-      if(!models[info.amp]) models[info.amp]=0;
-      models[info.amp]++;
+      var fam=familyForAmp(info.amp,filterBrand);
+      if(!fams[fam]) fams[fam]={count:0,amps:new Set()};
+      fams[fam].count++;
+      fams[fam].amps.add(info.amp);
     });
-    return Object.entries(models).sort(function(a,b){return b[1]-a[1];});
+    return Object.entries(fams).map(function([fam,data]){
+      return [fam,{count:data.count,amps:[...data.amps].sort()}];
+    }).sort(function(a,b){return b[1].count-a[1].count;});
   },[fullCatalog,filterBrand,soundProfile]);
   const hasFilter=soundProfile!=="all"||filterBrand||search.trim();
   return (
@@ -5796,7 +5857,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,
             {filterBrand&&!filterModel&&<button onClick={()=>{setFilterBrand("");setFilterModel("");}} style={{fontSize:11,color:"var(--accent)",background:"none",border:"none",cursor:"pointer",padding:0}}>← Amplis</button>}
             {filterBrand&&filterModel&&<button onClick={()=>setFilterModel("")} style={{fontSize:11,color:"var(--accent)",background:"none",border:"none",cursor:"pointer",padding:0}}>← {filterBrand}</button>}
             {filterBrand&&!filterModel&&<span style={{fontSize:12,fontWeight:700,color:"var(--text-primary)"}}>{filterBrand}</span>}
-            {filterModel&&<span style={{fontSize:12,fontWeight:700,color:"var(--text-primary)"}}>{filterModel.replace(filterBrand,"").trim()||filterModel}</span>}
+            {filterModel&&<span style={{fontSize:12,fontWeight:700,color:"var(--text-primary)"}}>{filterModel}</span>}
             <span style={{fontSize:11,color:"var(--text-muted)"}}>{filtered.length} preset{filtered.length>1?"s":""}</span>
           </div>
           <button onClick={()=>{setSoundProfile("all");setFilterBrand("");setFilterModel("");setFilterPacks([]);setSearch("");}} style={{fontSize:11,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Reinitialiser</button>
@@ -5820,19 +5881,20 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,
           </div>
         </div>;
       })()}
-      {/* Level 2: Amp model grid (Brand selected, no model yet) */}
-      {filterBrand&&!filterModel&&!search.trim()&&ampModels.length>0&&<div style={{marginTop:8}}>
+      {/* Level 2: Amp family grid (Brand selected, no family yet) */}
+      {filterBrand&&!filterModel&&!search.trim()&&ampFamilies.length>0&&<div style={{marginTop:8}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr",gap:4}}>
-          {ampModels.map(([amp,count])=>{
-            var label=amp.replace(filterBrand,"").trim()||amp;
-            return <button key={amp} onClick={()=>setFilterModel(amp)}
+          {ampFamilies.map(([fam,data])=>{
+            var sub=data.amps.length>1?data.amps.map(a=>a.replace(filterBrand,"").replace(" + "," + ").trim()).slice(0,3).join(" · "):"";
+            return <button key={fam} onClick={()=>setFilterModel(fam)}
               style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-md)",padding:"8px 12px",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,transition:"all .15s"}}
               onMouseOver={e=>{e.currentTarget.style.borderColor="var(--a15)";e.currentTarget.style.background="var(--a7)";}}
               onMouseOut={e=>{e.currentTarget.style.borderColor="var(--a8)";e.currentTarget.style.background="var(--a4)";}}>
               <div style={{minWidth:0}}>
-                <div style={{fontSize:12,fontWeight:700,color:"var(--text-primary)"}}>{label}</div>
+                <div style={{fontSize:12,fontWeight:700,color:"var(--text-primary)"}}>{fam}</div>
+                {sub&&<div style={{fontSize:9,color:"var(--text-dim)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:1}}>{sub}{data.amps.length>3?" …":""}</div>}
               </div>
-              <span style={{fontSize:10,color:"var(--text-tertiary)",flexShrink:0}}>{count}</span>
+              <span style={{fontSize:10,color:"var(--text-tertiary)",flexShrink:0}}>{data.count}</span>
             </button>;
           })}
         </div>
