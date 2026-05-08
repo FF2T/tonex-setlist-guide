@@ -1264,7 +1264,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.4.6";
+const APP_VERSION = "8.4.7";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -1718,7 +1718,7 @@ function computeBestPresets(gType,style,banksAnn,banksPlug,guitarId,refAmp,targe
   const seenAmps=new Set();
   for(const p of catalogAll){
     if(!seenAmps.has(p.amp)){catalogBest.push(p);seenAmps.add(p.amp);}
-    if(catalogBest.length>=3) break;
+    if(catalogBest.length>=6) break;
   }
   // Add breakdown to top presets
   const addBreakdown=(p)=>{if(!p)return p;const info=findCatalogEntry(p.name);if(!info)return p;const r=scorePreset(p.name,info,true);return{...p,score:r.score!=null?r.score:p.score,breakdown:r.breakdown||null};};
@@ -4517,7 +4517,7 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
         grouped[k].totalDelta+=delta;
       }
     }
-    return Object.values(grouped).sort((a,b)=>b.totalDelta-a.totalDelta).slice(0,3);
+    return Object.values(grouped).sort((a,b)=>b.totalDelta-a.totalDelta).slice(0,5);
   };
   const annPriority=useMemo(()=>computePriority(annAnalysis.songRows,"ann",banksAnn),[annAnalysis,banksAnn]);
   const plugPriority=useMemo(()=>computePriority(plugAnalysis.songRows,"plug",banksPlug),[plugAnalysis,banksPlug]);
