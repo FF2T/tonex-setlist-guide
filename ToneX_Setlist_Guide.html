@@ -1234,7 +1234,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.0.2";
+const APP_VERSION = "8.0.3";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -6366,7 +6366,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
       {showOnboarding&&<OnboardingWizard onClose={()=>setShowOnboarding(false)} onProfile={onProfile}/>}
 
       {/* Zone centrale style Google */}
-      <div style={{padding:"8px 0 4px"}}>
+      <div style={{padding:"8px 0 4px",minHeight:(!songResult&&!songLoading)?"calc(100vh - 140px)":"auto",display:"flex",flexDirection:"column",justifyContent:(!songResult&&!songLoading)?"center":"flex-start"}}>
         {songLoading?(
           <div style={{textAlign:"center",padding:"40px 0"}}>
             <div style={{fontSize:48,marginBottom:16,animation:"spin 1.5s linear infinite"}}>&#9203;</div>
