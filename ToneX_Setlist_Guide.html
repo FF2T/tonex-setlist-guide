@@ -1237,7 +1237,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.3.0";
+const APP_VERSION = "8.3.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4280,7 +4280,12 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                   // au milieu/bas du contenu déplié.
                   requestAnimationFrame(()=>requestAnimationFrame(()=>{
                     const el=document.getElementById("song-"+s.id);
-                    if(el) el.scrollIntoView({behavior:"smooth",block:"start"});
+                    if(el){
+                      var headerH=document.querySelector(".app-header-bar");
+                      var offset=headerH?headerH.offsetHeight+8:60;
+                      var top=el.getBoundingClientRect().top+window.scrollY-offset;
+                      window.scrollTo({top:top,behavior:"smooth"});
+                    }
                   }));
                 }
               }} style={{flex:1,background:isC?"rgba(74,222,128,0.05)":"var(--a3)",border:isC?"1px solid var(--green-border)":"1px solid var(--a7)",borderLeft:"none",borderRadius:isExpanded?"0 10px 0 0":"0 10px 10px 0",padding:"10px 13px",cursor:"pointer"}}>
