@@ -216,7 +216,7 @@ function saveSharedKey(key){
   *{box-sizing:border-box;margin:0;padding:0}
   html{-webkit-text-size-adjust:100%;overflow-x:hidden}
   /* tokens.css handles body base styles; we add safe-area + responsive overrides */
-  body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);overflow-x:hidden}
+  body{padding-bottom:env(safe-area-inset-bottom);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);overflow-x:hidden}
   /* iOS : empêche le zoom auto sur les inputs (seuil = 16px) */
   input,select,textarea{font-size:16px!important;-webkit-appearance:none;appearance:none;border-radius:var(--r-md);font-family:var(--font-ui);background:var(--bg-elev-1);color:var(--text-primary);border:1px solid var(--border-strong)}
   select option{background:var(--surface-card);color:var(--text-primary)}
@@ -317,8 +317,8 @@ function saveSharedKey(key){
     .nav-mobile{display:flex!important}
     .nav-desktop{display:none!important}
     .breadcrumb-nav{display:none!important}
-    .app-header-bar{position:fixed!important;top:0;left:0;right:0;z-index:40}
-    .page-root{padding-top:52px!important}
+    .app-header-bar{position:fixed!important;top:0;left:0;right:0;z-index:40;padding-top:env(safe-area-inset-top)!important}
+    .page-root{padding-top:calc(52px + env(safe-area-inset-top))!important}
   }
   /* ── Tablet ── */
   @media(min-width:640px){
@@ -1237,7 +1237,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.2.3";
+const APP_VERSION = "8.2.4";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
