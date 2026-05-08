@@ -316,6 +316,7 @@ function saveSharedKey(key){
     .tab-icon{font-size:18px}
     .nav-mobile{display:flex!important}
     .nav-desktop{display:none!important}
+    .breadcrumb-nav{display:none!important}
   }
   /* ── Tablet ── */
   @media(min-width:640px){
@@ -1234,7 +1235,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.0.3";
+const APP_VERSION = "8.0.4";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -1495,7 +1496,7 @@ function AppFooter({syncStatus}){
 }
 function Breadcrumb({crumbs,onNavigate}){
   return(
-    <nav style={{display:"flex",alignItems:"center",gap:0,marginBottom:16,flexWrap:"wrap",fontSize:13}}>
+    <nav className="breadcrumb-nav" style={{display:"flex",alignItems:"center",gap:0,marginBottom:16,flexWrap:"wrap",fontSize:13}}>
       {crumbs.map((c,i)=>{
         const isLast=i===crumbs.length-1;
         return <React.Fragment key={i}>
