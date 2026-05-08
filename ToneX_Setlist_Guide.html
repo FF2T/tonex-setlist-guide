@@ -792,6 +792,106 @@ const GUITAR_PROFILES={
     desc:"Semi-hollow, chaleur et résonance, idéale jazz/blues"
   }
 };
+function inferGuitarProfile(name,type){
+  if(!name) return null;
+  var n=name.toLowerCase();
+  var t=type||"HB";
+  if(/\btele(caster)?\b/.test(n)){
+    var is51=/\b5[01]\b|\besquire\b|\bnocaster\b|\bbroad/.test(n);
+    return {pickupType:t,voicing:"bright",bodyResonance:"solid",
+      gainAffinity:{clean:is51?+3:+4,crunch:+2,drive:is51?0:-1,high_gain:-4},
+      styleMods:{blues:+3,rock:+4,hard_rock:is51?0:-1,jazz:+1,pop:+2,metal:-6},
+      desc:is51?"Tele 51, frêne, SC bridge, twang brut vintage":"Telecaster, twang, attaque percussive"};
+  }
+  if(/\bstrat(ocaster)?\b/.test(n)){
+    var isVintage=/\b5[0-9]\b|\b6[0-9]\b|\bvintage\b/.test(n);
+    var isClapton=/\bclapton\b|\bec\b/.test(n);
+    return {pickupType:t,voicing:isClapton?"warm":isVintage?"bright":"balanced",bodyResonance:"solid",
+      gainAffinity:{clean:+4,crunch:isClapton?+4:+2,drive:+1,high_gain:-3},
+      styleMods:{blues:isClapton?+6:+5,rock:+3,hard_rock:-1,jazz:+3,pop:+2,metal:-5},
+      desc:isClapton?"Strat noiseless, midboost, son smooth":isVintage?"Strat vintage, cleans cristallins":"Strat moderne, polyvalente"};
+  }
+  if(/\bjazzmaster\b|\bjazz\s?m\b/.test(n)){
+    return {pickupType:t,voicing:"warm",bodyResonance:"solid",
+      gainAffinity:{clean:+4,crunch:+1,drive:-1,high_gain:-4},
+      styleMods:{blues:+4,rock:+2,hard_rock:-2,jazz:+6,pop:+3,metal:-6},
+      desc:"SC large, son chaud et rond, peu de twang"};
+  }
+  if(/\bjaguar\b|\bmustang\b/.test(n)){
+    return {pickupType:t,voicing:"bright",bodyResonance:"solid",
+      gainAffinity:{clean:+3,crunch:+2,drive:0,high_gain:-4},
+      styleMods:{blues:+2,rock:+3,hard_rock:-1,jazz:+2,pop:+4,metal:-5},
+      desc:"Short scale Fender, son vif et compact"};
+  }
+  if(/\bles\s?paul\b|\blp\b/.test(n)){
+    var isP90=t==="P90"||/\bp90\b/.test(n);
+    return {pickupType:t,voicing:isP90?"balanced":"warm",bodyResonance:"solid",
+      gainAffinity:{clean:isP90?+1:-1,crunch:+3,drive:isP90?+2:+4,high_gain:isP90?-2:+2},
+      styleMods:{blues:isP90?+5:+3,rock:isP90?+3:+4,hard_rock:isP90?+1:+5,jazz:isP90?+2:-2,pop:isP90?+1:0,metal:isP90?-3:+1},
+      desc:isP90?"Les Paul P90, midrange caractéristique":"Les Paul, sustain long, référence HB"};
+  }
+  if(/\bsg\b/.test(n)){
+    return {pickupType:t,voicing:"bright",bodyResonance:"solid",
+      gainAffinity:{clean:-1,crunch:+2,drive:+5,high_gain:+3},
+      styleMods:{blues:+1,rock:+4,hard_rock:+6,jazz:-3,pop:-1,metal:+2},
+      desc:"SG, médiums agressifs, attaque rapide, léger"};
+  }
+  if(/\bes[\s-]?3\d\d\b|\bsemi[\s-]?hollow\b/.test(n)){
+    return {pickupType:t,voicing:"warm",bodyResonance:"semi_hollow",
+      gainAffinity:{clean:+3,crunch:+3,drive:+1,high_gain:-4},
+      styleMods:{blues:+5,rock:+2,hard_rock:-2,jazz:+6,pop:+2,metal:-6},
+      desc:"Semi-hollow, chaleur et résonance, jazz/blues"};
+  }
+  if(/\bflying\s?v\b|\bexplorer\b/.test(n)){
+    return {pickupType:t,voicing:"bright",bodyResonance:"solid",
+      gainAffinity:{clean:-3,crunch:+1,drive:+4,high_gain:+5},
+      styleMods:{blues:0,rock:+3,hard_rock:+5,jazz:-5,pop:-3,metal:+5},
+      desc:"Gibson extrême, haute énergie, hard rock / metal"};
+  }
+  if(/\bprs\b|\bpaul\s?reed\b/.test(n)){
+    return {pickupType:t,voicing:"balanced",bodyResonance:"solid",
+      gainAffinity:{clean:+2,crunch:+3,drive:+3,high_gain:+1},
+      styleMods:{blues:+3,rock:+4,hard_rock:+3,jazz:+1,pop:+2,metal:0},
+      desc:"PRS, polyvalente, HB versatiles, sustain"};
+  }
+  if(/\bgretsch\b/.test(n)){
+    var isHollow=/\bhollow\b|\bcountry\b|\b6120\b|\bfalcon\b/.test(n);
+    return {pickupType:t,voicing:"bright",bodyResonance:isHollow?"semi_hollow":"solid",
+      gainAffinity:{clean:+4,crunch:+3,drive:0,high_gain:-4},
+      styleMods:{blues:+3,rock:+4,hard_rock:-1,jazz:+3,pop:+3,metal:-5},
+      desc:"Gretsch, son claquant, rockabilly / country / indie"};
+  }
+  if(/\bjackson\b|\besp\b|\bschecter\b|\bbc\s?rich\b/.test(n)||(/\bibanez\b/.test(n)&&/\brg\b|\bs\d/.test(n))){
+    return {pickupType:t,voicing:"bright",bodyResonance:"solid",
+      gainAffinity:{clean:-2,crunch:+1,drive:+4,high_gain:+6},
+      styleMods:{blues:-2,rock:+2,hard_rock:+4,jazz:-5,pop:-2,metal:+6},
+      desc:"Guitare shred/metal, manche rapide, HB haut gain"};
+  }
+  if(/\brickenbacker\b|\bricken\b/.test(n)){
+    return {pickupType:t,voicing:"bright",bodyResonance:"solid",
+      gainAffinity:{clean:+4,crunch:+3,drive:0,high_gain:-4},
+      styleMods:{blues:+1,rock:+4,hard_rock:-1,jazz:+2,pop:+5,metal:-5},
+      desc:"Rickenbacker, jangle, chime, pop/rock"};
+  }
+  if(t==="SC") return {pickupType:"SC",voicing:"bright",bodyResonance:"solid",
+    gainAffinity:{clean:+3,crunch:+2,drive:0,high_gain:-3},
+    styleMods:{blues:+3,rock:+3,hard_rock:-1,jazz:+2,pop:+2,metal:-5},
+    desc:"Guitare single coil"};
+  if(t==="P90") return {pickupType:"P90",voicing:"balanced",bodyResonance:"solid",
+    gainAffinity:{clean:+1,crunch:+3,drive:+2,high_gain:-2},
+    styleMods:{blues:+4,rock:+3,hard_rock:+1,jazz:+1,pop:+1,metal:-3},
+    desc:"Guitare P90, gras et dynamique"};
+  return {pickupType:"HB",voicing:"warm",bodyResonance:"solid",
+    gainAffinity:{clean:0,crunch:+2,drive:+3,high_gain:+1},
+    styleMods:{blues:+2,rock:+3,hard_rock:+3,jazz:0,pop:+1,metal:+1},
+    desc:"Guitare humbucker polyvalente"};
+}
+function findGuitarProfile(guitarId){
+  if(GUITAR_PROFILES[guitarId]) return GUITAR_PROFILES[guitarId];
+  var g=findGuitar(guitarId);
+  if(g) return inferGuitarProfile(g.name,g.type);
+  return null;
+}
 
 // Taxonomie d'amplis
 
@@ -826,7 +926,7 @@ function computePickupScore(presetStyle,presetGainRange,pickupType){
 }
 
 function computeGuitarScoreV2(guitarId,presetStyle,presetGainRange,presetVoicing){
-  const g=GUITAR_PROFILES[guitarId];
+  const g=findGuitarProfile(guitarId);
   if(!g) return 50;
   const styleMod=g.styleMods[presetStyle]||0;
   const gainMod=g.gainAffinity[presetGainRange]||0;
@@ -882,7 +982,7 @@ function localGuitarSongScore(g,aiC){
 function guitarChoiceFeedback(g,aiC,cotEntry){
   if(!g||!aiC) return null;
   if(cotEntry?.reason) return cotEntry.reason;
-  var profile=GUITAR_PROFILES[g.id];
+  var profile=findGuitarProfile(g.id);
   if(!profile) return null;
   var pros=[],cons=[];
   var pref=aiC.pickup_preference;
@@ -909,7 +1009,7 @@ function guitarChoiceFeedback(g,aiC,cotEntry){
 }
 function localGuitarSettings(g,aiC){
   if(!g||!aiC) return null;
-  const profile=GUITAR_PROFILES[g.id]||{};
+  const profile=findGuitarProfile(g.id)||{};
   const voicing=profile.voicing||"balanced";
   const pickupType=g.type;
   const targetGain=typeof aiC.target_gain==="number"?aiC.target_gain:5;
@@ -983,7 +1083,7 @@ function computeStyleMatchScore(presetStyle,songStyle){
 function computeFinalScore(preset,guitarId,songStyle,songTargetGain,songRefAmp,_returnBreakdown){
   const presetGain=typeof preset.gain==="number"?preset.gain:gainToNumeric(preset.gain);
   const presetGainRange=getGainRange(presetGain);
-  const pickupType=GUITAR_PROFILES[guitarId]?.pickupType||findGuitar(guitarId)?.type||"HB";
+  const pickupType=findGuitarProfile(guitarId)?.pickupType||findGuitar(guitarId)?.type||"HB";
   // Always use BASE_SCORES matrix for consistent scoring (ignore inflated static catalog scores)
   const pickupScore=computePickupScore(preset.style,presetGainRange,pickupType);
   const guitarScore2=computeGuitarScoreV2(guitarId,preset.style,presetGainRange,preset.voicing);
@@ -1020,7 +1120,7 @@ function computeSimpleScore(presetName,guitarId,gType){
   const entry=findCatalogEntry(presetName);
   if(!entry) return 60;
   if(!guitarId){return entry.scores?.[gType]??60;}
-  const gp=GUITAR_PROFILES[guitarId];
+  const gp=findGuitarProfile(guitarId);
   if(!gp){const gt=findGuitar(guitarId)?.type||gType||"HB";return entry.scores?.[gt]??60;}
   const presetGain=gainToNumeric(entry.gain);
   const presetGainRange=getGainRange(presetGain);
@@ -1265,7 +1365,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.6.5";
+const APP_VERSION = "8.7.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -1853,7 +1953,7 @@ function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars,feedback,
   const g=guitars.find(x=>x.id===gId);
   const gType=g?.type||"HB";
   const feedbackLine=feedback?`\nREMARQUE IMPORTANTE DE L'UTILISATEUR : "${feedback}". Prends en compte cette remarque pour ajuster ta réponse.`:"";
-  const gProfiles=guitars.map(x=>{const p=GUITAR_PROFILES[x.id];return `- ${x.name} (${x.type}) : ${p?p.desc:"profil inconnu"}`;}).join("\n");
+  const gProfiles=guitars.map(x=>{const p=findGuitarProfile(x.id);return `- ${x.name} (${x.type}) : ${p?p.desc:"profil inconnu"}`;}).join("\n");
   const prompt=`Expert guitare ToneX. Réponds TOUJOURS en français.
 Morceau : "${song.title}" de "${song.artist}".
 Guitare sélectionnée : ${g?g.name+" ("+g.type+")":"non précisée"}.
