@@ -1264,7 +1264,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.5.5";
+const APP_VERSION = "8.5.6";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4804,6 +4804,7 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
                         <span style={{fontSize:9,color:"var(--text-tertiary)",marginLeft:"auto"}}>{a.songs.length} morceau{a.songs.length>1?"x":""}</span>
                       </div>
                       <div style={{fontSize:11,fontWeight:700,color:"var(--text-primary)",marginBottom:2,overflow:"hidden",textOverflow:"ellipsis"}}>Installer "{a.preset.name}"</div>
+                      {(()=>{const e=findCatalogEntry(a.preset.name);const si=presetSourceInfo(e);if(!si)return null;return <div style={{fontSize:9,color:"var(--text-sec)",marginBottom:3,display:"flex",alignItems:"center",gap:4,flexWrap:"wrap"}}><span>{si.icon} {si.label}</span>{e?.pack&&TSR_PACK_ZIPS?.[e.pack]&&<span style={{color:"var(--text-dim)"}}>📁 {TSR_PACK_ZIPS[e.pack]}.zip</span>}</div>;})()}
                       <div style={{fontSize:10,color:"var(--text-tertiary)",marginBottom:5}}>
                         → Banque <span style={{fontFamily:"var(--font-mono)",color:CC[a.place.slot],fontWeight:700}}>{a.place.bank}{a.place.slot}</span>
                         {a.place.replaces&&<span style={{color:"var(--yellow)",marginLeft:4}}>· remplace "{a.place.replaces}" ({a.place.replacesScore}%)</span>}
