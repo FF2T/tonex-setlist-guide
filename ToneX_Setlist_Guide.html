@@ -1264,7 +1264,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.5.3";
+const APP_VERSION = "8.5.4";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4485,16 +4485,12 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
       const b=banks[i];
       if(!b||!b[slot]) return {bank:i,slot,replaces:null};
     }
-    // 2e passe : remplace le preset le plus faible de ce slot dans les banques utilisées par la setlist
+    // 2e passe : remplace le preset le plus faible de ce slot (toutes banques)
     let worstBank=null,worstScore=101,worstPreset=null;
-    const usedBanks=new Set();
-    (songRows||[]).forEach(r=>{if(r.installed?.bank!=null&&r.installed?.col===slot) usedBanks.add(r.installed.bank);});
-    for(const i of usedBanks){
+    for(let i=startBank;i<=maxBank;i++){
       const cur=banks[i]?.[slot];if(!cur) continue;
-      // Score = pire score qu'il sert dans la setlist
-      let s=100;
-      (songRows||[]).forEach(r=>{if(r.installed?.bank===i&&r.installed?.col===slot&&r.installedScore<s) s=r.installedScore;});
-      if(s<worstScore){worstScore=s;worstBank=i;worstPreset=cur;}
+      const sc=computeSimpleScore(cur,null,pickupTypes[0]||"HB");
+      if(sc<worstScore){worstScore=sc;worstBank=i;worstPreset=cur;}
     }
     if(worstBank!=null) return {bank:worstBank,slot,replaces:worstPreset,replacesScore:worstScore};
     return null;
