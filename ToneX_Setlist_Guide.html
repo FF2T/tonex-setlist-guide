@@ -1237,7 +1237,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.2.5";
+const APP_VERSION = "8.3.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5495,74 +5495,34 @@ function PresetList({filtered,selected,setSelected,banksAnn,banksPlug,fullCatalo
   const [shown,setShown]=useState(PRESET_PAGE_SIZE);
   useEffect(()=>setShown(PRESET_PAGE_SIZE),[filtered,filterPacks]);
 
-  // Sub-grouping: par pack (TSR) ou par ampli (autres sources)
+  // Sub-grouping: par modèle d'ampli (explicite)
   const subPacks=useMemo(()=>{
-    const groups={};
-    filtered.forEach(([name,info])=>{
-      const key=info.pack||info.amp||"Autre";
+    var groups={};
+    filtered.forEach(function([name,info]){
+      var key=info.amp||"Autre";
       groups[key]=(groups[key]||0)+1;
     });
-    return Object.entries(groups).sort((a,b)=>a[0].localeCompare(b[0]));
+    return Object.entries(groups).sort(function(a,b){return b[1]-a[1];});
   },[filtered]);
-  const isTSROnly=filterSrcs.length===1&&filterSrcs[0]==="TSR";
 
   const displayFiltered=useMemo(()=>{
     if(filterPacks.length===0) return filtered;
-    return filtered.filter(([,info])=>filterPacks.includes(info.pack||info.amp||"Autre"));
+    return filtered.filter(function([,info]){return filterPacks.includes(info.amp||"Autre");});
   },[filtered,filterPacks]);
 
   const visible=displayFiltered.slice(0,shown);
   const remaining=displayFiltered.length-shown;
   return(
     <div>
-      {/* Sub-filters: par pack (TSR groupé par marque) ou par ampli (autres sources) */}
+      {/* Sub-filters: modèles d'ampli */}
       {subPacks&&subPacks.length>1&&(()=>{
-        const chipStyle=(on)=>({fontSize:10,fontWeight:on?700:500,color:on?"var(--accent)":"var(--text-sec)",background:on?"var(--accent-bg)":"var(--a3)",border:on?"1px solid var(--accent-border)":"1px solid var(--a6)",borderRadius:"var(--r-md)",padding:"4px 8px",cursor:"pointer"});
-        // TSR: groupement par marque d'ampli
-        if(isTSROnly){
-          const packCountMap=Object.fromEntries(subPacks);
-          const grouped=[];
-          const assigned=new Set();
-          Object.entries(TSR_PACK_GROUPS||{}).forEach(([group,packs])=>{
-            const members=packs.filter(p=>packCountMap[p]!=null);
-            if(members.length>0){
-              const total=members.reduce((s,p)=>s+(packCountMap[p]||0),0);
-              grouped.push({group,packs:members,total});
-              members.forEach(p=>assigned.add(p));
-            }
-          });
-          const others=subPacks.filter(([p])=>!assigned.has(p));
-          if(others.length>0) grouped.push({group:"Autres",packs:others.map(([p])=>p),total:others.reduce((s,[,c])=>s+c,0)});
-          return <div style={{marginBottom:12}}>
-            <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:6}}>Filtrer par famille</div>
-            <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:6}}>
-              <button onClick={()=>setFilterPacks([])} style={chipStyle(filterPacks.length===0)}>Tous ({filtered.length})</button>
-              {grouped.map(g=>{
-                const groupPacks=g.packs;
-                const allSelected=groupPacks.every(p=>filterPacks.includes(p));
-                const someSelected=groupPacks.some(p=>filterPacks.includes(p));
-                return <button key={g.group} onClick={()=>{
-                  if(allSelected) setFilterPacks(prev=>prev.filter(p=>!groupPacks.includes(p)));
-                  else setFilterPacks(prev=>[...prev.filter(p=>!groupPacks.includes(p)),...groupPacks]);
-                }} style={{...chipStyle(someSelected),fontWeight:700}}>{g.group} ({g.total})</button>;
-              })}
-            </div>
-            {filterPacks.length>0&&<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-              {subPacks.filter(([p])=>filterPacks.some(fp=>{
-                const grp=grouped.find(g=>g.packs.includes(fp));
-                return grp&&grp.packs.includes(p);
-              })||filterPacks.includes(p)).map(([pack,count])=>{const on=filterPacks.includes(pack);return(
-                <button key={pack} onClick={()=>togglePack(pack)} style={chipStyle(on)}>{pack} ({count})</button>);})}
-            </div>}
-          </div>;
-        }
-        // Autres sources: filtrer par ampli
+        var chipStyle=function(on){return{fontSize:10,fontWeight:on?700:500,color:on?"var(--accent)":"var(--text-sec)",background:on?"var(--accent-bg)":"var(--a3)",border:on?"1px solid var(--accent-border)":"1px solid var(--a6)",borderRadius:"var(--r-md)",padding:"4px 8px",cursor:"pointer"};};
         return <div style={{marginBottom:12}}>
-          <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:6}}>Filtrer par ampli</div>
+          <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:6}}>Modele d'ampli</div>
           <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-            <button onClick={()=>setFilterPacks([])} style={chipStyle(filterPacks.length===0)}>Tous ({filtered.length})</button>
-            {subPacks.map(([amp,count])=>{const on=filterPacks.includes(amp);return(
-              <button key={amp} onClick={()=>togglePack(amp)} style={chipStyle(on)}>{amp} ({count})</button>);})}
+            <button onClick={function(){setFilterPacks([]);}} style={chipStyle(filterPacks.length===0)}>Tous ({filtered.length})</button>
+            {subPacks.slice(0,20).map(function([amp,count]){var on=filterPacks.includes(amp);return(
+              <button key={amp} onClick={function(){togglePack(amp);}} style={chipStyle(on)}>{amp} ({count})</button>);})}
           </div>
         </div>;
       })()}
