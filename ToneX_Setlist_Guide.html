@@ -983,7 +983,7 @@ function computeStyleMatchScore(presetStyle,songStyle){
 function computeFinalScore(preset,guitarId,songStyle,songTargetGain,songRefAmp,_returnBreakdown){
   const presetGain=typeof preset.gain==="number"?preset.gain:gainToNumeric(preset.gain);
   const presetGainRange=getGainRange(presetGain);
-  const pickupType=GUITAR_PROFILES[guitarId]?.pickupType||GUITARS.find(g=>g.id===guitarId)?.type||"HB";
+  const pickupType=GUITAR_PROFILES[guitarId]?.pickupType||findGuitar(guitarId)?.type||"HB";
   // Always use BASE_SCORES matrix for consistent scoring (ignore inflated static catalog scores)
   const pickupScore=computePickupScore(preset.style,presetGainRange,pickupType);
   const guitarScore2=computeGuitarScoreV2(guitarId,preset.style,presetGainRange,preset.voicing);
@@ -1021,7 +1021,7 @@ function computeSimpleScore(presetName,guitarId,gType){
   if(!entry) return 60;
   if(!guitarId){return entry.scores?.[gType]??60;}
   const gp=GUITAR_PROFILES[guitarId];
-  if(!gp){const gt=GUITARS.find(g=>g.id===guitarId)?.type||gType||"HB";return entry.scores?.[gt]??60;}
+  if(!gp){const gt=findGuitar(guitarId)?.type||gType||"HB";return entry.scores?.[gt]??60;}
   const presetGain=gainToNumeric(entry.gain);
   const presetGainRange=getGainRange(presetGain);
   const pickupScore=entry.scores?.[gp.pickupType]??60;
@@ -1254,7 +1254,8 @@ function getTsrRef(song) {
   return SONG_PRESETS[song.id]?.tsrRef || null;
 }
 
-const getType = id => GUITARS.find(g=>g.id===id)?.type||"HB";
+function findGuitar(id){var g=GUITARS.find(x=>x.id===id);if(g)return g;if(window.__allGuitars){var cg=window.__allGuitars.find(x=>x.id===id);if(cg)return cg;}return null;}
+const getType = id => findGuitar(id)?.type||"HB";
 
 // Retourne {guitarist,guitar,amp,effects} depuis le cache IA ou SONG_HISTORY (fallback)
 function getSongHist(song, aiResult=null){
@@ -1264,7 +1265,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.6.4";
+const APP_VERSION = "8.6.5";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -3429,7 +3430,7 @@ function MaintenanceTab({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug,
             const updated=songDb.map(s=>{
               if(!s.aiCache?.result?.cot_step1) return s;
               const gId=s.aiCache.gId||"";
-              const gType=GUITARS.find(x=>x.id===gId)?.type||"HB";
+              const gType=findGuitar(gId)?.type||"HB";
               const cleaned={...s.aiCache.result,preset_ann:null,preset_plug:null,ideal_preset:null,ideal_preset_score:0,ideal_top3:null};
               const recalc=enrichAIResult(cleaned,gType,gId,banksAnn,banksPlug);
               return {...s,aiCache:{...updateAiCache(s.aiCache,gId,recalc),sv:SCORING_VERSION}};
@@ -6855,6 +6856,7 @@ function App() {
     const customs=(customGuitars||[]).filter(g=>profile.myGuitars.includes(g.id));
     return [...base, ...customs];
   },[profile.myGuitars, customGuitars, profile.editedGuitars]);
+  useEffect(()=>{window.__allGuitars=allGuitars;},[allGuitars]);
 
   // Non-persisted
   const [screen,  setScreen]  = useState("loading");
