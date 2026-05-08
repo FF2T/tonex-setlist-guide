@@ -1264,7 +1264,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.5.4";
+const APP_VERSION = "8.5.5";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4528,17 +4528,6 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
   };
   const annPriority=useMemo(()=>computePriority(annAnalysis.songRows,"ann",banksAnn),[annAnalysis,banksAnn]);
   const plugPriority=useMemo(()=>computePriority(plugAnalysis.songRows,"plug",banksPlug),[plugAnalysis,banksPlug]);
-  const toneNetDebug=useMemo(()=>{
-    var tnCount=0;var tnNames=[];
-    for(var k in PRESET_CATALOG_MERGED){if(PRESET_CATALOG_MERGED[k].src==="ToneNET"){tnCount++;tnNames.push(k);}}
-    var songDebug=plugAnalysis.songRows.filter(r=>!r.noAI).map(r=>{
-      var ideal3=(r.idealTop3||[]).map(p=>p.name+" ("+p.score+"%)").join(", ");
-      var inBanks=r.idealTop3?.map(p=>({name:p.name,found:!!findInBanks(p.name,banksPlug)}));
-      return {title:r.song.title,installed:r.installed?.name,installedScore:r.installedScore,idealTop3:ideal3,inBanks};
-    });
-    return {tnCount,tnNames,songDebug};
-  },[plugAnalysis,banksPlug]);
-
   // Score moyen actuel + projection si toutes les actions sont appliquées
   const computeMean=(rows)=>{
     const ar=rows.filter(r=>!r.noAI);
@@ -4829,16 +4818,6 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
           </div>;
         };
         return <div style={sectionStyle}>
-          {/* Diagnostic ToneNET — temporaire */}
-          <div style={{background:"var(--a3)",border:"1px solid var(--a10)",borderRadius:"var(--r-md)",padding:10,marginBottom:12,fontSize:10,color:"var(--text-dim)",fontFamily:"var(--font-mono)"}}>
-            <div style={{fontWeight:700,marginBottom:4}}>Diagnostic ToneNET ({toneNetDebug.tnCount} presets dans catalogue)</div>
-            {toneNetDebug.tnNames.length>0&&<div style={{marginBottom:6}}>Presets: {toneNetDebug.tnNames.join(", ")}</div>}
-            {toneNetDebug.songDebug.map((s,i)=><div key={i} style={{marginBottom:4,borderTop:"1px solid var(--a7)",paddingTop:4}}>
-              <b>{s.title}</b> — installé: {s.installed||"(aucun)"} ({s.installedScore}%)<br/>
-              Candidats idéaux: {s.idealTop3||"(aucun)"}<br/>
-              {s.inBanks?.map((b,j)=><span key={j}>{b.name}: {b.found?"DÉJÀ INSTALLÉ":"non installé"} | </span>)}
-            </div>)}
-          </div>
           {eyebrow("⚡","Actions prioritaires")}
           <div style={{display:"flex",flexDirection:"column",gap:"var(--s-2)"}}>
             {renderDeviceBlock("ann","📦 Pédale",annMean,annProjected,annPriority,annAnalysis.songRows)}
