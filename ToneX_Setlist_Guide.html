@@ -1235,7 +1235,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.2.0";
+const APP_VERSION = "8.2.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4222,24 +4222,6 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
             })}
           </div>;
         })()}
-      {/* Tout améliorer */}
-      {(()=>{
-        const needImprove=improveBadgeCount;
-        if(needImprove===0&&!improving) return null;
-        return <div style={{marginBottom:10}}>
-          {!improving
-            ?<button onClick={improveAll} style={{fontSize:11,fontWeight:600,color:"var(--yellow)",background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.25)",borderRadius:"var(--r-md)",padding:"6px 14px",cursor:"pointer"}}>✨ Tout améliorer — {needImprove} morceau{needImprove>1?"x":""} &lt; {IMPROVE_THRESHOLD}%</button>
-            :<div style={{display:"flex",alignItems:"center",gap:10,background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:"var(--r-md)",padding:"8px 12px"}}>
-              <div style={{fontSize:20,animation:"spin 1.5s linear infinite",display:"inline-block"}}>{cancelRequested?"⏹":"✨"}</div>
-              <div style={{flex:1}}>
-                <div style={{fontSize:11,fontWeight:700,color:cancelRequested?"var(--text-muted)":"var(--yellow)"}}>{cancelRequested?"Arrêt en cours…":`Tour ${improveStatus?.round}/${IMPROVE_MAX_ROUNDS} — ${improveStatus?.current}/${improveStatus?.total}`}</div>
-                <div style={{fontSize:10,color:"var(--text-muted)",marginTop:1}}>{improveStatus?.songTitle}</div>
-              </div>
-              <button disabled={cancelRequested} onClick={()=>{improveCancelRef.current=true;setCancelRequested(true);}} style={{fontSize:10,background:cancelRequested?"var(--a5)":"var(--a7)",border:"1px solid var(--a10)",color:"var(--text-muted)",borderRadius:"var(--r-md)",padding:"3px 8px",cursor:cancelRequested?"default":"pointer",opacity:cancelRequested?0.6:1}}>{cancelRequested?"…":"Arrêter"}</button>
-            </div>
-          }
-        </div>;
-      })()}
       {activeSongs.length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"var(--text-dim)"}}><div style={{fontSize:24,marginBottom:8}}>🎵</div><div style={{fontSize:14}}>Setlist vide — clique sur "+ Ajouter"</div></div>}
       {(()=>{let lastArtist="";return activeSongs.map(s=>{
         const showArtistHeader=sort==="artist"&&s.artist!==lastArtist;
