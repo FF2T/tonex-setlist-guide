@@ -1264,7 +1264,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.5.1";
+const APP_VERSION = "8.5.2";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -6779,15 +6779,18 @@ function App() {
     window._toneNetLookup=lookup;
   },[toneNetPresets]);
 
-  // Sync ToneNET presets into global catalog for scoring engine
-  useEffect(()=>{
+  // Sync ToneNET presets into global catalog for scoring engine (useMemo = synchronous, runs before child useMemos)
+  useMemo(()=>{
     for(const k of Object.keys(PRESET_CATALOG_MERGED)){if(PRESET_CATALOG_MERGED[k].src==="ToneNET")delete PRESET_CATALOG_MERGED[k];}
     (toneNetPresets||[]).forEach(p=>{
       if(!p.name) return;
-      // Re-infer amp from name if it's still "ToneNET" (user didn't set it manually)
       let amp=p.amp||"ToneNET";
-      if(amp==="ToneNET"){const info=inferPresetInfo(p.name);if(info&&info.amp) amp=info.amp;}
-      PRESET_CATALOG_MERGED[p.name]={src:"ToneNET",amp,gain:p.gain||"mid",style:p.style||"rock",channel:p.channel||"",cab:p.cab||"",comment:p.comment||"",scores:p.scores||{HB:75,SC:75,P90:75}};
+      let style=p.style||"rock";
+      if(amp==="ToneNET"||style==="rock"){
+        const info=inferPresetInfo(p.name);
+        if(info){if(amp==="ToneNET"&&info.amp) amp=info.amp;if(style==="rock"&&info.style&&info.style!=="rock") style=info.style;}
+      }
+      PRESET_CATALOG_MERGED[p.name]={src:"ToneNET",amp,gain:p.gain||"mid",style,channel:p.channel||"",cab:p.cab||"",comment:p.comment||"",scores:p.scores||{HB:75,SC:75,P90:75}};
     });
   },[toneNetPresets]);
 
