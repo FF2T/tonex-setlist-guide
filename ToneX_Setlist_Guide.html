@@ -1235,7 +1235,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.0.4";
+const APP_VERSION = "8.1.0";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5645,11 +5645,10 @@ function PresetList({filtered,selected,setSelected,banksAnn,banksPlug,fullCatalo
 
 function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,toneNetPresets}) {
   const [soundProfile,setSoundProfile]=useState("all");
-  const [filterSrcs,setFilterSrcs]=useState([]); // empty = all
+  const [filterBrand,setFilterBrand]=useState(""); // amp brand filter
   const [search,setSearch]=useState("");
   const [selected,setSelected]=useState(null);
   const [filterPacks,setFilterPacks]=useState([]); // empty = all
-  const toggleSrc=key=>setFilterSrcs(p=>p.includes(key)?p.filter(x=>x!==key):[...p,key]);
   const togglePack=key=>setFilterPacks(p=>p.includes(key)?p.filter(x=>x!==key):[...p,key]);
 
   // Merge PRESET_CONTEXT with custom pack ampContext
@@ -5707,11 +5706,24 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,
     pedales:{label:"Pedales de drive",desc:"Captures pedales seules",filter:i=>(i.amp||"").includes("drive")||(i.amp||"").includes("Pedal")||(i.amp||"").toLowerCase().includes("pédale")},
   };
 
+  // Build amp brand grouping
+  const ampBrands=useMemo(()=>{
+    var brands={};
+    Object.values(fullCatalog).forEach(function(info){
+      if(!info.amp) return;
+      var brand=info.amp.split(" ")[0];
+      if(brand==="Dr."||brand==="Two"||brand==="Bad"||brand==="Divided") brand=info.amp.split(" ").slice(0,2).join(" ");
+      if(!brands[brand]) brands[brand]=0;
+      brands[brand]++;
+    });
+    return Object.entries(brands).sort(function(a,b){return b[1]-a[1];});
+  },[fullCatalog]);
+
   const filtered=useMemo(()=>
     Object.entries(fullCatalog).filter(([name,info])=>{
       const profile=SOUND_PROFILES[soundProfile];
       if(profile&&!profile.filter(info))return false;
-      if(filterSrcs.length>0&&!filterSrcs.includes(info.src))return false;
+      if(filterBrand){var b=info.amp?info.amp.split(" ")[0]:"";if(b==="Dr."||b==="Two"||b==="Bad"||b==="Divided")b=info.amp.split(" ").slice(0,2).join(" ");if(b!==filterBrand)return false;}
       if(search.trim()){
         const q=search.toLowerCase();
         const ctx=mergedContext[info.amp];
@@ -5721,7 +5733,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,
       }
       return true;
     })
-  ,[soundProfile,filterSrcs,search]);
+  ,[soundProfile,filterBrand,search]);
 
   const [randomPick,setRandomPick]=useState(null);
   const pickRandom=()=>{
@@ -5735,7 +5747,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,
   const ALL_SRC_OPTS={TSR:"64 Studio Rats",ML:"ML Sound Lab Essentials",Anniversary:"ToneX Anniversary Factory",Factory:"ToneX Factory",PlugFactory:"ToneX Plug Factory",custom:"Custom",ToneNET:"ToneNET"};
   const SRC_OPTS={all:"Toutes sources",...Object.fromEntries(Object.entries(ALL_SRC_OPTS).filter(([k])=>!availableSources||availableSources[k]!==false))};
 
-  const hasFilter=soundProfile!=="all"||filterSrcs.length>0||search.trim();
+  const hasFilter=soundProfile!=="all"||filterBrand||search.trim();
   return (
     <div>
       <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:10}}>Explore ta bibliothèque de presets et découvre leur contexte musical.</div>
@@ -5786,60 +5798,42 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,
             </div>
           </div>)}
         </div>
-        {/* Sources */}
+        {/* Marque d'ampli */}
         <div>
-          <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:5}}>Sources</div>
-          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-            <button onClick={()=>setFilterSrcs([])} style={tile(filterSrcs.length===0)}>Toutes</button>
-            {Object.entries(SRC_OPTS).filter(([k])=>k!=="all").map(([k,l])=>{
-              const on=filterSrcs.includes(k);
-              return <button key={k} onClick={()=>toggleSrc(k)} style={tile(on)}>{l}</button>;
+          <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:5}}>Marque d'ampli</div>
+          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+            <button onClick={()=>setFilterBrand("")} style={tile(!filterBrand)}>Toutes</button>
+            {ampBrands.slice(0,15).map(([brand,count])=>{
+              var on=filterBrand===brand;
+              return <button key={brand} onClick={()=>setFilterBrand(on?"":brand)} style={tile(on)}>{brand} <span style={{fontSize:9,opacity:0.7}}>({count})</span></button>;
             })}
           </div>
         </div>
-        {/* Recherche */}
         {hasFilter&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <span style={{fontSize:11,color:"var(--text-muted)"}}>{filtered.length} preset{filtered.length>1?"s":""} trouve{filtered.length>1?"s":""}</span>
-          <button onClick={()=>{setSoundProfile("all");setFilterSrcs([]);setFilterPacks([]);setSearch("");}} style={{fontSize:11,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Reinitialiser</button>
+          <button onClick={()=>{setSoundProfile("all");setFilterBrand("");setFilterPacks([]);setSearch("");}} style={{fontSize:11,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Reinitialiser</button>
         </div>}
       </div>;})()}
 
-      {/* Packs browsing / Liste des presets */}
+      {/* Browse by amp brand */}
       {!hasFilter&&(()=>{
-        const srcCounts={};
-        Object.values(fullCatalog).forEach(info=>{
-          srcCounts[info.src]=(srcCounts[info.src]||0)+1;
-        });
-        const packCards=[
-          {id:"TSR",label:"64 Studio Rats",emoji:"🎸"},
-          {id:"ML",label:"ML Sound Lab Essentials",emoji:"🎛"},
-          {id:"Anniversary",label:"ToneX Anniversary Factory",emoji:"📦"},
-          {id:"Factory",label:"ToneX Factory",emoji:"🎹"},
-          {id:"PlugFactory",label:"ToneX Plug Factory",emoji:"🔌"},
-        ];
-        // Add custom packs
-        (customPacks||[]).forEach(p=>{
-          if(srcCounts[p.name]) packCards.push({id:p.name,label:p.name,emoji:"📂",desc:`${srcCounts[p.name]} presets`});
-        });
         return <div>
-          <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:10}}>Parcourir par pack — {Object.keys(fullCatalog).length} presets au total</div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8}}>
-            {packCards.filter(p=>srcCounts[p.id]).map(p=>(
-              <button key={p.id} onClick={()=>{setFilterSrcs([p.id]);setFilterPacks([]);}}
-                style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-lg)",padding:"14px 10px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}
+          <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:10}}>Parcourir par ampli — {Object.keys(fullCatalog).length} presets</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
+            {ampBrands.slice(0,18).map(([brand,count])=>(
+              <button key={brand} onClick={()=>setFilterBrand(brand)}
+                style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-md)",padding:"12px 8px",cursor:"pointer",textAlign:"center",transition:"all .15s"}}
                 onMouseOver={e=>{e.currentTarget.style.borderColor="var(--a15)";e.currentTarget.style.background="var(--a7)";}}
                 onMouseOut={e=>{e.currentTarget.style.borderColor="var(--a8)";e.currentTarget.style.background="var(--a4)";}}>
-                <div style={{fontSize:22,marginBottom:4}}>{p.emoji}</div>
-                <div style={{fontSize:12,fontWeight:700,color:"var(--text)",marginBottom:2}}>{p.label}</div>
-                <div style={{fontSize:11,color:"var(--text-sec)",fontWeight:600}}>{srcCounts[p.id]} presets</div>
-                {p.desc&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>{p.desc}</div>}
+                <div style={{fontSize:13,fontWeight:700,color:"var(--text-primary)"}}>{brand}</div>
+                <div style={{fontSize:10,color:"var(--text-tertiary)",marginTop:2}}>{count} preset{count>1?"s":""}</div>
               </button>
             ))}
           </div>
         </div>;
       })()}
       {hasFilter&&filtered.length===0&&<div style={{textAlign:"center",padding:"24px",color:"var(--text-dim)",fontSize:13}}>Aucun preset ne correspond à ces critères.</div>}
-      {hasFilter&&filtered.length>0&&<PresetList filtered={filtered} selected={selected} setSelected={setSelected} banksAnn={banksAnn} banksPlug={banksPlug} fullCatalog={fullCatalog} filterSrcs={filterSrcs} filterPacks={filterPacks} togglePack={togglePack} setFilterPacks={setFilterPacks} mergedContext={mergedContext} guitars={guitars}/>}
+      {hasFilter&&filtered.length>0&&<PresetList filtered={filtered} selected={selected} setSelected={setSelected} banksAnn={banksAnn} banksPlug={banksPlug} fullCatalog={fullCatalog} filterSrcs={[]} filterPacks={filterPacks} togglePack={togglePack} setFilterPacks={setFilterPacks} mergedContext={mergedContext} guitars={guitars}/>}
     </div>
   );
 }
