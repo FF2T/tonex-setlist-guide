@@ -1264,7 +1264,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.5.2";
+const APP_VERSION = "8.5.3";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -4431,23 +4431,23 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
         const bestInstalled=computeBestPresets(gType,style,deviceKey==="ann"?banks:{},deviceKey==="plug"?banks:{},gId,ai.ref_amp,targetGain);
         top=deviceKey==="ann"?bestInstalled.annTop:bestInstalled.plugTop;
       }
-      // IdealTop depuis le catalogue complet
-      const bestCatalog=computeBestPresets(gType,style,{},{},gId,ai.ref_amp,targetGain);
-      // Filtrer idealTop par compatibilité source/device — on conserve la liste complète pour les priorités
-      const idealRaw=bestCatalog.idealTop3||[];
-      const idealCompat=idealRaw.filter(p=>{const e=findCatalogEntry(p.name);return !e||isSrcCompatible(e.src,deviceKey);});
-      // Inclure aussi le preset recommandé par l'IA (Gemini) s'il n'est pas déjà dans la liste
-      if(ai.ideal_preset){
-        const aiPresetName=ai.ideal_preset;
-        if(!idealCompat.find(p=>p.name===aiPresetName)){
-          const aiEntry=findCatalogEntry(aiPresetName);
-          if(aiEntry&&(!aiEntry.src||isSrcCompatible(aiEntry.src,deviceKey))){
-            const aiScore=ai.ideal_preset_score||computeFinalScore(aiEntry,gId,style,targetGain,resolveRefAmp(ai.ref_amp),false);
-            idealCompat.push({name:aiPresetName,score:aiScore,amp:aiEntry.amp,style:aiEntry.style,src:aiEntry.src});
-          }
-        }
+      // IdealTop : scan complet du catalogue (pas de limite d'amplis)
+      const resolvedAmp=resolveRefAmp(ai.ref_amp);
+      const allCandidates=[];
+      for(const [pName,pInfo] of Object.entries(PRESET_CATALOG_MERGED)){
+        if(!pInfo||!pInfo.amp) continue;
+        if(pInfo.src&&!isSrcCompatible(pInfo.src,deviceKey)) continue;
+        const sc=computeFinalScore(pInfo,gId,style,targetGain,resolvedAmp,false);
+        if(sc>=(top?.score||0)) allCandidates.push({name:pName,score:sc,amp:pInfo.amp,style:pInfo.style,src:pInfo.src});
       }
-      const idealTop=idealCompat[0]||bestCatalog.idealTop;
+      allCandidates.sort((a,b)=>b.score-a.score);
+      const idealCompat=[];
+      const seenAmps=new Set();
+      for(const c of allCandidates){
+        if(!seenAmps.has(c.amp)){idealCompat.push(c);seenAmps.add(c.amp);}
+        if(idealCompat.length>=10) break;
+      }
+      const idealTop=idealCompat[0]||null;
       if(top){
         if(!usedPresets.has(top.name)) usedPresets.set(top.name,{songs:[],bestScore:0});
         const u=usedPresets.get(top.name);u.songs.push(s.title);if(top.score>u.bestScore) u.bestScore=top.score;
