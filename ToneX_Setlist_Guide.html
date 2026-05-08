@@ -1264,7 +1264,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.6.0";
+const APP_VERSION = "8.6.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -5702,7 +5702,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,
       const profile=SOUND_PROFILES[soundProfile];
       if(profile&&!profile.filter(info))return false;
       if(filterBrand){var b=info.amp?info.amp.split(" ")[0]:"";if(b==="Dr."||b==="Two"||b==="Bad"||b==="Divided")b=info.amp.split(" ").slice(0,2).join(" ");if(b!==filterBrand)return false;}
-      if(filterModel&&info.amp!==filterModel)return false;
+      if(filterModel&&ampFamilyOf(info.amp)!==filterModel)return false;
       if(search.trim()){
         const q=search.toLowerCase();
         const ctx=mergedContext[info.amp];
@@ -5726,9 +5726,15 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,
   const ALL_SRC_OPTS={TSR:"64 Studio Rats",ML:"ML Sound Lab Essentials",Anniversary:"ToneX Anniversary Factory",Factory:"ToneX Factory",PlugFactory:"ToneX Plug Factory",custom:"Custom",ToneNET:"ToneNET"};
   const SRC_OPTS={all:"Toutes sources",...Object.fromEntries(Object.entries(ALL_SRC_OPTS).filter(([k])=>!availableSources||availableSources[k]!==false))};
 
-  const ampModels=useMemo(()=>{
+  const ampFamilyOf=function(amp){
+    var tax=AMP_TAXONOMY[amp];
+    if(tax) return tax.family;
+    for(var k in AMP_TAXONOMY){if(amp.includes(k)||k.includes(amp)) return AMP_TAXONOMY[k].family;}
+    return amp;
+  };
+  const ampFamilies=useMemo(()=>{
     if(!filterBrand) return [];
-    var models={};
+    var fams={};
     Object.values(fullCatalog).forEach(function(info){
       if(!info.amp) return;
       var b=info.amp.split(" ")[0];
@@ -5736,14 +5742,16 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,
       if(b!==filterBrand) return;
       var profile=SOUND_PROFILES[soundProfile];
       if(profile&&!profile.filter(info)) return;
-      if(!models[info.amp]) models[info.amp]=0;
-      models[info.amp]++;
+      var fk=ampFamilyOf(info.amp);
+      if(!fams[fk]) fams[fk]={count:0,amps:new Set()};
+      fams[fk].count++;
+      fams[fk].amps.add(info.amp);
     });
-    return Object.entries(models).sort(function(a,b){
-      var an=(a[0].startsWith(filterBrand)?a[0].slice(filterBrand.length):a[0]).replace(/^[\s\-]+/,"").toLowerCase();
-      var bn=(b[0].startsWith(filterBrand)?b[0].slice(filterBrand.length):b[0]).replace(/^[\s\-]+/,"").toLowerCase();
-      return an<bn?-1:an>bn?1:0;
-    });
+    return Object.entries(fams).map(function([fk,data]){
+      var amps=[...data.amps].sort();
+      var label=amps.length===1?amps[0].replace(filterBrand,"").trim():(fk.charAt(0).toUpperCase()+fk.slice(1));
+      return [fk,{count:data.count,label:label,amps:amps}];
+    }).sort(function(a,b){return b[1].count-a[1].count;});
   },[fullCatalog,filterBrand,soundProfile]);
   const hasFilter=soundProfile!=="all"||filterBrand||search.trim();
   return (
@@ -5801,7 +5809,7 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,
             {filterBrand&&!filterModel&&<button onClick={()=>{setFilterBrand("");setFilterModel("");}} style={{fontSize:11,color:"var(--accent)",background:"none",border:"none",cursor:"pointer",padding:0}}>← Amplis</button>}
             {filterBrand&&filterModel&&<button onClick={()=>setFilterModel("")} style={{fontSize:11,color:"var(--accent)",background:"none",border:"none",cursor:"pointer",padding:0}}>← {filterBrand}</button>}
             {filterBrand&&!filterModel&&<span style={{fontSize:12,fontWeight:700,color:"var(--text-primary)"}}>{filterBrand}</span>}
-            {filterModel&&<span style={{fontSize:12,fontWeight:700,color:"var(--text-primary)"}}>{filterModel}</span>}
+            {filterModel&&<span style={{fontSize:12,fontWeight:700,color:"var(--text-primary)"}}>{(ampFamilies.find(f=>f[0]===filterModel)||[])[1]?.label||filterModel}</span>}
             <span style={{fontSize:11,color:"var(--text-muted)"}}>{filtered.length} preset{filtered.length>1?"s":""}</span>
           </div>
           <button onClick={()=>{setSoundProfile("all");setFilterBrand("");setFilterModel("");setFilterPacks([]);setSearch("");}} style={{fontSize:11,color:"var(--text-muted)",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>Reinitialiser</button>
@@ -5825,17 +5833,20 @@ function PresetBrowser({banksAnn,banksPlug,availableSources,customPacks,guitars,
           </div>
         </div>;
       })()}
-      {/* Level 2: Amp model grid (Brand selected, no model yet) — sorted alphabetically by model name */}
-      {filterBrand&&!filterModel&&!search.trim()&&ampModels.length>0&&<div style={{marginTop:8}}>
+      {/* Level 2: Amp family grid (Brand selected, no family yet) */}
+      {filterBrand&&!filterModel&&!search.trim()&&ampFamilies.length>0&&<div style={{marginTop:8}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr",gap:4}}>
-          {ampModels.map(([model,count])=>{
-            var label=model.startsWith(filterBrand)?model.slice(filterBrand.length).trim():model;
-            return <button key={model} onClick={()=>setFilterModel(model)}
-              style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-md)",padding:"8px 12px",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",justifyContent:"space-between",transition:"all .15s"}}
+          {ampFamilies.map(([fk,data])=>{
+            var sub=data.amps.length>1?data.amps.map(a=>a.replace(filterBrand,"").trim()).slice(0,3).join(", "):"";
+            return <button key={fk} onClick={()=>setFilterModel(fk)}
+              style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-md)",padding:"8px 12px",cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,transition:"all .15s"}}
               onMouseOver={e=>{e.currentTarget.style.borderColor="var(--a15)";e.currentTarget.style.background="var(--a7)";}}
               onMouseOut={e=>{e.currentTarget.style.borderColor="var(--a8)";e.currentTarget.style.background="var(--a4)";}}>
-              <span style={{fontSize:12,fontWeight:700,color:"var(--text-primary)"}}>{label||model}</span>
-              <span style={{fontSize:10,color:"var(--text-tertiary)",flexShrink:0}}>{count}</span>
+              <div style={{minWidth:0}}>
+                <div style={{fontSize:12,fontWeight:700,color:"var(--text-primary)"}}>{data.label}</div>
+                {sub&&<div style={{fontSize:9,color:"var(--text-dim)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:1}}>{sub}{data.amps.length>3?" …":""}</div>}
+              </div>
+              <span style={{fontSize:10,color:"var(--text-tertiary)",flexShrink:0}}>{data.count}</span>
             </button>;
           })}
         </div>
