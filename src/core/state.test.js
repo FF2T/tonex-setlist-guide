@@ -8,8 +8,97 @@ import {
 } from './state.js';
 
 describe('STATE_VERSION', () => {
-  test('vaut 3 en Phase 2', () => {
-    expect(STATE_VERSION).toBe(3);
+  test('vaut 4 en Phase 3 (TMP tmpPatches)', () => {
+    expect(STATE_VERSION).toBe(4);
+  });
+});
+
+describe('migrateV3toV4 — ajoute tmpPatches additif', () => {
+  test('profil v3 sans tmpPatches → tmpPatches ajouté avec defaults', async () => {
+    const { migrateV3toV4 } = await import('./state.js');
+    const v3 = {
+      version: 3,
+      profiles: {
+        u1: {
+          id: 'u1', name: 'U1', isAdmin: false,
+          enabledDevices: ['tonex-pedal'],
+          devices: { pedale: true },
+        },
+      },
+    };
+    const v4 = migrateV3toV4(v3);
+    expect(v4.version).toBe(4);
+    expect(v4.profiles.u1.tmpPatches).toEqual({ custom: [], factoryOverrides: {} });
+    // Préservation des autres champs
+    expect(v4.profiles.u1.enabledDevices).toEqual(['tonex-pedal']);
+    expect(v4.profiles.u1.name).toBe('U1');
+  });
+
+  test('profil v3 avec tmpPatches déjà présent → préservé tel quel (idempotence)', async () => {
+    const { migrateV3toV4 } = await import('./state.js');
+    const existing = {
+      custom: [{ id: 'mine', name: 'My Patch' }],
+      factoryOverrides: { rock_preset: { 'amp.params.gain': 8 } },
+    };
+    const v3 = {
+      version: 3,
+      profiles: { u1: { id: 'u1', enabledDevices: ['tonex-pedal'], tmpPatches: existing } },
+    };
+    const v4 = migrateV3toV4(v3);
+    expect(v4.profiles.u1.tmpPatches).toEqual(existing);
+    expect(v4.profiles.u1.tmpPatches.custom[0].name).toBe('My Patch');
+  });
+
+  test('migration chaînée v1 → v2 → v3 → v4', async () => {
+    const { loadState, migrateV1toV2, migrateV2toV3, migrateV3toV4 } = await import('./state.js');
+    const v1 = { banksAnn: {}, banksPlug: {}, songDb: [], theme: 'dark' };
+    const v2 = migrateV1toV2(v1);
+    const v3 = migrateV2toV3(v2);
+    const v4 = migrateV3toV4(v3);
+    expect(v4.version).toBe(4);
+    expect(v4.profiles.sebastien.tmpPatches).toEqual({ custom: [], factoryOverrides: {} });
+    expect(v4.profiles.sebastien.enabledDevices).toEqual(['tonex-anniversary', 'tonex-plug']);
+  });
+
+  test('plusieurs profils traités indépendamment', async () => {
+    const { migrateV3toV4 } = await import('./state.js');
+    const v3 = {
+      version: 3,
+      profiles: {
+        a: { enabledDevices: ['tonex-pedal'] },
+        b: { enabledDevices: ['tonex-plug'], tmpPatches: { custom: [{ id: 'x' }], factoryOverrides: {} } },
+      },
+    };
+    const v4 = migrateV3toV4(v3);
+    expect(v4.profiles.a.tmpPatches).toEqual({ custom: [], factoryOverrides: {} });
+    expect(v4.profiles.b.tmpPatches.custom[0].id).toBe('x');
+  });
+
+  test('ensureProfileV4(null) → null', async () => {
+    const { ensureProfileV4 } = await import('./state.js');
+    expect(ensureProfileV4(null)).toBeNull();
+  });
+
+  test('ensureProfileV4 idempotent : profil déjà v4 → préservé (pas de spread)', async () => {
+    const { ensureProfileV4 } = await import('./state.js');
+    const profile = {
+      enabledDevices: ['tonex-pedal'],
+      tmpPatches: { custom: [], factoryOverrides: {} },
+    };
+    const out = ensureProfileV4(profile);
+    expect(out.tmpPatches).toBe(profile.tmpPatches);
+  });
+
+  test('ensureProfilesV4 applique heal à tous les profils', async () => {
+    const { ensureProfilesV4 } = await import('./state.js');
+    const profiles = {
+      a: { devices: { pedale: true } },
+      b: { enabledDevices: ['tonex-plug'], tmpPatches: { custom: [{ id: 'p1' }], factoryOverrides: {} } },
+    };
+    const out = ensureProfilesV4(profiles);
+    expect(out.a.tmpPatches).toEqual({ custom: [], factoryOverrides: {} });
+    expect(out.a.enabledDevices).toEqual(['tonex-pedal']); // heal v3 cascade
+    expect(out.b.tmpPatches.custom[0].id).toBe('p1');
   });
 });
 

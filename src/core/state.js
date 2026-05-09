@@ -1,9 +1,9 @@
-// src/core/state.js — Phase 2.
+// src/core/state.js — Phase 3 (state v4).
 // État applicatif persisté dans localStorage.
 //
-// Schéma :
+// Schéma v4 :
 //   {
-//     version: 3,
+//     version: 4,
 //     activeProfileId: string,
 //     shared: { songDb, theme, setlists, customGuitars?, toneNetPresets?,
 //               deletedSetlistIds? },
@@ -12,7 +12,7 @@
 //     syncId?: string,
 //   }
 //
-// Profil :
+// Profil v4 :
 //   {
 //     id, name, isAdmin, password,
 //     myGuitars: string[],
@@ -26,13 +26,15 @@
 //     availableSources: { [src]: bool },
 //     customPacks: object[],
 //     banksAnn, banksPlug,                        // 50 et 10 banks A/B/C
+//     tmpPatches: { custom: TMPPatch[],           // v4 : Tone Master Pro
+//                   factoryOverrides: { [patchId]: { [paramPath]: value } } },
 //     aiProvider, aiKeys: { anthropic, gemini },
 //     loginHistory?: object[],
 //   }
 //
-// Migrations enchaînées : v1 → v2 → v3. Le caller utilise loadState() qui
-// applique automatiquement la migration si nécessaire et retourne un état
-// au schéma courant.
+// Migrations enchaînées : v1 → v2 → v3 → v4. Le caller utilise loadState()
+// qui applique automatiquement la migration si nécessaire et retourne un
+// état au schéma courant.
 
 import { GUITARS } from './guitars.js';
 import { INIT_SONG_DB_META } from './songs.js';
@@ -43,7 +45,7 @@ import {
 } from '../data/data_catalogs.js';
 
 // ─── Versioning + clés localStorage ──────────────────────────────────
-const STATE_VERSION = 3;
+const STATE_VERSION = 4;
 const LS_KEY = 'tonex_guide_v2';        // nom historique stable
 const LS_KEY_V1 = 'tonex_guide_v1';
 const LS_SECRETS_KEY = 'tonex_secrets';
@@ -124,6 +126,35 @@ function ensureProfilesV3(profiles) {
   return out;
 }
 
+// Heal d'un profil v4 : si tmpPatches est absent, l'initialise au
+// défaut {custom: [], factoryOverrides: {}}. Idempotent : préserve la
+// référence si déjà présent. Pattern défensif pour éviter les
+// désynchros Firestore (cf Phase 2 fix).
+function ensureProfileV4(profile) {
+  if (!profile) return profile;
+  // Phase 4 = Phase 3 + tmpPatches. On commence par appliquer le heal v3
+  // (qui assure enabledDevices), puis on ajoute tmpPatches.
+  const v3healed = ensureProfileV3(profile);
+  if (v3healed.tmpPatches && typeof v3healed.tmpPatches === 'object'
+      && Array.isArray(v3healed.tmpPatches.custom)
+      && typeof v3healed.tmpPatches.factoryOverrides === 'object') {
+    return v3healed;
+  }
+  return {
+    ...v3healed,
+    tmpPatches: { custom: [], factoryOverrides: {} },
+  };
+}
+
+function ensureProfilesV4(profiles) {
+  if (!profiles) return profiles;
+  const out = {};
+  for (const [id, p] of Object.entries(profiles)) {
+    out[id] = ensureProfileV4(p);
+  }
+  return out;
+}
+
 // ─── makeDefaultProfile ──────────────────────────────────────────────
 function makeDefaultProfile(id, name, isAdmin = false, password = '') {
   const devices = { pedale: false, anniversary: isAdmin, plug: false };
@@ -143,6 +174,8 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
     customPacks: [],
     banksAnn: isAdmin ? { ...INIT_BANKS_ANN } : { ...FACTORY_BANKS_PEDALE },
     banksPlug: isAdmin ? { ...INIT_BANKS_PLUG } : { ...FACTORY_BANKS_PLUG },
+    // Phase 3 (v4) : Tone Master Pro patches custom + overrides factory.
+    tmpPatches: { custom: [], factoryOverrides: {} },
     aiProvider: 'gemini',
     aiKeys: { anthropic: '', gemini: '' },
     loginHistory: [],
@@ -186,21 +219,27 @@ function migrateV2toV3(v2) {
   return { ...v2, version: 3, profiles: ensureProfilesV3(v2.profiles) };
 }
 
+// v3 → v4 : ajoute tmpPatches à chaque profil. Purement additif. Les
+// profils déjà au format v4 (tmpPatches présent et bien typé) sont
+// préservés à l'identique via ensureProfileV4.
+function migrateV3toV4(v3) {
+  return { ...v3, version: 4, profiles: ensureProfilesV4(v3.profiles) };
+}
+
 // ─── loadState / saveState ───────────────────────────────────────────
 function loadState() {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      // Même quand version === 3, on passe par migrateV2toV3 pour heal
-      // d'éventuels profils incomplets (cas où la migration a tourné
-      // mais que Firestore a écrasé les profils par une version v2 sans
-      // enabledDevices entre temps, qui s'est ensuite re-saved en v3).
-      if (d.version === STATE_VERSION) return migrateV2toV3(d);
-      if (d.version === 2) return migrateV2toV3(d);
+      // Même quand version === STATE_VERSION, on passe par migrateV3toV4
+      // pour heal d'éventuels profils incomplets (Firestore stale).
+      if (d.version === STATE_VERSION) return migrateV3toV4(d);
+      if (d.version === 3) return migrateV3toV4(d);
+      if (d.version === 2) return migrateV3toV4(migrateV2toV3(d));
     }
     const v1raw = localStorage.getItem(LS_KEY_V1);
-    if (v1raw) return migrateV2toV3(migrateV1toV2(JSON.parse(v1raw)));
+    if (v1raw) return migrateV3toV4(migrateV2toV3(migrateV1toV2(JSON.parse(v1raw))));
   } catch (e) { /* ignore */ }
   return null;
 }
@@ -269,8 +308,9 @@ export {
   LS_KEY, LS_KEY_V1, LS_SECRETS_KEY, LS_TRUSTED_KEY, LS_BACKUP_KEY, MAX_BACKUPS,
   mergeBanks, deriveEnabledDevices, getDevicesForRender,
   ensureProfileV3, ensureProfilesV3,
+  ensureProfileV4, ensureProfilesV4,
   makeDefaultProfile,
-  migrateV1toV2, migrateV2toV3,
+  migrateV1toV2, migrateV2toV3, migrateV3toV4,
   loadState, saveState,
   autoBackup, listBackups, restoreBackup,
   loadSecrets, saveSecrets,
