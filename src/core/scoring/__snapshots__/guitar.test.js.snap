@@ -1,0 +1,45 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`computeFinalScore · 11 guitares · ledzep_stairway (preset Marshall SL800 drive) > es335 1`] = `94`;
+
+exports[`computeFinalScore · 11 guitares · ledzep_stairway (preset Marshall SL800 drive) > jazzmaster 1`] = `90`;
+
+exports[`computeFinalScore · 11 guitares · ledzep_stairway (preset Marshall SL800 drive) > lp50p90 1`] = `93`;
+
+exports[`computeFinalScore · 11 guitares · ledzep_stairway (preset Marshall SL800 drive) > lp60 1`] = `95`;
+
+exports[`computeFinalScore · 11 guitares · ledzep_stairway (preset Marshall SL800 drive) > sg_ebony 1`] = `95`;
+
+exports[`computeFinalScore · 11 guitares · ledzep_stairway (preset Marshall SL800 drive) > sg61 1`] = `95`;
+
+exports[`computeFinalScore · 11 guitares · ledzep_stairway (preset Marshall SL800 drive) > strat_ec 1`] = `91`;
+
+exports[`computeFinalScore · 11 guitares · ledzep_stairway (preset Marshall SL800 drive) > strat_pro2 1`] = `91`;
+
+exports[`computeFinalScore · 11 guitares · ledzep_stairway (preset Marshall SL800 drive) > strat61 1`] = `91`;
+
+exports[`computeFinalScore · 11 guitares · ledzep_stairway (preset Marshall SL800 drive) > tele_ultra 1`] = `92`;
+
+exports[`computeFinalScore · 11 guitares · ledzep_stairway (preset Marshall SL800 drive) > tele63 1`] = `91`;
+
+exports[`computeGuitarScoreV2 · 11 guitares · ledzep_stairway (rock/drive/balanced) > es335 1`] = `59`;
+
+exports[`computeGuitarScoreV2 · 11 guitares · ledzep_stairway (rock/drive/balanced) > jazzmaster 1`] = `53`;
+
+exports[`computeGuitarScoreV2 · 11 guitares · ledzep_stairway (rock/drive/balanced) > lp50p90 1`] = `65`;
+
+exports[`computeGuitarScoreV2 · 11 guitares · ledzep_stairway (rock/drive/balanced) > lp60 1`] = `74`;
+
+exports[`computeGuitarScoreV2 · 11 guitares · ledzep_stairway (rock/drive/balanced) > sg_ebony 1`] = `77`;
+
+exports[`computeGuitarScoreV2 · 11 guitares · ledzep_stairway (rock/drive/balanced) > sg61 1`] = `74`;
+
+exports[`computeGuitarScoreV2 · 11 guitares · ledzep_stairway (rock/drive/balanced) > strat_ec 1`] = `62`;
+
+exports[`computeGuitarScoreV2 · 11 guitares · ledzep_stairway (rock/drive/balanced) > strat_pro2 1`] = `62`;
+
+exports[`computeGuitarScoreV2 · 11 guitares · ledzep_stairway (rock/drive/balanced) > strat61 1`] = `59`;
+
+exports[`computeGuitarScoreV2 · 11 guitares · ledzep_stairway (rock/drive/balanced) > tele_ultra 1`] = `65`;
+
+exports[`computeGuitarScoreV2 · 11 guitares · ledzep_stairway (rock/drive/balanced) > tele63 1`] = `59`;

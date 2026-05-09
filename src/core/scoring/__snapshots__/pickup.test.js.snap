@@ -1,0 +1,13 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`computePickupScore · 6 styles avec HB en drive > HB · blues · drive 1`] = `85`;
+
+exports[`computePickupScore · 6 styles avec HB en drive > HB · hard_rock · drive 1`] = `90`;
+
+exports[`computePickupScore · 6 styles avec HB en drive > HB · jazz · drive 1`] = `50`;
+
+exports[`computePickupScore · 6 styles avec HB en drive > HB · metal · drive 1`] = `88`;
+
+exports[`computePickupScore · 6 styles avec HB en drive > HB · pop · drive 1`] = `70`;
+
+exports[`computePickupScore · 6 styles avec HB en drive > HB · rock · drive 1`] = `88`;
