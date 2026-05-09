@@ -86,7 +86,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     ToneX_Setlist_Guide.html → index.html dans le nouveau dist/) ──
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v49';
+const CACHE='tonex-v50';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(

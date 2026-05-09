@@ -410,6 +410,73 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
+## État Phase 3 (terminée 2026-05-09, tag `phase-3-done`)
+
+**Acquis** :
+- `src/devices/tonemaster-pro/` complet (4ème device de premier rang) :
+  - `chain-model.js` : 9 BLOCK_TYPES (comp, drive, amp, cab, mod,
+    delay, reverb + ajouts Arthur noise_gate, eq), validateBlock,
+    validatePatch, getPatchBlocks dans RENDER_ORDER (noise_gate →
+    comp → eq → drive → amp → cab → mod → delay → reverb).
+  - `whitelist.js` : whitelist EXACTE depuis CLAUDE.md (firmware
+    v1.6 + ajouts Arthur). 28 amps, 14 cabs, 9 drives, 6 mods,
+    4 delays, 5 reverbs, 1 comp, 1 eq, 1 noise_gate.
+  - `catalog.js` : **20 patches factory** dont **3 Arthur recopiés
+    au caractère près** (rock_preset slot 211/213, clean_preset
+    slot 210, flipper_patch slot 202) + 4 patches orphelins seed
+    (Stairway, Money for Nothing, Romeo & Juliet, Hoochie Coochie)
+    + 13 patches "famille" avec champ `usages: [{artist,songs?}]`
+    listant cibles types (Beatles, SRV, Metallica, Van Halen,
+    Robben Ford, Sabbath, Sigur Rós, etc.).
+  - `scoring.js` : `recommendTMPPatch` avec pondération CLAUDE.md
+    EXACTE (amp 0.45, cab 0.20, drive 0.15, fx 0.05, style 0.10,
+    pickup 0.05) + bonus `usagesBonus` additif (+15 artiste, +25
+    morceau précis) qui permet aux patches Arthur de remonter en
+    top sur leurs usages explicites même quand l'amp scoring est
+    ambigu (Plexi vs JCM800).
+  - `RecommendBlock.jsx` : composant React compact (1 ligne) +
+    drawer expandable affichant chaque bloc avec params clés,
+    style/gain/pickupAffinity, usages.
+  - `index.js` : auto-registration du device avec
+    `RecommendBlock` attaché à la metadata.
+- Registry étendu (sans modifier registry.js) : convention
+  `device.RecommendBlock` (composant React optionnel). Si présent,
+  les écrans (`SongCollapsedDeviceRows`, `RecapScreen`,
+  `SongDetailCard`) le rendent à la place du `presetRow` legacy.
+  ToneX devices (sans `RecommendBlock`) : comportement inchangé.
+  `SynthesisScreen` filter out les devices avec `RecommendBlock`
+  (ne fittent pas une colonne tabulaire).
+- `state.js` v3 → v4 : ajoute `profile.tmpPatches: { custom: [],
+  factoryOverrides: {} }`. Migration purement additive,
+  idempotente, défensive face aux désynchros Firestore via
+  `ensureProfileV4` / `ensureProfilesV4`.
+- 220 tests Vitest (113 Phase 1+2 + 107 Phase 3 dont 50 catalog/
+  scoring TMP).
+- SW CACHE bumpé `tonex-v49` → `tonex-v50`.
+
+**Schéma localStorage v4** (les changements vs v3 en gras) :
+```
+profile {
+  ...,                                      // v3 inchangé
+  tmpPatches: {                             // v4 NOUVEAU
+    custom: TMPPatch[],                     //  patches user-créés
+    factoryOverrides: { [patchId]: object } //  modifs sur factory
+  }
+}
+```
+
+**Dette à clore avant Phase 4 (Scenes / footswitch)** :
+- UI d'édition des patches custom TMP (Phase 3 lit-only ;
+  édition, save dans `profile.tmpPatches.custom` + UI scenes /
+  footswitchMap → Phase 4).
+- Champs `scenes`, `footswitchMap` du modèle TMPPatch sont
+  documentés dans le type mais non encore exposés (Phase 4).
+- Browser de patches dans MonProfilScreen — Phase 4.
+- AI populating `preset_tmp` field dans aiCache — différé (Phase 3
+  utilise un scoring pur sans IA, défensif au cas où l'AI serait
+  indispo).
+- Découpage main.jsx (toujours dette Phase 1, encore ~6500 lignes).
+
 ## État Phase 2 (terminée 2026-05-09, tag `phase-2-done`)
 
 **Acquis** :
