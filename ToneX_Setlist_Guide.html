@@ -1365,7 +1365,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.7.0";
+const APP_VERSION = "8.7.1";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -6970,6 +6970,23 @@ function App() {
   const {banksAnn, banksPlug, aiProvider, aiKeys, availableSources} = profile;
   // Filter setlists for current profile
   const mySetlists = setlists.filter(sl => !sl.profileIds || sl.profileIds.length === 0 || sl.profileIds.includes(activeProfileId));
+
+  // Auto batch rescore: when allGuitars changes or SCORING_VERSION is outdated
+  useEffect(()=>{
+    if(!songDb?.length||!allGuitars?.length) return;
+    var outdated=songDb.filter(s=>s.aiCache?.result?.cot_step1&&s.aiCache.sv!==SCORING_VERSION);
+    if(!outdated.length) return;
+    console.log("[rescore] Batch rescore "+outdated.length+" morceaux (SCORING_VERSION "+SCORING_VERSION+")");
+    setSongDb(prev=>prev.map(s=>{
+      if(!s.aiCache?.result?.cot_step1||s.aiCache.sv===SCORING_VERSION) return s;
+      var gId=s.aiCache.gId;
+      if(!gId) return s;
+      var gType=findGuitar(gId)?.type||"HB";
+      var cleaned={...s.aiCache.result,preset_ann:null,preset_plug:null,ideal_preset:null,ideal_preset_score:0,ideal_top3:null};
+      var recalc=enrichAIResult(cleaned,gType,gId,banksAnn,banksPlug);
+      return {...s,aiCache:{...updateAiCache(s.aiCache,gId,recalc),sv:SCORING_VERSION}};
+    }));
+  },[allGuitars]);
 
   // Save secrets (aiKeys, passwords) to separate localStorage key — never synced
   useEffect(()=>{
