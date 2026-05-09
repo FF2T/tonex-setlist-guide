@@ -22,7 +22,7 @@ import './devices/tonex-anniversary/index.js';
 import './devices/tonex-plug/index.js';
 import { INIT_BANKS_ANN, FACTORY_BANKS_PEDALE } from './devices/tonex-pedal/index.js';
 import { INIT_BANKS_PLUG, FACTORY_BANKS_PLUG } from './devices/tonex-plug/index.js';
-import { isSrcCompatible } from './devices/registry.js';
+import { isSrcCompatible, getAllDevices, getEnabledDevices } from './devices/registry.js';
 import {
   PRESET_CONTEXT, AMP_TAXONOMY, EXTERNAL_PACK_CATALOG,
 } from './data/data_context.js';
@@ -1728,58 +1728,9 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp,section,aiK
         }}/>
       </div>}
 
-      {/* Mes appareils */}
-      {s==="devices"&&<div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-lg)",padding:16,marginBottom:16}}>
-        <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:12}}>Mes appareils ToneX</div>
-        {(()=>{
-          const d=profile.devices||{};
-          const hasPedale=d.pedale||d.anniversary;
-          const setDevice=(key,val)=>updateProfile("devices",prev=>({...(prev||{}),[key]:val}));
-          const btnStyle=(on)=>({display:"flex",alignItems:"center",gap:10,background:on?"var(--green-bg)":"var(--a3)",border:on?"1px solid var(--green-border)":"1px solid var(--a8)",borderRadius:"var(--r-md)",padding:"12px 14px",cursor:"pointer",textAlign:"left",flex:1});
-          const check=(on)=><div style={{width:18,height:18,borderRadius:"var(--r-sm)",border:on?"2px solid var(--green)":"2px solid var(--text-muted)",background:on?"var(--green)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{on&&<span style={{color:"var(--bg)",fontSize:10,fontWeight:900}}>✓</span>}</div>;
-          return <div style={{display:"flex",flexDirection:"column",gap:12}}>
-            {/* Pédale ToneX ? */}
-            <div>
-              <div style={{fontSize:12,fontWeight:600,color:"var(--text-sec)",marginBottom:6}}>As-tu une pédale ToneX ?</div>
-              <div style={{display:"flex",gap:8}}>
-                <button onClick={()=>{setDevice("pedale",true);setDevice("anniversary",false);}} style={btnStyle(d.pedale&&!d.anniversary)}>
-                  {check(d.pedale&&!d.anniversary)}
-                  <div style={{fontSize:12,color:d.pedale&&!d.anniversary?"var(--text)":"var(--text-muted)",fontWeight:600}}>Oui, Standard</div>
-                </button>
-                <button onClick={()=>{setDevice("anniversary",true);setDevice("pedale",false);}} style={btnStyle(d.anniversary)}>
-                  {check(d.anniversary)}
-                  <div style={{fontSize:12,color:d.anniversary?"var(--text)":"var(--text-muted)",fontWeight:600}}>Oui, Anniversary</div>
-                </button>
-                <button onClick={()=>{setDevice("pedale",false);setDevice("anniversary",false);}} style={btnStyle(!hasPedale)}>
-                  {check(!hasPedale)}
-                  <div style={{fontSize:12,color:!hasPedale?"var(--text)":"var(--text-muted)",fontWeight:600}}>Non</div>
-                </button>
-              </div>
-            </div>
-            {/* ToneX Plug ? */}
-            <div>
-              <div style={{fontSize:12,fontWeight:600,color:"var(--text-sec)",marginBottom:6}}>As-tu un ToneX Plug ?</div>
-              <div style={{display:"flex",gap:8}}>
-                <button onClick={()=>setDevice("plug",true)} style={btnStyle(d.plug)}>
-                  {check(d.plug)}
-                  <div style={{fontSize:12,color:d.plug?"var(--text)":"var(--text-muted)",fontWeight:600}}>Oui</div>
-                </button>
-                <button onClick={()=>setDevice("plug",false)} style={btnStyle(!d.plug)}>
-                  {check(!d.plug)}
-                  <div style={{fontSize:12,color:!d.plug?"var(--text)":"var(--text-muted)",fontWeight:600}}>Non</div>
-                </button>
-              </div>
-            </div>
-            {/* Résumé */}
-            {(hasPedale||d.plug)&&<div style={{background:"var(--a3)",borderRadius:"var(--r-md)",padding:"8px 12px",fontSize:11,color:"var(--text-sec)"}}>
-              {d.pedale&&!d.anniversary&&<span>Pédale ToneX Standard</span>}
-              {d.anniversary&&<span>Pédale ToneX Anniversary</span>}
-              {(hasPedale&&d.plug)&&<span> + </span>}
-              {d.plug&&<span>ToneX Plug</span>}
-            </div>}
-          </div>;
-        })()}
-      </div>}
+      {/* Mes appareils — Phase 2 : section déplacée dans MesAppareilsTab,
+          piloté par le registry des devices. Le rendu ProfileTab section="devices"
+          n'est plus utilisé. */}
 
       {/* Mes sources de presets */}
       {s==="sources"&&<div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-lg)",padding:16,marginBottom:16}}>
@@ -2130,6 +2081,80 @@ function ToneNetTab({toneNetPresets,onToneNetPresets,inp}){
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 // ─── Mon Profil Screen ────────────────────────────────────────────────────────
+// MesAppareilsTab — Phase 2 étape 3.
+// Liste les devices enregistrés (getAllDevices) avec une checkbox par
+// device. Le toggle écrit profile.enabledDevices ET profile.devices
+// (legacy) en miroir, pour préserver les lectures existantes (auto-lock
+// sources et tabs device-spécifiques restent fonctionnels jusqu'au
+// nettoyage Phase 5).
+// Garde-fou : au moins un device doit rester coché — décocher le
+// dernier ne fait rien (refus silencieux).
+function MesAppareilsTab({profile,profiles,onProfiles,activeProfileId}) {
+  const allDevices = getAllDevices();
+  const enabled = new Set(profile.enabledDevices || []);
+  const toggleDevice = (id) => {
+    const next = new Set(enabled);
+    if (next.has(id)) {
+      if (next.size <= 1) return;
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    const arr = allDevices.filter(d => next.has(d.id)).map(d => d.id);
+    const legacyDevices = {
+      pedale: arr.includes('tonex-pedal'),
+      anniversary: arr.includes('tonex-anniversary'),
+      plug: arr.includes('tonex-plug'),
+    };
+    onProfiles(p => ({
+      ...p,
+      [activeProfileId]: {
+        ...p[activeProfileId],
+        enabledDevices: arr,
+        devices: legacyDevices,
+      },
+    }));
+  };
+  return (
+    <div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-lg)",padding:16,marginBottom:16}}>
+      <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:6}}>Mes appareils ToneX</div>
+      <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:12}}>Coche les appareils que tu utilises. Les blocs Recap et Synthèse n'afficheront que ceux-ci. Au moins un appareil doit rester coché.</div>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {allDevices.map(d => {
+          const on = enabled.has(d.id);
+          return (
+            <button
+              key={d.id}
+              onClick={() => toggleDevice(d.id)}
+              style={{
+                display:"flex", alignItems:"center", gap:12,
+                background: on ? "var(--green-bg)" : "var(--a3)",
+                border: on ? "1px solid var(--green-border)" : "1px solid var(--a8)",
+                borderRadius:"var(--r-md)", padding:"12px 14px",
+                cursor:"pointer", textAlign:"left", width:"100%",
+              }}
+            >
+              <div style={{
+                width:18, height:18, borderRadius:"var(--r-sm)",
+                border: on ? "2px solid var(--green)" : "2px solid var(--text-muted)",
+                background: on ? "var(--green)" : "transparent",
+                display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+              }}>
+                {on && <span style={{color:"var(--bg)",fontSize:10,fontWeight:900}}>✓</span>}
+              </div>
+              <span style={{fontSize:18,flexShrink:0}}>{d.icon}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:600,color:on ? "var(--text)" : "var(--text-sec)"}}>{d.label}</div>
+                <div style={{fontSize:11,color:"var(--text-muted)",marginTop:2}}>{d.description}</div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAiKeys,theme,onTheme,profile,profiles,onProfiles,activeProfileId,allGuitars,initTab,customGuitars,onCustomGuitars,toneNetPresets,onToneNetPresets,fullState,onImportState,onLogout}) {
   const [tab,setTab]=useState(initTab||"profile");
   const [newSlName,setNewSlName]=useState("");
@@ -2193,7 +2218,7 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
       <div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>👤 Mon profil</div>
       <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
         {tabBtn("profile","🎸 Guitares")}
-        {tabBtn("devices","📱 Materiel")}
+        {tabBtn("devices","📱 Mes appareils")}
         {tabBtn("sources","📦 Sources")}
         {tabBtn("tonenet","🌐 ToneNET")}
         {profile.devices?.pedale&&tabBtn("pedale","🎛 Pedale ToneX")}
@@ -2206,7 +2231,7 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
         {profile.isAdmin&&tabBtn("admin_profiles","👥 Profils")}
       </div>
       {tab==="profile"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="guitars" aiKeys={aiKeys} customGuitars={customGuitars} onCustomGuitars={onCustomGuitars}/>}
-      {tab==="devices"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="devices"/>}
+      {tab==="devices"&&<MesAppareilsTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId}/>}
       {tab==="sources"&&<ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="sources"/>}
       {tab==="tonenet"&&<ToneNetTab toneNetPresets={toneNetPresets} onToneNetPresets={onToneNetPresets} inp={inp}/>}
       {tab==="setlists"&&<div>
