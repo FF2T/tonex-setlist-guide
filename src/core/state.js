@@ -88,6 +88,33 @@ function ensureProfileV3(profile) {
   return { ...profile, enabledDevices: deriveEnabledDevices(profile.devices) };
 }
 
+// Pour le rendu UI : retourne la liste d'IDs de devices que les screens
+// doivent afficher pour ce profil. Robuste face aux désynchronisations :
+// 1) Si profile.enabledDevices est un tableau NON vide → l'utilise tel quel.
+// 2) Si profile.enabledDevices est absent OU vide → dérive depuis
+//    profile.devices (legacy) — couvre le cas Firestore stale qui efface
+//    enabledDevices et où le screen ne doit pas retomber sur les defaults
+//    [tonex-pedal, tonex-plug] et afficher des blocs pour des devices que
+//    l'utilisateur a explicitement décochés.
+// 3) Sinon → defaults registry ['tonex-pedal','tonex-plug'].
+//
+// Note : retourne un tableau d'IDs (string[]), pas d'objets device. Le
+// caller passe ensuite ces IDs à getEnabledDevices via {enabledDevices: ids}
+// pour récupérer les objets device complets depuis le registry.
+function getDevicesForRender(profile) {
+  if (!profile) return ['tonex-pedal', 'tonex-plug'];
+  if (Array.isArray(profile.enabledDevices) && profile.enabledDevices.length > 0) {
+    return profile.enabledDevices;
+  }
+  const legacy = profile.devices || {};
+  const ids = [];
+  if (legacy.pedale) ids.push('tonex-pedal');
+  if (legacy.anniversary) ids.push('tonex-anniversary');
+  if (legacy.plug) ids.push('tonex-plug');
+  if (ids.length > 0) return ids;
+  return ['tonex-pedal', 'tonex-plug'];
+}
+
 function ensureProfilesV3(profiles) {
   if (!profiles) return profiles;
   const out = {};
@@ -240,7 +267,7 @@ function setTrusted(id, v) {
 export {
   STATE_VERSION,
   LS_KEY, LS_KEY_V1, LS_SECRETS_KEY, LS_TRUSTED_KEY, LS_BACKUP_KEY, MAX_BACKUPS,
-  mergeBanks, deriveEnabledDevices,
+  mergeBanks, deriveEnabledDevices, getDevicesForRender,
   ensureProfileV3, ensureProfilesV3,
   makeDefaultProfile,
   migrateV1toV2, migrateV2toV3,

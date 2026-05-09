@@ -145,6 +145,63 @@ describe('idempotence et préservation', () => {
   });
 });
 
+describe('régression Phase 2 SetlistsScreen : enabledDevices doit refléter le legacy profile.devices quand absent', () => {
+  test("getDevicesForRender (helper d'écran) : profile sans enabledDevices, legacy {pedale:false, anniversary:true, plug:false} → 1 device Anniversary", async () => {
+    // Cas reproducteur : user a décoché Plug, devices.plug=false, mais
+    // un push/pull Firestore a effacé enabledDevices entre temps.
+    // L'écran doit lire le legacy au lieu de retomber sur les defaults
+    // (qui sont Pedal + Plug et causent 2 lignes au lieu d'1).
+    const { getDevicesForRender } = await import('./state.js');
+    const profile = {
+      id: 'sebastien',
+      devices: { pedale: false, anniversary: true, plug: false },
+      // pas d'enabledDevices : simule le bug
+    };
+    const ids = getDevicesForRender(profile);
+    expect(ids).toEqual(['tonex-anniversary']);
+  });
+
+  test("profile vide : devices = {} → fallback ['tonex-pedal','tonex-plug']", async () => {
+    const { getDevicesForRender } = await import('./state.js');
+    expect(getDevicesForRender({})).toEqual(['tonex-pedal', 'tonex-plug']);
+  });
+
+  test('profile null → fallback', async () => {
+    const { getDevicesForRender } = await import('./state.js');
+    expect(getDevicesForRender(null)).toEqual(['tonex-pedal', 'tonex-plug']);
+  });
+
+  test('profile.enabledDevices = [] (vide explicite) → fallback', async () => {
+    // Cas garde-fou MesAppareilsTab — ne devrait jamais arriver car le
+    // toggle bloque le décoché du dernier device. Mais si l'utilisateur
+    // avait un profil v3 corrompu avec liste vide, on retombe sur le
+    // legacy plutôt que rendre une page sans aucun bloc device.
+    const { getDevicesForRender } = await import('./state.js');
+    const profile = { enabledDevices: [], devices: { anniversary: true } };
+    expect(getDevicesForRender(profile)).toEqual(['tonex-anniversary']);
+  });
+
+  test('profile.enabledDevices = ["tonex-anniversary"] (cas Sébastien fixé) → 1 device', async () => {
+    const { getDevicesForRender } = await import('./state.js');
+    const profile = {
+      enabledDevices: ['tonex-anniversary'],
+      devices: { pedale: false, anniversary: true, plug: false },
+    };
+    expect(getDevicesForRender(profile)).toEqual(['tonex-anniversary']);
+  });
+
+  test('profile.enabledDevices a priorité sur le legacy si présent', async () => {
+    const { getDevicesForRender } = await import('./state.js');
+    // L'utilisateur a fait un toggle ; l'enabledDevices est plus récent
+    // que le legacy. On ne re-dérive pas.
+    const profile = {
+      enabledDevices: ['tonex-pedal'],
+      devices: { pedale: false, anniversary: true, plug: true }, // ancien
+    };
+    expect(getDevicesForRender(profile)).toEqual(['tonex-pedal']);
+  });
+});
+
 describe('régression : enabledDevices manquant doit être complété (heal)', () => {
   test('cas reproducteur du bug Phase 2 : profile v2 avec devices.anniversary=true et devices.plug=true doit produire enabledDevices', async () => {
     // Le profil arrive depuis Firestore EN VERSION 2 (synced avant

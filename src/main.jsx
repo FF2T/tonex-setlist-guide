@@ -52,11 +52,21 @@ import {
   mergeBanks, makeDefaultProfile,
   migrateV1toV2, migrateV2toV3,
   ensureProfileV3, ensureProfilesV3,
+  getDevicesForRender,
   loadState, saveState,
   autoBackup, listBackups, restoreBackup,
   loadSecrets, saveSecrets,
   loadTrusted, isTrusted, setTrusted,
 } from './core/state.js';
+
+// Helper Phase 2 fix : devices à afficher pour ce profil. Robuste
+// face aux désynchros (Firestore stale, profil v3 partiel) — dérive
+// du legacy profile.devices si profile.enabledDevices manque, sinon
+// fallback sur les defaults registry.
+function getActiveDevicesForRender(profile) {
+  const ids = getDevicesForRender(profile);
+  return getEnabledDevices({ enabledDevices: ids });
+}
 
 // ─── App UI helpers + leaf components (Phase 1, étape 5) ────────────
 import {
@@ -2947,7 +2957,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
               const currentPreset=bk!==""&&banks[Number(bk)]?banks[Number(bk)][sl]||"(vide)":"";
               // Phase 2 fix : label/icon depuis le device activé qui matche
               // ce deviceKey, fallback sur l'ancien hardcode si introuvable.
-              const dev=(getEnabledDevices(profile).length?getEnabledDevices(profile):getEnabledDevices({})).find(d=>d.deviceKey===device);
+              const dev=(getActiveDevicesForRender(profile)).find(d=>d.deviceKey===device);
               const deviceLabel=dev?`${dev.icon} ${dev.label}`:(device==="ann"?"📦 Pedale":"🔌 Plug");
               return <div style={{marginBottom:6}}>
                 <div style={{fontSize:10,color:"var(--text-sec)",marginBottom:4,fontWeight:600}}>{deviceLabel}</div>
@@ -2977,7 +2987,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
               </div>
               {installTarget?.preset===aiC.ideal_preset&&(()=>{
                 // Phase 2 fix : ne propose que les devices activés.
-                const activeEnabled=getEnabledDevices(profile).length?getEnabledDevices(profile):getEnabledDevices({});
+                const activeEnabled=getActiveDevicesForRender(profile);
                 const canPedal=canInstallAnn&&activeEnabled.some(d=>d.deviceKey==='ann');
                 const canPlug=canInstallPlug&&activeEnabled.some(d=>d.deviceKey==='plug');
                 if(!canPedal&&!canPlug) return null;
@@ -3043,7 +3053,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
         </div>
         <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Meilleurs presets installes pour {g?.short||"cette guitare"}</div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          {(getEnabledDevices(profile).length?getEnabledDevices(profile):getEnabledDevices({})).map(d=>{
+          {(getActiveDevicesForRender(profile)).map(d=>{
             const banks=d.bankStorageKey==='banksAnn'?banksAnn:banksPlug;
             const presetData=aiC[d.presetResultKey];
             return (
@@ -3470,7 +3480,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                   // Phase 2 fix : itère sur les devices activés du profil au lieu
                   // de hardcoder Pedal+Plug. Garantit que la vue repliée respecte
                   // le toggle de Mes appareils.
-                  const enabledDevices=getEnabledDevices(profile).length?getEnabledDevices(profile):getEnabledDevices({});
+                  const enabledDevices=getActiveDevicesForRender(profile);
                   const devicePresets=enabledDevices.map(d=>{
                     const banks=d.bankStorageKey==='banksAnn'?banksAnn:banksPlug;
                     const presetData=aiC?.[d.presetResultKey];
@@ -3502,7 +3512,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
 function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBanksPlug,allGuitars,availableSources,onNavigate,profile}) {
   // Phase 2 fix : gate les sections device-spécifiques (analyse,
   // grille mini, plan de réorganisation, actions prioritaires).
-  const enabledDevices=getEnabledDevices(profile).length?getEnabledDevices(profile):getEnabledDevices({});
+  const enabledDevices=getActiveDevicesForRender(profile);
   const hasPedalDevice=enabledDevices.some(d=>d.deviceKey==='ann');
   const hasPlugDevice=enabledDevices.some(d=>d.deviceKey==='plug');
   const [slId,setSlId]=useState(setlists[0]?.id||"");
@@ -4126,7 +4136,7 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
 function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profile}) {
   // Phase 2 fix : iterate sur les devices activés pour le rendu compact
   // par morceau et pour la liste des presets manquants.
-  const enabledDevices=getEnabledDevices(profile).length?getEnabledDevices(profile):getEnabledDevices({});
+  const enabledDevices=getActiveDevicesForRender(profile);
   const guitars=allGuitars||GUITARS;
   const [mode,setMode]=useState("single"); // "single" | "multi"
   const [selectedGuitarId,setSelectedGuitarId]=useState(null);
@@ -4365,7 +4375,7 @@ function SynthesisScreen({songs,gps,aiR,onBack,onNavigate,songDb,banksAnn,banksP
   // expose bankStorageKey (banksAnn|banksPlug) et presetResultKey
   // (preset_ann|preset_plug). Garde-fou : si liste vide, on retombe sur
   // les defaults du registry pour ne pas afficher un tableau sans colonne.
-  const enabledDevices=getEnabledDevices(profile).length?getEnabledDevices(profile):getEnabledDevices({});
+  const enabledDevices=getActiveDevicesForRender(profile);
   const rows=songs.map(s=>{
     const g=(allGuitars||GUITARS).find(x=>x.id===gps[s.id]);
     const type=g?.type||"HB";
@@ -5110,7 +5120,7 @@ function JamPresetItem({p,rank,isSelected,onSelect,banksAnn,banksPlug,guitars}){
 function JamScreen({banksAnn,banksPlug,allGuitars,availableSources,profile}){
   // Phase 2 fix : ne montre les sections Pédale/Plug que si le device
   // correspondant est activé dans le profil.
-  const enabledDevices=getEnabledDevices(profile).length?getEnabledDevices(profile):getEnabledDevices({});
+  const enabledDevices=getActiveDevicesForRender(profile);
   const hasPedalDevice=enabledDevices.some(d=>d.deviceKey==='ann');
   const hasPlugDevice=enabledDevices.some(d=>d.deviceKey==='plug');
   const guitars=allGuitars||GUITARS;
@@ -5783,7 +5793,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
               <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Meilleurs presets installes</div>
               <div style={{display:"flex",flexDirection:"column",gap:6}}>
                 {/* Phase 2 fix : itère sur les devices activés du profil. */}
-                {(getEnabledDevices(profile).length?getEnabledDevices(profile):getEnabledDevices({})).map(d=>{
+                {(getActiveDevicesForRender(profile)).map(d=>{
                   const presetData=songResult[d.presetResultKey];
                   if(!presetData) return null;
                   return (
