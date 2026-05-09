@@ -1365,7 +1365,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.7.2";
+const APP_VERSION = "8.7.3";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -6992,6 +6992,74 @@ function App() {
       return {...s,aiCache:{...updateAiCache(s.aiCache,gId,recalc),sv:SCORING_VERSION}};
     }));
   },[guitarIds]);
+
+  // One-time migration: import Newzik setlists
+  useEffect(()=>{
+    if(setlists.some(sl=>sl.name==="Cours Franck B")) return;
+    var LISTS={
+      "Cours Franck B":[
+        ["Play That Funky Music","Wild Cherry"],["I Got All You Need","Joe Bonamassa"],
+        ["The Thrill Is Gone","B.B. King"],["Ticket to Ride","The Beatles"],
+        ["You Shook Me All Night Long","AC/DC"],["Day Tripper","The Beatles"],
+        ["Johnny B. Goode","Chuck Berry"],["Sarbacane","Francis Cabrel"],
+        ["Immortels","Alain Bashung"],["Knockin' on Heaven's Door","Guns N' Roses"],
+        ["Motherless Child","Eric Clapton"],["Come Together","The Beatles"],
+        ["Crazy Little Thing Called Love","Queen"],["Satisfaction","The Rolling Stones"],
+        ["Romeo and Juliet","Dire Straits"],["Tush","ZZ Top"],
+        ["Devil Inside","INXS"],["Bohemian Rhapsody","Queen"],
+        ["Should I Stay or Should I Go","The Clash"],["I've All I Need","Liam Gallagher"],
+        ["The Power of Love","Huey Lewis and The News"],["Brothers in Arms","Dire Straits"],
+        ["What's Up","4 Non Blondes"],["Thunderstruck","AC/DC"],
+        ["Stairway to Heaven","Led Zeppelin"],["Walk of Life","Dire Straits"],
+        ["Flipper","Téléphone"],["Hoochie Coochie Man","Muddy Waters"],
+        ["Smoke on the Water","Deep Purple"],["Autumn Leaves","Standard Jazz"],
+        ["Space Oddity","David Bowie"],["Heroes","David Bowie"],
+        ["White Room","Cream"],["Still Loving You","Scorpions"],
+        ["Another One Bites the Dust","Queen"],["Highway to Hell","AC/DC"],
+        ["No Surprises","Radiohead"],["Paranoid","Black Sabbath"],
+        ["Under Pressure","Queen"],["TNT","AC/DC"],
+        ["Money for Nothing","Dire Straits"],["La Grange","ZZ Top"],
+        ["Calling Elvis","Dire Straits"],["Sunshine of Your Love","Cream"],
+        ["Black Magic Woman","Peter Green"]
+      ],
+      "Arthur & Seb":[
+        ["Back in Black","AC/DC"],["Flipper","Téléphone"],
+        ["Highway to Hell","AC/DC"],["Hoochie Coochie Man","Muddy Waters"],
+        ["Money for Nothing","Dire Straits"],["Smoke on the Water","Deep Purple"],
+        ["Stairway to Heaven","Led Zeppelin"],["The Thrill Is Gone","B.B. King"],
+        ["Thunderstruck","AC/DC"],["TNT","AC/DC"],
+        ["White Room","Cream"],["You Shook Me All Night Long","AC/DC"],
+        ["Autumn Leaves","Standard Jazz"],["Black Magic Woman","Peter Green"],
+        ["Bohemian Rhapsody","Queen"],["Calling Elvis","Dire Straits"],
+        ["Come Together","The Beatles"],["Day Tripper","The Beatles"],
+        ["Hells Bells","AC/DC"],["I Got All You Need","Joe Bonamassa"],
+        ["Johnny B. Goode","Chuck Berry"],["Knockin' on Heaven's Door","Guns N' Roses"],
+        ["La Grange","ZZ Top"],["Paranoid","Black Sabbath"],
+        ["Sunshine of Your Love","Cream"],["Ticket to Ride","The Beatles"],
+        ["Under Pressure","Queen"],["Walk of Life","Dire Straits"]
+      ]
+    };
+    var newSongs=[];var songIdMap={};
+    var allItems=[].concat(...Object.values(LISTS));
+    allItems.forEach(function([title,artist]){
+      var key=title.toLowerCase()+"|||"+artist.toLowerCase();
+      if(songIdMap[key]) return;
+      var dup=findDuplicateSong(songDb,title,artist);
+      if(dup){songIdMap[key]=dup.id;return;}
+      var existing=newSongs.find(s=>findDuplicateSong([s],title,artist));
+      if(existing){songIdMap[key]=existing.id;return;}
+      var ns={id:"c_"+Date.now()+"_"+Math.random().toString(36).slice(2,6),title:title,artist:artist,isCustom:true,ig:[],aiCache:null};
+      newSongs.push(ns);songIdMap[key]=ns.id;
+    });
+    if(newSongs.length) setSongDb(function(p){return p.concat(newSongs);});
+    var newSetlists=[];
+    for(var slName in LISTS){
+      var ids=LISTS[slName].map(function([t,a]){return songIdMap[t.toLowerCase()+"|||"+a.toLowerCase()];}).filter(Boolean);
+      newSetlists.push({id:"sl_"+Date.now()+"_"+Math.random().toString(36).slice(2,6),name:slName,songIds:ids,profileIds:[activeProfileId]});
+    }
+    if(newSetlists.length) setSetlists(function(p){return p.concat(newSetlists);});
+    console.log("[migration] Imported "+newSongs.length+" new songs, "+newSetlists.length+" setlists");
+  },[]);
 
   // Save secrets (aiKeys, passwords) to separate localStorage key — never synced
   useEffect(()=>{
