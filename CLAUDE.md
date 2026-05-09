@@ -145,24 +145,34 @@ public/
 
 ## Décisions de modèle (à étoffer au fil des phases)
 
-### Modèle TMP (à compléter Phase 3)
+### Modèle TMP (Phase 3 — décisions validées)
 
-Sera renseigné avant le démarrage de la Phase 3.
+Toutes les décisions ci-dessous sont fixes pour Phase 3. Claude
+Code et l'IA doivent les respecter à la lettre.
+
+#### Forme de données
 
 ```
 TMPBlock = {
   type: 'comp'|'drive'|'amp'|'cab'|'mod'|'delay'|'reverb',
-  model: string,
+  model: string,            // référence à la whitelist (voir plus bas)
   enabled: boolean,
-  params: { [k]: number }   // 5 max par bloc
+  params: { [k]: number }   // jusqu'à 5 paramètres principaux
 }
 
 TMPPatch = {
-  id, name, comp?, drive?, amp, cab, mod?, delay?, reverb?,
+  id, name,
+  comp?: TMPBlock,
+  drive?: TMPBlock,
+  amp: TMPBlock,            // obligatoire
+  cab: TMPBlock,            // obligatoire
+  mod?: TMPBlock,
+  delay?: TMPBlock,
+  reverb?: TMPBlock,
   notes?: string,
   style: 'blues'|'rock'|'hard_rock'|'jazz'|'metal'|'pop',
   gain: 'low'|'mid'|'high',
-  pickupAffinity: { HB, SC, P90 },
+  pickupAffinity: { HB: number, SC: number, P90: number },  // 0-100
   factory?: boolean,
   scenes?: TMPScene[],         // Phase 4
   footswitchMap?: {            // Phase 4
@@ -171,8 +181,223 @@ TMPPatch = {
 }
 ```
 
-Whitelist d'amp models TMP à fournir à l'IA pour éviter qu'elle
-invente : à compléter Phase 3 à partir du firmware TMP courant.
+#### Paramètres standards par bloc (5 max)
+
+- **comp** : threshold, ratio, attack, release, level
+- **drive** : drive, tone, level, presence?, mix?
+- **amp** : gain, bass, mid, treble, presence
+- **cab** : low_cut, high_cut, depth, color, level
+- **mod** : rate, depth, mix, feedback, type
+- **delay** : time, feedback, mix, hi_cut, low_cut
+- **reverb** : decay, mix, hi_cut, low_cut, predelay
+
+#### Pondération du scoring TMP
+
+```
+amp model              : 0.45
+cab/IR                 : 0.20
+drive                  : 0.15
+fx (mod/delay/reverb)  : 0.05
+style match            : 0.10
+pickup affinity        : 0.05
+```
+
+#### Stratégie cabs/IRs (v1)
+
+Nom symbolique uniquement, jamais de chemin de fichier ni d'upload
+IR. Format : `"<config> <model> <speaker>"`, ex.
+`"4x12 British Plexi Greenback"`. v2 ajoutera le support du
+chemin de fichier IR uploadé.
+
+#### Stratégie de génération des patches factory (v1)
+
+Claude Code génère ~30 patches factory pour les morceaux du seed
+(`INIT_SONG_DB_META`) en s'appuyant sur :
+- `SONG_HISTORY` (guitariste / amp / effets historiques)
+- Les packs TSR ToneX référencés pour chaque morceau (déjà
+  mappés dans `SONG_PRESETS`)
+
+Les patches générés sont marqués `factory: true` et modifiables
+via une UI d'édition (la modif est stockée séparément en
+`tmp.factoryPatchOverrides`, jamais dans le catalog).
+
+#### Whitelist amp models TMP (firmware v1.6)
+
+Claude Code et l'assistant IA ne peuvent référencer que les amp
+models de cette liste. Tout amp inventé hors liste = rejet du
+patch.
+
+**Marshall-style :**
+- "British Plexi" (Marshall Plexi 1959)
+- "British 45" (Marshall JTM45)
+- "British 800" (Marshall JCM800)
+- "British Jubilee Clean", "British Jubilee Rhythm", "British Jubilee Lead"
+- "Brit Breaker" (Marshall Bluesbreaker 1962)
+
+**Fender-style :**
+- "Fender '57 Deluxe"
+- "Fender '59 Bassman"
+- "Fender '59 Bassman Custom"
+- "Fender '62 Princeton"
+- "Fender '65 Deluxe Reverb"
+- "Fender '65 Deluxe Reverb Blonde NBC"
+- "Fender '65 Princeton Reverb"
+- "Fender '65 Super Reverb"
+- "Fender '65 Twin Reverb"
+- "Fender Blues Junior"
+- "Fender Blues Junior LTD"
+- "Fender Bassbreaker"
+- "Fender Vibro-King"
+
+**Boutique / autres :**
+- "UK 30 Brilliant" (Vox AC30)
+- "JC Clean" (Roland JC-120)
+- "Marksman CH1" (Mesa Mark)
+- "Solo 100 Overdrive" (Soldano SLO 100)
+- "Tangerine RV53" (Orange Rockerverb)
+- "Double Wreck" (Mesa Dual Rectifier)
+- "EVH 5150 6L6 Green", "EVH 5150 6L6 Blue"
+
+#### Whitelist cabs TMP (sélection v1)
+
+- "1x10 '62 Princeton C10R"
+- "1x12 '57 Deluxe"
+- "1x12 '57 Deluxe Alnico Blue"
+- "1x12 '65 Deluxe C12K"
+- "1x12 '65 Deluxe Creamback"
+- "1x12 Bassbreaker"
+- "1x12 Blues Junior C12N"
+- "2x12 '65 Twin C12K"
+- "4x12 British Plexi Greenback"
+- "4x12 British 800 G12T"
+- "4x12 Brit Breaker"
+- "4x12 EVH 5150"
+
+#### Whitelist drives TMP (sélection v1)
+
+- "Tube Screamer" (Ibanez TS-808/TS-9)
+- "Klon" (Klon Centaur)
+- "Boost" (boost transparent)
+- "OD-1" (Boss OD-1)
+- "Blues Driver" (Boss BD-2)
+- "Rat" (ProCo Rat)
+- "Big Muff" (Electro-Harmonix Big Muff Pi)
+- "DS-1" (Boss DS-1)
+
+#### Whitelist FX TMP (mod/delay/reverb, sélection v1)
+
+- **mod** : "Chorus", "Phaser", "Flanger", "Tremolo", "Vibrato", "Univibe"
+- **delay** : "Analog Delay", "Tape Echo", "Digital Delay", "Reverse Delay"
+- **reverb** : "Spring", "Plate", "Hall", "Room", "Shimmer"
+
+#### Ajouts à la whitelist (issus des patches Arthur)
+
+**Drives ajoutés** :
+- "Super Drive" (Boss SD-1, distinct du Tube Screamer — overdrive plus compressé, mid bump plus prononcé)
+
+**Cabs ajoutés** :
+- "4x10 '59 Bassman Tweed" (la config iconique 4x10 du Bassman tweed)
+- "2x12 Twin D120" (variante du 2x12 Twin avec speakers JBL D120F au lieu de Jensen C12K — son plus claquant, plus brillant, utilisé par Joe Walsh et John Mayer)
+
+**Comp ajouté** :
+- "Studio Compressor" (compresseur studio à 6 paramètres : gain, threshold, ratio, attack, release, knee + blend pour parallèle)
+
+**Nouveaux types de bloc** (étendent la liste à 9 au lieu de 7) :
+
+- **noise_gate** : params threshold, attenuation
+- **eq** : params low_freq (Hz), low_gain (dB), mid_freq (Hz), mid_gain (dB), hi_gain (dB) — modèle simplifié 3-bandes (le TMP supporte 5 bandes paramétriques mais on simplifie pour rester à 5 params)
+
+Modèles dispo pour ces nouveaux blocs :
+- **noise_gate** : "Noise Reducer" (générique)
+- **eq** : "EQ-5 Parametric" (TMP standard)
+
+#### Patches TMP de référence — Arthur (firmware v1.6, jouant sur Gibson SG 61 + Epiphone ES-339)
+
+Ces 3 patches sont des **patches réels validés** d'Arthur, à utiliser comme seed pour générer les patches factory. Les valeurs des knobs sont mesurées approximativement depuis ses screenshots iPad — ±1 sur l'échelle 0-10.
+
+**Patch 1 — "Rock Preset" (slot Arthur 211/213)**
+
+Usages : AC/DC (TNT, Thunderstruck, Highway to Hell, Back in Black, Hells Bells, You Shook Me All Night Long), Cream "White Room", Deep Purple "Smoke on the Water"
+
+```
+{
+  noise_gate: { model: "Noise Reducer", enabled: true,
+                params: { threshold: 5, attenuation: 6 } },
+  drive: { model: "Super Drive", enabled: true,
+           params: { drive: 3, level: 7, tone: 5 } },
+  amp: { model: "British Plexi", enabled: true,
+         params: { volume_i: 5, volume_ii: 5, treble: 6, middle: 5,
+                   bass: 5, presence: 6 } },  // amp_level: 70%, gate amp OFF
+  cab: { model: "4x12 British Plexi Greenback", enabled: true,
+         params: { mic: "Dyn SM57", axis: "on", distance: 6,
+                   low_cut: 20, high_cut: 20000 } },
+  delay: { model: "Digital Delay", enabled: true,
+           params: { time: 350, feedback: 25, mix: 15, hi_cut: 6000, low_cut: 100 } },
+  reverb: { model: "Spring", enabled: true,
+            params: { mixer: 3, dwell: 7, tone: 6, predelay: 0,
+                      hi_cut: 8000, low_cut: 100 } },
+  style: 'hard_rock',
+  gain: 'mid',
+  pickupAffinity: { HB: 95, SC: 70, P90: 80 }
+}
+```
+
+**Patch 2 — "Clean Preset" (slot Arthur 210)**
+
+Usages : BB King "The Thrill is Gone" (Arthur joue avec son Epiphone ES-339, pas la SG)
+
+```
+{
+  eq: { model: "EQ-5 Parametric", enabled: true,
+        params: { low_freq: 98, low_gain: -12, mid_freq: 2000, mid_gain: 2, hi_gain: -3 } },
+  // low_gain -12 = low cut 6dB/Oct depuis 98Hz
+  comp: { model: "Studio Compressor", enabled: true,
+          params: { threshold: 5, ratio: 5, attack: 5, release: 5, level: 5 } },
+  amp: { model: "Fender '65 Twin Reverb", enabled: true,
+         params: { gain: 4, treble: 4, mid: 6, bass: 7, presence: 5 } },
+  // amp_level: 70%, bright switch OFF, gate amp OFF
+  cab: { model: "2x12 Twin D120", enabled: true,
+         params: { mic: "Ribbon R121", axis: "off", distance: 3,
+                   low_cut: 20, high_cut: 20000 } },
+  reverb: { model: "Spring", enabled: true,
+            params: { mixer: 3, dwell: 7, tone: 6, predelay: 0,
+                      hi_cut: 8000, low_cut: 100 } },
+  style: 'blues',
+  gain: 'low',
+  pickupAffinity: { HB: 90, SC: 75, P90: 85 }
+}
+```
+
+**Patch 3 — "Flipper" (slot Arthur 202)**
+
+Usages : Téléphone "Flipper"
+
+```
+{
+  amp: { model: "Fender '59 Bassman", enabled: true,
+         params: { gain: 6, treble: 7, mid: 7, bass: 8, presence: 6 } },
+  // amp_level: 70%, gate amp MAX, scale du Bassman 1-12 (pas 0-10)
+  cab: { model: "4x10 '59 Bassman Tweed", enabled: true,
+         params: { mic: "Dyn SM57", axis: "on", distance: 6,
+                   low_cut: 20, high_cut: 20000 } },
+  reverb: { model: "Spring", enabled: true,
+            params: { mixer: 3, dwell: 7, tone: 6, predelay: 0,
+                      hi_cut: 8000, low_cut: 100 } },
+  style: 'rock',
+  gain: 'mid',
+  pickupAffinity: { HB: 90, SC: 80, P90: 85 }
+}
+```
+
+#### Patterns extraits des patches Arthur (à exploiter par Claude Code pour générer les autres factory patches)
+
+1. **Reverb signature stable** : Spring Reverb {mixer:3, dwell:7, tone:6} sur les 3 patches → utiliser ces valeurs comme défaut universel pour tout patch nécessitant une reverb spring.
+2. **Amp Level systématique à 70%** sur tous les patches → défaut.
+3. **Mic SM57 axis-on à 6"** pour les sons crunch/rock, **Mic R121 off-axis à 3"** pour les sons clean/blues → règle de défaut.
+4. **Low cut + High cut à 20Hz/20kHz** = pas de cut au niveau cab → défaut.
+5. **Style hard_rock** → drive en boost (low gain, high level), amp Plexi/JCM, cab 4x12 Greenback, reverb spring discrète.
+6. **Style blues** → comp + EQ shaping, amp Fender clean, cab 2x12 Twin (Ribbon mic), reverb spring discrète.
+7. **Style rock** (genre Téléphone) → '59 Bassman cranked + 4x10 Bassman + Spring Reverb, sans drive ni FX (chaîne minimaliste).
 
 ## Scripts disponibles
 
