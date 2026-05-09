@@ -111,8 +111,12 @@ public/
   toute migration de localStorage.
 - Snapshot du comportement de scoring **AVANT** toute refacto
   significative — c'est le filet de sécurité.
-- Le scoring V8 actuel doit rester stable octet par octet aussi
-  longtemps qu'on n'a pas explicitement décidé d'un V9.
+- Le scoring V9 actuel (`SCORING_VERSION = 9`) doit rester stable
+  octet par octet aussi longtemps qu'on n'a pas explicitement décidé
+  d'un V10. Les snapshots Vitest dans `src/core/scoring/__snapshots__/`
+  font foi : 32 valeurs déterministes capturées en Phase 1 (38 tests,
+  6 styles × HB drive + 5 fallbacks + 11 guitares × 2 fonctions sur
+  ledzep_stairway + 5 cas redistribution).
 
 ## Style de code
 
@@ -166,16 +170,64 @@ TMPPatch = {
 Whitelist d'amp models TMP à fournir à l'IA pour éviter qu'elle
 invente : à compléter Phase 3 à partir du firmware TMP courant.
 
-## Scripts disponibles (à mettre à jour quand le build sera en place)
+## Scripts disponibles
 
 ```
 npm install        # installer les deps
-npm run dev        # serveur de dev Vite, hot reload
-npm run build      # produit dist/index.html mono-fichier
-npm run preview    # sert dist/ pour test final
-npm test           # Vitest, tests unitaires
+npm run dev        # serveur de dev Vite, hot reload sur http://localhost:5173
+npm run build      # produit dist/index.html mono-fichier (~786 KB)
+npm run preview    # sert dist/ pour test final sur http://localhost:4173
+npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
+
+## État Phase 1 (terminée 2026-05-09, tag `phase-1-done`)
+
+**Acquis** :
+- Vite + `vite-plugin-singlefile` + Vitest configurés. Build produit
+  un `dist/index.html` mono-fichier (~786 KB, 178 KB gzip) avec SW
+  blob inline (CACHE bumpé `tonex-v48` → `tonex-v49`) et manifest
+  data-URI préservés. CDN React/Babel remplacés par les paquets npm.
+- `src/core/scoring/{pickup,guitar,style,amp,index}.js` : extraction
+  verbatim avec 38 tests de régression (snapshots déterministes).
+- `src/core/{guitars,songs,setlists,catalog}.js` : données et
+  helpers extraits. `main.jsx` importe désormais en bindings nommés.
+- `src/devices/{registry,tonex-pedal/*,tonex-plug/*}.js` : devices
+  modulaires avec auto-registration. 19 tests devices.
+- `src/data/{preset_catalog_full,data_catalogs,data_context}.js` :
+  data files convertis en ES modules avec `export {…}` final.
+  `gen_catalog.js` met à jour `src/data/preset_catalog_full.js`.
+  `inject_catalog.js` annoté obsolète.
+- `src/app/components/` initialisé avec 6 composants leaf
+  (Row, GuitarSilhouette, NavIcon, AppFooter, Breadcrumb,
+  score-utils).
+
+**Dette à clore avant Phase 2** :
+- Découpage complet de `main.jsx` (encore 6438 lignes au lieu de la
+  cible <500). À traiter par batches : helpers internes
+  (presetSourceInfo, srcBadge, computeBestPresets, scorePreset,
+  worstSlot, etc.) → `src/core/utils/*` ; puis composants moyens
+  (PBlock, AICard, BankEditor, AddSongModal, SongDetailCard,
+  PresetSearchModal, etc.) → `src/app/components/*` ; puis screens
+  (BankOptimizerScreen 619 lignes, SetlistsScreen, HomeScreen,
+  ListScreen, RecapScreen, SynthesisScreen, PresetBrowser,
+  JamScreen, ProfilePickerScreen + tabs imbriqués, MonProfilScreen,
+  ParametresScreen, ExportImportScreen, ViewProfileScreen) →
+  `src/app/screens/*` ; root `App` → `src/app/App.jsx`.
+- Extraction `src/core/ai/{cache,providers,prompts,index}.js`
+  (différée car en cascade derrière les helpers internes).
+- Tests devices à étoffer : actuellement on vérifie la structure
+  des banks et le filtre source. Idéalement aussi `recommendForSong`
+  par device une fois que le code AI est extrait.
+
+**Workflow imposé par Phase 1** :
+- `npm test` + `npm run build` doivent passer avant chaque commit.
+- Tout changement du scoring V9 casse les snapshots — c'est
+  intentionnel : régénérer les snapshots est un signal explicite,
+  pas un automatisme.
+- Service Worker préservé jusqu'en Phase 5 (externalisation +
+  passage à stale-while-revalidate listés dans "Bugs et dettes
+  connus").
 
 ## Bugs et dettes connus (à corriger Phase 5)
 
