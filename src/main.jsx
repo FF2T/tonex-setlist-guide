@@ -45,6 +45,16 @@ import {
   getGainRange, gainToNumeric, inferGainFromName,
 } from './core/scoring/index.js';
 
+// ─── App UI helpers + leaf components (Phase 1, étape 5) ────────────
+import {
+  scoreColor, scoreBg, scoreLabel, BREAKDOWN_LABELS,
+} from './app/components/score-utils.js';
+import Row from './app/components/Row.jsx';
+import GuitarSilhouette from './app/components/GuitarSilhouette.jsx';
+import NavIcon from './app/components/NavIcon.jsx';
+import AppFooter from './app/components/AppFooter.jsx';
+import Breadcrumb from './app/components/Breadcrumb.jsx';
+
 let DEFAULT_GEMINI_KEY = "";
 
 // ─── Service Worker (déplacé du <head>, CACHE bumpé v48 → v49, ──────
@@ -216,10 +226,6 @@ const TSR_PACK_GROUPS={
 
 // Couleur selon score
 // Seuils V2 : 80+ excellent (fidèle au son original), 65+ bon, 50+ acceptable, <50 mauvais
-function scoreColor(s){return s>=80?"var(--green)":s>=65?"var(--blue)":s>=50?"var(--yellow)":"var(--red)";}
-function scoreBg(s){return s>=80?"var(--green-bg)":s>=65?"var(--blue-bg)":s>=50?"var(--yellow-bg)":"var(--red-bg)";}
-function scoreLabel(s){return s>=80?{t:"Excellent",tip:"Preset très adapté à ce morceau"}:s>=65?{t:"Bon",tip:"Preset convenable pour ce morceau"}:s>=50?{t:"Moyen",tip:"Ça dépanne, mais un meilleur preset existe"}:{t:"Faible",tip:"Preset peu adapté à ce morceau"};}
-const BREAKDOWN_LABELS={pickup:"Micro",guitar:"Guitare",gainMatch:"Gain",refAmp:"Ampli",styleMatch:"Style"};
 function ScoreWithBreakdown({score,breakdown,size}){
   const [open,setOpen]=useState(false);
   const sz=size||11;
@@ -615,9 +621,6 @@ function parseCSV(text) {
 // ─── Composants UI ────────────────────────────────────────────────────────────
 const s = (base) => ({...base});
 
-function Row({icon,children}) {
-  return <div style={{display:"flex",gap:10,alignItems:"flex-start"}}><span style={{fontSize:14,flexShrink:0,width:22,marginTop:1}}>{icon}</span><div style={{flex:1}}>{children}</div></div>;
-}
 
 function GuitarSelect({value,onChange,ig=[],guitars=GUITARS}) {
   const g=guitars.find(x=>x.id===value);
@@ -643,31 +646,6 @@ function StatusDot({score,ideal,size}){
   const bg=ideal?"var(--brass-400)":(score!=null?scoreColor(score):"var(--a12)");
   const title=ideal?"Ideal":(score!=null?scoreLabel(score).t:"");
   return <span title={title} style={{display:"inline-block",width:s,height:s,borderRadius:"var(--r-xs)",flexShrink:0,background:bg,border:ideal?"2px solid var(--brass-200)":"none"}}/>;
-}
-function GuitarSilhouette({id,size}){
-  var s=size||40;
-  var n=(id||"").toLowerCase();
-  var file="lespaul.svg";
-  if(n.includes("sg")) file="sg.svg";
-  else if(n.includes("es-335")||n.includes("es335")||n.includes("335")) file="es335.svg";
-  else if(n.includes("strat")) file="strat.svg";
-  else if(n.includes("tele")) file="tele.svg";
-  else if(n.includes("jazz")||n.includes("jazzmaster")) file="jazzmaster.svg";
-  var gc={lp60:"cherry",lp50p90:"gold",sg_ebony:"black",sg61:"cherry",es335:"cherry",strat61:"red",strat_pro2:"cherry",strat_ec:"black",tele63:"green",tele_ultra:"black",jazzmaster:"blue"};
-  var gf={red:"brightness(0) saturate(100%) invert(20%) sepia(85%) saturate(5500%) hue-rotate(350deg) brightness(95%) contrast(105%)",gold:"brightness(0) saturate(100%) invert(55%) sepia(50%) saturate(700%) hue-rotate(15deg) brightness(90%) contrast(85%)",green:"brightness(0) saturate(100%) invert(35%) sepia(30%) saturate(400%) hue-rotate(95deg) brightness(75%) contrast(90%)",blue:"brightness(0) saturate(100%) invert(25%) sepia(40%) saturate(900%) hue-rotate(200deg) brightness(75%) contrast(95%)",cherry:"brightness(0) saturate(100%) invert(15%) sepia(60%) saturate(2200%) hue-rotate(355deg) brightness(60%) contrast(105%)",sunburst:"invert(1) sepia(1) saturate(2) hue-rotate(350deg) brightness(0.9)",black:"invert(0.3)",beige:"invert(1) sepia(0.3) saturate(0.5) hue-rotate(10deg) brightness(1.1)"};
-  var color=gc[id];
-  if(!color&&n.includes("tele")&&/\b5[01]\b/.test(n)) color="beige";
-  var f=gf[color]||"invert(1) brightness(1.2)";
-  return <img src={file} alt="" style={{width:s*1.6,height:s,objectFit:"contain",filter:f,opacity:1}}/>;
-}
-function NavIcon({id,size}){
-  var s=size||20;var st={width:s,height:s,fill:"none",stroke:"currentColor",strokeWidth:1.8,strokeLinecap:"round",strokeLinejoin:"round"};
-  if(id==="list") return <svg style={st} viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
-  if(id==="setlists") return <svg style={st} viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>;
-  if(id==="explore") return <svg style={st} viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
-  if(id==="jam") return <svg style={st} viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 8l-4 4-4-4"/><path d="M8 16l4-4 4 4"/></svg>;
-  if(id==="optimizer") return <svg style={st} viewBox="0 0 24 24"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>;
-  return null;
 }
 function AppHeader({profiles,activeProfileId,onProfile,screen,onNavigate,isAdmin,syncStatus}){
   var profileName=(profiles[activeProfileId]||{}).name||"";
@@ -715,25 +693,6 @@ function AppNavBottom({screen,onNavigate}){
       </button>;
     })}
   </div>;
-}
-function AppFooter({syncStatus}){
-  return <div style={{height:60}}></div>;
-}
-function Breadcrumb({crumbs,onNavigate}){
-  return(
-    <nav className="breadcrumb-nav" style={{display:"flex",alignItems:"center",gap:0,marginBottom:16,flexWrap:"wrap",fontSize:13}}>
-      {crumbs.map((c,i)=>{
-        const isLast=i===crumbs.length-1;
-        return <React.Fragment key={i}>
-          {i>0&&<span style={{color:"var(--text-tertiary)",margin:"0 6px",fontSize:10}}>›</span>}
-          {isLast
-            ?<span style={{color:"var(--text-sec)",fontWeight:700}}>{c.label}</span>
-            :<button onClick={()=>onNavigate(c.screen)} style={{background:"none",border:"none",color:"var(--accent)",cursor:"pointer",fontWeight:600,padding:0,fontSize:13,textDecoration:"none"}}>{c.label}</button>
-          }
-        </React.Fragment>;
-      })}
-    </nav>
-  );
 }
 
 function PBlock({device,emoji,presetName,gType,banks,adapted,gs,bg2,availableSources,guitarId,noUpgrade,finalScore,breakdown}) {
