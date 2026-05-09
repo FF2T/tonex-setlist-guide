@@ -51,6 +51,7 @@ import {
   STATE_VERSION, LS_KEY, LS_KEY_V1,
   mergeBanks, makeDefaultProfile,
   migrateV1toV2, migrateV2toV3,
+  ensureProfileV3, ensureProfilesV3,
   loadState, saveState,
   autoBackup, listBackups, restoreBackup,
   loadSecrets, saveSecrets,
@@ -5924,9 +5925,11 @@ function App() {
     });
   },[toneNetPresets]);
 
-  // Profiles state — merge banks + apply local secrets (aiKeys, passwords)
+  // Profiles state — merge banks + apply local secrets (aiKeys, passwords).
+  // ensureProfilesV3 garantit enabledDevices même si initDefault venait
+  // d'un état localStorage non migré (filet de sécurité avant Firestore).
   const mergedProfiles = useMemo(()=>{
-    const p={...initDefault.profiles};
+    const p=ensureProfilesV3({...initDefault.profiles});
     for(const [id,prof] of Object.entries(p)){
       p[id]={...prof, banksAnn:mergeBanks(prof.banksAnn,INIT_BANKS_ANN), banksPlug:mergeBanks(prof.banksPlug,INIT_BANKS_PLUG)};
     }
@@ -6251,7 +6254,10 @@ function App() {
       return data.shared.toneNetPresets;
     });
     if(data.profiles) setProfiles(prev=>{
-      const next=applySecrets(data.profiles);
+      // Bug-fix Phase 2 : un profil arrivant de Firestore en v2 (synced
+      // avant le déploiement Phase 2) doit être healed pour ne pas
+      // écraser le state local migré et perdre enabledDevices.
+      const next=applySecrets(ensureProfilesV3(data.profiles));
       if(JSON.stringify(next)===JSON.stringify(prev))return prev;
       return next;
     });
@@ -6282,7 +6288,7 @@ function App() {
           });
         }
         if(mergedSongs.length>remoteSongs.length||mergedSl.length>remoteSl.length||mergedDel.length>remoteDel.length){
-          var ps={version:STATE_VERSION,activeProfileId:data.activeProfileId||activeProfileId,shared:{songDb:mergedSongs,theme:data.shared.theme||theme,setlists:mergedSl,customGuitars:data.shared.customGuitars||customGuitars,deletedSetlistIds:mergedDel},profiles:data.profiles||profiles,lastModified:Date.now()};
+          var ps={version:STATE_VERSION,activeProfileId:data.activeProfileId||activeProfileId,shared:{songDb:mergedSongs,theme:data.shared.theme||theme,setlists:mergedSl,customGuitars:data.shared.customGuitars||customGuitars,deletedSetlistIds:mergedDel},profiles:ensureProfilesV3(data.profiles||profiles),lastModified:Date.now()};
           saveToFirestore(ps).catch(function(){});
         }
       }

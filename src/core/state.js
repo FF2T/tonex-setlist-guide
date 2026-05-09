@@ -74,6 +74,29 @@ function deriveEnabledDevices(legacyDevices) {
   return out;
 }
 
+// Heal d'un profil : si enabledDevices est absent ou pas un tableau
+// (state v2 brut, ou profil arrivé en v2 depuis Firestore après que le
+// state local a été migré), on le dérive depuis le legacy devices.
+// Idempotent : si le profil est déjà au bon format, on retourne la même
+// référence (no-op).
+//
+// À appeler sur tout profil entrant depuis l'extérieur du module
+// (Firestore poll, import JSON, …) en plus de la migration loadState.
+function ensureProfileV3(profile) {
+  if (!profile) return profile;
+  if (Array.isArray(profile.enabledDevices)) return profile;
+  return { ...profile, enabledDevices: deriveEnabledDevices(profile.devices) };
+}
+
+function ensureProfilesV3(profiles) {
+  if (!profiles) return profiles;
+  const out = {};
+  for (const [id, p] of Object.entries(profiles)) {
+    out[id] = ensureProfileV3(p);
+  }
+  return out;
+}
+
 // ─── makeDefaultProfile ──────────────────────────────────────────────
 function makeDefaultProfile(id, name, isAdmin = false, password = '') {
   const devices = { pedale: false, anniversary: isAdmin, plug: false };
@@ -125,17 +148,15 @@ function migrateV1toV2(v1) {
 
 // v2 → v3 : ajoute enabledDevices à chaque profil, dérivé depuis le
 // champ legacy devices. Purement additif : aucun autre champ n'est
-// modifié, ce qui rend la migration sûre et idempotente après le bump
-// de version.
+// modifié.
+//
+// Note d'idempotence : on délègue à ensureProfileV3, qui re-dérive
+// uniquement si enabledDevices est absent. Donc appliquer
+// migrateV2toV3 sur un état déjà v3 mais avec des profils incomplets
+// (cas Firestore où la version locale a migré mais pas la version
+// distante) heal les profils sans toucher à ceux déjà migrés.
 function migrateV2toV3(v2) {
-  const profiles = {};
-  for (const [pid, p] of Object.entries(v2.profiles || {})) {
-    profiles[pid] = {
-      ...p,
-      enabledDevices: deriveEnabledDevices(p.devices),
-    };
-  }
-  return { ...v2, version: 3, profiles };
+  return { ...v2, version: 3, profiles: ensureProfilesV3(v2.profiles) };
 }
 
 // ─── loadState / saveState ───────────────────────────────────────────
@@ -144,7 +165,11 @@ function loadState() {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      if (d.version === STATE_VERSION) return d;
+      // Même quand version === 3, on passe par migrateV2toV3 pour heal
+      // d'éventuels profils incomplets (cas où la migration a tourné
+      // mais que Firestore a écrasé les profils par une version v2 sans
+      // enabledDevices entre temps, qui s'est ensuite re-saved en v3).
+      if (d.version === STATE_VERSION) return migrateV2toV3(d);
       if (d.version === 2) return migrateV2toV3(d);
     }
     const v1raw = localStorage.getItem(LS_KEY_V1);
@@ -216,6 +241,7 @@ export {
   STATE_VERSION,
   LS_KEY, LS_KEY_V1, LS_SECRETS_KEY, LS_TRUSTED_KEY, LS_BACKUP_KEY, MAX_BACKUPS,
   mergeBanks, deriveEnabledDevices,
+  ensureProfileV3, ensureProfilesV3,
   makeDefaultProfile,
   migrateV1toV2, migrateV2toV3,
   loadState, saveState,
