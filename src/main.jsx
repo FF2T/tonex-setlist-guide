@@ -12,9 +12,16 @@ import ReactDOM from 'react-dom';
 import { PRESET_CATALOG_FULL } from './data/preset_catalog_full.js';
 import {
   PRESET_CATALOG, FACTORY_CATALOG, PLUG_FACTORY_CATALOG, TSR_PACK_CATALOG,
-  ANNIVERSARY_CATALOG, INIT_BANKS_ANN, INIT_BANKS_PLUG,
-  FACTORY_BANKS_PEDALE, FACTORY_BANKS_PLUG,
+  ANNIVERSARY_CATALOG,
 } from './data/data_catalogs.js';
+
+// ─── Devices (Phase 1, étape 4) ─────────────────────────────────────
+// Side-effect imports : auto-registration via registry.
+import './devices/tonex-pedal/index.js';
+import './devices/tonex-plug/index.js';
+import { INIT_BANKS_ANN, FACTORY_BANKS_PEDALE } from './devices/tonex-pedal/index.js';
+import { INIT_BANKS_PLUG, FACTORY_BANKS_PLUG } from './devices/tonex-plug/index.js';
+import { isSrcCompatible } from './devices/registry.js';
 import {
   PRESET_CONTEXT, AMP_TAXONOMY, EXTERNAL_PACK_CATALOG,
 } from './data/data_context.js';
@@ -261,14 +268,7 @@ function presetSourceInfo(entry){
     default:            return {icon:"📁",label:String(entry.src)};
   }
 }
-// Vérifie si un preset (par sa source) est compatible avec un device
-// Anniversary + Factory = pédale only, PlugFactory = plug only, le reste = les deux
-function isSrcCompatible(src,deviceKey){
-  if(!src) return true;
-  if(deviceKey==="ann") return src!=="PlugFactory";
-  if(deviceKey==="plug") return src!=="Anniversary"&&src!=="Factory";
-  return true;
-}
+// isSrcCompatible : importé depuis ./devices/registry.js (étape 4).
 function styleBadge(style){const l={hard_rock:"Hard Rock",rock:"Rock",blues:"Blues",jazz:"Jazz",pop:"Pop",metal:"Metal"}[style]||style;return <span className="badge badge-brass">{l}</span>;}
 function gainBadge(gain){const l={low:"Low",mid:"Mid",high:"High"}[gain]||gain;return <span className="badge badge-wine">{l} gain</span>;}
 
