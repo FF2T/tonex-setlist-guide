@@ -1365,7 +1365,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.7.4";
+const APP_VERSION = "8.7.5";
 const ADMIN_PIN = "212402";
 
 function makeDefaultProfile(id, name, isAdmin=false, password="") {
@@ -7096,10 +7096,13 @@ function App() {
         ["Wish You Were Here","Pink Floyd"],["Simple Man","Lynyrd Skynyrd"]
       ]
     };
-    var missing=Object.keys(LISTS).filter(function(n){return !setlists.some(function(sl){return sl.name===n;});});
-    if(!missing.length) return;
+    var MERGE_INTO={"Nouvelle setlist":"Ma Setlist"};
+    var createNames=Object.keys(LISTS).filter(function(n){return !MERGE_INTO[n]&&!setlists.some(function(sl){return sl.name===n;});});
+    var mergeNames=Object.keys(MERGE_INTO).filter(function(n){return !setlists.some(function(sl){return sl.name===n+"__merged";});});
+    if(!createNames.length&&!mergeNames.length) return;
+    var needed=[].concat(createNames,mergeNames);
     var newSongs=[];var songIdMap={};
-    var allItems=[].concat(...missing.map(function(n){return LISTS[n];}));
+    var allItems=[].concat(...needed.map(function(n){return LISTS[n];}));
     allItems.forEach(function([title,artist]){
       var key=title.toLowerCase()+"|||"+artist.toLowerCase();
       if(songIdMap[key]) return;
@@ -7109,13 +7112,25 @@ function App() {
       newSongs.push(ns);songIdMap[key]=ns.id;
     });
     if(newSongs.length) setSongDb(function(p){return p.concat(newSongs);});
-    var newSetlists=[];
-    missing.forEach(function(slName){
-      var ids=LISTS[slName].map(function([t,a]){return songIdMap[t.toLowerCase()+"|||"+a.toLowerCase()];}).filter(Boolean);
-      newSetlists.push({id:"sl_"+Date.now()+"_"+Math.random().toString(36).slice(2,8),name:slName,songIds:ids,profileIds:[activeProfileId]});
+    setSetlists(function(prev){
+      var result=[...prev];
+      createNames.forEach(function(slName){
+        var ids=LISTS[slName].map(function([t,a]){return songIdMap[t.toLowerCase()+"|||"+a.toLowerCase()];}).filter(Boolean);
+        result.push({id:"sl_"+Date.now()+"_"+Math.random().toString(36).slice(2,8),name:slName,songIds:ids,profileIds:[activeProfileId]});
+      });
+      mergeNames.forEach(function(srcName){
+        var targetName=MERGE_INTO[srcName];
+        var target=result.find(function(sl){return sl.name===targetName;});
+        if(!target) return;
+        var ids=LISTS[srcName].map(function([t,a]){return songIdMap[t.toLowerCase()+"|||"+a.toLowerCase()];}).filter(Boolean);
+        var existingIds=new Set(target.songIds);
+        var merged=ids.filter(function(id){return !existingIds.has(id);});
+        target.songIds=target.songIds.concat(merged);
+        result=result.filter(function(sl){return sl.name!==srcName;});
+      });
+      return result;
     });
-    if(newSetlists.length) setSetlists(function(p){return p.concat(newSetlists);});
-    console.log("[migration] Imported "+newSongs.length+" new songs, "+newSetlists.length+" new setlists ("+missing.join(", ")+")");
+    console.log("[migration] Imported "+newSongs.length+" new songs. Created: "+createNames.join(", ")+". Merged into Ma Setlist: "+mergeNames.join(", "));
   },[]);
 
   // Save secrets (aiKeys, passwords) to separate localStorage key — never synced
