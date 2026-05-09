@@ -46,6 +46,17 @@ import {
   getGainRange, gainToNumeric, inferGainFromName,
 } from './core/scoring/index.js';
 
+// ─── État (Phase 2, étape 2) ────────────────────────────────────────
+import {
+  STATE_VERSION, LS_KEY, LS_KEY_V1,
+  mergeBanks, makeDefaultProfile,
+  migrateV1toV2, migrateV2toV3,
+  loadState, saveState,
+  autoBackup, listBackups, restoreBackup,
+  loadSecrets, saveSecrets,
+  loadTrusted, isTrusted, setTrusted,
+} from './core/state.js';
+
 // ─── App UI helpers + leaf components (Phase 1, étape 5) ────────────
 import {
   scoreColor, scoreBg, scoreLabel, BREAKDOWN_LABELS,
@@ -177,8 +188,6 @@ function saveSharedKey(key){
 //     les imports nommés).
 
 // ─── Clé localStorage ─────────────────────────────────────────────────────────
-const LS_KEY = "tonex_guide_v2";
-const LS_KEY_V1 = "tonex_guide_v1";
 
 
 const TSR_PACK_ZIPS = {
@@ -454,97 +463,6 @@ function getSongHist(song, aiResult=null){
 const APP_VERSION = "8.7.5";
 const ADMIN_PIN = "212402";
 
-function makeDefaultProfile(id, name, isAdmin=false, password="") {
-  return {
-    id, name, isAdmin, password,
-    myGuitars: GUITARS.map(g=>g.id),
-    customGuitars: [],
-    editedGuitars: {},
-    devices: {pedale:false, anniversary:isAdmin, plug:false},
-    availableSources: {TSR:true, ML:true, Anniversary:true, Factory:true, ToneNET:true},
-    customPacks: [],
-    banksAnn: isAdmin ? {...INIT_BANKS_ANN} : {...FACTORY_BANKS_PEDALE},
-    banksPlug: isAdmin ? {...INIT_BANKS_PLUG} : {...FACTORY_BANKS_PLUG},
-    aiProvider: "gemini",
-    aiKeys: {anthropic:"",gemini:""},
-    loginHistory: []
-  };
-}
-
-function migrateV1toV2(v1) {
-  const oldSetlists = (v1.setlists || INIT_SETLISTS).map(sl=>({...sl, profileIds:["sebastien"]}));
-  const profile = {
-    id:"sebastien", name:"Sébastien", isAdmin:true,
-    myGuitars: GUITARS.map(g=>g.id),
-    customGuitars: [],
-    editedGuitars: {},
-    devices: {pedale:false, anniversary:true, plug:true},
-    availableSources: {TSR:true, ML:true, Anniversary:true, Factory:true, ToneNET:true},
-    customPacks: [],
-    banksAnn: mergeBanks(v1.banksAnn, INIT_BANKS_ANN),
-    banksPlug: mergeBanks(v1.banksPlug, INIT_BANKS_PLUG),
-    aiProvider: v1.aiProvider || "gemini",
-    aiKeys: v1.aiKeys || {anthropic: v1.apiKey||"", gemini:""}
-  };
-  return {
-    version:2,
-    activeProfileId:"sebastien",
-    shared: { songDb: v1.songDb || INIT_SONG_DB_META, theme: v1.theme || "dark", setlists: oldSetlists },
-    profiles: { sebastien: profile }
-  };
-}
-
-const LS_SECRETS_KEY = "tonex_secrets";
-function loadSecrets(){try{return JSON.parse(localStorage.getItem(LS_SECRETS_KEY))||{};}catch(e){return {};}}
-function saveSecrets(secrets){try{localStorage.setItem(LS_SECRETS_KEY,JSON.stringify(secrets));}catch(e){}}
-
-// Trusted devices — per-device only, never synced. Skips password prompt for the listed profiles.
-const LS_TRUSTED_KEY = "tonex_trusted_devices";
-function loadTrusted(){try{return JSON.parse(localStorage.getItem(LS_TRUSTED_KEY))||{};}catch(e){return {};}}
-function isTrusted(id){return !!loadTrusted()[id];}
-function setTrusted(id,v){const t=loadTrusted();if(v)t[id]=true;else delete t[id];try{localStorage.setItem(LS_TRUSTED_KEY,JSON.stringify(t));}catch(e){}}
-
-function loadState() {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if(raw) { const d=JSON.parse(raw); if(d.version===2) return d; }
-    const v1raw = localStorage.getItem(LS_KEY_V1);
-    if(v1raw) return migrateV1toV2(JSON.parse(v1raw));
-  } catch(e){}
-  return null;
-}
-const LS_BACKUP_KEY = "tonex_guide_backups";
-const MAX_BACKUPS = 5;
-function autoBackup(){
-  try{
-    const current=localStorage.getItem(LS_KEY);
-    if(!current) return;
-    const parsed=JSON.parse(current);
-    // Only backup if there's real data (at least 1 song beyond defaults)
-    if(!parsed?.shared?.songDb||parsed.shared.songDb.length<1) return;
-    const backups=JSON.parse(localStorage.getItem(LS_BACKUP_KEY)||"[]");
-    const lastBackup=backups[0];
-    // Don't backup if less than 5 min since last backup
-    if(lastBackup&&Date.now()-lastBackup.time<5*60*1000) return;
-    backups.unshift({time:Date.now(),data:current,songs:parsed.shared.songDb.length,profiles:Object.keys(parsed.profiles||{}).length});
-    // Keep only last N backups
-    while(backups.length>MAX_BACKUPS) backups.pop();
-    localStorage.setItem(LS_BACKUP_KEY,JSON.stringify(backups));
-  }catch(e){console.warn("Backup failed:",e);}
-}
-function listBackups(){
-  try{return JSON.parse(localStorage.getItem(LS_BACKUP_KEY)||"[]");}catch(e){return [];}
-}
-function restoreBackup(index){
-  const backups=listBackups();
-  if(!backups[index]) return false;
-  localStorage.setItem(LS_KEY,backups[index].data);
-  return true;
-}
-function saveState(state) {
-  autoBackup();
-  try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){}
-}
 
 // ─── Export/Import JSON ───────────────────────────────────────────────────────
 function exportJSON(state) {
@@ -5874,14 +5792,6 @@ function ViewProfileScreen({profile,onBack,onNavigate}){
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 // Fusionne les banks sauvées avec les banks initiales (ajoute les nouvelles sans écraser les modifs utilisateur)
-function mergeBanks(saved, init){
-  if(!saved) return init;
-  const merged={...saved};
-  for(const [k,v] of Object.entries(init)){
-    if(!(k in merged)) merged[k]=v;
-  }
-  return merged;
-}
 
 function applySecrets(profiles){
   const secrets=loadSecrets();
@@ -5901,7 +5811,7 @@ function App() {
   const saved = loadState();
   const [firestoreLoaded, setFirestoreLoaded] = useState(false);
   const initDefault = saved || {
-    version:2,
+    version:STATE_VERSION,
     activeProfileId:"sebastien",
     shared:{songDb:INIT_SONG_DB_META, theme:"dark", setlists:[{id:"sl_main",name:"Ma Setlist",songIds:INIT_SONG_DB_META.map(s=>s.id),profileIds:["sebastien"]}], toneNetPresets:[]},
     profiles:{sebastien:makeDefaultProfile("sebastien","Sébastien",true)}
@@ -6236,7 +6146,7 @@ function App() {
   const hasMounted = useRef(false);
   const firestoreDebounceRef = useRef(null);
   useEffect(()=>{
-    const state={version:2, activeProfileId, shared:{songDb,theme,setlists,customGuitars,toneNetPresets,deletedSetlistIds}, profiles, lastModified:Date.now()};
+    const state={version:STATE_VERSION, activeProfileId, shared:{songDb,theme,setlists,customGuitars,toneNetPresets,deletedSetlistIds}, profiles, lastModified:Date.now()};
     autoBackup();
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){}
     if(!hasMounted.current){hasMounted.current=true;return;}
@@ -6319,7 +6229,7 @@ function App() {
           });
         }
         if(mergedSongs.length>remoteSongs.length||mergedSl.length>remoteSl.length||mergedDel.length>remoteDel.length){
-          var ps={version:2,activeProfileId:data.activeProfileId||activeProfileId,shared:{songDb:mergedSongs,theme:data.shared.theme||theme,setlists:mergedSl,customGuitars:data.shared.customGuitars||customGuitars,deletedSetlistIds:mergedDel},profiles:data.profiles||profiles,lastModified:Date.now()};
+          var ps={version:STATE_VERSION,activeProfileId:data.activeProfileId||activeProfileId,shared:{songDb:mergedSongs,theme:data.shared.theme||theme,setlists:mergedSl,customGuitars:data.shared.customGuitars||customGuitars,deletedSetlistIds:mergedDel},profiles:data.profiles||profiles,lastModified:Date.now()};
           saveToFirestore(ps).catch(function(){});
         }
       }
