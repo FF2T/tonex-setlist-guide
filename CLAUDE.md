@@ -9,8 +9,12 @@ PWA mono-fichier React de gestion de setlists et de presets pour
 guitaristes. Aide à choisir la bonne guitare et le bon preset pour
 chaque morceau d'une setlist, sur trois appareils :
 
-- **ToneX Pedal** (50 banks A/B/C, captures `src` ∈ {ML, AA, TSR, custom})
-- **ToneX Plug** (8 banks A/B/C, sous-ensemble des captures)
+- **ToneX Pedal** (50 banks A/B/C, captures `src` ∈ {TSR, ML, Factory,
+  ToneNET, custom} — **rejette Anniversary** depuis Phase 2)
+- **ToneX Pedal Anniversary** (50 banks A/B/C, partage `banksAnn` avec
+  ToneX Pedal en Phase 2 ; accepte les captures `Anniversary`
+  exclusives en plus du catalogue Pedal standard)
+- **ToneX Plug** (10 banks A/B/C, rejette `Anniversary` et `Factory`)
 - **Tone Master Pro** (à venir) : Layouts/Scenes/Presets, chaîne de
   5 blocs (Comp, Drive, Amp, Cab, FX), IR loading.
 
@@ -180,6 +184,79 @@ npm run preview    # sert dist/ pour test final sur http://localhost:4173
 npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
+
+## État Phase 2 (terminée 2026-05-09, tag `phase-2-done`)
+
+**Acquis** :
+- `src/devices/registry.js` étendu : `getAllDevices`, `getEnabledDevices(profile)`,
+  `getDeviceMeta`. Conserve `isSrcCompatible(src, deviceKey)` legacy
+  (`'ann'` permissif, `'plug'`) pour les call sites Phase 1, plus une
+  délégation vers `device.isPresetSourceCompatible` quand on lui passe
+  un device id complet.
+- `src/devices/tonex-anniversary/` (nouveau) : 3e device de premier
+  rang. 50 banks A/B/C, partage `banksAnn` avec `tonex-pedal`,
+  `excludedSources: ['PlugFactory']` (accepte `Anniversary` en exclusif),
+  `defaultEnabled: false`, `icon: 🏭`.
+- `tonex-pedal` filtre source durci : rejette désormais `Anniversary`
+  ET `PlugFactory` (Phase 1 acceptait `Anniversary`). Les call sites
+  legacy via `isSrcCompatible(src, 'ann')` sont préservés.
+- `src/core/state.js` (nouveau) : extraction de toute la logique
+  d'état (chargement, sauvegarde, migrations, backups, secrets,
+  trusted devices) depuis main.jsx vers un module testable.
+  - `STATE_VERSION = 3`, clé localStorage inchangée
+    (`tonex_guide_v2`).
+  - `migrateV2toV3` ajoute `profile.enabledDevices: string[]` dérivé
+    de `profile.devices.{pedale, anniversary, plug}` legacy.
+    Migration purement additive : aucun autre champ touché.
+  - `loadState` enchaîne v1→v2→v3 si nécessaire, idempotent sur v3.
+  - `makeDefaultProfile` : admin → `enabledDevices=['tonex-anniversary',
+    'tonex-plug']`, standard → `['tonex-pedal','tonex-plug']`.
+  - 21 tests (state.test.js + intégration registry).
+- Onglet `📱 Mes appareils` (renommé depuis `📱 Materiel`) dans
+  MonProfilScreen : nouveau composant `MesAppareilsTab` qui itère sur
+  `getAllDevices()` pour afficher une checkbox par device. Toggle
+  écrit `profile.enabledDevices` ET `profile.devices` (legacy) en
+  miroir. Garde-fou : ≥1 device coché obligatoire.
+- `RecapScreen`, `SynthesisScreen`, `SongDetailCard` : suppression
+  des hardcodes `'Pédale'/'ToneX Plug'`. Le rendu boucle sur
+  `getEnabledDevices(profile)` et utilise `device.bankStorageKey` +
+  `device.presetResultKey` pour piocher les bonnes données. SCORING
+  inchangé : `preset_ann`/`preset_plug` reste partagé entre les deux
+  pedal devices (Phase 5 pourra splitter si besoin).
+- 96 tests Vitest (57 Phase 1 + 39 Phase 2 : registry étendu,
+  tonex-anniversary, state migrations, intégration).
+
+**Schéma localStorage v3** :
+```
+{
+  version: 3,
+  activeProfileId,
+  shared: { songDb, theme, setlists, customGuitars?, toneNetPresets?,
+            deletedSetlistIds? },
+  profiles: {
+    [id]: {
+      id, name, isAdmin, password,
+      myGuitars[], customGuitars[], editedGuitars{},
+      devices: {pedale, anniversary, plug},  // legacy v2, conservé
+      enabledDevices: string[],              // v3 : registry ids
+      availableSources, customPacks[], banksAnn, banksPlug,
+      aiProvider, aiKeys, loginHistory[],
+    }
+  }
+}
+```
+
+**Dette à clore avant Phase 3** (TMP) :
+- Suppression des champs legacy `profile.devices.{pedale,anniversary,
+  plug}` (Phase 5 cleanup).
+- Suppression des hardcodes `'Anniversary'` comme nom de SOURCE
+  catalog dans `srcBadge`, `presetSourceInfo`, `ExportImportScreen`
+  CSV, `ProfileTab` summary, `ViewProfileScreen` summary
+  (Phase 5 cleanup, indépendant des devices).
+- Code mort `AICard` et `NewSongExplorer` (jamais instanciés en
+  JSX) — à supprimer ou réintroduire.
+- Découpage de main.jsx (encore 6440 lignes) — dette Phase 1 à
+  clore avant Phase 3.
 
 ## État Phase 1 (terminée 2026-05-09, tag `phase-1-done`)
 
