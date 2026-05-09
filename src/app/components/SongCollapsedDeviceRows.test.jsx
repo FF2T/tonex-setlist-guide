@@ -174,4 +174,37 @@ describe('SongCollapsedDeviceRows · scénario bug rapporté', () => {
     const rows = container.querySelectorAll('[data-testid^="row-"]');
     expect(rows).toHaveLength(0);
   });
+
+  test('Phase 3 : device avec RecommendBlock → composant rendu, pas presetRow', async () => {
+    // Side-effect : importer le device TMP qui s'enregistre avec
+    // RecommendBlock dans sa metadata.
+    await import('../../devices/tonemaster-pro/index.js');
+    const profile = {
+      enabledDevices: ['tonemaster-pro'],
+      devices: { pedale: false, anniversary: false, plug: false },
+    };
+    const songWithCache = {
+      id: 'tel_flipper', title: 'Flipper', artist: 'Téléphone',
+      aiCache: { result: { ref_amp: 'Marshall JCM800', song_style: 'rock' } },
+    };
+    const { container } = render(
+      <SongCollapsedDeviceRows
+        profile={profile}
+        aiC={null}
+        banksAnn={banksAnn}
+        banksPlug={banksPlug}
+        song={songWithCache}
+        guitar={{ id: 'strat61', type: 'SC' }}
+        allGuitars={[{ id: 'strat61', type: 'SC' }]}
+        renderRow={renderRow}
+      />,
+    );
+    // Aucune row legacy
+    expect(container.querySelectorAll('[data-testid^="row-"]')).toHaveLength(0);
+    // Mais le RecommendBlock TMP doit être présent
+    const tmpBlock = container.querySelector('[data-testid="tmp-recommend-block"]');
+    expect(tmpBlock).not.toBeNull();
+    // Le patch top doit être flipper_patch (cas connu du test scoring)
+    expect(tmpBlock.getAttribute('data-tmp-patch-id')).toBe('flipper_patch');
+  });
 });

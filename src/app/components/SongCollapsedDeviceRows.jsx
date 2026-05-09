@@ -16,28 +16,55 @@ function getActiveDevicesForProfile(profile) {
   return getEnabledDevices({ enabledDevices: getDevicesForRender(profile) });
 }
 
-// Rend une liste de lignes compactes (une par device activé qui a un
-// preset associé dans aiC). renderRow reçoit (device, banks, presetData)
-// et retourne le JSX d'une ligne (par exemple le presetRow legacy).
+// Rend une liste de lignes compactes (une par device activé qui a soit
+// un preset dans aiC, soit son propre composant device.RecommendBlock).
 //
-// Si aucun device activé n'a de preset, retourne null (rien rendu).
-function SongCollapsedDeviceRows({ profile, aiC, banksAnn, banksPlug, renderRow }) {
+// Pour Tone Master Pro (Phase 3) : le device expose RecommendBlock dans
+// sa metadata. Si présent, on rend ce composant à la place du
+// presetRow legacy. Le RecommendBlock reçoit (song, guitar, profile)
+// et calcule sa recommandation en interne (pas via aiCache.preset_*).
+//
+// Pour ToneX (pas de RecommendBlock) : comportement legacy inchangé,
+// on lit aiC[d.presetResultKey] et on appelle renderRow.
+//
+// Si aucun device activé n'a de contenu, retourne null.
+function SongCollapsedDeviceRows({
+  profile, aiC, banksAnn, banksPlug, renderRow,
+  song, guitar, allGuitars,
+}) {
   const enabledDevices = getActiveDevicesForProfile(profile);
-  const devicePresets = enabledDevices
-    .map((d) => {
-      const banks = d.bankStorageKey === 'banksAnn' ? banksAnn : banksPlug;
-      const presetData = aiC?.[d.presetResultKey];
-      return { d, banks, presetData };
-    })
-    .filter((x) => x.presetData);
-  if (devicePresets.length === 0) return null;
+  // Devices avec leur propre RecommendBlock (TMP) : rendus avec le composant.
+  // Devices sans RecommendBlock (ToneX) : voie legacy presetRow.
+  const items = enabledDevices.map((d) => {
+    if (typeof d.RecommendBlock === 'function') {
+      return { kind: 'component', d };
+    }
+    const banks = d.bankStorageKey === 'banksAnn' ? banksAnn : banksPlug;
+    const presetData = aiC?.[d.presetResultKey];
+    return { kind: 'legacy', d, banks, presetData };
+  }).filter((x) => x.kind === 'component' || x.presetData);
+  if (items.length === 0) return null;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 4 }}>
-      {devicePresets.map(({ d, banks, presetData }) => (
-        <React.Fragment key={d.id}>
-          {renderRow(d, banks, presetData)}
-        </React.Fragment>
-      ))}
+      {items.map((item) => {
+        if (item.kind === 'component') {
+          const Comp = item.d.RecommendBlock;
+          return (
+            <Comp
+              key={item.d.id}
+              song={song}
+              guitar={guitar}
+              profile={profile}
+              allGuitars={allGuitars}
+            />
+          );
+        }
+        return (
+          <React.Fragment key={item.d.id}>
+            {renderRow(item.d, item.banks, item.presetData)}
+          </React.Fragment>
+        );
+      })}
     </div>
   );
 }

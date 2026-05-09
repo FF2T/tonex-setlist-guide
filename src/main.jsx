@@ -15,11 +15,12 @@ import {
   ANNIVERSARY_CATALOG,
 } from './data/data_catalogs.js';
 
-// ─── Devices (Phase 1, étape 4 + Phase 2) ───────────────────────────
+// ─── Devices (Phase 1, étape 4 + Phase 2 + Phase 3) ─────────────────
 // Side-effect imports : auto-registration via registry.
 import './devices/tonex-pedal/index.js';
 import './devices/tonex-anniversary/index.js';
 import './devices/tonex-plug/index.js';
+import './devices/tonemaster-pro/index.js';
 import { INIT_BANKS_ANN, FACTORY_BANKS_PEDALE } from './devices/tonex-pedal/index.js';
 import { INIT_BANKS_PLUG, FACTORY_BANKS_PLUG } from './devices/tonex-plug/index.js';
 import { isSrcCompatible, getAllDevices, getEnabledDevices } from './devices/registry.js';
@@ -3055,6 +3056,10 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
         <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Meilleurs presets installes pour {g?.short||"cette guitare"}</div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {(getActiveDevicesForRender(profile)).map(d=>{
+            // Phase 3 : devices avec RecommendBlock (TMP) → composant dédié.
+            if(typeof d.RecommendBlock==='function'){
+              return <d.RecommendBlock key={d.id} song={song} guitar={g} profile={profile} allGuitars={guitars}/>;
+            }
             const banks=d.bankStorageKey==='banksAnn'?banksAnn:banksPlug;
             const presetData=aiC[d.presetResultKey];
             return (
@@ -3486,6 +3491,9 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                   aiC={aiC}
                   banksAnn={banksAnn}
                   banksPlug={banksPlug}
+                  song={s}
+                  guitar={g}
+                  allGuitars={allGuitars}
                   renderRow={(d,banks,presetData)=>presetRow(d.icon,presetData.label,banks,presetData.score,d.id,d.deviceColor)}
                 />}
               </div>
@@ -4324,7 +4332,11 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
                   {loc?<span style={{fontSize:9,color:CC[loc.slot],fontWeight:700,flexShrink:0}}>{loc.bank}{loc.slot}</span>:<span style={{fontSize:9,color:"var(--yellow)",flexShrink:0}}>non installé</span>}
                 </div>
               ))}
-              {perDevice.length===0&&<div style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic"}}>Pas de cache IA — lance une analyse depuis la fiche du morceau</div>}
+              {/* Phase 3 : devices avec RecommendBlock (TMP) rendus séparément. */}
+              {enabledDevices.filter(d=>typeof d.RecommendBlock==='function').map(d=>(
+                <d.RecommendBlock key={d.id} song={song} guitar={guitar} profile={profile} allGuitars={allGuitars}/>
+              ))}
+              {perDevice.length===0&&enabledDevices.filter(d=>typeof d.RecommendBlock==='function').length===0&&<div style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic"}}>Pas de cache IA — lance une analyse depuis la fiche du morceau</div>}
             </div>
           </div>;
         })}
@@ -4368,7 +4380,10 @@ function SynthesisScreen({songs,gps,aiR,onBack,onNavigate,songDb,banksAnn,banksP
   // expose bankStorageKey (banksAnn|banksPlug) et presetResultKey
   // (preset_ann|preset_plug). Garde-fou : si liste vide, on retombe sur
   // les defaults du registry pour ne pas afficher un tableau sans colonne.
-  const enabledDevices=getActiveDevicesForRender(profile);
+  // Phase 3 : on filtre les devices avec RecommendBlock (TMP) — ils ne
+  // fittent pas une colonne tabulaire ; ils restent visibles dans Recap
+  // et Setlists vue repliée.
+  const enabledDevices=getActiveDevicesForRender(profile).filter(d=>typeof d.RecommendBlock!=='function');
   const rows=songs.map(s=>{
     const g=(allGuitars||GUITARS).find(x=>x.id===gps[s.id]);
     const type=g?.type||"HB";
