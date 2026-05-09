@@ -18,6 +18,7 @@ const TONEX_PLUG_CATALOG = {
   defaultEnabled: true,
   requiresPro: false,
   deviceKey: 'plug',
+  deviceColor: 'var(--wine-400)',
 };
 
 function isPresetSourceCompatible(src) {

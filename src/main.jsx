@@ -3404,7 +3404,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         const aiPA=aiC?.preset_ann||null;
         const aiPP=aiC?.preset_plug||null;
         const hist=getSongHist(s);
-        const presetRow=(emoji,label,banks,overrideScore)=>{
+        const presetRow=(emoji,label,banks,overrideScore,deviceId,deviceColor)=>{
           const loc=findInBanks(label,banks);
           const entry=findCatalogEntry(label);
           const sc=overrideScore!=null?overrideScore:(aiC&&gId&&entry?computeFinalScore(entry,gId,aiC.song_style,typeof aiC.target_gain==="number"?aiC.target_gain:null,resolveRefAmp(aiC.ref_amp)):(gId?guitarScore(label,gId):(entry?.scores?.[gType]??null)));
@@ -3413,11 +3413,15 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           const scBg=sc!=null?scoreBg(sc):null;
           const isIdeal=label&&aiC?.ideal_preset&&label===aiC.ideal_preset;
           const isWeak=sc!=null&&sc<65;
+          // Phase 2 fix : color du badge bank/slot vient du device si fourni
+          // (tonex-pedal/anniversary → copper, tonex-plug → wine), sinon
+          // fallback sur CC[slot] (legacy : B=copper, C=wine).
+          const badgeColor=deviceColor||(loc?CC[loc.slot]:null);
           return(
-            <div style={{display:"flex",alignItems:"center",gap:5}}>
+            <div style={{display:"flex",alignItems:"center",gap:5}} data-device-id={deviceId||"unknown"}>
               <StatusDot score={sc} ideal={isIdeal}/>
               {loc
-                ?<span title={`Banque ${loc.bank}, slot ${loc.slot} — ${CL[loc.slot]}`} style={{fontSize:10,background:`${CC[loc.slot]}18`,color:CC[loc.slot],border:`1px solid ${CC[loc.slot]}40`,borderRadius:"var(--r-sm)",padding:"1px 6px",fontWeight:700}}>{loc.bank}{loc.slot}</span>
+                ?<span title={`Banque ${loc.bank}, slot ${loc.slot} — ${CL[loc.slot]}`} style={{fontSize:10,background:`${badgeColor}18`,color:badgeColor,border:`1px solid ${badgeColor}40`,borderRadius:"var(--r-sm)",padding:"1px 6px",fontWeight:700}}>{loc.bank}{loc.slot}</span>
                 :<span style={{fontSize:10,background:"var(--yellow-bg)",color:"var(--yellow)",borderRadius:"var(--r-sm)",padding:"1px 6px",fontWeight:700}}>⬇</span>
               }
               {ampName&&<span style={{fontSize:10,color:scColor||"var(--text-sec)",background:scBg||"transparent",border:scColor?`1px solid ${scColor}30`:"none",borderRadius:"var(--r-sm)",padding:"1px 6px",fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:120}}>{ampName}</span>}
@@ -3482,7 +3486,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                   aiC={aiC}
                   banksAnn={banksAnn}
                   banksPlug={banksPlug}
-                  renderRow={(d,banks,presetData)=>presetRow(d.icon,presetData.label,banks,presetData.score)}
+                  renderRow={(d,banks,presetData)=>presetRow(d.icon,presetData.label,banks,presetData.score,d.id,d.deviceColor)}
                 />}
               </div>
             </div>

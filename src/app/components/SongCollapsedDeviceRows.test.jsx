@@ -36,7 +36,11 @@ const banksPlug = {
 // data-testid pour pouvoir compter les rows et leur source.
 function renderRow(d, banks, presetData) {
   return (
-    <span data-testid={`row-${d.id}`} data-banks-source={d.bankStorageKey}>
+    <span
+      data-testid={`row-${d.id}`}
+      data-banks-source={d.bankStorageKey}
+      data-device-color={d.deviceColor}
+    >
       {d.icon} {presetData.label}
     </span>
   );
@@ -63,10 +67,36 @@ describe('SongCollapsedDeviceRows · scénario bug rapporté', () => {
     expect(rows[0].getAttribute('data-testid')).toBe('row-tonex-pedal');
     // banks de la row = banksAnn (Pedal storage), pas banksPlug.
     expect(rows[0].getAttribute('data-banks-source')).toBe('banksAnn');
+    // Couleur device = copper (Pedal). Aucune trace de wine-400 dans le markup.
+    expect(rows[0].getAttribute('data-device-color')).toBe('var(--copper-400)');
+    expect(container.innerHTML).not.toContain('wine-400');
     // Aucune row Plug.
     expect(container.querySelector('[data-testid="row-tonex-plug"]')).toBeNull();
     // Aucun preset Plug rendu.
     expect(container.textContent).not.toContain('Grit');
+  });
+
+  test("profile.enabledDevices=['tonex-plug'] uniquement → AUCUN copper-400 dans le markup", () => {
+    const profile = {
+      enabledDevices: ['tonex-plug'],
+      devices: { pedale: false, anniversary: false, plug: true },
+    };
+    const { container } = render(
+      <SongCollapsedDeviceRows
+        profile={profile}
+        aiC={aiC}
+        banksAnn={banksAnn}
+        banksPlug={banksPlug}
+        renderRow={renderRow}
+      />,
+    );
+    const rows = container.querySelectorAll('[data-testid^="row-"]');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].getAttribute('data-testid')).toBe('row-tonex-plug');
+    expect(rows[0].getAttribute('data-device-color')).toBe('var(--wine-400)');
+    expect(container.innerHTML).not.toContain('copper-400');
+    expect(container.querySelector('[data-testid="row-tonex-pedal"]')).toBeNull();
+    expect(container.querySelector('[data-testid="row-tonex-anniversary"]')).toBeNull();
   });
 
   test("profile.enabledDevices=['tonex-anniversary'] → UNE ligne Anniversary, banks=banksAnn", () => {

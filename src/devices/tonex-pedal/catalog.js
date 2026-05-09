@@ -23,6 +23,7 @@ const TONEX_PEDAL_CATALOG = {
   defaultEnabled: true,
   requiresPro: false,
   deviceKey: 'ann',
+  deviceColor: 'var(--copper-400)',
 };
 
 function isPresetSourceCompatible(src) {
