@@ -8,12 +8,16 @@ import {
 } from './catalog.js';
 
 describe('TONEX_PEDAL_CATALOG · métadonnée du device', () => {
-  test('structure complète', () => {
+  test('structure complète (Phase 2 : icon, description, bankStorageKey, …)', () => {
     expect(TONEX_PEDAL_CATALOG.id).toBe('tonex-pedal');
     expect(TONEX_PEDAL_CATALOG.maxBanks).toBe(50);
     expect(TONEX_PEDAL_CATALOG.slots).toEqual(['A', 'B', 'C']);
     expect(TONEX_PEDAL_CATALOG.deviceKey).toBe('ann');
-    expect(TONEX_PEDAL_CATALOG.excludedSources).toContain('PlugFactory');
+    expect(TONEX_PEDAL_CATALOG.bankStorageKey).toBe('banksAnn');
+    expect(TONEX_PEDAL_CATALOG.presetResultKey).toBe('preset_ann');
+    expect(TONEX_PEDAL_CATALOG.defaultEnabled).toBe(true);
+    expect(TONEX_PEDAL_CATALOG.excludedSources).toEqual(['PlugFactory', 'Anniversary']);
+    expect(TONEX_PEDAL_CATALOG.icon).toBe('📦');
   });
 });
 
@@ -46,8 +50,12 @@ describe('isPresetSourceCompatible · accepte/rejette correctement', () => {
     expect(isPresetSourceCompatible('PlugFactory')).toBe(false);
   });
 
-  test('Anniversary, Factory, TSR, ML, ToneNET, custom acceptés', () => {
-    ['Anniversary', 'Factory', 'TSR', 'ML', 'ToneNET', 'custom'].forEach((src) => {
+  test('Anniversary rejeté (Phase 2 : exclusif à tonex-anniversary)', () => {
+    expect(isPresetSourceCompatible('Anniversary')).toBe(false);
+  });
+
+  test('Factory, TSR, ML, ToneNET, custom acceptés', () => {
+    ['Factory', 'TSR', 'ML', 'ToneNET', 'custom'].forEach((src) => {
       expect(isPresetSourceCompatible(src)).toBe(true);
     });
   });

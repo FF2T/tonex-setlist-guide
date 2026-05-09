@@ -1,24 +1,28 @@
-// src/devices/tonex-plug/catalog.js — Phase 1, étape 4.
-// Wrapper de catalogue spécifique au ToneX Plug.
-// Réexporte INIT_BANKS_PLUG et FACTORY_BANKS_PLUG depuis data/ et
-// expose la métadonnée du device.
+// src/devices/tonex-plug/catalog.js — Phase 2.
+// ToneX Plug (version logicielle).
 
 import { INIT_BANKS_PLUG, FACTORY_BANKS_PLUG } from '../../data/data_catalogs.js';
-import { isSrcCompatible } from '../registry.js';
 
 const TONEX_PLUG_CATALOG = {
   id: 'tonex-plug',
   label: 'ToneX Plug',
+  icon: '🔌',
+  description: 'ToneX Plug — version logicielle, 10 banks A/B/C.',
   initBanks: INIT_BANKS_PLUG,
   factoryBanks: FACTORY_BANKS_PLUG,
   maxBanks: 10,
   slots: ['A', 'B', 'C'],
   excludedSources: ['Anniversary', 'Factory'],
+  bankStorageKey: 'banksPlug',
+  presetResultKey: 'preset_plug',
+  defaultEnabled: true,
+  requiresPro: false,
   deviceKey: 'plug',
 };
 
 function isPresetSourceCompatible(src) {
-  return isSrcCompatible(src, 'plug');
+  if (!src) return true;
+  return src !== 'Anniversary' && src !== 'Factory';
 }
 
 export {

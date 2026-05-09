@@ -15,9 +15,10 @@ import {
   ANNIVERSARY_CATALOG,
 } from './data/data_catalogs.js';
 
-// ─── Devices (Phase 1, étape 4) ─────────────────────────────────────
+// ─── Devices (Phase 1, étape 4 + Phase 2) ───────────────────────────
 // Side-effect imports : auto-registration via registry.
 import './devices/tonex-pedal/index.js';
+import './devices/tonex-anniversary/index.js';
 import './devices/tonex-plug/index.js';
 import { INIT_BANKS_ANN, FACTORY_BANKS_PEDALE } from './devices/tonex-pedal/index.js';
 import { INIT_BANKS_PLUG, FACTORY_BANKS_PLUG } from './devices/tonex-plug/index.js';
