@@ -2945,8 +2945,12 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
               const bk=installBank[device];
               const sl=installSlot[device];
               const currentPreset=bk!==""&&banks[Number(bk)]?banks[Number(bk)][sl]||"(vide)":"";
+              // Phase 2 fix : label/icon depuis le device activé qui matche
+              // ce deviceKey, fallback sur l'ancien hardcode si introuvable.
+              const dev=(getEnabledDevices(profile).length?getEnabledDevices(profile):getEnabledDevices({})).find(d=>d.deviceKey===device);
+              const deviceLabel=dev?`${dev.icon} ${dev.label}`:(device==="ann"?"📦 Pedale":"🔌 Plug");
               return <div style={{marginBottom:6}}>
-                <div style={{fontSize:10,color:"var(--text-sec)",marginBottom:4,fontWeight:600}}>{device==="ann"?"📦 Pedale":"🔌 Plug"}</div>
+                <div style={{fontSize:10,color:"var(--text-sec)",marginBottom:4,fontWeight:600}}>{deviceLabel}</div>
                 <div style={{display:"flex",gap:6,alignItems:"center"}}>
                   <span style={{fontSize:10,color:"var(--text-muted)"}}>Banque</span>
                   <input type="number" inputMode="numeric" min={device==="ann"?0:1} max={maxBanks} value={bk} onChange={e=>setInstallBank(p=>({...p,[device]:e.target.value}))} style={{width:50,fontSize:11,background:"var(--bg-card)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:"var(--r-md)",padding:"4px 6px",textAlign:"center"}} placeholder={device==="ann"?"0-49":"1-10"}/>
@@ -2971,12 +2975,21 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
                 {(()=>{const si=presetSourceInfo(entry);return si?<span style={{color:loc?"var(--text-tertiary)":"var(--text-sec)"}}>· {si.icon} {si.label}</span>:null;})()}
                 {!loc&&!installTarget&&(canInstallAnn||canInstallPlug)&&<button onClick={()=>setInstallTarget({preset:aiC.ideal_preset})} style={{fontSize:9,background:"var(--accent-bg)",border:"1px solid var(--accent-border)",color:"var(--accent)",borderRadius:"var(--r-sm)",padding:"2px 8px",cursor:"pointer",fontWeight:600,marginLeft:"auto"}}>Installer</button>}
               </div>
-              {installTarget?.preset===aiC.ideal_preset&&<div style={{marginTop:6,background:"var(--a4)",border:"1px solid var(--a10)",borderRadius:"var(--r-md)",padding:10}}>
-                <div style={{fontSize:10,color:"var(--text-sec)",marginBottom:8,fontWeight:600}}>Installer "{aiC.ideal_preset}" sur :</div>
-                {canInstallAnn&&bankInput("ann",49)}
-                {canInstallPlug&&bankInput("plug",10)}
-                <button onClick={()=>setInstallTarget(null)} style={{fontSize:9,background:"none",border:"none",color:"var(--text-dim)",cursor:"pointer"}}>Annuler</button>
-              </div>}
+              {installTarget?.preset===aiC.ideal_preset&&(()=>{
+                // Phase 2 fix : ne propose que les devices activés.
+                const activeEnabled=getEnabledDevices(profile).length?getEnabledDevices(profile):getEnabledDevices({});
+                const canPedal=canInstallAnn&&activeEnabled.some(d=>d.deviceKey==='ann');
+                const canPlug=canInstallPlug&&activeEnabled.some(d=>d.deviceKey==='plug');
+                if(!canPedal&&!canPlug) return null;
+                return (
+                <div style={{marginTop:6,background:"var(--a4)",border:"1px solid var(--a10)",borderRadius:"var(--r-md)",padding:10}}>
+                  <div style={{fontSize:10,color:"var(--text-sec)",marginBottom:8,fontWeight:600}}>Installer "{aiC.ideal_preset}" sur :</div>
+                  {canPedal&&bankInput("ann",49)}
+                  {canPlug&&bankInput("plug",10)}
+                  <button onClick={()=>setInstallTarget(null)} style={{fontSize:9,background:"none",border:"none",color:"var(--text-dim)",cursor:"pointer"}}>Annuler</button>
+                </div>
+                );
+              })()}
             </div>;
           })()}
           {/* Top 3 catalogue */}
@@ -3453,10 +3466,25 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                   }
                   {gScore>0&&<span style={{fontSize:10,fontWeight:800,color:scoreColor(gScore),background:scoreBg(gScore),borderRadius:"var(--r-sm)",padding:"1px 6px",border:`1px solid ${scoreColor(gScore)}30`}} title={scoreLabel(gScore).tip+"  —  score guitare"}>{gScore}%</span>}
                 </div>;})()}
-                {!isExpanded&&<div style={{display:"flex",flexDirection:"column",gap:3,marginTop:aiPA||aiPP?4:0}}>
-                  {aiPA&&presetRow("📦",aiPA.label,banksAnn,aiPA.score)}
-                  {aiPP&&presetRow("🔌",aiPP.label,banksPlug,aiPP.score)}
-                </div>}
+                {!isExpanded&&(()=>{
+                  // Phase 2 fix : itère sur les devices activés du profil au lieu
+                  // de hardcoder Pedal+Plug. Garantit que la vue repliée respecte
+                  // le toggle de Mes appareils.
+                  const enabledDevices=getEnabledDevices(profile).length?getEnabledDevices(profile):getEnabledDevices({});
+                  const devicePresets=enabledDevices.map(d=>{
+                    const banks=d.bankStorageKey==='banksAnn'?banksAnn:banksPlug;
+                    const presetData=aiC?.[d.presetResultKey];
+                    return {d,banks,presetData};
+                  }).filter(x=>x.presetData);
+                  if(devicePresets.length===0) return null;
+                  return <div style={{display:"flex",flexDirection:"column",gap:3,marginTop:4}}>
+                    {devicePresets.map(({d,banks,presetData})=>(
+                      <React.Fragment key={d.id}>
+                        {presetRow(d.icon,presetData.label,banks,presetData.score)}
+                      </React.Fragment>
+                    ))}
+                  </div>;
+                })()}
               </div>
             </div>
             {isExpanded&&<SongDetailCard song={s} banksAnn={banksAnn} banksPlug={banksPlug} onBanksAnn={onBanksAnn} onBanksPlug={onBanksPlug} onClose={()=>setExpandedId(null)} guitars={allGuitars} availableSources={availableSources} savedGuitarId={activeSl?.guitars?.[s.id]} onGuitarChange={(songId,gId)=>{if(activeSlId)onSetlists(p=>p.map(sl=>sl.id===activeSlId?{...sl,guitars:{...(sl.guitars||{}),[songId]:gId}}:sl));}} aiProvider={aiProvider} aiKeys={aiKeys} onSongDb={onSongDb} profile={profile}/>}
@@ -3471,7 +3499,12 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
 }
 
 // ─── Bank Optimizer Screen ───────────────────────────────────────────────────
-function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBanksPlug,allGuitars,availableSources,onNavigate}) {
+function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBanksPlug,allGuitars,availableSources,onNavigate,profile}) {
+  // Phase 2 fix : gate les sections device-spécifiques (analyse,
+  // grille mini, plan de réorganisation, actions prioritaires).
+  const enabledDevices=getEnabledDevices(profile).length?getEnabledDevices(profile):getEnabledDevices({});
+  const hasPedalDevice=enabledDevices.some(d=>d.deviceKey==='ann');
+  const hasPlugDevice=enabledDevices.some(d=>d.deviceKey==='plug');
   const [slId,setSlId]=useState(setlists[0]?.id||"");
   const [showReconfig,setShowReconfig]=useState(null); // "ann"|"plug"|null
   const sl=setlists.find(s=>s.id===slId);
@@ -3917,8 +3950,8 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
         return <div style={sectionStyle}>
           {eyebrow("⚡","Actions prioritaires")}
           <div style={{display:"flex",flexDirection:"column",gap:"var(--s-2)"}}>
-            {renderDeviceBlock("ann","📦 Pédale",annMean,annProjected,annPriority,annAnalysis.songRows)}
-            {renderDeviceBlock("plug","🔌 Plug",plugMean,plugProjected,plugPriority,plugAnalysis.songRows)}
+            {hasPedalDevice&&renderDeviceBlock("ann","📦 Pédale",annMean,annProjected,annPriority,annAnalysis.songRows)}
+            {hasPlugDevice&&renderDeviceBlock("plug","🔌 Plug",plugMean,plugProjected,plugPriority,plugAnalysis.songRows)}
           </div>
         </div>;
       })()}
@@ -3928,9 +3961,9 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
         {eyebrow("📊","Diagnostic")}
         {songs.length===0?<div style={{textAlign:"center",padding:"20px",color:"var(--text-tertiary)"}}>Setlist vide</div>:<>
         <div style={{fontSize:10,color:"var(--text-tertiary)",marginBottom:"var(--s-3)"}}>🎸 {allGuitars.map(g=>g.short||g.name).join(", ")} · {songs.length} morceau{songs.length>1?"x":""}</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"var(--s-3)",marginBottom:"var(--s-3)"}}>
-          <div>{renderStats(annAnalysis)}<div style={{fontSize:9,color:"var(--text-tertiary)",textAlign:"center"}}>📦 Pedale</div></div>
-          <div>{renderStats(plugAnalysis)}<div style={{fontSize:9,color:"var(--text-tertiary)",textAlign:"center"}}>🔌 Plug</div></div>
+        <div style={{display:"grid",gridTemplateColumns: hasPedalDevice&&hasPlugDevice?"1fr 1fr":"1fr",gap:"var(--s-3)",marginBottom:"var(--s-3)"}}>
+          {hasPedalDevice&&<div>{renderStats(annAnalysis)}<div style={{fontSize:9,color:"var(--text-tertiary)",textAlign:"center"}}>📦 Pedale</div></div>}
+          {hasPlugDevice&&<div>{renderStats(plugAnalysis)}<div style={{fontSize:9,color:"var(--text-tertiary)",textAlign:"center"}}>🔌 Plug</div></div>}
         </div>
         {/* Carte visuelle compacte */}
         {(()=>{
@@ -3965,8 +3998,8 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
           var hasAnn=Object.keys(banksAnn||{}).length>0;
           var hasPlug=Object.keys(banksPlug||{}).length>0;
           return <div>
-            {hasAnn&&miniGrid(banksAnn,50,0,"ann","📦 Pedale")}
-            {hasPlug&&miniGrid(banksPlug,10,1,"plug","🔌 Plug")}
+            {hasAnn&&hasPedalDevice&&miniGrid(banksAnn,50,0,"ann","📦 Pedale")}
+            {hasPlug&&hasPlugDevice&&miniGrid(banksPlug,10,1,"plug","🔌 Plug")}
             <div style={{display:"flex",gap:"var(--s-3)",marginTop:4,fontSize:8,color:"var(--text-tertiary)"}}>
               <span><span style={{display:"inline-block",width:6,height:6,borderRadius:1,background:"var(--green)",marginRight:2,verticalAlign:"middle"}}></span>80%+</span>
               <span><span style={{display:"inline-block",width:6,height:6,borderRadius:1,background:"var(--accent-primary,#818cf8)",marginRight:2,verticalAlign:"middle"}}></span>65-79%</span>
@@ -4079,8 +4112,8 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
         return <div style={sectionStyle}>
           {eyebrow("🎯","Plan de reorganisation")}
           <div style={{fontSize:10,color:"var(--text-tertiary)",marginBottom:"var(--s-3)"}}>Banques regroupees pour le live. Standards (tes gouts) en premier, puis une banque par morceau. A=Clean, B=Drive, C=Lead.</div>
-          {hasAnn2&&renderPlan(annPlan,"📦","Pedale",onBanksAnn)}
-          {hasPlug2&&renderPlan(plugPlan,"🔌","Plug",onBanksPlug)}
+          {hasAnn2&&hasPedalDevice&&renderPlan(annPlan,"📦","Pedale",onBanksAnn)}
+          {hasPlug2&&hasPlugDevice&&renderPlan(plugPlan,"🔌","Plug",onBanksPlug)}
         </div>;
       })()}
 
@@ -4090,7 +4123,10 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
 }
 
 // ─── Recap Screen ─────────────────────────────────────────────────────────────
-function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources}) {
+function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profile}) {
+  // Phase 2 fix : iterate sur les devices activés pour le rendu compact
+  // par morceau et pour la liste des presets manquants.
+  const enabledDevices=getEnabledDevices(profile).length?getEnabledDevices(profile):getEnabledDevices({});
   const guitars=allGuitars||GUITARS;
   const [mode,setMode]=useState("single"); // "single" | "multi"
   const [selectedGuitarId,setSelectedGuitarId]=useState(null);
@@ -4183,8 +4219,15 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
   const missingPresets=useMemo(()=>{
     const map=new Map();
     songRows.forEach(({song,presetAnn,presetPlug})=>{
+      // Phase 2 fix : on n'enregistre comme manquant que ce qui correspond
+      // à un device activé. Sinon décocher Plug afficherait quand même les
+      // presets Plug à installer.
       const check=(p,device)=>{
         if(!p?.label) return;
+        // Le device est encore identifié par sa clé legacy 'ann'/'plug'
+        // ici (data model interne). On filtre via enabledDevices.deviceKey.
+        const isDeviceEnabled=enabledDevices.some(d=>d.deviceKey===device);
+        if(!isDeviceEnabled) return;
         const banks=device==="ann"?banksAnn:banksPlug;
         const loc=findInBanks(p.label,banks);
         if(!loc){
@@ -4253,8 +4296,14 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
         <div style={{fontSize:14,fontWeight:800,color:"var(--text)",marginBottom:10}}>🎵 Morceaux</div>
         {songRows.map(({song,guitar,presetAnn,presetPlug})=>{
           const rgb=guitar?TYPE_COLORS[guitar.type]||"148,163,184":"148,163,184";
-          const annLoc=presetAnn?.label?findInBanks(presetAnn.label,banksAnn):null;
-          const plugLoc=presetPlug?.label?findInBanks(presetPlug.label,banksPlug):null;
+          // Phase 2 fix : itère sur les devices activés. preset_ann/_plug
+          // côté data sont conservés tels quels ; on filtre par device.deviceKey.
+          const perDevice=enabledDevices.map(d=>{
+            const banks=d.bankStorageKey==='banksAnn'?banksAnn:banksPlug;
+            const presetData=d.deviceKey==='ann'?presetAnn:presetPlug;
+            const loc=presetData?.label?findInBanks(presetData.label,banks):null;
+            return {d,presetData,loc};
+          }).filter(x=>x.presetData?.label);
           return <div key={song.id} style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-lg)",padding:"10px 12px",marginBottom:6}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
               <div style={{flex:1,minWidth:0}}>
@@ -4264,19 +4313,15 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
               {guitar&&<span style={{fontSize:10,fontWeight:600,color:`rgb(${rgb})`,background:`rgba(${rgb},0.1)`,border:`1px solid rgba(${rgb},0.25)`,borderRadius:"var(--r-md)",padding:"2px 8px",flexShrink:0,marginLeft:8}}>{guitar.short||guitar.name}</span>}
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:3}}>
-              {presetAnn?.label&&<div style={{display:"flex",alignItems:"center",gap:6,fontSize:11}}>
-                <span style={{color:"var(--green)",fontWeight:700,flexShrink:0}}>📦</span>
-                <span style={{color:"var(--text-bright)",fontWeight:600,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{presetAnn.label}</span>
-                {presetAnn.score&&<span style={{fontFamily:"var(--font-mono)",fontWeight:700,color:scoreColor(presetAnn.score),flexShrink:0}}>{presetAnn.score}%</span>}
-                {annLoc?<span style={{fontSize:9,color:CC[annLoc.slot],fontWeight:700,flexShrink:0}}>{annLoc.bank}{annLoc.slot}</span>:<span style={{fontSize:9,color:"var(--yellow)",flexShrink:0}}>non installé</span>}
-              </div>}
-              {presetPlug?.label&&<div style={{display:"flex",alignItems:"center",gap:6,fontSize:11}}>
-                <span style={{color:"var(--accent)",fontWeight:700,flexShrink:0}}>🔌</span>
-                <span style={{color:"var(--text-bright)",fontWeight:600,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{presetPlug.label}</span>
-                {presetPlug.score&&<span style={{fontFamily:"var(--font-mono)",fontWeight:700,color:scoreColor(presetPlug.score),flexShrink:0}}>{presetPlug.score}%</span>}
-                {plugLoc?<span style={{fontSize:9,color:CC[plugLoc.slot],fontWeight:700,flexShrink:0}}>{plugLoc.bank}{plugLoc.slot}</span>:<span style={{fontSize:9,color:"var(--yellow)",flexShrink:0}}>non installé</span>}
-              </div>}
-              {!presetAnn?.label&&!presetPlug?.label&&<div style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic"}}>Pas de cache IA — lance une analyse depuis la fiche du morceau</div>}
+              {perDevice.map(({d,presetData,loc})=>(
+                <div key={d.id} style={{display:"flex",alignItems:"center",gap:6,fontSize:11}}>
+                  <span style={{color:d.deviceKey==='plug'?"var(--accent)":"var(--green)",fontWeight:700,flexShrink:0}}>{d.icon}</span>
+                  <span style={{color:"var(--text-bright)",fontWeight:600,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{presetData.label}</span>
+                  {presetData.score&&<span style={{fontFamily:"var(--font-mono)",fontWeight:700,color:scoreColor(presetData.score),flexShrink:0}}>{presetData.score}%</span>}
+                  {loc?<span style={{fontSize:9,color:CC[loc.slot],fontWeight:700,flexShrink:0}}>{loc.bank}{loc.slot}</span>:<span style={{fontSize:9,color:"var(--yellow)",flexShrink:0}}>non installé</span>}
+                </div>
+              ))}
+              {perDevice.length===0&&<div style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic"}}>Pas de cache IA — lance une analyse depuis la fiche du morceau</div>}
             </div>
           </div>;
         })}
@@ -4286,15 +4331,23 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
       {missingPresets.length>0&&<div style={{background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:"var(--r-xl)",padding:16,marginBottom:20}}>
         <div style={{fontSize:14,fontWeight:800,color:"var(--yellow)",marginBottom:4}}>⬇ Presets à installer</div>
         <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:10}}>{missingPresets.length} preset{missingPresets.length>1?"s":""} non installé{missingPresets.length>1?"s":""}</div>
-        {missingPresets.map(p=>(
+        {missingPresets.map(p=>{
+          // Phase 2 fix : icône depuis le device enregistré (deviceKey ann/plug
+          // est encore une chaîne legacy dans missingPresets — on cherche le
+          // premier device activé qui matche).
+          const dev=enabledDevices.find(d=>d.deviceKey===p.device);
+          const icon=dev?dev.icon:(p.device==="ann"?"📦":"🔌");
+          const color=p.device==="ann"?"var(--green)":"var(--accent)";
+          return (
           <div key={p.preset+p.device} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 10px",background:"rgba(251,191,36,0.04)",border:"1px solid rgba(251,191,36,0.12)",borderRadius:"var(--r-md)",marginBottom:4,flexWrap:"wrap"}}>
-            <span style={{fontSize:11,color:p.device==="ann"?"var(--green)":"var(--accent)",fontWeight:700,flexShrink:0}}>{p.device==="ann"?"📦":"🔌"}</span>
+            <span style={{fontSize:11,color,fontWeight:700,flexShrink:0}}>{icon}</span>
             <span style={{fontSize:11,color:"var(--text-bright)",fontWeight:600,flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.preset}</span>
             {p.score>0&&<span style={{fontSize:10,fontFamily:"var(--font-mono)",fontWeight:700,color:scoreColor(p.score)}}>{p.score}%</span>}
             {p.pack&&<span style={{fontSize:9,color:"var(--yellow)",fontWeight:600}}>📦 {p.pack}.zip</span>}
             <span style={{fontSize:9,color:"var(--text-dim)"}}>{p.songs.join(", ")}</span>
           </div>
-        ))}
+          );
+        })}
       </div>}
 
       <div className="bottom-action" style={{paddingTop:8}}>
@@ -5054,7 +5107,12 @@ function JamPresetItem({p,rank,isSelected,onSelect,banksAnn,banksPlug,guitars}){
   );
 }
 
-function JamScreen({banksAnn,banksPlug,allGuitars,availableSources}){
+function JamScreen({banksAnn,banksPlug,allGuitars,availableSources,profile}){
+  // Phase 2 fix : ne montre les sections Pédale/Plug que si le device
+  // correspondant est activé dans le profil.
+  const enabledDevices=getEnabledDevices(profile).length?getEnabledDevices(profile):getEnabledDevices({});
+  const hasPedalDevice=enabledDevices.some(d=>d.deviceKey==='ann');
+  const hasPlugDevice=enabledDevices.some(d=>d.deviceKey==='plug');
   const guitars=allGuitars||GUITARS;
   const [step,setStep]=useState("guitar"); // "guitar" | "style" | "results"
   const [guitarId,setGuitarId]=useState(null);
@@ -5083,23 +5141,23 @@ function JamScreen({banksAnn,banksPlug,allGuitars,availableSources}){
           </div>
         </div>
 
-        {/* Top 3 Pédale */}
-        <div style={{marginBottom:16}}>
+        {/* Top 3 Pédale — n'apparaît que si un device pedal est activé */}
+        {hasPedalDevice&&<div style={{marginBottom:16}}>
           <div style={{fontSize:12,color:"var(--text-muted)",fontWeight:700,fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:8}}>📦 Top 3 — Pedale <span style={{fontSize:10,color:"var(--text-dim)",fontWeight:400,textTransform:"none"}}>(presets installés)</span></div>
           {recs.annTop3.length>0
             ?recs.annTop3.map((p,i)=><JamPresetItem key={p.name} p={p} rank={i} isSelected={selectedJam===p.name} onSelect={()=>setSelectedJam(selectedJam===p.name?null:p.name)} banksAnn={banksAnn} banksPlug={banksPlug} guitars={guitars}/>)
             :<div style={{fontSize:12,color:"var(--text-dim)",padding:"12px",background:"var(--a3)",borderRadius:"var(--r-md)",textAlign:"center"}}>Aucun preset {styleInfo?.label} installé sur la Pédale pour ce type de guitare.</div>
           }
-        </div>
+        </div>}
 
-        {/* Best Plug */}
-        <div style={{marginBottom:16}}>
+        {/* Best Plug — n'apparaît que si tonex-plug est activé */}
+        {hasPlugDevice&&<div style={{marginBottom:16}}>
           <div style={{fontSize:12,color:"var(--text-muted)",fontWeight:700,fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:8}}>🔌 Top 3 — ToneX Plug <span style={{fontSize:10,color:"var(--text-dim)",fontWeight:400,textTransform:"none"}}>(presets installés)</span></div>
           {recs.plugBest.length>0
             ?recs.plugBest.map((p,i)=><JamPresetItem key={p.name} p={p} rank={i} isSelected={selectedJam===p.name} onSelect={()=>setSelectedJam(selectedJam===p.name?null:p.name)} banksAnn={banksAnn} banksPlug={banksPlug} guitars={guitars}/>)
             :<div style={{fontSize:12,color:"var(--text-dim)",padding:"12px",background:"var(--a3)",borderRadius:"var(--r-md)",textAlign:"center"}}>Aucun preset {styleInfo?.label} installé sur le Plug pour ce type de guitare.</div>
           }
-        </div>
+        </div>}
 
         {/* Top 3 Full Catalog */}
         <div style={{marginBottom:16}}>
@@ -5724,20 +5782,20 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
               </div>
               <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Meilleurs presets installes</div>
               <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                {songResult.preset_ann&&<div style={{display:"flex",alignItems:"center",gap:8,background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-md)",padding:"8px 10px",flexWrap:"wrap"}}>
-                  <StatusDot score={songResult.preset_ann.score} ideal={songResult.preset_ann.label===songResult.ideal_preset}/>
-                  <span style={{fontSize:11,color:"var(--text-muted)",fontWeight:700,flexShrink:0}}>Pedale</span>
-                  <span style={{fontSize:11,color:"var(--text)",fontWeight:600,flex:1}}>{songResult.preset_ann.label}</span>
-                  {songResult.preset_ann.score&&<span style={{fontSize:10,fontWeight:700,color:scoreColor(songResult.preset_ann.score)}}>{songResult.preset_ann.score}%</span>}
-                  <span style={{fontSize:10,color:"var(--text-muted)"}}>Banque {songResult.preset_ann.bank}{songResult.preset_ann.col}</span>
-                </div>}
-                {songResult.preset_plug&&<div style={{display:"flex",alignItems:"center",gap:8,background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-md)",padding:"8px 10px",flexWrap:"wrap"}}>
-                  <StatusDot score={songResult.preset_plug.score} ideal={songResult.preset_plug.label===songResult.ideal_preset}/>
-                  <span style={{fontSize:11,color:"var(--text-muted)",fontWeight:700,flexShrink:0}}>Plug</span>
-                  <span style={{fontSize:11,color:"var(--text)",fontWeight:600,flex:1}}>{songResult.preset_plug.label}</span>
-                  {songResult.preset_plug.score&&<span style={{fontSize:10,fontWeight:700,color:scoreColor(songResult.preset_plug.score)}}>{songResult.preset_plug.score}%</span>}
-                  <span style={{fontSize:10,color:"var(--text-muted)"}}>Banque {songResult.preset_plug.bank}{songResult.preset_plug.col}</span>
-                </div>}
+                {/* Phase 2 fix : itère sur les devices activés du profil. */}
+                {(getEnabledDevices(profile).length?getEnabledDevices(profile):getEnabledDevices({})).map(d=>{
+                  const presetData=songResult[d.presetResultKey];
+                  if(!presetData) return null;
+                  return (
+                    <div key={d.id} style={{display:"flex",alignItems:"center",gap:8,background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-md)",padding:"8px 10px",flexWrap:"wrap"}}>
+                      <StatusDot score={presetData.score} ideal={presetData.label===songResult.ideal_preset}/>
+                      <span style={{fontSize:11,color:"var(--text-muted)",fontWeight:700,flexShrink:0}}>{d.icon} {d.label}</span>
+                      <span style={{fontSize:11,color:"var(--text)",fontWeight:600,flex:1}}>{presetData.label}</span>
+                      {presetData.score&&<span style={{fontSize:10,fontWeight:700,color:scoreColor(presetData.score)}}>{presetData.score}%</span>}
+                      {presetData.bank!=null&&<span style={{fontSize:10,color:"var(--text-muted)"}}>Banque {presetData.bank}{presetData.col}</span>}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -6391,9 +6449,9 @@ function App() {
   else if(screen==="profile") screenContent=<MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/>;
   else if(screen==="settings") screenContent=<ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} songDb={songDb} onSongDb={setSongDb} setlists={setlists} onSetlists={setSetlists}/>;
   else if(screen==="setlists") screenContent=<SetlistsScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} activeProfileId={activeProfileId} profile={profile}/>;
-  else if(screen==="jam") screenContent=<div><Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Jammer"}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>🎲 Jammer</div><JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources}/></div>;
+  else if(screen==="jam") screenContent=<div><Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Jammer"}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>🎲 Jammer</div><JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources} profile={profile}/></div>;
   else if(screen==="explore") screenContent=<div><Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Explorer"}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>🎛️ Explorer les presets</div><PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={profile.customPacks} guitars={allGuitars} toneNetPresets={toneNetPresets}/></div>;
-  else if(screen==="optimizer") screenContent=<BankOptimizerScreen songDb={songDb} setlists={mySetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} allGuitars={allGuitars} availableSources={availableSources} onNavigate={setScreen}/>;
+  else if(screen==="optimizer") screenContent=<BankOptimizerScreen songDb={songDb} setlists={mySetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} allGuitars={allGuitars} availableSources={availableSources} onNavigate={setScreen} profile={profile}/>;
   else if(screen==="synthesis"&&synth) screenContent=<SynthesisScreen songs={songs} gps={synth.gps} aiR={synth.aiR} onBack={()=>setScreen("recap")} onNavigate={setScreen} songDb={songDb} banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources} profile={profile}/>;
   else if(screen==="recap") screenContent=<RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDb} onSongDb={setSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profile={profile}/>;
   else screenContent=<HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} onOptimizer={()=>setScreen("optimizer")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/>;
