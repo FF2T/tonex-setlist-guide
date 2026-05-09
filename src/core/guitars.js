@@ -19,6 +19,8 @@ const GUITARS = [
   {id:"jazzmaster",name:"Jazzmaster",short:"Jazzmaster",type:"SC",brand:"Fender"},
 ];
 
+const GUITAR_BRANDS = [...new Set(GUITARS.map(g=>g.brand))];
+
 function findGuitar(id){var g=GUITARS.find(x=>x.id===id);if(g)return g;if(window.__allGuitars){var cg=window.__allGuitars.find(x=>x.id===id);if(cg)return cg;}return null;}
 
-export { GUITARS, findGuitar };
+export { GUITARS, GUITAR_BRANDS, findGuitar };

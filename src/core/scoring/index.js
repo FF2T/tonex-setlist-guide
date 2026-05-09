@@ -6,6 +6,7 @@
 // futurs devices, tests).
 
 import { findGuitar } from '../guitars.js';
+import { findCatalogEntry } from '../catalog.js';
 import { computePickupScore, BASE_SCORES } from './pickup.js';
 import {
   GUITAR_PROFILES, inferGuitarProfile, findGuitarProfile,
@@ -70,9 +71,24 @@ function computeFinalScore(preset,guitarId,songStyle,songTargetGain,songRefAmp,_
   return result;
 }
 
+// Score simplifié sans contexte morceau (pour affichage liste, worstSlot, etc.)
+function computeSimpleScore(presetName,guitarId,gType){
+  const entry=findCatalogEntry(presetName);
+  if(!entry) return 60;
+  if(!guitarId){return entry.scores?.[gType]??60;}
+  const gp=findGuitarProfile(guitarId);
+  if(!gp){const gt=findGuitar(guitarId)?.type||gType||"HB";return entry.scores?.[gt]??60;}
+  const presetGain=gainToNumeric(entry.gain);
+  const presetGainRange=getGainRange(presetGain);
+  const pickupScore=entry.scores?.[gp.pickupType]??60;
+  const guitarScore2=computeGuitarScoreV2(guitarId,entry.style,presetGainRange,entry.voicing);
+  // Sans contexte morceau : pickup 60% + guitar 40%
+  return Math.max(30,Math.min(99,Math.round(pickupScore*0.6+guitarScore2*0.4)));
+}
+
 export {
   SCORING_VERSION, SCORING_WEIGHTS,
-  computeGainMatchScore, computeFinalScore,
+  computeGainMatchScore, computeFinalScore, computeSimpleScore,
   // re-exports
   BASE_SCORES, computePickupScore,
   GUITAR_PROFILES, inferGuitarProfile, findGuitarProfile,
