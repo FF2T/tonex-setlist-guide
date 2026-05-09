@@ -77,6 +77,7 @@ import GuitarSilhouette from './app/components/GuitarSilhouette.jsx';
 import NavIcon from './app/components/NavIcon.jsx';
 import AppFooter from './app/components/AppFooter.jsx';
 import Breadcrumb from './app/components/Breadcrumb.jsx';
+import SongCollapsedDeviceRows from './app/components/SongCollapsedDeviceRows.jsx';
 
 let DEFAULT_GEMINI_KEY = "";
 
@@ -3476,25 +3477,13 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                   }
                   {gScore>0&&<span style={{fontSize:10,fontWeight:800,color:scoreColor(gScore),background:scoreBg(gScore),borderRadius:"var(--r-sm)",padding:"1px 6px",border:`1px solid ${scoreColor(gScore)}30`}} title={scoreLabel(gScore).tip+"  —  score guitare"}>{gScore}%</span>}
                 </div>;})()}
-                {!isExpanded&&(()=>{
-                  // Phase 2 fix : itère sur les devices activés du profil au lieu
-                  // de hardcoder Pedal+Plug. Garantit que la vue repliée respecte
-                  // le toggle de Mes appareils.
-                  const enabledDevices=getActiveDevicesForRender(profile);
-                  const devicePresets=enabledDevices.map(d=>{
-                    const banks=d.bankStorageKey==='banksAnn'?banksAnn:banksPlug;
-                    const presetData=aiC?.[d.presetResultKey];
-                    return {d,banks,presetData};
-                  }).filter(x=>x.presetData);
-                  if(devicePresets.length===0) return null;
-                  return <div style={{display:"flex",flexDirection:"column",gap:3,marginTop:4}}>
-                    {devicePresets.map(({d,banks,presetData})=>(
-                      <React.Fragment key={d.id}>
-                        {presetRow(d.icon,presetData.label,banks,presetData.score)}
-                      </React.Fragment>
-                    ))}
-                  </div>;
-                })()}
+                {!isExpanded&&<SongCollapsedDeviceRows
+                  profile={profile}
+                  aiC={aiC}
+                  banksAnn={banksAnn}
+                  banksPlug={banksPlug}
+                  renderRow={(d,banks,presetData)=>presetRow(d.icon,presetData.label,banks,presetData.score)}
+                />}
               </div>
             </div>
             {isExpanded&&<SongDetailCard song={s} banksAnn={banksAnn} banksPlug={banksPlug} onBanksAnn={onBanksAnn} onBanksPlug={onBanksPlug} onClose={()=>setExpandedId(null)} guitars={allGuitars} availableSources={availableSources} savedGuitarId={activeSl?.guitars?.[s.id]} onGuitarChange={(songId,gId)=>{if(activeSlId)onSetlists(p=>p.map(sl=>sl.id===activeSlId?{...sl,guitars:{...(sl.guitars||{}),[songId]:gId}}:sl));}} aiProvider={aiProvider} aiKeys={aiKeys} onSongDb={onSongDb} profile={profile}/>}
