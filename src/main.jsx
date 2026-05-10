@@ -2804,6 +2804,14 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
   const [gId,setGId]=useState(savedGuitarId||ig[0]||"");
   const [reloading,setReloading]=useState(false);
   const [localAiResult,setLocalAiResult]=useState(null);
+  // Phase 5 (Item A) — surface des erreurs fetchAI au lieu du catch
+  // silencieux. Le bug "impossible de sélectionner une guitare" sur
+  // morceaux Newzik venait du fait que (a) handleGuitarChange et
+  // useEffect lançaient tous deux un fetchAI en parallèle, (b) le
+  // .catch(()=>{}) masquait l'erreur (clé API manquante typique avant
+  // qu'Arthur configure la sienne). L'utilisateur voyait juste rien.
+  // Maintenant : un seul path (useEffect), erreurs visibles.
+  const [localAiErr,setLocalAiErr]=useState(null);
   const [showFeedback,setShowFeedback]=useState(false);
   const [showCot,setShowCot]=useState(false);
   const [installTarget,setInstallTarget]=useState(null); // {preset}
@@ -2820,11 +2828,13 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
       var cleaned2={...song.aiCache.result,preset_ann:null,preset_plug:null,ideal_preset:null,ideal_preset_score:0,ideal_top3:null};
       const recalc=enrichAIResult(cleaned2,gType,gId,banksAnn,banksPlug);
       setLocalAiResult(recalc);
+      setLocalAiErr(null);
       setTimeout(()=>onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:{...updateAiCache(x.aiCache,gId,recalc),sv:SCORING_VERSION}}:x)),0);
       return;
     }
     if(!gId||!onSongDb) return;
     setReloading(true);
+    setLocalAiErr(null);
     // Phase 3.6 — re-fetch passif (aiCache absent ou périmé) : on
     // pousse au prompt IA l'union all-rigs des guitares (tous profils
     // + customs). Permet à un profil non-admin (Arthur, Franck) de
@@ -2833,35 +2843,28 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
     fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars)
       .then(r=>{
         setLocalAiResult(r);
+        setLocalAiErr(null);
         onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:{...updateAiCache(x.aiCache,gId,r),sv:SCORING_VERSION}}:x));
       })
-      .catch(()=>{})
+      .catch(e=>{
+        // Phase 5 (Item A) — capture l'erreur (clé API manquante,
+        // réseau, parse JSON) au lieu de la swallow. Affichée plus
+        // bas dans la card.
+        setLocalAiErr(e?.message||String(e));
+      })
       .finally(()=>setReloading(false));
   },[song.id,gId,needsRescore]);
+  // Phase 5 (Item A) — handleGuitarChange ne lance PLUS fetchAI :
+  // setGId déclenche le useEffect qui prend en charge l'analyse.
+  // Avant ça lançait un fetchAI inline ET le useEffect, soit 2
+  // requêtes parallèles. Pour les morceaux importés Newzik (aiCache
+  // null), si la 1ère échouait silencieusement et la 2e plantait le
+  // .then en course, l'utilisateur restait bloqué.
   const handleGuitarChange=(v)=>{
     setGId(v);
+    setLocalAiResult(null); // force re-fetch via useEffect
+    setLocalAiErr(null);
     if(onGuitarChange)onGuitarChange(song.id,v);
-    if(onSongDb){
-      // Si on a déjà du CoT, rescore local sans rappeler l'IA
-      const base=localAiResult||song.aiCache?.result;
-      if(base?.cot_step1){
-        const gType=(guitars||GUITARS).find(x=>x.id===v)?.type||"HB";
-        var cleaned={...base,preset_ann:null,preset_plug:null,ideal_preset:null,ideal_preset_score:0,ideal_top3:null};
-        const recalc=enrichAIResult(cleaned,gType,v,banksAnn,banksPlug);
-        setLocalAiResult(recalc);
-        setTimeout(()=>onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:updateAiCache(x.aiCache,v,recalc)}:x)),0);
-        return;
-      }
-      setReloading(true);setLocalAiResult(null);
-      // Phase 3.6 — voir commentaire ci-dessus : union all-rigs.
-      fetchAI(song,v,banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars)
-        .then(r=>{
-          setLocalAiResult(r);
-          onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:updateAiCache(x.aiCache,v,r)}:x));
-        })
-        .catch(()=>{})
-        .finally(()=>setReloading(false));
-    }
   };
   const g=(guitars||GUITARS).find(x=>x.id===gId);
   const type=g?.type||"HB";
@@ -3256,7 +3259,16 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
       </div>
 
       </>}
-      {!reloading&&!aiC&&<div style={{fontSize:12,color:"var(--text-dim)",padding:"10px 0"}}>Aucune analyse IA en cache. Selectionne une guitare pour lancer l'analyse.</div>}
+      {!reloading&&!aiC&&!localAiErr&&<div style={{fontSize:12,color:"var(--text-dim)",padding:"10px 0"}}>Aucune analyse IA en cache. Selectionne une guitare pour lancer l'analyse.</div>}
+      {/* Phase 5 (Item A) — erreur fetchAI rendue visible. Avant
+          Phase 5, le catch était silencieux et l'utilisateur ne
+          savait pas pourquoi rien ne se passait sur les morceaux
+          Newzik fraîchement importés (aiCache null + clé API
+          manquante = double bloquage invisible). */}
+      {localAiErr&&!reloading&&<div data-testid="song-ai-error" style={{fontSize:12,color:"var(--red)",background:"var(--red-bg)",border:"1px solid var(--red-border)",borderRadius:"var(--r-md)",padding:"8px 10px",margin:"6px 0",lineHeight:1.4}}>
+        ⚠️ Analyse IA échouée : <b>{localAiErr}</b>
+        <div style={{fontSize:10,color:"var(--text-muted)",marginTop:4}}>Vérifie ta clé API dans ⚙️ Paramètres puis re-sélectionne la guitare pour relancer.</div>
+      </div>}
 
       {/* ── SECTION 6 : Améliorer ── */}
       {!reloading&&aiC&&<div>
