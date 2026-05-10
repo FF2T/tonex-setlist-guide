@@ -11,7 +11,7 @@ import { computePickupScore, BASE_SCORES } from './pickup.js';
 import {
   GUITAR_PROFILES, inferGuitarProfile, findGuitarProfile,
   computeGuitarScoreV2, matchGuitarName, findGuitarByAIName,
-  findCotEntryForGuitar, localGuitarSongScore,
+  findCotEntryForGuitar, localGuitarSongScore, pickTopGuitar,
   guitarChoiceFeedback, localGuitarSettings,
 } from './guitar.js';
 import {
@@ -93,7 +93,7 @@ export {
   BASE_SCORES, computePickupScore,
   GUITAR_PROFILES, inferGuitarProfile, findGuitarProfile,
   computeGuitarScoreV2, matchGuitarName, findGuitarByAIName,
-  findCotEntryForGuitar, localGuitarSongScore,
+  findCotEntryForGuitar, localGuitarSongScore, pickTopGuitar,
   guitarChoiceFeedback, localGuitarSettings,
   GAIN_RANGES, getGainRange, gainToNumeric, inferGainFromName,
   STYLE_COMPATIBILITY, computeStyleMatchScore,

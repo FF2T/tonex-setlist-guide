@@ -242,6 +242,60 @@ function localGuitarSongScore(g,aiC){
   return Math.max(30,Math.min(99,Math.round(pickupScore*0.6+styleScore*0.4)));
 }
 
+// Phase 3.9 — Auto-pick top guitar robuste au cache IA stale.
+// Combine la ranking IA (aiC.cot_step2_guitars, top 2-3 only) avec un
+// re-scoring local pour les guitares ABSENTES du cache. Garantit qu'une
+// guitare ajoutée APRÈS la dernière passe IA (ex. custom Epiphone
+// ES-339 ajoutée dans le profil Arthur) puisse devenir top automatique
+// même si l'IA pointe encore vers la guitare précédente (SG, LP, etc.)
+// dans cot_step2_guitars / ideal_guitar.
+//
+// Pour chaque guitare de availableGuitars :
+//   1. Si elle apparaît dans aiC.cot_step2_guitars (matchGuitarName) :
+//      on prend son score IA (= confiance dans le ranking IA quand
+//      toutes les guitares sont dans le cache).
+//   2. Sinon : on calcule un score local équivalent à
+//      localGuitarSongScore mais sans dépendance window.__allGuitars
+//      (profil résolu via GUITAR_PROFILES puis fallback
+//      inferGuitarProfile sur name+type).
+//
+// Retourne le guitar object au top score, ou null si liste vide.
+//
+// Sans aiC, on retombe purement sur le scoring local (pickup neutre).
+function pickTopGuitar(aiC, availableGuitars, _song){
+  if(!Array.isArray(availableGuitars)||availableGuitars.length===0) return null;
+  const cot=Array.isArray(aiC?.cot_step2_guitars)?aiC.cot_step2_guitars:null;
+  const scored=availableGuitars.map((g)=>{
+    if(!g) return {g,score:0};
+    // 1. IA score si la guitare est dans cot_step2_guitars.
+    if(cot){
+      const entry=findCotEntryForGuitar(cot,g);
+      if(entry&&typeof entry.score==='number'){
+        return {g,score:entry.score,source:'cot'};
+      }
+    }
+    // 2. Score local. Profil résolu sans window dep pour testabilité.
+    const profile=GUITAR_PROFILES[g.id]||inferGuitarProfile(g.name,g.type);
+    if(!aiC||!profile) return {g,score:50,source:'fallback'};
+    const pref=aiC.pickup_preference;
+    const pickupScore=(!pref||pref==='any')?80:(pref===g.type?95:55);
+    const presetGainRange=getGainRange(typeof aiC.target_gain==='number'?aiC.target_gain:5);
+    let styleScore=70;
+    if(aiC.song_style){
+      const sm=profile.styleMods?.[aiC.song_style]||0;
+      const gm=profile.gainAffinity?.[presetGainRange]||0;
+      let resonanceMod=0;
+      if(profile.bodyResonance==='semi_hollow'&&['clean','crunch'].includes(presetGainRange)&&['blues','jazz'].includes(aiC.song_style)) resonanceMod=+4;
+      if(profile.bodyResonance==='semi_hollow'&&presetGainRange==='high_gain') resonanceMod=-3;
+      styleScore=Math.max(0,Math.min(100,50+(sm+gm+resonanceMod)*3));
+    }
+    const score=Math.max(30,Math.min(99,Math.round(pickupScore*0.6+styleScore*0.4)));
+    return {g,score,source:'local'};
+  });
+  scored.sort((a,b)=>(b.score||0)-(a.score||0));
+  return scored[0]?.g||null;
+}
+
 function guitarChoiceFeedback(g,aiC,cotEntry){
   if(!g||!aiC) return null;
   if(cotEntry?.reason) return cotEntry.reason;
@@ -316,6 +370,6 @@ function localGuitarSettings(g,aiC){
 export {
   GUITAR_PROFILES, inferGuitarProfile, findGuitarProfile,
   computeGuitarScoreV2, matchGuitarName, findGuitarByAIName,
-  findCotEntryForGuitar, localGuitarSongScore,
+  findCotEntryForGuitar, localGuitarSongScore, pickTopGuitar,
   guitarChoiceFeedback, localGuitarSettings,
 };

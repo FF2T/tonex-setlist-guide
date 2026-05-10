@@ -44,7 +44,8 @@ import {
   computeStyleMatchScore, computeRefAmpScore,
   inferGuitarProfile, findGuitarProfile,
   matchGuitarName, findGuitarByAIName, findCotEntryForGuitar,
-  localGuitarSongScore, guitarChoiceFeedback, localGuitarSettings,
+  localGuitarSongScore, pickTopGuitar,
+  guitarChoiceFeedback, localGuitarSettings,
   getGainRange, gainToNumeric, inferGainFromName,
 } from './core/scoring/index.js';
 
@@ -432,20 +433,25 @@ function getGr(song, type) {
   return p.gr[type] || p.gr["HB"] || "";
 }
 function getIg(song, guitars) {
-  // AI ideal guitar takes priority — but only if in user's collection
-  var aiG=song.aiCache?.result?.ideal_guitar;
   var allG=guitars||GUITARS;
-  if(aiG){
-    var m=allG.find(function(g){return g.name===aiG||g.short===aiG||aiG.toLowerCase().includes(g.name.toLowerCase())||g.name.toLowerCase().includes(aiG.toLowerCase());});
-    if(m) return [m.id];
-    // Ideal guitar not in user's collection — find best match by pickup type
-    var aiPickup=song.aiCache?.result?.pickup_preference;
-    if(aiPickup&&aiPickup!=="any"){
-      var typeMatch=allG.filter(function(g){return g.type===aiPickup;});
-      if(typeMatch.length) return [typeMatch[0].id];
-    }
-    if(allG.length) return [allG[0].id];
+  var aiC=song.aiCache?.result;
+  // Phase 3.9 — Auto-pick robuste au cache IA stale.
+  // Avant Phase 3.9 on faisait confiance aveugle à aiC.ideal_guitar
+  // (texte). Conséquence : une guitare ajoutée APRÈS la dernière passe
+  // IA (custom Epiphone ES-339 dans le profil Arthur) ne pouvait
+  // jamais devenir top tant que le cache n'était pas re-fetché. Le
+  // bouton "🔄 Rafraîchir l'IA" Phase 3.7 résout le cas d'usage admin
+  // mais nécessite un re-fetch effectif (long, consomme du quota IA).
+  // Désormais on combine IA cot_step2_guitars + scoring local sur
+  // TOUTES les guitares de allG (pickTopGuitar). Une guitare absente
+  // du cache mais qui scoring-bat la guitare ranked-IA emporte le
+  // top auto.
+  if(aiC&&allG.length){
+    var top=pickTopGuitar(aiC,allG,song);
+    if(top) return [top.id];
   }
+  // Fallback historique : SONG_PRESETS.ig (morceau du seed sans
+  // aiCache, ou aiCache mal formé).
   var p = SONG_PRESETS[song.id];
   var ig=song.ig?.length?song.ig:p?.ig;
   if(ig?.length){
@@ -475,7 +481,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.7.9";
+const APP_VERSION = "8.8.0";
 const ADMIN_PIN = "212402";
 
 

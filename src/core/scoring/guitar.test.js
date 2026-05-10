@@ -4,7 +4,9 @@
 // 22 snapshots au total.
 
 import { describe, test, expect } from 'vitest';
-import { computeGuitarScoreV2, inferGuitarProfile, localGuitarSongScore } from './guitar.js';
+import {
+  computeGuitarScoreV2, inferGuitarProfile, localGuitarSongScore, pickTopGuitar,
+} from './guitar.js';
 import { computeFinalScore } from './index.js';
 
 const ALL_GUITARS = [
@@ -129,5 +131,97 @@ describe('localGuitarSongScore · Arthur ES-339 vs SG sur BB King "Thrill is Gon
     const es339 = inferGuitarProfile('Epiphone ES-339', 'HB');
     const sg = inferGuitarProfile('SG Standard 61', 'HB');
     expect(score(es339, 'crunch', 'blues')).toBeGreaterThan(score(sg, 'crunch', 'blues'));
+  });
+});
+
+describe('pickTopGuitar (Phase 3.9) — auto-pick robuste au cache IA stale', () => {
+  // Profil Arthur : SG Standard 61 (collection standard) + Epiphone
+  // ES-339 (custom). Les 2 sont des HB. ES-339 est inférée
+  // semi_hollow via Phase 3.8.
+  const SG = { id: 'sg61', name: 'SG Standard 61', short: 'SG 61', type: 'HB' };
+  const ES339 = { id: 'arthur_es339', name: 'Epiphone ES-339', type: 'HB' };
+  const LP60 = { id: 'lp60', name: 'Les Paul Standard 60', short: 'LP 60', type: 'HB' };
+
+  // Contexte morceau : BB King "The Thrill is Gone" — blues, gain
+  // clean (target_gain ≤ 4), pickup_preference HB.
+  const BBKING_AI = {
+    cot_step1: 'Profil tonal blues clean...',
+    cot_step3_amp: 'Fender Super Reverb...',
+    song_style: 'blues',
+    target_gain: 3,
+    pickup_preference: 'HB',
+    ideal_guitar: 'SG Standard 61',
+  };
+
+  test("CACHE STALE — cot_step2 sans ES-339 → ES-339 wins via re-scoring local (regression Arthur)", () => {
+    // Cache figé AVANT l'ajout de l'ES-339 : il ne mentionne que SG.
+    const aiC = {
+      ...BBKING_AI,
+      cot_step2_guitars: [
+        { name: 'SG Standard 61', score: 88, reason: 'HB classique' },
+      ],
+    };
+    const top = pickTopGuitar(aiC, [SG, ES339], { id: 'bbking_thrill', title: 'The Thrill is Gone', artist: 'B.B. King' });
+    expect(top).not.toBeNull();
+    expect(top.id).toBe('arthur_es339');
+  });
+
+  test("CACHE COMPLET — cot_step2 [LP60(95), SG(90)] → LP60 wins (respect ranking IA quand toutes sont dans le cache)", () => {
+    const aiC = {
+      ...BBKING_AI,
+      cot_step2_guitars: [
+        { name: 'Les Paul Standard 60', score: 95, reason: 'top' },
+        { name: 'SG Standard 61', score: 90, reason: '2e' },
+      ],
+    };
+    const top = pickTopGuitar(aiC, [LP60, SG], { id: 'bbking_thrill' });
+    expect(top.id).toBe('lp60');
+  });
+
+  test("CACHE PARTIEL — cot_step2 [SG(88)] mais ES-339 score local 91 → ES-339 wins (combinaison IA+local)", () => {
+    // Vérifie que pickTopGuitar fait bien la comparaison numérique
+    // entre score IA (88) et score local (≥ 90 pour ES-339 sur blues
+    // clean grâce au bonus semi-hollow +4).
+    const aiC = {
+      ...BBKING_AI,
+      cot_step2_guitars: [{ name: 'SG Standard 61', score: 88 }],
+    };
+    const top = pickTopGuitar(aiC, [SG, ES339], null);
+    expect(top.id).toBe('arthur_es339');
+  });
+
+  test("availableGuitars vide → null", () => {
+    expect(pickTopGuitar(BBKING_AI, [], null)).toBeNull();
+    expect(pickTopGuitar(BBKING_AI, null, null)).toBeNull();
+  });
+
+  test("aiCache absent → fallback scoring local pur, retourne meilleur HB sur blues", () => {
+    // Sans aiC, on ne peut pas scorer style/pickup → toutes guitares
+    // ont un score fallback 50. Comportement : retourne le premier
+    // (déterministe par ordre de availableGuitars).
+    const top = pickTopGuitar(null, [SG, ES339], null);
+    expect(top).not.toBeNull();
+    // Soit SG (premier du tableau) soit ES-339 — les deux sont
+    // acceptables ; ce qui compte c'est qu'on ne crashe pas.
+    expect(['sg61', 'arthur_es339']).toContain(top.id);
+  });
+
+  test("aiCache sans cot_step2 mais avec song_style → scoring local pur, ES-339 wins sur blues clean", () => {
+    const aiC = { ...BBKING_AI, cot_step2_guitars: undefined };
+    const top = pickTopGuitar(aiC, [SG, ES339], null);
+    expect(top.id).toBe('arthur_es339');
+  });
+
+  test("Cache complet sur high_gain blues → ES-339 pénalisé (-3) ne sort plus devant", () => {
+    // Garde-fou : la pénalité semi_hollow + high_gain (-3) doit
+    // s'appliquer aussi via pickTopGuitar.
+    const hardRockAI = {
+      song_style: 'hard_rock',
+      target_gain: 9,
+      pickup_preference: 'HB',
+      cot_step2_guitars: [], // forcer scoring local
+    };
+    const top = pickTopGuitar(hardRockAI, [SG, ES339], null);
+    expect(top.id).toBe('sg61');
   });
 });
