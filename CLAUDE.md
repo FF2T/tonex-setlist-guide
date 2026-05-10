@@ -581,6 +581,82 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
+## État Phase 5 (terminée 2026-05-10, tag `phase-5-done`)
+
+Polish final + bugs résiduels en 7 commits atomiques `[phase-5]` :
+
+- **Item G — code mort supprimé.** `AICard` (92 lignes) et
+  `NewSongExplorer` (93 lignes) supprimés de main.jsx (audit
+  Phase 2 confirmé : zéro instance JSX). main.jsx 6836 → 6651
+  lignes.
+
+- **Item C — Service Worker stale-while-revalidate sur le HTML.**
+  Avant Phase 5 : network-first avec fallback cache (en pratique
+  bloquant sur connexion lente). Après : SWR sur navigation/HTML —
+  sert immédiatement le cache + fetch en background pour la
+  prochaine visite. CACHE bumpé tonex-v52 → v53.
+
+- **Item F — `core/sources.js`.** Centralise SOURCE_IDS,
+  SOURCE_LABELS, SOURCE_BADGES, SOURCE_INFO + helpers
+  `getSourceBadge(srcId)` et `getSourceInfo(entry)`. main.jsx
+  refactor : `srcBadge` et `presetSourceInfo` deviennent
+  one-liner sur ces helpers ; définition locale `SOURCE_LABELS`
+  supprimée.
+
+- **Item A — fix sélection guitare sur morceaux Newzik.**
+  3 bugs chaînés résolus : (1) double `fetchAI` (handleGuitarChange +
+  useEffect en parallèle) → `handleGuitarChange` devient passive
+  (setGId + reset + propage `onGuitarChange`), seul le useEffect
+  lance fetchAI ; (2) `.catch(()=>{})` silencieux → erreur capturée
+  dans `setLocalAiErr` et affichée dans la card avec instruction
+  "Vérifie ta clé API" ; (3) `setLocalAiResult(null)` inline annulait
+  le useEffect en cours → supprimé. Test régression dédié.
+
+- **Item E — drop legacy `profile.devices`.**
+  STATE_VERSION=6, `migrateV5toV6` drop le champ après dérivation
+  defensive de `enabledDevices` si manquant. `makeDefaultProfile`
+  ne crée plus `devices`. 4 call sites refactorés
+  (`MesAppareilsTab` mirror retiré, locked sources, tabs profile,
+  ViewProfileScreen) → utilisent `enabledDevices.includes('tonex-X')`.
+  SW CACHE bumpé v53 → v54.
+
+- **Item I — UI paramOverrides collapsable dans ScenesEditor.**
+  Sous chaque scene, sous-section "▼ Paramètres avancés" cachée par
+  défaut (power users only). Mini-form inline : sélecteur bloc + input
+  paramKey (datalist) + input value. Conversion auto numérique. Mode
+  read-only montre les overrides existants sans le mini-form. Badge
+  "ovr" sur LiveBlock TMP pour signaler les scenes avec overrides
+  actifs.
+
+- **Item K — Export PDF setlist (jsPDF).**
+  `src/app/screens/SetlistPdfExport.js` génère 1 page par morceau :
+  titre 24pt + artiste + meta (BPM/key/year/album) + Référence
+  (SONG_HISTORY) + Guitare reco + Patches par device (ToneX
+  bank+slot, TMP nom+chaîne) + description seed. Bouton 📄 dans
+  l'éditeur setlists (mode édition). Defensive : songs null
+  no-throw, render fail per-song catch and continue.
+
+**Schéma localStorage v6** :
+```
+profile {
+  ...,                                   // v5 inchangé
+  // devices: { pedale, anniversary, plug }   ← SUPPRIMÉ Phase 5 Item E
+  enabledDevices: string[]               // seule source de vérité
+}
+```
+
+**Suite tests : 392 → 436** (+44 nouveaux Phase 5).
+
+**Dette résiduelle (Phase 6+ si nécessaire)** :
+- jsPDF coûte 240 KB gzip. Si jugé trop lourd, basculer sur une
+  page HTML imprimable (window.print, pas de dep).
+- Browser de patches dans MonProfilScreen (lister custom +
+  factory + overrides utilisateur) — toujours dette Phase 4.
+- Editor pour patches custom from scratch — dette Phase 4.
+- Wake Lock toggle manuel dans LiveScreen — dette Phase 4.
+- AI populating `preset_tmp` dans aiCache — dette Phase 3+.
+- Découpage main.jsx (~6700 lignes) — dette Phase 1+ persistante.
+
 ## État Phase 4.1 (fixes complémentaires, 2026-05-10, re-tag `phase-4-done`)
 
 3 fixes Phase 4 complémentaires en 1 commit `[phase-4.1]` :
