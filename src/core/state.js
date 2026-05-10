@@ -167,6 +167,30 @@ function ensureProfilesV4(profiles) {
   return out;
 }
 
+// Heal d'un profil v6 (Phase 5.1 FIX 1) : drop le champ legacy
+// `devices` après avoir healed v3/v4. Le bug d'origine venait du
+// fait que Firestore poll injectait des profils stale (v5- avec
+// `devices`) via ensureProfilesV4, qui ne droppait pas. Résultat :
+// après chaque poll, profile.devices était ré-injecté dans le state
+// local. Maintenant ensureProfileV6 garantit l'absence du champ.
+// Idempotent : si pas de `devices`, retourne la même référence (no-op).
+function ensureProfileV6(profile) {
+  if (!profile) return profile;
+  const v4healed = ensureProfileV4(profile);
+  if (!('devices' in v4healed)) return v4healed;
+  const { devices, ...rest } = v4healed;
+  return rest;
+}
+
+function ensureProfilesV6(profiles) {
+  if (!profiles) return profiles;
+  const out = {};
+  for (const [id, p] of Object.entries(profiles)) {
+    out[id] = ensureProfileV6(p);
+  }
+  return out;
+}
+
 // ─── makeDefaultProfile ──────────────────────────────────────────────
 //
 // Phase 5 (Item E) — le champ legacy `devices` (pedale, anniversary,
@@ -246,21 +270,25 @@ function migrateV3toV4(v3) {
 // source de vérité. La migration est defensive : si enabledDevices
 // est absent (cas Firestore stale arrivé avec v3 partiel), on le
 // dérive depuis devices avant de drop. Aucun autre champ touché.
+//
+// Phase 5.1 FIX 1 : délégué à ensureProfileV6 pour garantir que tous
+// les call sites (loadState + Firestore poll via ensureProfilesV6)
+// appliquent exactement le même heal. Le bug original venait du fait
+// que migrateV5toV6 droppait `devices` au load, mais Firestore poll
+// ré-injectait des profils v5 avec `devices` via ensureProfilesV4
+// (qui ne droppait pas). On a maintenant un helper unique.
 function migrateV5toV6(v5) {
   const profiles = { ...(v5.profiles || {}) };
   for (const id of Object.keys(profiles)) {
     let p = profiles[id];
     if (!p) continue;
-    // Defensive : dérive enabledDevices si absent.
+    // Defensive : dérive enabledDevices si absent (avant le drop
+    // pour ne pas perdre l'info).
     if (!Array.isArray(p.enabledDevices) || p.enabledDevices.length === 0) {
       p = { ...p, enabledDevices: deriveEnabledDevices(p.devices) };
     }
-    // Drop devices.
-    if ('devices' in p) {
-      const { devices, ...rest } = p;
-      p = rest;
-    }
-    profiles[id] = p;
+    // Drop devices via le helper unique.
+    profiles[id] = ensureProfileV6(p);
   }
   return { ...v5, version: 6, profiles };
 }
@@ -512,6 +540,7 @@ export {
   mergeBanks, deriveEnabledDevices, getDevicesForRender,
   ensureProfileV3, ensureProfilesV3,
   ensureProfileV4, ensureProfilesV4,
+  ensureProfileV6, ensureProfilesV6,
   makeDefaultProfile,
   migrateV1toV2, migrateV2toV3, migrateV3toV4, migrateV4toV5, migrateV5toV6,
   dedupSetlists, setlistDedupKey,

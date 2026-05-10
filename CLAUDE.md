@@ -581,6 +581,45 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
+## État Phase 5.1 (fixes complémentaires, 2026-05-10, re-tag `phase-5-done`)
+
+2 fixes Phase 5 en 1 commit `[phase-5.1]` :
+
+- **FIX 1 — `profile.devices` ressuscitait via Firestore poll.**
+  Le bug rapporté : après chargement,
+  `JSON.parse(localStorage.tonex_guide_v2).profiles.sebastien.devices`
+  retournait `{...}` même après `migrateV5toV6`. Cause : le polling
+  Firestore (`applyRemoteData`) injectait les profils distants via
+  `ensureProfilesV4` — qui heal v3+v4 mais ne droppe pas `devices`.
+  Chaque poll Firestore (toutes les 5s) ré-injectait silencieusement
+  `devices` depuis le doc distant stale. Fix : nouveau
+  `ensureProfileV6`/`ensureProfilesV6` qui drop le champ après heal
+  v4. `migrateV5toV6` délègue à ce helper unique. Les 3 call sites
+  Firestore (mergedProfiles initial, applyRemoteData, push merge)
+  utilisent désormais `ensureProfilesV6`.
+
+- **FIX 2 — lazy load jsPDF impossible avec single-file build.**
+  Tentative initiale du plan : `const { jsPDF } = await import('jspdf')`
+  au moment du click pour basculer jsPDF en chunk séparé. Vérifié sur
+  la config :
+  ```js
+  // vite.config.js
+  rollupOptions: { output: { inlineDynamicImports: true } },
+  plugins: [react(), viteSingleFile()],
+  ```
+  → `inlineDynamicImports: true` force Rollup à embarquer tous les
+  chunks dynamiques dans le bundle principal. Le single-file est
+  une contrainte produit (dist/index.html mono-fichier déployé
+  GitHub Pages, doit marcher en file:// ouvert seul). Donc lazy
+  load = neutre en pratique, jsPDF reste embarqué dans le HTML.
+  Limitation documentée ici, statu quo sur l'import statique.
+  Alternative si trop lourd : remplacer jsPDF par une page HTML
+  imprimable (window.print, zéro dépendance).
+
+7 nouveaux tests ensureProfileV6 (drop devices, idempotent, cascade
+v3+v4, scenario Firestore poll, migrateV5toV6 délègue, null
+defensive). Suite 436 → 443.
+
 ## État Phase 5 (terminée 2026-05-10, tag `phase-5-done`)
 
 Polish final + bugs résiduels en 7 commits atomiques `[phase-5]` :

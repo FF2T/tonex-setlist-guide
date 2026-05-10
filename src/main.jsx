@@ -58,6 +58,7 @@ import {
   mergeBanks, makeDefaultProfile,
   migrateV1toV2, migrateV2toV3,
   ensureProfileV3, ensureProfilesV3, ensureProfileV4, ensureProfilesV4,
+  ensureProfileV6, ensureProfilesV6,
   getDevicesForRender,
   loadState, saveState,
   autoBackup, listBackups, restoreBackup, clearBackups,
@@ -6110,10 +6111,13 @@ function App() {
   },[toneNetPresets]);
 
   // Profiles state — merge banks + apply local secrets (aiKeys, passwords).
-  // ensureProfilesV4 garantit enabledDevices même si initDefault venait
-  // d'un état localStorage non migré (filet de sécurité avant Firestore).
+  // ensureProfilesV6 garantit enabledDevices + drop legacy devices
+  // même si initDefault venait d'un état localStorage non migré
+  // (filet de sécurité avant Firestore). Phase 5.1 : v4 → v6 ici car
+  // sinon le champ devices pouvait re-pénétrer le state même après
+  // migration loadState.
   const mergedProfiles = useMemo(()=>{
-    const p=ensureProfilesV4({...initDefault.profiles});
+    const p=ensureProfilesV6({...initDefault.profiles});
     for(const [id,prof] of Object.entries(p)){
       p[id]={...prof, banksAnn:mergeBanks(prof.banksAnn,INIT_BANKS_ANN), banksPlug:mergeBanks(prof.banksPlug,INIT_BANKS_PLUG)};
     }
@@ -6507,7 +6511,10 @@ function App() {
       // Bug-fix Phase 2 : un profil arrivant de Firestore en v2 (synced
       // avant le déploiement Phase 2) doit être healed pour ne pas
       // écraser le state local migré et perdre enabledDevices.
-      const next=applySecrets(ensureProfilesV4(data.profiles));
+      // Phase 5.1 FIX 1 : ensureProfilesV6 (vs v4 avant) pour drop le
+      // champ legacy `devices` injecté par d'anciens clients. Sinon
+      // chaque poll Firestore ré-injectait devices dans le state local.
+      const next=applySecrets(ensureProfilesV6(data.profiles));
       if(JSON.stringify(next)===JSON.stringify(prev))return prev;
       return next;
     });
@@ -6538,7 +6545,7 @@ function App() {
           });
         }
         if(mergedSongs.length>remoteSongs.length||mergedSl.length>remoteSl.length||mergedDel.length>remoteDel.length){
-          var ps={version:STATE_VERSION,activeProfileId:data.activeProfileId||activeProfileId,shared:{songDb:mergedSongs,theme:data.shared.theme||theme,setlists:mergedSl,customGuitars:data.shared.customGuitars||customGuitars,deletedSetlistIds:mergedDel},profiles:ensureProfilesV4(data.profiles||profiles),lastModified:Date.now()};
+          var ps={version:STATE_VERSION,activeProfileId:data.activeProfileId||activeProfileId,shared:{songDb:mergedSongs,theme:data.shared.theme||theme,setlists:mergedSl,customGuitars:data.shared.customGuitars||customGuitars,deletedSetlistIds:mergedDel},profiles:ensureProfilesV6(data.profiles||profiles),lastModified:Date.now()};
           saveToFirestore(ps).catch(function(){});
         }
       }
