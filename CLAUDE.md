@@ -581,6 +581,36 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
+## État Phase 4.1 (fixes complémentaires, 2026-05-10, re-tag `phase-4-done`)
+
+3 fixes Phase 4 complémentaires en 1 commit `[phase-4.1]` :
+
+- **FIX A — Bouton 🎤 pour profils sans setlist propre.** HomeScreen
+  cherche aussi dans `allSetlists` les setlists partagées (sans
+  `profileIds` ou avec `profileIds=[]`) si `mySetlists` est vide.
+  L'App route `screen==='live'` accepte `liveSetlistId` même hors
+  `mySetlists` (fallback sur `setlists` complet).
+- **FIX B — Dédup setlists complet.** Helper `dedupSetlists(setlists)`
+  dans `state.js` (clé `name + profileIds.sort().join('|')`) : garde
+  la setlist avec le plus de songs, fusionne tous les `songIds` en
+  union dédupliquée. Appliqué en 3 points :
+  - `migrateV4toV5(s)` passe `s.shared.setlists` au dédup au load.
+  - L'import Newzik (one-time migration) fusionne désormais sur
+    `(name, profileIds)` au lieu de skip-on-name : si la setlist
+    existe déjà, ajoute uniquement les songIds manquants.
+  - Bouton "🧹 Fusionner setlists doublons" dans MaintenanceTab :
+    compte les doublons, demande confirmation, applique
+    `setSetlists(dedupSetlists(setlists))`.
+- **FIX C — Rotation backups robuste au quota.** `autoBackup` :
+  retry sur `QuotaExceededError` (max 3 fois, pop oldest entre
+  chaque essai). `clearBackups()` exporté + bouton "🗑 Vider les
+  sauvegardes" dans MaintenanceTab. `isQuotaError(e)` détecte les
+  variantes name/code (Webkit 22, Firefox 1014, message regex).
+- SW CACHE `tonex-v51` → `tonex-v52`.
+- 18 tests Vitest ajoutés (8 dedupSetlists + 5 isQuotaError + 3
+  autoBackup quota retry + 1 clearBackups + 1 migrateV4toV5
+  cross-cut). Suite 392/392.
+
 ## État Phase 4 (terminée 2026-05-10, tag `phase-4-done`)
 
 **Acquis** :

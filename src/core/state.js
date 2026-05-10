@@ -242,8 +242,84 @@ function migrateV3toV4(v3) {
 // optionnels et lus défensivement par les composants. Aucune
 // transformation de données ; on bump uniquement la version pour
 // signaler le schéma courant.
+//
+// Phase 4.1 (FIX B) : dedup défensif des setlists avec name +
+// profileIds identiques. Si 2 setlists ont la même clé, on garde celle
+// avec le plus de songs (et on fusionne les songIds des autres en
+// union dédupliquée pour ne perdre aucun morceau pré-existant).
 function migrateV4toV5(v4) {
-  return { ...v4, version: 5 };
+  const next = { ...v4, version: 5 };
+  if (v4.shared && Array.isArray(v4.shared.setlists)) {
+    next.shared = { ...v4.shared, setlists: dedupSetlists(v4.shared.setlists) };
+  }
+  return next;
+}
+
+// FIX 4.1 B — dedup défensif des setlists.
+// Clé de dédup : nom + profileIds (sortés, joinés par "|"). Pour chaque
+// groupe :
+//  - Garde la setlist avec le plus de songs (tiebreak : la 1ère en
+//    ordre d'apparition).
+//  - Fusionne les songIds des doublons en union dédupliquée et applique
+//    cette union au survivant.
+//  - Préserve les autres champs (guitars, sort) du survivant.
+//
+// Idempotent : si aucun doublon, retourne le même tableau (même ordre).
+// Pure : ne mute pas les setlists d'entrée.
+function setlistDedupKey(sl) {
+  const ids = Array.isArray(sl.profileIds) ? [...sl.profileIds].sort().join('|') : '';
+  return `${sl.name || ''}::${ids}`;
+}
+
+function dedupSetlists(setlists) {
+  if (!Array.isArray(setlists)) return setlists;
+  const groups = new Map();
+  setlists.forEach((sl, idx) => {
+    if (!sl || typeof sl.name !== 'string') return;
+    const key = setlistDedupKey(sl);
+    if (!groups.has(key)) groups.set(key, { items: [], firstIdx: idx });
+    groups.get(key).items.push(sl);
+  });
+  if ([...groups.values()].every((g) => g.items.length === 1)) return setlists;
+  // Construit la sortie en respectant l'ordre du 1er apparenté.
+  const result = [];
+  const consumed = new Set();
+  setlists.forEach((sl, idx) => {
+    if (consumed.has(idx)) return;
+    const key = sl && typeof sl.name === 'string' ? setlistDedupKey(sl) : null;
+    const grp = key ? groups.get(key) : null;
+    if (!grp || grp.items.length === 1) {
+      result.push(sl);
+      consumed.add(idx);
+      return;
+    }
+    // Trouve le survivant : plus grand songIds.length ; tiebreak idx
+    // plus petit.
+    let survivor = grp.items[0];
+    let survivorLen = (survivor.songIds || []).length;
+    for (let i = 1; i < grp.items.length; i++) {
+      const cand = grp.items[i];
+      const len = (cand.songIds || []).length;
+      if (len > survivorLen) { survivor = cand; survivorLen = len; }
+    }
+    // Fusionne tous les songIds en union dédupliquée (préserve l'ordre
+    // du survivant).
+    const merged = [];
+    const seen = new Set();
+    const pushAll = (ids) => {
+      for (const id of ids || []) {
+        if (!seen.has(id)) { seen.add(id); merged.push(id); }
+      }
+    };
+    pushAll(survivor.songIds);
+    grp.items.forEach((sl2) => { if (sl2 !== survivor) pushAll(sl2.songIds); });
+    result.push({ ...survivor, songIds: merged });
+    // Marque tous les items du groupe comme consommés.
+    setlists.forEach((s2, i2) => {
+      if (grp.items.includes(s2)) consumed.add(i2);
+    });
+  });
+  return result;
 }
 
 // ─── loadState / saveState ───────────────────────────────────────────
@@ -272,6 +348,22 @@ function saveState(state) {
 }
 
 // ─── Backups (rotation des 5 derniers, throttle 5 min) ───────────────
+//
+// FIX 4.1 C — robustesse au quota localStorage :
+// - autoBackup gère QuotaExceededError sur setItem en supprimant le
+//   plus ancien backup et en réessayant (max 3 retries). Si malgré
+//   tout l'écriture échoue (le snapshot courant lui-même est plus
+//   gros que tout le quota), on fail silencieusement plutôt que de
+//   crasher l'app.
+// - clearBackups supprime tous les backups (utile depuis MaintenanceTab).
+function isQuotaError(e) {
+  if (!e) return false;
+  return e.name === 'QuotaExceededError'
+    || e.code === 22
+    || e.code === 1014 // Firefox
+    || /quota/i.test(e.message || '');
+}
+
 function autoBackup() {
   try {
     const current = localStorage.getItem(LS_KEY);
@@ -288,7 +380,30 @@ function autoBackup() {
       profiles: Object.keys(parsed.profiles || {}).length,
     });
     while (backups.length > MAX_BACKUPS) backups.pop();
-    localStorage.setItem(LS_BACKUP_KEY, JSON.stringify(backups));
+    // Retry-on-quota : jusqu'à 3 fois, on supprime le plus ancien
+    // backup et on retente. Garantit qu'on ne crashe jamais sur un
+    // localStorage saturé — au pire le backup le plus récent est
+    // perdu silencieusement.
+    let attempt = 0;
+    while (attempt < 3) {
+      try {
+        localStorage.setItem(LS_BACKUP_KEY, JSON.stringify(backups));
+        return;
+      } catch (e) {
+        if (!isQuotaError(e)) {
+          console.warn('Backup failed (non-quota):', e);
+          return;
+        }
+        if (backups.length <= 1) {
+          // Plus rien à supprimer ; on abandonne sans rien casser.
+          console.warn('Backup quota exceeded with single entry — skipping.');
+          return;
+        }
+        backups.pop(); // supprime le plus ancien
+        attempt += 1;
+      }
+    }
+    console.warn('Backup quota exceeded after 3 retries — skipping snapshot.');
   } catch (e) { console.warn('Backup failed:', e); }
 }
 
@@ -301,6 +416,14 @@ function restoreBackup(index) {
   if (!backups[index]) return false;
   localStorage.setItem(LS_KEY, backups[index].data);
   return true;
+}
+
+// FIX 4.1 C — vide explicitement la rotation. Utilisé par le bouton
+// "Vider les backups" dans MaintenanceTab. Ne touche pas LS_KEY (les
+// données utilisateurs courantes).
+function clearBackups() {
+  try { localStorage.removeItem(LS_BACKUP_KEY); return true; }
+  catch (e) { return false; }
 }
 
 // ─── Secrets (clés API, jamais syncés) ───────────────────────────────
@@ -362,8 +485,9 @@ export {
   ensureProfileV4, ensureProfilesV4,
   makeDefaultProfile,
   migrateV1toV2, migrateV2toV3, migrateV3toV4, migrateV4toV5,
+  dedupSetlists, setlistDedupKey,
   loadState, saveState,
-  autoBackup, listBackups, restoreBackup,
+  autoBackup, listBackups, restoreBackup, clearBackups, isQuotaError,
   loadSecrets, saveSecrets,
   loadTrusted, isTrusted, setTrusted,
   getAllRigsGuitars,

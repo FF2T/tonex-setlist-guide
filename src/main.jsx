@@ -59,10 +59,11 @@ import {
   ensureProfileV3, ensureProfilesV3, ensureProfileV4, ensureProfilesV4,
   getDevicesForRender,
   loadState, saveState,
-  autoBackup, listBackups, restoreBackup,
+  autoBackup, listBackups, restoreBackup, clearBackups,
   loadSecrets, saveSecrets,
   loadTrusted, isTrusted, setTrusted,
   getAllRigsGuitars,
+  dedupSetlists,
 } from './core/state.js';
 
 // Helper Phase 2 fix : devices à afficher pour ce profil. Robuste
@@ -90,9 +91,11 @@ let DEFAULT_GEMINI_KEY = "";
 // ─── Service Worker (déplacé du <head>, CACHE bumpé v48 → v49, ──────
 //     ToneX_Setlist_Guide.html → index.html dans le nouveau dist/) ──
 //     Phase 4 : v50 → v51 (Scenes / footswitchMap / bpm / key / LiveScreen).
+//     Phase 4.1 : v51 → v52 (dedup setlists + bouton mode scène multi-profils
+//     + rotation backups robuste au quota).
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v51';
+const CACHE='tonex-v52';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -2611,6 +2614,40 @@ function MaintenanceTab({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug,
               </div>;
             })}
           </div>;
+        })()}
+        {/* FIX 4.1 C — bouton "Vider les backups" pour reprendre la
+            main sur le quota localStorage (utile en cas de
+            QuotaExceededError observé sur tonex_guide_backups). */}
+        <div style={{display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}>
+          <button data-testid="maint-clear-backups" onClick={()=>{
+            const n=listBackups().length;
+            if(n===0){window.alert("Aucune sauvegarde à supprimer.");return;}
+            if(!window.confirm(`Vider les ${n} sauvegarde${n>1?"s":""} stockées localement ? Les données actuelles ne sont pas affectées.`)) return;
+            clearBackups();
+            // force re-render via un state local — on bricole avec
+            // location.reload() pour rester simple : rare action
+            // d'admin, perte d'état négligeable.
+            location.reload();
+          }} style={{background:"var(--a5)",border:"1px solid var(--a8)",color:"var(--text-muted)",borderRadius:"var(--r-md)",padding:"6px 12px",fontSize:11,cursor:"pointer"}}>🗑 Vider les sauvegardes</button>
+        </div>
+      </div>
+
+      {/* FIX 4.1 B — bouton manuel "Fusionner setlists doublons".
+          Compte les doublons (par name + profileIds) et propose une
+          confirmation explicite avant de re-écrire setlists via
+          dedupSetlists. */}
+      <div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-lg)",padding:16,marginBottom:12}}>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:4}}>Setlists — doublons</div>
+        <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:10}}>Détecte les setlists ayant le même nom ET les mêmes profils, et les fusionne (union dédupliquée des morceaux).</div>
+        {(()=>{
+          const deduped=dedupSetlists(setlists);
+          const removedCount=setlists.length-deduped.length;
+          if(removedCount<=0) return <div style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic"}}>Aucun doublon détecté.</div>;
+          return <button data-testid="maint-dedup-setlists" onClick={()=>{
+            const msg=`${removedCount} setlist${removedCount>1?"s":""} doublon${removedCount>1?"s":""} détecté${removedCount>1?"s":""}.\n\nLa version la plus complète est conservée, les morceaux des doublons sont fusionnés. Confirmer ?`;
+            if(!window.confirm(msg)) return;
+            onSetlists(()=>deduped);
+          }} style={{background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)"}}>🧹 Fusionner {removedCount} doublon{removedCount>1?"s":""}</button>;
         })()}
       </div>
 
@@ -5830,11 +5867,17 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         ):<div>
         <div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-2xl)",fontWeight:800,color:"var(--text-primary)",marginBottom:6,textAlign:"center"}}>ToneX Poweruser</div>
         <div style={{fontSize:14,color:"var(--text-muted)",marginBottom:16,textAlign:"center"}}>Quel morceau veux-tu jouer ?</div>
-        {/* Phase 4 — bouton Mode scène (visible si l'utilisateur a au
-            moins une setlist non-vide). Lance live sur la première
-            setlist non-vide. */}
+        {/* Phase 4 — bouton Mode scène (FIX 4.1 A) :
+            Visible si au moins une setlist non-vide est accessible — soit
+            propre (mySetlists, déjà filtré par profileIds en amont), soit
+            partagée (sans profileIds ou profileIds vide) dans allSetlists.
+            Pour un profil tout neuf qui n'a pas encore créé de setlist mais
+            que la setlist principale est liée à un autre profil (cas Arthur
+            face à "Ma Setlist" liée à ["sebastien"]), on lui montre quand
+            même le bouton vers la 1ère setlist partagée non-vide. */}
         {typeof onLive==='function'&&(()=>{
-          const liveSl=(setlists||[]).find(s=>s.songIds&&s.songIds.length>0);
+          const liveSl=(setlists||[]).find(s=>s.songIds&&s.songIds.length>0)
+            || (allSetlists||[]).find(s=>s.songIds&&s.songIds.length>0&&(!s.profileIds||s.profileIds.length===0));
           if(!liveSl) return null;
           return <div style={{display:"flex",justifyContent:"center",marginBottom:14}}>
             <button data-testid="home-screen-live" onClick={()=>onLive(liveSl.id)} title={`Mode scène plein écran sur "${liveSl.name}"`} style={{background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-lg)",padding:"10px 18px",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)",fontFamily:"var(--font-ui)"}}>🎤 Mode scène — {liveSl.name}</button>
@@ -6415,7 +6458,30 @@ function App() {
       ]
     };
     var MERGE_INTO={"Nouvelle setlist":"Ma Setlist"};
-    var createNames=Object.keys(LISTS).filter(function(n){return !MERGE_INTO[n]&&!setlists.some(function(sl){return sl.name===n;});});
+    // FIX 4.1 B — fusion par (name, profileIds) au lieu de skip-on-name.
+    // Si une setlist du même nom ET mêmes profileIds existe déjà, on la
+    // détecte ici pour fusionner ses songIds plus bas (pas de doublon
+    // créé). Le filter d'antan (skip-if-name-match) retournait quand
+    // la setlist existait sans même fusionner les nouveaux morceaux ;
+    // la nouvelle logique préserve l'idempotence du skip ET ajoute les
+    // morceaux manquants.
+    var sameProfileIds=function(a,b){
+      var ax=Array.isArray(a)?[...a].sort().join("|"):"";
+      var bx=Array.isArray(b)?[...b].sort().join("|"):"";
+      return ax===bx;
+    };
+    var existingSetlistFor=function(slName){
+      return setlists.find(function(sl){
+        return sl.name===slName && sameProfileIds(sl.profileIds,[activeProfileId]);
+      });
+    };
+    var createNames=Object.keys(LISTS).filter(function(n){
+      if(MERGE_INTO[n]) return false;
+      // Toujours dans la liste si on doit créer OU fusionner. La logique
+      // de fusion vs création est tranchée plus bas (existing? merge :
+      // create).
+      return true;
+    });
     var mergeNames=Object.keys(MERGE_INTO).filter(function(n){return !setlists.some(function(sl){return sl.name===n+"__merged";});});
     if(!createNames.length&&!mergeNames.length) return;
     var needed=[].concat(createNames,mergeNames);
@@ -6432,9 +6498,26 @@ function App() {
     if(newSongs.length) setSongDb(function(p){return p.concat(newSongs);});
     setSetlists(function(prev){
       var result=[...prev];
+      var actuallyCreated=[];
+      var actuallyMergedExisting=[];
       createNames.forEach(function(slName){
         var ids=LISTS[slName].map(function([t,a]){return songIdMap[t.toLowerCase()+"|||"+a.toLowerCase()];}).filter(Boolean);
-        result.push({id:"sl_"+Date.now()+"_"+Math.random().toString(36).slice(2,8),name:slName,songIds:ids,profileIds:[activeProfileId]});
+        // FIX 4.1 B — fusion si setlist existante (même name + même
+        // profileIds), sinon création.
+        var existing=result.find(function(sl){
+          return sl.name===slName && sameProfileIds(sl.profileIds,[activeProfileId]);
+        });
+        if(existing){
+          var existingIds=new Set(existing.songIds||[]);
+          var added=ids.filter(function(id){return !existingIds.has(id);});
+          if(added.length){
+            existing.songIds=(existing.songIds||[]).concat(added);
+            actuallyMergedExisting.push(slName+" (+"+added.length+")");
+          }
+        }else{
+          result.push({id:"sl_"+Date.now()+"_"+Math.random().toString(36).slice(2,8),name:slName,songIds:ids,profileIds:[activeProfileId]});
+          actuallyCreated.push(slName);
+        }
       });
       mergeNames.forEach(function(srcName){
         var targetName=MERGE_INTO[srcName];
@@ -6701,7 +6784,12 @@ function App() {
   // Phase 4 — mode scène plein écran. Le LiveScreen gère lui-même son
   // layout (pas d'AppHeader/AppNavBottom).
   if(screen==="live"){
-    const sl = liveSetlistId ? mySetlists.find(s=>s.id===liveSetlistId) : null;
+    // FIX 4.1 A — fallback sur la liste complète si la setlist n'est
+    // pas dans mySetlists (cas profil non-admin qui clique sur une
+    // setlist partagée par un autre profil).
+    const sl = liveSetlistId
+      ? (mySetlists.find(s=>s.id===liveSetlistId) || setlists.find(s=>s.id===liveSetlistId))
+      : null;
     const songIds = sl ? sl.songIds : songDb.map(s=>s.id);
     const liveSongs = songIds.map(id=>songDb.find(s=>s.id===id)).filter(Boolean);
     const liveDevices = getActiveDevicesForRender(profile);

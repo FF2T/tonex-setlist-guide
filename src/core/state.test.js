@@ -1,11 +1,13 @@
 // Tests des migrations localStorage v1 → v2 → v3 → v4 → v5.
 // Critique : aucune migration ne doit perdre de données utilisateur.
 
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   STATE_VERSION, migrateV1toV2, migrateV2toV3, migrateV4toV5,
   deriveEnabledDevices, makeDefaultProfile,
   getAllRigsGuitars,
+  dedupSetlists, setlistDedupKey,
+  autoBackup, listBackups, clearBackups, isQuotaError,
 } from './state.js';
 
 describe('STATE_VERSION', () => {
@@ -487,5 +489,219 @@ describe('getAllRigsGuitars (Phase 3.6) · union des guitares de tous les profil
 
   test('profiles null → fallback sur la liste standard complète (defensive)', () => {
     expect(getAllRigsGuitars(null, [], STD).length).toBe(STD.length);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────
+// Phase 4.1 — FIX B : dedupSetlists
+// ───────────────────────────────────────────────────────────────────
+
+describe('dedupSetlists — Phase 4.1 FIX B', () => {
+  test('aucun doublon → retourne la liste inchangée (référence préservée)', () => {
+    const input = [
+      { id: 'a', name: 'A', profileIds: ['u1'], songIds: [] },
+      { id: 'b', name: 'B', profileIds: ['u1'], songIds: [] },
+    ];
+    const out = dedupSetlists(input);
+    expect(out).toBe(input);
+  });
+
+  test('doublon name + profileIds → garde la plus longue, fusionne les songIds', () => {
+    const input = [
+      { id: 'a', name: 'Ma Setlist', profileIds: ['u1'], songIds: ['s1', 's2'] },
+      { id: 'b', name: 'Ma Setlist', profileIds: ['u1'], songIds: ['s2', 's3', 's4'] },
+    ];
+    const out = dedupSetlists(input);
+    expect(out).toHaveLength(1);
+    // Le 2e gagne (plus de songs) ; les songIds sont fusionnés en union
+    // dédupliquée (préserve l'ordre du survivant).
+    expect(out[0].id).toBe('b');
+    expect(out[0].songIds).toEqual(['s2', 's3', 's4', 's1']);
+  });
+
+  test('même name mais profileIds différents → pas de fusion', () => {
+    const input = [
+      { id: 'a', name: 'Ma Setlist', profileIds: ['u1'], songIds: ['s1'] },
+      { id: 'b', name: 'Ma Setlist', profileIds: ['u2'], songIds: ['s2'] },
+    ];
+    const out = dedupSetlists(input);
+    expect(out).toHaveLength(2);
+  });
+
+  test('profileIds présents dans des ordres différents → considérés équivalents', () => {
+    const input = [
+      { id: 'a', name: 'Shared', profileIds: ['u1', 'u2'], songIds: ['s1'] },
+      { id: 'b', name: 'Shared', profileIds: ['u2', 'u1'], songIds: ['s2', 's3'] },
+    ];
+    const out = dedupSetlists(input);
+    expect(out).toHaveLength(1);
+    expect(out[0].id).toBe('b');
+    expect(out[0].songIds).toEqual(['s2', 's3', 's1']);
+  });
+
+  test('3 doublons → garde le plus long, fusionne tout', () => {
+    const input = [
+      { id: 'a', name: 'X', profileIds: ['u1'], songIds: ['s1'] },
+      { id: 'b', name: 'X', profileIds: ['u1'], songIds: ['s2', 's3'] },
+      { id: 'c', name: 'X', profileIds: ['u1'], songIds: ['s4'] },
+    ];
+    const out = dedupSetlists(input);
+    expect(out).toHaveLength(1);
+    expect(out[0].id).toBe('b');
+    expect(out[0].songIds).toEqual(['s2', 's3', 's1', 's4']);
+  });
+
+  test('ordre d\'insertion préservé pour les non-doublons', () => {
+    const input = [
+      { id: 'a', name: 'A', profileIds: ['u1'], songIds: [] },
+      { id: 'b', name: 'B', profileIds: ['u1'], songIds: ['s1'] },
+      { id: 'c', name: 'B', profileIds: ['u1'], songIds: ['s1', 's2'] },
+      { id: 'd', name: 'C', profileIds: ['u1'], songIds: [] },
+    ];
+    const out = dedupSetlists(input);
+    expect(out.map((s) => s.id)).toEqual(['a', 'c', 'd']);
+  });
+
+  test('migrateV4toV5 applique dedupSetlists en passant', () => {
+    const v4 = {
+      version: 4,
+      shared: {
+        setlists: [
+          { id: 'a', name: 'X', profileIds: ['u1'], songIds: ['s1'] },
+          { id: 'b', name: 'X', profileIds: ['u1'], songIds: ['s2'] },
+        ],
+      },
+      profiles: {},
+    };
+    const v5 = migrateV4toV5(v4);
+    expect(v5.shared.setlists).toHaveLength(1);
+  });
+
+  test('setlistDedupKey expose la clé pour debug', () => {
+    expect(setlistDedupKey({ name: 'X', profileIds: ['u1', 'u2'] })).toBe('X::u1|u2');
+    expect(setlistDedupKey({ name: 'X', profileIds: ['u2', 'u1'] })).toBe('X::u1|u2');
+    expect(setlistDedupKey({ name: 'X' })).toBe('X::');
+  });
+
+  test('input non-array → renvoyé tel quel (defensive)', () => {
+    expect(dedupSetlists(null)).toBe(null);
+    expect(dedupSetlists(undefined)).toBe(undefined);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────
+// Phase 4.1 — FIX C : autoBackup quota retry + clearBackups
+// ───────────────────────────────────────────────────────────────────
+
+describe('isQuotaError — détecte les erreurs de quota localStorage', () => {
+  test('QuotaExceededError name', () => {
+    const e = new Error('quota');
+    e.name = 'QuotaExceededError';
+    expect(isQuotaError(e)).toBe(true);
+  });
+  test('code 22 (Webkit)', () => {
+    expect(isQuotaError({ code: 22 })).toBe(true);
+  });
+  test('code 1014 (Firefox)', () => {
+    expect(isQuotaError({ code: 1014 })).toBe(true);
+  });
+  test("message contient 'quota'", () => {
+    expect(isQuotaError(new Error('Storage quota exceeded'))).toBe(true);
+  });
+  test('erreur normale → false', () => {
+    expect(isQuotaError(new Error('boom'))).toBe(false);
+    expect(isQuotaError(null)).toBe(false);
+  });
+});
+
+describe('autoBackup — Phase 4.1 FIX C : retry-on-quota', () => {
+  let store;
+  beforeEach(() => {
+    store = {};
+    const ls = {
+      getItem: vi.fn((k) => (k in store ? store[k] : null)),
+      setItem: vi.fn((k, v) => { store[k] = v; }),
+      removeItem: vi.fn((k) => { delete store[k]; }),
+    };
+    vi.stubGlobal('localStorage', ls);
+    // Snapshot courant avec contenu non-vide pour passer le early-return.
+    store.tonex_guide_v2 = JSON.stringify({
+      version: 5,
+      shared: { songDb: [{ id: 'a', title: 'A', artist: 'B' }] },
+      profiles: { u1: { id: 'u1' } },
+    });
+  });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  test('quota exceeded → pop oldest et réussit au 2e essai', () => {
+    // Remplit la rotation avec 5 backups anciens (12 min, > throttle 5 min).
+    const old = Array.from({ length: 5 }, (_, i) => ({
+      time: Date.now() - 12 * 60 * 1000 - i * 60000,
+      data: '{}', songs: 1, profiles: 1,
+    }));
+    store.tonex_guide_backups = JSON.stringify(old);
+    let calls = 0;
+    localStorage.setItem.mockImplementation((k, v) => {
+      if (k === 'tonex_guide_backups') {
+        calls += 1;
+        if (calls === 1) {
+          const e = new Error('quota');
+          e.name = 'QuotaExceededError';
+          throw e;
+        }
+      }
+      store[k] = v;
+    });
+    autoBackup();
+    expect(calls).toBe(2);
+    const final = JSON.parse(store.tonex_guide_backups);
+    // Avant retry : 5 backups + 1 nouveau = 6 → tronqué à 5.
+    // Quota throw → on pop le plus ancien → 4. Set réussit.
+    expect(final.length).toBe(4);
+  });
+
+  test('quota persistant 3x → abandon silencieux, pas de crash', () => {
+    const old = Array.from({ length: 5 }, (_, i) => ({
+      time: Date.now() - 12 * 60 * 1000 - i * 60000,
+      data: '{}', songs: 1, profiles: 1,
+    }));
+    store.tonex_guide_backups = JSON.stringify(old);
+    localStorage.setItem.mockImplementation((k) => {
+      if (k === 'tonex_guide_backups') {
+        const e = new Error('quota');
+        e.name = 'QuotaExceededError';
+        throw e;
+      }
+    });
+    expect(() => autoBackup()).not.toThrow();
+  });
+
+  test('throttle 5 min : ne rajoute pas si dernier backup récent', () => {
+    store.tonex_guide_backups = JSON.stringify([{
+      time: Date.now() - 60 * 1000, // 1 min ago
+      data: '{}', songs: 1, profiles: 1,
+    }]);
+    autoBackup();
+    expect(localStorage.setItem).not.toHaveBeenCalledWith(
+      'tonex_guide_backups', expect.any(String),
+    );
+  });
+});
+
+describe('clearBackups — Phase 4.1 FIX C', () => {
+  beforeEach(() => {
+    const store = { tonex_guide_backups: '[{"time":1}]' };
+    vi.stubGlobal('localStorage', {
+      getItem: (k) => store[k] || null,
+      setItem: (k, v) => { store[k] = v; },
+      removeItem: (k) => { delete store[k]; },
+      _store: store,
+    });
+  });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  test('removeItem appelé sur la clé backups', () => {
+    expect(clearBackups()).toBe(true);
+    expect(listBackups()).toEqual([]);
   });
 });
