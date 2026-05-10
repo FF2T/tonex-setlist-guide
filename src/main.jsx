@@ -111,9 +111,12 @@ let DEFAULT_GEMINI_KEY = "";
 //     timeout, donc en pratique cache-first sur connexion lente).
 //     Phase 5 (Item E) : v53 → v54 (state v6 = drop legacy
 //     profile.devices).
+//     Phase 5.2 : tonex-v54 → backline-v55. Changement de prefix pour
+//     signaler le rebrand ; les anciens caches "tonex-v*" sont purgés
+//     automatiquement à l'install via le filtre k!==CACHE.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v54';
+const CACHE='backline-v55';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
