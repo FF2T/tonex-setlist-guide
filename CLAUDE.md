@@ -581,6 +581,135 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
+## État Phase 4 (terminée 2026-05-10, tag `phase-4-done`)
+
+**Acquis** :
+- `src/devices/tonemaster-pro/chain-model.js` étendu Phase 4 :
+  - `validateScene` : id non-vide, name non-vide, blockToggles sur
+    BLOCK_TYPES + boolean, paramOverrides sur BLOCK_TYPES + valeurs
+    number/string, ampLevelOverride dans [0,100].
+  - `validateFootswitchEntry` : type ∈ {scene, toggle, tap_tempo}.
+    `toggle` accepte uniquement TOGGLE_BLOCKS = ['drive', 'mod',
+    'delay', 'reverb', 'comp', 'noise_gate', 'eq'] (rejette amp/cab).
+  - `validateFootswitchMap(map, sceneIds)` : clés fs1..fs4, vérifie
+    cross-ref `entry.sceneId ∈ sceneIds`.
+  - `validatePatch` étendu : scenes (Array, ids uniques) + footswitchMap
+    (cross-check sceneIds) optionnels.
+  - `applyScene(patch, sceneId)` : produit un patch résolu (toggles +
+    paramOverrides + `_ampLevel`/`_activeSceneId` runtime) sans muter
+    l'original.
+- `rock_preset` (`tonemaster-pro/catalog.js`) reçoit ses scenes :
+  - `scenes: [{rythme, ampLvl 70}, {solo, ampLvl 100}]` exact CLAUDE.md.
+  - `footswitchMap: {fs1: scene rythme, fs2: scene solo}`.
+  - `notes` mises à jour ("Scene Solo (FS2) : Amp Level 70%→100%").
+- `INIT_SONG_DB_META` (`core/songs.js`) : 13 morceaux du seed reçoivent
+  `bpm` (number) + `key` (string) statiques. Valeurs validées
+  utilisateur (BPM/key proposés acceptés). `getSongInfo` corrigé Phase 4 :
+  précédence `song.bpm/key` (édition utilisateur) > seed > aiCache.
+- `src/devices/tonemaster-pro/ScenesEditor.jsx` : éditeur compact de
+  scenes + footswitchMap, intégré au drawer du RecommendBlock TMP.
+  Édite name, ampLevelOverride, blockToggles (cycle 3 états
+  hérité→OFF→ON), ajout/suppression scenes, dropdowns FS1-FS4
+  (scene/toggle/tap_tempo). Mode read-only sans callbacks. Pas d'UI
+  pour `paramOverrides` Phase 4 (différé Phase 5).
+- `RecommendBlock` TMP étendu : lit
+  `profile.tmpPatches.factoryOverrides[patchId]` et fusionne sur le
+  patch factory. Édition remontée via `onPatchOverride(patchId, partial)`.
+  La suppression d'une scene nettoie aussi le footswitchMap qui
+  pointait dessus.
+- `App.onTmpPatchOverride(patchId, partial)` : helper niveau App qui
+  écrit dans `profile.tmpPatches.factoryOverrides` via
+  `setProfileField('tmpPatches', ...)`. Propagé en cascade
+  HomeScreen/SetlistsScreen → ListScreen → SongDetailCard et
+  RecapScreen → RecommendBlock TMP.
+- `SongDetailCard` : inputs inline BPM (number 30-300, vide = reset)
+  + tonalité (text + datalist E/A/D minor…). Persistence via `onSongDb`.
+- Convention `device.LiveBlock` documentée dans `registry.js`. Signature
+  `(props) → JSX`, props `{ song, guitar, profile, allGuitars,
+  banksAnn, banksPlug, availableSources?, onPatchOverride? }`.
+- `tonemaster-pro/LiveBlock.jsx` : LiveBlock TMP plein écran. Nom
+  patch (titre 26pt) + scenes en badges horizontaux cliquables (active
+  surlignée + badge ampLevel) + 4 cards FS1-FS4 avec action mappée
+  (FS qui pointe sur scene active mise en évidence). Sélection initiale
+  via `footswitchMap.fs1` (convention CLAUDE.md "FS1 = scene de base"),
+  fallback sur première scene.
+- `_shared/ToneXLiveBlock.jsx` : factory `makeToneXLiveBlock(device)`
+  partagée par tonex-pedal/anniversary/plug. Affiche header device +
+  nom preset reco (titre 22pt) + badge "Bank N+slot" (couleur device)
+  ou badge "non installé" (jaune) + 3 cards A/B/C de la bank
+  (slot reco surligné) + texte d'aide footswitch bank up/down. Si
+  pas de preset reco (aiCache absent) → bloc empty.
+- `src/app/screens/LiveScreen.jsx` : mode scène plein écran (position
+  fixed, z-index 9999). Header avec bouton "← Sortir" + compteur
+  "i/total". Title block clamp(28-48px) + artiste + BPM/key + ligne
+  history (guitariste/guitare/amp original). Boucle sur enabledDevices
+  pour rendre `device.LiveBlock` ; fallback minimal si absent. Footer
+  prev/next (disabled aux bornes). Swipe touch (50px horizontal,
+  80px max vertical). Wake Lock API auto-on à l'entrée + auto-off
+  au démontage + re-acquérir au visibilitychange (Safari iOS release
+  au tab change). Silencieux si l'API n'existe pas. Clavier
+  ←/→/Escape pour preview desktop.
+- Bouton `🎤 Mode scène` :
+  - HomeScreen : CTA centré "🎤 Mode scène — {name}" si
+    setlists.length > 0 et au moins une non-vide. Lance live sur la
+    première setlist non-vide.
+  - ListScreen (sous SetlistsScreen) : bouton 🎤 dans la barre du
+    sélecteur de setlist (à côté de l'éditeur ✏️). Lance live sur
+    activeSlId, ou sur songDb complet si "Tous les morceaux".
+  - App : `screen === "live"` rend `LiveScreen` directement (pas de
+    AppHeader/AppNavBottom).
+- `state.js` v4 → v5 : purement additif. Les nouveaux champs Phase 4
+  (song.bpm/key, patch.scenes/footswitchMap) sont tous optionnels et
+  lus défensivement. `migrateV4toV5(s) = {...s, version: 5}`. Aucune
+  transformation de données. Loader chaîne v1→v2→v3→v4→v5,
+  idempotent sur v5.
+- 374 tests Vitest (309 Phase 3.10 + 65 Phase 4) :
+  - chain-model : 49 tests (12 Phase 3 + 37 Phase 4 sur scenes/
+    footswitchMap/applyScene/validatePatch étendu).
+  - catalog TMP : 34 tests (rock_preset Phase 4 scenes vérifié).
+  - songs : 7 tests (création file Phase 4).
+  - ScenesEditor : 19 tests (création file Phase 4).
+  - LiveBlock TMP : 10 tests (création file Phase 4).
+  - ToneXLiveBlock : 7 tests (création file Phase 4).
+  - LiveScreen : 16 tests (création file Phase 4).
+  - state.test.js : 41 tests (38 Phase 3 + 3 Phase 4 sur migrateV4toV5).
+- SW CACHE bumpé `tonex-v50` → `tonex-v51`.
+
+**Schéma localStorage v5** (purement additif vs v4) :
+```
+profile {
+  ...,                                      // v4 inchangé
+  tmpPatches: {
+    custom: TMPPatch[],                     //  Phase 4 : peut contenir
+                                            //  scenes / footswitchMap.
+    factoryOverrides: {
+      [patchId]: {                          //  Phase 4 : nouveau format
+        scenes?: TMPScene[],                //  flexible (override par
+        footswitchMap?: { fs1?, … }         //  champ structuré).
+      }
+    }
+  }
+}
+
+shared.songDb[i] {
+  ...,                                      // v4 inchangé
+  bpm?: number,                             // Phase 4 (optionnel)
+  key?: string                              // Phase 4 (optionnel)
+}
+```
+
+**Dette à clore avant Phase 5 (polish)** :
+- UI d'édition complète des `paramOverrides` (Scene + paramètres
+  bloc-par-bloc). Phase 4 ne propose que blockToggles + ampLevelOverride.
+- Browser de patches dans MonProfilScreen (lister les patches custom +
+  factory + overrides utilisateur).
+- Editor pour patches custom (création from scratch, pas seulement
+  override de factory).
+- Wake Lock toggle manuel dans LiveScreen (Phase 4 : auto-on/off).
+- AI populating `preset_tmp` field dans aiCache — différé Phase 4
+  comme prévu Phase 3.
+- Découpage main.jsx (toujours dette Phase 1, ~6700 lignes).
+
 ## État Phase 3 (terminée 2026-05-09, tag `phase-3-done`)
 
 **Acquis** :
