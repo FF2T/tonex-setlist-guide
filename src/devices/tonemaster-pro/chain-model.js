@@ -119,6 +119,29 @@ function validatePatch(patch) {
     }
   }
 
+  // Phase 4 — scenes et footswitchMap (optionnels)
+  let sceneIds = [];
+  if (patch.scenes !== undefined) {
+    if (!Array.isArray(patch.scenes)) {
+      errors.push('scenes must be an array');
+    } else {
+      const seen = new Set();
+      patch.scenes.forEach((sc, i) => {
+        const v = validateScene(sc);
+        if (!v.valid) errors.push(`scenes[${i}]: ${v.errors.join('; ')}`);
+        if (sc && sc.id) {
+          if (seen.has(sc.id)) errors.push(`scenes[${i}]: duplicate id "${sc.id}"`);
+          seen.add(sc.id);
+          sceneIds.push(sc.id);
+        }
+      });
+    }
+  }
+  if (patch.footswitchMap !== undefined) {
+    const v = validateFootswitchMap(patch.footswitchMap, sceneIds);
+    if (!v.valid) errors.push(...v.errors);
+  }
+
   return { valid: errors.length === 0, errors };
 }
 
@@ -134,13 +157,150 @@ function getPatchBlocks(patch) {
     .map((slot) => ({ slot, ...patch[slot] }));
 }
 
+// ─── Phase 4 — Scenes & footswitch map ──────────────────────────────
+// Les scenes appliquent des surcharges d'enabled/params/ampLevel sur le
+// patch parent au moment du rendu live. Le footswitchMap décrit
+// l'action assignée à chacun des 4 footswitches du TMP.
+
+const TOGGLE_BLOCKS = ['drive', 'mod', 'delay', 'reverb', 'comp', 'noise_gate', 'eq'];
+const FS_KEYS = ['fs1', 'fs2', 'fs3', 'fs4'];
+
+function validateScene(scene) {
+  const errors = [];
+  if (!scene || typeof scene !== 'object') return { valid: false, errors: ['scene is not an object'] };
+  if (typeof scene.id !== 'string' || !scene.id) errors.push('scene.id must be a non-empty string');
+  if (typeof scene.name !== 'string' || !scene.name) errors.push('scene.name must be a non-empty string');
+  if (scene.blockToggles !== undefined) {
+    if (!scene.blockToggles || typeof scene.blockToggles !== 'object') {
+      errors.push('scene.blockToggles must be an object');
+    } else {
+      for (const [k, v] of Object.entries(scene.blockToggles)) {
+        if (!BLOCK_TYPES.includes(k)) errors.push(`scene.blockToggles.${k} not a known block type`);
+        if (typeof v !== 'boolean') errors.push(`scene.blockToggles.${k} must be boolean`);
+      }
+    }
+  }
+  if (scene.paramOverrides !== undefined) {
+    if (!scene.paramOverrides || typeof scene.paramOverrides !== 'object') {
+      errors.push('scene.paramOverrides must be an object');
+    } else {
+      for (const [blockType, params] of Object.entries(scene.paramOverrides)) {
+        if (!BLOCK_TYPES.includes(blockType)) {
+          errors.push(`scene.paramOverrides.${blockType} not a known block type`);
+          continue;
+        }
+        if (!params || typeof params !== 'object') {
+          errors.push(`scene.paramOverrides.${blockType} must be an object`);
+          continue;
+        }
+        for (const [k, v] of Object.entries(params)) {
+          if (typeof v !== 'number' && typeof v !== 'string') {
+            errors.push(`scene.paramOverrides.${blockType}.${k} must be number or string`);
+          }
+        }
+      }
+    }
+  }
+  if (scene.ampLevelOverride !== undefined) {
+    if (typeof scene.ampLevelOverride !== 'number' || scene.ampLevelOverride < 0 || scene.ampLevelOverride > 100) {
+      errors.push('scene.ampLevelOverride must be a number in [0, 100]');
+    }
+  }
+  return { valid: errors.length === 0, errors };
+}
+
+function validateFootswitchEntry(entry) {
+  const errors = [];
+  if (!entry || typeof entry !== 'object') return { valid: false, errors: ['entry is not an object'] };
+  if (entry.type === 'scene') {
+    if (typeof entry.sceneId !== 'string' || !entry.sceneId) errors.push('scene entry: sceneId required');
+  } else if (entry.type === 'toggle') {
+    if (!TOGGLE_BLOCKS.includes(entry.block)) errors.push(`toggle entry: block "${entry.block}" not toggleable`);
+  } else if (entry.type === 'tap_tempo') {
+    // rien d'autre à valider
+  } else {
+    errors.push(`entry.type "${entry.type}" not in {scene, toggle, tap_tempo}`);
+  }
+  return { valid: errors.length === 0, errors };
+}
+
+// Valide un footswitchMap dans le contexte d'un patch (référence croisée
+// fs.sceneId ↔ patch.scenes[*].id). sceneIds = liste des ids de scenes
+// disponibles, fournie par le caller (par défaut [], aucune scene → tout
+// type:'scene' devient invalide).
+function validateFootswitchMap(map, sceneIds = []) {
+  const errors = [];
+  if (map === undefined || map === null) return { valid: true, errors: [] }; // optionnel
+  if (typeof map !== 'object') return { valid: false, errors: ['footswitchMap must be an object'] };
+  for (const [k, entry] of Object.entries(map)) {
+    if (!FS_KEYS.includes(k)) {
+      errors.push(`footswitchMap.${k} not in {fs1, fs2, fs3, fs4}`);
+      continue;
+    }
+    if (entry === undefined || entry === null) continue; // slot vide toléré
+    const v = validateFootswitchEntry(entry);
+    if (!v.valid) {
+      errors.push(`footswitchMap.${k}: ${v.errors.join('; ')}`);
+      continue;
+    }
+    if (entry.type === 'scene' && !sceneIds.includes(entry.sceneId)) {
+      errors.push(`footswitchMap.${k}: sceneId "${entry.sceneId}" not in patch.scenes`);
+    }
+  }
+  return { valid: errors.length === 0, errors };
+}
+
+// Applique une scene à un patch et retourne un patch "résolu" :
+// - blockToggles surchargent block.enabled
+// - paramOverrides fusionnent les params (override clé par clé)
+// - ampLevelOverride est posé sur patch._ampLevel (champ runtime, pas
+//   persisté). Si la scene n'existe pas, retourne le patch tel quel.
+function applyScene(patch, sceneId) {
+  if (!patch) return patch;
+  if (!sceneId) return patch;
+  const scene = (patch.scenes || []).find((s) => s.id === sceneId);
+  if (!scene) return patch;
+  const out = { ...patch };
+  // blockToggles
+  if (scene.blockToggles) {
+    for (const [blockType, enabled] of Object.entries(scene.blockToggles)) {
+      if (out[blockType]) {
+        out[blockType] = { ...out[blockType], enabled };
+      }
+    }
+  }
+  // paramOverrides
+  if (scene.paramOverrides) {
+    for (const [blockType, overrides] of Object.entries(scene.paramOverrides)) {
+      if (out[blockType]) {
+        out[blockType] = {
+          ...out[blockType],
+          params: { ...(out[blockType].params || {}), ...overrides },
+        };
+      }
+    }
+  }
+  // ampLevelOverride : exposé en champ runtime _ampLevel (consommé par UI live).
+  if (typeof scene.ampLevelOverride === 'number') {
+    out._ampLevel = scene.ampLevelOverride;
+  }
+  out._activeSceneId = sceneId;
+  return out;
+}
+
 export {
   BLOCK_TYPES,
   STANDARD_PARAMS,
   MAX_PARAMS_PER_BLOCK,
   OPTIONAL_BLOCK_SLOTS,
   RENDER_ORDER,
+  TOGGLE_BLOCKS,
+  FS_KEYS,
   validateBlock,
   validatePatch,
   getPatchBlocks,
+  validateScene,
+  validateFootswitchEntry,
+  validateFootswitchMap,
+  applyScene,
 };

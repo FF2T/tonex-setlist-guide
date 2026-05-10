@@ -33,6 +33,7 @@ import {
 // ─── core/ extractions (Phase 1, étape 3) ───────────────────────────
 import { GUITARS, GUITAR_BRANDS, findGuitar } from './core/guitars.js';
 import { SONG_PRESETS, INIT_SONG_DB_META, SONG_HISTORY, getSongInfo } from './core/songs.js';
+import LiveScreen from './app/screens/LiveScreen.jsx';
 import { INIT_SETLISTS } from './core/setlists.js';
 import {
   PRESET_CATALOG_MERGED, findCatalogEntry, guessPresetInfo, normalizePresetName,
@@ -58,10 +59,11 @@ import {
   ensureProfileV3, ensureProfilesV3, ensureProfileV4, ensureProfilesV4,
   getDevicesForRender,
   loadState, saveState,
-  autoBackup, listBackups, restoreBackup,
+  autoBackup, listBackups, restoreBackup, clearBackups,
   loadSecrets, saveSecrets,
   loadTrusted, isTrusted, setTrusted,
   getAllRigsGuitars,
+  dedupSetlists,
 } from './core/state.js';
 
 // Helper Phase 2 fix : devices à afficher pour ce profil. Robuste
@@ -88,9 +90,12 @@ let DEFAULT_GEMINI_KEY = "";
 
 // ─── Service Worker (déplacé du <head>, CACHE bumpé v48 → v49, ──────
 //     ToneX_Setlist_Guide.html → index.html dans le nouveau dist/) ──
+//     Phase 4 : v50 → v51 (Scenes / footswitchMap / bpm / key / LiveScreen).
+//     Phase 4.1 : v51 → v52 (dedup setlists + bouton mode scène multi-profils
+//     + rotation backups robuste au quota).
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v50';
+const CACHE='tonex-v52';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -2610,6 +2615,40 @@ function MaintenanceTab({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug,
             })}
           </div>;
         })()}
+        {/* FIX 4.1 C — bouton "Vider les backups" pour reprendre la
+            main sur le quota localStorage (utile en cas de
+            QuotaExceededError observé sur tonex_guide_backups). */}
+        <div style={{display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}>
+          <button data-testid="maint-clear-backups" onClick={()=>{
+            const n=listBackups().length;
+            if(n===0){window.alert("Aucune sauvegarde à supprimer.");return;}
+            if(!window.confirm(`Vider les ${n} sauvegarde${n>1?"s":""} stockées localement ? Les données actuelles ne sont pas affectées.`)) return;
+            clearBackups();
+            // force re-render via un state local — on bricole avec
+            // location.reload() pour rester simple : rare action
+            // d'admin, perte d'état négligeable.
+            location.reload();
+          }} style={{background:"var(--a5)",border:"1px solid var(--a8)",color:"var(--text-muted)",borderRadius:"var(--r-md)",padding:"6px 12px",fontSize:11,cursor:"pointer"}}>🗑 Vider les sauvegardes</button>
+        </div>
+      </div>
+
+      {/* FIX 4.1 B — bouton manuel "Fusionner setlists doublons".
+          Compte les doublons (par name + profileIds) et propose une
+          confirmation explicite avant de re-écrire setlists via
+          dedupSetlists. */}
+      <div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-lg)",padding:16,marginBottom:12}}>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:4}}>Setlists — doublons</div>
+        <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:10}}>Détecte les setlists ayant le même nom ET les mêmes profils, et les fusionne (union dédupliquée des morceaux).</div>
+        {(()=>{
+          const deduped=dedupSetlists(setlists);
+          const removedCount=setlists.length-deduped.length;
+          if(removedCount<=0) return <div style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic"}}>Aucun doublon détecté.</div>;
+          return <button data-testid="maint-dedup-setlists" onClick={()=>{
+            const msg=`${removedCount} setlist${removedCount>1?"s":""} doublon${removedCount>1?"s":""} détecté${removedCount>1?"s":""}.\n\nLa version la plus complète est conservée, les morceaux des doublons sont fusionnés. Confirmer ?`;
+            if(!window.confirm(msg)) return;
+            onSetlists(()=>deduped);
+          }} style={{background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)"}}>🧹 Fusionner {removedCount} doublon{removedCount>1?"s":""}</button>;
+        })()}
       </div>
 
       {/* Réinitialiser */}
@@ -2837,7 +2876,7 @@ function getJamRecs(guitarId, style, banksAnn, banksPlug, guitars, availableSour
 }
 
 // ─── SongDetailCard ──────────────────────────────────────────────────────────
-function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,guitars,allRigsGuitars,availableSources,savedGuitarId,onGuitarChange,aiProvider,aiKeys,onSongDb,profile}){
+function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,guitars,allRigsGuitars,availableSources,savedGuitarId,onGuitarChange,aiProvider,aiKeys,onSongDb,profile,onTmpPatchOverride}){
   const ig=getIg(song,guitars);
   const [gId,setGId]=useState(savedGuitarId||ig[0]||"");
   const [reloading,setReloading]=useState(false);
@@ -2931,6 +2970,49 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
       <div style={sectionStyle}>
         {sectionTitle("📖","Infos morceau")}
         {(songInfo.year||songInfo.album||songInfo.key||songInfo.bpm)&&<div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>{songInfo.year}{songInfo.album?" · "+songInfo.album:""}{songInfo.key?" · "+songInfo.key:""}{songInfo.bpm?" · "+songInfo.bpm+" BPM":""}</div>}
+        {/* Phase 4 — édition BPM + tonalité (live mode + nice-to-have) */}
+        {onSongDb&&<div data-testid="song-bpm-key-editor" style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,fontSize:10,color:"var(--text-sec)"}}>
+          <label style={{display:"flex",alignItems:"center",gap:4}}>
+            <span style={{color:"var(--text-muted)"}}>BPM</span>
+            <input
+              type="number"
+              min={30}
+              max={300}
+              defaultValue={song.bpm??""}
+              key={`bpm-${song.id}-${song.bpm??""}`}
+              onBlur={e=>{
+                const raw=e.target.value.trim();
+                if(raw===""){onSongDb(p=>p.map(x=>x.id===song.id?{...x,bpm:undefined}:x));return;}
+                const n=Math.max(30,Math.min(300,parseInt(raw,10)));
+                if(Number.isFinite(n)) onSongDb(p=>p.map(x=>x.id===song.id?{...x,bpm:n}:x));
+              }}
+              placeholder={songInfo.bpm?String(songInfo.bpm):"—"}
+              aria-label="BPM"
+              style={{width:55,background:"var(--a5)",border:"1px solid var(--a8)",borderRadius:"var(--r-sm)",padding:"2px 4px",color:"var(--text)",fontSize:10}}
+            />
+          </label>
+          <label style={{display:"flex",alignItems:"center",gap:4}}>
+            <span style={{color:"var(--text-muted)"}}>Tonalité</span>
+            <input
+              type="text"
+              maxLength={12}
+              defaultValue={song.key??""}
+              key={`key-${song.id}-${song.key??""}`}
+              list="tonex-key-suggestions"
+              onBlur={e=>{
+                const raw=e.target.value.trim();
+                if(raw===""){onSongDb(p=>p.map(x=>x.id===song.id?{...x,key:undefined}:x));return;}
+                onSongDb(p=>p.map(x=>x.id===song.id?{...x,key:raw}:x));
+              }}
+              placeholder={songInfo.key||"—"}
+              aria-label="Tonalité"
+              style={{width:80,background:"var(--a5)",border:"1px solid var(--a8)",borderRadius:"var(--r-sm)",padding:"2px 4px",color:"var(--text)",fontSize:10}}
+            />
+          </label>
+          <datalist id="tonex-key-suggestions">
+            {["E","A","D","G","C","F","B","E minor","A minor","D minor","G minor","C minor","B minor","F# minor","C#","F#","Bb","Eb"].map(k=><option key={k} value={k}/>)}
+          </datalist>
+        </div>}
         {songInfo.desc&&<div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.5,marginBottom:6}}>{songInfo.desc}</div>}
         {aiC&&(aiC.ref_guitarist||aiC.ref_guitar||aiC.ref_amp)&&<div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.6}}>
           <span style={{fontWeight:700,color:"var(--text-muted)",fontSize:10}}>{aiC.ref_guitarist||"Référence"}</span><br/>
@@ -3127,7 +3209,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
                   <div style={{fontSize:9,fontWeight:700,color:d.deviceColor||"var(--brass-400)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:3,display:"flex",alignItems:"center",gap:4}}>
                     <span>{d.icon}</span><span>{d.label}</span>
                   </div>
-                  <d.RecommendBlock song={song} guitar={g} profile={profile} allGuitars={guitars}/>
+                  <d.RecommendBlock song={song} guitar={g} profile={profile} allGuitars={guitars} onPatchOverride={onTmpPatchOverride}/>
                 </div>
               );
             }
@@ -3287,7 +3369,7 @@ function InlineRenameInput({initialName,onSave,onCancel,inp,placeholder,buttonLa
   </div>;
 }
 
-function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,banksAnn,onBanksAnn,banksPlug,onBanksPlug,aiProvider,aiKeys,hideHeader=false,allGuitars,allRigsGuitars,availableSources,activeProfileId,profile}) {
+function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,banksAnn,onBanksAnn,banksPlug,onBanksPlug,aiProvider,aiKeys,hideHeader=false,allGuitars,allRigsGuitars,availableSources,activeProfileId,profile,onTmpPatchOverride,onLive}) {
   const [activeSlId,setActiveSlId]=useState(setlists[0]?.id||null);
   const activeSl=activeSlId?setlists.find(s=>s.id===activeSlId):null;
   const [showAdd,setShowAdd]=useState(false);
@@ -3454,6 +3536,9 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           <option value="">Tous les morceaux ({songDb.length})</option>
           {setlists.map(sl=><option key={sl.id} value={sl.id}>{sl.name} ({sl.songIds.length})</option>)}
         </select>
+        {/* Phase 4 — Mode scène : ouvre LiveScreen sur la setlist active.
+            Si "Tous les morceaux" sélectionné, lance live sur songDb. */}
+        {typeof onLive==='function'&&activeSongs.length>0&&<button data-testid="list-screen-live" onClick={()=>onLive(activeSlId||null)} title="Mode scène plein écran" style={{background:"var(--accent-bg)",border:"1px solid var(--accent-border)",color:"var(--accent)",borderRadius:"var(--r-md)",padding:"8px 10px",fontSize:13,cursor:"pointer",flexShrink:0,fontWeight:700}}>🎤</button>}
         <button onClick={()=>setEditingSetlists(!editingSetlists)} style={{background:editingSetlists?"var(--accent-bg)":"var(--a5)",border:"1px solid "+(editingSetlists?"var(--accent-border)":"var(--a10)"),color:editingSetlists?"var(--accent)":"var(--text-muted)",borderRadius:"var(--r-md)",padding:"8px 10px",fontSize:11,cursor:"pointer",flexShrink:0}}>{editingSetlists?"✕":"✏️"}</button>
       </div>
       {editingSetlists&&<div style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:"var(--r-md)",padding:10,marginBottom:8}}>
@@ -3642,7 +3727,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                 />}
               </div>
             </div>
-            {isExpanded&&<SongDetailCard song={s} banksAnn={banksAnn} banksPlug={banksPlug} onBanksAnn={onBanksAnn} onBanksPlug={onBanksPlug} onClose={()=>setExpandedId(null)} guitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} savedGuitarId={activeSl?.guitars?.[s.id]} onGuitarChange={(songId,gId)=>{if(activeSlId)onSetlists(p=>p.map(sl=>sl.id===activeSlId?{...sl,guitars:{...(sl.guitars||{}),[songId]:gId}}:sl));}} aiProvider={aiProvider} aiKeys={aiKeys} onSongDb={onSongDb} profile={profile}/>}
+            {isExpanded&&<SongDetailCard song={s} banksAnn={banksAnn} banksPlug={banksPlug} onBanksAnn={onBanksAnn} onBanksPlug={onBanksPlug} onClose={()=>setExpandedId(null)} guitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} savedGuitarId={activeSl?.guitars?.[s.id]} onGuitarChange={(songId,gId)=>{if(activeSlId)onSetlists(p=>p.map(sl=>sl.id===activeSlId?{...sl,guitars:{...(sl.guitars||{}),[songId]:gId}}:sl));}} aiProvider={aiProvider} aiKeys={aiKeys} onSongDb={onSongDb} profile={profile} onTmpPatchOverride={onTmpPatchOverride}/>}
           </div>
           </div>
         );
@@ -4278,7 +4363,7 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
 }
 
 // ─── Recap Screen ─────────────────────────────────────────────────────────────
-function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profile}) {
+function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profile,onTmpPatchOverride}) {
   // Phase 2 fix : iterate sur les devices activés pour le rendu compact
   // par morceau et pour la liste des presets manquants.
   const enabledDevices=getActiveDevicesForRender(profile);
@@ -4486,7 +4571,7 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
                   <div style={{fontSize:9,fontWeight:700,color:d.deviceColor||"var(--brass-400)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:3,display:"flex",alignItems:"center",gap:4}}>
                     <span>{d.icon}</span><span>{d.label}</span>
                   </div>
-                  <d.RecommendBlock song={song} guitar={guitar} profile={profile} allGuitars={allGuitars}/>
+                  <d.RecommendBlock song={song} guitar={guitar} profile={profile} allGuitars={allGuitars} onPatchOverride={onTmpPatchOverride}/>
                 </div>
               ))}
               {perDevice.length===0&&enabledDevices.filter(d=>typeof d.RecommendBlock==='function').length===0&&<div style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic"}}>Pas de cache IA — lance une analyse depuis la fiche du morceau</div>}
@@ -5382,7 +5467,7 @@ function JamScreen({banksAnn,banksPlug,allGuitars,availableSources,profile}){
 }
 
 // ─── SetlistsScreen (onglets Setlists + Morceaux) ────────────────────────────
-function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onNavigate,banksAnn,onBanksAnn,banksPlug,onBanksPlug,aiProvider,aiKeys,allGuitars,allRigsGuitars,availableSources,activeProfileId,profile}){
+function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onNavigate,banksAnn,onBanksAnn,banksPlug,onBanksPlug,aiProvider,aiKeys,allGuitars,allRigsGuitars,availableSources,activeProfileId,profile,onTmpPatchOverride,onLive}){
   const [tab,setTab]=useState("setlists");
   const tabBtn=(id,label)=>(
     <button onClick={()=>setTab(id)} style={{background:tab===id?"var(--accent-bg)":"var(--a5)",border:tab===id?"1px solid var(--accent-border)":"1px solid var(--a8)",color:tab===id?"var(--accent)":"var(--text-sec)",borderRadius:"var(--r-md)",padding:"7px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{label}</button>
@@ -5436,7 +5521,7 @@ function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked
         {tabBtn("setlists","Setlists")}
         {tabBtn("songs","Morceaux")}
       </div>
-      {tab==="setlists"&&<ListScreen songDb={songDb} onSongDb={onSongDb} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} activeProfileId={activeProfileId} profile={profile}/>}
+      {tab==="setlists"&&<ListScreen songDb={songDb} onSongDb={onSongDb} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} activeProfileId={activeProfileId} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={onLive}/>}
       {tab==="songs"&&<div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
           <div style={{fontSize:13,color:"var(--text-sec)"}}>{songDb.length} morceaux</div>
@@ -5735,7 +5820,7 @@ function OnboardingWizard({onClose,onProfile}){
 }
 
 // ─── HomeScreen (style Google) ────────────────────────────────────────────────
-function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onProfile,onSetlistScreen,onJam,onExplore,onOptimizer,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profiles,activeProfileId,onSwitchProfile,onProfiles,customPacks,syncStatus,onViewProfile,onLogout}) {
+function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onProfile,onSetlistScreen,onJam,onExplore,onOptimizer,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profiles,activeProfileId,onSwitchProfile,onProfiles,customPacks,syncStatus,onViewProfile,onLogout,onLive}) {
   const profileName=(profiles[activeProfileId]||{}).name||"Profil";
   const profile=profiles[activeProfileId]||{};
   const [splashOpen,setSplashOpen]=useState(()=>{if(sessionStorage.getItem("tonex_splash"))return false;sessionStorage.setItem("tonex_splash","1");return true;});
@@ -5782,6 +5867,22 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         ):<div>
         <div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-2xl)",fontWeight:800,color:"var(--text-primary)",marginBottom:6,textAlign:"center"}}>ToneX Poweruser</div>
         <div style={{fontSize:14,color:"var(--text-muted)",marginBottom:16,textAlign:"center"}}>Quel morceau veux-tu jouer ?</div>
+        {/* Phase 4 — bouton Mode scène (FIX 4.1 A) :
+            Visible si au moins une setlist non-vide est accessible — soit
+            propre (mySetlists, déjà filtré par profileIds en amont), soit
+            partagée (sans profileIds ou profileIds vide) dans allSetlists.
+            Pour un profil tout neuf qui n'a pas encore créé de setlist mais
+            que la setlist principale est liée à un autre profil (cas Arthur
+            face à "Ma Setlist" liée à ["sebastien"]), on lui montre quand
+            même le bouton vers la 1ère setlist partagée non-vide. */}
+        {typeof onLive==='function'&&(()=>{
+          const liveSl=(setlists||[]).find(s=>s.songIds&&s.songIds.length>0)
+            || (allSetlists||[]).find(s=>s.songIds&&s.songIds.length>0&&(!s.profileIds||s.profileIds.length===0));
+          if(!liveSl) return null;
+          return <div style={{display:"flex",justifyContent:"center",marginBottom:14}}>
+            <button data-testid="home-screen-live" onClick={()=>onLive(liveSl.id)} title={`Mode scène plein écran sur "${liveSl.name}"`} style={{background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-lg)",padding:"10px 18px",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)",fontFamily:"var(--font-ui)"}}>🎤 Mode scène — {liveSl.name}</button>
+          </div>;
+        })()}
         <div style={{width:"100%"}}>
           <SongSearchBar songDb={songDb} aiProvider={aiProvider} aiKeys={aiKeys} onConfirm={(title,artist)=>{
             // Détection de doublon stricte (T.N.T. === TNT, & === and)
@@ -6185,6 +6286,19 @@ function App() {
   const setAiProvider= v => setProfileField("aiProvider", v);
   const setAiKeys    = v => setProfileField("aiKeys", v);
 
+  // Phase 4 — override d'un patch factory TMP (scenes, footswitchMap…).
+  // Stocké dans profile.tmpPatches.factoryOverrides[patchId]. Merge sur
+  // l'éventuel override existant (ne supprime pas les autres champs).
+  const onTmpPatchOverride = (patchId, partial) => {
+    if(!patchId||!partial) return;
+    setProfileField("tmpPatches", prev => {
+      const cur = prev || { custom: [], factoryOverrides: {} };
+      const fo = { ...(cur.factoryOverrides || {}) };
+      fo[patchId] = { ...(fo[patchId] || {}), ...partial };
+      return { ...cur, factoryOverrides: fo };
+    });
+  };
+
   // Guitars for current profile (with edits merged)
   const allGuitars = useMemo(()=>{
     const edits=profile.editedGuitars||{};
@@ -6210,6 +6324,10 @@ function App() {
   const [syncStatus, setSyncStatus] = useState("idle");
   // lastSaveTime removed — echo detection now uses syncId
   const [viewProfileId, setViewProfileId] = useState(null);
+  // Phase 4 — id de la setlist en cours de lecture en mode scène (live).
+  // null = "tous les morceaux" (toute la base songDb si on lance live
+  // depuis HomeScreen sans setlist active).
+  const [liveSetlistId, setLiveSetlistId] = useState(null);
 
   // Destructure profile fields for convenience
   const {banksAnn, banksPlug, aiProvider, aiKeys, availableSources} = profile;
@@ -6340,7 +6458,30 @@ function App() {
       ]
     };
     var MERGE_INTO={"Nouvelle setlist":"Ma Setlist"};
-    var createNames=Object.keys(LISTS).filter(function(n){return !MERGE_INTO[n]&&!setlists.some(function(sl){return sl.name===n;});});
+    // FIX 4.1 B — fusion par (name, profileIds) au lieu de skip-on-name.
+    // Si une setlist du même nom ET mêmes profileIds existe déjà, on la
+    // détecte ici pour fusionner ses songIds plus bas (pas de doublon
+    // créé). Le filter d'antan (skip-if-name-match) retournait quand
+    // la setlist existait sans même fusionner les nouveaux morceaux ;
+    // la nouvelle logique préserve l'idempotence du skip ET ajoute les
+    // morceaux manquants.
+    var sameProfileIds=function(a,b){
+      var ax=Array.isArray(a)?[...a].sort().join("|"):"";
+      var bx=Array.isArray(b)?[...b].sort().join("|"):"";
+      return ax===bx;
+    };
+    var existingSetlistFor=function(slName){
+      return setlists.find(function(sl){
+        return sl.name===slName && sameProfileIds(sl.profileIds,[activeProfileId]);
+      });
+    };
+    var createNames=Object.keys(LISTS).filter(function(n){
+      if(MERGE_INTO[n]) return false;
+      // Toujours dans la liste si on doit créer OU fusionner. La logique
+      // de fusion vs création est tranchée plus bas (existing? merge :
+      // create).
+      return true;
+    });
     var mergeNames=Object.keys(MERGE_INTO).filter(function(n){return !setlists.some(function(sl){return sl.name===n+"__merged";});});
     if(!createNames.length&&!mergeNames.length) return;
     var needed=[].concat(createNames,mergeNames);
@@ -6357,9 +6498,26 @@ function App() {
     if(newSongs.length) setSongDb(function(p){return p.concat(newSongs);});
     setSetlists(function(prev){
       var result=[...prev];
+      var actuallyCreated=[];
+      var actuallyMergedExisting=[];
       createNames.forEach(function(slName){
         var ids=LISTS[slName].map(function([t,a]){return songIdMap[t.toLowerCase()+"|||"+a.toLowerCase()];}).filter(Boolean);
-        result.push({id:"sl_"+Date.now()+"_"+Math.random().toString(36).slice(2,8),name:slName,songIds:ids,profileIds:[activeProfileId]});
+        // FIX 4.1 B — fusion si setlist existante (même name + même
+        // profileIds), sinon création.
+        var existing=result.find(function(sl){
+          return sl.name===slName && sameProfileIds(sl.profileIds,[activeProfileId]);
+        });
+        if(existing){
+          var existingIds=new Set(existing.songIds||[]);
+          var added=ids.filter(function(id){return !existingIds.has(id);});
+          if(added.length){
+            existing.songIds=(existing.songIds||[]).concat(added);
+            actuallyMergedExisting.push(slName+" (+"+added.length+")");
+          }
+        }else{
+          result.push({id:"sl_"+Date.now()+"_"+Math.random().toString(36).slice(2,8),name:slName,songIds:ids,profileIds:[activeProfileId]});
+          actuallyCreated.push(slName);
+        }
       });
       mergeNames.forEach(function(srcName){
         var targetName=MERGE_INTO[srcName];
@@ -6623,18 +6781,50 @@ function App() {
   if(screen==="loading") return <div className="page-root"><div style={{textAlign:"center",padding:"60px 20px"}}><div style={{fontSize:48,marginBottom:16}}>🎸</div><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)"}}>ToneX Poweruser</div><div style={{fontSize:13,color:"var(--text-muted)",marginTop:8}}>Chargement...</div></div></div>;
   if(screen==="pick") return <div className="page-root"><ProfilePickerScreen profiles={profiles} onPick={pickProfile}/></div>;
 
+  // Phase 4 — mode scène plein écran. Le LiveScreen gère lui-même son
+  // layout (pas d'AppHeader/AppNavBottom).
+  if(screen==="live"){
+    // FIX 4.1 A — fallback sur la liste complète si la setlist n'est
+    // pas dans mySetlists (cas profil non-admin qui clique sur une
+    // setlist partagée par un autre profil).
+    const sl = liveSetlistId
+      ? (mySetlists.find(s=>s.id===liveSetlistId) || setlists.find(s=>s.id===liveSetlistId))
+      : null;
+    const songIds = sl ? sl.songIds : songDb.map(s=>s.id);
+    const liveSongs = songIds.map(id=>songDb.find(s=>s.id===id)).filter(Boolean);
+    const liveDevices = getActiveDevicesForRender(profile);
+    const exitToOrigin = ()=>{ setScreen(liveSetlistId ? "setlists" : "list"); };
+    return <LiveScreen
+      songs={liveSongs}
+      profile={profile}
+      allGuitars={allGuitars}
+      banksAnn={banksAnn}
+      banksPlug={banksPlug}
+      availableSources={availableSources}
+      enabledDevices={liveDevices}
+      onExit={exitToOrigin}
+      getGuitarForSong={(song)=>{
+        const savedId = sl?.guitars?.[song.id];
+        if(savedId) return allGuitars.find(g=>g.id===savedId)||null;
+        const ig = getIg(song,allGuitars);
+        return ig?.[0] ? allGuitars.find(g=>g.id===ig[0]) : null;
+      }}
+      onTmpPatchOverride={onTmpPatchOverride}
+    />;
+  }
+
   var screenContent=null;
   if(screen==="viewprofile"&&viewProfileId&&profiles[viewProfileId]) screenContent=<ViewProfileScreen profile={profiles[viewProfileId]} onBack={()=>setScreen("list")} onNavigate={setScreen}/>;
   else if(screen==="exportimport") screenContent=<ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("settings")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/>;
   else if(screen==="profile") screenContent=<MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/>;
   else if(screen==="settings") screenContent=<ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} songDb={songDb} onSongDb={setSongDb} setlists={setlists} onSetlists={setSetlists}/>;
-  else if(screen==="setlists") screenContent=<SetlistsScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} activeProfileId={activeProfileId} profile={profile}/>;
+  else if(screen==="setlists") screenContent=<SetlistsScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} activeProfileId={activeProfileId} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
   else if(screen==="jam") screenContent=<div><Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Jammer"}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>🎲 Jammer</div><JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources} profile={profile}/></div>;
   else if(screen==="explore") screenContent=<div><Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Explorer"}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>🎛️ Explorer les presets</div><PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={profile.customPacks} guitars={allGuitars} toneNetPresets={toneNetPresets}/></div>;
   else if(screen==="optimizer") screenContent=<BankOptimizerScreen songDb={songDb} setlists={mySetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} allGuitars={allGuitars} availableSources={availableSources} onNavigate={setScreen} profile={profile}/>;
   else if(screen==="synthesis"&&synth) screenContent=<SynthesisScreen songs={songs} gps={synth.gps} aiR={synth.aiR} onBack={()=>setScreen("recap")} onNavigate={setScreen} songDb={songDb} banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources} profile={profile}/>;
-  else if(screen==="recap") screenContent=<RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDb} onSongDb={setSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profile={profile}/>;
-  else screenContent=<HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} onOptimizer={()=>setScreen("optimizer")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/>;
+  else if(screen==="recap") screenContent=<RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDb} onSongDb={setSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profile={profile} onTmpPatchOverride={onTmpPatchOverride}/>;
+  else screenContent=<HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} onOptimizer={()=>setScreen("optimizer")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
 
   return <div className="page-root">
     <AppHeader {...headerProps}/>

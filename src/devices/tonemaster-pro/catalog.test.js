@@ -76,15 +76,24 @@ describe('Catalog TMP — patches Arthur EXACTS (recopiés depuis CLAUDE.md)', (
     expect(validatePatch(ROCK_PRESET).valid).toBe(true);
   });
 
-  test('Rock Preset — playingTipsBySong et notes footswitch solo (Phase 3.8)', () => {
-    // FIX 2 — playingTipsBySong : conseil par song.id.
+  test('Rock Preset — playingTipsBySong (Phase 3.8) + scenes/footswitchMap (Phase 4)', () => {
+    // playingTipsBySong : conseil par song.id (Phase 3.8).
     expect(ROCK_PRESET.playingTipsBySong).toBeDefined();
     expect(ROCK_PRESET.playingTipsBySong.cream_wr).toContain('micro manche');
     expect(ROCK_PRESET.playingTipsBySong.cream_wr).toContain('tonalité à 0');
-    // FIX 3 — notes mentionnent le footswitch solo + Scene Phase 4.
-    expect(ROCK_PRESET.notes).toContain('Footswitch solo');
-    expect(ROCK_PRESET.notes).toContain('70% à 100%');
-    expect(ROCK_PRESET.notes).toContain('Scene');
+    // Phase 4 — scenes Rythme/Solo modélisent le footswitch solo
+    // d'Arthur (Amp Level 70%→100%).
+    expect(ROCK_PRESET.scenes).toBeDefined();
+    expect(ROCK_PRESET.scenes).toHaveLength(2);
+    expect(ROCK_PRESET.scenes[0]).toEqual({ id: 'rythme', name: 'Rythme', ampLevelOverride: 70 });
+    expect(ROCK_PRESET.scenes[1]).toEqual({ id: 'solo', name: 'Solo', ampLevelOverride: 100 });
+    expect(ROCK_PRESET.footswitchMap).toEqual({
+      fs1: { type: 'scene', sceneId: 'rythme' },
+      fs2: { type: 'scene', sceneId: 'solo' },
+    });
+    // Notes : mention Scene Solo + 70%→100% pour explicabilité.
+    expect(ROCK_PRESET.notes).toContain('Scene Solo');
+    expect(ROCK_PRESET.notes).toMatch(/70%[→\-]>?100%/);
   });
 
   test('Clean Preset (slot 210) — EQ + Studio Comp + Twin Reverb + 2x12 Twin D120', () => {

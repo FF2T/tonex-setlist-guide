@@ -53,7 +53,18 @@ const ROCK_PRESET = {
   name: 'Rock Preset',
   factory: true,
   source: 'arthur',
-  notes: "Patch réel d'Arthur (slot 211/213). Plexi cranked (Volume I+II 10/10) + Super Drive en boost discret + 4x12 Greenback + Spring + Digital Delay léger. Footswitch solo : monte Amp Level de 70% à 100% pour les solos AC/DC. Phase 4 modélisera ça comme une vraie Scene TMP.",
+  notes: "Patch réel d'Arthur (slot 211/213). Plexi cranked (Volume I+II 10/10) + Super Drive en boost discret + 4x12 Greenback + Spring + Digital Delay léger. Scene Solo (FS2) : Amp Level 70%→100% pour les solos AC/DC.",
+  // Phase 4 — Scenes Rythme/Solo modélisant le footswitch solo
+  // d'Arthur. Spec exacte CLAUDE.md "Patch Arthur Rock Preset —
+  // Scenes pré-renseignées".
+  scenes: [
+    { id: 'rythme', name: 'Rythme', ampLevelOverride: 70 },
+    { id: 'solo', name: 'Solo', ampLevelOverride: 100 },
+  ],
+  footswitchMap: {
+    fs1: { type: 'scene', sceneId: 'rythme' },
+    fs2: { type: 'scene', sceneId: 'solo' },
+  },
   usages: [
     { artist: 'AC/DC', songs: ['Highway to Hell', 'You Shook Me All Night Long', 'Thunderstruck', 'TNT', 'Back in Black', 'Hells Bells'] },
     { artist: 'Cream', songs: ['White Room'] },

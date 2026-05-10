@@ -14,6 +14,18 @@ import { recommendTMPPatch } from './scoring.js';
 import { TMP_FACTORY_PATCHES, TONEMASTER_PRO_CATALOG } from './catalog.js';
 import { getPatchBlocks, RENDER_ORDER } from './chain-model.js';
 import { AMP_SCALE_BY_MODEL, DEFAULT_AMP_SCALE } from './whitelist.js';
+import ScenesEditor from './ScenesEditor.jsx';
+
+// Phase 4 — applique les éventuels overrides du profil sur un patch
+// factory. `overrides` peut contenir { scenes, footswitchMap }
+// (champs Phase 4) ainsi que d'autres clés gérées plus tard.
+function applyPatchOverrides(patch, overrides) {
+  if (!patch || !overrides) return patch;
+  const out = { ...patch };
+  if (overrides.scenes !== undefined) out.scenes = overrides.scenes;
+  if (overrides.footswitchMap !== undefined) out.footswitchMap = overrides.footswitchMap;
+  return out;
+}
 
 // Génère un résumé compact de la chaîne d'un patch (ex.
 // "Plexi · 4x12 Greenback · +Drive · Spring").
@@ -223,7 +235,11 @@ function formatCabParam(k, v) {
   return `${k} : ${v}`;
 }
 
-function TMPRecommendBlock({ song, guitar, profile, precomputedTopRec, _allGuitars }) {
+function TMPRecommendBlock({
+  song, guitar, profile, precomputedTopRec, _allGuitars,
+  onPatchOverride, // Phase 4 — callback (patchId, partialPatch) pour
+                   // sauvegarder scenes/footswitchMap dans le profil.
+}) {
   const [expanded, setExpanded] = useState(false);
   // Phase 3.10 perf — Deux optimisations :
   // 1) On retire `profile` des deps useMemo : recommendTMPPatch reçoit
@@ -243,11 +259,28 @@ function TMPRecommendBlock({ song, guitar, profile, precomputedTopRec, _allGuita
   }, [song, guitar, precomputedTopRec]);
   const top = recs[0];
   if (!top) return null;
-  const { patch, score, usagesBonus: bonus } = top;
+  // Phase 4 — applique les overrides utilisateur sur le patch factory
+  // (scenes / footswitchMap). On garde le scoring inchangé : c'est le
+  // patch factory qui scorait, on n'affiche que la version "résolue"
+  // dans le drawer.
+  const overrides = profile?.tmpPatches?.factoryOverrides?.[top.patch.id];
+  const patch = overrides ? applyPatchOverrides(top.patch, overrides) : top.patch;
+  const score = top.score;
+  const bonus = top.usagesBonus;
   const chain = summarizeChain(patch);
   const blocks = getPatchBlocks(patch);
   const color = TONEMASTER_PRO_CATALOG.deviceColor;
   const icon = TONEMASTER_PRO_CATALOG.icon;
+
+  // Phase 4 — handlers ScenesEditor : remontent (patchId, partial) au
+  // parent qui décide où stocker (factoryOverrides pour les patches
+  // factory).
+  const handleScenesChange = typeof onPatchOverride === 'function'
+    ? (newScenes) => onPatchOverride(patch.id, { scenes: newScenes })
+    : undefined;
+  const handleFootswitchChange = typeof onPatchOverride === 'function'
+    ? (newMap) => onPatchOverride(patch.id, { footswitchMap: newMap })
+    : undefined;
 
   return (
     <div
@@ -423,6 +456,13 @@ function TMPRecommendBlock({ song, guitar, profile, precomputedTopRec, _allGuita
               {patch.usages.map((u) => u.artist).join(', ')}
             </div>
           )}
+          {/* Phase 4 — ScenesEditor (read-only si pas de callback). */}
+          <ScenesEditor
+            patch={patch}
+            onScenesChange={handleScenesChange}
+            onFootswitchChange={handleFootswitchChange}
+            color={color}
+          />
         </div>
       )}
     </div>

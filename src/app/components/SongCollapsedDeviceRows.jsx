@@ -40,6 +40,9 @@ function SongCollapsedDeviceRows({
   //                    un useMemo unique au niveau de l'écran.
   enabledDevices: enabledDevicesProp,
   precomputedTopRecBySongId,
+  // Phase 4 — callback pour permettre l'édition Scenes/footswitchMap
+  // depuis le drawer du RecommendBlock TMP (et autres devices à venir).
+  onPatchOverride,
 }) {
   const enabledDevices = enabledDevicesProp || getActiveDevicesForProfile(profile);
   // Devices avec leur propre RecommendBlock (TMP) : rendus avec le composant.
@@ -70,6 +73,7 @@ function SongCollapsedDeviceRows({
               profile={profile}
               allGuitars={allGuitars}
               precomputedTopRec={precomputedTopRec}
+              onPatchOverride={onPatchOverride}
             />
           );
         }

@@ -1,9 +1,9 @@
-// src/core/state.js — Phase 3 (state v4).
+// src/core/state.js — Phase 4 (state v5).
 // État applicatif persisté dans localStorage.
 //
-// Schéma v4 :
+// Schéma v5 :
 //   {
-//     version: 4,
+//     version: 5,
 //     activeProfileId: string,
 //     shared: { songDb, theme, setlists, customGuitars?, toneNetPresets?,
 //               deletedSetlistIds? },
@@ -12,7 +12,7 @@
 //     syncId?: string,
 //   }
 //
-// Profil v4 :
+// Profil v5 :
 //   {
 //     id, name, isAdmin, password,
 //     myGuitars: string[],
@@ -27,14 +27,25 @@
 //     customPacks: object[],
 //     banksAnn, banksPlug,                        // 50 et 10 banks A/B/C
 //     tmpPatches: { custom: TMPPatch[],           // v4 : Tone Master Pro
-//                   factoryOverrides: { [patchId]: { [paramPath]: value } } },
+//                   factoryOverrides: { [patchId]: object } },
+//                                                 // v5 (Phase 4) :
+//                                                 //   factoryOverrides[id] peut contenir
+//                                                 //   { scenes, footswitchMap }.
+//                                                 //   custom[].scenes / footswitchMap optionnels.
 //     aiProvider, aiKeys: { anthropic, gemini },
 //     loginHistory?: object[],
 //   }
 //
-// Migrations enchaînées : v1 → v2 → v3 → v4. Le caller utilise loadState()
-// qui applique automatiquement la migration si nécessaire et retourne un
-// état au schéma courant.
+// Songs v5 (shared.songDb[]) :
+//   { id, title, artist, ig?, isCustom?, aiCache?, bpm?, key? }
+//   — bpm + key Phase 4, optionnels.
+//
+// Migrations enchaînées : v1 → v2 → v3 → v4 → v5. Le caller utilise
+// loadState() qui applique automatiquement la migration si nécessaire
+// et retourne un état au schéma courant.
+//
+// v4 → v5 : purement additif (champs optionnels song.bpm/key + patch
+// scenes/footswitchMap). Aucune transformation.
 
 import { GUITARS } from './guitars.js';
 import { INIT_SONG_DB_META } from './songs.js';
@@ -45,7 +56,7 @@ import {
 } from '../data/data_catalogs.js';
 
 // ─── Versioning + clés localStorage ──────────────────────────────────
-const STATE_VERSION = 4;
+const STATE_VERSION = 5;
 const LS_KEY = 'tonex_guide_v2';        // nom historique stable
 const LS_KEY_V1 = 'tonex_guide_v1';
 const LS_SECRETS_KEY = 'tonex_secrets';
@@ -226,20 +237,107 @@ function migrateV3toV4(v3) {
   return { ...v3, version: 4, profiles: ensureProfilesV4(v3.profiles) };
 }
 
+// v4 → v5 (Phase 4) : purement additif. Les nouveaux champs Phase 4
+// (song.bpm, song.key, patch.scenes, patch.footswitchMap) sont tous
+// optionnels et lus défensivement par les composants. Aucune
+// transformation de données ; on bump uniquement la version pour
+// signaler le schéma courant.
+//
+// Phase 4.1 (FIX B) : dedup défensif des setlists avec name +
+// profileIds identiques. Si 2 setlists ont la même clé, on garde celle
+// avec le plus de songs (et on fusionne les songIds des autres en
+// union dédupliquée pour ne perdre aucun morceau pré-existant).
+function migrateV4toV5(v4) {
+  const next = { ...v4, version: 5 };
+  if (v4.shared && Array.isArray(v4.shared.setlists)) {
+    next.shared = { ...v4.shared, setlists: dedupSetlists(v4.shared.setlists) };
+  }
+  return next;
+}
+
+// FIX 4.1 B — dedup défensif des setlists.
+// Clé de dédup : nom + profileIds (sortés, joinés par "|"). Pour chaque
+// groupe :
+//  - Garde la setlist avec le plus de songs (tiebreak : la 1ère en
+//    ordre d'apparition).
+//  - Fusionne les songIds des doublons en union dédupliquée et applique
+//    cette union au survivant.
+//  - Préserve les autres champs (guitars, sort) du survivant.
+//
+// Idempotent : si aucun doublon, retourne le même tableau (même ordre).
+// Pure : ne mute pas les setlists d'entrée.
+function setlistDedupKey(sl) {
+  const ids = Array.isArray(sl.profileIds) ? [...sl.profileIds].sort().join('|') : '';
+  return `${sl.name || ''}::${ids}`;
+}
+
+function dedupSetlists(setlists) {
+  if (!Array.isArray(setlists)) return setlists;
+  const groups = new Map();
+  setlists.forEach((sl, idx) => {
+    if (!sl || typeof sl.name !== 'string') return;
+    const key = setlistDedupKey(sl);
+    if (!groups.has(key)) groups.set(key, { items: [], firstIdx: idx });
+    groups.get(key).items.push(sl);
+  });
+  if ([...groups.values()].every((g) => g.items.length === 1)) return setlists;
+  // Construit la sortie en respectant l'ordre du 1er apparenté.
+  const result = [];
+  const consumed = new Set();
+  setlists.forEach((sl, idx) => {
+    if (consumed.has(idx)) return;
+    const key = sl && typeof sl.name === 'string' ? setlistDedupKey(sl) : null;
+    const grp = key ? groups.get(key) : null;
+    if (!grp || grp.items.length === 1) {
+      result.push(sl);
+      consumed.add(idx);
+      return;
+    }
+    // Trouve le survivant : plus grand songIds.length ; tiebreak idx
+    // plus petit.
+    let survivor = grp.items[0];
+    let survivorLen = (survivor.songIds || []).length;
+    for (let i = 1; i < grp.items.length; i++) {
+      const cand = grp.items[i];
+      const len = (cand.songIds || []).length;
+      if (len > survivorLen) { survivor = cand; survivorLen = len; }
+    }
+    // Fusionne tous les songIds en union dédupliquée (préserve l'ordre
+    // du survivant).
+    const merged = [];
+    const seen = new Set();
+    const pushAll = (ids) => {
+      for (const id of ids || []) {
+        if (!seen.has(id)) { seen.add(id); merged.push(id); }
+      }
+    };
+    pushAll(survivor.songIds);
+    grp.items.forEach((sl2) => { if (sl2 !== survivor) pushAll(sl2.songIds); });
+    result.push({ ...survivor, songIds: merged });
+    // Marque tous les items du groupe comme consommés.
+    setlists.forEach((s2, i2) => {
+      if (grp.items.includes(s2)) consumed.add(i2);
+    });
+  });
+  return result;
+}
+
 // ─── loadState / saveState ───────────────────────────────────────────
 function loadState() {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      // Même quand version === STATE_VERSION, on passe par migrateV3toV4
-      // pour heal d'éventuels profils incomplets (Firestore stale).
-      if (d.version === STATE_VERSION) return migrateV3toV4(d);
-      if (d.version === 3) return migrateV3toV4(d);
-      if (d.version === 2) return migrateV3toV4(migrateV2toV3(d));
+      // Même quand version === STATE_VERSION, on passe par les
+      // migrations idempotentes pour heal d'éventuels profils
+      // incomplets (Firestore stale).
+      if (d.version === STATE_VERSION) return migrateV4toV5(migrateV3toV4(d));
+      if (d.version === 4) return migrateV4toV5(migrateV3toV4(d));
+      if (d.version === 3) return migrateV4toV5(migrateV3toV4(d));
+      if (d.version === 2) return migrateV4toV5(migrateV3toV4(migrateV2toV3(d)));
     }
     const v1raw = localStorage.getItem(LS_KEY_V1);
-    if (v1raw) return migrateV3toV4(migrateV2toV3(migrateV1toV2(JSON.parse(v1raw))));
+    if (v1raw) return migrateV4toV5(migrateV3toV4(migrateV2toV3(migrateV1toV2(JSON.parse(v1raw)))));
   } catch (e) { /* ignore */ }
   return null;
 }
@@ -250,6 +348,22 @@ function saveState(state) {
 }
 
 // ─── Backups (rotation des 5 derniers, throttle 5 min) ───────────────
+//
+// FIX 4.1 C — robustesse au quota localStorage :
+// - autoBackup gère QuotaExceededError sur setItem en supprimant le
+//   plus ancien backup et en réessayant (max 3 retries). Si malgré
+//   tout l'écriture échoue (le snapshot courant lui-même est plus
+//   gros que tout le quota), on fail silencieusement plutôt que de
+//   crasher l'app.
+// - clearBackups supprime tous les backups (utile depuis MaintenanceTab).
+function isQuotaError(e) {
+  if (!e) return false;
+  return e.name === 'QuotaExceededError'
+    || e.code === 22
+    || e.code === 1014 // Firefox
+    || /quota/i.test(e.message || '');
+}
+
 function autoBackup() {
   try {
     const current = localStorage.getItem(LS_KEY);
@@ -266,7 +380,30 @@ function autoBackup() {
       profiles: Object.keys(parsed.profiles || {}).length,
     });
     while (backups.length > MAX_BACKUPS) backups.pop();
-    localStorage.setItem(LS_BACKUP_KEY, JSON.stringify(backups));
+    // Retry-on-quota : jusqu'à 3 fois, on supprime le plus ancien
+    // backup et on retente. Garantit qu'on ne crashe jamais sur un
+    // localStorage saturé — au pire le backup le plus récent est
+    // perdu silencieusement.
+    let attempt = 0;
+    while (attempt < 3) {
+      try {
+        localStorage.setItem(LS_BACKUP_KEY, JSON.stringify(backups));
+        return;
+      } catch (e) {
+        if (!isQuotaError(e)) {
+          console.warn('Backup failed (non-quota):', e);
+          return;
+        }
+        if (backups.length <= 1) {
+          // Plus rien à supprimer ; on abandonne sans rien casser.
+          console.warn('Backup quota exceeded with single entry — skipping.');
+          return;
+        }
+        backups.pop(); // supprime le plus ancien
+        attempt += 1;
+      }
+    }
+    console.warn('Backup quota exceeded after 3 retries — skipping snapshot.');
   } catch (e) { console.warn('Backup failed:', e); }
 }
 
@@ -279,6 +416,14 @@ function restoreBackup(index) {
   if (!backups[index]) return false;
   localStorage.setItem(LS_KEY, backups[index].data);
   return true;
+}
+
+// FIX 4.1 C — vide explicitement la rotation. Utilisé par le bouton
+// "Vider les backups" dans MaintenanceTab. Ne touche pas LS_KEY (les
+// données utilisateurs courantes).
+function clearBackups() {
+  try { localStorage.removeItem(LS_BACKUP_KEY); return true; }
+  catch (e) { return false; }
 }
 
 // ─── Secrets (clés API, jamais syncés) ───────────────────────────────
@@ -339,9 +484,10 @@ export {
   ensureProfileV3, ensureProfilesV3,
   ensureProfileV4, ensureProfilesV4,
   makeDefaultProfile,
-  migrateV1toV2, migrateV2toV3, migrateV3toV4,
+  migrateV1toV2, migrateV2toV3, migrateV3toV4, migrateV4toV5,
+  dedupSetlists, setlistDedupKey,
   loadState, saveState,
-  autoBackup, listBackups, restoreBackup,
+  autoBackup, listBackups, restoreBackup, clearBackups, isQuotaError,
   loadSecrets, saveSecrets,
   loadTrusted, isTrusted, setTrusted,
   getAllRigsGuitars,
