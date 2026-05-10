@@ -377,6 +377,29 @@ function TMPRecommendBlock({ song, guitar, profile, _allGuitars }) {
               {patch.pickupAffinity?.P90}
             </span>
           </div>
+          {/* Phase 3.8 — Conseil de jeu spécifique au morceau courant
+              (champ patch.playingTipsBySong[song.id]). Affiché en
+              encart visible (pas en italic 9px comme les usages) car
+              c'est une info actionnable que le guitariste doit voir
+              en jouant. */}
+          {song?.id && patch.playingTipsBySong && patch.playingTipsBySong[song.id] && (
+            <div
+              data-testid="tmp-playing-tip"
+              style={{
+                marginTop: 6,
+                background: `${color}10`,
+                border: `1px solid ${color}30`,
+                borderRadius: 'var(--r-sm)',
+                padding: '5px 8px',
+                fontSize: 10,
+                color: 'var(--text-sec)',
+                lineHeight: 1.4,
+              }}
+            >
+              <span style={{ color, fontWeight: 700, marginRight: 4 }}>💡 Conseil pour ce morceau</span>
+              <span>{patch.playingTipsBySong[song.id]}</span>
+            </div>
+          )}
           {Array.isArray(patch.usages) && patch.usages.length > 0 && (
             <div
               style={{

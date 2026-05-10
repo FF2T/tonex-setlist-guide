@@ -197,6 +197,11 @@ TMPPatch = {
   gain: 'low'|'mid'|'high',
   pickupAffinity: { HB: number, SC: number, P90: number },  // 0-100
   factory?: boolean,
+  // Phase 3.8 — Conseils de jeu spécifiques à un morceau (id du
+  // INIT_SONG_DB_META, ex. cream_wr, bbking_thrill). Affichés en bas
+  // du drawer du RecommendBlock TMP sous "💡 Conseil pour ce
+  // morceau" si song.id matche une clé.
+  playingTipsBySong?: { [songId: string]: string },
   scenes?: TMPScene[],         // Phase 4
   footswitchMap?: {            // Phase 4
     fs1?, fs2?, fs3?, fs4?
@@ -340,25 +345,37 @@ Ces 3 patches sont des **patches réels validés** d'Arthur, à utiliser comme s
 
 **Patch 1 — "Rock Preset" (slot Arthur 211/213)**
 
+> ⚠️ **VALEURS CORRIGÉES Phase 3.8 suite retour utilisateur du 10 mai 2026.**
+> Les screenshots iPad d'origine étaient mal lus (Plexi en réalité
+> cranked à 10/10, drive bien plus discret, treble plus poussé,
+> bass à zéro). Valeurs validées en direct par Arthur — ne pas
+> rebasculer sur les anciennes lectures.
+
 Usages : AC/DC (TNT, Thunderstruck, Highway to Hell, Back in Black, Hells Bells, You Shook Me All Night Long), Cream "White Room", Deep Purple "Smoke on the Water"
 
 ```
 {
   noise_gate: { model: "Noise Reducer", enabled: true,
-                params: { threshold: 5, attenuation: 6 } },
+                params: { threshold: 10, attenuation: 10 } },
   drive: { model: "Super Drive", enabled: true,
-           params: { drive: 3, level: 7, tone: 5 } },
+           params: { drive: 2.5, level: 3, tone: 8 } },
   amp: { model: "British Plexi", enabled: true,
-         params: { volume_i: 5, volume_ii: 5, treble: 6, middle: 5,
-                   bass: 5, presence: 6 } },  // amp_level: 70%, gate amp OFF
+         params: { volume_i: 10, volume_ii: 10, treble: 8.5,
+                   middle: 5, bass: 0, presence: 5 } },
+         // amp_level: 70% rythmique → 100% via footswitch solo
+         // (Phase 4 : modélisé en Scene). Gate amp OFF.
   cab: { model: "4x12 British Plexi Greenback", enabled: true,
          params: { mic: "Dyn SM57", axis: "on", distance: 6,
                    low_cut: 20, high_cut: 20000 } },
   delay: { model: "Digital Delay", enabled: true,
            params: { time: 350, feedback: 25, mix: 15, hi_cut: 6000, low_cut: 100 } },
   reverb: { model: "Spring", enabled: true,
-            params: { mixer: 3, dwell: 7, tone: 6, predelay: 0,
+            params: { mixer: 2.5, dwell: 8, tone: 6, predelay: 0,
                       hi_cut: 8000, low_cut: 100 } },
+  notes: "Footswitch solo : monte Amp Level de 70% à 100% pour les solos AC/DC. Phase 4 modélisera ça comme une vraie Scene TMP.",
+  playingTipsBySong: {
+    cream_wr: "Sur ce morceau : micro manche + tonalité à 0 pour adoucir le drive."
+  },
   style: 'hard_rock',
   gain: 'mid',
   pickupAffinity: { HB: 95, SC: 70, P90: 80 }

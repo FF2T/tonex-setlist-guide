@@ -475,7 +475,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.7.8";
+const APP_VERSION = "8.7.9";
 const ADMIN_PIN = "212402";
 
 

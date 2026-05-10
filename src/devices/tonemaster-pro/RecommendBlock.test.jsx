@@ -209,16 +209,59 @@ describe('formatBlockParam · libellés généralisés tous blocs (Phase 3.6)', 
     );
     const button = container.querySelector('[data-testid="tmp-recommend-block"] button');
     fireEvent.click(button);
-    // Amp British Plexi : Volume I : 5/10 doit apparaître
+    // Amp British Plexi (valeurs Arthur corrigées Phase 3.8 — Plexi cranked).
     const ampBlock = container.querySelector('[data-testid="tmp-block-amp"]');
-    expect(ampBlock.textContent).toContain('Volume I : 5/10');
-    expect(ampBlock.textContent).toContain('Presence : 6/10');
-    // Drive Super Drive : Drive : 3/10
+    expect(ampBlock.textContent).toContain('Volume I : 10/10');
+    expect(ampBlock.textContent).toContain('Presence : 5/10');
+    // Drive Super Drive — Phase 3.8 : drive 2.5, level 3, tone 8.
     const driveBlock = container.querySelector('[data-testid="tmp-block-drive"]');
-    expect(driveBlock.textContent).toContain('Drive : 3/10');
-    // Reverb Spring : Mixer : 3/10
+    expect(driveBlock.textContent).toContain('Drive : 2.5/10');
+    // Reverb Spring — Phase 3.8 : mixer plus discret 2.5.
     const reverbBlock = container.querySelector('[data-testid="tmp-block-reverb"]');
-    expect(reverbBlock.textContent).toContain('Mixer : 3/10');
+    expect(reverbBlock.textContent).toContain('Mixer : 2.5/10');
+  });
+});
+
+describe('TMPRecommendBlock — playingTipsBySong (Phase 3.8)', () => {
+  // Cream "White Room" est dans usages de rock_preset → top patch.
+  // ROCK_PRESET.playingTipsBySong.cream_wr existe → tip rendu.
+  const CREAM_WR = {
+    id: 'cream_wr', title: 'White Room', artist: 'Cream',
+    aiCache: {
+      result: { ref_amp: 'Marshall JTM45', ref_effects: 'Wah-wah', song_style: 'rock' },
+    },
+  };
+
+  test('drawer ouvert sur cream_wr → conseil "💡 Conseil pour ce morceau" affiché', () => {
+    const { container } = render(
+      <RecommendBlock song={CREAM_WR} guitar={SG} profile={null} _allGuitars={null}/>,
+    );
+    // Force ouverture drawer
+    const button = container.querySelector('[data-testid="tmp-recommend-block"] button');
+    fireEvent.click(button);
+    const tip = container.querySelector('[data-testid="tmp-playing-tip"]');
+    expect(tip).not.toBeNull();
+    expect(tip.textContent).toContain('Conseil pour ce morceau');
+    expect(tip.textContent).toContain('micro manche');
+    expect(tip.textContent).toContain('tonalité à 0');
+  });
+
+  test('drawer ouvert sur AC/DC HTH (pas de tip pour ce song.id) → encart absent', () => {
+    const { container } = render(
+      <RecommendBlock song={ACDC_HTH} guitar={SG} profile={null} _allGuitars={null}/>,
+    );
+    const button = container.querySelector('[data-testid="tmp-recommend-block"] button');
+    fireEvent.click(button);
+    expect(container.querySelector('[data-testid="tmp-playing-tip"]')).toBeNull();
+  });
+
+  test('notes du patch (footswitch solo) restent affichées en italic', () => {
+    const { container } = render(
+      <RecommendBlock song={CREAM_WR} guitar={SG} profile={null} _allGuitars={null}/>,
+    );
+    const button = container.querySelector('[data-testid="tmp-recommend-block"] button');
+    fireEvent.click(button);
+    expect(container.textContent).toContain('Footswitch solo');
   });
 });
 

@@ -43,29 +43,40 @@ const R121_OFF_AXIS_3 = {
 // Usages : AC/DC (TNT, Thunderstruck, Highway to Hell, Back in Black,
 // Hells Bells, You Shook Me All Night Long), Cream "White Room",
 // Deep Purple "Smoke on the Water"
+//
+// VALEURS CORRIGÉES Phase 3.8 suite retour utilisateur du 10 mai 2026.
+// Les screenshots iPad d'origine (Phase 3) étaient mal lus — Plexi
+// volume_i/ii en réalité à fond, drive bien plus discret, treble plus
+// poussé, bass à zéro. Valeurs validées en direct par Arthur.
 const ROCK_PRESET = {
   id: 'rock_preset',
   name: 'Rock Preset',
   factory: true,
   source: 'arthur',
-  notes: "Patch réel d'Arthur (slot 211/213). Plexi + Super Drive en boost, 4x12 Greenback, Spring discret, Digital Delay léger.",
+  notes: "Patch réel d'Arthur (slot 211/213). Plexi cranked (Volume I+II 10/10) + Super Drive en boost discret + 4x12 Greenback + Spring + Digital Delay léger. Footswitch solo : monte Amp Level de 70% à 100% pour les solos AC/DC. Phase 4 modélisera ça comme une vraie Scene TMP.",
   usages: [
     { artist: 'AC/DC', songs: ['Highway to Hell', 'You Shook Me All Night Long', 'Thunderstruck', 'TNT', 'Back in Black', 'Hells Bells'] },
     { artist: 'Cream', songs: ['White Room'] },
     { artist: 'Deep Purple', songs: ['Smoke on the Water'] },
   ],
+  // Phase 3.8 — Conseils de jeu spécifiques à un morceau (id du
+  // INIT_SONG_DB_META). Affichés en bas du drawer sous "💡 Conseil
+  // pour ce morceau" si song.id matche une clé.
+  playingTipsBySong: {
+    cream_wr: "Sur ce morceau : micro manche + tonalité à 0 pour adoucir le drive.",
+  },
   noise_gate: {
     model: 'Noise Reducer', enabled: true,
-    params: { threshold: 5, attenuation: 6 },
+    params: { threshold: 10, attenuation: 10 },
   },
   drive: {
     model: 'Super Drive', enabled: true,
-    params: { drive: 3, level: 7, tone: 5 },
+    params: { drive: 2.5, level: 3, tone: 8 },
   },
   amp: {
     model: 'British Plexi', enabled: true,
-    params: { volume_i: 5, volume_ii: 5, treble: 6, middle: 5, bass: 5, presence: 6 },
-    // amp_level: 70%, gate amp OFF
+    params: { volume_i: 10, volume_ii: 10, treble: 8.5, middle: 5, bass: 0, presence: 5 },
+    // amp_level: 70% rythmique → 100% via footswitch solo (cf notes).
   },
   cab: {
     model: '4x12 British Plexi Greenback', enabled: true,
@@ -75,7 +86,10 @@ const ROCK_PRESET = {
     model: 'Digital Delay', enabled: true,
     params: { time: 350, feedback: 25, mix: 15, hi_cut: 6000, low_cut: 100 },
   },
-  reverb: { ...SPRING_REVERB_DEFAULT },
+  reverb: {
+    model: 'Spring', enabled: true,
+    params: { mixer: 2.5, dwell: 8, tone: 6, predelay: 0, hi_cut: 8000, low_cut: 100 },
+  },
   style: 'hard_rock',
   gain: 'mid',
   pickupAffinity: { HB: 95, SC: 70, P90: 80 },

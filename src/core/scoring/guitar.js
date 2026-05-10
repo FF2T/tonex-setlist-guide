@@ -121,7 +121,16 @@ function inferGuitarProfile(name,type){
       styleMods:{blues:+1,rock:+4,hard_rock:+6,jazz:-3,pop:-1,metal:+2},
       desc:"SG, médiums agressifs, attaque rapide, léger"};
   }
-  if(/\bes[\s-]?3\d\d\b|\bsemi[\s-]?hollow\b/.test(n)){
+  // Phase 3.8 — Heuristique semi-hollow étendue suite retour Arthur :
+  // Epiphone ES-339, Casino, Sheraton, Riviera, ainsi que les ES Gibson
+  // au numéro brut (335, 339, 345, 355…) et les variantes courantes
+  // (Dot, hollowbody). La détection est volontairement permissive sur
+  // les modèles Epiphone parce qu'ils sont fréquents dans les profils
+  // custom de la famille (Arthur joue une ES-339 sur BB King "The
+  // Thrill is Gone"). Conséquence scoring : computeGuitarScoreV2
+  // applique +4 sur semi_hollow + clean/crunch + blues/jazz, et -3 sur
+  // semi_hollow + high_gain.
+  if(/\bes[\s-]?\d{2,4}\b|\bsemi[\s-]?hollow\b|\bcasino\b|\bsheraton\b|\briviera\b|\bhollow[\s-]?body\b|\b(?:3(?:30|35|39|45|55|95)|175|150|295)\b/.test(n)){
     return {pickupType:t,voicing:"warm",bodyResonance:"semi_hollow",
       gainAffinity:{clean:+3,crunch:+3,drive:+1,high_gain:-4},
       styleMods:{blues:+5,rock:+2,hard_rock:-2,jazz:+6,pop:+2,metal:-6},

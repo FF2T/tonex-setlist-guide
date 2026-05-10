@@ -37,39 +37,54 @@ describe('Catalog TMP — 20 patches factory au total', () => {
 });
 
 describe('Catalog TMP — patches Arthur EXACTS (recopiés depuis CLAUDE.md)', () => {
-  test("Rock Preset (slot 211/213) — Plexi + Super Drive + 4x12 Greenback", () => {
+  test("Rock Preset (slot 211/213) — Plexi + Super Drive + 4x12 Greenback (valeurs Arthur 10 mai 2026)", () => {
     expect(ROCK_PRESET.id).toBe('rock_preset');
     expect(ROCK_PRESET.source).toBe('arthur');
     expect(ROCK_PRESET.amp.model).toBe('British Plexi');
-    // Valeurs EXACTES depuis CLAUDE.md
-    expect(ROCK_PRESET.amp.params.volume_i).toBe(5);
-    expect(ROCK_PRESET.amp.params.volume_ii).toBe(5);
-    expect(ROCK_PRESET.amp.params.treble).toBe(6);
+    // Valeurs CORRIGÉES Phase 3.8 — retour Arthur (Plexi cranked 10/10).
+    expect(ROCK_PRESET.amp.params.volume_i).toBe(10);
+    expect(ROCK_PRESET.amp.params.volume_ii).toBe(10);
+    expect(ROCK_PRESET.amp.params.treble).toBe(8.5);
     expect(ROCK_PRESET.amp.params.middle).toBe(5);
-    expect(ROCK_PRESET.amp.params.bass).toBe(5);
-    expect(ROCK_PRESET.amp.params.presence).toBe(6);
-    // Drive Super Drive
+    expect(ROCK_PRESET.amp.params.bass).toBe(0);
+    expect(ROCK_PRESET.amp.params.presence).toBe(5);
+    // Drive Super Drive — beaucoup plus discret (boost transparent).
     expect(ROCK_PRESET.drive.model).toBe('Super Drive');
-    expect(ROCK_PRESET.drive.params.drive).toBe(3);
-    expect(ROCK_PRESET.drive.params.level).toBe(7);
-    expect(ROCK_PRESET.drive.params.tone).toBe(5);
-    // Cab 4x12 Greenback
+    expect(ROCK_PRESET.drive.params.drive).toBe(2.5);
+    expect(ROCK_PRESET.drive.params.level).toBe(3);
+    expect(ROCK_PRESET.drive.params.tone).toBe(8);
+    // Cab 4x12 Greenback (inchangé).
     expect(ROCK_PRESET.cab.model).toBe('4x12 British Plexi Greenback');
     expect(ROCK_PRESET.cab.params.mic).toBe('Dyn SM57');
     expect(ROCK_PRESET.cab.params.distance).toBe(6);
-    // Noise gate
+    // Noise gate à fond (gate très agressif).
     expect(ROCK_PRESET.noise_gate.model).toBe('Noise Reducer');
-    expect(ROCK_PRESET.noise_gate.params.threshold).toBe(5);
-    expect(ROCK_PRESET.noise_gate.params.attenuation).toBe(6);
-    // Delay Digital
+    expect(ROCK_PRESET.noise_gate.params.threshold).toBe(10);
+    expect(ROCK_PRESET.noise_gate.params.attenuation).toBe(10);
+    // Delay Digital (inchangé).
     expect(ROCK_PRESET.delay.params.time).toBe(350);
     expect(ROCK_PRESET.delay.params.feedback).toBe(25);
-    // Style + pickup
+    // Reverb Spring — mixer plus discret (2.5 au lieu de 3 par défaut).
+    expect(ROCK_PRESET.reverb.params.mixer).toBe(2.5);
+    expect(ROCK_PRESET.reverb.params.dwell).toBe(8);
+    expect(ROCK_PRESET.reverb.params.tone).toBe(6);
+    // Style + pickup (inchangés).
     expect(ROCK_PRESET.style).toBe('hard_rock');
     expect(ROCK_PRESET.gain).toBe('mid');
     expect(ROCK_PRESET.pickupAffinity).toEqual({ HB: 95, SC: 70, P90: 80 });
-    // Validation passe
+    // Validation passe (decimals OK : validateBlock accepte tout number).
     expect(validatePatch(ROCK_PRESET).valid).toBe(true);
+  });
+
+  test('Rock Preset — playingTipsBySong et notes footswitch solo (Phase 3.8)', () => {
+    // FIX 2 — playingTipsBySong : conseil par song.id.
+    expect(ROCK_PRESET.playingTipsBySong).toBeDefined();
+    expect(ROCK_PRESET.playingTipsBySong.cream_wr).toContain('micro manche');
+    expect(ROCK_PRESET.playingTipsBySong.cream_wr).toContain('tonalité à 0');
+    // FIX 3 — notes mentionnent le footswitch solo + Scene Phase 4.
+    expect(ROCK_PRESET.notes).toContain('Footswitch solo');
+    expect(ROCK_PRESET.notes).toContain('70% à 100%');
+    expect(ROCK_PRESET.notes).toContain('Scene');
   });
 
   test('Clean Preset (slot 210) — EQ + Studio Comp + Twin Reverb + 2x12 Twin D120', () => {
