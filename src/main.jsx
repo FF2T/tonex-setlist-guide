@@ -475,7 +475,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.7.7";
+const APP_VERSION = "8.7.8";
 const ADMIN_PIN = "212402";
 
 
@@ -2479,34 +2479,43 @@ function MaintenanceTab({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug,
     setTimeout(()=>setDone(false),5000);
   };
 
-  const clearCache=()=>{
-    onSongDb(p=>p.map(s=>({...s,aiCache:null})));
-    setDone(true);setTimeout(()=>setDone(false),3000);
-  };
+  // Phase 3.7 — refonte UX : 2 actions IA explicites au lieu de 3 boutons
+  // qui se chevauchent (clearCache + recalcForAllGuitars faisaient la même
+  // chose, recalcAll lançait l'IA sans avertissement sur le quota).
 
-  // FIX 2 Phase 3.5 — Bouton "Recalculer IA pour toutes les guitares".
-  // Use case : l'utilisateur a ajouté une nouvelle guitare custom et veut
-  // l'inclure dans les recommandations. Le cache IA est figé sur les
-  // guitares connues au moment du dernier appel ; il faut le purger pour
-  // que la prochaine ouverture d'un morceau déclenche un nouvel appel
-  // qui prendra en compte la collection guitare actuelle.
-  // L'action n'appelle PAS l'IA ici (peut être long) — juste invalider.
-  // Le re-fetch se fait à la demande, à l'ouverture de chaque morceau.
-  const recalcForAllGuitars=()=>{
+  // Bouton 1 — Rafraîchir l'IA (tous morceaux) : invalide aiCache. Le
+  // re-fetch se fait passivement à l'ouverture de chaque morceau, en
+  // utilisant l'union all-rigs des guitares (cf Phase 3.6).
+  const refreshAI=()=>{
     const n=songDb.length;
-    if(!window.confirm(`Vider le cache IA des ${n} morceau${n>1?'x':''} pour inclure tes nouvelles guitares dans les recommandations ?\n\nLe recalcul se fera automatiquement à l'ouverture de chaque morceau (peut être long la première fois).`)) return;
+    if(!window.confirm(`Rafraîchir l'IA pour ${n} morceau${n>1?'x':''} ?\n\nLe cache est vidé immédiatement. Le recalcul IA se fera passivement à l'ouverture de chaque morceau (incluant tes nouvelles guitares).\n\nAucun appel API n'est lancé maintenant.`)) return;
     onSongDb(p=>p.map(s=>({...s,aiCache:null})));
     setDone(true);setTimeout(()=>setDone(false),4000);
+  };
+
+  // Bouton 2 — Forcer le recalcul IA en bloc : actuel recalcAll, mais
+  // gardé derrière un confirm explicite avec estimation de temps + nombre
+  // d'appels API (le user-flow Phase 3.5 manquait l'avertissement).
+  // recalcAll attend ~2s entre chaque requête + ~3-5s par appel ≈ 5s/song.
+  const recalcAllConfirmed=()=>{
+    const n=songDb.length;
+    const estimSec=Math.round(n*5);
+    const estimMin=Math.ceil(estimSec/60);
+    const dureeLabel=estimMin>=2?`~${estimMin} minutes`:`~${estimSec} secondes`;
+    if(!window.confirm(`Forcer le recalcul IA EN BLOC pour ${n} morceau${n>1?'x':''} ?\n\n• Durée estimée : ${dureeLabel}\n• Appels API : ${n}\n• Consomme du quota API\n\nNe ferme pas l'app pendant le traitement. Préfère "Rafraîchir l'IA" si tu n'as pas besoin du résultat immédiatement.`)) return;
+    recalcAll();
   };
 
   return(
     <div>
       <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:16}}>Outils de maintenance de l'application.</div>
 
-      {/* Recalculer tout */}
+      {/* SECTION 1 — Mes analyses IA (Phase 3.7) */}
       <div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-lg)",padding:16,marginBottom:12}}>
-        <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:4}}>Recalculer toutes les recommandations</div>
-        <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:10}}>Relance l'IA pour les {songDb.length} morceaux avec les presets actuels de tes pédales. ({cachedCount} en cache)</div>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:4,display:"flex",alignItems:"center",gap:6}}>
+          <span>🤖</span><span>Mes analyses IA</span>
+        </div>
+        <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:14}}>{cachedCount} morceau{cachedCount>1?'x':''} en cache sur {songDb.length}</div>
         {recalculating?<div>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
             <div style={{fontSize:20,animation:"spin 1.5s linear infinite",display:"inline-block"}}>&#9203;</div>
@@ -2520,10 +2529,17 @@ function MaintenanceTab({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug,
           </div>
         </div>
         :done?<div style={{fontSize:12,color:"var(--green)",fontWeight:600}}>Terminé !</div>
-        :<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <button onClick={recalcAll} style={{background:"var(--accent)",border:"none",color:"var(--text-inverse)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Recalculer tout ({songDb.length} morceaux)</button>
-          <button onClick={recalcForAllGuitars} title="Invalide le cache IA. Le recalcul se fera à l'ouverture de chaque morceau et inclura tes nouvelles guitares custom." style={{background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)"}}>🎸 Recalculer IA pour toutes les guitares</button>
-          <button onClick={clearCache} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:12,cursor:"pointer"}}>Vider le cache uniquement</button>
+        :<div style={{display:"flex",flexDirection:"column",gap:14}}>
+          {/* Bouton 1 — Rafraîchir l'IA (passive) */}
+          <div>
+            <button onClick={refreshAI} style={{background:"var(--accent)",border:"none",color:"var(--text-inverse)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>🔄 Rafraîchir l'IA (tous morceaux)</button>
+            <div style={{fontSize:11,color:"var(--text-muted)",marginTop:5,lineHeight:1.4}}>Vide le cache et relance l'IA passivement à l'ouverture de chaque morceau. À utiliser après avoir ajouté des guitares ou changé ton matériel.</div>
+          </div>
+          {/* Bouton 2 — Forcer recalcul en bloc */}
+          <div>
+            <button onClick={recalcAllConfirmed} style={{background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)"}}>⚡ Forcer le recalcul IA en bloc — {songDb.length} morceau{songDb.length>1?'x':''}</button>
+            <div style={{fontSize:11,color:"var(--text-muted)",marginTop:5,lineHeight:1.4}}>Lance immédiatement l'IA pour tous les morceaux, en bloc. Long et consomme du quota API.</div>
+          </div>
         </div>}
       </div>
 
@@ -2538,24 +2554,31 @@ function MaintenanceTab({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug,
         {dupCount>0&&<button onClick={mergeDuplicates} style={{background:"var(--accent)",border:"none",color:"var(--text-inverse)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Fusionner ({dupCount})</button>}
       </div>
 
-      {/* Rescorer les presets (local, instantané) */}
-      <div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-lg)",padding:16,marginBottom:12}}>
-        <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:4}}>Rescorer les presets</div>
-        <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:10}}>Recalcule les scores de presets pour tous les morceaux sans rappeler l'IA. Utile après avoir ajouté des presets ToneNET ou changé tes banks.</div>
-        <button onClick={()=>{
-          try{
-            const updated=songDb.map(s=>{
-              if(!s.aiCache?.result?.cot_step1) return s;
-              const gId=s.aiCache.gId||"";
-              const gType=findGuitar(gId)?.type||"HB";
-              const cleaned={...s.aiCache.result,preset_ann:null,preset_plug:null,ideal_preset:null,ideal_preset_score:0,ideal_top3:null};
-              const recalc=enrichAIResult(cleaned,gType,gId,banksAnn,banksPlug);
-              return {...s,aiCache:{...updateAiCache(s.aiCache,gId,recalc),sv:SCORING_VERSION}};
-            });
-            onSongDb(()=>updated);
-          }catch(e){console.warn("Rescore error:",e);}
-          setDone(true);setTimeout(()=>setDone(false),3000);
-        }} style={{background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)"}}>⚡ Rescorer ({songDb.filter(s=>s.aiCache).length} morceaux en cache)</button>
+      {/* SECTION 2 — Scoring local (Phase 3.7) */}
+      {/* Visuellement séparée par une bordure brass + bg légèrement différent
+           pour souligner que cette action n'utilise PAS l'IA (instantanée,
+           gratuite, pas de quota). */}
+      <div style={{background:"var(--a3)",border:"1px solid var(--brass-400)",borderLeftWidth:3,borderRadius:"var(--r-lg)",padding:16,marginBottom:12}}>
+        <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:14,display:"flex",alignItems:"center",gap:6}}>
+          <span>📐</span><span>Scoring local</span>
+        </div>
+        <div>
+          <button onClick={()=>{
+            try{
+              const updated=songDb.map(s=>{
+                if(!s.aiCache?.result?.cot_step1) return s;
+                const gId=s.aiCache.gId||"";
+                const gType=findGuitar(gId)?.type||"HB";
+                const cleaned={...s.aiCache.result,preset_ann:null,preset_plug:null,ideal_preset:null,ideal_preset_score:0,ideal_top3:null};
+                const recalc=enrichAIResult(cleaned,gType,gId,banksAnn,banksPlug);
+                return {...s,aiCache:{...updateAiCache(s.aiCache,gId,recalc),sv:SCORING_VERSION}};
+              });
+              onSongDb(()=>updated);
+            }catch(e){console.warn("Rescore error:",e);}
+            setDone(true);setTimeout(()=>setDone(false),3000);
+          }} style={{background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)"}}>📐 Recalculer les scores (sans IA) — {songDb.filter(s=>s.aiCache).length} morceau{songDb.filter(s=>s.aiCache).length>1?'x':''} en cache</button>
+          <div style={{fontSize:11,color:"var(--text-muted)",marginTop:5,lineHeight:1.4}}>Réapplique le scoring sur les analyses existantes. À utiliser après avoir ajouté un preset ToneNET ou modifié tes banks.</div>
+        </div>
       </div>
 
       {/* Backups automatiques */}
