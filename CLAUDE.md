@@ -1,9 +1,19 @@
-# ToneX Poweruser — Contexte projet pour Claude Code
+# Backline — Contexte projet pour Claude Code
 
 > Ce fichier est lu automatiquement par Claude Code à chaque session.
 > Le tenir à jour quand l'archi évolue.
 
 ## But du projet
+
+**Backline** (anciennement "ToneX Poweruser", renommé Phase 5.2 mai 2026
+quand le scope a dépassé le strict ToneX Pedal pour couvrir 4 devices).
+
+Tagline : *"Le guide intelligent pour tes pédales et amplis modélisés"*.
+
+URL canonique : `https://ff2t.github.io/tonex-setlist-guide/index.html`
+(le slug GitHub Pages reste historique pour ne pas casser les
+bookmarks ; c'est `index.html` à la racine qui sert l'app, et
+`ToneX_Setlist_Guide.html` un redirect HTML vers `index.html`).
 
 PWA mono-fichier React de gestion de setlists et de presets pour
 guitaristes. Aide à choisir la bonne guitare et le bon preset pour
@@ -580,6 +590,76 @@ npm run preview    # sert dist/ pour test final sur http://localhost:4173
 npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
+
+## État Phase 5.2 (rebrand Backline, 2026-05-10, tag `phase-5.2-done`)
+
+Rebrand "ToneX Poweruser" → "Backline" en 4 commits atomiques
+`[phase-5.2]` :
+
+- **Commit 1 — `core/branding.js` + replace hardcoded names.**
+  Nouveau module exporte `APP_NAME = 'Backline'`, `APP_TAGLINE`,
+  `APP_SHORT_NAME`. 6 sites `<div>ToneX Poweruser</div>` → `<div>{APP_NAME}</div>`
+  dans main.jsx (AppHeader, ExportImportScreen, SplashPopup,
+  OnboardingWizard, HomeScreen, loading screen). Tagline obsolète
+  "Le guide intelligent pour ta pédale ToneX" remplacée par
+  `APP_TAGLINE` (élargissement multi-devices). "Mes appareils
+  ToneX" → "Mes appareils audio". Filename export JSON
+  `tonex_guide_*.json` → `backline_*.json`. Commentaire header
+  `tokens.css`. **NON touché** (intentionnel) : LS_KEY
+  (rétrocompat données), noms de devices "ToneX Pedal/Anniversary/Plug"
+  (marques tiers), noms de SOURCE catalog ("Anniversary", "Factory",
+  "PlugFactory" sont des sources de capture, pas l'identité produit).
+
+- **Commit 2 — icône SVG carrée + composant `BacklineIcon`.**
+  Nouveau logo silhouette d'ampli avec speakers (basé sur
+  `src/assets/backline-icon.svg`, viewBox 417×292 paysage). Versions
+  carrées PWA : `backline-icon-192.svg` (radius 32, fond tolex-900,
+  ampli centré 70% en cream-50) + `backline-icon-512.svg` (idem
+  scale up). Composant `<BacklineIcon size color title>` qui inline
+  le SVG d'origine. Intégré aux 4 sites identitaires (header 20px,
+  splash 56px, onboarding 64px, loading 56px) — les emojis 🎸
+  sémantiques (history, ig hint) restent inchangés.
+
+- **Commit 3 — manifest PWA + apple-touch-icon Backline.**
+  data-URI inline mis à jour : `name = 'Backline'`,
+  `short_name = 'Backline'`, `description = APP_TAGLINE`,
+  `start_url = './index.html'` (explicite vs `./` avant), icons
+  array 192+512 SVG inline. apple-touch-icon basculé sur
+  backline-icon-192. Test régression `branding-regression.test.js`
+  scan récursif des sources (jsx/js/html/css/md hors node_modules+dist)
+  pour bloquer toute future réintroduction de "ToneX Poweruser" /
+  "ToneX Setlist Guide" / "ToneX Superuser".
+
+- **Commit 4 — SW `backline-v55` + redirect template.**
+  CACHE prefix `tonex-v*` → `backline-v55`. Cleanup automatique
+  des anciens caches via le filter `k!==CACHE` du SW activate.
+  Nouveau `src/index-redirect-from-old.html` : page minimale
+  triple-safety (meta refresh + window.location.replace + lien
+  fallback) destinée à remplacer `ToneX_Setlist_Guide.html` à la
+  racine main au déploiement. Sert les anciennes PWA installées
+  (start_url legacy) → redirigées transparently vers `/index.html`
+  à la prochaine ouverture.
+
+**Workflow déploiement Phase 5.2** :
+1. `git push origin refactor-and-tmp` + `git push origin phase-5.2-done`.
+2. `npm run build` → produit `dist/index.html` (Backline complet).
+3. `cp dist/index.html main:/index.html` (URL canonique).
+4. `cp src/index-redirect-from-old.html main:/ToneX_Setlist_Guide.html`
+   (rétrocompat).
+5. `git add` + commit `Update prod with Backline rebrand` + push origin main.
+6. GitHub Pages servira `https://ff2t.github.io/tonex-setlist-guide/`
+   → directement Backline (anciens bookmarks redirigés).
+
+**Risques connus** :
+- PWA installées avant Phase 5.2 (start_url=./ToneX_Setlist_Guide.html).
+  Le redirect HTML les fera arriver sur `/index.html` au prochain
+  lancement, mais le manifest pourrait être considéré "à réinstaller"
+  par l'OS. Le user verra peut-être un prompt "réinstaller l'app".
+  À surveiller en pratique au déploiement.
+- localStorage : préservé via les LS_KEY inchangés (`tonex_guide_v2`).
+
+**Suite 443 → 454 tests** (+11 nouveaux Phase 5.2 : 4 branding +
+4 BacklineIcon + 3 régression).
 
 ## État Phase 5.1 (fixes complémentaires, 2026-05-10, re-tag `phase-5-done`)
 
