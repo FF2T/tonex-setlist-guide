@@ -318,6 +318,137 @@ patch.
 - **delay** : "Analog Delay", "Tape Echo", "Digital Delay", "Reverse Delay"
 - **reverb** : "Spring", "Plate", "Hall", "Room", "Shimmer"
 
+### Modèle Scenes / Footswitches / Mode scène live (Phase 4 — décisions validées)
+
+#### Décision 1 — Nombre de Scenes par patch
+
+Modèle flexible : 0 à N Scenes par patch (pas de limite imposée).
+Patches simples sans Scene = comportement actuel inchangé.
+Patches avec Scenes : 2-4 typique (ex. "Rythme" + "Solo", ou
+"Intro" + "Verse" + "Chorus" + "Solo").
+
+#### Décision 2 — Mapping footswitch
+
+**TMP** : 4 footswitches assignables (FS1-FS4). Mapping manuel
+dans l'UI d'édition du patch via 4 dropdowns. Options possibles
+par dropdown :
+- Switcher vers Scene X (du patch courant)
+- Toggle Drive on/off
+- Toggle Delay on/off
+- Toggle Reverb on/off
+- Tap Tempo (BPM du delay/reverb)
+- (Phase 5+) MIDI CC out
+
+**ToneX (Pedal/Anniversary/Plug)** : footswitches gérés par le
+hardware (Bank up/down + slot A/B/C). L'appli ne mappe pas les
+footswitches ToneX — elle ne fait qu'AFFICHER lequel des slots
+A/B/C est recommandé (pour aider l'utilisateur à choisir le bon
+footswitch en live).
+
+#### Décision 3 — Mode scène live (LiveScreen)
+
+Plein écran iPad (idéalement orientation paysage), 1 morceau à
+la fois.
+
+**Layout commun à tous les devices** :
+- Titre du morceau en gros (~48pt) en haut
+- BPM + tonalité (key) sous le titre
+- Liste des artistes/refs originaux (compact, en bas)
+- Swipe gauche/droite pour naviguer dans la setlist
+- Bouton "🔒 Garder écran allumé" (Wake Lock API si dispo,
+  fallback "screen on" prompt si non supporté)
+- Bouton "← Sortir" en haut à gauche pour revenir à Setlists
+
+**Bloc par device activé** (1 sous-bloc par device dans
+enabledDevices, layout vertical) :
+
+Pour **TMP** :
+- Nom du patch recommandé
+- Liste des Scenes du patch (badges horizontaux), Scene
+  active surlignée
+- 4 cards FS1-FS4 en bas montrant l'action mappée pour chaque
+  footswitch dans le morceau courant
+- Bloc compact avec drawer expandable si besoin de voir détail
+
+Pour **ToneX (Pedal/Anniversary/Plug)** :
+- Nom du preset recommandé + position (Bank X, Slot Y)
+- Les 3 slots A/B/C de la bank courante affichés en cards,
+  celui recommandé surligné
+- Texte d'aide : "Footswitch bank up/down sur ton TMP/Anniversary/Plug
+  pour changer de bank"
+
+#### Décision 4 — BPM et tonalité par morceau
+
+Champs simples ajoutés au modèle song :
+- `bpm: number` (typiquement 60-200, optionnel)
+- `key: string` (notation simple : "E", "A minor", "C#", "F# minor", optionnel)
+
+Pré-remplis pour les 13 morceaux du seed (à fournir lors de
+Phase 4). Éditables dans la fiche morceau via 2 nouveaux
+champs.
+
+#### Décision 5 — Extension ToneX (pas que TMP)
+
+Le mode scène fonctionne pour **tous les devices activés**.
+Sébastien (Anniversary + Plug) bénéficie du mode scène autant
+qu'Arthur (TMP). Implémentation via convention sur le registry :
+
+- Chaque device expose un composant optionnel `LiveBlock` (en
+  plus du `RecommendBlock` Phase 3).
+- Si présent, LiveScreen le rend dans la liste des blocs par
+  device. Sinon, fallback sur un affichage minimal.
+- TMP : son LiveBlock affiche Scenes + footswitch map.
+- ToneX : son LiveBlock affiche bank slot recommandé + 3 slots
+  A/B/C.
+
+#### Modèle de données étendu
+
+```
+TMPScene = {
+  id: string,
+  name: string,                                 // 'Intro', 'Solo', 'Rythme'…
+  blockToggles?: {                              // surcharges des "enabled" des blocs
+    comp?: boolean, drive?: boolean, mod?: boolean,
+    delay?: boolean, reverb?: boolean, noise_gate?: boolean,
+    eq?: boolean
+  },
+  paramOverrides?: {                            // surcharges de params spécifiques
+    [blockType: string]: { [paramKey: string]: number }
+  },
+  ampLevelOverride?: number                      // ex. 100 pour scene Solo
+}
+
+TMPPatch.scenes?: TMPScene[]                     // optionnel, déjà dans le type Phase 3
+TMPPatch.footswitchMap?: {
+  fs1?: { type: 'scene', sceneId: string }
+       | { type: 'toggle', block: 'drive'|'delay'|'reverb'|... }
+       | { type: 'tap_tempo' },
+  fs2?: ..., fs3?: ..., fs4?: ...
+}
+
+Song.bpm?: number                                // ajout Phase 4
+Song.key?: string                                // ajout Phase 4
+```
+
+#### Patch Arthur Rock Preset — Scenes pré-renseignées
+
+Le footswitch solo d'Arthur (Amp Level 70%→100%) devient une
+vraie Scene en Phase 4 :
+
+```
+rock_preset.scenes = [
+  { id: "rythme", name: "Rythme", ampLevelOverride: 70 },
+  { id: "solo",   name: "Solo",   ampLevelOverride: 100 }
+]
+rock_preset.footswitchMap = {
+  fs1: { type: 'scene', sceneId: 'rythme' },
+  fs2: { type: 'scene', sceneId: 'solo' }
+}
+```
+
+Les notes Phase 3.8 ("Footswitch solo : monte Amp Level…") sont
+remplacées par la Scene effective.
+
 #### Ajouts à la whitelist (issus des patches Arthur)
 
 **Drives ajoutés** :
