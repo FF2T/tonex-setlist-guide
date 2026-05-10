@@ -255,13 +255,14 @@ describe('TMPRecommendBlock — playingTipsBySong (Phase 3.8)', () => {
     expect(container.querySelector('[data-testid="tmp-playing-tip"]')).toBeNull();
   });
 
-  test('notes du patch (footswitch solo) restent affichées en italic', () => {
+  test('notes du patch (Scene Solo / footswitch solo) restent affichées en italic', () => {
     const { container } = render(
       <RecommendBlock song={CREAM_WR} guitar={SG} profile={null} _allGuitars={null}/>,
     );
     const button = container.querySelector('[data-testid="tmp-recommend-block"] button');
     fireEvent.click(button);
-    expect(container.textContent).toContain('Footswitch solo');
+    // Phase 4 : les notes mentionnent désormais "Scene Solo (FS2)".
+    expect(container.textContent).toContain('Scene Solo');
   });
 });
 
