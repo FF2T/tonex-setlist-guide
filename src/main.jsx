@@ -34,6 +34,7 @@ import {
 import { GUITARS, GUITAR_BRANDS, findGuitar } from './core/guitars.js';
 import { SONG_PRESETS, INIT_SONG_DB_META, SONG_HISTORY, getSongInfo } from './core/songs.js';
 import LiveScreen from './app/screens/LiveScreen.jsx';
+import { exportSetlistPdf } from './app/screens/SetlistPdfExport.js';
 import { INIT_SETLISTS } from './core/setlists.js';
 import {
   PRESET_CATALOG_MERGED, findCatalogEntry, guessPresetInfo, normalizePresetName,
@@ -3484,6 +3485,12 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           <div key={sl.id} style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
             {editSlId===sl.id?<InlineRenameInput initialName={sl.name} onSave={name=>renameSetlist(sl.id,name)} onCancel={()=>setEditSlId(null)} inp={inp}/>:(<>
               <span style={{flex:1,fontSize:12,fontWeight:600,color:"var(--text)"}}>{sl.name} <span style={{color:"var(--text-dim)",fontWeight:400}}>({sl.songIds.length})</span></span>
+              {/* Phase 5 (Item K) — export PDF par setlist. */}
+              {sl.songIds.length>0&&<button data-testid={`setlist-pdf-${sl.id}`} title={`Export PDF — ${sl.name}`} onClick={()=>{
+                const songs=sl.songIds.map(id=>songDb.find(s=>s.id===id)).filter(Boolean);
+                const doc=exportSetlistPdf(sl,songs,{profile,banksAnn,banksPlug});
+                doc.save(`${sl.name.replace(/[^a-z0-9_-]+/gi,'_')||'setlist'}.pdf`);
+              }} style={{background:"none",border:"none",color:"var(--text-muted)",fontSize:11,cursor:"pointer"}}>📄</button>}
               <button onClick={()=>setEditSlId(sl.id)} style={{background:"none",border:"none",color:"var(--text-muted)",fontSize:11,cursor:"pointer"}}>✏️</button>
               {setlists.length>1&&<button onClick={()=>deleteSetlist(sl.id)} style={{background:"none",border:"none",color:"var(--red)",fontSize:11,cursor:"pointer"}}>🗑</button>}
             </>)}
