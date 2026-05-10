@@ -36,6 +36,7 @@ import { SONG_PRESETS, INIT_SONG_DB_META, SONG_HISTORY, getSongInfo } from './co
 import LiveScreen from './app/screens/LiveScreen.jsx';
 import { exportSetlistPdf } from './app/screens/SetlistPdfExport.js';
 import { APP_NAME, APP_TAGLINE } from './core/branding.js';
+import BacklineIcon from './app/components/BacklineIcon.jsx';
 import { INIT_SETLISTS } from './core/setlists.js';
 import {
   PRESET_CATALOG_MERGED, findCatalogEntry, guessPresetInfo, normalizePresetName,
@@ -628,7 +629,8 @@ function AppHeader({profiles,activeProfileId,onProfile,screen,onNavigate,isAdmin
     {/* Header bar — fixed on mobile */}
     <div className="app-header-bar" style={{display:"flex",alignItems:"center",gap:8,padding:"8px var(--s-3,12px)",background:"var(--surface-card,var(--bg-card))",borderBottom:"1px solid var(--border-subtle,var(--a8))"}}>
       <button onClick={onProfile} style={{background:c,color:"var(--text-inverse)",border:"none",borderRadius:"var(--r-pill,50%)",width:32,height:32,fontSize:14,fontWeight:800,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}} title={profileName}>{profileName[0]?.toUpperCase()||"?"}</button>
-      <div style={{flex:1,minWidth:0}}>
+      <div style={{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:6}}>
+        <BacklineIcon size={20} color="var(--brass-300)"/>
         <div style={{fontSize:14,fontWeight:800,color:"var(--text-primary)",fontFamily:"var(--font-display,system-ui)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{APP_NAME}</div>
       </div>
       {syncStatus&&<span style={{fontSize:10,color:syncStatus==="synced"?"var(--status-success,var(--green))":syncStatus==="syncing"?"var(--status-warning,var(--yellow))":"var(--text-dim)"}}>{syncStatus==="synced"?"☁️":syncStatus==="syncing"?"⏳":"⚠️"}</span>}
@@ -5546,7 +5548,7 @@ function SplashPopup({onClose}){
   return(
     <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onClose}>
       <div style={{background:"var(--bg-card)",borderRadius:"var(--r-xl)",padding:"32px 24px",maxWidth:420,width:"100%",position:"relative",boxShadow:"var(--shadow-lg)",textAlign:"center"}} onClick={e=>e.stopPropagation()}>
-        <div style={{fontSize:48,marginBottom:12}}>🎸</div>
+        <div style={{marginBottom:12,display:"flex",justifyContent:"center"}}><BacklineIcon size={56} color="var(--brass-300)"/></div>
         <div style={{fontSize:24,fontWeight:800,color:"var(--text)",marginBottom:4}}>{APP_NAME}</div>
         <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:16}}>{APP_TAGLINE}</div>
 
@@ -5589,7 +5591,7 @@ function OnboardingWizard({onClose,onProfile}){
   const steps=[
     // 0: Bienvenue
     ()=><div style={{textAlign:"center"}}>
-      <div style={{fontSize:56,marginBottom:16}}>🎸</div>
+      <div style={{marginBottom:16,display:"flex",justifyContent:"center"}}><BacklineIcon size={64} color="var(--brass-300)"/></div>
       <div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-2xl)",fontWeight:800,color:"var(--text-primary)",marginBottom:10}}>{APP_NAME}</div>
       <div style={{fontSize:15,color:"var(--text-sec)",lineHeight:1.6,marginBottom:24}}>
         {APP_TAGLINE} — quel preset charger pour chaque morceau, avec ta guitare.
@@ -6640,7 +6642,7 @@ function App() {
   var mainScreens=["list","setlists","explore","jam","optimizer","recap","synthesis","profile","settings","viewprofile","exportimport"];
   var showNav=mainScreens.includes(screen);
 
-  if(screen==="loading") return <div className="page-root"><div style={{textAlign:"center",padding:"60px 20px"}}><div style={{fontSize:48,marginBottom:16}}>🎸</div><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)"}}>{APP_NAME}</div><div style={{fontSize:13,color:"var(--text-muted)",marginTop:8}}>Chargement...</div></div></div>;
+  if(screen==="loading") return <div className="page-root"><div style={{textAlign:"center",padding:"60px 20px"}}><div style={{marginBottom:16,display:"flex",justifyContent:"center"}}><BacklineIcon size={56} color="var(--brass-300)"/></div><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)"}}>{APP_NAME}</div><div style={{fontSize:13,color:"var(--text-muted)",marginTop:8}}>Chargement...</div></div></div>;
   if(screen==="pick") return <div className="page-root"><ProfilePickerScreen profiles={profiles} onPick={pickProfile}/></div>;
 
   // Phase 4 — mode scène plein écran. Le LiveScreen gère lui-même son
