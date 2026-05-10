@@ -1,4 +1,4 @@
-// src/devices/registry.js — Phase 2.
+// src/devices/registry.js — Phase 2 (étendu Phase 3 + Phase 4).
 // Registre des devices supportés par l'app. Chaque device s'auto-enregistre
 // depuis son module index.js (side-effect import).
 //
@@ -14,6 +14,24 @@
 //                                les call sites main.jsx qui utilisent les
 //                                clés courtes 'ann' et 'plug'. Nouveau code :
 //                                préférer device.isPresetSourceCompatible(src).
+//
+// Conventions de composants optionnels portés par chaque device :
+//
+//   device.RecommendBlock(props) → JSX  (Phase 3)
+//     Composant de recommandation per-device intégré dans les listes de
+//     morceaux (ListScreen vue compacte, RecapScreen, SongDetailCard).
+//     Props : { song, guitar, profile, allGuitars,
+//               precomputedTopRec?, onPatchOverride? }.
+//
+//   device.LiveBlock(props) → JSX  (Phase 4)
+//     Composant de rendu live (mode scène plein écran). Affiche les
+//     informations utiles à la performance : nom du preset/patch
+//     recommandé, scenes, positions A/B/C, etc. Doit être lisible à 2m
+//     sur iPad.
+//     Props : { song, guitar, profile, allGuitars,
+//               banksAnn, banksPlug, availableSources?, onPatchOverride? }.
+//     Un device sans LiveBlock est rendu via un fallback minimal dans
+//     LiveScreen (texte "Pas de mode live pour {label}").
 
 const _devices = new Map();
 
