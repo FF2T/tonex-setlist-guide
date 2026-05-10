@@ -473,7 +473,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.7.5";
+const APP_VERSION = "8.7.6";
 const ADMIN_PIN = "212402";
 
 
@@ -2321,7 +2321,8 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
         </div>
       </div>}
       {tab==="pedale"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} factoryBanks={FACTORY_BANKS_PEDALE} toneNetPresets={toneNetPresets}/>}
-      {tab==="ann"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} factoryBanks={FACTORY_BANKS_PEDALE} toneNetPresets={toneNetPresets}/>}
+      {/* Anniversary : factoryBanks=null Phase 3.5 — l'Anniversary embarque ses propres 150 captures factory exclusives, différentes de FACTORY_BANKS_PEDALE. Donnée à ajouter Phase 5. En attendant, le bouton "Réinitialiser config usine" reste masqué (gated par `factoryBanks &&`) plutôt que d'écraser avec du faux. */}
+      {tab==="ann"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} factoryBanks={null} toneNetPresets={toneNetPresets}/>}
       {tab==="plug"&&<BankEditor banks={banksPlug} onBanks={onBanksPlug} color="var(--accent)" maxBanks={10} startBank={1} factoryBanks={FACTORY_BANKS_PLUG} toneNetPresets={toneNetPresets}/>}
       {profile.isAdmin&&tab==="ia"&&<div>
         <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>Configuration de la cle API pour l'IA.</div>
@@ -2480,6 +2481,21 @@ function MaintenanceTab({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug,
     setDone(true);setTimeout(()=>setDone(false),3000);
   };
 
+  // FIX 2 Phase 3.5 — Bouton "Recalculer IA pour toutes les guitares".
+  // Use case : l'utilisateur a ajouté une nouvelle guitare custom et veut
+  // l'inclure dans les recommandations. Le cache IA est figé sur les
+  // guitares connues au moment du dernier appel ; il faut le purger pour
+  // que la prochaine ouverture d'un morceau déclenche un nouvel appel
+  // qui prendra en compte la collection guitare actuelle.
+  // L'action n'appelle PAS l'IA ici (peut être long) — juste invalider.
+  // Le re-fetch se fait à la demande, à l'ouverture de chaque morceau.
+  const recalcForAllGuitars=()=>{
+    const n=songDb.length;
+    if(!window.confirm(`Vider le cache IA des ${n} morceau${n>1?'x':''} pour inclure tes nouvelles guitares dans les recommandations ?\n\nLe recalcul se fera automatiquement à l'ouverture de chaque morceau (peut être long la première fois).`)) return;
+    onSongDb(p=>p.map(s=>({...s,aiCache:null})));
+    setDone(true);setTimeout(()=>setDone(false),4000);
+  };
+
   return(
     <div>
       <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:16}}>Outils de maintenance de l'application.</div>
@@ -2503,6 +2519,7 @@ function MaintenanceTab({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug,
         :done?<div style={{fontSize:12,color:"var(--green)",fontWeight:600}}>Terminé !</div>
         :<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           <button onClick={recalcAll} style={{background:"var(--accent)",border:"none",color:"var(--text-inverse)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>Recalculer tout ({songDb.length} morceaux)</button>
+          <button onClick={recalcForAllGuitars} title="Invalide le cache IA. Le recalcul se fera à l'ouverture de chaque morceau et inclura tes nouvelles guitares custom." style={{background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)"}}>🎸 Recalculer IA pour toutes les guitares</button>
           <button onClick={clearCache} style={{background:"var(--a7)",border:"none",color:"var(--text-sec)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:12,cursor:"pointer"}}>Vider le cache uniquement</button>
         </div>}
       </div>
@@ -3062,8 +3079,18 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {(getActiveDevicesForRender(profile)).map(d=>{
             // Phase 3 : devices avec RecommendBlock (TMP) → composant dédié.
+            // Phase 3.5 : enveloppé dans un mini-séparateur visuel pour
+            // distinguer la section TMP des lignes ToneX (border-top
+            // discret + label "🎚️ Tone Master Pro" en uppercase).
             if(typeof d.RecommendBlock==='function'){
-              return <d.RecommendBlock key={d.id} song={song} guitar={g} profile={profile} allGuitars={guitars}/>;
+              return (
+                <div key={d.id} style={{borderTop:"1px solid var(--a8)",marginTop:6,paddingTop:6}}>
+                  <div style={{fontSize:9,fontWeight:700,color:d.deviceColor||"var(--brass-400)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:3,display:"flex",alignItems:"center",gap:4}}>
+                    <span>{d.icon}</span><span>{d.label}</span>
+                  </div>
+                  <d.RecommendBlock song={song} guitar={g} profile={profile} allGuitars={guitars}/>
+                </div>
+              );
             }
             const banks=d.bankStorageKey==='banksAnn'?banksAnn:banksPlug;
             const presetData=aiC[d.presetResultKey];
@@ -4338,8 +4365,17 @@ function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAn
                 </div>
               ))}
               {/* Phase 3 : devices avec RecommendBlock (TMP) rendus séparément. */}
+              {/* Phase 3.5 : enveloppés dans un mini-séparateur visuel
+                  (border-top + label "🎚️ Tone Master Pro" uppercase)
+                  pour distinguer clairement la section TMP des lignes
+                  ToneX au-dessus. Un wrapper par device TMP. */}
               {enabledDevices.filter(d=>typeof d.RecommendBlock==='function').map(d=>(
-                <d.RecommendBlock key={d.id} song={song} guitar={guitar} profile={profile} allGuitars={allGuitars}/>
+                <div key={d.id} style={{borderTop:"1px solid var(--a8)",marginTop:4,paddingTop:6}}>
+                  <div style={{fontSize:9,fontWeight:700,color:d.deviceColor||"var(--brass-400)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:3,display:"flex",alignItems:"center",gap:4}}>
+                    <span>{d.icon}</span><span>{d.label}</span>
+                  </div>
+                  <d.RecommendBlock song={song} guitar={guitar} profile={profile} allGuitars={allGuitars}/>
+                </div>
               ))}
               {perDevice.length===0&&enabledDevices.filter(d=>typeof d.RecommendBlock==='function').length===0&&<div style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic"}}>Pas de cache IA — lance une analyse depuis la fiche du morceau</div>}
             </div>

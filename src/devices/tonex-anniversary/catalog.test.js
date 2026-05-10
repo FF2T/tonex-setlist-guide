@@ -3,7 +3,7 @@
 import { describe, test, expect } from 'vitest';
 import {
   TONEX_ANNIVERSARY_CATALOG, isPresetSourceCompatible,
-  INIT_BANKS_ANN, FACTORY_BANKS_PEDALE,
+  INIT_BANKS_ANN,
 } from './catalog.js';
 
 describe('TONEX_ANNIVERSARY_CATALOG · métadonnée', () => {
@@ -19,10 +19,16 @@ describe('TONEX_ANNIVERSARY_CATALOG · métadonnée', () => {
     expect(TONEX_ANNIVERSARY_CATALOG.icon).toBe('🏭');
   });
 
-  test('partage les mêmes données de banks que tonex-pedal (Phase 2)', () => {
-    // bankStorageKey = banksAnn pour les deux pedal devices.
+  test('partage les mêmes données initBanks que tonex-pedal (banksAnn shared Phase 2)', () => {
     expect(Object.keys(INIT_BANKS_ANN).length).toBe(50);
-    expect(Object.keys(FACTORY_BANKS_PEDALE).length).toBeGreaterThanOrEqual(40);
+  });
+
+  test('factoryBanks = null (TODO Phase 5 : 150 captures Anniversary exclusives)', () => {
+    // Régression Phase 3.5 : l'Anniversary NE partage PAS les factory
+    // presets du tonex-pedal. La donnée Anniversary exacte sera
+    // ajoutée Phase 5. En attendant : null pour masquer le bouton
+    // "Réinitialiser config usine" plutôt que d'écraser avec du faux.
+    expect(TONEX_ANNIVERSARY_CATALOG.factoryBanks).toBeNull();
   });
 });
 

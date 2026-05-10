@@ -50,7 +50,6 @@ function pickTopParams(block, slot) {
     const order = ['mic', 'axis', 'distance', 'low_cut', 'high_cut'];
     return order
       .filter((k) => k in block.params)
-      .slice(0, 4)
       .map((k) => [k, block.params[k]]);
   }
   // Pour amp : gain/treble/mid/bass/presence (ordre standard).
@@ -63,6 +62,45 @@ function pickTopParams(block, slot) {
   }
   // Default : 5 premiers.
   return entries.slice(0, 5);
+}
+
+// FIX 3 Phase 3.5 — Traduit un param cab cryptique en label FR lisible.
+// Les params cab du firmware TMP utilisent des codes (axis:on, distance:6,
+// low_cut:20…) que l'utilisateur ne décode pas. On affiche du français
+// explicite pour qu'il comprenne le réglage du micro sans ouvrir le
+// manuel TMP.
+// Conventions firmware TMP :
+//   - axis = on/off : on = en plein cône (sweet spot agressif, plus
+//     de présence), off = micro décalé (plus rond, moins agressif)
+//   - distance en pouces (firmware) → on rappelle l'équivalent cm
+//   - low_cut/high_cut en Hz : 20/20000 = filtres OFF (extrémités)
+function formatCabParam(k, v) {
+  if (k === 'mic') return `Micro : ${v}`;
+  if (k === 'axis') {
+    if (v === 'on' || v === true) return 'Micro en plein cône (axis on)';
+    if (v === 'off' || v === false) return 'Micro décalé (off-axis)';
+    return `Axe micro : ${v}`;
+  }
+  if (k === 'distance') {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return `Distance micro : ${v}`;
+    // Arrondi au demi-cm pour rester lisible (3" → 7.5 cm, 6" → 15 cm).
+    const cmHalf = Math.round(n * 2.54 * 2) / 2;
+    const cmStr = cmHalf % 1 === 0 ? String(cmHalf) : cmHalf.toFixed(1);
+    return `Micro à ${n} pouce${n > 1 ? 's' : ''} (~${cmStr} cm)`;
+  }
+  if (k === 'low_cut') {
+    const n = Number(v);
+    if (n === 20 || v === 'off') return 'Filtre passe-haut 20 Hz (off)';
+    return `Filtre passe-haut : ${v} Hz`;
+  }
+  if (k === 'high_cut') {
+    const n = Number(v);
+    if (n === 20000 || v === 'off') return 'Filtre passe-bas 20 kHz (off)';
+    if (n >= 1000) return `Filtre passe-bas : ${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)} kHz`;
+    return `Filtre passe-bas : ${v} Hz`;
+  }
+  return `${k} : ${v}`;
 }
 
 function TMPRecommendBlock({ song, guitar, profile, _allGuitars }) {
@@ -162,6 +200,7 @@ function TMPRecommendBlock({ song, guitar, profile, _allGuitars }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 6 }}>
             {blocks.map(({ slot, ...block }) => {
               const params = pickTopParams(block, slot);
+              const isCab = slot === 'cab';
               return (
                 <div
                   key={slot}
@@ -184,14 +223,28 @@ function TMPRecommendBlock({ song, guitar, profile, _allGuitars }) {
                     <div style={{ color: 'var(--text-bright)', fontWeight: 600 }}>
                       {block.model}
                     </div>
-                    <div
-                      style={{
-                        color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)',
-                        fontSize: 9, marginTop: 1,
-                      }}
-                    >
-                      {params.map(([k, v]) => `${k}:${v}`).join('  ')}
-                    </div>
+                    {isCab ? (
+                      <div
+                        style={{
+                          color: 'var(--text-tertiary)', fontSize: 10,
+                          marginTop: 2, display: 'flex', flexDirection: 'column',
+                          gap: 1,
+                        }}
+                      >
+                        {params.map(([k, v]) => (
+                          <div key={k}>{formatCabParam(k, v)}</div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)',
+                          fontSize: 9, marginTop: 1,
+                        }}
+                      >
+                        {params.map(([k, v]) => `${k}:${v}`).join('  ')}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -238,4 +291,4 @@ function TMPRecommendBlock({ song, guitar, profile, _allGuitars }) {
 TMPRecommendBlock._RENDER_ORDER = RENDER_ORDER;
 
 export default TMPRecommendBlock;
-export { summarizeChain, pickTopParams };
+export { summarizeChain, pickTopParams, formatCabParam };

@@ -6,7 +6,7 @@
 import { describe, test, expect } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 import React from 'react';
-import RecommendBlock, { summarizeChain } from './RecommendBlock.jsx';
+import RecommendBlock, { summarizeChain, formatCabParam } from './RecommendBlock.jsx';
 import { ROCK_PRESET } from './catalog.js';
 
 const ACDC_HTH = {
@@ -79,6 +79,47 @@ describe('TMPRecommendBlock — drawer expandable', () => {
     expect(container.textContent).toContain('hard_rock');
     expect(container.textContent).toContain('mid');
     expect(container.textContent).toContain('HB:95');
+  });
+});
+
+describe('formatCabParam · labels FR lisibles (FIX 3 Phase 3.5)', () => {
+  test('axis on/off → "plein cône" / "off-axis"', () => {
+    expect(formatCabParam('axis', 'on')).toBe('Micro en plein cône (axis on)');
+    expect(formatCabParam('axis', 'off')).toBe('Micro décalé (off-axis)');
+  });
+
+  test('distance en pouces avec équivalent cm (arrondi au demi)', () => {
+    expect(formatCabParam('distance', 6)).toBe('Micro à 6 pouces (~15 cm)');
+    expect(formatCabParam('distance', 3)).toBe('Micro à 3 pouces (~7.5 cm)');
+    expect(formatCabParam('distance', 1)).toBe('Micro à 1 pouce (~2.5 cm)');
+  });
+
+  test('low_cut/high_cut aux extrémités = (off)', () => {
+    expect(formatCabParam('low_cut', 20)).toBe('Filtre passe-haut 20 Hz (off)');
+    expect(formatCabParam('high_cut', 20000)).toBe('Filtre passe-bas 20 kHz (off)');
+  });
+
+  test('low_cut/high_cut valeur intermédiaire → format Hz/kHz explicite', () => {
+    expect(formatCabParam('low_cut', 80)).toBe('Filtre passe-haut : 80 Hz');
+    expect(formatCabParam('high_cut', 8000)).toBe('Filtre passe-bas : 8 kHz');
+    expect(formatCabParam('high_cut', 12500)).toBe('Filtre passe-bas : 12.5 kHz');
+  });
+
+  test('mic → libellé direct', () => {
+    expect(formatCabParam('mic', 'Dyn SM57')).toBe('Micro : Dyn SM57');
+  });
+
+  test('drawer ouvert sur ROCK_PRESET → labels FR cab visibles', () => {
+    // ROCK_PRESET utilise SM57 axis on distance 6 → "plein cône" + "6 pouces" doivent être visibles.
+    const { container } = render(
+      <RecommendBlock song={ACDC_HTH} guitar={SG} profile={null} _allGuitars={null}/>,
+    );
+    const button = container.querySelector('[data-testid="tmp-recommend-block"] button');
+    fireEvent.click(button);
+    const cabBlock = container.querySelector('[data-testid="tmp-block-cab"]');
+    expect(cabBlock).not.toBeNull();
+    expect(cabBlock.textContent).toContain('plein cône');
+    expect(cabBlock.textContent).toContain('pouces');
   });
 });
 
