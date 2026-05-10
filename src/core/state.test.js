@@ -1,16 +1,80 @@
-// Tests des migrations localStorage v1 → v2 → v3.
+// Tests des migrations localStorage v1 → v2 → v3 → v4 → v5.
 // Critique : aucune migration ne doit perdre de données utilisateur.
 
 import { describe, test, expect } from 'vitest';
 import {
-  STATE_VERSION, migrateV1toV2, migrateV2toV3,
+  STATE_VERSION, migrateV1toV2, migrateV2toV3, migrateV4toV5,
   deriveEnabledDevices, makeDefaultProfile,
   getAllRigsGuitars,
 } from './state.js';
 
 describe('STATE_VERSION', () => {
-  test('vaut 4 en Phase 3 (TMP tmpPatches)', () => {
-    expect(STATE_VERSION).toBe(4);
+  test('vaut 5 en Phase 4 (scenes / footswitchMap / song bpm-key)', () => {
+    expect(STATE_VERSION).toBe(5);
+  });
+});
+
+describe('migrateV4toV5 — purement additif Phase 4', () => {
+  test("v4 → v5 : seul le numéro de version change", () => {
+    const v4 = {
+      version: 4,
+      activeProfileId: 'u1',
+      shared: { songDb: [{ id: 'a', title: 'A', artist: 'B' }] },
+      profiles: {
+        u1: {
+          id: 'u1', name: 'U1', isAdmin: false,
+          enabledDevices: ['tonex-pedal'],
+          devices: { pedale: true },
+          tmpPatches: { custom: [], factoryOverrides: {} },
+        },
+      },
+    };
+    const v5 = migrateV4toV5(v4);
+    expect(v5.version).toBe(5);
+    // Tout le reste préservé byte-for-byte
+    expect(v5.shared).toEqual(v4.shared);
+    expect(v5.profiles).toEqual(v4.profiles);
+    expect(v5.activeProfileId).toBe('u1');
+  });
+
+  test('idempotent : appliquer migrateV4toV5 sur v5 ne corrompt rien', () => {
+    const v5in = {
+      version: 5,
+      profiles: {
+        u1: {
+          id: 'u1',
+          tmpPatches: {
+            custom: [],
+            factoryOverrides: {
+              rock_preset: {
+                scenes: [{ id: 's1', name: 'S1' }],
+                footswitchMap: { fs1: { type: 'scene', sceneId: 's1' } },
+              },
+            },
+          },
+        },
+      },
+    };
+    const v5out = migrateV4toV5(v5in);
+    expect(v5out.version).toBe(5);
+    expect(v5out.profiles.u1.tmpPatches.factoryOverrides.rock_preset.scenes).toEqual([
+      { id: 's1', name: 'S1' },
+    ]);
+  });
+
+  test('songs avec bpm/key préservés', () => {
+    const v4 = {
+      version: 4,
+      shared: {
+        songDb: [
+          { id: 'x', title: 'X', artist: 'Y', bpm: 120, key: 'A minor' },
+        ],
+      },
+      profiles: {},
+    };
+    const v5 = migrateV4toV5(v4);
+    expect(v5.shared.songDb[0].bpm).toBe(120);
+    expect(v5.shared.songDb[0].key).toBe('A minor');
   });
 });
 

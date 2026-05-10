@@ -89,9 +89,10 @@ let DEFAULT_GEMINI_KEY = "";
 
 // ─── Service Worker (déplacé du <head>, CACHE bumpé v48 → v49, ──────
 //     ToneX_Setlist_Guide.html → index.html dans le nouveau dist/) ──
+//     Phase 4 : v50 → v51 (Scenes / footswitchMap / bpm / key / LiveScreen).
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v50';
+const CACHE='tonex-v51';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(

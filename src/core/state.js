@@ -1,9 +1,9 @@
-// src/core/state.js — Phase 3 (state v4).
+// src/core/state.js — Phase 4 (state v5).
 // État applicatif persisté dans localStorage.
 //
-// Schéma v4 :
+// Schéma v5 :
 //   {
-//     version: 4,
+//     version: 5,
 //     activeProfileId: string,
 //     shared: { songDb, theme, setlists, customGuitars?, toneNetPresets?,
 //               deletedSetlistIds? },
@@ -12,7 +12,7 @@
 //     syncId?: string,
 //   }
 //
-// Profil v4 :
+// Profil v5 :
 //   {
 //     id, name, isAdmin, password,
 //     myGuitars: string[],
@@ -27,14 +27,25 @@
 //     customPacks: object[],
 //     banksAnn, banksPlug,                        // 50 et 10 banks A/B/C
 //     tmpPatches: { custom: TMPPatch[],           // v4 : Tone Master Pro
-//                   factoryOverrides: { [patchId]: { [paramPath]: value } } },
+//                   factoryOverrides: { [patchId]: object } },
+//                                                 // v5 (Phase 4) :
+//                                                 //   factoryOverrides[id] peut contenir
+//                                                 //   { scenes, footswitchMap }.
+//                                                 //   custom[].scenes / footswitchMap optionnels.
 //     aiProvider, aiKeys: { anthropic, gemini },
 //     loginHistory?: object[],
 //   }
 //
-// Migrations enchaînées : v1 → v2 → v3 → v4. Le caller utilise loadState()
-// qui applique automatiquement la migration si nécessaire et retourne un
-// état au schéma courant.
+// Songs v5 (shared.songDb[]) :
+//   { id, title, artist, ig?, isCustom?, aiCache?, bpm?, key? }
+//   — bpm + key Phase 4, optionnels.
+//
+// Migrations enchaînées : v1 → v2 → v3 → v4 → v5. Le caller utilise
+// loadState() qui applique automatiquement la migration si nécessaire
+// et retourne un état au schéma courant.
+//
+// v4 → v5 : purement additif (champs optionnels song.bpm/key + patch
+// scenes/footswitchMap). Aucune transformation.
 
 import { GUITARS } from './guitars.js';
 import { INIT_SONG_DB_META } from './songs.js';
@@ -45,7 +56,7 @@ import {
 } from '../data/data_catalogs.js';
 
 // ─── Versioning + clés localStorage ──────────────────────────────────
-const STATE_VERSION = 4;
+const STATE_VERSION = 5;
 const LS_KEY = 'tonex_guide_v2';        // nom historique stable
 const LS_KEY_V1 = 'tonex_guide_v1';
 const LS_SECRETS_KEY = 'tonex_secrets';
@@ -226,20 +237,31 @@ function migrateV3toV4(v3) {
   return { ...v3, version: 4, profiles: ensureProfilesV4(v3.profiles) };
 }
 
+// v4 → v5 (Phase 4) : purement additif. Les nouveaux champs Phase 4
+// (song.bpm, song.key, patch.scenes, patch.footswitchMap) sont tous
+// optionnels et lus défensivement par les composants. Aucune
+// transformation de données ; on bump uniquement la version pour
+// signaler le schéma courant.
+function migrateV4toV5(v4) {
+  return { ...v4, version: 5 };
+}
+
 // ─── loadState / saveState ───────────────────────────────────────────
 function loadState() {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      // Même quand version === STATE_VERSION, on passe par migrateV3toV4
-      // pour heal d'éventuels profils incomplets (Firestore stale).
-      if (d.version === STATE_VERSION) return migrateV3toV4(d);
-      if (d.version === 3) return migrateV3toV4(d);
-      if (d.version === 2) return migrateV3toV4(migrateV2toV3(d));
+      // Même quand version === STATE_VERSION, on passe par les
+      // migrations idempotentes pour heal d'éventuels profils
+      // incomplets (Firestore stale).
+      if (d.version === STATE_VERSION) return migrateV4toV5(migrateV3toV4(d));
+      if (d.version === 4) return migrateV4toV5(migrateV3toV4(d));
+      if (d.version === 3) return migrateV4toV5(migrateV3toV4(d));
+      if (d.version === 2) return migrateV4toV5(migrateV3toV4(migrateV2toV3(d)));
     }
     const v1raw = localStorage.getItem(LS_KEY_V1);
-    if (v1raw) return migrateV3toV4(migrateV2toV3(migrateV1toV2(JSON.parse(v1raw))));
+    if (v1raw) return migrateV4toV5(migrateV3toV4(migrateV2toV3(migrateV1toV2(JSON.parse(v1raw)))));
   } catch (e) { /* ignore */ }
   return null;
 }
@@ -339,7 +361,7 @@ export {
   ensureProfileV3, ensureProfilesV3,
   ensureProfileV4, ensureProfilesV4,
   makeDefaultProfile,
-  migrateV1toV2, migrateV2toV3, migrateV3toV4,
+  migrateV1toV2, migrateV2toV3, migrateV3toV4, migrateV4toV5,
   loadState, saveState,
   autoBackup, listBackups, restoreBackup,
   loadSecrets, saveSecrets,
