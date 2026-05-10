@@ -303,6 +303,35 @@ function setTrusted(id, v) {
   try { localStorage.setItem(LS_TRUSTED_KEY, JSON.stringify(t)); } catch (e) { /* ignore */ }
 }
 
+// ─── All-rigs guitar union (Phase 3.6) ───────────────────────────────
+// Union des guitares de TOUS les profils (standard + customs partagés).
+// Utilisé par le mécanisme passif de re-fetch IA pour que la liste de
+// guitares poussée au prompt couvre la collection complète de la
+// famille (Sébastien + Arthur + Franck...) plutôt que seulement le
+// profil actif. Conséquence : `cot_step2_guitars` dans aiCache contient
+// des entrées pour TOUTES les guitares de la maison, et un profil
+// non-admin (Arthur, Franck) voit ses guitares custom prises en compte
+// dès la première ouverture d'un morceau sans avoir à déclencher un
+// recalcul lui-même.
+//
+// Pas d'éditions per-profile (editedGuitars) : une guitare est
+// identifiée par son id canonique. Si un profil a édité localement le
+// nom d'une guitare standard, c'est l'objet brut de GUITARS qui sera
+// envoyé au prompt (pas la version éditée). Acceptable Phase 3.6.
+function getAllRigsGuitars(profiles, customGuitars, allStandardGuitars) {
+  const std = allStandardGuitars || GUITARS;
+  if (!profiles || typeof profiles !== 'object') return [...std];
+  const idSet = new Set();
+  Object.values(profiles).forEach((p) => {
+    if (p && Array.isArray(p.myGuitars)) {
+      p.myGuitars.forEach((id) => idSet.add(id));
+    }
+  });
+  const standards = std.filter((g) => idSet.has(g.id));
+  const customs = (customGuitars || []).filter((g) => g && idSet.has(g.id));
+  return [...standards, ...customs];
+}
+
 export {
   STATE_VERSION,
   LS_KEY, LS_KEY_V1, LS_SECRETS_KEY, LS_TRUSTED_KEY, LS_BACKUP_KEY, MAX_BACKUPS,
@@ -315,4 +344,5 @@ export {
   autoBackup, listBackups, restoreBackup,
   loadSecrets, saveSecrets,
   loadTrusted, isTrusted, setTrusted,
+  getAllRigsGuitars,
 };

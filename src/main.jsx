@@ -22,6 +22,7 @@ import './devices/tonex-anniversary/index.js';
 import './devices/tonex-plug/index.js';
 import './devices/tonemaster-pro/index.js';
 import { INIT_BANKS_ANN, FACTORY_BANKS_PEDALE } from './devices/tonex-pedal/index.js';
+import { FACTORY_BANKS_ANNIVERSARY } from './devices/tonex-anniversary/index.js';
 import { INIT_BANKS_PLUG, FACTORY_BANKS_PLUG } from './devices/tonex-plug/index.js';
 import { isSrcCompatible, getAllDevices, getEnabledDevices } from './devices/registry.js';
 import {
@@ -58,6 +59,7 @@ import {
   autoBackup, listBackups, restoreBackup,
   loadSecrets, saveSecrets,
   loadTrusted, isTrusted, setTrusted,
+  getAllRigsGuitars,
 } from './core/state.js';
 
 // Helper Phase 2 fix : devices à afficher pour ce profil. Robuste
@@ -473,7 +475,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.7.6";
+const APP_VERSION = "8.7.7";
 const ADMIN_PIN = "212402";
 
 
@@ -2321,8 +2323,9 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
         </div>
       </div>}
       {tab==="pedale"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} factoryBanks={FACTORY_BANKS_PEDALE} toneNetPresets={toneNetPresets}/>}
-      {/* Anniversary : factoryBanks=null Phase 3.5 — l'Anniversary embarque ses propres 150 captures factory exclusives, différentes de FACTORY_BANKS_PEDALE. Donnée à ajouter Phase 5. En attendant, le bouton "Réinitialiser config usine" reste masqué (gated par `factoryBanks &&`) plutôt que d'écraser avec du faux. */}
-      {tab==="ann"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} factoryBanks={null} toneNetPresets={toneNetPresets}/>}
+      {/* Anniversary : factoryBanks construit Phase 3.6 depuis les 150 captures
+           Anniversary exclusives du ANNIVERSARY_CATALOG (50 banks A/B/C). */}
+      {tab==="ann"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} factoryBanks={FACTORY_BANKS_ANNIVERSARY} toneNetPresets={toneNetPresets}/>}
       {tab==="plug"&&<BankEditor banks={banksPlug} onBanks={onBanksPlug} color="var(--accent)" maxBanks={10} startBank={1} factoryBanks={FACTORY_BANKS_PLUG} toneNetPresets={toneNetPresets}/>}
       {profile.isAdmin&&tab==="ia"&&<div>
         <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>Configuration de la cle API pour l'IA.</div>
@@ -2804,7 +2807,7 @@ function getJamRecs(guitarId, style, banksAnn, banksPlug, guitars, availableSour
 }
 
 // ─── SongDetailCard ──────────────────────────────────────────────────────────
-function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,guitars,availableSources,savedGuitarId,onGuitarChange,aiProvider,aiKeys,onSongDb,profile}){
+function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,guitars,allRigsGuitars,availableSources,savedGuitarId,onGuitarChange,aiProvider,aiKeys,onSongDb,profile}){
   const ig=getIg(song,guitars);
   const [gId,setGId]=useState(savedGuitarId||ig[0]||"");
   const [reloading,setReloading]=useState(false);
@@ -2830,7 +2833,12 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
     }
     if(!gId||!onSongDb) return;
     setReloading(true);
-    fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars)
+    // Phase 3.6 — re-fetch passif (aiCache absent ou périmé) : on
+    // pousse au prompt IA l'union all-rigs des guitares (tous profils
+    // + customs). Permet à un profil non-admin (Arthur, Franck) de
+    // voir ses guitares custom dans cot_step2_guitars dès le premier
+    // calcul, sans avoir à déclencher un recalcul lui-même.
+    fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars)
       .then(r=>{
         setLocalAiResult(r);
         onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:{...updateAiCache(x.aiCache,gId,r),sv:SCORING_VERSION}}:x));
@@ -2853,7 +2861,8 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
         return;
       }
       setReloading(true);setLocalAiResult(null);
-      fetchAI(song,v,banksAnn,banksPlug,aiProvider,aiKeys,guitars)
+      // Phase 3.6 — voir commentaire ci-dessus : union all-rigs.
+      fetchAI(song,v,banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars)
         .then(r=>{
           setLocalAiResult(r);
           onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:updateAiCache(x.aiCache,v,r)}:x));
@@ -3248,7 +3257,7 @@ function InlineRenameInput({initialName,onSave,onCancel,inp,placeholder,buttonLa
   </div>;
 }
 
-function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,banksAnn,onBanksAnn,banksPlug,onBanksPlug,aiProvider,aiKeys,hideHeader=false,allGuitars,availableSources,activeProfileId,profile}) {
+function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,banksAnn,onBanksAnn,banksPlug,onBanksPlug,aiProvider,aiKeys,hideHeader=false,allGuitars,allRigsGuitars,availableSources,activeProfileId,profile}) {
   const [activeSlId,setActiveSlId]=useState(setlists[0]?.id||null);
   const activeSl=activeSlId?setlists.find(s=>s.id===activeSlId):null;
   const [showAdd,setShowAdd]=useState(false);
@@ -3330,7 +3339,9 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         const gId=savedGId||ig?.[0]||"";
         setImproveStatus({current:i+1,total:toImprove.length,round,songTitle:s.title});
         try{
-          const r=await waitOrCancel(fetchAI(s,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars));
+          // Phase 3.6 — passe l'union all-rigs au prompt IA pour que
+          // cot_step2_guitars couvre TOUTES les guitares de la famille.
+          const r=await waitOrCancel(fetchAI(s,gId,banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars));
           if(improveCancelRef.current) break;
           onSongDb(p=>p.map(x=>x.id===s.id?{...x,aiCache:updateAiCache(x.aiCache,gId,r)}:x));
         }catch(e){if(improveCancelRef.current) break; /* skip */}
@@ -3530,7 +3541,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                 />}
               </div>
             </div>
-            {isExpanded&&<SongDetailCard song={s} banksAnn={banksAnn} banksPlug={banksPlug} onBanksAnn={onBanksAnn} onBanksPlug={onBanksPlug} onClose={()=>setExpandedId(null)} guitars={allGuitars} availableSources={availableSources} savedGuitarId={activeSl?.guitars?.[s.id]} onGuitarChange={(songId,gId)=>{if(activeSlId)onSetlists(p=>p.map(sl=>sl.id===activeSlId?{...sl,guitars:{...(sl.guitars||{}),[songId]:gId}}:sl));}} aiProvider={aiProvider} aiKeys={aiKeys} onSongDb={onSongDb} profile={profile}/>}
+            {isExpanded&&<SongDetailCard song={s} banksAnn={banksAnn} banksPlug={banksPlug} onBanksAnn={onBanksAnn} onBanksPlug={onBanksPlug} onClose={()=>setExpandedId(null)} guitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} savedGuitarId={activeSl?.guitars?.[s.id]} onGuitarChange={(songId,gId)=>{if(activeSlId)onSetlists(p=>p.map(sl=>sl.id===activeSlId?{...sl,guitars:{...(sl.guitars||{}),[songId]:gId}}:sl));}} aiProvider={aiProvider} aiKeys={aiKeys} onSongDb={onSongDb} profile={profile}/>}
           </div>
           </div>
         );
@@ -5270,7 +5281,7 @@ function JamScreen({banksAnn,banksPlug,allGuitars,availableSources,profile}){
 }
 
 // ─── SetlistsScreen (onglets Setlists + Morceaux) ────────────────────────────
-function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onNavigate,banksAnn,onBanksAnn,banksPlug,onBanksPlug,aiProvider,aiKeys,allGuitars,availableSources,activeProfileId,profile}){
+function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onNavigate,banksAnn,onBanksAnn,banksPlug,onBanksPlug,aiProvider,aiKeys,allGuitars,allRigsGuitars,availableSources,activeProfileId,profile}){
   const [tab,setTab]=useState("setlists");
   const tabBtn=(id,label)=>(
     <button onClick={()=>setTab(id)} style={{background:tab===id?"var(--accent-bg)":"var(--a5)",border:tab===id?"1px solid var(--accent-border)":"1px solid var(--a8)",color:tab===id?"var(--accent)":"var(--text-sec)",borderRadius:"var(--r-md)",padding:"7px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{label}</button>
@@ -5324,7 +5335,7 @@ function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked
         {tabBtn("setlists","Setlists")}
         {tabBtn("songs","Morceaux")}
       </div>
-      {tab==="setlists"&&<ListScreen songDb={songDb} onSongDb={onSongDb} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} availableSources={availableSources} activeProfileId={activeProfileId} profile={profile}/>}
+      {tab==="setlists"&&<ListScreen songDb={songDb} onSongDb={onSongDb} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} activeProfileId={activeProfileId} profile={profile}/>}
       {tab==="songs"&&<div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
           <div style={{fontSize:13,color:"var(--text-sec)"}}>{songDb.length} morceaux</div>
@@ -6082,6 +6093,15 @@ function App() {
   },[profile.myGuitars, customGuitars, profile.editedGuitars]);
   useEffect(()=>{window.__allGuitars=allGuitars;},[allGuitars]);
 
+  // Phase 3.6 — Union all-rigs des guitares de TOUS les profils
+  // (Sébastien + Arthur + Franck + …). Utilisé par le mécanisme passif
+  // de re-fetch IA pour que cot_step2_guitars couvre la collection
+  // complète de la famille, pas seulement le profil actif.
+  const allRigsGuitars = useMemo(
+    ()=>getAllRigsGuitars(profiles, customGuitars, GUITARS),
+    [profiles, customGuitars],
+  );
+
   // Non-persisted
   const [screen,  setScreen]  = useState("loading");
   const [checked, setChecked] = useState([]);
@@ -6507,7 +6527,7 @@ function App() {
   else if(screen==="exportimport") screenContent=<ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("settings")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/>;
   else if(screen==="profile") screenContent=<MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/>;
   else if(screen==="settings") screenContent=<ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} songDb={songDb} onSongDb={setSongDb} setlists={setlists} onSetlists={setSetlists}/>;
-  else if(screen==="setlists") screenContent=<SetlistsScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} activeProfileId={activeProfileId} profile={profile}/>;
+  else if(screen==="setlists") screenContent=<SetlistsScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} activeProfileId={activeProfileId} profile={profile}/>;
   else if(screen==="jam") screenContent=<div><Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Jammer"}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>🎲 Jammer</div><JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources} profile={profile}/></div>;
   else if(screen==="explore") screenContent=<div><Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Explorer"}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>🎛️ Explorer les presets</div><PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={profile.customPacks} guitars={allGuitars} toneNetPresets={toneNetPresets}/></div>;
   else if(screen==="optimizer") screenContent=<BankOptimizerScreen songDb={songDb} setlists={mySetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} allGuitars={allGuitars} availableSources={availableSources} onNavigate={setScreen} profile={profile}/>;

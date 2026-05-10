@@ -6,7 +6,9 @@
 import { describe, test, expect } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 import React from 'react';
-import RecommendBlock, { summarizeChain, formatCabParam } from './RecommendBlock.jsx';
+import RecommendBlock, {
+  summarizeChain, formatCabParam, formatBlockParam, formatHzCut,
+} from './RecommendBlock.jsx';
 import { ROCK_PRESET } from './catalog.js';
 
 const ACDC_HTH = {
@@ -120,6 +122,103 @@ describe('formatCabParam · labels FR lisibles (FIX 3 Phase 3.5)', () => {
     expect(cabBlock).not.toBeNull();
     expect(cabBlock.textContent).toContain('plein cône');
     expect(cabBlock.textContent).toContain('pouces');
+  });
+});
+
+describe('formatBlockParam · libellés généralisés tous blocs (Phase 3.6)', () => {
+  test('amp British Plexi → /10 par défaut + noms knobs firmware', () => {
+    expect(formatBlockParam('amp', 'volume_i', 5, 'British Plexi')).toBe('Volume I : 5/10');
+    expect(formatBlockParam('amp', 'volume_ii', 5, 'British Plexi')).toBe('Volume II : 5/10');
+    expect(formatBlockParam('amp', 'treble', 6, 'British Plexi')).toBe('Treble : 6/10');
+    expect(formatBlockParam('amp', 'middle', 5, 'British Plexi')).toBe('Middle : 5/10');
+    expect(formatBlockParam('amp', 'bass', 5, 'British Plexi')).toBe('Bass : 5/10');
+    expect(formatBlockParam('amp', 'presence', 6, 'British Plexi')).toBe('Presence : 6/10');
+  });
+
+  test("amp Fender '59 Bassman → échelle /12 (tweed)", () => {
+    expect(formatBlockParam('amp', 'gain', 6, "Fender '59 Bassman")).toBe('Gain : 6/12');
+    expect(formatBlockParam('amp', 'bass', 8, "Fender '59 Bassman")).toBe('Bass : 8/12');
+    expect(formatBlockParam('amp', 'presence', 6, "Fender '59 Bassman")).toBe('Presence : 6/12');
+  });
+
+  test('drive : drive/tone/level → /10', () => {
+    expect(formatBlockParam('drive', 'drive', 3)).toBe('Drive : 3/10');
+    expect(formatBlockParam('drive', 'tone', 5)).toBe('Tone : 5/10');
+    expect(formatBlockParam('drive', 'level', 7)).toBe('Level : 7/10');
+  });
+
+  test('comp : ratio sous forme X:1, autres knobs /10', () => {
+    expect(formatBlockParam('comp', 'ratio', 5)).toBe('Ratio : 5:1');
+    expect(formatBlockParam('comp', 'threshold', 5)).toBe('Threshold : 5/10');
+    expect(formatBlockParam('comp', 'attack', 5)).toBe('Attack : 5/10');
+    expect(formatBlockParam('comp', 'release', 5)).toBe('Release : 5/10');
+  });
+
+  test('eq : Hz pour fréquences, dB pour gains, mode passe-haut si low_gain ≤ -12', () => {
+    expect(formatBlockParam('eq', 'low_freq', 98)).toBe('Low Freq : 98 Hz');
+    expect(formatBlockParam('eq', 'mid_freq', 2000)).toBe('Mid Freq : 2 kHz');
+    expect(formatBlockParam('eq', 'mid_gain', 2)).toBe('Mid Gain : +2 dB');
+    expect(formatBlockParam('eq', 'hi_gain', -3)).toBe('Hi Gain : -3 dB');
+    expect(formatBlockParam('eq', 'low_gain', -12)).toBe('Low Gain : -12 dB (mode passe-haut 6 dB/Oct)');
+  });
+
+  test('delay : time ms, feedback/mix %, cuts via formatHzCut', () => {
+    expect(formatBlockParam('delay', 'time', 350)).toBe('Time : 350 ms');
+    expect(formatBlockParam('delay', 'feedback', 25)).toBe('Feedback : 25 %');
+    expect(formatBlockParam('delay', 'mix', 15)).toBe('Mix : 15 %');
+    expect(formatBlockParam('delay', 'hi_cut', 6000)).toBe('Filtre passe-bas : 6 kHz');
+    expect(formatBlockParam('delay', 'low_cut', 100)).toBe('Filtre passe-haut : 100 Hz');
+  });
+
+  test('reverb : mixer/dwell/tone /10, predelay ms, cuts off aux extrémités', () => {
+    expect(formatBlockParam('reverb', 'mixer', 3)).toBe('Mixer : 3/10');
+    expect(formatBlockParam('reverb', 'dwell', 7)).toBe('Dwell : 7/10');
+    expect(formatBlockParam('reverb', 'tone', 6)).toBe('Tone : 6/10');
+    expect(formatBlockParam('reverb', 'predelay', 0)).toBe('Predelay : 0 ms');
+    expect(formatBlockParam('reverb', 'hi_cut', 8000)).toBe('Filtre passe-bas : 8 kHz');
+    expect(formatBlockParam('reverb', 'hi_cut', 20000)).toBe('Filtre passe-bas 20 kHz (off)');
+    expect(formatBlockParam('reverb', 'low_cut', 20)).toBe('Filtre passe-haut 20 Hz (off)');
+  });
+
+  test('noise_gate : threshold + attenuation /10', () => {
+    expect(formatBlockParam('noise_gate', 'threshold', 5)).toBe('Threshold : 5/10');
+    expect(formatBlockParam('noise_gate', 'attenuation', 6)).toBe('Attenuation : 6/10');
+  });
+
+  test('mod : rate Hz, depth/mix %, type string', () => {
+    expect(formatBlockParam('mod', 'rate', 2)).toBe('Rate : 2 Hz');
+    expect(formatBlockParam('mod', 'depth', 50)).toBe('Depth : 50 %');
+    expect(formatBlockParam('mod', 'type', 'classic')).toBe('Type : classic');
+  });
+
+  test('cab : délégation à formatCabParam (rétro-compat)', () => {
+    expect(formatBlockParam('cab', 'axis', 'on')).toBe(formatCabParam('axis', 'on'));
+    expect(formatBlockParam('cab', 'distance', 6)).toBe(formatCabParam('distance', 6));
+  });
+
+  test('formatHzCut : conventions partagées cab/delay/reverb', () => {
+    expect(formatHzCut('low_cut', 20)).toBe('Filtre passe-haut 20 Hz (off)');
+    expect(formatHzCut('high_cut', 20000)).toBe('Filtre passe-bas 20 kHz (off)');
+    expect(formatHzCut('hi_cut', 8000)).toBe('Filtre passe-bas : 8 kHz');
+    expect(formatHzCut('low_cut', 100)).toBe('Filtre passe-haut : 100 Hz');
+  });
+
+  test('drawer ouvert sur ROCK_PRESET → labels FR amp + drive + reverb visibles', () => {
+    const { container } = render(
+      <RecommendBlock song={ACDC_HTH} guitar={SG} profile={null} _allGuitars={null}/>,
+    );
+    const button = container.querySelector('[data-testid="tmp-recommend-block"] button');
+    fireEvent.click(button);
+    // Amp British Plexi : Volume I : 5/10 doit apparaître
+    const ampBlock = container.querySelector('[data-testid="tmp-block-amp"]');
+    expect(ampBlock.textContent).toContain('Volume I : 5/10');
+    expect(ampBlock.textContent).toContain('Presence : 6/10');
+    // Drive Super Drive : Drive : 3/10
+    const driveBlock = container.querySelector('[data-testid="tmp-block-drive"]');
+    expect(driveBlock.textContent).toContain('Drive : 3/10');
+    // Reverb Spring : Mixer : 3/10
+    const reverbBlock = container.querySelector('[data-testid="tmp-block-reverb"]');
+    expect(reverbBlock.textContent).toContain('Mixer : 3/10');
   });
 });
 

@@ -10,7 +10,8 @@ registerDevice({
 });
 
 export { TONEX_ANNIVERSARY_CATALOG, isPresetSourceCompatible };
-// FACTORY_BANKS_PEDALE retiré du re-export Phase 3.5 (Anniversary
-// n'a pas accès aux factory presets de la pédale standard — ses
-// 150 captures exclusives seront ajoutées Phase 5).
-export { INIT_BANKS_ANN } from './catalog.js';
+// FACTORY_BANKS_ANNIVERSARY (Phase 3.6) construit depuis les 150
+// captures Anniversary exclusives déjà présentes dans
+// data/data_catalogs.js (ANNIVERSARY_CATALOG). FACTORY_BANKS_PEDALE
+// reste dispo via tonex-pedal/index.js (différentes données).
+export { INIT_BANKS_ANN, FACTORY_BANKS_ANNIVERSARY } from './catalog.js';

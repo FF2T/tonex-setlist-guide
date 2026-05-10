@@ -145,6 +145,29 @@ public/
 
 ## Décisions de modèle (à étoffer au fil des phases)
 
+### AI cache — guitar list (Phase 3.6)
+
+La liste de guitares utilisée pour générer `cot_step2_guitars` dans
+`aiCache.result` est l'**UNION des guitares de tous les profils**
+(Sébastien + Arthur + Franck + …), pas seulement le profil actif.
+
+Cela permet à un profil non-admin (ex. Arthur, Franck) de voir ses
+guitares custom dans les recommandations dès la première ouverture
+d'un morceau, sans avoir à déclencher un recalcul lui-même. Calcul
+côté `src/core/state.js` via `getAllRigsGuitars(profiles,
+customGuitars, GUITARS)` ; mémoïsé au niveau App et propagé à
+`ListScreen` + `SongDetailCard` via la prop `allRigsGuitars`.
+
+Conséquence : le bouton "🎸 Recalculer IA pour toutes les guitares"
+de `MaintenanceTab` (Phase 3.5) se contente d'invalider `aiCache`. Le
+prochain re-fetch passif (à l'ouverture d'un morceau) utilise
+automatiquement l'union all-rigs.
+
+Pas d'éditions per-profile (`editedGuitars`) appliquées sur l'union :
+une guitare est identifiée par son id canonique. Si un profil a édité
+localement le nom d'une guitare standard, c'est l'objet brut de
+`GUITARS` qui sera poussé au prompt. Acceptable Phase 3.6.
+
 ### Modèle TMP (Phase 3 — décisions validées)
 
 Toutes les décisions ci-dessous sont fixes pour Phase 3. Claude

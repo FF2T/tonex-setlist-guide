@@ -13,6 +13,7 @@ import React, { useMemo, useState } from 'react';
 import { recommendTMPPatch } from './scoring.js';
 import { TMP_FACTORY_PATCHES, TONEMASTER_PRO_CATALOG } from './catalog.js';
 import { getPatchBlocks, RENDER_ORDER } from './chain-model.js';
+import { AMP_SCALE_BY_MODEL, DEFAULT_AMP_SCALE } from './whitelist.js';
 
 // Génère un résumé compact de la chaîne d'un patch (ex.
 // "Plexi · 4x12 Greenback · +Drive · Spring").
@@ -40,40 +41,169 @@ function summarizeChain(patch) {
   return parts.join(' · ');
 }
 
-// Top 3 paramètres "lisibles" d'un bloc, pour affichage compact dans
-// le drawer (les autres sont cachés derrière un toggle "voir tout").
+// Ordre d'affichage préféré des paramètres par type de bloc.
+// Aligné sur l'ordre des knobs sur la face avant des pédales/amps
+// pour que la lecture suive le geste d'un guitariste qui regarde sa
+// chaîne.
+const PARAM_ORDER_BY_SLOT = {
+  cab: ['mic', 'axis', 'distance', 'low_cut', 'high_cut'],
+  amp: ['gain', 'volume_i', 'volume_ii', 'bright', 'treble', 'middle', 'mid', 'bass', 'presence'],
+  drive: ['drive', 'tone', 'level', 'presence', 'mix'],
+  comp: ['threshold', 'ratio', 'attack', 'release', 'level', 'knee', 'blend'],
+  eq: ['low_freq', 'low_gain', 'mid_freq', 'mid_gain', 'hi_gain'],
+  delay: ['time', 'feedback', 'mix', 'hi_cut', 'low_cut'],
+  reverb: ['mixer', 'dwell', 'tone', 'predelay', 'hi_cut', 'low_cut'],
+  mod: ['rate', 'depth', 'mix', 'feedback', 'type'],
+  noise_gate: ['threshold', 'attenuation'],
+};
+
+// Top paramètres "lisibles" d'un bloc, pour affichage dans le drawer.
+// Suit PARAM_ORDER_BY_SLOT, fallback sur les 5 premiers du params si
+// le slot n'est pas connu.
 function pickTopParams(block, slot) {
   if (!block?.params) return [];
   const entries = Object.entries(block.params);
-  // Pour cab : montrer mic + axis + distance en priorité.
-  if (slot === 'cab') {
-    const order = ['mic', 'axis', 'distance', 'low_cut', 'high_cut'];
-    return order
-      .filter((k) => k in block.params)
-      .map((k) => [k, block.params[k]]);
+  const order = PARAM_ORDER_BY_SLOT[slot];
+  if (order) {
+    const orderedKeys = order.filter((k) => k in block.params);
+    const remaining = entries.map(([k]) => k).filter((k) => !orderedKeys.includes(k));
+    return [...orderedKeys, ...remaining].map((k) => [k, block.params[k]]);
   }
-  // Pour amp : gain/treble/mid/bass/presence (ordre standard).
-  if (slot === 'amp') {
-    const order = ['gain', 'volume_i', 'volume_ii', 'treble', 'middle', 'mid', 'bass', 'presence'];
-    return order
-      .filter((k) => k in block.params)
-      .slice(0, 5)
-      .map((k) => [k, block.params[k]]);
-  }
-  // Default : 5 premiers.
   return entries.slice(0, 5);
 }
 
-// FIX 3 Phase 3.5 — Traduit un param cab cryptique en label FR lisible.
-// Les params cab du firmware TMP utilisent des codes (axis:on, distance:6,
-// low_cut:20…) que l'utilisateur ne décode pas. On affiche du français
-// explicite pour qu'il comprenne le réglage du micro sans ouvrir le
-// manuel TMP.
-// Conventions firmware TMP :
-//   - axis = on/off : on = en plein cône (sweet spot agressif, plus
-//     de présence), off = micro décalé (plus rond, moins agressif)
-//   - distance en pouces (firmware) → on rappelle l'équivalent cm
-//   - low_cut/high_cut en Hz : 20/20000 = filtres OFF (extrémités)
+// ─── Helpers de formatage ────────────────────────────────────────────
+
+// Cuts Hz/kHz partagés entre cab, delay, reverb (même sémantique :
+// extrémités = filtre OFF, sinon valeur explicite Hz ou kHz).
+function formatHzCut(kind, v) {
+  // kind = 'low_cut' | 'high_cut' | 'hi_cut'
+  const isHigh = kind === 'high_cut' || kind === 'hi_cut';
+  const label = isHigh ? 'Filtre passe-bas' : 'Filtre passe-haut';
+  const n = Number(v);
+  if (!Number.isFinite(n)) return `${label} : ${v}`;
+  // Extrémités firmware = filtre OFF (20 Hz pour low cut, 20 kHz pour high cut).
+  if (!isHigh && n === 20) return `${label} 20 Hz (off)`;
+  if (isHigh && n === 20000) return `${label} 20 kHz (off)`;
+  if (n >= 1000) return `${label} : ${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)} kHz`;
+  return `${label} : ${n} Hz`;
+}
+
+// Capitalize first letter — utilisé pour fallback labels.
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+// Labels firmware-exact (terminologie qui apparaît physiquement sur
+// les pédales TMP / amps). On NE traduit PAS ces noms en français —
+// l'utilisateur les retrouve tels quels sur sa chaîne.
+const AMP_KNOB_LABELS = {
+  gain: 'Gain',
+  volume_i: 'Volume I',
+  volume_ii: 'Volume II',
+  bright: 'Bright',
+  treble: 'Treble',
+  middle: 'Middle',
+  mid: 'Mid',
+  bass: 'Bass',
+  presence: 'Presence',
+};
+const DRIVE_KNOB_LABELS = {
+  drive: 'Drive', tone: 'Tone', level: 'Level', presence: 'Presence', mix: 'Mix',
+};
+const COMP_KNOB_LABELS = {
+  threshold: 'Threshold', attack: 'Attack', release: 'Release',
+  level: 'Level', knee: 'Knee', blend: 'Blend',
+};
+const REVERB_KNOB_LABELS = { mixer: 'Mixer', dwell: 'Dwell', tone: 'Tone' };
+const NOISE_GATE_LABELS = { threshold: 'Threshold', attenuation: 'Attenuation' };
+
+// FIX 3 Phase 3.5 (Phase 3.6 généralisé) — Traduit un param cryptique
+// du firmware TMP en libellé lisible. Garde la terminologie EXACTE des
+// knobs ("Volume I", "Treble", "Threshold"…) telle qu'elle apparaît
+// sur les pédales/amps, et AJOUTE les unités/échelles qui ne sont PAS
+// visibles physiquement (".../10", "X ms", "X Hz", "X dB", ...).
+//
+// Cas "off" / "neutre" : si une valeur correspond au défaut bypass
+// (low_cut=20 Hz, high_cut=20 kHz), suffixer "(off)".
+//
+// Signature : formatBlockParam(blockType, paramKey, value, blockModel?).
+// blockModel sert à choisir l'échelle ampli (cf AMP_SCALE_BY_MODEL :
+// '59 Bassman et tweeds → /12, sinon /10).
+function formatBlockParam(blockType, k, v, blockModel) {
+  if (blockType === 'cab') return formatCabParam(k, v);
+
+  if (blockType === 'amp') {
+    const scale = (blockModel && AMP_SCALE_BY_MODEL[blockModel]) || DEFAULT_AMP_SCALE;
+    const label = AMP_KNOB_LABELS[k] || cap(k);
+    return `${label} : ${v}/${scale}`;
+  }
+
+  if (blockType === 'drive') {
+    const label = DRIVE_KNOB_LABELS[k] || cap(k);
+    return `${label} : ${v}/10`;
+  }
+
+  if (blockType === 'comp') {
+    if (k === 'ratio') return `Ratio : ${v}:1`;
+    const label = COMP_KNOB_LABELS[k] || cap(k);
+    return `${label} : ${v}/10`;
+  }
+
+  if (blockType === 'eq') {
+    if (k === 'low_freq' || k === 'mid_freq') {
+      const lbl = k === 'low_freq' ? 'Low Freq' : 'Mid Freq';
+      const n = Number(v);
+      if (Number.isFinite(n) && n >= 1000) return `${lbl} : ${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 2)} kHz`;
+      return `${lbl} : ${v} Hz`;
+    }
+    if (k === 'low_gain' || k === 'mid_gain' || k === 'hi_gain') {
+      const lbl = k === 'low_gain' ? 'Low Gain' : k === 'mid_gain' ? 'Mid Gain' : 'Hi Gain';
+      const n = Number(v);
+      // Convention EQ-5 firmware : low_gain à -12 dB déclenche le mode
+      // passe-haut 6 dB/Oct (cf patches Arthur : EQ low_gain=-12).
+      if (k === 'low_gain' && Number.isFinite(n) && n <= -12) {
+        return `${lbl} : ${n} dB (mode passe-haut 6 dB/Oct)`;
+      }
+      const sign = Number.isFinite(n) && n > 0 ? '+' : '';
+      return `${lbl} : ${sign}${v} dB`;
+    }
+    return `${cap(k)} : ${v}`;
+  }
+
+  if (blockType === 'delay') {
+    if (k === 'time') return `Time : ${v} ms`;
+    if (k === 'feedback') return `Feedback : ${v} %`;
+    if (k === 'mix') return `Mix : ${v} %`;
+    if (k === 'low_cut' || k === 'hi_cut' || k === 'high_cut') return formatHzCut(k, v);
+    return `${cap(k)} : ${v}`;
+  }
+
+  if (blockType === 'reverb') {
+    if (k === 'predelay') return `Predelay : ${v} ms`;
+    if (k === 'low_cut' || k === 'hi_cut' || k === 'high_cut') return formatHzCut(k, v);
+    if (REVERB_KNOB_LABELS[k]) return `${REVERB_KNOB_LABELS[k]} : ${v}/10`;
+    return `${cap(k)} : ${v}`;
+  }
+
+  if (blockType === 'noise_gate') {
+    const label = NOISE_GATE_LABELS[k] || cap(k);
+    return `${label} : ${v}/10`;
+  }
+
+  if (blockType === 'mod') {
+    // Mod : pas de scale fixe (rate Hz, depth %, mix %, type string…).
+    if (k === 'rate') return `Rate : ${v} Hz`;
+    if (k === 'depth' || k === 'mix' || k === 'feedback') return `${cap(k)} : ${v} %`;
+    if (k === 'type') return `Type : ${v}`;
+    return `${cap(k)} : ${v}`;
+  }
+
+  // Fallback générique.
+  return `${k} : ${v}`;
+}
+
+// Cab params : labels FR explicites (axis on/off, distance pouces+cm,
+// cuts Hz). Garde son helper dédié car la sémantique micro est
+// spécifique (axe, distance physique).
 function formatCabParam(k, v) {
   if (k === 'mic') return `Micro : ${v}`;
   if (k === 'axis') {
@@ -89,17 +219,7 @@ function formatCabParam(k, v) {
     const cmStr = cmHalf % 1 === 0 ? String(cmHalf) : cmHalf.toFixed(1);
     return `Micro à ${n} pouce${n > 1 ? 's' : ''} (~${cmStr} cm)`;
   }
-  if (k === 'low_cut') {
-    const n = Number(v);
-    if (n === 20 || v === 'off') return 'Filtre passe-haut 20 Hz (off)';
-    return `Filtre passe-haut : ${v} Hz`;
-  }
-  if (k === 'high_cut') {
-    const n = Number(v);
-    if (n === 20000 || v === 'off') return 'Filtre passe-bas 20 kHz (off)';
-    if (n >= 1000) return `Filtre passe-bas : ${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)} kHz`;
-    return `Filtre passe-bas : ${v} Hz`;
-  }
+  if (k === 'low_cut' || k === 'high_cut' || k === 'hi_cut') return formatHzCut(k, v);
   return `${k} : ${v}`;
 }
 
@@ -200,7 +320,6 @@ function TMPRecommendBlock({ song, guitar, profile, _allGuitars }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 6 }}>
             {blocks.map(({ slot, ...block }) => {
               const params = pickTopParams(block, slot);
-              const isCab = slot === 'cab';
               return (
                 <div
                   key={slot}
@@ -223,28 +342,17 @@ function TMPRecommendBlock({ song, guitar, profile, _allGuitars }) {
                     <div style={{ color: 'var(--text-bright)', fontWeight: 600 }}>
                       {block.model}
                     </div>
-                    {isCab ? (
-                      <div
-                        style={{
-                          color: 'var(--text-tertiary)', fontSize: 10,
-                          marginTop: 2, display: 'flex', flexDirection: 'column',
-                          gap: 1,
-                        }}
-                      >
-                        {params.map(([k, v]) => (
-                          <div key={k}>{formatCabParam(k, v)}</div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div
-                        style={{
-                          color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)',
-                          fontSize: 9, marginTop: 1,
-                        }}
-                      >
-                        {params.map(([k, v]) => `${k}:${v}`).join('  ')}
-                      </div>
-                    )}
+                    <div
+                      style={{
+                        color: 'var(--text-tertiary)', fontSize: 10,
+                        marginTop: 2, display: 'flex', flexDirection: 'column',
+                        gap: 1,
+                      }}
+                    >
+                      {params.map(([k, v]) => (
+                        <div key={k}>{formatBlockParam(slot, k, v, block.model)}</div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               );
@@ -291,4 +399,8 @@ function TMPRecommendBlock({ song, guitar, profile, _allGuitars }) {
 TMPRecommendBlock._RENDER_ORDER = RENDER_ORDER;
 
 export default TMPRecommendBlock;
-export { summarizeChain, pickTopParams, formatCabParam };
+export {
+  summarizeChain, pickTopParams,
+  formatCabParam, formatBlockParam, formatHzCut,
+  PARAM_ORDER_BY_SLOT,
+};

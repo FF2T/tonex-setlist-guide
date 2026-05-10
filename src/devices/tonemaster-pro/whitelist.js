@@ -105,6 +105,20 @@ const MODELS_BY_TYPE = {
 const STYLES = ['blues', 'rock', 'hard_rock', 'jazz', 'metal', 'pop'];
 const GAINS = ['low', 'mid', 'high'];
 
+// Phase 3.6 — Échelle des knobs d'ampli pour l'affichage user-facing.
+// Par défaut /10 (Marshall, Mesa, EVH, etc.). Les amps tweed historiques
+// utilisaient une graduation 1-12 (Bassman, '57 Deluxe et variantes).
+// Cette info n'est PAS visible sur la pédale TMP elle-même — c'est une
+// précision ajoutée pour que l'utilisateur sache si un knob réglé à 7
+// est "haut" (sur /10) ou "milieu" (sur /12). Utilisé par
+// formatBlockParam('amp', ...) dans RecommendBlock.jsx.
+const AMP_SCALE_BY_MODEL = {
+  "Fender '57 Deluxe": 12,
+  "Fender '59 Bassman": 12,
+  "Fender '59 Bassman Custom": 12,
+};
+const DEFAULT_AMP_SCALE = 10;
+
 export {
   AMP_MODELS,
   CAB_MODELS,
@@ -118,4 +132,6 @@ export {
   MODELS_BY_TYPE,
   STYLES,
   GAINS,
+  AMP_SCALE_BY_MODEL,
+  DEFAULT_AMP_SCALE,
 };

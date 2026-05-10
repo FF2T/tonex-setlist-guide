@@ -5,6 +5,7 @@ import { describe, test, expect } from 'vitest';
 import {
   STATE_VERSION, migrateV1toV2, migrateV2toV3,
   deriveEnabledDevices, makeDefaultProfile,
+  getAllRigsGuitars,
 } from './state.js';
 
 describe('STATE_VERSION', () => {
@@ -364,5 +365,63 @@ describe('makeDefaultProfile · enabledDevices conforme au flag isAdmin', () => 
     const p = makeDefaultProfile('user', 'User', false);
     expect(p.enabledDevices).toEqual(['tonex-pedal', 'tonex-plug']);
     expect(p.devices.anniversary).toBe(false);
+  });
+});
+
+describe('getAllRigsGuitars (Phase 3.6) · union des guitares de tous les profils', () => {
+  const STD = [
+    { id: 'lp60', name: 'LP60', type: 'HB' },
+    { id: 'sg61', name: 'SG 61', type: 'HB' },
+    { id: 'strat61', name: 'Strat 61', type: 'SC' },
+    { id: 'tele63', name: 'Tele 63', type: 'SC' },
+  ];
+
+  test('union de 2 profils sans recouvrement → liste fusionnée dédupliquée', () => {
+    const profiles = {
+      sebastien: { myGuitars: ['lp60', 'sg61'] },
+      arthur: { myGuitars: ['strat61', 'tele63'] },
+    };
+    const out = getAllRigsGuitars(profiles, [], STD);
+    expect(out.map((g) => g.id).sort()).toEqual(['lp60', 'sg61', 'strat61', 'tele63']);
+  });
+
+  test('overlap entre profils → guitare présente une seule fois', () => {
+    const profiles = {
+      a: { myGuitars: ['lp60', 'sg61'] },
+      b: { myGuitars: ['sg61', 'strat61'] },
+    };
+    const out = getAllRigsGuitars(profiles, [], STD);
+    expect(out.map((g) => g.id).sort()).toEqual(['lp60', 'sg61', 'strat61']);
+  });
+
+  test('inclut customGuitars partagés référencés par au moins un profil', () => {
+    const customs = [
+      { id: 'arthur_es339', name: 'ES-339 Arthur', type: 'HB' },
+      { id: 'unused_custom', name: 'Inutilisée', type: 'HB' },
+    ];
+    const profiles = {
+      sebastien: { myGuitars: ['lp60'] },
+      arthur: { myGuitars: ['arthur_es339'] },
+    };
+    const out = getAllRigsGuitars(profiles, customs, STD);
+    const ids = out.map((g) => g.id);
+    expect(ids).toContain('lp60');
+    expect(ids).toContain('arthur_es339');
+    // unused_custom n'est listée par aucun profil → exclue.
+    expect(ids).not.toContain('unused_custom');
+  });
+
+  test('profile.myGuitars vide ou absent → ignoré sans crash', () => {
+    const profiles = {
+      a: { myGuitars: ['lp60'] },
+      b: {},
+      c: { myGuitars: [] },
+    };
+    const out = getAllRigsGuitars(profiles, [], STD);
+    expect(out.map((g) => g.id)).toEqual(['lp60']);
+  });
+
+  test('profiles null → fallback sur la liste standard complète (defensive)', () => {
+    expect(getAllRigsGuitars(null, [], STD).length).toBe(STD.length);
   });
 });
