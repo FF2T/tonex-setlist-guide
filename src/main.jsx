@@ -105,9 +105,11 @@ let DEFAULT_GEMINI_KEY = "";
 //     même après push d'une nouvelle (l'ancien SW network-first
 //     attendait le réseau avant de servir, et tombait en cache au
 //     timeout, donc en pratique cache-first sur connexion lente).
+//     Phase 5 (Item E) : v53 → v54 (state v6 = drop legacy
+//     profile.devices).
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v53';
+const CACHE='tonex-v54';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -1688,9 +1690,13 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp,section,aiK
         <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:12}}>Coche les packs de presets que tu as installés.</div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {Object.entries(SOURCE_LABELS).map(([key,label])=>{
-            // Auto-lock sources based on owned devices
-            const devices=profile.devices||{};
-            const locked=(key==="Anniversary"&&devices.anniversary)||(key==="Factory"&&devices.pedale)||(key==="PlugFactory"&&devices.plug);
+            // Auto-lock sources based on owned devices.
+            // Phase 5 (Item E) : lit profile.enabledDevices au lieu du
+            // champ legacy profile.devices supprimé en v6.
+            const enabled=new Set(profile.enabledDevices||[]);
+            const locked=(key==="Anniversary"&&enabled.has('tonex-anniversary'))
+              ||(key==="Factory"&&enabled.has('tonex-pedal'))
+              ||(key==="PlugFactory"&&enabled.has('tonex-plug'));
             const on=locked||profile.availableSources?.[key]!==false;
             return <button key={key} onClick={()=>{if(!locked)toggleSource(key);}} style={{display:"flex",alignItems:"center",gap:10,background:on?"var(--green-bg)":"var(--a3)",border:on?"1px solid var(--green-border)":"1px solid var(--a8)",borderRadius:"var(--r-md)",padding:"10px 14px",cursor:locked?"default":"pointer",textAlign:"left",opacity:locked?0.85:1}}>
               <div style={{width:18,height:18,borderRadius:"var(--r-sm)",border:on?"2px solid var(--green)":"2px solid var(--text-muted)",background:on?"var(--green)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{on&&<span style={{color:"var(--bg)",fontSize:10,fontWeight:900}}>✓</span>}</div>
@@ -2031,12 +2037,11 @@ function ToneNetTab({toneNetPresets,onToneNetPresets,inp}){
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 // ─── Mon Profil Screen ────────────────────────────────────────────────────────
-// MesAppareilsTab — Phase 2 étape 3.
+// MesAppareilsTab — Phase 2 étape 3 (étendu Phase 5 Item E).
 // Liste les devices enregistrés (getAllDevices) avec une checkbox par
-// device. Le toggle écrit profile.enabledDevices ET profile.devices
-// (legacy) en miroir, pour préserver les lectures existantes (auto-lock
-// sources et tabs device-spécifiques restent fonctionnels jusqu'au
-// nettoyage Phase 5).
+// device. Phase 5 : le toggle écrit UNIQUEMENT profile.enabledDevices.
+// Le miroir vers profile.devices (legacy v2) a été supprimé en même
+// temps que le drop du champ via migrateV5toV6.
 // Garde-fou : au moins un device doit rester coché — décocher le
 // dernier ne fait rien (refus silencieux).
 function MesAppareilsTab({profile,profiles,onProfiles,activeProfileId}) {
@@ -2051,17 +2056,11 @@ function MesAppareilsTab({profile,profiles,onProfiles,activeProfileId}) {
       next.add(id);
     }
     const arr = allDevices.filter(d => next.has(d.id)).map(d => d.id);
-    const legacyDevices = {
-      pedale: arr.includes('tonex-pedal'),
-      anniversary: arr.includes('tonex-anniversary'),
-      plug: arr.includes('tonex-plug'),
-    };
     onProfiles(p => ({
       ...p,
       [activeProfileId]: {
         ...p[activeProfileId],
         enabledDevices: arr,
-        devices: legacyDevices,
       },
     }));
   };
@@ -2171,9 +2170,13 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
         {tabBtn("devices","📱 Mes appareils")}
         {tabBtn("sources","📦 Sources")}
         {tabBtn("tonenet","🌐 ToneNET")}
-        {profile.devices?.pedale&&tabBtn("pedale","🎛 Pedale ToneX")}
-        {profile.devices?.anniversary&&tabBtn("ann","🎛 ToneX Ann.")}
-        {profile.devices?.plug&&tabBtn("plug","🔌 ToneX Plug")}
+        {/* Phase 5 (Item E) : tabs device-spécifiques basées sur
+            enabledDevices (legacy profile.devices supprimé en v6). */}
+        {(()=>{const en=new Set(profile.enabledDevices||[]);return <>
+          {en.has('tonex-pedal')&&tabBtn("pedale","🎛 Pedale ToneX")}
+          {en.has('tonex-anniversary')&&tabBtn("ann","🎛 ToneX Ann.")}
+          {en.has('tonex-plug')&&tabBtn("plug","🔌 ToneX Plug")}
+        </>;})()}
         {tabBtn("display","🎨 Affichage")}
         {profile.isAdmin&&tabBtn("ia","🔑 Cle API")}
         {profile.isAdmin&&tabBtn("maintenance","🔧 Maintenance")}
@@ -5956,8 +5959,10 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
 // ─── ViewProfileScreen (lecture seule) ────────────────────────────────────────
 function ViewProfileScreen({profile,onBack,onNavigate}){
   if(!profile) return null;
-  const d=profile.devices||{};
-  const hasPedale=d.pedale||d.anniversary;
+  // Phase 5 (Item E) : enabledDevices → drapeaux locaux (legacy
+  // profile.devices supprimé en v6).
+  const enabled=new Set(profile.enabledDevices||[]);
+  const hasPedale=enabled.has('tonex-pedal')||enabled.has('tonex-anniversary');
   const edits=profile.editedGuitars||{};
   const guitars=GUITARS.filter(g=>(profile.myGuitars||[]).includes(g.id)).map(g=>({...g,...(edits[g.id]||{})}));
   const customG=profile.customGuitars||[];

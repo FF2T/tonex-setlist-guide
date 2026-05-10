@@ -1,9 +1,9 @@
-// src/core/state.js — Phase 4 (state v5).
+// src/core/state.js — Phase 5 (state v6).
 // État applicatif persisté dans localStorage.
 //
-// Schéma v5 :
+// Schéma v6 :
 //   {
-//     version: 5,
+//     version: 6,
 //     activeProfileId: string,
 //     shared: { songDb, theme, setlists, customGuitars?, toneNetPresets?,
 //               deletedSetlistIds? },
@@ -12,17 +12,18 @@
 //     syncId?: string,
 //   }
 //
-// Profil v5 :
+// Profil v6 :
 //   {
 //     id, name, isAdmin, password,
 //     myGuitars: string[],
 //     customGuitars: object[],
 //     editedGuitars: { [id]: object },
-//     devices: { pedale, anniversary, plug },     // legacy v2, conservé en
-//                                                 // miroir pour rétrocompat
-//                                                 // (auto-lock sources, tabs).
-//     enabledDevices: string[],                   // v3 : ids du registry
+//     enabledDevices: string[],                   // ids du registry
 //                                                 // ('tonex-pedal', etc.)
+//                                                 // Phase 5 (Item E) : seule
+//                                                 // source de vérité, le
+//                                                 // champ legacy `devices`
+//                                                 // est supprimé.
 //     availableSources: { [src]: bool },
 //     customPacks: object[],
 //     banksAnn, banksPlug,                        // 50 et 10 banks A/B/C
@@ -56,7 +57,7 @@ import {
 } from '../data/data_catalogs.js';
 
 // ─── Versioning + clés localStorage ──────────────────────────────────
-const STATE_VERSION = 5;
+const STATE_VERSION = 6;
 const LS_KEY = 'tonex_guide_v2';        // nom historique stable
 const LS_KEY_V1 = 'tonex_guide_v1';
 const LS_SECRETS_KEY = 'tonex_secrets';
@@ -167,8 +168,12 @@ function ensureProfilesV4(profiles) {
 }
 
 // ─── makeDefaultProfile ──────────────────────────────────────────────
+//
+// Phase 5 (Item E) — le champ legacy `devices` (pedale, anniversary,
+// plug) n'est plus créé. Le state v6 utilise uniquement
+// `enabledDevices` comme source de vérité. Les profils v5 et antérieurs
+// sont migrés via migrateV5toV6 qui drop le champ.
 function makeDefaultProfile(id, name, isAdmin = false, password = '') {
-  const devices = { pedale: false, anniversary: isAdmin, plug: false };
   // Defaults v3 : admin = Anniversary + Plug (Sébastien) ; standard
   // utilisateur = Pedal + Plug (defaultEnabled du registry).
   const enabledDevices = isAdmin
@@ -179,7 +184,6 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
     myGuitars: GUITARS.map((g) => g.id),
     customGuitars: [],
     editedGuitars: {},
-    devices,
     enabledDevices,
     availableSources: { TSR: true, ML: true, Anniversary: true, Factory: true, ToneNET: true },
     customPacks: [],
@@ -235,6 +239,30 @@ function migrateV2toV3(v2) {
 // préservés à l'identique via ensureProfileV4.
 function migrateV3toV4(v3) {
   return { ...v3, version: 4, profiles: ensureProfilesV4(v3.profiles) };
+}
+
+// v5 → v6 (Phase 5 Item E) : drop le champ legacy profile.devices
+// {pedale, anniversary, plug}. enabledDevices est désormais la seule
+// source de vérité. La migration est defensive : si enabledDevices
+// est absent (cas Firestore stale arrivé avec v3 partiel), on le
+// dérive depuis devices avant de drop. Aucun autre champ touché.
+function migrateV5toV6(v5) {
+  const profiles = { ...(v5.profiles || {}) };
+  for (const id of Object.keys(profiles)) {
+    let p = profiles[id];
+    if (!p) continue;
+    // Defensive : dérive enabledDevices si absent.
+    if (!Array.isArray(p.enabledDevices) || p.enabledDevices.length === 0) {
+      p = { ...p, enabledDevices: deriveEnabledDevices(p.devices) };
+    }
+    // Drop devices.
+    if ('devices' in p) {
+      const { devices, ...rest } = p;
+      p = rest;
+    }
+    profiles[id] = p;
+  }
+  return { ...v5, version: 6, profiles };
 }
 
 // v4 → v5 (Phase 4) : purement additif. Les nouveaux champs Phase 4
@@ -331,13 +359,14 @@ function loadState() {
       // Même quand version === STATE_VERSION, on passe par les
       // migrations idempotentes pour heal d'éventuels profils
       // incomplets (Firestore stale).
-      if (d.version === STATE_VERSION) return migrateV4toV5(migrateV3toV4(d));
-      if (d.version === 4) return migrateV4toV5(migrateV3toV4(d));
-      if (d.version === 3) return migrateV4toV5(migrateV3toV4(d));
-      if (d.version === 2) return migrateV4toV5(migrateV3toV4(migrateV2toV3(d)));
+      if (d.version === STATE_VERSION) return migrateV5toV6(migrateV4toV5(migrateV3toV4(d)));
+      if (d.version === 5) return migrateV5toV6(migrateV4toV5(migrateV3toV4(d)));
+      if (d.version === 4) return migrateV5toV6(migrateV4toV5(migrateV3toV4(d)));
+      if (d.version === 3) return migrateV5toV6(migrateV4toV5(migrateV3toV4(d)));
+      if (d.version === 2) return migrateV5toV6(migrateV4toV5(migrateV3toV4(migrateV2toV3(d))));
     }
     const v1raw = localStorage.getItem(LS_KEY_V1);
-    if (v1raw) return migrateV4toV5(migrateV3toV4(migrateV2toV3(migrateV1toV2(JSON.parse(v1raw)))));
+    if (v1raw) return migrateV5toV6(migrateV4toV5(migrateV3toV4(migrateV2toV3(migrateV1toV2(JSON.parse(v1raw))))));
   } catch (e) { /* ignore */ }
   return null;
 }
@@ -484,7 +513,7 @@ export {
   ensureProfileV3, ensureProfilesV3,
   ensureProfileV4, ensureProfilesV4,
   makeDefaultProfile,
-  migrateV1toV2, migrateV2toV3, migrateV3toV4, migrateV4toV5,
+  migrateV1toV2, migrateV2toV3, migrateV3toV4, migrateV4toV5, migrateV5toV6,
   dedupSetlists, setlistDedupKey,
   loadState, saveState,
   autoBackup, listBackups, restoreBackup, clearBackups, isQuotaError,
