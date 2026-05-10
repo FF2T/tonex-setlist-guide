@@ -93,9 +93,17 @@ let DEFAULT_GEMINI_KEY = "";
 //     Phase 4 : v50 → v51 (Scenes / footswitchMap / bpm / key / LiveScreen).
 //     Phase 4.1 : v51 → v52 (dedup setlists + bouton mode scène multi-profils
 //     + rotation backups robuste au quota).
+//     Phase 5 (Item C) : v52 → v53. Stratégie de fetch passe en
+//     stale-while-revalidate sur le HTML : on sert immédiatement la
+//     version cachée (instantané, marche offline) et on fetche en
+//     background pour mettre à jour le cache pour la prochaine visite.
+//     Évite le cas où l'utilisateur reste bloqué sur l'ancienne version
+//     même après push d'une nouvelle (l'ancien SW network-first
+//     attendait le réseau avant de servir, et tombait en cache au
+//     timeout, donc en pratique cache-first sur connexion lente).
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v52';
+const CACHE='tonex-v53';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -108,13 +116,30 @@ self.addEventListener('activate',e=>{e.waitUntil(
   caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())
 )});
 self.addEventListener('fetch',e=>{
+  const req=e.request;
+  // Stale-while-revalidate sur le HTML (navigation ou request explicite
+  // index.html). On sert le cache immédiatement, fetch en background,
+  // met à jour pour la prochaine visite.
+  const isHtml = req.mode === 'navigate'
+    || (req.method === 'GET' && req.url.includes('index.html'));
+  if(isHtml){
+    e.respondWith((async()=>{
+      const cache=await caches.open(CACHE);
+      const cached=await cache.match(req)
+        || await cache.match(self.registration.scope+'index.html');
+      const networkPromise=fetch(req).then(res=>{
+        if(res && res.ok) cache.put(req,res.clone()).catch(()=>{});
+        return res;
+      }).catch(()=>null);
+      // Sert cache immédiatement si dispo, sinon attend réseau (1er
+      // chargement).
+      return cached || (await networkPromise) || new Response('Offline',{status:503});
+    })());
+    return;
+  }
+  // Autres requêtes : network-first avec fallback cache.
   e.respondWith(
-    fetch(e.request).then(res=>{
-      if(res.ok&&e.request.url.includes('index.html')){
-        caches.open(CACHE).then(c=>c.put(e.request,res.clone()));
-      }
-      return res;
-    }).catch(()=>caches.match(e.request))
+    fetch(req).then(res=>res).catch(()=>caches.match(req))
   );
 });`;
   const blob=new Blob([SW_CODE],{type:'application/javascript'});
