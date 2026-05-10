@@ -6,10 +6,11 @@ import { describe, test, expect } from 'vitest';
 import { getEnabledDevices } from './registry.js';
 import { migrateV2toV3 } from '../core/state.js';
 
-// Side-effect imports : enregistrent les 3 devices.
+// Side-effect imports : enregistrent les 4 devices (Phase 3 inclut TMP).
 import './tonex-pedal/index.js';
 import './tonex-anniversary/index.js';
 import './tonex-plug/index.js';
+import './tonemaster-pro/index.js';
 
 describe('intégration profil → registry', () => {
   test('profil avec un seul device (tonex-anniversary) → 1 device retourné', () => {
@@ -64,5 +65,41 @@ describe('intégration profil → registry', () => {
     const out = getEnabledDevices({ enabledDevices: ['tonex-plug'] });
     expect(out[0].presetResultKey).toBe('preset_plug');
     expect(out[0].bankStorageKey).toBe('banksPlug');
+  });
+});
+
+describe("Phase 3 régression : SongDetailCard gate sections ToneX-only", () => {
+  // Vérifie le test logique utilisé par SongDetailCard pour gater les
+  // sections "Recommandation idéale" + "Alternatives catalogue" (qui
+  // lisent aiCache.preset_ann/_plug et PRESET_CATALOG_FULL ToneX).
+  // Si aucun device avec deviceKey 'ann' ou 'plug' n'est activé, ces
+  // sections doivent être masquées.
+  const hasAnyToneXDevice = (profile) =>
+    getEnabledDevices(profile).some((d) => d.deviceKey === 'ann' || d.deviceKey === 'plug');
+
+  test("profil avec uniquement TMP (enabledDevices=['tonemaster-pro']) → false (pas de ToneX)", () => {
+    expect(hasAnyToneXDevice({ enabledDevices: ['tonemaster-pro'] })).toBe(false);
+  });
+
+  test("profil avec tonex-pedal seul → true", () => {
+    expect(hasAnyToneXDevice({ enabledDevices: ['tonex-pedal'] })).toBe(true);
+  });
+
+  test("profil avec tonex-anniversary seul → true (deviceKey='ann')", () => {
+    expect(hasAnyToneXDevice({ enabledDevices: ['tonex-anniversary'] })).toBe(true);
+  });
+
+  test("profil avec tonex-plug seul → true", () => {
+    expect(hasAnyToneXDevice({ enabledDevices: ['tonex-plug'] })).toBe(true);
+  });
+
+  test("profil avec TMP + tonex-pedal → true (au moins un ToneX)", () => {
+    expect(hasAnyToneXDevice({ enabledDevices: ['tonemaster-pro', 'tonex-pedal'] })).toBe(true);
+  });
+
+  test("le device tonemaster-pro expose deviceKey='tmp' (différencié des ToneX)", () => {
+    const tmp = getEnabledDevices({ enabledDevices: ['tonemaster-pro'] });
+    expect(tmp[0].deviceKey).toBe('tmp');
+    expect(['ann', 'plug']).not.toContain(tmp[0].deviceKey);
   });
 });

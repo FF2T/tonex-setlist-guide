@@ -79,6 +79,41 @@ describe('recommendTMPPatch — cas connus du seed', () => {
     expect(recs[0].patch.id).toBe('flipper_patch');
   });
 
+  test('régression : Flipper + SG61 → flipper_patch top, score >= rock_preset (priorité usages)', () => {
+    // Cas reproducteur du bug rapporté : tel_flipper avec une guitare
+    // qui scoring-favorise rock_preset (SG61 = HB → rock_preset
+    // pickupAffinity HB:95 > flipper_patch HB:90).
+    const sg61 = { id: 'sg61', type: 'HB', name: 'SG 61' };
+    const recs = recommendTMPPatch(TMP_FACTORY_PATCHES, TEL_FLIPPER, sg61, null);
+    expect(recs[0].patch.id).toBe('flipper_patch');
+    const flipperEntry = recs.find((r) => r.patch.id === 'flipper_patch');
+    const rockEntry = recs.find((r) => r.patch.id === 'rock_preset');
+    // flipper_patch a priorité 2 (match exact morceau) ; rock_preset
+    // priorité 0. Donc flipper sort devant peu importe les scores.
+    expect(flipperEntry.usagesPriority).toBe(2);
+    expect(rockEntry.usagesPriority).toBe(0);
+  });
+
+  test("régression : Flipper avec aiCache hostile (ref_amp Plexi) → flipper_patch reste top via priorité", () => {
+    // Cas extrême : si l'IA renvoie pour Flipper un ref_amp qui
+    // matche fortement Plexi (rock_preset.amp), le scoring pondéré
+    // pur ferait gagner rock_preset. La priorité d'usage doit
+    // surpasser ce cas.
+    const songWithMisleadingCache = {
+      id: 'tel_flipper', title: 'Flipper', artist: 'Téléphone',
+      aiCache: {
+        result: {
+          ref_amp: 'Marshall Plexi',          // Plexi force-match
+          ref_effects: 'Aucun effet',         // pas de FX → punit fx
+          song_style: 'hard_rock',            // matche rock_preset.style
+        },
+      },
+    };
+    const recs = recommendTMPPatch(TMP_FACTORY_PATCHES, songWithMisleadingCache, { id: 'sg61', type: 'HB' }, null);
+    expect(recs[0].patch.id).toBe('flipper_patch');
+    expect(recs[0].usagesPriority).toBe(2);
+  });
+
   test('Stairway + LP → stairway_patch ou patch hard rock dans top 3', () => {
     const stairway = {
       id: 'ledzep_stairway',

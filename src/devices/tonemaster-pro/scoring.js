@@ -138,27 +138,43 @@ function scorePickup(pickupAffinity, guitar) {
   return typeof v === 'number' ? v : 50;
 }
 
-// Bonus "usages explicite" : si le patch déclare dans patch.usages que
-// l'artiste OU un morceau précis correspond, on applique un bonus
-// additif de 25 (clampé à 100). Le bonus est ADDITIF au score pondéré
-// pour respecter strictement la pondération CLAUDE.md (somme = 1.00) ;
-// il représente une connaissance explicite "ce patch est conçu pour
-// ce morceau" qui ne se déduit pas des dimensions analytiques.
-function usagesBonus(patch, song) {
-  if (!patch.usages || !song) return 0;
+// Match d'usage explicite entre un patch et un morceau. Retourne :
+//   priority 2 + bonus 25 → patch.usages mentionne explicitement ce
+//                           morceau (par titre dans usages.songs)
+//   priority 1 + bonus 15 → patch.usages mentionne l'artiste mais
+//                           pas le morceau précis
+//   priority 0 + bonus 0  → aucun match
+//
+// La priorité est utilisée comme clé de tri PRIMAIRE par
+// recommendTMPPatch : un patch priority=2 sort TOUJOURS devant un
+// patch priority<2, peu importe son score pondéré. Garantit que les
+// patches Arthur (rock_preset/clean_preset/flipper_patch) restent en
+// top sur leurs morceaux assignés même quand le scoring d'amp est
+// ambigu (Plexi vs JCM800 sur Téléphone, où rock_preset peut bénéficier
+// d'un score amp + style favorables).
+//
+// Le bonus reste appliqué additivement pour faire la différence entre
+// 2 patches de même priorité.
+function usagesMatch(patch, song) {
+  if (!patch.usages || !song) return { priority: 0, bonus: 0 };
   const songTitle = (song.title || '').toLowerCase();
   const songArtist = (song.artist || '').toLowerCase();
   for (const u of patch.usages) {
     const uArtist = (u.artist || '').toLowerCase();
     if (uArtist && songArtist && (uArtist === songArtist || uArtist.includes(songArtist) || songArtist.includes(uArtist))) {
-      // Match artiste : bonus 15. Match exact morceau : bonus 25 (cumul).
-      const songMatch = Array.isArray(u.songs) && u.songs.some(
+      const songMatchExact = Array.isArray(u.songs) && u.songs.some(
         (s) => s.toLowerCase() === songTitle || s.toLowerCase().includes(songTitle) || songTitle.includes(s.toLowerCase()),
       );
-      return songMatch ? 25 : 15;
+      if (songMatchExact) return { priority: 2, bonus: 25 };
+      return { priority: 1, bonus: 15 };
     }
   }
-  return 0;
+  return { priority: 0, bonus: 0 };
+}
+
+// Conservé pour rétrocompat des call sites externes / tests legacy.
+function usagesBonus(patch, song) {
+  return usagesMatch(patch, song).bonus;
 }
 
 // ─── recommendTMPPatch ──────────────────────────────────────────────
@@ -188,17 +204,27 @@ function recommendTMPPatch(patches, song, guitar, _profile) {
       breakdown.fx * WEIGHTS.fx +
       breakdown.style * WEIGHTS.style +
       breakdown.pickup * WEIGHTS.pickup;
-    const bonus = usagesBonus(patch, song);
-    const final = Math.min(100, Math.round(weighted) + bonus);
-    return { patch, score: final, breakdown, usagesBonus: bonus };
+    const um = usagesMatch(patch, song);
+    const final = Math.min(100, Math.round(weighted) + um.bonus);
+    return {
+      patch, score: final, breakdown,
+      usagesBonus: um.bonus, usagesPriority: um.priority,
+    };
   });
 
-  scored.sort((a, b) => b.score - a.score);
+  // Tri PRIMAIRE par priorité d'usage (2 > 1 > 0), SECONDAIRE par score.
+  // Garantit qu'un patch explicitement listé pour ce morceau est top,
+  // peu importe le score pondéré (cf bug Phase 3 sur Flipper où Plexi
+  // surclassait Bassman avec +25 bonus insuffisant).
+  scored.sort((a, b) => {
+    if (b.usagesPriority !== a.usagesPriority) return b.usagesPriority - a.usagesPriority;
+    return b.score - a.score;
+  });
   return scored;
 }
 
 export {
   WEIGHTS,
   scoreAmp, scoreCab, scoreDrive, scoreFx, scoreStyle, scorePickup,
-  usagesBonus, recommendTMPPatch,
+  usagesBonus, usagesMatch, recommendTMPPatch,
 };

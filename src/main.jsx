@@ -2932,8 +2932,12 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
             {idealGuitarScore&&<b style={{color:scoreColor(idealGuitarScore),flexShrink:0}}>{idealGuitarScore}%</b>}
           </div>}
           {aiC.guitar_reason&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:-2,marginBottom:2}}>{aiC.guitar_reason}</div>}
-          {/* Preset idéal + installation */}
-          {aiC.ideal_preset&&(()=>{
+          {/* Preset idéal + installation — Phase 3 fix : gate par device ToneX activé.
+              ideal_preset + ideal_top3 viennent de PRESET_CATALOG_FULL ToneX, donc
+              ne s'affichent que si au moins un device ToneX (Pedal/Anniversary/Plug)
+              est dans enabledDevices. Si seul TMP est activé, le RecommendBlock TMP
+              (rendu plus bas dans la SECTION 4) prend la place. */}
+          {aiC.ideal_preset&&(getActiveDevicesForRender(profile).some(d=>d.deviceKey==='ann'||d.deviceKey==='plug'))&&(()=>{
             const idealScore=aiC.ideal_preset_score||0;
             const locAnn=findInBanks(aiC.ideal_preset,banksAnn);
             const locPlug=findInBanks(aiC.ideal_preset,banksPlug);
@@ -3004,8 +3008,9 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
               })()}
             </div>;
           })()}
-          {/* Top 3 catalogue */}
-          {(()=>{
+          {/* Top 3 catalogue — Phase 3 fix : même gate que Recommandation idéale.
+              ideal_top3 vient de PRESET_CATALOG_FULL ToneX. */}
+          {(getActiveDevicesForRender(profile).some(d=>d.deviceKey==='ann'||d.deviceKey==='plug'))&&(()=>{
             const filteredTop3=(aiC.ideal_top3||[]).filter(p=>{
               const e=findCatalogEntry(p.name);
               return !availableSources||!e?.src||availableSources[e.src]!==false;
