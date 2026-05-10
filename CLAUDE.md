@@ -591,6 +591,90 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
+## État Phase 5.4 (retrait morceau + dédup name-only, 2026-05-10, tag `phase-5.4-done`)
+
+1 commit `[phase-5.4]`. Suite 461 → 482 tests (+21 : 11 dédup + 10 remove/undo).
+
+**FIX A — Bouton 🗑️ par morceau + toast undo 5s**
+- `ListScreen` : 3e zone frère à droite du row morceau (en plus de
+  la checkbox et de la zone clickable). Bouton 🗑️ visible uniquement
+  quand `activeSlId` est défini (mode "Tous les morceaux" reste sans).
+  Couleur text-dim au repos, rouge au hover. `stopPropagation` pour
+  ne pas trigger l'expand.
+- État local `removedSong = { slId, songId, songTitle, position, expiresAt }`
+  + `removedTimeoutRef`. Au click 🗑️ :
+  1. Capture la position du songId dans setlist.songIds.
+  2. Filter songIds (morceau retiré de la setlist, RESTE dans songDb).
+  3. Set removedSong + timeout 5s pour auto-dismiss.
+- Toast sticky-bottom : `"<titre>" retiré · ↩ Annuler`. Le titre du
+  morceau est affiché pour confirmation visuelle (évite l'undo
+  aveugle). Click "Annuler" → réinsère songId à la position d'origine
+  (avec garde si le morceau a été ré-ajouté manuellement entre temps).
+- Si l'utilisateur retire un 2e morceau pendant que le toast est
+  actif : le 1er retrait devient définitif, le toast est remplacé.
+
+**FIX B — Dédup setlists name-only (Option A)**
+- `dedupSetlists(setlists, { mergeAcrossProfiles: true })` (Phase 5.4) :
+  clé = name uniquement, le survivant fusionne `profileIds` en union
+  ET `songIds` en union dédupliquée. Préserve l'ordre des profileIds
+  du survivant en tête.
+- Mode strict (default `mergeAcrossProfiles: false`, comportement
+  Phase 4.1 inchangé) reste utilisé par la migration auto `migrateV4toV5`
+  pour ne pas mélanger silencieusement des profils que l'utilisateur a
+  sciemment séparés.
+- Helper `findSetlistDuplicatesByName(setlists)` retourne les groupes
+  de doublons par name avec union des profileIds. Utilisé par
+  MaintenanceTab pour pré-visualiser ce qui sera fusionné.
+- MaintenanceTab "Setlists — doublons" refait : 2 actions :
+  - **Strict** (brass button) : Phase 4.1 inchangé, "même nom ET mêmes
+    profils".
+  - **Aggressif** (wine button, Phase 5.4) : liste les groupes
+    name-only (profileIds différents), demande confirmation avec
+    récap "• 'Cours Franck B' → 2 versions, profils fusionnés
+    [sebastien, franck]", puis applique.
+
+**Cas d'usage cible** (rapport user) : la setlist "Cours Franck B"
+apparaît 2 fois pour Sébastien parce que profileIds diffèrent
+légèrement (`['sebastien']` vs `['sebastien', 'franck']`). Le mode
+aggressif les fusionne en une seule avec profileIds=['sebastien',
+'franck'] et songIds=union.
+
+## État Phase 5.3 (fix sélecteur guitare invisible, 2026-05-10, tag `phase-5.3-done`)
+
+1 commit `[phase-5.3]`. Suite 454 → 461 tests (+7 régression).
+
+**Bug rapporté** (Chrome DevTools) : sur les morceaux custom sans
+aiCache (cas typique : "A Horse with No Name" importé Newzik,
+`song.ig = []`, `song.aiCache = null`), la fiche dépliée
+(SongDetailCard) affichait le message "Aucune analyse IA en cache.
+Selectionne une guitare pour lancer l'analyse." mais **AUCUN
+sélecteur de guitare** n'était rendu. L'utilisateur ne pouvait donc
+pas déclencher l'analyse → bloqué.
+
+**Cause** : la SECTION 4 "Paramétrage" (qui contient le `<GuitarSelect>`)
+était à l'intérieur d'un fragment `{!reloading && aiC && <>...</>}`
+ouvert par la SECTION 2 "Raisonnement IA". Quand `aiC` est null,
+toute la SECTION 4 — et donc le sélecteur — était masquée. Phase 5
+Item A avait corrigé le scoring/listing mais pas la condition de
+rendu structurelle.
+
+**Fix** :
+- Fermeture du fragment déplacée AVANT la SECTION 4 (entre les
+  sections 3 et 4).
+- SECTION 4 sortie du fragment → `<GuitarSelect>` toujours visible.
+- Sous-parties qui dépendent strictement de `aiC` (presets ToneX
+  installés via `aiC[d.presetResultKey]`, suggestion si score<90%)
+  gated par `aiC && (...)` à l'intérieur de la SECTION 4.
+- RecommendBlock TMP reste visible (il fait sa propre reco basée
+  sur song/guitar, pas sur aiC) — l'utilisateur voit la reco TMP
+  même sans cache IA.
+
+**Tests régression ajoutés** (`SongDetailCard.guitar-select.test.jsx`) :
+- 4 tests structurels validant le contrat de gating (sélecteur
+  toujours rendu, sous-parties gated par aiC).
+- 3 tests DOM via `<GuitarSelect>` isolé : ig=[] → toutes guitares
+  listées + change déclenche callback + étoile sur ig préfilled.
+
 ## État Phase 5.2 (rebrand Backline, 2026-05-10, tag `phase-5.2-done`)
 
 Rebrand "ToneX Poweruser" → "Backline" en 4 commits atomiques

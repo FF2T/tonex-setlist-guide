@@ -869,3 +869,127 @@ describe('ensureProfileV6 — Phase 5.1 FIX 1', () => {
     expect(v6.profiles.u1.devices).toBeUndefined();
   });
 });
+
+// ───────────────────────────────────────────────────────────────────
+// Phase 5.4 — dedupSetlists name-only + findSetlistDuplicatesByName
+// ───────────────────────────────────────────────────────────────────
+
+describe('dedupSetlists — option mergeAcrossProfiles (Phase 5.4)', () => {
+  test('mode strict (default) : 2 setlists name identique, profileIds différents → 2 setlists distinctes', () => {
+    const input = [
+      { id: 'a', name: 'Cours Franck B', profileIds: ['sebastien'], songIds: ['s1', 's2'] },
+      { id: 'b', name: 'Cours Franck B', profileIds: ['sebastien', 'franck'], songIds: ['s2', 's3'] },
+    ];
+    const out = dedupSetlists(input);
+    expect(out).toHaveLength(2);
+  });
+
+  test('mode mergeAcrossProfiles : 2 setlists name identique → 1 fusionnée + union profileIds + union songIds', () => {
+    const input = [
+      { id: 'a', name: 'Cours Franck B', profileIds: ['sebastien'], songIds: ['s1', 's2'] },
+      { id: 'b', name: 'Cours Franck B', profileIds: ['sebastien', 'franck'], songIds: ['s2', 's3', 's4'] },
+    ];
+    const out = dedupSetlists(input, { mergeAcrossProfiles: true });
+    expect(out).toHaveLength(1);
+    // Survivant = b (plus de songs).
+    expect(out[0].id).toBe('b');
+    expect(out[0].profileIds).toEqual(['sebastien', 'franck']);
+    expect(out[0].songIds).toEqual(['s2', 's3', 's4', 's1']);
+  });
+
+  test('mode mergeAcrossProfiles : 3 setlists name identique → fusion totale', () => {
+    const input = [
+      { id: 'a', name: 'X', profileIds: ['u1'], songIds: ['s1'] },
+      { id: 'b', name: 'X', profileIds: ['u2'], songIds: ['s2', 's3'] },
+      { id: 'c', name: 'X', profileIds: ['u3'], songIds: ['s4'] },
+    ];
+    const out = dedupSetlists(input, { mergeAcrossProfiles: true });
+    expect(out).toHaveLength(1);
+    expect(out[0].id).toBe('b'); // plus long
+    expect(out[0].profileIds).toEqual(['u2', 'u1', 'u3']);
+    expect(out[0].songIds).toEqual(['s2', 's3', 's1', 's4']);
+  });
+
+  test('mode mergeAcrossProfiles : préserve profileIds ordre du survivant en tête', () => {
+    const input = [
+      { id: 'a', name: 'X', profileIds: ['u1', 'u2'], songIds: ['s1', 's2'] },
+      { id: 'b', name: 'X', profileIds: ['u3'], songIds: ['s3'] },
+    ];
+    const out = dedupSetlists(input, { mergeAcrossProfiles: true });
+    expect(out[0].profileIds).toEqual(['u1', 'u2', 'u3']);
+  });
+
+  test('aucun doublon → retourne la même référence (mode strict ou aggressif)', () => {
+    const input = [
+      { id: 'a', name: 'A', profileIds: ['u1'], songIds: [] },
+      { id: 'b', name: 'B', profileIds: ['u1'], songIds: [] },
+    ];
+    expect(dedupSetlists(input)).toBe(input);
+    expect(dedupSetlists(input, { mergeAcrossProfiles: true })).toBe(input);
+  });
+
+  test('migrateV4toV5 utilise toujours le mode strict (pas mergeAcrossProfiles)', () => {
+    const v4 = {
+      version: 4,
+      shared: {
+        setlists: [
+          { id: 'a', name: 'Cours Franck B', profileIds: ['sebastien'], songIds: ['s1'] },
+          { id: 'b', name: 'Cours Franck B', profileIds: ['franck'], songIds: ['s2'] },
+        ],
+      },
+      profiles: {},
+    };
+    const v5 = migrateV4toV5(v4);
+    // Mode strict → 2 setlists conservées (profileIds différents).
+    expect(v5.shared.setlists).toHaveLength(2);
+  });
+
+  test('setlistDedupKey(mergeAcrossProfiles) = name uniquement', () => {
+    expect(setlistDedupKey({ name: 'X', profileIds: ['u1'] }, true)).toBe('X');
+    expect(setlistDedupKey({ name: 'X', profileIds: ['u2'] }, true)).toBe('X');
+    expect(setlistDedupKey({ name: 'X', profileIds: ['u1'] }, false)).toBe('X::u1');
+  });
+});
+
+describe('findSetlistDuplicatesByName — Phase 5.4', () => {
+  test('aucun doublon → []', async () => {
+    const { findSetlistDuplicatesByName } = await import('./state.js');
+    expect(findSetlistDuplicatesByName([
+      { name: 'A', profileIds: ['u1'] },
+      { name: 'B', profileIds: ['u1'] },
+    ])).toEqual([]);
+  });
+
+  test('2 setlists même name (profileIds différents) → 1 groupe avec union', async () => {
+    const { findSetlistDuplicatesByName } = await import('./state.js');
+    const groups = findSetlistDuplicatesByName([
+      { id: 'a', name: 'Cours Franck B', profileIds: ['sebastien'], songIds: ['s1'] },
+      { id: 'b', name: 'Cours Franck B', profileIds: ['sebastien', 'franck'], songIds: ['s2'] },
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].name).toBe('Cours Franck B');
+    expect(groups[0].items).toHaveLength(2);
+    expect(groups[0].profileIdsUnion).toEqual(['sebastien', 'franck']);
+  });
+
+  test('input null/non-array → []', async () => {
+    const { findSetlistDuplicatesByName } = await import('./state.js');
+    expect(findSetlistDuplicatesByName(null)).toEqual([]);
+    expect(findSetlistDuplicatesByName(undefined)).toEqual([]);
+    expect(findSetlistDuplicatesByName('foo')).toEqual([]);
+  });
+
+  test('plusieurs groupes', async () => {
+    const { findSetlistDuplicatesByName } = await import('./state.js');
+    const groups = findSetlistDuplicatesByName([
+      { name: 'A', profileIds: ['u1'] },
+      { name: 'B', profileIds: ['u1'] },
+      { name: 'A', profileIds: ['u2'] },
+      { name: 'B', profileIds: ['u2'] },
+      { name: 'C', profileIds: ['u1'] },
+    ]);
+    expect(groups).toHaveLength(2);
+    const a = groups.find((g) => g.name === 'A');
+    expect(a.items).toHaveLength(2);
+  });
+});

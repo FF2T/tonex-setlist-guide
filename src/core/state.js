@@ -322,17 +322,31 @@ function migrateV4toV5(v4) {
 //
 // Idempotent : si aucun doublon, retourne le même tableau (même ordre).
 // Pure : ne mute pas les setlists d'entrée.
-function setlistDedupKey(sl) {
+//
+// Phase 5.4 — option `mergeAcrossProfiles` (default false) :
+//  - false (mode strict, comportement Phase 4.1 inchangé) : clé =
+//    name + profileIds. Deux setlists name identique mais profileIds
+//    différents → considérées distinctes, pas fusionnées.
+//  - true (mode aggressif) : clé = name uniquement. Le survivant
+//    fusionne ses profileIds avec ceux des autres (union dédupliquée),
+//    en plus des songIds.
+// Le mode strict reste utilisé par la migration auto au load
+// (migrateV4toV5) pour ne pas mélanger silencieusement des profils
+// que l'utilisateur a sciemment séparés. Le mode aggressif est exposé
+// via le bouton manuel "Fusionner doublons par nom" de MaintenanceTab.
+function setlistDedupKey(sl, mergeAcrossProfiles = false) {
+  if (mergeAcrossProfiles) return `${sl.name || ''}`;
   const ids = Array.isArray(sl.profileIds) ? [...sl.profileIds].sort().join('|') : '';
   return `${sl.name || ''}::${ids}`;
 }
 
-function dedupSetlists(setlists) {
+function dedupSetlists(setlists, options = {}) {
+  const mergeAcrossProfiles = !!options.mergeAcrossProfiles;
   if (!Array.isArray(setlists)) return setlists;
   const groups = new Map();
   setlists.forEach((sl, idx) => {
     if (!sl || typeof sl.name !== 'string') return;
-    const key = setlistDedupKey(sl);
+    const key = setlistDedupKey(sl, mergeAcrossProfiles);
     if (!groups.has(key)) groups.set(key, { items: [], firstIdx: idx });
     groups.get(key).items.push(sl);
   });
@@ -342,7 +356,7 @@ function dedupSetlists(setlists) {
   const consumed = new Set();
   setlists.forEach((sl, idx) => {
     if (consumed.has(idx)) return;
-    const key = sl && typeof sl.name === 'string' ? setlistDedupKey(sl) : null;
+    const key = sl && typeof sl.name === 'string' ? setlistDedupKey(sl, mergeAcrossProfiles) : null;
     const grp = key ? groups.get(key) : null;
     if (!grp || grp.items.length === 1) {
       result.push(sl);
@@ -369,13 +383,53 @@ function dedupSetlists(setlists) {
     };
     pushAll(survivor.songIds);
     grp.items.forEach((sl2) => { if (sl2 !== survivor) pushAll(sl2.songIds); });
-    result.push({ ...survivor, songIds: merged });
+    const merged_entry = { ...survivor, songIds: merged };
+    // Phase 5.4 — en mode mergeAcrossProfiles : fusionne aussi les
+    // profileIds (union dédupliquée). Préserve l'ordre du survivant.
+    if (mergeAcrossProfiles) {
+      const profileIdsSeen = new Set();
+      const mergedProfileIds = [];
+      const pushProfileIds = (ids) => {
+        for (const id of ids || []) {
+          if (!profileIdsSeen.has(id)) { profileIdsSeen.add(id); mergedProfileIds.push(id); }
+        }
+      };
+      pushProfileIds(survivor.profileIds);
+      grp.items.forEach((sl2) => { if (sl2 !== survivor) pushProfileIds(sl2.profileIds); });
+      if (mergedProfileIds.length > 0) merged_entry.profileIds = mergedProfileIds;
+    }
+    result.push(merged_entry);
     // Marque tous les items du groupe comme consommés.
     setlists.forEach((s2, i2) => {
       if (grp.items.includes(s2)) consumed.add(i2);
     });
   });
   return result;
+}
+
+// Phase 5.4 — helper d'investigation pour MaintenanceTab.
+// Retourne les groupes de setlists ayant le même nom (peu importe
+// profileIds). Pour chaque groupe avec ≥2 setlists, renvoie :
+//   { name, items: [setlist...], profileIdsUnion: string[] }
+// Utile à l'UI pour afficher un récap avant fusion.
+function findSetlistDuplicatesByName(setlists) {
+  if (!Array.isArray(setlists)) return [];
+  const map = new Map();
+  for (const sl of setlists) {
+    if (!sl || typeof sl.name !== 'string') continue;
+    if (!map.has(sl.name)) map.set(sl.name, []);
+    map.get(sl.name).push(sl);
+  }
+  const groups = [];
+  for (const [name, items] of map.entries()) {
+    if (items.length < 2) continue;
+    const profileIdsSet = new Set();
+    for (const sl of items) {
+      for (const id of sl.profileIds || []) profileIdsSet.add(id);
+    }
+    groups.push({ name, items, profileIdsUnion: [...profileIdsSet] });
+  }
+  return groups;
 }
 
 // ─── loadState / saveState ───────────────────────────────────────────
@@ -543,7 +597,7 @@ export {
   ensureProfileV6, ensureProfilesV6,
   makeDefaultProfile,
   migrateV1toV2, migrateV2toV3, migrateV3toV4, migrateV4toV5, migrateV5toV6,
-  dedupSetlists, setlistDedupKey,
+  dedupSetlists, setlistDedupKey, findSetlistDuplicatesByName,
   loadState, saveState,
   autoBackup, listBackups, restoreBackup, clearBackups, isQuotaError,
   loadSecrets, saveSecrets,
