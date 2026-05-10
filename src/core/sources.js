@@ -78,6 +78,22 @@ function getSourceInfo(entry) {
   return base;
 }
 
+// Phase 5.6 — vérifie qu'une source est activée dans availableSources.
+// availableSources = { [srcId]: boolean } (cf. profile.availableSources).
+// - Si la source est explicitement false → bloquée.
+// - Sinon (true, undefined, ou availableSources null/undefined) → autorisée.
+//
+// Cette fonction garantit le comportement de fallback "permissif quand
+// availableSources est manquant" (cas profil v3 stale ou tests sans
+// config). Elle est utilisée par tous les call sites qui doivent
+// respecter le choix utilisateur dans Profil → Sources : Optimiseur,
+// SongDetailCard install, JamScreen, etc.
+function isSourceAvailable(srcId, availableSources) {
+  if (!srcId) return true;
+  if (!availableSources) return true;
+  return availableSources[srcId] !== false;
+}
+
 export {
   SOURCE_IDS,
   SOURCE_LABELS,
@@ -85,4 +101,5 @@ export {
   SOURCE_INFO,
   getSourceBadge,
   getSourceInfo,
+  isSourceAvailable,
 };
