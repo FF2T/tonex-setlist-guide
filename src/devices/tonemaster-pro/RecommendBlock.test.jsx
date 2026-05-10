@@ -3,7 +3,7 @@
 // Tests UI du composant RecommendBlock TMP : compact + drawer + edge
 // cases (pas d'aiCache).
 
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 import React from 'react';
 import RecommendBlock, {
@@ -263,6 +263,58 @@ describe('TMPRecommendBlock — playingTipsBySong (Phase 3.8)', () => {
     fireEvent.click(button);
     // Phase 4 : les notes mentionnent désormais "Scene Solo (FS2)".
     expect(container.textContent).toContain('Scene Solo');
+  });
+
+  test('Phase 4 — drawer affiche ScenesEditor avec rock_preset (rythme + solo)', () => {
+    const { container } = render(
+      <RecommendBlock song={CREAM_WR} guitar={SG} profile={null} _allGuitars={null}/>,
+    );
+    const button = container.querySelector('[data-testid="tmp-recommend-block"] button');
+    fireEvent.click(button);
+    const editor = container.querySelector('[data-testid="tmp-scenes-editor"]');
+    expect(editor).not.toBeNull();
+    expect(editor.querySelector('[data-testid="tmp-scene-row-rythme"]')).not.toBeNull();
+    expect(editor.querySelector('[data-testid="tmp-scene-row-solo"]')).not.toBeNull();
+  });
+
+  test('Phase 4 — onPatchOverride wired : edit name → callback receives patchId + scenes', () => {
+    const onPatchOverride = vi.fn();
+    const { container } = render(
+      <RecommendBlock
+        song={CREAM_WR} guitar={SG} profile={null} _allGuitars={null}
+        onPatchOverride={onPatchOverride}
+      />,
+    );
+    fireEvent.click(container.querySelector('[data-testid="tmp-recommend-block"] button'));
+    const nameInput = container.querySelector(
+      '[data-testid="tmp-scene-row-rythme"] input[type="text"]',
+    );
+    fireEvent.change(nameInput, { target: { value: 'Verse' } });
+    expect(onPatchOverride).toHaveBeenCalledTimes(1);
+    const [pid, partial] = onPatchOverride.mock.calls[0];
+    expect(pid).toBe('rock_preset');
+    expect(partial.scenes[0].name).toBe('Verse');
+  });
+
+  test("Phase 4 — overrides du profil sont mergés dans le patch affiché", () => {
+    const profile = {
+      tmpPatches: {
+        custom: [],
+        factoryOverrides: {
+          rock_preset: {
+            scenes: [{ id: 'mute', name: 'Mute', ampLevelOverride: 0 }],
+          },
+        },
+      },
+    };
+    const { container } = render(
+      <RecommendBlock
+        song={CREAM_WR} guitar={SG} profile={profile} _allGuitars={null}
+      />,
+    );
+    fireEvent.click(container.querySelector('[data-testid="tmp-recommend-block"] button'));
+    expect(container.querySelector('[data-testid="tmp-scene-row-mute"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="tmp-scene-row-rythme"]')).toBeNull();
   });
 });
 
