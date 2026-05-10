@@ -31,8 +31,17 @@ function getActiveDevicesForProfile(profile) {
 function SongCollapsedDeviceRows({
   profile, aiC, banksAnn, banksPlug, renderRow,
   song, guitar, allGuitars,
+  // Phase 3.10 perf — props optionnelles pour éviter le travail
+  // redondant lorsque ce composant est appelé en boucle (129 morceaux) :
+  //   enabledDevices : devices déjà résolus en haut de l'écran (évite
+  //                    129 × getEnabledDevices).
+  //   precomputedTopRecBySongId : Map<songId, topRec> pour les devices
+  //                    avec RecommendBlock (TMP) déjà précalculés via
+  //                    un useMemo unique au niveau de l'écran.
+  enabledDevices: enabledDevicesProp,
+  precomputedTopRecBySongId,
 }) {
-  const enabledDevices = getActiveDevicesForProfile(profile);
+  const enabledDevices = enabledDevicesProp || getActiveDevicesForProfile(profile);
   // Devices avec leur propre RecommendBlock (TMP) : rendus avec le composant.
   // Devices sans RecommendBlock (ToneX) : voie legacy presetRow.
   const items = enabledDevices.map((d) => {
@@ -49,6 +58,10 @@ function SongCollapsedDeviceRows({
       {items.map((item) => {
         if (item.kind === 'component') {
           const Comp = item.d.RecommendBlock;
+          const precomputedTopRec = precomputedTopRecBySongId
+            && song && precomputedTopRecBySongId.get
+            ? precomputedTopRecBySongId.get(song.id)
+            : null;
           return (
             <Comp
               key={item.d.id}
@@ -56,6 +69,7 @@ function SongCollapsedDeviceRows({
               guitar={guitar}
               profile={profile}
               allGuitars={allGuitars}
+              precomputedTopRec={precomputedTopRec}
             />
           );
         }

@@ -6,7 +6,7 @@
 // importés en bindings nommés depuis src/data/.
 // Comportement applicatif identique à la version monolithique.
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 
 import { PRESET_CATALOG_FULL } from './data/preset_catalog_full.js';
@@ -21,6 +21,7 @@ import './devices/tonex-pedal/index.js';
 import './devices/tonex-anniversary/index.js';
 import './devices/tonex-plug/index.js';
 import './devices/tonemaster-pro/index.js';
+import { TMP_FACTORY_PATCHES, recommendTMPPatch } from './devices/tonemaster-pro/index.js';
 import { INIT_BANKS_ANN, FACTORY_BANKS_PEDALE } from './devices/tonex-pedal/index.js';
 import { FACTORY_BANKS_ANNIVERSARY } from './devices/tonex-anniversary/index.js';
 import { INIT_BANKS_PLUG, FACTORY_BANKS_PLUG } from './devices/tonex-plug/index.js';
@@ -481,7 +482,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.8.0";
+const APP_VERSION = "8.8.1";
 const ADMIN_PIN = "212402";
 
 
@@ -3299,6 +3300,72 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
     else if(sort==="artist") arr.sort((a,b)=>a.artist.localeCompare(b.artist,"fr")||a.title.localeCompare(b.title,"fr"));
     return arr;
   },[songDb,activeSlId,sort,setlists]);
+  // Phase 3.10 perf — Hoist getActiveDevicesForRender hors de la
+  // boucle de morceaux. Sans ça, SongCollapsedDeviceRows appelle
+  // getEnabledDevices(profile) une fois PAR INSTANCE (= 129 morceaux
+  // → 129 appels par re-render). Memo sur enabledDevices clés du
+  // profil seulement (pas la référence object) — cf prochaine perf
+  // pass si ça reste insuffisant.
+  const enabledDevicesForRender=useMemo(
+    ()=>getActiveDevicesForRender(profile),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [profile?.enabledDevices, profile?.devices?.pedale, profile?.devices?.anniversary, profile?.devices?.plug],
+  );
+  const hasTMPDevice=enabledDevicesForRender.some(d=>d.id==='tonemaster-pro');
+  // Phase 3.10 perf — Précalcul groupé des top recs TMP pour TOUS les
+  // morceaux affichés. Avant, chaque RecommendBlock TMP appelait
+  // recommendTMPPatch dans son propre useMemo (129 useMemo isolés
+  // pour 129 morceaux → 129 × 20 patches × 6 dimensions = ~310k
+  // opérations au premier rendu). En centralisant ici, on a UN seul
+  // useMemo qui mappe songId → topRec, invalidé seulement quand la
+  // base de morceaux ou les guitares changent.
+  // Skipped si TMP n'est pas activé dans le profil (Map vide → pas de
+  // travail, pas de cache inutile).
+  // Phase 3.10 perf — Mémoization centralisée des résolutions de
+  // guitare par morceau (getIg + gId + g object). Avant, chaque row
+  // appelait getIg → pickTopGuitar → 12 computeGuitarScoreV2 (Phase
+  // 3.9), soit ~1500 opérations pour 129 morceaux à chaque render
+  // ListScreen. Avec ce useMemo, un seul passage groupé.
+  const songRowData=useMemo(()=>{
+    const guitars=allGuitars||GUITARS;
+    const map=new Map();
+    for(const s of activeSongs){
+      const ig=getIg(s,guitars);
+      const savedGId=activeSl?.guitars?.[s.id];
+      const gId=savedGId||ig?.[0]||"";
+      const g=gId?guitars.find(x=>x.id===gId):null;
+      map.set(s.id,{ig,savedGId,gId,g});
+    }
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[activeSongs,allGuitars,activeSl?.guitars]);
+  const tmpTopRecBySongId=useMemo(()=>{
+    if(!hasTMPDevice||!activeSongs.length) return new Map();
+    const map=new Map();
+    for(const s of activeSongs){
+      const rd=songRowData.get(s.id);
+      const recs=recommendTMPPatch(TMP_FACTORY_PATCHES,s,rd?.g||null,profile);
+      if(recs[0]) map.set(s.id,recs[0]);
+    }
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[hasTMPDevice,activeSongs,songRowData]);
+  // Perf instrumentation Phase 3.10 — Activer via
+  // window.__TONEX_PERF=true dans la console. Mesure le temps total
+  // entre début de render et fin de mount du screen, à comparer entre
+  // versions.
+  if (typeof window !== 'undefined' && window.__TONEX_PERF) {
+    if (!window.__tonexRenderStart) window.__tonexRenderStart = performance.now();
+  }
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.__TONEX_PERF && window.__tonexRenderStart) {
+      const dt = performance.now() - window.__tonexRenderStart;
+      // eslint-disable-next-line no-console
+      console.log(`[perf] ListScreen mount: ${dt.toFixed(1)}ms (${activeSongs.length} morceaux, ${enabledDevicesForRender.length} devices actifs)`);
+      window.__tonexRenderStart = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [expandedId,setExpandedId]=useState(null);
   const [showTopGuitars,setShowTopGuitars]=useState(false);
   const [editingSetlists,setEditingSetlists]=useState(false);
@@ -3468,10 +3535,13 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         const showArtistHeader=sort==="artist"&&s.artist!==lastArtist;
         if(showArtistHeader) lastArtist=s.artist;
         const isC=checked.includes(s.id);
-        const ig=getIg(s,allGuitars);
-        const savedGId=activeSl?.guitars?.[s.id];
-        const gId=savedGId||ig?.[0]||"";
-        const g=gId?(allGuitars||GUITARS).find(x=>x.id===gId):null;
+        // Phase 3.10 perf — réutilise le précalcul groupé songRowData
+        // au lieu de refaire getIg + .find() par row.
+        const rd=songRowData.get(s.id)||{ig:[],savedGId:undefined,gId:"",g:null};
+        const ig=rd.ig;
+        const savedGId=rd.savedGId;
+        const gId=rd.gId;
+        const g=rd.g;
         const gType=g?.type||"HB";
         const isExpanded=expandedId===s.id;
         const aiCraw=getBestResult(s,gId,s.aiCache?.result)||null;
@@ -3566,6 +3636,8 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                   song={s}
                   guitar={g}
                   allGuitars={allGuitars}
+                  enabledDevices={enabledDevicesForRender}
+                  precomputedTopRecBySongId={tmpTopRecBySongId}
                   renderRow={(d,banks,presetData)=>presetRow(d.icon,presetData.label,banks,presetData.score,d.id,d.deviceColor)}
                 />}
               </div>

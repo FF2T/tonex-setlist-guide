@@ -223,12 +223,24 @@ function formatCabParam(k, v) {
   return `${k} : ${v}`;
 }
 
-function TMPRecommendBlock({ song, guitar, profile, _allGuitars }) {
+function TMPRecommendBlock({ song, guitar, profile, precomputedTopRec, _allGuitars }) {
   const [expanded, setExpanded] = useState(false);
-  const recs = useMemo(
-    () => recommendTMPPatch(TMP_FACTORY_PATCHES, song, guitar, profile),
-    [song, guitar, profile],
-  );
+  // Phase 3.10 perf — Deux optimisations :
+  // 1) On retire `profile` des deps useMemo : recommendTMPPatch reçoit
+  //    le param mais il est marqué `_profile` (inutilisé). Garder profile
+  //    dans les deps invalide la cache à chaque changement de référence
+  //    profile (Firestore poll, setProfileField, ensureProfilesV4 …),
+  //    forçant 129 × recommendTMPPatch sur chaque re-render au lieu d'un
+  //    re-render réellement pertinent.
+  // 2) Si le caller a précalculé le top rec au niveau de l'écran (un
+  //    useMemo unique pour tous les morceaux), on l'utilise tel quel.
+  //    Évite les 129 useMemo invalidations indépendantes au premier
+  //    rendu de Setlists avec une grosse base de morceaux.
+  const recs = useMemo(() => {
+    if (precomputedTopRec) return [precomputedTopRec];
+    return recommendTMPPatch(TMP_FACTORY_PATCHES, song, guitar, profile);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [song, guitar, precomputedTopRec]);
   const top = recs[0];
   if (!top) return null;
   const { patch, score, usagesBonus: bonus } = top;

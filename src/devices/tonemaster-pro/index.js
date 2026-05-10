@@ -10,6 +10,7 @@ import { registerDevice } from '../registry.js';
 import {
   TONEMASTER_PRO_CATALOG, isPresetSourceCompatible, TMP_FACTORY_PATCHES,
 } from './catalog.js';
+import { recommendTMPPatch } from './scoring.js';
 import RecommendBlock from './RecommendBlock.jsx';
 
 registerDevice({
@@ -20,5 +21,6 @@ registerDevice({
 
 export {
   TONEMASTER_PRO_CATALOG, isPresetSourceCompatible, TMP_FACTORY_PATCHES,
+  recommendTMPPatch,
   RecommendBlock,
 };
