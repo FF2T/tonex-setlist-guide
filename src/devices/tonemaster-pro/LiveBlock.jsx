@@ -186,6 +186,26 @@ function TMPLiveBlock({ song, guitar, profile, allGuitars, _banksAnn, _banksPlug
                       {sc.ampLevelOverride}%
                     </span>
                   )}
+                  {/* Phase 5 (Item I) — badge "ovr" si la scene a des
+                      paramOverrides actifs (utile au guitariste qui
+                      veut savoir qu'il y a des changements fins
+                      au-delà du simple Amp Level). */}
+                  {sc.paramOverrides && Object.keys(sc.paramOverrides).length > 0 && (
+                    <span
+                      data-testid={`tmp-live-scene-${sc.id}-ovr`}
+                      style={{
+                        marginLeft: 6,
+                        fontSize: 9, fontWeight: 700,
+                        opacity: 0.85,
+                        background: active ? 'rgba(0,0,0,0.15)' : 'var(--a8)',
+                        borderRadius: 'var(--r-sm)',
+                        padding: '1px 5px',
+                      }}
+                      title="paramOverrides actifs sur cette scene"
+                    >
+                      ovr
+                    </span>
+                  )}
                 </button>
               );
             })}
