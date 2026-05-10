@@ -67,7 +67,7 @@ import {
   loadSecrets, saveSecrets,
   loadTrusted, isTrusted, setTrusted,
   getAllRigsGuitars,
-  dedupSetlists,
+  dedupSetlists, findSetlistDuplicatesByName,
 } from './core/state.js';
 import {
   SOURCE_LABELS, SOURCE_BADGES, SOURCE_INFO,
@@ -2572,16 +2572,52 @@ function MaintenanceTab({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug,
           dedupSetlists. */}
       <div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-lg)",padding:16,marginBottom:12}}>
         <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:4}}>Setlists — doublons</div>
-        <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:10}}>Détecte les setlists ayant le même nom ET les mêmes profils, et les fusionne (union dédupliquée des morceaux).</div>
+        <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:10}}>Deux modes de dédup. Mode strict (gentle) = même nom ET mêmes profils. Mode aggressif = même nom seul, fusionne les profils en union.</div>
         {(()=>{
-          const deduped=dedupSetlists(setlists);
-          const removedCount=setlists.length-deduped.length;
-          if(removedCount<=0) return <div style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic"}}>Aucun doublon détecté.</div>;
-          return <button data-testid="maint-dedup-setlists" onClick={()=>{
-            const msg=`${removedCount} setlist${removedCount>1?"s":""} doublon${removedCount>1?"s":""} détecté${removedCount>1?"s":""}.\n\nLa version la plus complète est conservée, les morceaux des doublons sont fusionnés. Confirmer ?`;
-            if(!window.confirm(msg)) return;
-            onSetlists(()=>deduped);
-          }} style={{background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)"}}>🧹 Fusionner {removedCount} doublon{removedCount>1?"s":""}</button>;
+          const dedupedStrict=dedupSetlists(setlists);
+          const removedStrict=setlists.length-dedupedStrict.length;
+          const dedupedLoose=dedupSetlists(setlists,{mergeAcrossProfiles:true});
+          const removedLoose=setlists.length-dedupedLoose.length;
+          // Le mode aggressif englobe tous les doublons stricts ET les
+          // name-only. removedExtra = strictement plus de fusion en
+          // mode aggressif.
+          const removedExtra=removedLoose-removedStrict;
+          const dupByName=findSetlistDuplicatesByName(setlists);
+          // Récap groupes name-only mais qui ne sont PAS strict-doublons
+          // (donc différenciés par profileIds).
+          const nameOnlyGroups=dupByName.filter(g=>{
+            // Si tous les items du groupe ont le même profileIds, c'est
+            // un doublon strict aussi → exclu ici.
+            const keys=new Set(g.items.map(sl=>(Array.isArray(sl.profileIds)?[...sl.profileIds].sort().join('|'):'')));
+            return keys.size>1;
+          });
+          return <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {/* Mode strict */}
+            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+              <div style={{fontSize:11,color:"var(--text-sec)",flex:1,minWidth:160}}>
+                <b style={{color:"var(--text-muted)"}}>Strict</b> (name + profils) :
+                {removedStrict<=0?<span style={{color:"var(--text-dim)",fontStyle:"italic"}}> aucun doublon</span>:` ${removedStrict} doublon${removedStrict>1?"s":""}`}
+              </div>
+              {removedStrict>0&&<button data-testid="maint-dedup-setlists" onClick={()=>{
+                const msg=`${removedStrict} setlist${removedStrict>1?"s":""} doublon${removedStrict>1?"s":""} détecté${removedStrict>1?"s":""} (même nom ET mêmes profils).\n\nLa version la plus complète est conservée, morceaux fusionnés. Confirmer ?`;
+                if(!window.confirm(msg)) return;
+                onSetlists(()=>dedupedStrict);
+              }} style={{background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-md)",padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)"}}>🧹 Fusionner strict</button>}
+            </div>
+            {/* Mode aggressif (Phase 5.4) */}
+            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",borderTop:"1px solid var(--a7)",paddingTop:8}}>
+              <div style={{fontSize:11,color:"var(--text-sec)",flex:1,minWidth:160}}>
+                <b style={{color:"var(--text-muted)"}}>Aggressif</b> (name seul, fusionne profils) :
+                {nameOnlyGroups.length===0?<span style={{color:"var(--text-dim)",fontStyle:"italic"}}> aucun doublon supplémentaire</span>:` ${nameOnlyGroups.length} groupe${nameOnlyGroups.length>1?"s":""} (${nameOnlyGroups.map(g=>g.name).join(", ")})`}
+              </div>
+              {removedExtra>0&&<button data-testid="maint-dedup-setlists-loose" onClick={()=>{
+                const lines=nameOnlyGroups.map(g=>`• "${g.name}" → ${g.items.length} versions, profils fusionnés [${g.profileIdsUnion.join(", ")}]`).join("\n");
+                const msg=`${removedExtra} setlist${removedExtra>1?"s":""} doublon${removedExtra>1?"s":""} par nom seul (profils différents) :\n\n${lines}\n\nLa version la plus complète est conservée, profils ET morceaux fusionnés. Confirmer ?`;
+                if(!window.confirm(msg)) return;
+                onSetlists(()=>dedupedLoose);
+              }} style={{background:"var(--wine-400)",border:"none",color:"var(--text-inverse)",borderRadius:"var(--r-md)",padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)"}}>⚡ Fusionner aggressif</button>}
+            </div>
+          </div>;
         })()}
       </div>
 
@@ -3415,6 +3451,42 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
   const [newSlName,setNewSlName]=useState("");
   const [editSlId,setEditSlId]=useState(null);
   const [editSlName,setEditSlName]=useState("");
+  // Phase 5.4 — état du toast "morceau retiré · Annuler".
+  // { slId, songId, songTitle, position, expiresAt } ou null. Le
+  // timeout d'auto-dismiss est géré via setTimeout + setRemovedSong(null).
+  const [removedSong,setRemovedSong]=useState(null);
+  const removedTimeoutRef=useRef(null);
+  // Phase 5.4 — retire le morceau songId de la setlist activeSlId,
+  // mémorise la position pour permettre l'undo via le toast. Si un
+  // toast undo est déjà actif, le précédent retrait devient
+  // définitif (état perdu) et le nouveau prend la place du toast.
+  const removeSongFromActiveSetlist=(songId,songTitle)=>{
+    if(!activeSlId) return;
+    // Capture la position courante AVANT mutation.
+    const currentSl=setlists.find(s=>s.id===activeSlId);
+    if(!currentSl) return;
+    const position=currentSl.songIds.indexOf(songId);
+    if(position<0) return;
+    onSetlists(p=>p.map(sl=>sl.id===activeSlId?{...sl,songIds:sl.songIds.filter(x=>x!==songId)}:sl));
+    // Reset le timeout précédent si existant.
+    if(removedTimeoutRef.current){clearTimeout(removedTimeoutRef.current);removedTimeoutRef.current=null;}
+    setRemovedSong({slId:activeSlId,songId,songTitle:songTitle||songId,position,expiresAt:Date.now()+5000});
+    removedTimeoutRef.current=setTimeout(()=>{setRemovedSong(null);removedTimeoutRef.current=null;},5000);
+  };
+  const undoRemoveSong=()=>{
+    if(!removedSong) return;
+    const {slId,songId,position}=removedSong;
+    onSetlists(p=>p.map(sl=>{
+      if(sl.id!==slId) return sl;
+      if(sl.songIds.includes(songId)) return sl; // déjà ré-ajouté manuellement → no-op
+      const ids=[...sl.songIds];
+      ids.splice(Math.min(position,ids.length),0,songId);
+      return {...sl,songIds:ids};
+    }));
+    if(removedTimeoutRef.current){clearTimeout(removedTimeoutRef.current);removedTimeoutRef.current=null;}
+    setRemovedSong(null);
+  };
+  useEffect(()=>()=>{if(removedTimeoutRef.current)clearTimeout(removedTimeoutRef.current);},[]);
   const createSetlist=()=>{if(!newSlName.trim())return;onSetlists(p=>[...p,{id:`sl_${Date.now()}`,name:newSlName.trim(),songIds:[],profileIds:[activeProfileId]}]);setNewSlName("");};
   const deleteSetlist=id=>{
     const sl=setlists.find(s=>s.id===id);
@@ -3653,7 +3725,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                     }
                   }));
                 }
-              }} style={{flex:1,background:isC?"rgba(74,222,128,0.05)":"var(--a3)",border:isC?"1px solid var(--green-border)":"1px solid var(--a7)",borderLeft:"none",borderRadius:isExpanded?"0 10px 0 0":"0 10px 10px 0",padding:"10px 13px",cursor:"pointer"}}>
+              }} style={{flex:1,background:isC?"rgba(74,222,128,0.05)":"var(--a3)",border:isC?"1px solid var(--green-border)":"1px solid var(--a7)",borderLeft:"none",borderRight:activeSlId?"none":(isC?"1px solid var(--green-border)":"1px solid var(--a7)"),borderRadius:activeSlId?"0":(isExpanded?"0 10px 0 0":"0 10px 10px 0"),padding:"10px 13px",cursor:"pointer"}}>
                 <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:2}}>
                   <span style={{fontSize:14,fontWeight:600,color:"var(--text)"}}>{s.title}</span>
                   {!s.aiCache&&<span style={{fontSize:10,color:"var(--text-muted)"}}>⏳</span>}
@@ -3693,6 +3765,30 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                   renderRow={(d,banks,presetData)=>presetRow(d.icon,presetData.label,banks,presetData.score,d.id,d.deviceColor)}
                 />}
               </div>
+              {/* Phase 5.4 — 3e zone : bouton 🗑️ pour retirer le morceau
+                  de la setlist active. Visible uniquement quand
+                  activeSlId est défini (sinon on est en vue "Tous les
+                  morceaux", retirer n'a pas de sens). text-dim au repos,
+                  rouge au hover. Toast undo 5s ensuite. */}
+              {activeSlId&&<button
+                data-testid={`song-row-remove-${s.id}`}
+                onClick={(e)=>{e.stopPropagation();removeSongFromActiveSetlist(s.id,s.title);}}
+                title={`Retirer "${s.title}" de la setlist`}
+                style={{
+                  background:isC?"rgba(74,222,128,0.05)":"var(--a3)",
+                  border:isC?"1px solid var(--green-border)":"1px solid var(--a7)",
+                  borderLeft:"none",
+                  borderRadius:isExpanded?"0 10px 0 0":"0 10px 10px 0",
+                  padding:"0 12px",
+                  cursor:"pointer",
+                  color:"var(--text-dim)",
+                  fontSize:14,
+                  flexShrink:0,
+                  transition:"color 0.15s ease",
+                }}
+                onMouseEnter={(e)=>{e.currentTarget.style.color="var(--red)";}}
+                onMouseLeave={(e)=>{e.currentTarget.style.color="var(--text-dim)";}}
+              >🗑️</button>}
             </div>
             {isExpanded&&<SongDetailCard song={s} banksAnn={banksAnn} banksPlug={banksPlug} onBanksAnn={onBanksAnn} onBanksPlug={onBanksPlug} onClose={()=>setExpandedId(null)} guitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} savedGuitarId={activeSl?.guitars?.[s.id]} onGuitarChange={(songId,gId)=>{if(activeSlId)onSetlists(p=>p.map(sl=>sl.id===activeSlId?{...sl,guitars:{...(sl.guitars||{}),[songId]:gId}}:sl));}} aiProvider={aiProvider} aiKeys={aiKeys} onSongDb={onSongDb} profile={profile} onTmpPatchOverride={onTmpPatchOverride}/>}
           </div>
@@ -3700,6 +3796,47 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         );
       })})()}
       {checked.length>0&&<div className="bottom-action" style={{paddingTop:12}}><button onClick={onNext} style={{width:"100%",background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-lg)",padding:"14px",fontSize:15,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)",fontFamily:"var(--font-ui)"}}>Générer le récap — {checked.length} morceau{checked.length>1?"x":""} →</button></div>}
+      {/* Phase 5.4 — toast undo retrait morceau */}
+      {removedSong&&<div
+        data-testid="song-remove-toast"
+        style={{
+          position:"fixed",
+          left:"50%",
+          bottom:"max(20px, env(safe-area-inset-bottom))",
+          transform:"translateX(-50%)",
+          background:"var(--bg-card)",
+          border:"1px solid var(--a12)",
+          borderRadius:"var(--r-lg)",
+          padding:"10px 14px",
+          fontSize:13,
+          color:"var(--text)",
+          display:"flex",
+          alignItems:"center",
+          gap:12,
+          boxShadow:"var(--shadow-md)",
+          zIndex:999,
+          maxWidth:"min(440px, 92vw)",
+        }}
+      >
+        <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+          <b style={{color:"var(--text-bright)"}}>"{removedSong.songTitle}"</b> retiré
+        </span>
+        <button
+          data-testid="song-remove-toast-undo"
+          onClick={undoRemoveSong}
+          style={{
+            background:"var(--accent-bg)",
+            border:"1px solid var(--accent-border)",
+            color:"var(--accent)",
+            borderRadius:"var(--r-md)",
+            padding:"6px 14px",
+            fontSize:12,
+            fontWeight:700,
+            cursor:"pointer",
+            flexShrink:0,
+          }}
+        >↩ Annuler</button>
+      </div>}
       {showAdd&&<AddSongModal songDb={songDb} onSongDb={onSongDb} setlists={setlists} onSetlists={onSetlists} activeSlId={activeSlId} onClose={()=>setShowAdd(false)} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} guitars={allGuitars}/>}
     </div>
   );
