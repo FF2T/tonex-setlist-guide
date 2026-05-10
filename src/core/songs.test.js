@@ -26,14 +26,22 @@ describe('INIT_SONG_DB_META — bpm/key Phase 4', () => {
 });
 
 describe('getSongInfo — précédence Phase 4', () => {
-  test('préfère seed > song > aiCache pour bpm', () => {
-    // Seed connu, mais on simule des valeurs concurrentes sur le morceau.
+  test('édition utilisateur (song.bpm) prime sur le seed', () => {
+    // Seed: acdc_hth bpm=116 ; l'utilisateur a corrigé à 118.
     const song = {
-      id: 'acdc_hth', // bpm:116 dans le seed
-      bpm: 999,
+      id: 'acdc_hth',
+      bpm: 118,
+      key: 'A',
       aiCache: { result: { song_bpm: 200 } },
     };
+    expect(getSongInfo(song).bpm).toBe(118);
+    expect(getSongInfo(song).key).toBe('A');
+  });
+
+  test('sans édition, retombe sur la valeur seed', () => {
+    const song = { id: 'acdc_hth' };
     expect(getSongInfo(song).bpm).toBe(116);
+    expect(getSongInfo(song).key).toBe('A');
   });
 
   test('si pas dans le seed, prend la valeur du morceau', () => {

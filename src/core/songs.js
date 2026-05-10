@@ -132,15 +132,15 @@ const SONG_HISTORY = {
 function getSongInfo(song){
   const init=INIT_SONG_DB_META.find(s=>s.id===song.id);
   const ai=song.aiCache?.result;
-  // Phase 4 — bpm/key : préfère l'éventuelle valeur statique du seed
-  // ou stockée sur le morceau (édition utilisateur), retombe sur le
-  // cache IA en dernier recours pour les morceaux non-seed sans édit.
+  // Phase 4 — bpm/key : précédence song (édition utilisateur)
+  // > seed statique > aiCache. L'utilisateur peut surcharger localement
+  // une valeur seed si elle est imprécise.
   return {
     year:init?.year||ai?.song_year||null,
     album:init?.album||ai?.song_album||null,
     desc:init?.desc||ai?.song_desc||null,
-    key:init?.key||song?.key||ai?.song_key||null,
-    bpm:init?.bpm||song?.bpm||ai?.song_bpm||null,
+    key:song?.key||init?.key||ai?.song_key||null,
+    bpm:song?.bpm||init?.bpm||ai?.song_bpm||null,
   };
 }
 
