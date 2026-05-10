@@ -117,3 +117,42 @@ describe('TMPLiveBlock — rendu', () => {
     expect(container.querySelector('[data-testid="tmp-live-amp-level"]').textContent).toContain('5%');
   });
 });
+
+// ───────────────────────────────────────────────────────────────────
+// Phase 5 (Item I) — badge "ovr" sur scenes avec paramOverrides
+// ───────────────────────────────────────────────────────────────────
+
+describe('TMPLiveBlock — badge paramOverrides (Phase 5 Item I)', () => {
+  test('scene avec paramOverrides → badge "ovr" visible', () => {
+    const profile = {
+      tmpPatches: {
+        custom: [],
+        factoryOverrides: {
+          rock_preset: {
+            scenes: [
+              { id: 'rythme', name: 'Rythme', ampLevelOverride: 70 },
+              {
+                id: 'solo', name: 'Solo', ampLevelOverride: 100,
+                paramOverrides: { drive: { drive: 5 } },
+              },
+            ],
+          },
+        },
+      },
+    };
+    const { container } = render(
+      <LiveBlock song={ACDC_HTH} guitar={SG} profile={profile}/>,
+    );
+    expect(container.querySelector('[data-testid="tmp-live-scene-solo-ovr"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="tmp-live-scene-rythme-ovr"]')).toBeNull();
+  });
+
+  test('scene sans paramOverrides → pas de badge', () => {
+    const { container } = render(
+      <LiveBlock song={ACDC_HTH} guitar={SG} profile={null}/>,
+    );
+    // rock_preset scenes sans paramOverrides → aucun badge ovr.
+    expect(container.querySelector('[data-testid="tmp-live-scene-rythme-ovr"]')).toBeNull();
+    expect(container.querySelector('[data-testid="tmp-live-scene-solo-ovr"]')).toBeNull();
+  });
+});

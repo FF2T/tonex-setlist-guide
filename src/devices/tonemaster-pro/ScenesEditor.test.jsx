@@ -226,3 +226,136 @@ describe('ScenesEditor — toggle blocs sur scene', () => {
     expect(scenes[0].blockToggles).toBe(undefined);
   });
 });
+
+// ───────────────────────────────────────────────────────────────────
+// Phase 5 (Item I) — paramOverrides UI collapsable
+// ───────────────────────────────────────────────────────────────────
+
+describe('ScenesEditor — paramOverrides collapsable (Phase 5 Item I)', () => {
+  test('collapse par défaut : sous-section invisible jusqu\'au click', () => {
+    const onScenesChange = vi.fn();
+    const { container } = render(
+      <ScenesEditor patch={ROCK_PRESET} onScenesChange={onScenesChange}/>,
+    );
+    // Le toggle est présent mais le panel non-déployé.
+    expect(container.querySelector('[data-testid="tmp-scene-adv-toggle-rythme"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="tmp-scene-adv-form-add-rythme"]')).toBeNull();
+  });
+
+  test('click toggle → mini-form visible, click à nouveau → caché', () => {
+    const onScenesChange = vi.fn();
+    const { container } = render(
+      <ScenesEditor patch={ROCK_PRESET} onScenesChange={onScenesChange}/>,
+    );
+    const toggle = container.querySelector('[data-testid="tmp-scene-adv-toggle-rythme"]');
+    fireEvent.click(toggle);
+    expect(container.querySelector('[data-testid="tmp-scene-adv-form-add-rythme"]')).not.toBeNull();
+    fireEvent.click(toggle);
+    expect(container.querySelector('[data-testid="tmp-scene-adv-form-add-rythme"]')).toBeNull();
+  });
+
+  test('ajout d\'un override drive.drive=5 → onScenesChange avec paramOverrides', () => {
+    const onScenesChange = vi.fn();
+    const { container } = render(
+      <ScenesEditor patch={ROCK_PRESET} onScenesChange={onScenesChange}/>,
+    );
+    fireEvent.click(container.querySelector('[data-testid="tmp-scene-adv-toggle-solo"]'));
+    fireEvent.change(container.querySelector('[data-testid="tmp-scene-adv-form-block-solo"]'), {
+      target: { value: 'drive' },
+    });
+    fireEvent.change(container.querySelector('[data-testid="tmp-scene-adv-form-key-solo"]'), {
+      target: { value: 'drive' },
+    });
+    fireEvent.change(container.querySelector('[data-testid="tmp-scene-adv-form-value-solo"]'), {
+      target: { value: '5' },
+    });
+    fireEvent.click(container.querySelector('[data-testid="tmp-scene-adv-form-add-solo"]'));
+    expect(onScenesChange).toHaveBeenCalled();
+    const [scenes] = onScenesChange.mock.calls[onScenesChange.mock.calls.length - 1];
+    // Solo est l'index 1 dans rock_preset.
+    expect(scenes[1].paramOverrides).toEqual({ drive: { drive: 5 } });
+  });
+
+  test('valeur numérique convertie en number', () => {
+    const onScenesChange = vi.fn();
+    const { container } = render(
+      <ScenesEditor patch={ROCK_PRESET} onScenesChange={onScenesChange}/>,
+    );
+    fireEvent.click(container.querySelector('[data-testid="tmp-scene-adv-toggle-rythme"]'));
+    fireEvent.change(container.querySelector('[data-testid="tmp-scene-adv-form-block-rythme"]'), {
+      target: { value: 'amp' },
+    });
+    fireEvent.change(container.querySelector('[data-testid="tmp-scene-adv-form-key-rythme"]'), {
+      target: { value: 'volume_i' },
+    });
+    fireEvent.change(container.querySelector('[data-testid="tmp-scene-adv-form-value-rythme"]'), {
+      target: { value: '7.5' },
+    });
+    fireEvent.click(container.querySelector('[data-testid="tmp-scene-adv-form-add-rythme"]'));
+    const [scenes] = onScenesChange.mock.calls[0];
+    expect(scenes[0].paramOverrides.amp.volume_i).toBe(7.5);
+    expect(typeof scenes[0].paramOverrides.amp.volume_i).toBe('number');
+  });
+
+  test('overrides existants : affichage + suppression', () => {
+    const patchWithOverrides = {
+      ...ROCK_PRESET,
+      scenes: ROCK_PRESET.scenes.map((s, i) =>
+        i === 0 ? { ...s, paramOverrides: { drive: { tone: 6 } } } : s),
+    };
+    const onScenesChange = vi.fn();
+    const { container } = render(
+      <ScenesEditor patch={patchWithOverrides} onScenesChange={onScenesChange}/>,
+    );
+    // Le badge count doit montrer (1) sur la scene rythme.
+    expect(container.querySelector('[data-testid="tmp-scene-adv-toggle-rythme"]').textContent).toContain('(1)');
+    // Click pour déployer.
+    fireEvent.click(container.querySelector('[data-testid="tmp-scene-adv-toggle-rythme"]'));
+    // Entry visible
+    const entry = container.querySelector('[data-testid="tmp-scene-adv-entry-rythme-drive-tone"]');
+    expect(entry).not.toBeNull();
+    expect(entry.textContent).toContain('drive.tone');
+    expect(entry.textContent).toContain('6');
+    // Supprimer
+    fireEvent.click(entry.querySelector('button[aria-label^="Supprimer override"]'));
+    const [scenes] = onScenesChange.mock.calls[onScenesChange.mock.calls.length - 1];
+    expect(scenes[0].paramOverrides).toBe(undefined); // empty object → cleared
+  });
+
+  test('mini-form bouton + désactivé tant qu\'un champ manque', () => {
+    const onScenesChange = vi.fn();
+    const { container } = render(
+      <ScenesEditor patch={ROCK_PRESET} onScenesChange={onScenesChange}/>,
+    );
+    fireEvent.click(container.querySelector('[data-testid="tmp-scene-adv-toggle-rythme"]'));
+    const addBtn = container.querySelector('[data-testid="tmp-scene-adv-form-add-rythme"]');
+    expect(addBtn.disabled).toBe(true);
+    // Remplir bloc seulement
+    fireEvent.change(container.querySelector('[data-testid="tmp-scene-adv-form-block-rythme"]'), {
+      target: { value: 'drive' },
+    });
+    expect(addBtn.disabled).toBe(true);
+    // Remplir key
+    fireEvent.change(container.querySelector('[data-testid="tmp-scene-adv-form-key-rythme"]'), {
+      target: { value: 'tone' },
+    });
+    expect(addBtn.disabled).toBe(true);
+    // Remplir value → bouton enabled
+    fireEvent.change(container.querySelector('[data-testid="tmp-scene-adv-form-value-rythme"]'), {
+      target: { value: '8' },
+    });
+    expect(addBtn.disabled).toBe(false);
+  });
+
+  test('read-only : pas de mini-form, mais affichage des overrides existants', () => {
+    const patchWithOverrides = {
+      ...ROCK_PRESET,
+      scenes: ROCK_PRESET.scenes.map((s, i) =>
+        i === 1 ? { ...s, paramOverrides: { delay: { mix: 25 } } } : s),
+    };
+    const { container } = render(<ScenesEditor patch={patchWithOverrides}/>); // pas de callback → read-only
+    fireEvent.click(container.querySelector('[data-testid="tmp-scene-adv-toggle-solo"]'));
+    expect(container.querySelector('[data-testid="tmp-scene-adv-entry-solo-delay-mix"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="tmp-scene-adv-form-add-solo"]')).toBeNull();
+  });
+});

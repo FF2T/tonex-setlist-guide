@@ -581,6 +581,121 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
+## État Phase 5.1 (fixes complémentaires, 2026-05-10, re-tag `phase-5-done`)
+
+2 fixes Phase 5 en 1 commit `[phase-5.1]` :
+
+- **FIX 1 — `profile.devices` ressuscitait via Firestore poll.**
+  Le bug rapporté : après chargement,
+  `JSON.parse(localStorage.tonex_guide_v2).profiles.sebastien.devices`
+  retournait `{...}` même après `migrateV5toV6`. Cause : le polling
+  Firestore (`applyRemoteData`) injectait les profils distants via
+  `ensureProfilesV4` — qui heal v3+v4 mais ne droppe pas `devices`.
+  Chaque poll Firestore (toutes les 5s) ré-injectait silencieusement
+  `devices` depuis le doc distant stale. Fix : nouveau
+  `ensureProfileV6`/`ensureProfilesV6` qui drop le champ après heal
+  v4. `migrateV5toV6` délègue à ce helper unique. Les 3 call sites
+  Firestore (mergedProfiles initial, applyRemoteData, push merge)
+  utilisent désormais `ensureProfilesV6`.
+
+- **FIX 2 — lazy load jsPDF impossible avec single-file build.**
+  Tentative initiale du plan : `const { jsPDF } = await import('jspdf')`
+  au moment du click pour basculer jsPDF en chunk séparé. Vérifié sur
+  la config :
+  ```js
+  // vite.config.js
+  rollupOptions: { output: { inlineDynamicImports: true } },
+  plugins: [react(), viteSingleFile()],
+  ```
+  → `inlineDynamicImports: true` force Rollup à embarquer tous les
+  chunks dynamiques dans le bundle principal. Le single-file est
+  une contrainte produit (dist/index.html mono-fichier déployé
+  GitHub Pages, doit marcher en file:// ouvert seul). Donc lazy
+  load = neutre en pratique, jsPDF reste embarqué dans le HTML.
+  Limitation documentée ici, statu quo sur l'import statique.
+  Alternative si trop lourd : remplacer jsPDF par une page HTML
+  imprimable (window.print, zéro dépendance).
+
+7 nouveaux tests ensureProfileV6 (drop devices, idempotent, cascade
+v3+v4, scenario Firestore poll, migrateV5toV6 délègue, null
+defensive). Suite 436 → 443.
+
+## État Phase 5 (terminée 2026-05-10, tag `phase-5-done`)
+
+Polish final + bugs résiduels en 7 commits atomiques `[phase-5]` :
+
+- **Item G — code mort supprimé.** `AICard` (92 lignes) et
+  `NewSongExplorer` (93 lignes) supprimés de main.jsx (audit
+  Phase 2 confirmé : zéro instance JSX). main.jsx 6836 → 6651
+  lignes.
+
+- **Item C — Service Worker stale-while-revalidate sur le HTML.**
+  Avant Phase 5 : network-first avec fallback cache (en pratique
+  bloquant sur connexion lente). Après : SWR sur navigation/HTML —
+  sert immédiatement le cache + fetch en background pour la
+  prochaine visite. CACHE bumpé tonex-v52 → v53.
+
+- **Item F — `core/sources.js`.** Centralise SOURCE_IDS,
+  SOURCE_LABELS, SOURCE_BADGES, SOURCE_INFO + helpers
+  `getSourceBadge(srcId)` et `getSourceInfo(entry)`. main.jsx
+  refactor : `srcBadge` et `presetSourceInfo` deviennent
+  one-liner sur ces helpers ; définition locale `SOURCE_LABELS`
+  supprimée.
+
+- **Item A — fix sélection guitare sur morceaux Newzik.**
+  3 bugs chaînés résolus : (1) double `fetchAI` (handleGuitarChange +
+  useEffect en parallèle) → `handleGuitarChange` devient passive
+  (setGId + reset + propage `onGuitarChange`), seul le useEffect
+  lance fetchAI ; (2) `.catch(()=>{})` silencieux → erreur capturée
+  dans `setLocalAiErr` et affichée dans la card avec instruction
+  "Vérifie ta clé API" ; (3) `setLocalAiResult(null)` inline annulait
+  le useEffect en cours → supprimé. Test régression dédié.
+
+- **Item E — drop legacy `profile.devices`.**
+  STATE_VERSION=6, `migrateV5toV6` drop le champ après dérivation
+  defensive de `enabledDevices` si manquant. `makeDefaultProfile`
+  ne crée plus `devices`. 4 call sites refactorés
+  (`MesAppareilsTab` mirror retiré, locked sources, tabs profile,
+  ViewProfileScreen) → utilisent `enabledDevices.includes('tonex-X')`.
+  SW CACHE bumpé v53 → v54.
+
+- **Item I — UI paramOverrides collapsable dans ScenesEditor.**
+  Sous chaque scene, sous-section "▼ Paramètres avancés" cachée par
+  défaut (power users only). Mini-form inline : sélecteur bloc + input
+  paramKey (datalist) + input value. Conversion auto numérique. Mode
+  read-only montre les overrides existants sans le mini-form. Badge
+  "ovr" sur LiveBlock TMP pour signaler les scenes avec overrides
+  actifs.
+
+- **Item K — Export PDF setlist (jsPDF).**
+  `src/app/screens/SetlistPdfExport.js` génère 1 page par morceau :
+  titre 24pt + artiste + meta (BPM/key/year/album) + Référence
+  (SONG_HISTORY) + Guitare reco + Patches par device (ToneX
+  bank+slot, TMP nom+chaîne) + description seed. Bouton 📄 dans
+  l'éditeur setlists (mode édition). Defensive : songs null
+  no-throw, render fail per-song catch and continue.
+
+**Schéma localStorage v6** :
+```
+profile {
+  ...,                                   // v5 inchangé
+  // devices: { pedale, anniversary, plug }   ← SUPPRIMÉ Phase 5 Item E
+  enabledDevices: string[]               // seule source de vérité
+}
+```
+
+**Suite tests : 392 → 436** (+44 nouveaux Phase 5).
+
+**Dette résiduelle (Phase 6+ si nécessaire)** :
+- jsPDF coûte 240 KB gzip. Si jugé trop lourd, basculer sur une
+  page HTML imprimable (window.print, pas de dep).
+- Browser de patches dans MonProfilScreen (lister custom +
+  factory + overrides utilisateur) — toujours dette Phase 4.
+- Editor pour patches custom from scratch — dette Phase 4.
+- Wake Lock toggle manuel dans LiveScreen — dette Phase 4.
+- AI populating `preset_tmp` dans aiCache — dette Phase 3+.
+- Découpage main.jsx (~6700 lignes) — dette Phase 1+ persistante.
+
 ## État Phase 4.1 (fixes complémentaires, 2026-05-10, re-tag `phase-4-done`)
 
 3 fixes Phase 4 complémentaires en 1 commit `[phase-4.1]` :

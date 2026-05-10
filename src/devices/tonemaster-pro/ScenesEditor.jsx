@@ -1,4 +1,4 @@
-// src/devices/tonemaster-pro/ScenesEditor.jsx — Phase 4.
+// src/devices/tonemaster-pro/ScenesEditor.jsx — Phase 4 + Phase 5 (Item I).
 // Éditeur compact de Scenes + footswitchMap pour un patch TMP.
 //
 // Intégré dans le drawer du RecommendBlock TMP. Les modifications sont
@@ -10,7 +10,7 @@
 // Mode read-only si aucun callback n'est fourni : l'éditeur affiche
 // les scenes/footswitch existants sans permettre d'édition.
 //
-// Édition supportée Phase 4 :
+// Édition supportée Phase 4 + Phase 5 :
 // - Renommer une scene (name).
 // - Modifier ampLevelOverride (slider 0-100, vide = supprimé).
 // - Toggles blocs drive / delay / reverb / mod (blockToggles entries).
@@ -20,7 +20,12 @@
 //     - Toggle Drive/Delay/Reverb/Mod
 //     - Tap Tempo
 //     - Aucun (reset)
-// - paramOverrides : pas d'UI Phase 4 (différé Phase 5+).
+// - **paramOverrides** (Phase 5 Item I) : sous-section collapsable
+//   "▼ Paramètres avancés" par scene. Power users la déplient pour
+//   ajouter/supprimer des overrides fins (ex. drive.drive=5 dans la
+//   scene Solo override le drive du patch parent). Mini-form inline :
+//   bloc + paramKey + value. Mode read-only montre les overrides
+//   sans permettre d'édition.
 
 import React, { useState } from 'react';
 import { TOGGLE_BLOCKS, FS_KEYS } from './chain-model.js';
@@ -84,6 +89,19 @@ function ScenesEditor({
   // de drive dans la chaîne).
   const togglablePresent = TOGGLE_BLOCKS.filter((b) => !!patch?.[b]);
 
+  // Phase 5 (Item I) — Liste de TOUS les blocs présents dans le patch
+  // (incluant amp et cab, qui sont éligibles aux paramOverrides même
+  // s'ils ne sont pas toggleables). Utilisé par l'éditeur de
+  // paramOverrides.
+  const allBlocksPresent = ['noise_gate', 'comp', 'eq', 'drive', 'amp', 'cab', 'mod', 'delay', 'reverb']
+    .filter((b) => !!patch?.[b]);
+
+  // Phase 5 (Item I) — index de la scene actuellement dépliée pour
+  // l'éditeur "Paramètres avancés". null = toutes repliées.
+  const [expandedAdvIdx, setExpandedAdvIdx] = useState(null);
+  // Mini-form state pour "+ Override paramètre" (par scene index).
+  const [advForm, setAdvForm] = useState({ block: '', key: '', value: '' });
+
   // ─── Mutations scenes ────────────────────────────────────────────
   const updateScene = (idx, partial) => {
     if (readOnly) return;
@@ -142,6 +160,41 @@ function ScenesEditor({
     }
     const n = Math.max(0, Math.min(100, parseInt(trimmed, 10)));
     if (Number.isFinite(n)) updateScene(idx, { ampLevelOverride: n });
+  };
+
+  // ─── Phase 5 (Item I) : paramOverrides ──────────────────────────
+  const setSceneParamOverride = (idx, blockType, paramKey, rawValue) => {
+    if (readOnly) return;
+    const sc = scenes[idx];
+    if (!sc) return;
+    // Convert numeric values automatically. Fallback to string for
+    // cab params (mic, axis) qui acceptent string.
+    let value = rawValue;
+    if (typeof rawValue === 'string') {
+      const trimmed = rawValue.trim();
+      if (trimmed !== '' && !Number.isNaN(Number(trimmed))) value = Number(trimmed);
+    }
+    const nextOver = { ...(sc.paramOverrides || {}) };
+    nextOver[blockType] = { ...(nextOver[blockType] || {}), [paramKey]: value };
+    updateScene(idx, { paramOverrides: nextOver });
+  };
+
+  const removeSceneParamOverride = (idx, blockType, paramKey) => {
+    if (readOnly) return;
+    const sc = scenes[idx];
+    if (!sc?.paramOverrides?.[blockType]) return;
+    const nextBlock = { ...sc.paramOverrides[blockType] };
+    delete nextBlock[paramKey];
+    const nextOver = { ...sc.paramOverrides };
+    if (Object.keys(nextBlock).length === 0) {
+      delete nextOver[blockType];
+    } else {
+      nextOver[blockType] = nextBlock;
+    }
+    const partial = {
+      paramOverrides: Object.keys(nextOver).length === 0 ? undefined : nextOver,
+    };
+    updateScene(idx, partial);
   };
 
   // ─── Mutations footswitchMap ─────────────────────────────────────
@@ -210,8 +263,8 @@ function ScenesEditor({
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {scenes.map((sc, i) => (
+            <div key={sc.id} style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
             <div
-              key={sc.id}
               data-testid={`tmp-scene-row-${sc.id}`}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
@@ -293,6 +346,155 @@ function ScenesEditor({
                   ×
                 </button>
               )}
+            </div>
+            {/* Phase 5 (Item I) — Sous-section "Paramètres avancés"
+                collapsable. Power users la déplient pour gérer
+                paramOverrides ; cachée par défaut. */}
+            {(() => {
+              const overrides = sc.paramOverrides || {};
+              const overrideEntries = Object.entries(overrides).flatMap(
+                ([blockType, kv]) => Object.entries(kv || {}).map(([k, v]) => ({ blockType, k, v })),
+              );
+              const expanded = expandedAdvIdx === i;
+              if (overrideEntries.length === 0 && readOnly) return null;
+              return (
+                <div data-testid={`tmp-scene-adv-${sc.id}`} style={{ marginTop: 2, marginLeft: 8 }}>
+                  <button
+                    type="button"
+                    data-testid={`tmp-scene-adv-toggle-${sc.id}`}
+                    onClick={() => {
+                      setExpandedAdvIdx(expanded ? null : i);
+                      setAdvForm({ block: '', key: '', value: '' });
+                    }}
+                    style={{
+                      background: 'transparent', border: 'none',
+                      color: 'var(--text-muted)', cursor: 'pointer',
+                      fontSize: 9, padding: '2px 0', fontFamily: 'var(--font-mono)',
+                      textTransform: 'uppercase', letterSpacing: 0.5,
+                    }}
+                  >
+                    {expanded ? '▲' : '▼'} Paramètres avancés
+                    {overrideEntries.length > 0 && (
+                      <span
+                        style={{
+                          marginLeft: 6, color, fontWeight: 700,
+                          fontFamily: 'var(--font-ui)', textTransform: 'none',
+                        }}
+                      >
+                        ({overrideEntries.length})
+                      </span>
+                    )}
+                  </button>
+                  {expanded && (
+                    <div
+                      style={{
+                        background: 'var(--a4)', border: '1px solid var(--a6)',
+                        borderRadius: 'var(--r-sm)', padding: 6, marginTop: 4,
+                        display: 'flex', flexDirection: 'column', gap: 4,
+                      }}
+                    >
+                      {overrideEntries.length === 0 && (
+                        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontStyle: 'italic' }}>
+                          Aucun override paramétré.
+                        </div>
+                      )}
+                      {overrideEntries.map(({ blockType, k, v }) => (
+                        <div
+                          key={`${blockType}.${k}`}
+                          data-testid={`tmp-scene-adv-entry-${sc.id}-${blockType}-${k}`}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 6,
+                            fontSize: 10, fontFamily: 'var(--font-mono)',
+                          }}
+                        >
+                          <span style={{ color: 'var(--text-muted)' }}>{blockType}.{k}</span>
+                          <span style={{ color: 'var(--text-bright)', fontWeight: 700 }}>{String(v)}</span>
+                          {!readOnly && (
+                            <button
+                              type="button"
+                              onClick={() => removeSceneParamOverride(i, blockType, k)}
+                              aria-label={`Supprimer override ${blockType}.${k}`}
+                              style={{
+                                ...cellStyle,
+                                marginLeft: 'auto',
+                                color: 'var(--red)', cursor: 'pointer',
+                                border: '1px solid var(--red-border)',
+                                background: 'var(--red-bg)',
+                                padding: '0px 6px', fontSize: 9,
+                              }}
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      {!readOnly && (
+                        <div
+                          style={{
+                            display: 'flex', gap: 4, alignItems: 'center',
+                            paddingTop: 4, borderTop: '1px solid var(--a6)',
+                          }}
+                        >
+                          <select
+                            data-testid={`tmp-scene-adv-form-block-${sc.id}`}
+                            value={advForm.block}
+                            onChange={(e) => setAdvForm((f) => ({ ...f, block: e.target.value }))}
+                            style={{ ...cellStyle, fontSize: 10 }}
+                          >
+                            <option value="">— bloc —</option>
+                            {allBlocksPresent.map((b) => (
+                              <option key={b} value={b}>{TOGGLE_BLOCK_LABELS[b] || b}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            data-testid={`tmp-scene-adv-form-key-${sc.id}`}
+                            placeholder="param"
+                            value={advForm.key}
+                            onChange={(e) => setAdvForm((f) => ({ ...f, key: e.target.value }))}
+                            list={advForm.block ? `tmp-adv-keys-${sc.id}-${advForm.block}` : undefined}
+                            style={{ ...cellStyle, width: 70, fontSize: 10 }}
+                          />
+                          {advForm.block && patch?.[advForm.block]?.params && (
+                            <datalist id={`tmp-adv-keys-${sc.id}-${advForm.block}`}>
+                              {Object.keys(patch[advForm.block].params).map((k) => (
+                                <option key={k} value={k} />
+                              ))}
+                            </datalist>
+                          )}
+                          <input
+                            type="text"
+                            data-testid={`tmp-scene-adv-form-value-${sc.id}`}
+                            placeholder="valeur"
+                            value={advForm.value}
+                            onChange={(e) => setAdvForm((f) => ({ ...f, value: e.target.value }))}
+                            style={{ ...cellStyle, width: 60, fontSize: 10 }}
+                          />
+                          <button
+                            type="button"
+                            data-testid={`tmp-scene-adv-form-add-${sc.id}`}
+                            onClick={() => {
+                              if (!advForm.block || !advForm.key.trim() || advForm.value === '') return;
+                              setSceneParamOverride(i, advForm.block, advForm.key.trim(), advForm.value);
+                              setAdvForm({ block: '', key: '', value: '' });
+                            }}
+                            disabled={!advForm.block || !advForm.key.trim() || advForm.value === ''}
+                            style={{
+                              ...cellStyle,
+                              cursor: (!advForm.block || !advForm.key.trim() || advForm.value === '') ? 'default' : 'pointer',
+                              color, fontWeight: 700,
+                              opacity: (!advForm.block || !advForm.key.trim() || advForm.value === '') ? 0.4 : 1,
+                            }}
+                          >
+                            +
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             </div>
           ))}
         </div>

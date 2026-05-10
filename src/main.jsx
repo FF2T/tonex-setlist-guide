@@ -34,6 +34,7 @@ import {
 import { GUITARS, GUITAR_BRANDS, findGuitar } from './core/guitars.js';
 import { SONG_PRESETS, INIT_SONG_DB_META, SONG_HISTORY, getSongInfo } from './core/songs.js';
 import LiveScreen from './app/screens/LiveScreen.jsx';
+import { exportSetlistPdf } from './app/screens/SetlistPdfExport.js';
 import { INIT_SETLISTS } from './core/setlists.js';
 import {
   PRESET_CATALOG_MERGED, findCatalogEntry, guessPresetInfo, normalizePresetName,
@@ -57,6 +58,7 @@ import {
   mergeBanks, makeDefaultProfile,
   migrateV1toV2, migrateV2toV3,
   ensureProfileV3, ensureProfilesV3, ensureProfileV4, ensureProfilesV4,
+  ensureProfileV6, ensureProfilesV6,
   getDevicesForRender,
   loadState, saveState,
   autoBackup, listBackups, restoreBackup, clearBackups,
@@ -65,6 +67,10 @@ import {
   getAllRigsGuitars,
   dedupSetlists,
 } from './core/state.js';
+import {
+  SOURCE_LABELS, SOURCE_BADGES, SOURCE_INFO,
+  getSourceBadge, getSourceInfo,
+} from './core/sources.js';
 
 // Helper Phase 2 fix : devices à afficher pour ce profil. Robuste
 // face aux désynchros (Firestore stale, profil v3 partiel) — dérive
@@ -93,9 +99,19 @@ let DEFAULT_GEMINI_KEY = "";
 //     Phase 4 : v50 → v51 (Scenes / footswitchMap / bpm / key / LiveScreen).
 //     Phase 4.1 : v51 → v52 (dedup setlists + bouton mode scène multi-profils
 //     + rotation backups robuste au quota).
+//     Phase 5 (Item C) : v52 → v53. Stratégie de fetch passe en
+//     stale-while-revalidate sur le HTML : on sert immédiatement la
+//     version cachée (instantané, marche offline) et on fetche en
+//     background pour mettre à jour le cache pour la prochaine visite.
+//     Évite le cas où l'utilisateur reste bloqué sur l'ancienne version
+//     même après push d'une nouvelle (l'ancien SW network-first
+//     attendait le réseau avant de servir, et tombait en cache au
+//     timeout, donc en pratique cache-first sur connexion lente).
+//     Phase 5 (Item E) : v53 → v54 (state v6 = drop legacy
+//     profile.devices).
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='tonex-v52';
+const CACHE='tonex-v54';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -108,13 +124,30 @@ self.addEventListener('activate',e=>{e.waitUntil(
   caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())
 )});
 self.addEventListener('fetch',e=>{
+  const req=e.request;
+  // Stale-while-revalidate sur le HTML (navigation ou request explicite
+  // index.html). On sert le cache immédiatement, fetch en background,
+  // met à jour pour la prochaine visite.
+  const isHtml = req.mode === 'navigate'
+    || (req.method === 'GET' && req.url.includes('index.html'));
+  if(isHtml){
+    e.respondWith((async()=>{
+      const cache=await caches.open(CACHE);
+      const cached=await cache.match(req)
+        || await cache.match(self.registration.scope+'index.html');
+      const networkPromise=fetch(req).then(res=>{
+        if(res && res.ok) cache.put(req,res.clone()).catch(()=>{});
+        return res;
+      }).catch(()=>null);
+      // Sert cache immédiatement si dispo, sinon attend réseau (1er
+      // chargement).
+      return cached || (await networkPromise) || new Response('Offline',{status:503});
+    })());
+    return;
+  }
+  // Autres requêtes : network-first avec fallback cache.
   e.respondWith(
-    fetch(e.request).then(res=>{
-      if(res.ok&&e.request.url.includes('index.html')){
-        caches.open(CACHE).then(c=>c.put(e.request,res.clone()));
-      }
-      return res;
-    }).catch(()=>caches.match(e.request))
+    fetch(req).then(res=>res).catch(()=>caches.match(req))
   );
 });`;
   const blob=new Blob([SW_CODE],{type:'application/javascript'});
@@ -288,23 +321,10 @@ function ScoreWithBreakdown({score,breakdown,size}){
 // V2 wrappers — delegate to computeSimpleScore
 function guitarScore(name,guitarId){return computeSimpleScore(name,guitarId,null);}
 function presetScore(name,gType){return computeSimpleScore(name,null,gType);}
-function srcBadge(name){const s=findCatalogEntry(name)?.src;return s==="TSR"?"TSR":s==="ML"?"ML":s==="Anniversary"?"Pédale":s==="custom"?"Custom":s==="ToneNET"?"ToneNET":"";}
-// Description longue de la source d'un preset, pour aider l'utilisateur à le retrouver
-// (pack ToneNET .zip, AmpliTube ML, packs factory pré-installés, custom user…)
+// Phase 5 (Item F) — labels/badges/info centralisés dans core/sources.js.
+function srcBadge(name){return getSourceBadge(findCatalogEntry(name)?.src);}
 function presetSourceInfo(entry){
-  if(!entry?.src) return null;
-  // Libellés alignés avec SOURCE_LABELS (cf. L.2326) — la source canonique
-  // affichée partout ailleurs dans l'app (filtres, profil, navigateur).
-  switch(entry.src){
-    case "TSR":         return {icon:"📦",label:entry.pack?`Pack 64 Studio Rats « ${entry.pack}.zip »`:"Pack 64 Studio Rats (zip)"};
-    case "ML":          return {icon:"🎚",label:"ML Sound Lab Essentials"};
-    case "ToneNET":     return {icon:"🌐",label:"ToneNET (preset partagé)"};
-    case "Anniversary": return {icon:"🏭",label:"ToneX Anniversary Factory"};
-    case "Factory":     return {icon:"🏭",label:"ToneX Factory"};
-    case "PlugFactory": return {icon:"🔌",label:"ToneX Plug Factory"};
-    case "custom":      return {icon:"✨",label:entry.pack?`Custom — ${entry.pack}`:"Preset custom"};
-    default:            return {icon:"📁",label:String(entry.src)};
-  }
+  return getSourceInfo(entry);
 }
 // isSrcCompatible : importé depuis ./devices/registry.js (étape 4).
 function styleBadge(style){const l={hard_rock:"Hard Rock",rock:"Rock",blues:"Blues",jazz:"Jazz",pop:"Pop",metal:"Metal"}[style]||style;return <span className="badge badge-brass">{l}</span>;}
@@ -1024,98 +1044,6 @@ function FeedbackPanel({onSubmit,onCancel}){
   </div>;
 }
 
-function AICard({song,gId,onResult,banksAnn,banksPlug,aiProvider,aiKeys,onCacheResult,guitars}) {
-  const [res,setRes]=useState(null);
-  const [loading,setLoading]=useState(false);
-  const [err,setErr]=useState(null);
-  const [showFB,setShowFB]=useState(false);
-  const [showCot,setShowCot]=useState(false);
-  const doFetch=useCallback((keepBest,feedback)=>{
-    const prev=keepBest?getBestResult(song,gId,res):null;
-    if(!prev)setRes(null);
-    setErr(null);setLoading(true);
-    fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars,feedback||null)
-      .then(r=>{
-        const best=getBestResult(song,gId,r);
-        const pick=mergeBestResults(prev,best);
-        setRes(pick);onResult(pick);if(onCacheResult)onCacheResult(gId,pick);
-      })
-      .catch(e=>{if(!prev)setErr(e.message||"Erreur IA");})
-      .finally(()=>setLoading(false));
-  },[song.id,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars,res]);
-  useEffect(()=>{
-    // Cache valide pour cette guitare ET même version de scoring ET CoT présent → utiliser le meilleur connu
-    if(song.aiCache&&song.aiCache.gId===gId&&song.aiCache.sv===SCORING_VERSION&&song.aiCache.result?.cot_step1){
-      const best=getBestResult(song,gId,song.aiCache.result);
-      setRes(best);onResult(best);return;
-    }
-    // Cache existant mais guitare différente ou scoring obsolète → recalculer les scores sans rappeler l'IA
-    // Sauf si le résultat n'a pas de CoT (ancien prompt) → forcer un re-fetch
-    if(song.aiCache&&song.aiCache.result&&gId){
-      if(!song.aiCache.result.cot_step1){doFetch(false);return;}
-      const cached={...song.aiCache.result};
-      const gType=(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB";
-      const recalc=enrichAIResult(cached,gType,gId,banksAnn,banksPlug);
-      const best=getBestResult(song,gId,recalc);
-      setRes(best);onResult(best);if(onCacheResult)onCacheResult(gId,best);
-      return;
-    }
-    doFetch(false);
-  },[song.id,gId,aiProvider,aiKeys.anthropic,aiKeys.gemini]);
-  if(loading&&!res) return <div style={{fontSize:12,color:"var(--text-muted)",padding:"8px 0"}}>✨ Analyse IA…</div>;
-  if(err) return <div style={{fontSize:12,color:"var(--red)"}}>{err}</div>;
-  if(!res) return null;
-  return (
-    <div style={{display:"flex",flexDirection:"column",gap:9}}>
-      <Row icon="🎯"><div style={{flex:1}}>
-        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
-          <div><div style={{fontSize:12,color:"var(--text-bright)",fontWeight:700,marginBottom:2}}>IA : {res.ideal_guitar}</div><div style={{fontSize:11,color:"var(--text-sec)"}}>{res.guitar_reason}</div></div>
-          <button onClick={()=>setShowFB(p=>!p)} style={{background:"none",border:"1px solid var(--a10)",borderRadius:"var(--r-md)",padding:"4px 8px",cursor:"pointer",fontSize:10,color:"var(--text-muted)",flexShrink:0}}>{loading?"⏳ Analyse...":"🔄 Améliorer"}</button>
-        </div>
-        {showFB&&<FeedbackPanel onSubmit={fb=>{setShowFB(false);doFetch(true,fb);}} onCancel={()=>setShowFB(false)}/>}
-      </div></Row>
-      {(res.cot_step1||res.cot_step2_guitars||res.cot_step3_amp)&&<Row icon="🧠"><div style={{flex:1}}>
-        <div onClick={()=>setShowCot(p=>!p)} style={{cursor:"pointer",fontSize:11,color:"var(--text-muted)",fontWeight:600,display:"flex",alignItems:"center",gap:6,userSelect:"none"}}>
-          Raisonnement IA <span style={{fontSize:10,marginLeft:"auto"}}>{showCot?"▲":"▼"}</span>
-        </div>
-        {showCot&&<div style={{marginTop:8,display:"flex",flexDirection:"column",gap:8}}>
-          {res.cot_step1&&<div style={{background:"var(--a3)",border:"1px solid var(--a8)",borderRadius:"var(--r-md)",padding:"8px 10px"}}>
-            <div style={{fontSize:10,fontWeight:700,color:"var(--text-muted)",marginBottom:4,fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)"}}>Profil tonal</div>
-            <div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.4}}>{res.cot_step1}</div>
-          </div>}
-          {res.cot_step2_guitars?.length>0&&<div style={{background:"var(--a3)",border:"1px solid var(--a8)",borderRadius:"var(--r-md)",padding:"8px 10px"}}>
-            <div style={{fontSize:10,fontWeight:700,color:"var(--text-muted)",marginBottom:4,fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)"}}>Scoring guitares</div>
-            {res.cot_step2_guitars.map((gt,i)=><div key={i} style={{fontSize:11,color:"var(--text-sec)",marginBottom:i<res.cot_step2_guitars.length-1?4:0,display:"flex",gap:6,alignItems:"baseline",flexWrap:"wrap"}}>
-              <span style={{fontWeight:600,color:"var(--text-bright)",flexShrink:0}}>{gt.name}</span>
-              <span style={{fontFamily:"var(--font-mono)",fontWeight:800,color:scoreColor(gt.score),flexShrink:0}}>{gt.score}%</span>
-              <span style={{color:"var(--text-dim)"}}>{gt.reason}</span>
-            </div>)}
-          </div>}
-          {res.cot_step3_amp&&<div style={{background:"var(--a3)",border:"1px solid var(--a8)",borderRadius:"var(--r-md)",padding:"8px 10px"}}>
-            <div style={{fontSize:10,fontWeight:700,color:"var(--text-muted)",marginBottom:4,fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)"}}>Profil ampli</div>
-            <div style={{fontSize:11,color:"var(--text-sec)",lineHeight:1.4}}>{res.cot_step3_amp}</div>
-          </div>}
-        </div>}
-      </div></Row>}
-      <div style={{display:"flex",flexDirection:"column",gap:6}}>
-        <PBlock device="Pédale" emoji="📦" presetName={res.preset_ann?.label} gType={gId?(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB":null} banks={banksAnn} noUpgrade finalScore={res.preset_ann?.score} breakdown={res.preset_ann?.breakdown}/>
-        <PBlock device="ToneX Plug" emoji="🔌" presetName={res.preset_plug?.label} gType={gId?(guitars||GUITARS).find(x=>x.id===gId)?.type||"HB":null} banks={banksPlug} bg2="var(--a4)" noUpgrade finalScore={res.preset_plug?.score} breakdown={res.preset_plug?.breakdown}/>
-      </div>
-      <Row icon="🎛️"><div style={{display:"flex",flexDirection:"column",gap:4}}>
-        {res.settings_preset&&<div style={{fontSize:11,background:"var(--a4)",border:"1px solid var(--a10)",borderRadius:"var(--r-md)",padding:"6px 10px",color:"var(--text-sec)"}}><b style={{color:"var(--text-muted)"}}>Preset · </b>{res.settings_preset}</div>}
-        {res.settings_guitar&&<div style={{fontSize:11,background:"var(--a4)",border:"1px solid var(--a10)",borderRadius:"var(--r-md)",padding:"6px 10px",color:"var(--text-sec)"}}><b style={{color:"var(--text-muted)"}}>Guitare · </b>{res.settings_guitar}</div>}
-      </div></Row>
-      {res.ref_guitarist&&<Row icon="📖"><div style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:"var(--r-lg)",padding:"9px 12px",flex:1}}>
-        <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:6}}>Référence originale — {res.ref_guitarist}</div>
-        <div style={{display:"flex",flexDirection:"column",gap:3}}>
-          <div style={{display:"flex",gap:5,alignItems:"baseline",flexWrap:"wrap"}}><span style={{fontSize:10,color:"var(--text-muted)",flexShrink:0}}>🎸 Guitare</span><span style={{fontSize:11,color:"var(--text-bright)",fontWeight:500}}>{res.ref_guitar}</span></div>
-          <div style={{display:"flex",gap:5,alignItems:"baseline",flexWrap:"wrap"}}><span style={{fontSize:10,color:"var(--text-muted)",flexShrink:0}}>🔊 Ampli</span><span style={{fontSize:11,color:"var(--text-bright)",fontWeight:500}}>{res.ref_amp}</span></div>
-          {res.ref_effects&&<div style={{display:"flex",gap:5,alignItems:"baseline",flexWrap:"wrap"}}><span style={{fontSize:10,color:"var(--text-muted)",flexShrink:0}}>🎚 Effets</span><span style={{fontSize:11,color:"var(--text-sec)"}}>{res.ref_effects}</span></div>}
-        </div>
-      </div></Row>}
-    </div>
-  );
-}
 
 // ─── Export/Import Screen ─────────────────────────────────────────────────────
 function ExportImportScreen({banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,onNavigate,fullState,onImportState}) {
@@ -1524,7 +1452,6 @@ function profileColor(id){
   return PROFILE_COLORS[Math.abs(h)%PROFILE_COLORS.length];
 }
 
-const SOURCE_LABELS={TSR:"64 Studio Rats",ML:"ML Sound Lab Essentials",Anniversary:"ToneX Anniversary Factory",Factory:"ToneX Factory",PlugFactory:"ToneX Plug Factory",ToneNET:"ToneNET"};
 
 function GuitarSearchAdd({inp,aiKeys,onAdd}){
   const [query,setQuery]=useState("");
@@ -1765,9 +1692,13 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp,section,aiK
         <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:12}}>Coche les packs de presets que tu as installés.</div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {Object.entries(SOURCE_LABELS).map(([key,label])=>{
-            // Auto-lock sources based on owned devices
-            const devices=profile.devices||{};
-            const locked=(key==="Anniversary"&&devices.anniversary)||(key==="Factory"&&devices.pedale)||(key==="PlugFactory"&&devices.plug);
+            // Auto-lock sources based on owned devices.
+            // Phase 5 (Item E) : lit profile.enabledDevices au lieu du
+            // champ legacy profile.devices supprimé en v6.
+            const enabled=new Set(profile.enabledDevices||[]);
+            const locked=(key==="Anniversary"&&enabled.has('tonex-anniversary'))
+              ||(key==="Factory"&&enabled.has('tonex-pedal'))
+              ||(key==="PlugFactory"&&enabled.has('tonex-plug'));
             const on=locked||profile.availableSources?.[key]!==false;
             return <button key={key} onClick={()=>{if(!locked)toggleSource(key);}} style={{display:"flex",alignItems:"center",gap:10,background:on?"var(--green-bg)":"var(--a3)",border:on?"1px solid var(--green-border)":"1px solid var(--a8)",borderRadius:"var(--r-md)",padding:"10px 14px",cursor:locked?"default":"pointer",textAlign:"left",opacity:locked?0.85:1}}>
               <div style={{width:18,height:18,borderRadius:"var(--r-sm)",border:on?"2px solid var(--green)":"2px solid var(--text-muted)",background:on?"var(--green)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{on&&<span style={{color:"var(--bg)",fontSize:10,fontWeight:900}}>✓</span>}</div>
@@ -2108,12 +2039,11 @@ function ToneNetTab({toneNetPresets,onToneNetPresets,inp}){
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 // ─── Mon Profil Screen ────────────────────────────────────────────────────────
-// MesAppareilsTab — Phase 2 étape 3.
+// MesAppareilsTab — Phase 2 étape 3 (étendu Phase 5 Item E).
 // Liste les devices enregistrés (getAllDevices) avec une checkbox par
-// device. Le toggle écrit profile.enabledDevices ET profile.devices
-// (legacy) en miroir, pour préserver les lectures existantes (auto-lock
-// sources et tabs device-spécifiques restent fonctionnels jusqu'au
-// nettoyage Phase 5).
+// device. Phase 5 : le toggle écrit UNIQUEMENT profile.enabledDevices.
+// Le miroir vers profile.devices (legacy v2) a été supprimé en même
+// temps que le drop du champ via migrateV5toV6.
 // Garde-fou : au moins un device doit rester coché — décocher le
 // dernier ne fait rien (refus silencieux).
 function MesAppareilsTab({profile,profiles,onProfiles,activeProfileId}) {
@@ -2128,17 +2058,11 @@ function MesAppareilsTab({profile,profiles,onProfiles,activeProfileId}) {
       next.add(id);
     }
     const arr = allDevices.filter(d => next.has(d.id)).map(d => d.id);
-    const legacyDevices = {
-      pedale: arr.includes('tonex-pedal'),
-      anniversary: arr.includes('tonex-anniversary'),
-      plug: arr.includes('tonex-plug'),
-    };
     onProfiles(p => ({
       ...p,
       [activeProfileId]: {
         ...p[activeProfileId],
         enabledDevices: arr,
-        devices: legacyDevices,
       },
     }));
   };
@@ -2248,9 +2172,13 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
         {tabBtn("devices","📱 Mes appareils")}
         {tabBtn("sources","📦 Sources")}
         {tabBtn("tonenet","🌐 ToneNET")}
-        {profile.devices?.pedale&&tabBtn("pedale","🎛 Pedale ToneX")}
-        {profile.devices?.anniversary&&tabBtn("ann","🎛 ToneX Ann.")}
-        {profile.devices?.plug&&tabBtn("plug","🔌 ToneX Plug")}
+        {/* Phase 5 (Item E) : tabs device-spécifiques basées sur
+            enabledDevices (legacy profile.devices supprimé en v6). */}
+        {(()=>{const en=new Set(profile.enabledDevices||[]);return <>
+          {en.has('tonex-pedal')&&tabBtn("pedale","🎛 Pedale ToneX")}
+          {en.has('tonex-anniversary')&&tabBtn("ann","🎛 ToneX Ann.")}
+          {en.has('tonex-plug')&&tabBtn("plug","🔌 ToneX Plug")}
+        </>;})()}
         {tabBtn("display","🎨 Affichage")}
         {profile.isAdmin&&tabBtn("ia","🔑 Cle API")}
         {profile.isAdmin&&tabBtn("maintenance","🔧 Maintenance")}
@@ -2881,6 +2809,14 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
   const [gId,setGId]=useState(savedGuitarId||ig[0]||"");
   const [reloading,setReloading]=useState(false);
   const [localAiResult,setLocalAiResult]=useState(null);
+  // Phase 5 (Item A) — surface des erreurs fetchAI au lieu du catch
+  // silencieux. Le bug "impossible de sélectionner une guitare" sur
+  // morceaux Newzik venait du fait que (a) handleGuitarChange et
+  // useEffect lançaient tous deux un fetchAI en parallèle, (b) le
+  // .catch(()=>{}) masquait l'erreur (clé API manquante typique avant
+  // qu'Arthur configure la sienne). L'utilisateur voyait juste rien.
+  // Maintenant : un seul path (useEffect), erreurs visibles.
+  const [localAiErr,setLocalAiErr]=useState(null);
   const [showFeedback,setShowFeedback]=useState(false);
   const [showCot,setShowCot]=useState(false);
   const [installTarget,setInstallTarget]=useState(null); // {preset}
@@ -2897,11 +2833,13 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
       var cleaned2={...song.aiCache.result,preset_ann:null,preset_plug:null,ideal_preset:null,ideal_preset_score:0,ideal_top3:null};
       const recalc=enrichAIResult(cleaned2,gType,gId,banksAnn,banksPlug);
       setLocalAiResult(recalc);
+      setLocalAiErr(null);
       setTimeout(()=>onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:{...updateAiCache(x.aiCache,gId,recalc),sv:SCORING_VERSION}}:x)),0);
       return;
     }
     if(!gId||!onSongDb) return;
     setReloading(true);
+    setLocalAiErr(null);
     // Phase 3.6 — re-fetch passif (aiCache absent ou périmé) : on
     // pousse au prompt IA l'union all-rigs des guitares (tous profils
     // + customs). Permet à un profil non-admin (Arthur, Franck) de
@@ -2910,35 +2848,28 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
     fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars)
       .then(r=>{
         setLocalAiResult(r);
+        setLocalAiErr(null);
         onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:{...updateAiCache(x.aiCache,gId,r),sv:SCORING_VERSION}}:x));
       })
-      .catch(()=>{})
+      .catch(e=>{
+        // Phase 5 (Item A) — capture l'erreur (clé API manquante,
+        // réseau, parse JSON) au lieu de la swallow. Affichée plus
+        // bas dans la card.
+        setLocalAiErr(e?.message||String(e));
+      })
       .finally(()=>setReloading(false));
   },[song.id,gId,needsRescore]);
+  // Phase 5 (Item A) — handleGuitarChange ne lance PLUS fetchAI :
+  // setGId déclenche le useEffect qui prend en charge l'analyse.
+  // Avant ça lançait un fetchAI inline ET le useEffect, soit 2
+  // requêtes parallèles. Pour les morceaux importés Newzik (aiCache
+  // null), si la 1ère échouait silencieusement et la 2e plantait le
+  // .then en course, l'utilisateur restait bloqué.
   const handleGuitarChange=(v)=>{
     setGId(v);
+    setLocalAiResult(null); // force re-fetch via useEffect
+    setLocalAiErr(null);
     if(onGuitarChange)onGuitarChange(song.id,v);
-    if(onSongDb){
-      // Si on a déjà du CoT, rescore local sans rappeler l'IA
-      const base=localAiResult||song.aiCache?.result;
-      if(base?.cot_step1){
-        const gType=(guitars||GUITARS).find(x=>x.id===v)?.type||"HB";
-        var cleaned={...base,preset_ann:null,preset_plug:null,ideal_preset:null,ideal_preset_score:0,ideal_top3:null};
-        const recalc=enrichAIResult(cleaned,gType,v,banksAnn,banksPlug);
-        setLocalAiResult(recalc);
-        setTimeout(()=>onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:updateAiCache(x.aiCache,v,recalc)}:x)),0);
-        return;
-      }
-      setReloading(true);setLocalAiResult(null);
-      // Phase 3.6 — voir commentaire ci-dessus : union all-rigs.
-      fetchAI(song,v,banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars)
-        .then(r=>{
-          setLocalAiResult(r);
-          onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:updateAiCache(x.aiCache,v,r)}:x));
-        })
-        .catch(()=>{})
-        .finally(()=>setReloading(false));
-    }
   };
   const g=(guitars||GUITARS).find(x=>x.id===gId);
   const type=g?.type||"HB";
@@ -3333,7 +3264,16 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
       </div>
 
       </>}
-      {!reloading&&!aiC&&<div style={{fontSize:12,color:"var(--text-dim)",padding:"10px 0"}}>Aucune analyse IA en cache. Selectionne une guitare pour lancer l'analyse.</div>}
+      {!reloading&&!aiC&&!localAiErr&&<div style={{fontSize:12,color:"var(--text-dim)",padding:"10px 0"}}>Aucune analyse IA en cache. Selectionne une guitare pour lancer l'analyse.</div>}
+      {/* Phase 5 (Item A) — erreur fetchAI rendue visible. Avant
+          Phase 5, le catch était silencieux et l'utilisateur ne
+          savait pas pourquoi rien ne se passait sur les morceaux
+          Newzik fraîchement importés (aiCache null + clé API
+          manquante = double bloquage invisible). */}
+      {localAiErr&&!reloading&&<div data-testid="song-ai-error" style={{fontSize:12,color:"var(--red)",background:"var(--red-bg)",border:"1px solid var(--red-border)",borderRadius:"var(--r-md)",padding:"8px 10px",margin:"6px 0",lineHeight:1.4}}>
+        ⚠️ Analyse IA échouée : <b>{localAiErr}</b>
+        <div style={{fontSize:10,color:"var(--text-muted)",marginTop:4}}>Vérifie ta clé API dans ⚙️ Paramètres puis re-sélectionne la guitare pour relancer.</div>
+      </div>}
 
       {/* ── SECTION 6 : Améliorer ── */}
       {!reloading&&aiC&&<div>
@@ -3546,6 +3486,12 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           <div key={sl.id} style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
             {editSlId===sl.id?<InlineRenameInput initialName={sl.name} onSave={name=>renameSetlist(sl.id,name)} onCancel={()=>setEditSlId(null)} inp={inp}/>:(<>
               <span style={{flex:1,fontSize:12,fontWeight:600,color:"var(--text)"}}>{sl.name} <span style={{color:"var(--text-dim)",fontWeight:400}}>({sl.songIds.length})</span></span>
+              {/* Phase 5 (Item K) — export PDF par setlist. */}
+              {sl.songIds.length>0&&<button data-testid={`setlist-pdf-${sl.id}`} title={`Export PDF — ${sl.name}`} onClick={()=>{
+                const songs=sl.songIds.map(id=>songDb.find(s=>s.id===id)).filter(Boolean);
+                const doc=exportSetlistPdf(sl,songs,{profile,banksAnn,banksPlug});
+                doc.save(`${sl.name.replace(/[^a-z0-9_-]+/gi,'_')||'setlist'}.pdf`);
+              }} style={{background:"none",border:"none",color:"var(--text-muted)",fontSize:11,cursor:"pointer"}}>📄</button>}
               <button onClick={()=>setEditSlId(sl.id)} style={{background:"none",border:"none",color:"var(--text-muted)",fontSize:11,cursor:"pointer"}}>✏️</button>
               {setlists.length>1&&<button onClick={()=>deleteSetlist(sl.id)} style={{background:"none",border:"none",color:"var(--red)",fontSize:11,cursor:"pointer"}}>🗑</button>}
             </>)}
@@ -4691,99 +4637,6 @@ function SynthesisScreen({songs,gps,aiR,onBack,onNavigate,songDb,banksAnn,banksP
   );
 }
 
-// ─── NewSongExplorer ─────────────────────────────────────────────────────────
-function NewSongExplorer({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars}) {
-  const [title,setTitle]=useState("");
-  const [artist,setArtist]=useState("");
-  const [gId,setGId]=useState("");
-  const [loading,setLoading]=useState(false);
-  const [result,setResult]=useState(null);
-  const [err,setErr]=useState(null);
-  const [addToDb,setAddToDb]=useState(true);
-  const [addToSlIds,setAddToSlIds]=useState([]);
-  const [saved,setSaved]=useState(false);
-  const inp={background:"var(--bg-card)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:"var(--r-md)",padding:"9px 12px",fontSize:13,width:"100%",boxSizing:"border-box"};
-
-  const analyze=()=>{
-    if(!title.trim())return;
-    setLoading(true);setErr(null);setResult(null);setSaved(false);
-    const fakeSong={id:`tmp_${Date.now()}`,title:title.trim(),artist:artist.trim()||"Artiste inconnu"};
-    fetchAI(fakeSong,gId,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars)
-      .then(r=>setResult(r))
-      .catch(e=>setErr(e.message||"Erreur IA"))
-      .finally(()=>setLoading(false));
-  };
-
-  const doSave=()=>{
-    if(saved)return;
-    const ns={id:`c_${Date.now()}`,title:title.trim(),artist:artist.trim()||"Artiste inconnu",isCustom:true,ig:gId?[gId]:[],aiCache:result?{gId,result}:null};
-    onSongDb(p=>[...p,ns]);
-    if(addToSlIds.length>0)onSetlists(p=>p.map(sl=>addToSlIds.includes(sl.id)?{...sl,songIds:[...sl.songIds,ns.id]}:sl));
-    setSaved(true);
-  };
-
-  const gType=gId?(allGuitars||GUITARS).find(x=>x.id===gId)?.type||"HB":null;
-  return (
-    <div>
-      <div style={{fontSize:13,color:"var(--text-muted)",marginBottom:16}}>Explore un nouveau morceau avec l'IA et ajoute-le éventuellement à ta base.</div>
-      <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:14}}>
-        <input placeholder="Titre du morceau *" value={title} onChange={e=>setTitle(e.target.value)} style={inp} onKeyDown={e=>e.key==="Enter"&&analyze()}/>
-        <input placeholder="Artiste" value={artist} onChange={e=>setArtist(e.target.value)} style={inp}/>
-      </div>
-      <button onClick={analyze} disabled={!title.trim()||loading}
-        style={{width:"100%",background:!title.trim()||loading?"var(--bg-elev-3)":"var(--accent)",border:"none",color:"var(--text)",borderRadius:"var(--r-lg)",padding:"12px",fontSize:14,fontWeight:700,cursor:!title.trim()||loading?"not-allowed":"pointer",marginBottom:16}}>
-        {loading?"✨ Analyse en cours…":"✨ Analyser avec l'IA"}
-      </button>
-      {err&&<div style={{fontSize:12,color:"var(--red)",background:"rgba(239,68,68,0.1)",borderRadius:"var(--r-md)",padding:"10px 12px",marginBottom:12}}>{err}</div>}
-      {result&&<div>
-        <div style={{background:"var(--accent-bg)",border:"1px solid var(--accent-border)",borderRadius:"var(--r-xl)",padding:16,marginBottom:14}}>
-          <div style={{fontSize:13,fontWeight:700,color:"var(--accent)",marginBottom:12}}>{title}{artist?" — "+artist:""}</div>
-          <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            <Row icon="🎯"><div><div style={{fontSize:12,color:"var(--text-bright)",fontWeight:700,marginBottom:2}}>Guitare idéale : {result.ideal_guitar}</div><div style={{fontSize:11,color:"var(--text-sec)"}}>{result.guitar_reason}</div></div></Row>
-            <div style={{display:"flex",flexDirection:"column",gap:6}}>
-              <PBlock device="Pédale" emoji="📦" presetName={result.preset_ann?.label} gType={gType} banks={banksAnn}/>
-              <PBlock device="ToneX Plug" emoji="🔌" presetName={result.preset_plug?.label} gType={gType} banks={banksPlug} bg2="var(--a4)"/>
-            </div>
-            <Row icon="🎛️"><div style={{display:"flex",flexDirection:"column",gap:4}}>
-              {result.settings_preset&&<div style={{fontSize:11,background:"var(--a4)",border:"1px solid var(--a10)",borderRadius:"var(--r-md)",padding:"6px 10px",color:"var(--text-sec)"}}><b style={{color:"var(--text-muted)"}}>Preset · </b>{result.settings_preset}</div>}
-              {result.settings_guitar&&<div style={{fontSize:11,background:"var(--a4)",border:"1px solid var(--a10)",borderRadius:"var(--r-md)",padding:"6px 10px",color:"var(--text-sec)"}}><b style={{color:"var(--text-muted)"}}>Guitare · </b>{result.settings_guitar}</div>}
-            </div></Row>
-            {result.ref_guitarist&&<Row icon="📖"><div style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:"var(--r-lg)",padding:"9px 12px",flex:1}}>
-              <div style={{fontSize:10,color:"var(--text-muted)",fontWeight:700,fontFamily:"var(--font-mono)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",marginBottom:6}}>Référence originale — {result.ref_guitarist}</div>
-              <div style={{display:"flex",flexDirection:"column",gap:3}}>
-                <div style={{display:"flex",gap:5,alignItems:"baseline",flexWrap:"wrap"}}><span style={{fontSize:10,color:"var(--text-muted)",flexShrink:0}}>🎸 Guitare</span><span style={{fontSize:11,color:"var(--text-bright)",fontWeight:500}}>{result.ref_guitar}</span></div>
-                <div style={{display:"flex",gap:5,alignItems:"baseline",flexWrap:"wrap"}}><span style={{fontSize:10,color:"var(--text-muted)",flexShrink:0}}>🔊 Ampli</span><span style={{fontSize:11,color:"var(--text-bright)",fontWeight:500}}>{result.ref_amp}</span></div>
-                {result.ref_effects&&<div style={{display:"flex",gap:5,alignItems:"baseline",flexWrap:"wrap"}}><span style={{fontSize:10,color:"var(--text-muted)",flexShrink:0}}>🎚 Effets</span><span style={{fontSize:11,color:"var(--text-sec)"}}>{result.ref_effects}</span></div>}
-              </div>
-            </div></Row>}
-          </div>
-        </div>
-        {!saved?(
-          <div style={{background:"var(--green-bg)",border:"1px solid var(--green-border)",borderRadius:"var(--r-lg)",padding:16}}>
-            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,cursor:"pointer"}} onClick={()=>setAddToDb(!addToDb)}>
-              <div style={{width:18,height:18,borderRadius:"var(--r-sm)",border:addToDb?"2px solid #4ade80":"2px solid var(--text-muted)",background:addToDb?"var(--green)":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{addToDb&&<span style={{color:"var(--bg)",fontSize:10,fontWeight:900}}>✓</span>}</div>
-              <div style={{fontSize:13,color:"var(--text)",fontWeight:600}}>Ajouter à ma base de morceaux</div>
-            </div>
-            {addToDb&&setlists.length>0&&<div style={{marginBottom:10}}>
-              <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:6}}>Ajouter aussi à :</div>
-              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                {setlists.map(sl=>{const sel=addToSlIds.includes(sl.id);return(
-                  <button key={sl.id} onClick={()=>setAddToSlIds(p=>p.includes(sl.id)?p.filter(x=>x!==sl.id):[...p,sl.id])} style={{background:sel?"var(--accent-bg)":"var(--a5)",border:sel?"1px solid var(--border-accent)":"1px solid var(--a10)",color:sel?"var(--accent)":"var(--text-sec)",borderRadius:"var(--r-md)",padding:"4px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{sl.name}</button>
-                );})}
-              </div>
-            </div>}
-            {addToDb&&<button onClick={doSave} style={{width:"100%",background:"var(--green)",border:"none",color:"var(--text)",borderRadius:"var(--r-lg)",padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer"}}>✅ Sauvegarder dans la base</button>}
-          </div>
-        ):(
-          <div style={{background:"var(--green-bg)",border:"1px solid rgba(74,222,128,0.4)",borderRadius:"var(--r-lg)",padding:"12px 16px",display:"flex",alignItems:"center",gap:8}}>
-            <span style={{color:"var(--green)",fontSize:16}}>✓</span>
-            <div style={{fontSize:13,color:"var(--green)",fontWeight:600}}>"{title}" ajouté à ta base !</div>
-          </div>
-        )}
-      </div>}
-    </div>
-  );
-}
 
 // ─── PresetBrowser ────────────────────────────────────────────────────────────
 const PRESET_PAGE_SIZE=30;
@@ -6114,8 +5967,10 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
 // ─── ViewProfileScreen (lecture seule) ────────────────────────────────────────
 function ViewProfileScreen({profile,onBack,onNavigate}){
   if(!profile) return null;
-  const d=profile.devices||{};
-  const hasPedale=d.pedale||d.anniversary;
+  // Phase 5 (Item E) : enabledDevices → drapeaux locaux (legacy
+  // profile.devices supprimé en v6).
+  const enabled=new Set(profile.enabledDevices||[]);
+  const hasPedale=enabled.has('tonex-pedal')||enabled.has('tonex-anniversary');
   const edits=profile.editedGuitars||{};
   const guitars=GUITARS.filter(g=>(profile.myGuitars||[]).includes(g.id)).map(g=>({...g,...(edits[g.id]||{})}));
   const customG=profile.customGuitars||[];
@@ -6256,10 +6111,13 @@ function App() {
   },[toneNetPresets]);
 
   // Profiles state — merge banks + apply local secrets (aiKeys, passwords).
-  // ensureProfilesV4 garantit enabledDevices même si initDefault venait
-  // d'un état localStorage non migré (filet de sécurité avant Firestore).
+  // ensureProfilesV6 garantit enabledDevices + drop legacy devices
+  // même si initDefault venait d'un état localStorage non migré
+  // (filet de sécurité avant Firestore). Phase 5.1 : v4 → v6 ici car
+  // sinon le champ devices pouvait re-pénétrer le state même après
+  // migration loadState.
   const mergedProfiles = useMemo(()=>{
-    const p=ensureProfilesV4({...initDefault.profiles});
+    const p=ensureProfilesV6({...initDefault.profiles});
     for(const [id,prof] of Object.entries(p)){
       p[id]={...prof, banksAnn:mergeBanks(prof.banksAnn,INIT_BANKS_ANN), banksPlug:mergeBanks(prof.banksPlug,INIT_BANKS_PLUG)};
     }
@@ -6653,7 +6511,10 @@ function App() {
       // Bug-fix Phase 2 : un profil arrivant de Firestore en v2 (synced
       // avant le déploiement Phase 2) doit être healed pour ne pas
       // écraser le state local migré et perdre enabledDevices.
-      const next=applySecrets(ensureProfilesV4(data.profiles));
+      // Phase 5.1 FIX 1 : ensureProfilesV6 (vs v4 avant) pour drop le
+      // champ legacy `devices` injecté par d'anciens clients. Sinon
+      // chaque poll Firestore ré-injectait devices dans le state local.
+      const next=applySecrets(ensureProfilesV6(data.profiles));
       if(JSON.stringify(next)===JSON.stringify(prev))return prev;
       return next;
     });
@@ -6684,7 +6545,7 @@ function App() {
           });
         }
         if(mergedSongs.length>remoteSongs.length||mergedSl.length>remoteSl.length||mergedDel.length>remoteDel.length){
-          var ps={version:STATE_VERSION,activeProfileId:data.activeProfileId||activeProfileId,shared:{songDb:mergedSongs,theme:data.shared.theme||theme,setlists:mergedSl,customGuitars:data.shared.customGuitars||customGuitars,deletedSetlistIds:mergedDel},profiles:ensureProfilesV4(data.profiles||profiles),lastModified:Date.now()};
+          var ps={version:STATE_VERSION,activeProfileId:data.activeProfileId||activeProfileId,shared:{songDb:mergedSongs,theme:data.shared.theme||theme,setlists:mergedSl,customGuitars:data.shared.customGuitars||customGuitars,deletedSetlistIds:mergedDel},profiles:ensureProfilesV6(data.profiles||profiles),lastModified:Date.now()};
           saveToFirestore(ps).catch(function(){});
         }
       }

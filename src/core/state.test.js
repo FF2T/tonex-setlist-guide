@@ -3,7 +3,7 @@
 
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
-  STATE_VERSION, migrateV1toV2, migrateV2toV3, migrateV4toV5,
+  STATE_VERSION, migrateV1toV2, migrateV2toV3, migrateV4toV5, migrateV5toV6,
   deriveEnabledDevices, makeDefaultProfile,
   getAllRigsGuitars,
   dedupSetlists, setlistDedupKey,
@@ -11,8 +11,8 @@ import {
 } from './state.js';
 
 describe('STATE_VERSION', () => {
-  test('vaut 5 en Phase 4 (scenes / footswitchMap / song bpm-key)', () => {
-    expect(STATE_VERSION).toBe(5);
+  test('vaut 6 en Phase 5 (drop profile.devices legacy)', () => {
+    expect(STATE_VERSION).toBe(6);
   });
 });
 
@@ -424,13 +424,14 @@ describe('makeDefaultProfile · enabledDevices conforme au flag isAdmin', () => 
   test('admin → Anniversary + Plug', () => {
     const p = makeDefaultProfile('admin', 'Admin', true);
     expect(p.enabledDevices).toEqual(['tonex-anniversary', 'tonex-plug']);
-    expect(p.devices.anniversary).toBe(true);
+    // Phase 5 (Item E) : devices legacy supprimé en v6.
+    expect(p.devices).toBeUndefined();
   });
 
   test('utilisateur standard → Pedal + Plug', () => {
     const p = makeDefaultProfile('user', 'User', false);
     expect(p.enabledDevices).toEqual(['tonex-pedal', 'tonex-plug']);
-    expect(p.devices.anniversary).toBe(false);
+    expect(p.devices).toBeUndefined();
   });
 });
 
@@ -703,5 +704,168 @@ describe('clearBackups — Phase 4.1 FIX C', () => {
   test('removeItem appelé sur la clé backups', () => {
     expect(clearBackups()).toBe(true);
     expect(listBackups()).toEqual([]);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────
+// Phase 5 (Item E) — migrateV5toV6 : drop profile.devices legacy
+// ───────────────────────────────────────────────────────────────────
+
+describe('migrateV5toV6 — Phase 5 Item E', () => {
+  test('drop devices, préserve enabledDevices et autres champs', () => {
+    const v5 = {
+      version: 5,
+      profiles: {
+        u1: {
+          id: 'u1', name: 'U1',
+          enabledDevices: ['tonex-pedal', 'tonex-plug'],
+          devices: { pedale: true, anniversary: false, plug: true },
+          tmpPatches: { custom: [], factoryOverrides: {} },
+          myGuitars: ['lp60'],
+        },
+      },
+    };
+    const v6 = migrateV5toV6(v5);
+    expect(v6.version).toBe(6);
+    expect(v6.profiles.u1.devices).toBeUndefined();
+    expect(v6.profiles.u1.enabledDevices).toEqual(['tonex-pedal', 'tonex-plug']);
+    expect(v6.profiles.u1.tmpPatches).toEqual({ custom: [], factoryOverrides: {} });
+    expect(v6.profiles.u1.myGuitars).toEqual(['lp60']);
+  });
+
+  test('defensive : enabledDevices manquant → dérivé depuis devices avant drop', () => {
+    const v5 = {
+      version: 5,
+      profiles: {
+        u1: {
+          id: 'u1',
+          devices: { pedale: false, anniversary: true, plug: true },
+          // enabledDevices absent (cas Firestore stale).
+        },
+      },
+    };
+    const v6 = migrateV5toV6(v5);
+    expect(v6.profiles.u1.devices).toBeUndefined();
+    expect(v6.profiles.u1.enabledDevices).toEqual(['tonex-anniversary', 'tonex-plug']);
+  });
+
+  test('idempotent : v6 input → v6 output sans corruption', () => {
+    const v6in = {
+      version: 6,
+      profiles: { u1: { id: 'u1', enabledDevices: ['tonex-pedal'] } },
+    };
+    const v6out = migrateV5toV6(v6in);
+    expect(v6out.version).toBe(6);
+    expect(v6out.profiles.u1.enabledDevices).toEqual(['tonex-pedal']);
+    expect(v6out.profiles.u1.devices).toBeUndefined();
+  });
+
+  test('plusieurs profils : tous traités indépendamment', () => {
+    const v5 = {
+      version: 5,
+      profiles: {
+        a: { enabledDevices: ['tonex-pedal'], devices: { pedale: true } },
+        b: { enabledDevices: ['tonex-anniversary'], devices: { anniversary: true } },
+      },
+    };
+    const v6 = migrateV5toV6(v5);
+    expect(v6.profiles.a.devices).toBeUndefined();
+    expect(v6.profiles.b.devices).toBeUndefined();
+    expect(v6.profiles.a.enabledDevices).toEqual(['tonex-pedal']);
+    expect(v6.profiles.b.enabledDevices).toEqual(['tonex-anniversary']);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────
+// Phase 5.1 FIX 1 — ensureProfileV6 drop legacy devices
+// ───────────────────────────────────────────────────────────────────
+
+describe('ensureProfileV6 — Phase 5.1 FIX 1', () => {
+  test('drop devices, préserve les autres champs (enabledDevices, tmpPatches)', async () => {
+    const { ensureProfileV6 } = await import('./state.js');
+    const profile = {
+      id: 'sebastien',
+      enabledDevices: ['tonex-anniversary', 'tonex-plug'],
+      devices: { pedale: false, anniversary: true, plug: false },
+      tmpPatches: { custom: [], factoryOverrides: {} },
+      myGuitars: ['lp60'],
+    };
+    const out = ensureProfileV6(profile);
+    expect(out.devices).toBeUndefined();
+    expect(out.enabledDevices).toEqual(['tonex-anniversary', 'tonex-plug']);
+    expect(out.tmpPatches).toBeDefined();
+    expect(out.myGuitars).toEqual(['lp60']);
+  });
+
+  test('idempotent : profil déjà sans devices → même référence (no spread)', async () => {
+    const { ensureProfileV6 } = await import('./state.js');
+    const profile = {
+      enabledDevices: ['tonex-pedal'],
+      tmpPatches: { custom: [], factoryOverrides: {} },
+    };
+    const out = ensureProfileV6(profile);
+    // ensureProfileV6 traverse ensureProfileV4 qui peut spread.
+    // Le contrat ici : pas de `devices` introduit, autres champs OK.
+    expect(out.devices).toBeUndefined();
+    expect(out.enabledDevices).toEqual(['tonex-pedal']);
+  });
+
+  test('profil v3 partiel (pas de enabledDevices ni tmpPatches) → heal cascade + drop devices', async () => {
+    const { ensureProfileV6 } = await import('./state.js');
+    const profile = { devices: { pedale: true } };
+    const out = ensureProfileV6(profile);
+    expect(out.devices).toBeUndefined();
+    expect(out.enabledDevices).toEqual(['tonex-pedal']); // dérivé via v3 heal
+    expect(out.tmpPatches).toEqual({ custom: [], factoryOverrides: {} }); // ajouté v4 heal
+  });
+
+  test('null → null (defensive)', async () => {
+    const { ensureProfileV6 } = await import('./state.js');
+    expect(ensureProfileV6(null)).toBeNull();
+  });
+
+  test('ensureProfilesV6 applique heal + drop sur tous les profils', async () => {
+    const { ensureProfilesV6 } = await import('./state.js');
+    const profiles = {
+      a: { devices: { pedale: true }, enabledDevices: ['tonex-pedal'] },
+      b: { devices: { plug: true }, enabledDevices: ['tonex-plug'], tmpPatches: { custom: [{ id: 'x' }], factoryOverrides: {} } },
+    };
+    const out = ensureProfilesV6(profiles);
+    expect(out.a.devices).toBeUndefined();
+    expect(out.b.devices).toBeUndefined();
+    expect(out.b.tmpPatches.custom[0].id).toBe('x');
+  });
+
+  test('Firestore poll scenario : profil stale v5 → setProfiles ne ré-injecte pas devices', async () => {
+    const { ensureProfilesV6 } = await import('./state.js');
+    // Simule un doc Firestore renvoyé en v5 avec devices présent.
+    const remoteProfiles = {
+      sebastien: {
+        id: 'sebastien',
+        enabledDevices: ['tonex-anniversary', 'tonex-plug'],
+        devices: { pedale: false, anniversary: true, plug: false }, // legacy
+        tmpPatches: { custom: [], factoryOverrides: {} },
+      },
+    };
+    const healed = ensureProfilesV6(remoteProfiles);
+    expect(healed.sebastien.devices).toBeUndefined();
+    expect(healed.sebastien.enabledDevices).toEqual(['tonex-anniversary', 'tonex-plug']);
+  });
+
+  test("migrateV5toV6 utilise désormais ensureProfileV6 (cohérence du heal)", async () => {
+    const { migrateV5toV6 } = await import('./state.js');
+    const v5 = {
+      version: 5,
+      profiles: {
+        u1: {
+          id: 'u1',
+          enabledDevices: ['tonex-pedal'],
+          devices: { pedale: true },
+        },
+      },
+    };
+    const v6 = migrateV5toV6(v5);
+    expect(v6.version).toBe(6);
+    expect(v6.profiles.u1.devices).toBeUndefined();
   });
 });
