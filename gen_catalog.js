@@ -222,7 +222,10 @@ for (const [name, info] of sorted) {
 
 lines.push('};');
 lines.push(`// ${presets.size} presets total`);
+lines.push('');
+lines.push('export { PRESET_CATALOG_FULL };');
 
 const output = lines.join('\n');
-fs.writeFileSync(path.join(__dirname, 'preset_catalog_full.js'), output, 'utf8');
-console.log(`✅ ${presets.size} presets generated → preset_catalog_full.js`);
+const outPath = path.join(__dirname, 'src', 'data', 'preset_catalog_full.js');
+fs.writeFileSync(outPath, output, 'utf8');
+console.log(`✅ ${presets.size} presets generated → src/data/preset_catalog_full.js`);

@@ -1,0 +1,137 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`computeFinalScore · redistribution des poids > 5 dimensions actives → poids identiques aux SCORING_WEIGHTS 1`] = `
+{
+  "breakdown": {
+    "gainMatch": {
+      "contribution": 15,
+      "raw": 100,
+      "weight": 15,
+    },
+    "guitar": {
+      "contribution": 7,
+      "raw": 74,
+      "weight": 10,
+    },
+    "pickup": {
+      "contribution": 18,
+      "raw": 88,
+      "weight": 20,
+    },
+    "refAmp": {
+      "contribution": 30,
+      "raw": 100,
+      "weight": 30,
+    },
+    "styleMatch": {
+      "contribution": 25,
+      "raw": 100,
+      "weight": 25,
+    },
+  },
+  "rawScore": 95,
+  "score": 95,
+}
+`;
+
+exports[`computeFinalScore · redistribution des poids > songRefAmp = null ET songStyle = null → 3 dimensions actives 1`] = `
+{
+  "breakdown": {
+    "gainMatch": {
+      "contribution": 33,
+      "raw": 100,
+      "weight": 33,
+    },
+    "guitar": {
+      "contribution": 16,
+      "raw": 74,
+      "weight": 22,
+    },
+    "pickup": {
+      "contribution": 39,
+      "raw": 88,
+      "weight": 44,
+    },
+    "refAmp": {
+      "contribution": 0,
+      "raw": null,
+      "weight": 0,
+    },
+    "styleMatch": {
+      "contribution": 0,
+      "raw": null,
+      "weight": 0,
+    },
+  },
+  "rawScore": 88.88888888888889,
+  "score": 89,
+}
+`;
+
+exports[`computeFinalScore · redistribution des poids > songRefAmp = null → 4 dimensions actives, refAmp.raw = null 1`] = `
+{
+  "breakdown": {
+    "gainMatch": {
+      "contribution": 21,
+      "raw": 100,
+      "weight": 21,
+    },
+    "guitar": {
+      "contribution": 11,
+      "raw": 74,
+      "weight": 14,
+    },
+    "pickup": {
+      "contribution": 25,
+      "raw": 88,
+      "weight": 29,
+    },
+    "refAmp": {
+      "contribution": 0,
+      "raw": null,
+      "weight": 0,
+    },
+    "styleMatch": {
+      "contribution": 36,
+      "raw": 100,
+      "weight": 36,
+    },
+  },
+  "rawScore": 92.85714285714285,
+  "score": 93,
+}
+`;
+
+exports[`computeFinalScore · redistribution des poids > songStyle = null → 4 dimensions actives, styleMatch.raw = null 1`] = `
+{
+  "breakdown": {
+    "gainMatch": {
+      "contribution": 20,
+      "raw": 100,
+      "weight": 20,
+    },
+    "guitar": {
+      "contribution": 10,
+      "raw": 74,
+      "weight": 13,
+    },
+    "pickup": {
+      "contribution": 23,
+      "raw": 88,
+      "weight": 27,
+    },
+    "refAmp": {
+      "contribution": 40,
+      "raw": 100,
+      "weight": 40,
+    },
+    "styleMatch": {
+      "contribution": 0,
+      "raw": null,
+      "weight": 0,
+    },
+  },
+  "rawScore": 93.33333333333333,
+  "score": 93,
+}
+`;

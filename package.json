@@ -1,0 +1,27 @@
+{
+  "name": "tonex-poweruser",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "ToneX Poweruser — PWA mono-fichier de gestion de setlists et presets pour guitaristes.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "jsdom": "^29.1.1",
+    "vite": "^5.4.10",
+    "vite-plugin-singlefile": "^2.0.3",
+    "vitest": "^2.1.5"
+  }
+}
