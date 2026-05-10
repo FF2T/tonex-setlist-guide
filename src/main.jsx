@@ -65,6 +65,10 @@ import {
   getAllRigsGuitars,
   dedupSetlists,
 } from './core/state.js';
+import {
+  SOURCE_LABELS, SOURCE_BADGES, SOURCE_INFO,
+  getSourceBadge, getSourceInfo,
+} from './core/sources.js';
 
 // Helper Phase 2 fix : devices à afficher pour ce profil. Robuste
 // face aux désynchros (Firestore stale, profil v3 partiel) — dérive
@@ -313,23 +317,10 @@ function ScoreWithBreakdown({score,breakdown,size}){
 // V2 wrappers — delegate to computeSimpleScore
 function guitarScore(name,guitarId){return computeSimpleScore(name,guitarId,null);}
 function presetScore(name,gType){return computeSimpleScore(name,null,gType);}
-function srcBadge(name){const s=findCatalogEntry(name)?.src;return s==="TSR"?"TSR":s==="ML"?"ML":s==="Anniversary"?"Pédale":s==="custom"?"Custom":s==="ToneNET"?"ToneNET":"";}
-// Description longue de la source d'un preset, pour aider l'utilisateur à le retrouver
-// (pack ToneNET .zip, AmpliTube ML, packs factory pré-installés, custom user…)
+// Phase 5 (Item F) — labels/badges/info centralisés dans core/sources.js.
+function srcBadge(name){return getSourceBadge(findCatalogEntry(name)?.src);}
 function presetSourceInfo(entry){
-  if(!entry?.src) return null;
-  // Libellés alignés avec SOURCE_LABELS (cf. L.2326) — la source canonique
-  // affichée partout ailleurs dans l'app (filtres, profil, navigateur).
-  switch(entry.src){
-    case "TSR":         return {icon:"📦",label:entry.pack?`Pack 64 Studio Rats « ${entry.pack}.zip »`:"Pack 64 Studio Rats (zip)"};
-    case "ML":          return {icon:"🎚",label:"ML Sound Lab Essentials"};
-    case "ToneNET":     return {icon:"🌐",label:"ToneNET (preset partagé)"};
-    case "Anniversary": return {icon:"🏭",label:"ToneX Anniversary Factory"};
-    case "Factory":     return {icon:"🏭",label:"ToneX Factory"};
-    case "PlugFactory": return {icon:"🔌",label:"ToneX Plug Factory"};
-    case "custom":      return {icon:"✨",label:entry.pack?`Custom — ${entry.pack}`:"Preset custom"};
-    default:            return {icon:"📁",label:String(entry.src)};
-  }
+  return getSourceInfo(entry);
 }
 // isSrcCompatible : importé depuis ./devices/registry.js (étape 4).
 function styleBadge(style){const l={hard_rock:"Hard Rock",rock:"Rock",blues:"Blues",jazz:"Jazz",pop:"Pop",metal:"Metal"}[style]||style;return <span className="badge badge-brass">{l}</span>;}
@@ -1457,7 +1448,6 @@ function profileColor(id){
   return PROFILE_COLORS[Math.abs(h)%PROFILE_COLORS.length];
 }
 
-const SOURCE_LABELS={TSR:"64 Studio Rats",ML:"ML Sound Lab Essentials",Anniversary:"ToneX Anniversary Factory",Factory:"ToneX Factory",PlugFactory:"ToneX Plug Factory",ToneNET:"ToneNET"};
 
 function GuitarSearchAdd({inp,aiKeys,onAdd}){
   const [query,setQuery]=useState("");
