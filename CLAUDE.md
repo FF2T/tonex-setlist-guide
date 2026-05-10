@@ -591,6 +591,45 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
+## État Phase 5.5 (suppression en masse setlist, 2026-05-11, tag `phase-5.5-done`)
+
+1 commit `[phase-5.5]`. Suite 482 → 499 tests (+17).
+
+**Problème** : sur une setlist 120 morceaux, retirer un par un via
+🗑️ (Phase 5.4) prend trop de temps.
+
+**FIX A — Bouton 🧹 Vider la setlist** (panneau d'édition).
+- Rangé entre ✏️ (rename) et 🗑️ (delete setlist) dans la ligne
+  d'édition de chaque setlist (mode editingSetlists).
+- Visible uniquement si `sl.songIds.length > 0`.
+- Click → `window.confirm` avec message explicite :
+  `Vider "<name>" ? N morceaux retirés. Les morceaux restent dans
+  la base globale. La setlist continue d'exister, juste vide.`
+- Validation → `onSetlists(p => p.map(s => s.id===sl.id ? {...s,songIds:[]} : s))`.
+- songDb global non touché.
+
+**FIX B — Bouton 🧹 Retirer non-cochés** (barre d'actions setlist
+active).
+- Dans la barre d'actions compacte, à côté de "Cocher".
+- Visible si `activeSlId` ET `0 < checked.length < activeSongs.length`.
+- Label dynamique : `🧹 Retirer non-cochés (M)`.
+- Style wine (action destructive mais ciblée).
+- Click → `window.confirm` avec compte : `Garder N et retirer M ?
+  Les morceaux retirés restent dans la base globale.`
+- Validation → filter songIds par les checked + reset checked.
+- Permet le tri inverse : cocher les 20 à garder, virer les 100
+  autres en 1 clic.
+
+**Tests** :
+- `ListScreen.bulk-actions.test.js` (17) :
+  - `emptySetlist` reducer (5 tests) : songIds clear, autres champs
+    préservés, slId inexistant no-op, idempotent, songDb intact.
+  - `keepCheckedInSetlist` reducer (7 tests) : filter, ordre préservé,
+    edge cases (vide / tout / ghost id / autres champs / slId
+    inexistant).
+  - Confirmation modale (2) : si confirm false, no-op.
+  - Visibility rules (3) : règles d'affichage des 2 boutons.
+
 ## État Phase 5.4 (retrait morceau + dédup name-only, 2026-05-10, tag `phase-5.4-done`)
 
 1 commit `[phase-5.4]`. Suite 461 → 482 tests (+21 : 11 dédup + 10 remove/undo).

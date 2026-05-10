@@ -3586,6 +3586,21 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                 doc.save(`${sl.name.replace(/[^a-z0-9_-]+/gi,'_')||'setlist'}.pdf`);
               }} style={{background:"none",border:"none",color:"var(--text-muted)",fontSize:11,cursor:"pointer"}}>📄</button>}
               <button onClick={()=>setEditSlId(sl.id)} style={{background:"none",border:"none",color:"var(--text-muted)",fontSize:11,cursor:"pointer"}}>✏️</button>
+              {/* Phase 5.5 — bouton "🧹 Vider la setlist" : retire
+                  tous les morceaux de songIds, mais garde la setlist
+                  (pas une suppression). Les morceaux restent dans
+                  songDb global. Confirmation modale obligatoire. */}
+              {sl.songIds.length>0&&<button
+                data-testid={`setlist-empty-${sl.id}`}
+                title="Vider la setlist (garde la setlist mais retire tous les morceaux)"
+                onClick={()=>{
+                  const n=sl.songIds.length;
+                  const msg=`Vider "${sl.name}" ?\n\n${n} morceau${n>1?"x":""} vont être retirés de cette setlist.\n\nLes morceaux restent disponibles dans la base globale (Setlists → onglet Morceaux). La setlist "${sl.name}" continue d'exister, juste vide.`;
+                  if(!window.confirm(msg)) return;
+                  onSetlists(p=>p.map(s=>s.id===sl.id?{...s,songIds:[]}:s));
+                }}
+                style={{background:"none",border:"none",color:"var(--text-muted)",fontSize:11,cursor:"pointer"}}
+              >🧹</button>}
               {setlists.length>1&&<button onClick={()=>deleteSetlist(sl.id)} style={{background:"none",border:"none",color:"var(--red)",fontSize:11,cursor:"pointer"}}>🗑</button>}
             </>)}
           </div>
@@ -3602,6 +3617,23 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         <div style={{marginLeft:"auto",display:"flex",gap:4}}>
           {activeSongs.length>0&&<button onClick={()=>setShowTopGuitars(!showTopGuitars)} style={{fontSize:10,color:showTopGuitars?"var(--accent)":"var(--text-muted)",background:showTopGuitars?"var(--accent-bg)":"var(--a5)",border:"1px solid "+(showTopGuitars?"var(--accent-border)":"var(--a10)"),borderRadius:"var(--r-sm)",padding:"3px 8px",cursor:"pointer"}}>Guitares</button>}
           {activeSongs.length>0&&<button onClick={toggleAll} style={{fontSize:10,color:"var(--text-muted)",background:"var(--a5)",border:"1px solid var(--a10)",borderRadius:"var(--r-sm)",padding:"3px 8px",cursor:"pointer"}}>{checked.length===activeSongs.length?"Décocher":"Cocher"}</button>}
+          {/* Phase 5.5 — "Retirer non-cochés" : visible si activeSlId
+              + au moins 1 morceau coché. Permet le tri inverse (garder
+              les cochés, virer le reste) pour réduire vite une setlist
+              bloated. Confirmation modale obligatoire. */}
+          {activeSlId&&checked.length>0&&checked.length<activeSongs.length&&<button
+            data-testid="list-screen-keep-checked"
+            onClick={()=>{
+              const keepIds=new Set(checked);
+              const removeCount=activeSongs.length-checked.length;
+              const msg=`Garder ${checked.length} morceau${checked.length>1?"x":""} et retirer les ${removeCount} autre${removeCount>1?"s":""} de "${activeSl?.name||"cette setlist"}" ?\n\nLes morceaux retirés restent dans la base globale.`;
+              if(!window.confirm(msg)) return;
+              onSetlists(p=>p.map(sl=>sl.id===activeSlId?{...sl,songIds:sl.songIds.filter(id=>keepIds.has(id))}:sl));
+              onChecked([]);
+            }}
+            style={{fontSize:10,color:"var(--wine-400)",background:"rgba(155,58,44,0.12)",border:"1px solid rgba(155,58,44,0.3)",borderRadius:"var(--r-sm)",padding:"3px 8px",cursor:"pointer",fontWeight:600}}
+            title="Retirer les morceaux non cochés de cette setlist (garde-fou : confirmation)"
+          >🧹 Retirer non-cochés ({activeSongs.length-checked.length})</button>}
           <button onClick={()=>setShowAdd(true)} style={{fontSize:10,color:"var(--accent)",background:"var(--accent-bg)",border:"1px solid var(--accent-border)",borderRadius:"var(--r-sm)",padding:"3px 8px",cursor:"pointer",fontWeight:600}}>+</button>
         </div>
       </div>
