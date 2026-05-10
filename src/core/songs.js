@@ -96,19 +96,19 @@ const SONG_PRESETS = {
 };
 
 const INIT_SONG_DB_META = [
-  {id:"acdc_hth",title:"Highway to Hell",artist:"AC/DC",year:1979,album:"Highway to Hell",desc:"Le riff d'ouverture le plus iconique du hard rock. Angus Young en SG sur un Marshall, le son brut du rock australien."},
-  {id:"acdc_ysmanll",title:"You Shook Me All Night Long",artist:"AC/DC",year:1980,album:"Back in Black",desc:"Le groove parfait d'AC/DC. Riff en La majeur, son crunchy et rythmique imparable."},
-  {id:"acdc_thunderstruck",title:"Thunderstruck",artist:"AC/DC",year:1990,album:"The Razors Edge",desc:"L'intro en tapping d'Angus Young sur une seule corde. Technique et énergie à l'état pur."},
-  {id:"acdc_tnt",title:"TNT",artist:"AC/DC",year:1975,album:"T.N.T.",desc:"Riff simple et efficace en power chords. L'essence du rock'n'roll : 3 accords et la vérité."},
-  {id:"acdc_bib",title:"Back in Black",artist:"AC/DC",year:1980,album:"Back in Black",desc:"L'album le plus vendu d'AC/DC. Le riff en Mi est devenu un standard du rock mondial."},
-  {id:"cream_wr",title:"White Room",artist:"Cream",year:1968,album:"Wheels of Fire",desc:"Clapton à la wah-wah sur un riff psychédélique. Le son du blues-rock britannique des sixties."},
-  {id:"bbking_thrill",title:"The Thrill Is Gone",artist:"B.B. King",year:1969,album:"Completely Well",desc:"Le chef-d'œuvre de B.B. King. Vibrato légendaire sur Lucille, le son du blues moderne."},
-  {id:"dire_mfn",title:"Money for Nothing",artist:"Dire Straits",year:1985,album:"Brothers in Arms",desc:"Le riff de Knopfler aux doigts (pas de médiator). Son Gibson Les Paul dans un Laney amplifié."},
-  {id:"dire_romeo",title:"Romeo & Juliet",artist:"Dire Straits",year:1980,album:"Making Movies",desc:"Fingerpicking délicat de Knopfler sur une National steel guitar. Ballade folk-rock intemporelle."},
-  {id:"ledzep_stairway",title:"Stairway to Heaven",artist:"Led Zeppelin",year:1971,album:"Led Zeppelin IV",desc:"Progression de l'arpège acoustique au solo électrique légendaire de Jimmy Page. Le morceau de guitare par excellence."},
-  {id:"tel_flipper",title:"Flipper",artist:"Téléphone",year:1977,album:"Téléphone",desc:"Le rock français de Bertignac. Énergie punk, riffs simples et efficaces sur Marshall JCM900."},
-  {id:"muddy_hoochie",title:"Hoochie Coochie Man",artist:"Muddy Waters",year:1954,album:"Single",desc:"Le standard du Chicago Blues. Riff hypnotique en Mi, le son qui a inspiré le rock'n'roll."},
-  {id:"deeppurple_smoke",title:"Smoke on the Water",artist:"Deep Purple",year:1972,album:"Machine Head",desc:"Le riff le plus connu de l'histoire du rock. Ritchie Blackmore sur une Strat dans un Marshall."},
+  {id:"acdc_hth",title:"Highway to Hell",artist:"AC/DC",year:1979,album:"Highway to Hell",bpm:116,key:"A",desc:"Le riff d'ouverture le plus iconique du hard rock. Angus Young en SG sur un Marshall, le son brut du rock australien."},
+  {id:"acdc_ysmanll",title:"You Shook Me All Night Long",artist:"AC/DC",year:1980,album:"Back in Black",bpm:127,key:"G",desc:"Le groove parfait d'AC/DC. Riff en La majeur, son crunchy et rythmique imparable."},
+  {id:"acdc_thunderstruck",title:"Thunderstruck",artist:"AC/DC",year:1990,album:"The Razors Edge",bpm:134,key:"B minor",desc:"L'intro en tapping d'Angus Young sur une seule corde. Technique et énergie à l'état pur."},
+  {id:"acdc_tnt",title:"TNT",artist:"AC/DC",year:1975,album:"T.N.T.",bpm:128,key:"A",desc:"Riff simple et efficace en power chords. L'essence du rock'n'roll : 3 accords et la vérité."},
+  {id:"acdc_bib",title:"Back in Black",artist:"AC/DC",year:1980,album:"Back in Black",bpm:92,key:"E",desc:"L'album le plus vendu d'AC/DC. Le riff en Mi est devenu un standard du rock mondial."},
+  {id:"cream_wr",title:"White Room",artist:"Cream",year:1968,album:"Wheels of Fire",bpm:116,key:"D minor",desc:"Clapton à la wah-wah sur un riff psychédélique. Le son du blues-rock britannique des sixties."},
+  {id:"bbking_thrill",title:"The Thrill Is Gone",artist:"B.B. King",year:1969,album:"Completely Well",bpm:96,key:"B minor",desc:"Le chef-d'œuvre de B.B. King. Vibrato légendaire sur Lucille, le son du blues moderne."},
+  {id:"dire_mfn",title:"Money for Nothing",artist:"Dire Straits",year:1985,album:"Brothers in Arms",bpm:136,key:"G",desc:"Le riff de Knopfler aux doigts (pas de médiator). Son Gibson Les Paul dans un Laney amplifié."},
+  {id:"dire_romeo",title:"Romeo & Juliet",artist:"Dire Straits",year:1980,album:"Making Movies",bpm:138,key:"F",desc:"Fingerpicking délicat de Knopfler sur une National steel guitar. Ballade folk-rock intemporelle."},
+  {id:"ledzep_stairway",title:"Stairway to Heaven",artist:"Led Zeppelin",year:1971,album:"Led Zeppelin IV",bpm:72,key:"A minor",desc:"Progression de l'arpège acoustique au solo électrique légendaire de Jimmy Page. Le morceau de guitare par excellence."},
+  {id:"tel_flipper",title:"Flipper",artist:"Téléphone",year:1977,album:"Téléphone",bpm:158,key:"E",desc:"Le rock français de Bertignac. Énergie punk, riffs simples et efficaces sur Marshall JCM900."},
+  {id:"muddy_hoochie",title:"Hoochie Coochie Man",artist:"Muddy Waters",year:1954,album:"Single",bpm:84,key:"A",desc:"Le standard du Chicago Blues. Riff hypnotique en Mi, le son qui a inspiré le rock'n'roll."},
+  {id:"deeppurple_smoke",title:"Smoke on the Water",artist:"Deep Purple",year:1972,album:"Machine Head",bpm:112,key:"G minor",desc:"Le riff le plus connu de l'histoire du rock. Ritchie Blackmore sur une Strat dans un Marshall."},
 ];
 
 // ─── Référence originale par morceau ──────────────────────────────────────────
@@ -132,12 +132,15 @@ const SONG_HISTORY = {
 function getSongInfo(song){
   const init=INIT_SONG_DB_META.find(s=>s.id===song.id);
   const ai=song.aiCache?.result;
+  // Phase 4 — bpm/key : préfère l'éventuelle valeur statique du seed
+  // ou stockée sur le morceau (édition utilisateur), retombe sur le
+  // cache IA en dernier recours pour les morceaux non-seed sans édit.
   return {
     year:init?.year||ai?.song_year||null,
     album:init?.album||ai?.song_album||null,
     desc:init?.desc||ai?.song_desc||null,
-    key:ai?.song_key||null,
-    bpm:ai?.song_bpm||null,
+    key:init?.key||song?.key||ai?.song_key||null,
+    bpm:init?.bpm||song?.bpm||ai?.song_bpm||null,
   };
 }
 
