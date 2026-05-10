@@ -3933,7 +3933,7 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
         top={name:cachedPreset.label,score:cachedPreset.score,bank:cachedPreset.bank,col:cachedPreset.col,amp:"",style:"",breakdown:cachedPreset.breakdown};
       }
       if(!top){
-        const bestInstalled=computeBestPresets(gType,style,deviceKey==="ann"?banks:{},deviceKey==="plug"?banks:{},gId,ai.ref_amp,targetGain);
+        const bestInstalled=computeBestPresets(gType,style,deviceKey==="ann"?banks:{},deviceKey==="plug"?banks:{},gId,ai.ref_amp,targetGain,availableSources);
         top=deviceKey==="ann"?bestInstalled.annTop:bestInstalled.plugTop;
       }
       // IdealTop : scan complet du catalogue (pas de limite d'amplis)
@@ -3942,6 +3942,12 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
       for(const [pName,pInfo] of Object.entries(PRESET_CATALOG_MERGED)){
         if(!pInfo||!pInfo.amp) continue;
         if(pInfo.src&&!isSrcCompatible(pInfo.src,deviceKey)) continue;
+        // Phase 5.6 — respecte les sources désactivées par l'utilisateur.
+        // Sans ce filtre, l'Optimiseur suggérait des presets Factory
+        // alors que profile.availableSources.Factory === false
+        // (l'utilisateur ne possède pas le pack). Bug rapporté sur
+        // "VOWELS" → "🏭 ToneX Factory" en Banque 6B.
+        if(pInfo.src&&availableSources&&availableSources[pInfo.src]===false) continue;
         const sc=computeFinalScore(pInfo,gId,style,targetGain,resolvedAmp,false);
         if(sc>=(top?.score||0)) allCandidates.push({name:pName,score:sc,amp:pInfo.amp,style:pInfo.style,src:pInfo.src});
       }

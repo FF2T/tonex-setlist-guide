@@ -591,6 +591,48 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
+## État Phase 5.6 (Optimiser respect availableSources, 2026-05-11, tag `phase-5.6-done`)
+
+1 commit `[phase-5.6]`. Suite 499 → 510 tests (+11).
+
+**Bug rapporté** : sur l'écran Optimiser, profil Sébastien avec
+`profile.availableSources.Factory = false` voyait néanmoins des
+suggestions Factory à installer (ex. "VOWELS" → 🏭 ToneX Factory →
+Bank 6B). Cohérence brisée : l'utilisateur ne possède pas le pack.
+
+**Cause** : dans `BankOptimizerScreen.analyzeDevice` (main.jsx
+~ligne 3942), la boucle qui scanne `PRESET_CATALOG_MERGED` pour
+construire `idealTop3` filtrait sur `isSrcCompatible(pInfo.src,
+deviceKey)` (compat ToneX Pedal vs Anniversary vs Plug) mais PAS
+sur `availableSources[pInfo.src]`. Les autres call sites (lignes
+4097 et 4426) avaient déjà le filtre.
+
+**Fix** : ajout du filtre `if(pInfo.src && availableSources &&
+availableSources[pInfo.src] === false) continue;` dans la boucle.
+Passage de `availableSources` à `computeBestPresets` (5e param).
+Le helper `isSourceAvailable(srcId, availableSources)` est ajouté
+à `core/sources.js` pour usage cross-modules futur.
+
+**Tests** (11) :
+- `isSourceAvailable` (6) : explicitement true/false, absent (permissif),
+  null/undefined fallback, srcId vide, scenario Sébastien Factory=false.
+- Régression `filterCatalog` simulant la boucle analyzeDevice (5) :
+  Sébastien Factory=false → VOWELS exclu mais TSR/Anniversary/ML passent ;
+  toutes sources off → vide ; partial TSR+Anniversary → 2 presets ;
+  availableSources undefined → catalogue entier (régression profil stale).
+
+**Non touché (déjà OK)** : `computeBestPresets` (filter ligne 824),
+`findBestAvailable` (411), boucles standardBanks (4097) et plan
+réorganisation (4426). Seul `analyzeDevice` manquait. Phase 5.3
+ligne 3023 (SongDetailCard install) avait déjà ce filtre.
+
+**Test manuel après déploiement** :
+1. Profil Sébastien → Optimiseur → choisir setlist contenant un
+  morceau avec match Factory (VOWELS, etc.) → vérifier que la
+  suggestion n'est PLUS Factory.
+2. Profil → Sources → cocher Factory → retour Optimiseur → la
+  suggestion Factory réapparaît.
+
 ## État Phase 5.5 (suppression en masse setlist, 2026-05-11, tag `phase-5.5-done`)
 
 1 commit `[phase-5.5]`. Suite 482 → 499 tests (+17).

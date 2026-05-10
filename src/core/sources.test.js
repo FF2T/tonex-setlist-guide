@@ -3,7 +3,7 @@
 import { describe, test, expect } from 'vitest';
 import {
   SOURCE_IDS, SOURCE_LABELS, SOURCE_BADGES, SOURCE_INFO,
-  getSourceBadge, getSourceInfo,
+  getSourceBadge, getSourceInfo, isSourceAvailable,
 } from './sources.js';
 
 describe('SOURCE_IDS — liste canonique', () => {
@@ -69,5 +69,115 @@ describe('getSourceInfo', () => {
   test('entry null/sans src → null', () => {
     expect(getSourceInfo(null)).toBe(null);
     expect(getSourceInfo({})).toBe(null);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────
+// Phase 5.6 — isSourceAvailable (filtre profile.availableSources)
+// ───────────────────────────────────────────────────────────────────
+
+describe('isSourceAvailable — Phase 5.6', () => {
+  test('source explicitement true → autorisée', () => {
+    expect(isSourceAvailable('TSR', { TSR: true })).toBe(true);
+    expect(isSourceAvailable('Factory', { Factory: true, TSR: true })).toBe(true);
+  });
+
+  test('source explicitement false → bloquée', () => {
+    expect(isSourceAvailable('Factory', { Factory: false })).toBe(false);
+    expect(isSourceAvailable('Factory', { Factory: false, TSR: true })).toBe(false);
+  });
+
+  test('source absente d\'availableSources → autorisée (permissif par défaut)', () => {
+    expect(isSourceAvailable('PlugFactory', { TSR: true })).toBe(true);
+    expect(isSourceAvailable('Custom', {})).toBe(true);
+  });
+
+  test('availableSources null/undefined → autorisée (fallback profil stale)', () => {
+    expect(isSourceAvailable('Factory', null)).toBe(true);
+    expect(isSourceAvailable('Factory', undefined)).toBe(true);
+  });
+
+  test('srcId vide → autorisée (preset sans src n\'est jamais bloqué)', () => {
+    expect(isSourceAvailable(null, { TSR: false })).toBe(true);
+    expect(isSourceAvailable('', { TSR: false })).toBe(true);
+  });
+
+  test('scenario bug rapporté Phase 5.6 : Sébastien Factory=false', () => {
+    const sebastienSources = {
+      TSR: true, ML: true, Anniversary: true, Factory: false, ToneNET: true,
+    };
+    expect(isSourceAvailable('Factory', sebastienSources)).toBe(false);
+    expect(isSourceAvailable('TSR', sebastienSources)).toBe(true);
+    expect(isSourceAvailable('Anniversary', sebastienSources)).toBe(true);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────
+// Phase 5.6 — simulation du filtre dans BankOptimizerScreen.analyzeDevice
+// ───────────────────────────────────────────────────────────────────
+
+describe('Phase 5.6 — filtre catalogue selon availableSources (régression)', () => {
+  // Reproduit la logique de la boucle ligne 3942-3947 (main.jsx)
+  // après le fix : un preset n'entre dans allCandidates que si
+  // availableSources autorise sa src.
+  function filterCatalog(catalog, availableSources) {
+    const out = [];
+    for (const [pName, pInfo] of Object.entries(catalog)) {
+      if (!pInfo || !pInfo.amp) continue;
+      if (pInfo.src && availableSources && availableSources[pInfo.src] === false) continue;
+      out.push({ name: pName, src: pInfo.src, amp: pInfo.amp });
+    }
+    return out;
+  }
+
+  const SAMPLE_CATALOG = {
+    'VOWELS': { src: 'Factory', amp: 'Custom Amp', gain: 'high' },
+    'TSR Mars 800SL Drive': { src: 'TSR', amp: 'Marshall JCM800', gain: 'mid' },
+    'AA MRSH SL100 JU Dimed BAL CAB': { src: 'Anniversary', amp: 'Marshall Super Lead', gain: 'high' },
+    'ML MARS 800 Clean': { src: 'ML', amp: 'Marshall JCM800', gain: 'low' },
+    'ToneNET shared preset': { src: 'ToneNET', amp: 'Mesa Mark', gain: 'mid' },
+  };
+
+  test('Sébastien profile (Factory=false) → "VOWELS" exclue', () => {
+    const sebastienSources = {
+      TSR: true, ML: true, Anniversary: true, Factory: false, ToneNET: true,
+    };
+    const filtered = filterCatalog(SAMPLE_CATALOG, sebastienSources);
+    const names = filtered.map((p) => p.name);
+    expect(names).not.toContain('VOWELS');
+    expect(names).toContain('TSR Mars 800SL Drive');
+    expect(names).toContain('AA MRSH SL100 JU Dimed BAL CAB');
+    expect(names).toContain('ML MARS 800 Clean');
+  });
+
+  test('Toutes sources désactivées → catalogue filtré vide', () => {
+    const noSources = {
+      TSR: false, ML: false, Anniversary: false, Factory: false, ToneNET: false,
+    };
+    const filtered = filterCatalog(SAMPLE_CATALOG, noSources);
+    expect(filtered).toEqual([]);
+  });
+
+  test("TSR + Anniversary uniquement → exclut Factory, ML, ToneNET", () => {
+    const partial = {
+      TSR: true, Anniversary: true,
+      ML: false, Factory: false, ToneNET: false,
+    };
+    const filtered = filterCatalog(SAMPLE_CATALOG, partial);
+    const names = filtered.map((p) => p.name);
+    expect(names).toEqual(['TSR Mars 800SL Drive', 'AA MRSH SL100 JU Dimed BAL CAB']);
+  });
+
+  test('availableSources undefined → catalogue entier (régression : profil sans config)', () => {
+    const filtered = filterCatalog(SAMPLE_CATALOG, undefined);
+    expect(filtered).toHaveLength(5);
+  });
+
+  test('availableSources avec toutes les sources true → comportement identique à undefined', () => {
+    const allOn = {
+      TSR: true, ML: true, Anniversary: true, Factory: true, ToneNET: true,
+    };
+    const filtered = filterCatalog(SAMPLE_CATALOG, allOn);
+    expect(filtered).toHaveLength(5);
   });
 });
