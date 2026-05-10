@@ -3120,7 +3120,16 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
         </div>
       </div>
 
-      {/* ── SECTION 4 : Paramétrage (guitare choisie + presets installés) ── */}
+      </>}
+
+      {/* ── SECTION 4 : Paramétrage (guitare choisie + presets installés) ──
+          Phase 5.3 — sortie du fragment {!reloading&&aiC&&...} pour que
+          le sélecteur de guitare reste TOUJOURS visible. Sans cette
+          sortie, un morceau custom (Newzik / "A Horse with No Name") sans
+          aiCache n'affichait que le message "Aucune analyse IA en cache"
+          mais pas le sélecteur permettant de déclencher l'analyse.
+          Les sous-parties qui dépendent strictement de aiC sont gardées
+          par {aiC && ...} à l'intérieur. */}
       <div style={customSectionStyle}>
         {sectionTitle("🎛","Parametrage — mon choix")}
         <div style={{marginBottom:8}}>
@@ -3133,7 +3142,11 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
           {g&&aiC&&(()=>{const fb=guitarChoiceFeedback(g,aiC,chosenGuitarCot);return fb?<div style={{fontSize:10,color:"var(--text-sec)",marginTop:3,marginLeft:24,lineHeight:1.4}}>{fb}</div>:null;})()}
           {g&&aiC&&(()=>{const s=localGuitarSettings(g,aiC);return s?<div style={{fontSize:10,background:"var(--a4)",border:"1px solid var(--a10)",borderRadius:"var(--r-md)",padding:"5px 8px",color:"var(--text-sec)",marginTop:5,marginLeft:24}}><b style={{color:"var(--text-muted)"}}>Reglages :</b> {s}</div>:null;})()}
         </div>
-        <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Meilleurs presets installes pour {g?.short||"cette guitare"}</div>
+        {/* Phase 5.3 — "Meilleurs presets installés" gated par aiC :
+            les rangs ToneX lisent aiC[d.presetResultKey] et planteraient
+            sans aiC. Le RecommendBlock TMP fait sa propre reco basée sur
+            song/guitar (pas aiC) → reste affiché même sans cache. */}
+        {aiC&&<div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Meilleurs presets installes pour {g?.short||"cette guitare"}</div>}
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {(getActiveDevicesForRender(profile)).map(d=>{
             // Phase 3 : devices avec RecommendBlock (TMP) → composant dédié.
@@ -3150,6 +3163,9 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
                 </div>
               );
             }
+            // Phase 5.3 — sans aiC, pas de presetData ToneX à afficher.
+            // On skip la ligne plutôt que de la rendre vide.
+            if(!aiC) return null;
             const banks=d.bankStorageKey==='banksAnn'?banksAnn:banksPlug;
             const presetData=aiC[d.presetResultKey];
             return (
@@ -3162,8 +3178,8 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
             );
           })}
         </div>
-        {/* Suggestion si score < 90% */}
-        {(()=>{
+        {/* Suggestion si score < 90% — Phase 5.3 : gated par aiC */}
+        {aiC&&(()=>{
           var bestScore=Math.max(aiC.preset_ann?.score||0,aiC.preset_plug?.score||0,aiC.ideal_preset_score||0);
           if(bestScore>=90) return null;
           var bestBreakdown=aiC.preset_ann?.breakdown||aiC.preset_plug?.breakdown;
@@ -3269,7 +3285,6 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
         })()}
       </div>
 
-      </>}
       {!reloading&&!aiC&&!localAiErr&&<div style={{fontSize:12,color:"var(--text-dim)",padding:"10px 0"}}>Aucune analyse IA en cache. Selectionne une guitare pour lancer l'analyse.</div>}
       {/* Phase 5 (Item A) — erreur fetchAI rendue visible. Avant
           Phase 5, le catch était silencieux et l'utilisateur ne

@@ -591,6 +591,42 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
+## État Phase 5.3 (fix sélecteur guitare invisible, 2026-05-10, tag `phase-5.3-done`)
+
+1 commit `[phase-5.3]`. Suite 454 → 461 tests (+7 régression).
+
+**Bug rapporté** (Chrome DevTools) : sur les morceaux custom sans
+aiCache (cas typique : "A Horse with No Name" importé Newzik,
+`song.ig = []`, `song.aiCache = null`), la fiche dépliée
+(SongDetailCard) affichait le message "Aucune analyse IA en cache.
+Selectionne une guitare pour lancer l'analyse." mais **AUCUN
+sélecteur de guitare** n'était rendu. L'utilisateur ne pouvait donc
+pas déclencher l'analyse → bloqué.
+
+**Cause** : la SECTION 4 "Paramétrage" (qui contient le `<GuitarSelect>`)
+était à l'intérieur d'un fragment `{!reloading && aiC && <>...</>}`
+ouvert par la SECTION 2 "Raisonnement IA". Quand `aiC` est null,
+toute la SECTION 4 — et donc le sélecteur — était masquée. Phase 5
+Item A avait corrigé le scoring/listing mais pas la condition de
+rendu structurelle.
+
+**Fix** :
+- Fermeture du fragment déplacée AVANT la SECTION 4 (entre les
+  sections 3 et 4).
+- SECTION 4 sortie du fragment → `<GuitarSelect>` toujours visible.
+- Sous-parties qui dépendent strictement de `aiC` (presets ToneX
+  installés via `aiC[d.presetResultKey]`, suggestion si score<90%)
+  gated par `aiC && (...)` à l'intérieur de la SECTION 4.
+- RecommendBlock TMP reste visible (il fait sa propre reco basée
+  sur song/guitar, pas sur aiC) — l'utilisateur voit la reco TMP
+  même sans cache IA.
+
+**Tests régression ajoutés** (`SongDetailCard.guitar-select.test.jsx`) :
+- 4 tests structurels validant le contrat de gating (sélecteur
+  toujours rendu, sous-parties gated par aiC).
+- 3 tests DOM via `<GuitarSelect>` isolé : ig=[] → toutes guitares
+  listées + change déclenche callback + étoile sur ig préfilled.
+
 ## État Phase 5.2 (rebrand Backline, 2026-05-10, tag `phase-5.2-done`)
 
 Rebrand "ToneX Poweruser" → "Backline" en 4 commits atomiques
