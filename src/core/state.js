@@ -769,6 +769,47 @@ function dedupSetlists(setlists, options = {}) {
   return result;
 }
 
+// Phase 5.7.3 — Variante de dedupSetlists qui retourne aussi les ids
+// à tombstoner. Indispensable pour propager les suppressions via
+// Firestore en multi-device : sans tombstone, le device qui n'a pas
+// encore dédupliqué re-push ses anciennes setlists par leurs ids
+// originaux et les ressuscite sur le device qui avait fait le clean.
+//
+// Retourne { setlists, tombstones } où :
+//   - setlists : tableau des survivants (= ce que dedupSetlists retourne)
+//   - tombstones : { [losingId]: ts } prêt à merger dans
+//                  shared.deletedSetlistIds via mergeDeletedSetlistIds.
+//
+// Ne touche pas à l'API de dedupSetlists existante (rétrocompat tests).
+function dedupSetlistsWithTombstones(setlists, options = {}) {
+  if (!Array.isArray(setlists)) return { setlists, tombstones: {} };
+  const mergeAcrossProfiles = !!options.mergeAcrossProfiles;
+  const ts = typeof options.ts === 'number' ? options.ts : Date.now();
+  const groups = new Map();
+  setlists.forEach((sl) => {
+    if (!sl || typeof sl.name !== 'string') return;
+    const key = setlistDedupKey(sl, mergeAcrossProfiles);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(sl);
+  });
+  // Identifie le survivant de chaque groupe (même règle que dedupSetlists :
+  // plus grand songIds.length, tiebreak idx min).
+  const tombstones = {};
+  groups.forEach((items) => {
+    if (items.length <= 1) return;
+    let survivor = items[0];
+    let survivorLen = (survivor.songIds || []).length;
+    for (let i = 1; i < items.length; i++) {
+      const cand = items[i];
+      const len = (cand.songIds || []).length;
+      if (len > survivorLen) { survivor = cand; survivorLen = len; }
+    }
+    items.forEach((sl) => { if (sl !== survivor && sl.id) tombstones[sl.id] = ts; });
+  });
+  const survivors = dedupSetlists(setlists, options);
+  return { setlists: survivors, tombstones };
+}
+
 // Phase 5.4 — helper d'investigation pour MaintenanceTab.
 // Retourne les groupes de setlists ayant le même nom (peu importe
 // profileIds). Pour chaque groupe avec ≥2 setlists, renvoie :
@@ -1013,7 +1054,7 @@ export {
   computeNewzikCreateNames, computeNewzikMergeNames,
   makeDefaultProfile,
   migrateV1toV2, migrateV2toV3, migrateV3toV4, migrateV4toV5, migrateV5toV6, migrateV6toV7,
-  dedupSetlists, setlistDedupKey, findSetlistDuplicatesByName,
+  dedupSetlists, dedupSetlistsWithTombstones, setlistDedupKey, findSetlistDuplicatesByName,
   loadState, saveState,
   autoBackup, listBackups, restoreBackup, clearBackups, isQuotaError,
   loadSecrets, saveSecrets,

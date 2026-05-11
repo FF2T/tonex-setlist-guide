@@ -72,7 +72,7 @@ import {
   loadSecrets, saveSecrets,
   loadTrusted, isTrusted, setTrusted,
   getAllRigsGuitars,
-  dedupSetlists, findSetlistDuplicatesByName,
+  dedupSetlists, dedupSetlistsWithTombstones, findSetlistDuplicatesByName,
 } from './core/state.js';
 import {
   SOURCE_LABELS, SOURCE_BADGES, SOURCE_INFO,
@@ -127,7 +127,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v58';
+const CACHE='backline-v59';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -551,7 +551,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.8.1";
+const APP_VERSION = "8.8.3";
 const ADMIN_PIN = "212402";
 
 
@@ -1579,7 +1579,10 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp,section,aiK
   const [editGShort,setEditGShort]=useState("");
   const [editGType,setEditGType]=useState("HB");
 
-  const updateProfile=(field,value)=>onProfiles(p=>({...p,[activeProfileId]:{...p[activeProfileId],[field]:typeof value==="function"?value(p[activeProfileId][field]):value}}));
+  // Phase 5.7.3 — stamp profile.lastModified au write pour le LWW per-profile
+  // (sinon myGuitars / customGuitars / availableSources / banks modifs sont
+  // écrasées au prochain poll Firestore par tiebreak égalité des timestamps).
+  const updateProfile=(field,value)=>onProfiles(p=>({...p,[activeProfileId]:{...p[activeProfileId],[field]:typeof value==="function"?value(p[activeProfileId][field]):value,lastModified:Date.now()}}));
 
   const toggleGuitar=id=>{
     updateProfile("myGuitars",prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev,id]);
@@ -1767,7 +1770,10 @@ function PacksTab({profile,onProfiles,activeProfileId,aiProvider,aiKeys}){
   const [err,setErr]=useState(null);
   const fileRef=useRef(null);
 
-  const updateProfile=(field,value)=>onProfiles(p=>({...p,[activeProfileId]:{...p[activeProfileId],[field]:typeof value==="function"?value(p[activeProfileId][field]):value}}));
+  // Phase 5.7.3 — stamp profile.lastModified au write pour le LWW per-profile
+  // (sinon myGuitars / customGuitars / availableSources / banks modifs sont
+  // écrasées au prochain poll Firestore par tiebreak égalité des timestamps).
+  const updateProfile=(field,value)=>onProfiles(p=>({...p,[activeProfileId]:{...p[activeProfileId],[field]:typeof value==="function"?value(p[activeProfileId][field]):value,lastModified:Date.now()}}));
 
   const handleFile=e=>{
     const f=e.target.files?.[0];
@@ -2151,7 +2157,7 @@ function MesAppareilsTab({profile,profiles,onProfiles,activeProfileId}) {
   );
 }
 
-function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAiKeys,theme,onTheme,profile,profiles,onProfiles,activeProfileId,allGuitars,initTab,customGuitars,onCustomGuitars,toneNetPresets,onToneNetPresets,fullState,onImportState,onLogout}) {
+function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,onDeletedSetlistIds,banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAiKeys,theme,onTheme,profile,profiles,onProfiles,activeProfileId,allGuitars,initTab,customGuitars,onCustomGuitars,toneNetPresets,onToneNetPresets,fullState,onImportState,onLogout}) {
   const [tab,setTab]=useState(initTab||"profile");
   const [newSlName,setNewSlName]=useState("");
   const [editSlId,setEditSlId]=useState(null);
@@ -2323,7 +2329,7 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,banksA
         <div style={{fontSize:12,fontWeight:600,color:"var(--text)",marginBottom:6}}>Cle Anthropic (fallback)</div>
         <input type="password" placeholder="sk-ant-..." value={aiKeys.anthropic} onChange={e=>onAiKeys(p=>({...p,anthropic:e.target.value}))} style={{...inp,width:"100%",fontFamily:"monospace"}}/>
       </div>}
-      {profile.isAdmin&&tab==="maintenance"&&<MaintenanceTab songDb={songDb} onSongDb={onSongDb} setlists={allSetlists} onSetlists={onSetlists} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys}/>}
+      {profile.isAdmin&&tab==="maintenance"&&<MaintenanceTab songDb={songDb} onSongDb={onSongDb} setlists={allSetlists} onSetlists={onSetlists} onDeletedSetlistIds={onDeletedSetlistIds} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys}/>}
       {profile.isAdmin&&tab==="export"&&<ExportImportScreen banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} onBack={()=>setTab("profile")} onNavigate={onNavigate} fullState={fullState} onImportState={onImportState} inline={true}/>}
       {profile.isAdmin&&tab==="admin_profiles"&&<ProfilesAdmin profiles={profiles} onProfiles={onProfiles}/>}
       {/* Aide, MAJ, Déconnexion */}
@@ -2392,7 +2398,7 @@ function ParametresScreen({onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAi
             </div>
           </div>}
           {tab==="profiles"&&<ProfilesAdmin profiles={profiles} onProfiles={onProfiles}/>}
-          {tab==="maintenance"&&<MaintenanceTab songDb={songDb} onSongDb={onSongDb} setlists={allSetlists} onSetlists={onSetlists} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys}/>}
+          {tab==="maintenance"&&<MaintenanceTab songDb={songDb} onSongDb={onSongDb} setlists={allSetlists} onSetlists={onSetlists} onDeletedSetlistIds={onDeletedSetlistIds} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys}/>}
           {tab==="export"&&<div>
             <button onClick={()=>onNavigate("exportimport")} style={{width:"100%",background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",color:"var(--yellow)",borderRadius:"var(--r-lg)",padding:"12px 16px",fontSize:13,fontWeight:700,cursor:"pointer",textAlign:"left"}}>
               📋 Export / Import →
@@ -2404,7 +2410,7 @@ function ParametresScreen({onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAi
   );
 }
 
-function MaintenanceTab({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug,aiProvider,aiKeys,onFullReset}){
+function MaintenanceTab({songDb,onSongDb,setlists,onSetlists,onDeletedSetlistIds,banksAnn,banksPlug,aiProvider,aiKeys,onFullReset}){
   const [recalculating,setRecalculating]=useState(false);
   const [progress,setProgress]=useState({done:0,total:0,current:""});
   const [done,setDone]=useState(false);
@@ -2613,9 +2619,16 @@ function MaintenanceTab({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug,
         <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:4}}>Setlists — doublons</div>
         <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:10}}>Deux modes de dédup. Mode strict (gentle) = même nom ET mêmes profils. Mode aggressif = même nom seul, fusionne les profils en union.</div>
         {(()=>{
-          const dedupedStrict=dedupSetlists(setlists);
+          // Phase 5.7.3 — utilise la variante avec tombstones pour propager
+          // les suppressions via Firestore (sinon les autres devices
+          // ressuscitent les setlists dédupliquées).
+          const strictRes=dedupSetlistsWithTombstones(setlists);
+          const dedupedStrict=strictRes.setlists;
+          const tombstonesStrict=strictRes.tombstones;
           const removedStrict=setlists.length-dedupedStrict.length;
-          const dedupedLoose=dedupSetlists(setlists,{mergeAcrossProfiles:true});
+          const looseRes=dedupSetlistsWithTombstones(setlists,{mergeAcrossProfiles:true});
+          const dedupedLoose=looseRes.setlists;
+          const tombstonesLoose=looseRes.tombstones;
           const removedLoose=setlists.length-dedupedLoose.length;
           // Le mode aggressif englobe tous les doublons stricts ET les
           // name-only. removedExtra = strictement plus de fusion en
@@ -2641,6 +2654,11 @@ function MaintenanceTab({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug,
                 const msg=`${removedStrict} setlist${removedStrict>1?"s":""} doublon${removedStrict>1?"s":""} détecté${removedStrict>1?"s":""} (même nom ET mêmes profils).\n\nLa version la plus complète est conservée, morceaux fusionnés. Confirmer ?`;
                 if(!window.confirm(msg)) return;
                 onSetlists(()=>dedupedStrict);
+                // Phase 5.7.3 — propage les tombstones pour bloquer la
+                // résurrection via Firestore poll.
+                if(onDeletedSetlistIds&&Object.keys(tombstonesStrict).length){
+                  onDeletedSetlistIds(prev=>({...(prev||{}),...tombstonesStrict}));
+                }
               }} style={{background:"linear-gradient(180deg,var(--brass-200),var(--brass-400))",border:"none",color:"var(--tolex-900)",borderRadius:"var(--r-md)",padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)"}}>🧹 Fusionner strict</button>}
             </div>
             {/* Mode aggressif (Phase 5.4) */}
@@ -2654,6 +2672,11 @@ function MaintenanceTab({songDb,onSongDb,setlists,onSetlists,banksAnn,banksPlug,
                 const msg=`${removedExtra} setlist${removedExtra>1?"s":""} doublon${removedExtra>1?"s":""} par nom seul (profils différents) :\n\n${lines}\n\nLa version la plus complète est conservée, profils ET morceaux fusionnés. Confirmer ?`;
                 if(!window.confirm(msg)) return;
                 onSetlists(()=>dedupedLoose);
+                // Phase 5.7.3 — propage les tombstones pour bloquer la
+                // résurrection via Firestore poll.
+                if(onDeletedSetlistIds&&Object.keys(tombstonesLoose).length){
+                  onDeletedSetlistIds(prev=>({...(prev||{}),...tombstonesLoose}));
+                }
               }} style={{background:"var(--wine-400)",border:"none",color:"var(--text-inverse)",borderRadius:"var(--r-md)",padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer",boxShadow:"var(--shadow-sm)"}}>⚡ Fusionner aggressif</button>}
             </div>
           </div>;
@@ -6986,7 +7009,7 @@ function App() {
   var screenContent=null;
   if(screen==="viewprofile"&&viewProfileId&&profiles[viewProfileId]) screenContent=<ViewProfileScreen profile={profiles[viewProfileId]} onBack={()=>setScreen("list")} onNavigate={setScreen}/>;
   else if(screen==="exportimport") screenContent=<ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("settings")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/>;
-  else if(screen==="profile") screenContent=<MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/>;
+  else if(screen==="profile") screenContent=<MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} onDeletedSetlistIds={setDeletedSetlistIds} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/>;
   else if(screen==="settings") screenContent=<ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} songDb={songDb} onSongDb={setSongDb} setlists={setlists} onSetlists={setSetlists}/>;
   else if(screen==="setlists") screenContent=<SetlistsScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} activeProfileId={activeProfileId} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
   else if(screen==="jam") screenContent=<div><Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Jammer"}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>🎲 Jammer</div><JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources} profile={profile}/></div>;

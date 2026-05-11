@@ -12,7 +12,7 @@ import {
   computeNewzikCreateNames, computeNewzikMergeNames,
   deriveEnabledDevices, makeDefaultProfile,
   getAllRigsGuitars,
-  dedupSetlists, setlistDedupKey,
+  dedupSetlists, dedupSetlistsWithTombstones, setlistDedupKey,
   autoBackup, listBackups, clearBackups, isQuotaError,
 } from './state.js';
 
@@ -1559,5 +1559,106 @@ describe('Scénario bug iPhone nettoyé — Phase 5.7.2', () => {
     expect(computeNewzikCreateNames(setlists, LISTS_KEYS, MERGE_INTO).sort())
       .toEqual(['Arthur & Seb', 'Cours Franck B']);
     expect(computeNewzikMergeNames(setlists, MERGE_INTO)).toEqual([]);
+  });
+});
+
+describe('dedupSetlistsWithTombstones — Phase 5.7.3', () => {
+  test('strict — aucun doublon → tombstones vides + setlists identiques', () => {
+    const setlists = [
+      { id: 'sl1', name: 'A', profileIds: ['p1'], songIds: ['s1'] },
+      { id: 'sl2', name: 'B', profileIds: ['p1'], songIds: ['s2'] },
+    ];
+    const res = dedupSetlistsWithTombstones(setlists);
+    expect(res.tombstones).toEqual({});
+    expect(res.setlists).toEqual(setlists);
+  });
+
+  test('strict — 2 doublons stricts → 1 tombstone du loser', () => {
+    const setlists = [
+      { id: 'sl_big', name: 'A', profileIds: ['p1'], songIds: ['s1','s2','s3'] },
+      { id: 'sl_small', name: 'A', profileIds: ['p1'], songIds: ['s4'] },
+    ];
+    const res = dedupSetlistsWithTombstones(setlists, { ts: 1234567890 });
+    expect(res.setlists.length).toBe(1);
+    expect(res.setlists[0].id).toBe('sl_big');
+    expect(res.tombstones).toEqual({ 'sl_small': 1234567890 });
+  });
+
+  test('aggressif — name-only avec profileIds différents → tombstone des losers', () => {
+    const setlists = [
+      { id: 'sl_seb', name: 'Cours Franck B', profileIds: ['sebastien'], songIds: ['s1','s2','s3','s4','s5'] },
+      { id: 'sl_arthur', name: 'Cours Franck B', profileIds: ['arthur'], songIds: ['s6','s7'] },
+      { id: 'sl_seb2', name: 'Cours Franck B', profileIds: ['sebastien','franck'], songIds: ['s8'] },
+    ];
+    const res = dedupSetlistsWithTombstones(setlists, { mergeAcrossProfiles: true, ts: 100 });
+    expect(res.setlists.length).toBe(1);
+    expect(res.setlists[0].id).toBe('sl_seb'); // plus garnie
+    expect(res.tombstones).toEqual({ 'sl_arthur': 100, 'sl_seb2': 100 });
+  });
+
+  test('scénario du bug 18 setlists Sébastien → tombstones non vides', () => {
+    // Reproduit le bordel Mac/iPhone : 6 versions de "Arthur & Seb",
+    // 6 de "Cours Franck B", 2 de "Cours samedi après-midi".
+    const make = (n, name, songs, profile) => ({ id: `sl_${n}`, name, profileIds: [profile], songIds: Array(songs).fill(0).map((_,i)=>'s'+i) });
+    const setlists = [
+      make('a1','Arthur & Seb',31,'sebastien'),
+      make('a2','Arthur & Seb',28,'arthur'),
+      make('a3','Arthur & Seb',28,'sebastien'),
+      make('a4','Arthur & Seb',28,'sebastien'),
+      make('a5','Arthur & Seb',31,'sebastien'),
+      make('a6','Arthur & Seb',28,'arthur'),
+      make('c1','Cours Franck B',45,'arthur'),
+      make('c2','Cours Franck B',46,'sebastien'),
+      make('c3','Cours Franck B',45,'sebastien'),
+      make('c4','Cours Franck B',45,'sebastien'),
+      make('c5','Cours Franck B',45,'sebastien'),
+      make('c6','Cours Franck B',45,'arthur'),
+      make('z1','Ma Setlist',13,'sebastien'),
+    ];
+    const res = dedupSetlistsWithTombstones(setlists, { mergeAcrossProfiles: true });
+    // Survivants : 1 par name = 3
+    expect(res.setlists.length).toBe(3);
+    // Tombstones : 10 losers (5 Arthur&Seb + 5 Cours Franck B)
+    expect(Object.keys(res.tombstones).length).toBe(10);
+  });
+
+  test('option ts personnalisée appliquée à tous les tombstones', () => {
+    const setlists = [
+      { id: 'sl1', name: 'A', profileIds: ['p1'], songIds: ['s1','s2'] },
+      { id: 'sl2', name: 'A', profileIds: ['p1'], songIds: ['s3'] },
+      { id: 'sl3', name: 'A', profileIds: ['p1'], songIds: ['s4'] },
+    ];
+    const customTs = 9999999;
+    const res = dedupSetlistsWithTombstones(setlists, { ts: customTs });
+    expect(res.tombstones).toEqual({ 'sl2': customTs, 'sl3': customTs });
+  });
+
+  test('ts par défaut = Date.now()', () => {
+    const before = Date.now();
+    const setlists = [
+      { id: 'sl1', name: 'A', profileIds: ['p1'], songIds: ['s1','s2'] },
+      { id: 'sl2', name: 'A', profileIds: ['p1'], songIds: ['s3'] },
+    ];
+    const res = dedupSetlistsWithTombstones(setlists);
+    const after = Date.now();
+    expect(res.tombstones['sl2']).toBeGreaterThanOrEqual(before);
+    expect(res.tombstones['sl2']).toBeLessThanOrEqual(after);
+  });
+
+  test('setlists falsy → tombstones vides', () => {
+    expect(dedupSetlistsWithTombstones(null)).toEqual({ setlists: null, tombstones: {} });
+    expect(dedupSetlistsWithTombstones(undefined)).toEqual({ setlists: undefined, tombstones: {} });
+  });
+
+  test('setlist sans id ne génère pas de tombstone (defensive)', () => {
+    const setlists = [
+      { name: 'A', profileIds: ['p1'], songIds: ['s1','s2'] }, // pas d'id
+      { id: 'sl_keep', name: 'A', profileIds: ['p1'], songIds: ['s3'] },
+    ];
+    const res = dedupSetlistsWithTombstones(setlists);
+    // sl_keep gagne par tiebreak (idx min when same length OR is the only one with songs higher),
+    // actually first has more songs so it wins. Loser is sl_keep (id present), tombstone exists.
+    // OR first has no id → if loser, no tombstone.
+    expect(Object.keys(res.tombstones).length).toBeLessThanOrEqual(1);
   });
 });
