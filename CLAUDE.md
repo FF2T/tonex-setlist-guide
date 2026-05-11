@@ -591,6 +591,148 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
+## État Phase 5.7 (sync Firestore LWW + tombstones, 2026-05-11, tag `phase-5.7-done`)
+
+1 commit `[phase-5.7]`. Suite 510 → 535 tests (+25). SW CACHE
+`backline-v55` → `backline-v56`.
+
+**Bug reproduit** (Sébastien sur Mac) : réduction de "Ma Setlist"
+120 → 50 morceaux ; le poll Firestore 5s ré-injecte 120 morceaux.
+Idem pour les setlists doublons nettoyées qui reviennent.
+
+**Cause racine** (`src/main.jsx:6690` avant Phase 5.7) :
+`mergeSetlists` faisait `[...new Set([...existing.songIds,
+...sl.songIds])]` pour chaque setlist commune local/remote → union
+add-only, jamais de delete propagé. Symétriquement, le merge profile
+(ligne 6767) écrasait en bloc via `applySecrets(ensureProfilesV6(…))`
+sans arbitrage temporel.
+
+**Fix** : last-write-wins per-record avec timestamps + tombstones
+`{[setlistId]: ts}`. Le merge dans `applyRemoteData` arbitre désormais
+par `setlist.lastModified` et `profile.lastModified` au lieu d'unir.
+
+### Schéma localStorage v7 (purement additif vs v6)
+
+```
+state {
+  version: 7,
+  shared: {
+    ...,                                    // v6 inchangé
+    lastModified: number,                   // timestamp save global
+    deletedSetlistIds: { [id]: number },    // CONVERTI depuis string[]
+    setlists: [{ ..., lastModified?: number }],
+    _migrationToast?: { count, ts }         // one-shot, cleared après affichage
+  },
+  profiles: { [id]: { ..., lastModified?: number } }
+}
+```
+
+### Helpers nouveaux (`src/core/state.js`)
+
+- **`ensureSharedV7(shared)`** : heal défensif au load. Convertit
+  `deletedSetlistIds` legacy (`string[]`) → `{[id]: Date.now() -
+  1000}` (1s d'antériorité pour ne pas masquer une suppression
+  remote concurrente lors de la cohabitation v6/v7). Stamp
+  `setlist.lastModified` si manquant. Idempotent.
+- **`ensureProfileV7` / `ensureProfilesV7`** : chaîne le heal
+  v3→v4→v6 (drop legacy `devices`) + stamp `lastModified`.
+- **`gcTombstones(map, maxAgeMs = 30j)`** : pure ; purge les entries
+  >30j. Appelé une fois au mount via `useEffect([])` côté
+  main.jsx, avec `setDeletedSetlistIds` pour persister le clean.
+- **`mergeDeletedSetlistIds`** : union avec `max(ts)` en cas de
+  conflit.
+- **`mergeSetlistsLWW(local, remote, mergedDeletedMap)`** :
+  - Si `mergedDeletedMap[id]` >= max(local.lastModified,
+    remote.lastModified) → drop (tombstone gagne).
+  - Sinon, présent des deux côtés → garde plus grand
+    `lastModified`. Égalité → keep local.
+  - Sinon local-only / remote-only → keep tel quel.
+- **`mergeProfilesLWW(local, remote, { applySecrets })`** : LWW
+  per-profile via `lastModified`. Callback `applySecrets`
+  (optionnel, fourni par main.jsx) réapplique aiKeys/password
+  locaux sur les profils remote adoptés. Tous les profils sortants
+  passent par `ensureProfileV7`.
+
+### Migration `migrateV6toV7`
+
+1. `ensureSharedV7` + `ensureProfilesV7`.
+2. **Cleanup doublons one-shot** : groupe par
+   `(name, profileIds.sort())` ; pour chaque groupe ≥2, garde le
+   survivant (plus de songIds, tiebreak idx min), fusionne songIds
+   en union dédupliquée, tombstone les losers avec `Date.now()`.
+3. Si `count > 0` → injecte `shared._migrationToast = { count, ts }`
+   consommé par App au mount (toast 5s, message
+   `"Nettoyage initial : N setlists doublons fusionnée"`). Le
+   champ disparaît naturellement au prochain save légitime (App ne
+   le copie pas dans son state React, juste lu une fois).
+4. Idempotent sur v7 sans doublons restants.
+
+### Stamping write-time (`src/main.jsx`)
+
+- **`setSetlists` wrapper (ligne 6264)** : diff shallow par setlist
+  (`length|name|profileIds(sorted)|songIds(sorted)`). Si différent
+  → stamp `lastModified = Date.now()`. Évite les stamps gratuits
+  sur identité-only.
+- **`setProfileField` (ligne 6384)** : stamp
+  `profile.lastModified` sur chaque write de champ.
+- **`recordLogin`** : stamp aussi (login = activité utilisateur).
+- **`makeDefaultProfile`** : stamp `lastModified = Date.now()` à la
+  création (pour que les profils nouvellement créés gagnent contre
+  un remote vide).
+
+### Cohabitation v6/v7 pendant rollout
+
+- Clients v7 reçoivent un push v6 (array tombstones) → conversion
+  défensive via `normalizeTombstones` dans `applyRemoteData`
+  (`{[id]: Date.now() - 1000}`).
+- Clients v6 reçoivent un push v7 (objet tombstones) → leur
+  `mergeSetlists` legacy ignore l'objet (Set(obj) = []) ; ils
+  continueront à mal merger jusqu'à update. Fenêtre courte car
+  single-file build se propage en 1 reload.
+
+### Tests (25 nouveaux dans `src/core/state.test.js`)
+
+- `ensureSharedV7` (3) : conversion array→objet, idempotence,
+  stamp setlists.
+- `ensureProfileV7` (3) : stamp lastModified, préservation,
+  chaînage drop legacy devices.
+- `gcTombstones` (3) : drop >30j, falsy → `{}`, maxAgeMs custom.
+- `mergeDeletedSetlistIds` (2) : union max(ts), falsy.
+- `mergeSetlistsLWW` (6) dont **scénario du bug** explicite :
+  local 50 récents bat remote 120 anciens (pas d'union à 120).
+- `mergeProfilesLWW` (2) : LWW + applySecrets, local/remote only.
+- `migrateV6toV7` (5) : conversion tombstones, stamping,
+  cleanup doublons + `_migrationToast`, pas de toast si rien,
+  idempotence.
+- `TOMBSTONE_MAX_AGE_MS` (1) : 30 jours en ms.
+
+### Test manuel post-déploiement
+
+1. **Reproduction bug** : profil Sébastien, "Ma Setlist" → réduire
+   120 → 50 morceaux. Attendre 5s (1 cycle poll après push 2s).
+   Reload → 50 morceaux (pas 120). Vérifier
+   `localStorage.tonex_guide_v2.shared.deletedSetlistIds` est un
+   objet, `shared.lastModified` présent, chaque
+   `setlists[i].lastModified` présent.
+2. **Toast migration** : avec un state v6 contenant 2+ setlists
+   doublons → 1er load après déploiement → toast
+   "Nettoyage initial : N setlists doublons fusionnées" pendant 5s.
+   Reload → pas de re-toast.
+3. **Régression Phase 5.1** : `profile.devices` toujours pas
+   ressuscité par le poll (chaîne `ensureProfileV7` → v6).
+
+### Dette résiduelle Phase 5.7
+
+- `mergeSongDb` (`main.jsx:6655`) toujours en union by id (non
+  touché Phase 5.7 — hors scope, les songs sont mostly add-only).
+  Si un jour la suppression de song doit propagger, Phase 6 ou plus
+  étendra LWW à songDb.
+- Garbage collection 30j actuellement local-only (pas pushé en
+  Firestore). Au prochain save légitime après GC, l'état clean part
+  bien à Firestore — mais une race avec un autre device qui aurait
+  une vieille tombstone pourrait la réintroduire. Acceptable car
+  la fenêtre est ≥30j.
+
 ## État Phase 5.6 (Optimiser respect availableSources, 2026-05-11, tag `phase-5.6-done`)
 
 1 commit `[phase-5.6]`. Suite 499 → 510 tests (+11).

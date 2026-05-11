@@ -61,6 +61,9 @@ import {
   migrateV1toV2, migrateV2toV3,
   ensureProfileV3, ensureProfilesV3, ensureProfileV4, ensureProfilesV4,
   ensureProfileV6, ensureProfilesV6,
+  ensureSharedV7, ensureProfileV7, ensureProfilesV7,
+  gcTombstones,
+  mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
   getDevicesForRender,
   loadState, saveState,
   autoBackup, listBackups, restoreBackup, clearBackups,
@@ -114,9 +117,12 @@ let DEFAULT_GEMINI_KEY = "";
 //     Phase 5.2 : tonex-v54 → backline-v55. Changement de prefix pour
 //     signaler le rebrand ; les anciens caches "tonex-v*" sont purgés
 //     automatiquement à l'install via le filtre k!==CACHE.
+//     Phase 5.7 : v55 → v56. State v7 (last-write-wins + tombstones
+//     {[id]:ts}) ; force la prise en charge du nouveau merge dès la
+//     prochaine ouverture.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v55';
+const CACHE='backline-v56';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -169,12 +175,14 @@ var _lastRemoteSyncId=null;
 
 function saveToFirestore(s){
   var clean=JSON.parse(JSON.stringify(s));
-  clean.lastModified=Date.now();
+  // Phase 5.7 : timestamp arrive depuis le caller via state.shared.lastModified.
+  // Fallback Date.now() si jamais shared.lastModified manque (legacy save).
+  var ts=(clean.shared&&typeof clean.shared.lastModified==="number")?clean.shared.lastModified:Date.now();
   var sid=Date.now().toString(36)+Math.random().toString(36).slice(2);
   _lastSavedSyncId=sid;
   clean.syncId=sid;
   if(clean.profiles){for(var pid in clean.profiles){if(clean.profiles[pid].aiKeys)clean.profiles[pid].aiKeys={anthropic:"",gemini:""};}}
-  var body={fields:{data:{stringValue:JSON.stringify(clean)},syncId:{stringValue:sid},ts:{integerValue:String(clean.lastModified)}}};
+  var body={fields:{data:{stringValue:JSON.stringify(clean)},syncId:{stringValue:sid},ts:{integerValue:String(ts)}}};
   return fetch(FS_BASE+"/sync/state?key="+FS_KEY,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
     .then(function(r){if(!r.ok)throw new Error("Firestore save: "+r.status);return r.json();});
 }
@@ -6248,27 +6256,67 @@ function App() {
   const initDefault = saved || {
     version:STATE_VERSION,
     activeProfileId:"sebastien",
-    shared:{songDb:INIT_SONG_DB_META, theme:"dark", setlists:[{id:"sl_main",name:"Ma Setlist",songIds:INIT_SONG_DB_META.map(s=>s.id),profileIds:["sebastien"]}], toneNetPresets:[]},
+    shared:{songDb:INIT_SONG_DB_META, theme:"dark", setlists:[{id:"sl_main",name:"Ma Setlist",songIds:INIT_SONG_DB_META.map(s=>s.id),profileIds:["sebastien"],lastModified:Date.now()}], toneNetPresets:[], deletedSetlistIds:{}, lastModified:Date.now()},
     profiles:{sebastien:makeDefaultProfile("sebastien","Sébastien",true)}
   };
+
+  // Phase 5.7 — toast one-shot post-migration v6→v7 (cleanup doublons).
+  // Lu une fois depuis initDefault, jamais persisté en state React. Le
+  // champ `_migrationToast` disparaît naturellement au prochain save
+  // légitime (l'objet `shared` reconstruit ci-dessous ne l'inclut pas).
+  const initialMigrationToast = initDefault.shared?._migrationToast || null;
 
   // Shared state
   const [songDb,  setSongDb]  = useState(initDefault.shared.songDb);
   const [theme,   setTheme]   = useState(initDefault.shared.theme);
-  const [setlists, setSetlistsRaw] = useState(initDefault.shared?.setlists || [{id:"sl_main",name:"Ma Setlist",songIds:INIT_SONG_DB_META.map(s=>s.id),profileIds:[initDefault.activeProfileId]}]);
-  // Tombstones : IDs de setlists explicitement supprimées par l'utilisateur.
-  // Synchronisés via Firestore pour que le poll/merge ne les re-ressuscite pas.
-  const [deletedSetlistIds, setDeletedSetlistIds] = useState(initDefault.shared?.deletedSetlistIds || []);
-  // Wrapper qui détecte les suppressions (IDs présents avant et plus après) et les
-  // ajoute aux tombstones. Tous les écrans utilisent setSetlists comme avant.
+  const [setlists, setSetlistsRaw] = useState(initDefault.shared?.setlists || [{id:"sl_main",name:"Ma Setlist",songIds:INIT_SONG_DB_META.map(s=>s.id),profileIds:[initDefault.activeProfileId],lastModified:Date.now()}]);
+  // Tombstones v7 : map {[setlistId]: timestamp}. Synchronisés via
+  // Firestore pour que le poll/merge ne ressuscite pas une setlist
+  // supprimée. Conversion défensive si la valeur initiale est encore
+  // un array legacy (cas remote v6 stale).
+  const [deletedSetlistIds, setDeletedSetlistIds] = useState(()=>{
+    const cur = initDefault.shared?.deletedSetlistIds;
+    if (Array.isArray(cur)) {
+      const ts = Date.now() - 1000;
+      const m = {};
+      for (const id of cur) if (typeof id === "string") m[id] = ts;
+      return m;
+    }
+    return cur && typeof cur === "object" ? cur : {};
+  });
+  // Wrapper qui (1) détecte les suppressions de setlists et écrit
+  // tombstone {[id]: now} ; (2) stamp `lastModified = now` sur chaque
+  // setlist modifiée (diff shallow length+name+profileIds+songIds).
+  // Tous les écrans utilisent setSetlists comme avant.
   const setSetlists = (updater) => {
     setSetlistsRaw(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
+      if (!Array.isArray(next)) return next;
+      const now = Date.now();
+      const shallowHash = (sl) => {
+        const pIds = Array.isArray(sl.profileIds) ? [...sl.profileIds].sort().join("+") : "";
+        const sIds = Array.isArray(sl.songIds) ? [...sl.songIds].sort().join("+") : "";
+        return `${(sl.songIds||[]).length}|${sl.name||""}|${pIds}|${sIds}`;
+      };
+      const prevById = new Map(prev.map(sl => [sl.id, sl]));
+      const stamped = next.map(sl => {
+        if (!sl || !sl.id) return sl;
+        const prevSl = prevById.get(sl.id);
+        if (!prevSl) return { ...sl, lastModified: now }; // nouveau
+        if (shallowHash(prevSl) !== shallowHash(sl)) return { ...sl, lastModified: now };
+        return sl;
+      });
       const prevIds = new Set(prev.map(s=>s.id));
-      const nextIds = new Set(next.map(s=>s.id));
+      const nextIds = new Set(stamped.map(s=>s.id));
       const removed = [...prevIds].filter(id=>!nextIds.has(id));
-      if(removed.length) setDeletedSetlistIds(d=>[...new Set([...(d||[]),...removed])]);
-      return next;
+      if(removed.length) {
+        setDeletedSetlistIds(d => {
+          const out = { ...(d||{}) };
+          for (const id of removed) out[id] = now;
+          return out;
+        });
+      }
+      return stamped;
     });
   };
   // Migrate custom guitars from profiles to shared (one-time)
@@ -6307,13 +6355,11 @@ function App() {
   },[toneNetPresets]);
 
   // Profiles state — merge banks + apply local secrets (aiKeys, passwords).
-  // ensureProfilesV6 garantit enabledDevices + drop legacy devices
-  // même si initDefault venait d'un état localStorage non migré
-  // (filet de sécurité avant Firestore). Phase 5.1 : v4 → v6 ici car
-  // sinon le champ devices pouvait re-pénétrer le state même après
-  // migration loadState.
+  // Phase 5.7 : ensureProfilesV7 chaîne v3→v4→v6→v7 (drop legacy devices
+  // + stamp lastModified si manquant). Filet de sécurité au cas où
+  // initDefault viendrait d'un état non migré (Firestore stale, etc.).
   const mergedProfiles = useMemo(()=>{
-    const p=ensureProfilesV6({...initDefault.profiles});
+    const p=ensureProfilesV7({...initDefault.profiles});
     for(const [id,prof] of Object.entries(p)){
       p[id]={...prof, banksAnn:mergeBanks(prof.banksAnn,INIT_BANKS_ANN), banksPlug:mergeBanks(prof.banksPlug,INIT_BANKS_PLUG)};
     }
@@ -6331,9 +6377,15 @@ function App() {
   // pour être disponible dès le premier appel (avant useEffect).
   if(typeof window!=="undefined") window.__activeSources=profile?.availableSources||null;
 
-  // Per-profile convenience setters
+  // Per-profile convenience setters. Phase 5.7 : stamp profile.lastModified
+  // au write pour permettre le LWW per-profile côté merge Firestore.
   const setProfileField = (field, value) => {
-    setProfiles(p => ({...p, [activeProfileId]: {...p[activeProfileId], [field]: typeof value==="function"?value(p[activeProfileId][field]):value}}));
+    setProfiles(p => {
+      const cur = p[activeProfileId];
+      if (!cur) return p;
+      const resolved = typeof value === "function" ? value(cur[field]) : value;
+      return {...p, [activeProfileId]: {...cur, [field]: resolved, lastModified: Date.now()}};
+    });
   };
   const setBanksAnn  = v => setProfileField("banksAnn", v);
   const setBanksPlug = v => setProfileField("banksPlug", v);
@@ -6630,34 +6682,40 @@ function App() {
     result._idRemap=idRemap;
     return result;
   };
-  // Merge setlists: keep all, merge songIds (union), mais exclut les IDs supprimés
-  // explicitement (tombstones) pour éviter qu'une setlist supprimée localement ne
-  // soit ressuscitée par le poll Firestore.
-  const mergeSetlists=(local,remote,deletedIds)=>{
-    if(!remote)return local;
-    if(!local)return remote;
-    const dead=new Set(deletedIds||[]);
-    const map=new Map();
-    for(const sl of local){if(!dead.has(sl.id)) map.set(sl.id,sl);}
-    remote.forEach(sl=>{
-      if(dead.has(sl.id)) return;
-      const existing=map.get(sl.id);
-      if(!existing){map.set(sl.id,sl);}
-      else{map.set(sl.id,{...existing,...sl,songIds:[...new Set([...existing.songIds,...sl.songIds])]});}
-    });
-    return [...map.values()];
+  // Phase 5.7 — mergeSetlists inline supprimé. Le merge est désormais
+  // last-write-wins par setlist via `mergeSetlistsLWW` (state.js), qui
+  // arbitre sur `setlist.lastModified` et respecte les tombstones
+  // `{[id]: ts}`. Voir applyRemoteData ci-dessous.
+
+  // Normalise un tombstone potentiellement legacy (array remote
+  // arrivant d'un client v6) en map {[id]: ts}.
+  const normalizeTombstones = (raw) => {
+    if (Array.isArray(raw)) {
+      const ts = Date.now() - 1000;
+      const m = {};
+      for (const id of raw) if (typeof id === "string") m[id] = ts;
+      return m;
+    }
+    return raw && typeof raw === "object" ? raw : {};
   };
 
-  // Persist to localStorage (immediate) + Firestore (debounced 2s)
+  // Persist to localStorage (immediate) + Firestore (debounced 2s).
+  // Phase 5.7 : `shared.lastModified` est le timestamp global de save
+  // utilisé côté merge LWW. Le top-level `lastModified` est supprimé
+  // (redondant avec shared.lastModified, plus simple côté arbitrage).
   const hasMounted = useRef(false);
   const firestoreDebounceRef = useRef(null);
   useEffect(()=>{
-    const state={version:STATE_VERSION, activeProfileId, shared:{songDb,theme,setlists,customGuitars,toneNetPresets,deletedSetlistIds}, profiles, lastModified:Date.now()};
+    const state={
+      version:STATE_VERSION,
+      activeProfileId,
+      shared:{songDb,theme,setlists,customGuitars,toneNetPresets,deletedSetlistIds,lastModified:Date.now()},
+      profiles,
+    };
     autoBackup();
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){}
     if(!hasMounted.current){hasMounted.current=true;return;}
     if(!firestoreLoaded) return;
-    // Debounce Firestore saves: wait 2s of inactivity before writing
     if(firestoreDebounceRef.current) clearTimeout(firestoreDebounceRef.current);
     setSyncStatus("syncing");
     firestoreDebounceRef.current = setTimeout(()=>{
@@ -6666,7 +6724,13 @@ function App() {
     return ()=>{if(firestoreDebounceRef.current)clearTimeout(firestoreDebounceRef.current);};
   },[songDb,theme,setlists,customGuitars,toneNetPresets,deletedSetlistIds,profiles,activeProfileId,firestoreLoaded]);
 
-  // Apply remote data into local state (merge, never lose data)
+  // Apply remote data into local state, using LWW per record (Phase 5.7).
+  //  - songDb : union by id (mergeSongDb, hors scope LWW).
+  //  - tombstones : union avec max(ts).
+  //  - setlists : LWW per id via mergeSetlistsLWW + remap des ids
+  //    dédupliqués par mergeSongDb.
+  //  - profiles : LWW per id via mergeProfilesLWW (secrets locaux
+  //    réappliqués sur les remote-adopted).
   const applyRemoteData = (data) => {
     if(!data||!data.shared) return;
     var pollRemap={};
@@ -6677,20 +6741,17 @@ function App() {
       return m;
     });
     if(data.shared.theme) setTheme(data.shared.theme);
-    // Fusion des tombstones (union locale ∪ remote) AVANT le merge des setlists,
-    // pour qu'une suppression effectuée sur un autre appareil soit appliquée ici.
-    const remoteDel=data.shared.deletedSetlistIds||[];
-    const allDel=[...new Set([...(deletedSetlistIds||[]),...remoteDel])];
-    if(remoteDel.length){
-      setDeletedSetlistIds(prev=>{
-        const m=[...new Set([...(prev||[]),...remoteDel])];
-        return m.length===(prev||[]).length?prev:m;
-      });
+    // Tombstones : merge LWW (union avec max ts), conversion défensive
+    // si remote arrive en array legacy.
+    const remoteDel=normalizeTombstones(data.shared.deletedSetlistIds);
+    const mergedDel=mergeDeletedSetlistIds(deletedSetlistIds,remoteDel);
+    if(JSON.stringify(mergedDel)!==JSON.stringify(deletedSetlistIds||{})){
+      setDeletedSetlistIds(mergedDel);
     }
     if(data.shared.setlists) setSetlistsRaw(prev=>{
-      var m=mergeSetlists(prev,data.shared.setlists,allDel);
+      var m=mergeSetlistsLWW(prev,data.shared.setlists,mergedDel);
       if(Object.keys(pollRemap).length>0){
-        m=m.map(function(sl){var ids=sl.songIds.map(function(id){return pollRemap[id]||id;});return{...sl,songIds:[...new Set(ids)]};});
+        m=m.map(function(sl){var ids=(sl.songIds||[]).map(function(id){return pollRemap[id]||id;});return{...sl,songIds:[...new Set(ids)]};});
       }
       if(JSON.stringify(m)===JSON.stringify(prev))return prev;
       return m;
@@ -6704,20 +6765,18 @@ function App() {
       return data.shared.toneNetPresets;
     });
     if(data.profiles) setProfiles(prev=>{
-      // Bug-fix Phase 2 : un profil arrivant de Firestore en v2 (synced
-      // avant le déploiement Phase 2) doit être healed pour ne pas
-      // écraser le state local migré et perdre enabledDevices.
-      // Phase 5.1 FIX 1 : ensureProfilesV6 (vs v4 avant) pour drop le
-      // champ legacy `devices` injecté par d'anciens clients. Sinon
-      // chaque poll Firestore ré-injectait devices dans le state local.
-      const next=applySecrets(ensureProfilesV6(data.profiles));
+      // Phase 5.7 : LWW per-profile via profile.lastModified. Les
+      // profils remote adoptés passent par applySecrets pour réinjecter
+      // aiKeys/password locaux. ensureProfileV7 chaîne le heal v3→v7
+      // (dont le drop legacy `devices` de la Phase 5.1).
+      const next=mergeProfilesLWW(prev,data.profiles,{applySecrets});
       if(JSON.stringify(next)===JSON.stringify(prev))return prev;
       return next;
     });
     if(data.activeProfileId) setActiveProfileId(data.activeProfileId);
   };
 
-  // Load from Firestore on first mount — merge with local
+  // Load from Firestore on first mount — merge with local using LWW.
   const [firestoreProfiles,setFirestoreProfiles]=useState(null);
   useEffect(()=>{
     loadSharedKey().then(()=>console.log("Shared key loaded")).catch(()=>{});
@@ -6725,23 +6784,37 @@ function App() {
       if(data&&data.shared){
         applyRemoteData(data);
         if(data.profiles) setFirestoreProfiles(data.profiles);
-        // If local had more data, push merged result back
+        // If local had more data, push merged result back.
         var remoteSongs=data.shared.songDb||[];
         var remoteSl=data.shared.setlists||[];
-        var remoteDel=data.shared.deletedSetlistIds||[];
-        var mergedDel=[...new Set([...(deletedSetlistIds||[]),...remoteDel])];
+        var remoteDel=normalizeTombstones(data.shared.deletedSetlistIds);
+        var mergedDel=mergeDeletedSetlistIds(deletedSetlistIds,remoteDel);
         var mergedSongs=mergeSongDb(songDb||[],remoteSongs);
-        var mergedSl=mergeSetlists(setlists||[],remoteSl,mergedDel);
+        var mergedSl=mergeSetlistsLWW(setlists||[],remoteSl,mergedDel);
         // Remap duplicated song IDs in setlists
         var remap=mergedSongs._idRemap||{};
         if(Object.keys(remap).length>0){
           mergedSl=mergedSl.map(function(sl){
-            var ids=sl.songIds.map(function(id){return remap[id]||id;});
+            var ids=(sl.songIds||[]).map(function(id){return remap[id]||id;});
             return {...sl,songIds:[...new Set(ids)]};
           });
         }
-        if(mergedSongs.length>remoteSongs.length||mergedSl.length>remoteSl.length||mergedDel.length>remoteDel.length){
-          var ps={version:STATE_VERSION,activeProfileId:data.activeProfileId||activeProfileId,shared:{songDb:mergedSongs,theme:data.shared.theme||theme,setlists:mergedSl,customGuitars:data.shared.customGuitars||customGuitars,deletedSetlistIds:mergedDel},profiles:ensureProfilesV6(data.profiles||profiles),lastModified:Date.now()};
+        var localDelCount=Object.keys(deletedSetlistIds||{}).length;
+        var mergedDelCount=Object.keys(mergedDel).length;
+        if(mergedSongs.length>remoteSongs.length||mergedSl.length>remoteSl.length||mergedDelCount>Object.keys(remoteDel).length||localDelCount>0){
+          var ps={
+            version:STATE_VERSION,
+            activeProfileId:data.activeProfileId||activeProfileId,
+            shared:{
+              songDb:mergedSongs,
+              theme:data.shared.theme||theme,
+              setlists:mergedSl,
+              customGuitars:data.shared.customGuitars||customGuitars,
+              deletedSetlistIds:mergedDel,
+              lastModified:Date.now(),
+            },
+            profiles:mergeProfilesLWW(profiles,data.profiles||{},{applySecrets}),
+          };
           saveToFirestore(ps).catch(function(){});
         }
       }
@@ -6771,7 +6844,9 @@ function App() {
   },[firestoreLoaded]);
 
   const recordLogin = id => {
-    setProfiles(p=>{if(!p[id])return p;const h=(p[id].loginHistory||[]).slice();h.unshift(Date.now());if(h.length>5)h.length=5;return{...p,[id]:{...p[id],loginHistory:h}};});
+    // Phase 5.7 : stamp lastModified pour que le LWW per-profile
+    // adopte ce login côté Firestore.
+    setProfiles(p=>{if(!p[id])return p;const h=(p[id].loginHistory||[]).slice();h.unshift(Date.now());if(h.length>5)h.length=5;return{...p,[id]:{...p[id],loginHistory:h,lastModified:Date.now()}};});
   };
 
   // Once Firestore loaded, decide initial screen
@@ -6797,6 +6872,29 @@ function App() {
 
   // Reset on profile switch
   useEffect(()=>{if(screen!=="loading"){setChecked([]);setScreen("list");}},[activeProfileId]);
+
+  // Phase 5.7 — Toast post-migration (lit une fois depuis loadState,
+  // affiche, oublie). Le champ shared._migrationToast n'est jamais
+  // copié dans le state React et disparaît au prochain save légitime.
+  const [migrationToast,setMigrationToast]=useState(null);
+  useEffect(()=>{
+    if(initialMigrationToast&&initialMigrationToast.count>0){
+      const c=initialMigrationToast.count;
+      setMigrationToast(`Nettoyage initial : ${c} setlist${c>1?"s":""} doublon${c>1?"s":""} fusionnée${c>1?"s":""}`);
+      const t=setTimeout(()=>setMigrationToast(null),5000);
+      return ()=>clearTimeout(t);
+    }
+  },[]);
+
+  // Phase 5.7 — GC défensif des tombstones au mount (purge entries
+  // >30 jours). Si la map est modifiée, propage via setDeletedSetlistIds
+  // pour que le clean soit persisté au prochain save.
+  useEffect(()=>{
+    const gced=gcTombstones(deletedSetlistIds);
+    if(JSON.stringify(gced)!==JSON.stringify(deletedSetlistIds||{})){
+      setDeletedSetlistIds(gced);
+    }
+  },[]);
 
   // Apply theme to document
   useEffect(()=>{
@@ -6887,6 +6985,7 @@ function App() {
     <AppHeader {...headerProps}/>
     {screenContent}
     {showNav&&<AppNavBottom screen={screen} onNavigate={setScreen}/>}
+    {migrationToast&&<div style={{position:"fixed",bottom:80,left:"50%",transform:"translateX(-50%)",background:"var(--brass)",color:"var(--ink)",padding:"10px 18px",borderRadius:"var(--r-md)",fontSize:13,fontWeight:600,zIndex:9999,boxShadow:"var(--shadow-md)",maxWidth:"90vw",textAlign:"center"}}>{migrationToast}</div>}
   </div>;
 }
 

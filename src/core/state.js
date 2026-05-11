@@ -57,7 +57,8 @@ import {
 } from '../data/data_catalogs.js';
 
 // ─── Versioning + clés localStorage ──────────────────────────────────
-const STATE_VERSION = 6;
+const STATE_VERSION = 7;
+const TOMBSTONE_MAX_AGE_MS = 30 * 24 * 3600 * 1000;
 const LS_KEY = 'tonex_guide_v2';        // nom historique stable
 const LS_KEY_V1 = 'tonex_guide_v1';
 const LS_SECRETS_KEY = 'tonex_secrets';
@@ -191,6 +192,272 @@ function ensureProfilesV6(profiles) {
   return out;
 }
 
+// ─── v7 — Last-write-wins + tombstones avec timestamps ─────────────────
+//
+// Phase 5.7 : `shared.lastModified` (timestamp save global), per-setlist
+// `lastModified` (stampé au write), per-profile `lastModified` (idem),
+// et tombstones convertis de `string[]` en `{[id]: timestamp}`.
+//
+// Bug d'origine : le merge Firestore faisait
+//   existing.songIds ∪ remote.songIds
+// pour chaque setlist commune, jamais de delete propagé. Sébastien
+// réduisait 120 → 50, le poll 5s re-unionnait en 120.
+
+// Heal défensif du bloc `shared` au chargement.
+// - Si `deletedSetlistIds` est un array legacy (v6 ou avant) → conversion
+//   en `{[id]: Date.now() - 1000}` (1s d'antériorité pour ne pas
+//   masquer une suppression remote concurrente lors de la cohabitation).
+// - Si `lastModified` absent → stamp Date.now().
+// - Setlists sans `lastModified` → stamp Date.now() (au moment du heal).
+// Idempotent : même référence si tout est déjà conforme v7.
+function ensureSharedV7(shared) {
+  if (!shared || typeof shared !== 'object') return shared;
+  let changed = false;
+  const next = { ...shared };
+  // Tombstones : array → objet, ou {} si absent/falsy.
+  const cur = shared.deletedSetlistIds;
+  if (Array.isArray(cur)) {
+    const ts = Date.now() - 1000;
+    const map = {};
+    for (const id of cur) {
+      if (typeof id === 'string' && id) map[id] = ts;
+    }
+    next.deletedSetlistIds = map;
+    changed = true;
+  } else if (!cur || typeof cur !== 'object') {
+    next.deletedSetlistIds = {};
+    changed = true;
+  }
+  // lastModified global.
+  if (typeof shared.lastModified !== 'number') {
+    next.lastModified = Date.now();
+    changed = true;
+  }
+  // Setlists : stamp lastModified si absent.
+  if (Array.isArray(shared.setlists)) {
+    let setlistsChanged = false;
+    const now = Date.now();
+    const stamped = shared.setlists.map((sl) => {
+      if (sl && typeof sl.lastModified !== 'number') {
+        setlistsChanged = true;
+        return { ...sl, lastModified: now };
+      }
+      return sl;
+    });
+    if (setlistsChanged) {
+      next.setlists = stamped;
+      changed = true;
+    }
+  }
+  return changed ? next : shared;
+}
+
+// Heal d'un profil v7 : stamp `lastModified` si absent. Délègue d'abord
+// à ensureProfileV6 (qui chaîne v3+v4 et drop legacy `devices`).
+// Idempotent.
+function ensureProfileV7(profile) {
+  if (!profile) return profile;
+  const v6 = ensureProfileV6(profile);
+  if (typeof v6.lastModified === 'number') return v6;
+  return { ...v6, lastModified: Date.now() };
+}
+
+function ensureProfilesV7(profiles) {
+  if (!profiles) return profiles;
+  const out = {};
+  for (const [id, p] of Object.entries(profiles)) {
+    out[id] = ensureProfileV7(p);
+  }
+  return out;
+}
+
+// Garbage-collection des tombstones plus anciens que `maxAgeMs`
+// (default 30 jours). Pure ; retourne un nouveau map. Au-delà de cette
+// fenêtre, on considère que tous les devices ont propagé la suppression.
+function gcTombstones(deletedMap, maxAgeMs = TOMBSTONE_MAX_AGE_MS) {
+  if (!deletedMap || typeof deletedMap !== 'object') return {};
+  const cutoff = Date.now() - maxAgeMs;
+  const out = {};
+  for (const [id, ts] of Object.entries(deletedMap)) {
+    if (typeof ts === 'number' && ts >= cutoff) out[id] = ts;
+  }
+  return out;
+}
+
+// v6 → v7 : ensureSharedV7 + ensureProfilesV7 + cleanup one-shot des
+// doublons (même nom + mêmes profileIds). Le survivant est celui ayant
+// le plus de songIds (tiebreak ordre d'apparition) ; les losers sont
+// tombstonés avec `Date.now()`. Le survivant absorbe les songIds des
+// losers en union dédupliquée (cohérent avec dedupSetlists strict).
+//
+// Si au moins 1 doublon nettoyé → injecte `shared._migrationToast =
+// {count, ts}` consommé par l'App au prochain mount. Sinon, pas de
+// champ (le toast reste silencieux).
+//
+// Idempotent : appliqué sur un state déjà v7 sans doublons → no-op
+// (juste version bumpée et heals).
+function migrateV6toV7(v6) {
+  const next = { ...v6, version: 7 };
+  const profiles = ensureProfilesV7(v6.profiles);
+  next.profiles = profiles;
+  let shared = ensureSharedV7(v6.shared);
+  // Cleanup doublons one-shot.
+  if (Array.isArray(shared.setlists)) {
+    const groups = new Map();
+    shared.setlists.forEach((sl, idx) => {
+      if (!sl || typeof sl.name !== 'string') return;
+      const ids = Array.isArray(sl.profileIds) ? [...sl.profileIds].sort().join('|') : '';
+      const key = `${sl.name}::${ids}`;
+      if (!groups.has(key)) groups.set(key, { items: [], firstIdx: idx });
+      groups.get(key).items.push({ sl, idx });
+    });
+    let count = 0;
+    const survivors = [];
+    const consumed = new Set();
+    const deletedMap = { ...(shared.deletedSetlistIds || {}) };
+    const now = Date.now();
+    shared.setlists.forEach((sl, idx) => {
+      if (consumed.has(idx)) return;
+      const ids = Array.isArray(sl.profileIds) ? [...sl.profileIds].sort().join('|') : '';
+      const key = sl && typeof sl.name === 'string' ? `${sl.name}::${ids}` : null;
+      const grp = key ? groups.get(key) : null;
+      if (!grp || grp.items.length === 1) {
+        survivors.push(sl);
+        consumed.add(idx);
+        return;
+      }
+      // Choisit le survivant (plus de songIds, tiebreak idx min).
+      let survivor = grp.items[0];
+      for (let i = 1; i < grp.items.length; i++) {
+        const cand = grp.items[i];
+        if ((cand.sl.songIds || []).length > (survivor.sl.songIds || []).length) {
+          survivor = cand;
+        }
+      }
+      // Merge songIds + tombstone losers.
+      const seen = new Set();
+      const merged = [];
+      const pushAll = (arr) => {
+        for (const id of arr || []) {
+          if (!seen.has(id)) { seen.add(id); merged.push(id); }
+        }
+      };
+      pushAll(survivor.sl.songIds);
+      grp.items.forEach(({ sl: sl2, idx: i2 }) => {
+        consumed.add(i2);
+        if (sl2 !== survivor.sl) {
+          pushAll(sl2.songIds);
+          deletedMap[sl2.id] = now;
+          count += 1;
+        }
+      });
+      survivors.push({ ...survivor.sl, songIds: merged, lastModified: now });
+    });
+    if (count > 0) {
+      shared = { ...shared, setlists: survivors, deletedSetlistIds: deletedMap, _migrationToast: { count, ts: now } };
+    } else if (survivors !== shared.setlists) {
+      shared = { ...shared, setlists: survivors };
+    }
+  }
+  next.shared = shared;
+  return next;
+}
+
+// ─── Merge helpers LWW (utilisés par main.jsx applyRemoteData) ────────
+
+// Union de deux maps de tombstones ; pour chaque id présent des deux
+// côtés, garde max(localTs, remoteTs). Inputs falsy → {}.
+function mergeDeletedSetlistIds(localMap, remoteMap) {
+  const out = {};
+  const l = localMap && typeof localMap === 'object' ? localMap : {};
+  const r = remoteMap && typeof remoteMap === 'object' ? remoteMap : {};
+  for (const [id, ts] of Object.entries(l)) {
+    if (typeof ts === 'number') out[id] = ts;
+  }
+  for (const [id, ts] of Object.entries(r)) {
+    if (typeof ts !== 'number') continue;
+    out[id] = typeof out[id] === 'number' ? Math.max(out[id], ts) : ts;
+  }
+  return out;
+}
+
+// Merge LWW de deux listes de setlists.
+//  - Si `mergedDeletedMap[id]` >= max(local.lastModified, remote.lastModified)
+//    → drop (tombstone gagne).
+//  - Sinon si présent des deux côtés → garde celui au plus grand
+//    `lastModified` (égalité = keep local pour idempotence). Fallback ?? 0.
+//  - Sinon local-only ou remote-only → garde tel quel.
+// Ordre de sortie : ordre des locaux d'abord, puis remote-only à la
+// suite (préserve la stabilité visuelle côté UI).
+function mergeSetlistsLWW(localSetlists, remoteSetlists, mergedDeletedMap) {
+  const local = Array.isArray(localSetlists) ? localSetlists : [];
+  const remote = Array.isArray(remoteSetlists) ? remoteSetlists : [];
+  const dead = mergedDeletedMap && typeof mergedDeletedMap === 'object' ? mergedDeletedMap : {};
+  const remoteMap = new Map(remote.filter((sl) => sl && sl.id).map((sl) => [sl.id, sl]));
+  const seenIds = new Set();
+  const out = [];
+  for (const localSl of local) {
+    if (!localSl || !localSl.id) continue;
+    seenIds.add(localSl.id);
+    const remoteSl = remoteMap.get(localSl.id);
+    const localTs = typeof localSl.lastModified === 'number' ? localSl.lastModified : 0;
+    const remoteTs = remoteSl && typeof remoteSl.lastModified === 'number' ? remoteSl.lastModified : 0;
+    const tombstoneTs = typeof dead[localSl.id] === 'number' ? dead[localSl.id] : -1;
+    if (tombstoneTs >= Math.max(localTs, remoteTs)) continue; // drop : suppression la plus récente
+    if (!remoteSl) {
+      out.push(localSl);
+      continue;
+    }
+    // Présent des deux côtés : LWW.
+    out.push(remoteTs > localTs ? remoteSl : localSl);
+  }
+  // Remote-only : ajouter en respectant le tombstone.
+  for (const remoteSl of remote) {
+    if (!remoteSl || !remoteSl.id || seenIds.has(remoteSl.id)) continue;
+    const remoteTs = typeof remoteSl.lastModified === 'number' ? remoteSl.lastModified : 0;
+    const tombstoneTs = typeof dead[remoteSl.id] === 'number' ? dead[remoteSl.id] : -1;
+    if (tombstoneTs >= remoteTs) continue;
+    out.push(remoteSl);
+  }
+  return out;
+}
+
+// Merge LWW per-profile. Pour chaque id dans union :
+//  - Présent des deux côtés → garde celui au plus grand lastModified
+//    (égalité = keep local).
+//  - Local-only → garde local.
+//  - Remote-only → adopte remote.
+// Le callback `applySecrets` (optionnel) est appliqué sur les profils
+// remote adoptés (pour préserver aiKeys/password locaux côté caller).
+// Tous les profils sortants passent par ensureProfileV7 pour heal.
+function mergeProfilesLWW(localProfiles, remoteProfiles, options = {}) {
+  const local = localProfiles && typeof localProfiles === 'object' ? localProfiles : {};
+  const remote = remoteProfiles && typeof remoteProfiles === 'object' ? remoteProfiles : {};
+  const applySecrets = typeof options.applySecrets === 'function' ? options.applySecrets : null;
+  const out = {};
+  const ids = new Set([...Object.keys(local), ...Object.keys(remote)]);
+  for (const id of ids) {
+    const lp = local[id];
+    const rp = remote[id];
+    if (lp && rp) {
+      const lts = typeof lp.lastModified === 'number' ? lp.lastModified : 0;
+      const rts = typeof rp.lastModified === 'number' ? rp.lastModified : 0;
+      if (rts > lts) {
+        const adopted = applySecrets ? applySecrets({ [id]: rp })[id] : rp;
+        out[id] = ensureProfileV7(adopted);
+      } else {
+        out[id] = ensureProfileV7(lp);
+      }
+    } else if (lp) {
+      out[id] = ensureProfileV7(lp);
+    } else if (rp) {
+      const adopted = applySecrets ? applySecrets({ [id]: rp })[id] : rp;
+      out[id] = ensureProfileV7(adopted);
+    }
+  }
+  return out;
+}
+
 // ─── makeDefaultProfile ──────────────────────────────────────────────
 //
 // Phase 5 (Item E) — le champ legacy `devices` (pedale, anniversary,
@@ -218,6 +485,8 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
     aiProvider: 'gemini',
     aiKeys: { anthropic: '', gemini: '' },
     loginHistory: [],
+    // Phase 5.7 — last-write-wins per-profile.
+    lastModified: Date.now(),
   };
 }
 
@@ -433,22 +702,34 @@ function findSetlistDuplicatesByName(setlists) {
 }
 
 // ─── loadState / saveState ───────────────────────────────────────────
+//
+// Tous les paths passent par la chaîne complète v1→...→v7. Toutes les
+// migrations sont idempotentes ; les appliquer même quand
+// `version === STATE_VERSION` permet de heal d'éventuels profils
+// incomplets (Firestore stale, import JSON, …). Phase 5.7 ajoute une
+// passe `gcTombstones` finale (purge >30j) défensive.
+function _runFullChain(d) {
+  const v7 = migrateV6toV7(migrateV5toV6(migrateV4toV5(migrateV3toV4(d))));
+  if (v7 && v7.shared && v7.shared.deletedSetlistIds) {
+    v7.shared = { ...v7.shared, deletedSetlistIds: gcTombstones(v7.shared.deletedSetlistIds) };
+  }
+  return v7;
+}
+
 function loadState() {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
       const d = JSON.parse(raw);
-      // Même quand version === STATE_VERSION, on passe par les
-      // migrations idempotentes pour heal d'éventuels profils
-      // incomplets (Firestore stale).
-      if (d.version === STATE_VERSION) return migrateV5toV6(migrateV4toV5(migrateV3toV4(d)));
-      if (d.version === 5) return migrateV5toV6(migrateV4toV5(migrateV3toV4(d)));
-      if (d.version === 4) return migrateV5toV6(migrateV4toV5(migrateV3toV4(d)));
-      if (d.version === 3) return migrateV5toV6(migrateV4toV5(migrateV3toV4(d)));
-      if (d.version === 2) return migrateV5toV6(migrateV4toV5(migrateV3toV4(migrateV2toV3(d))));
+      if (d.version === STATE_VERSION) return _runFullChain(d);
+      if (d.version === 6) return _runFullChain(d);
+      if (d.version === 5) return _runFullChain(d);
+      if (d.version === 4) return _runFullChain(d);
+      if (d.version === 3) return _runFullChain(d);
+      if (d.version === 2) return _runFullChain(migrateV2toV3(d));
     }
     const v1raw = localStorage.getItem(LS_KEY_V1);
-    if (v1raw) return migrateV5toV6(migrateV4toV5(migrateV3toV4(migrateV2toV3(migrateV1toV2(JSON.parse(v1raw))))));
+    if (v1raw) return _runFullChain(migrateV2toV3(migrateV1toV2(JSON.parse(v1raw))));
   } catch (e) { /* ignore */ }
   return null;
 }
@@ -589,14 +870,17 @@ function getAllRigsGuitars(profiles, customGuitars, allStandardGuitars) {
 }
 
 export {
-  STATE_VERSION,
+  STATE_VERSION, TOMBSTONE_MAX_AGE_MS,
   LS_KEY, LS_KEY_V1, LS_SECRETS_KEY, LS_TRUSTED_KEY, LS_BACKUP_KEY, MAX_BACKUPS,
   mergeBanks, deriveEnabledDevices, getDevicesForRender,
   ensureProfileV3, ensureProfilesV3,
   ensureProfileV4, ensureProfilesV4,
   ensureProfileV6, ensureProfilesV6,
+  ensureSharedV7, ensureProfileV7, ensureProfilesV7,
+  gcTombstones,
+  mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
   makeDefaultProfile,
-  migrateV1toV2, migrateV2toV3, migrateV3toV4, migrateV4toV5, migrateV5toV6,
+  migrateV1toV2, migrateV2toV3, migrateV3toV4, migrateV4toV5, migrateV5toV6, migrateV6toV7,
   dedupSetlists, setlistDedupKey, findSetlistDuplicatesByName,
   loadState, saveState,
   autoBackup, listBackups, restoreBackup, clearBackups, isQuotaError,
