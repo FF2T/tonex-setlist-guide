@@ -3,7 +3,11 @@
 
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
-  STATE_VERSION, migrateV1toV2, migrateV2toV3, migrateV4toV5, migrateV5toV6,
+  STATE_VERSION, TOMBSTONE_MAX_AGE_MS,
+  migrateV1toV2, migrateV2toV3, migrateV4toV5, migrateV5toV6, migrateV6toV7,
+  ensureSharedV7, ensureProfileV7, ensureProfilesV7,
+  gcTombstones,
+  mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
   deriveEnabledDevices, makeDefaultProfile,
   getAllRigsGuitars,
   dedupSetlists, setlistDedupKey,
@@ -11,8 +15,8 @@ import {
 } from './state.js';
 
 describe('STATE_VERSION', () => {
-  test('vaut 6 en Phase 5 (drop profile.devices legacy)', () => {
-    expect(STATE_VERSION).toBe(6);
+  test('vaut 7 en Phase 5.7 (LWW + tombstones {[id]:ts})', () => {
+    expect(STATE_VERSION).toBe(7);
   });
 });
 
@@ -991,5 +995,290 @@ describe('findSetlistDuplicatesByName — Phase 5.4', () => {
     expect(groups).toHaveLength(2);
     const a = groups.find((g) => g.name === 'A');
     expect(a.items).toHaveLength(2);
+  });
+});
+
+// ─── Phase 5.7 — last-write-wins + tombstones {[id]:ts} ───────────────
+
+describe('ensureSharedV7 — Phase 5.7', () => {
+  test('convertit deletedSetlistIds array legacy en objet { [id]: ts }', () => {
+    const before = Date.now();
+    const out = ensureSharedV7({ deletedSetlistIds: ['sl1', 'sl2'] });
+    expect(typeof out.deletedSetlistIds).toBe('object');
+    expect(Array.isArray(out.deletedSetlistIds)).toBe(false);
+    expect(typeof out.deletedSetlistIds.sl1).toBe('number');
+    expect(typeof out.deletedSetlistIds.sl2).toBe('number');
+    // ts = Date.now() - 1000 — légèrement antérieur pour ne pas
+    // écraser une suppression remote concurrente.
+    expect(out.deletedSetlistIds.sl1).toBeLessThanOrEqual(before);
+    expect(out.deletedSetlistIds.sl1).toBeGreaterThan(before - 5000);
+  });
+
+  test('idempotent quand shape déjà v7', () => {
+    const ts = Date.now() - 5000;
+    const shared = {
+      lastModified: ts,
+      deletedSetlistIds: { sl1: ts },
+      setlists: [{ id: 'a', name: 'A', songIds: [], lastModified: ts }],
+    };
+    const out = ensureSharedV7(shared);
+    expect(out).toBe(shared); // même référence
+  });
+
+  test('stamp lastModified sur setlists qui n\'en ont pas', () => {
+    const before = Date.now();
+    const out = ensureSharedV7({
+      setlists: [
+        { id: 'a', name: 'A', songIds: [] },                                   // pas de lastModified
+        { id: 'b', name: 'B', songIds: [], lastModified: 12345 },              // déjà stampée
+      ],
+    });
+    expect(typeof out.setlists[0].lastModified).toBe('number');
+    expect(out.setlists[0].lastModified).toBeGreaterThanOrEqual(before);
+    expect(out.setlists[1].lastModified).toBe(12345); // préservée
+  });
+});
+
+describe('ensureProfileV7 — Phase 5.7', () => {
+  test('stamp lastModified si absent', () => {
+    const before = Date.now();
+    const out = ensureProfileV7({ id: 'u1', enabledDevices: ['tonex-pedal'] });
+    expect(typeof out.lastModified).toBe('number');
+    expect(out.lastModified).toBeGreaterThanOrEqual(before);
+  });
+
+  test('préserve lastModified existant', () => {
+    const out = ensureProfileV7({ id: 'u1', enabledDevices: ['tonex-pedal'], lastModified: 12345 });
+    expect(out.lastModified).toBe(12345);
+  });
+
+  test('chaîne le heal v6 (drop legacy devices)', () => {
+    const out = ensureProfileV7({
+      id: 'u1',
+      devices: { pedale: true, plug: true },
+      enabledDevices: ['tonex-pedal'],
+    });
+    expect(out.devices).toBeUndefined();
+    expect(out.enabledDevices).toEqual(['tonex-pedal']);
+    expect(typeof out.lastModified).toBe('number');
+  });
+});
+
+describe('gcTombstones — Phase 5.7', () => {
+  test('drop entries plus anciennes que 30 jours, garde les récentes', () => {
+    const now = Date.now();
+    const old = now - (31 * 24 * 3600 * 1000);
+    const recent = now - (5 * 24 * 3600 * 1000);
+    const out = gcTombstones({ sl_old: old, sl_recent: recent });
+    expect(out.sl_old).toBeUndefined();
+    expect(out.sl_recent).toBe(recent);
+  });
+
+  test('map vide / null / undefined → retour {}', () => {
+    expect(gcTombstones({})).toEqual({});
+    expect(gcTombstones(null)).toEqual({});
+    expect(gcTombstones(undefined)).toEqual({});
+  });
+
+  test('maxAgeMs custom respecté', () => {
+    const now = Date.now();
+    const out = gcTombstones({ a: now - 2000, b: now - 500 }, 1000);
+    expect(out.a).toBeUndefined();
+    expect(out.b).toBe(now - 500);
+  });
+});
+
+describe('mergeDeletedSetlistIds — Phase 5.7', () => {
+  test('union ; conflit → max(localTs, remoteTs)', () => {
+    const out = mergeDeletedSetlistIds(
+      { a: 100, b: 200, c: 500 },
+      { b: 300, c: 400, d: 600 },
+    );
+    expect(out).toEqual({ a: 100, b: 300, c: 500, d: 600 });
+  });
+
+  test('inputs falsy → {}', () => {
+    expect(mergeDeletedSetlistIds(null, null)).toEqual({});
+    expect(mergeDeletedSetlistIds({}, {})).toEqual({});
+    expect(mergeDeletedSetlistIds({ a: 1 }, null)).toEqual({ a: 1 });
+    expect(mergeDeletedSetlistIds(null, { b: 2 })).toEqual({ b: 2 });
+  });
+});
+
+describe('mergeSetlistsLWW — Phase 5.7 (le scénario du bug)', () => {
+  test('SCÉNARIO BUG : local 50 morceaux récents bat remote 120 morceaux anciens', () => {
+    const tLocal = Date.now();
+    const tRemote = tLocal - 30000; // remote 30s plus ancien
+    const local50 = { id: 'sl_main', name: 'Ma Setlist', songIds: Array.from({length:50}, (_,i)=>`s${i}`), lastModified: tLocal };
+    const remote120 = { id: 'sl_main', name: 'Ma Setlist', songIds: Array.from({length:120}, (_,i)=>`s${i}`), lastModified: tRemote };
+    const out = mergeSetlistsLWW([local50], [remote120], {});
+    expect(out).toHaveLength(1);
+    expect(out[0].songIds).toHaveLength(50); // local gagne, pas d'union à 120
+    expect(out[0]).toBe(local50);
+  });
+
+  test('remote plus récent → adopt remote', () => {
+    const t = Date.now();
+    const local = { id: 'a', name: 'X', songIds: [], lastModified: t - 1000 };
+    const remote = { id: 'a', name: 'Y', songIds: ['s1'], lastModified: t };
+    const out = mergeSetlistsLWW([local], [remote], {});
+    expect(out).toHaveLength(1);
+    expect(out[0]).toBe(remote);
+  });
+
+  test('égalité lastModified → keep local (idempotence)', () => {
+    const t = 12345;
+    const local = { id: 'a', name: 'X', songIds: [], lastModified: t };
+    const remote = { id: 'a', name: 'Y', songIds: ['s1'], lastModified: t };
+    const out = mergeSetlistsLWW([local], [remote], {});
+    expect(out[0]).toBe(local);
+  });
+
+  test('tombstone plus récent que la setlist remote → drop la setlist', () => {
+    const t = Date.now();
+    const remote = { id: 'a', name: 'X', songIds: ['s1'], lastModified: t - 5000 };
+    const out = mergeSetlistsLWW([], [remote], { a: t });
+    expect(out).toHaveLength(0);
+  });
+
+  test('local-only préservé, remote-only adopté', () => {
+    const t = Date.now();
+    const localOnly = { id: 'l1', name: 'L', songIds: [], lastModified: t };
+    const remoteOnly = { id: 'r1', name: 'R', songIds: [], lastModified: t };
+    const out = mergeSetlistsLWW([localOnly], [remoteOnly], {});
+    expect(out).toHaveLength(2);
+    expect(out.find(sl => sl.id === 'l1')).toBe(localOnly);
+    expect(out.find(sl => sl.id === 'r1')).toBe(remoteOnly);
+  });
+
+  test('lastModified absent → fallback 0 ; tombstone à 1 droppe les deux côtés', () => {
+    const local = { id: 'a', name: 'L', songIds: [] };  // pas de lastModified
+    const remote = { id: 'a', name: 'R', songIds: [] };
+    const out = mergeSetlistsLWW([local], [remote], { a: 1 });
+    expect(out).toHaveLength(0);
+  });
+});
+
+describe('mergeProfilesLWW — Phase 5.7', () => {
+  test('LWW per-profile + applySecrets sur remote adopté', () => {
+    const t = Date.now();
+    const localP = { sebastien: { id: 'sebastien', name: 'Seb local', enabledDevices: ['tonex-anniversary'], aiKeys: { gemini: 'LOCAL_KEY' }, lastModified: t - 1000 } };
+    const remoteP = { sebastien: { id: 'sebastien', name: 'Seb remote', enabledDevices: ['tonex-anniversary', 'tonex-plug'], aiKeys: { gemini: '' }, lastModified: t } };
+    const applySecrets = (profiles) => {
+      const out = {};
+      for (const [id, p] of Object.entries(profiles)) {
+        out[id] = { ...p, aiKeys: { gemini: 'LOCAL_KEY' } };
+      }
+      return out;
+    };
+    const out = mergeProfilesLWW(localP, remoteP, { applySecrets });
+    // Remote gagne (plus récent), mais secrets locaux réappliqués.
+    expect(out.sebastien.name).toBe('Seb remote');
+    expect(out.sebastien.enabledDevices).toEqual(['tonex-anniversary', 'tonex-plug']);
+    expect(out.sebastien.aiKeys.gemini).toBe('LOCAL_KEY');
+    expect(typeof out.sebastien.lastModified).toBe('number');
+  });
+
+  test('local-only et remote-only préservés', () => {
+    const localP = { u1: { id: 'u1', enabledDevices: [], lastModified: 1000 } };
+    const remoteP = { u2: { id: 'u2', enabledDevices: [], lastModified: 2000 } };
+    const out = mergeProfilesLWW(localP, remoteP, {});
+    expect(Object.keys(out).sort()).toEqual(['u1', 'u2']);
+  });
+});
+
+describe('migrateV6toV7 — Phase 5.7', () => {
+  test('convertit deletedSetlistIds array → objet', () => {
+    const v6 = {
+      version: 6,
+      shared: { setlists: [], deletedSetlistIds: ['sl_dead'] },
+      profiles: {},
+    };
+    const out = migrateV6toV7(v6);
+    expect(out.version).toBe(7);
+    expect(typeof out.shared.deletedSetlistIds).toBe('object');
+    expect(Array.isArray(out.shared.deletedSetlistIds)).toBe(false);
+    expect(typeof out.shared.deletedSetlistIds.sl_dead).toBe('number');
+  });
+
+  test('stamp lastModified sur setlists et profiles', () => {
+    const before = Date.now();
+    const v6 = {
+      version: 6,
+      shared: {
+        setlists: [{ id: 'a', name: 'A', songIds: [], profileIds: ['u1'] }],
+      },
+      profiles: {
+        u1: { id: 'u1', enabledDevices: ['tonex-pedal'] },
+      },
+    };
+    const out = migrateV6toV7(v6);
+    expect(out.shared.setlists[0].lastModified).toBeGreaterThanOrEqual(before);
+    expect(out.profiles.u1.lastModified).toBeGreaterThanOrEqual(before);
+  });
+
+  test('cleanup doublons (même name + profileIds) → losers tombstones + _migrationToast', () => {
+    const v6 = {
+      version: 6,
+      shared: {
+        setlists: [
+          { id: 'sl_a1', name: 'Cours Franck B', profileIds: ['sebastien'], songIds: ['s1', 's2'] },
+          { id: 'sl_a2', name: 'Cours Franck B', profileIds: ['sebastien'], songIds: ['s2', 's3', 's4'] },
+          { id: 'sl_b',  name: 'Unique', profileIds: ['sebastien'], songIds: ['s1'] },
+        ],
+      },
+      profiles: {},
+    };
+    const out = migrateV6toV7(v6);
+    // Le survivant est celui avec le plus de songs (sl_a2). sl_a1 tombstoné.
+    expect(out.shared.setlists).toHaveLength(2);
+    expect(out.shared.setlists.find(s => s.id === 'sl_a1')).toBeUndefined();
+    expect(out.shared.setlists.find(s => s.id === 'sl_a2')).toBeDefined();
+    // songIds fusionnés en union dédupliquée (préserve l'ordre du survivant).
+    const survivor = out.shared.setlists.find(s => s.id === 'sl_a2');
+    expect(survivor.songIds).toEqual(['s2', 's3', 's4', 's1']);
+    // Tombstone du loser.
+    expect(typeof out.shared.deletedSetlistIds.sl_a1).toBe('number');
+    // _migrationToast présent.
+    expect(out.shared._migrationToast).toBeDefined();
+    expect(out.shared._migrationToast.count).toBe(1);
+  });
+
+  test('pas de doublons → pas de _migrationToast', () => {
+    const v6 = {
+      version: 6,
+      shared: {
+        setlists: [
+          { id: 'a', name: 'A', profileIds: ['u1'], songIds: [] },
+          { id: 'b', name: 'B', profileIds: ['u1'], songIds: [] },
+        ],
+      },
+      profiles: {},
+    };
+    const out = migrateV6toV7(v6);
+    expect(out.shared._migrationToast).toBeUndefined();
+  });
+
+  test('idempotent sur un state déjà v7 sans doublons', () => {
+    const v7input = {
+      version: 7,
+      shared: {
+        lastModified: Date.now(),
+        deletedSetlistIds: {},
+        setlists: [{ id: 'a', name: 'A', profileIds: ['u1'], songIds: [], lastModified: Date.now() }],
+      },
+      profiles: { u1: { id: 'u1', enabledDevices: ['tonex-pedal'], lastModified: Date.now() } },
+    };
+    const out1 = migrateV6toV7(v7input);
+    const out2 = migrateV6toV7(out1);
+    expect(out2.shared.setlists.length).toBe(1);
+    expect(out2.shared._migrationToast).toBeUndefined();
+    expect(out2.version).toBe(7);
+  });
+});
+
+describe('TOMBSTONE_MAX_AGE_MS', () => {
+  test('vaut 30 jours en ms', () => {
+    expect(TOMBSTONE_MAX_AGE_MS).toBe(30 * 24 * 3600 * 1000);
   });
 });
