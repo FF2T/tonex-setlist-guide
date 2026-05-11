@@ -128,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v60';
+const CACHE='backline-v61';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.9.0";
+const APP_VERSION = "8.9.1";
 const ADMIN_PIN = "212402";
 
 
@@ -7053,7 +7053,7 @@ function App() {
   else if(screen==="exportimport") screenContent=<ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("settings")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/>;
   else if(screen==="profile") screenContent=<MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} onDeletedSetlistIds={setDeletedSetlistIds} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/>;
   else if(screen==="settings") screenContent=<ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} songDb={songDb} onSongDb={setSongDb} setlists={setlists} onSetlists={setSetlists}/>;
-  else if(screen==="setlists") screenContent=<SetlistsScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} activeProfileId={activeProfileId} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
+  else if(screen==="setlists") screenContent=<SetlistsScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
   else if(screen==="jam") screenContent=<div><Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Jammer"}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>🎲 Jammer</div><JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources} profile={profile}/></div>;
   else if(screen==="explore") screenContent=<div><Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Explorer"}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>🎛️ Explorer les presets</div><PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={profile.customPacks} guitars={allGuitars} toneNetPresets={toneNetPresets}/></div>;
   else if(screen==="optimizer") screenContent=<BankOptimizerScreen songDb={songDb} setlists={mySetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} allGuitars={allGuitars} availableSources={availableSources} onNavigate={setScreen} profile={profile}/>;
