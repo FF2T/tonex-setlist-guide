@@ -591,6 +591,110 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
+## État Phase 5.7.1 (strip aiCache du push Firestore, 2026-05-11, tag `phase-5.7.1-done`)
+
+1 commit `[phase-5.7.1]`. Suite 535 → 547 tests (+12). SW CACHE
+`backline-v56` → `backline-v57`. **Pas de changement de
+STATE_VERSION** (7 inchangé) — c'est une refacto de sérialisation,
+pas de schéma.
+
+**Problème confirmé** : état local 1037 KB (>1024 KB limite Firestore
+par document), songDb 1000 KB dont aiCache 986 KB (95% du state).
+Push Firestore renvoyait `400 Bad Request` systématique, `syncStatus`
+passait à `"error"` (icône ⚠️ dans le header), et les modifs
+iPhone/iPad ne remontaient plus au Mac et vice-versa.
+
+**Cause** : `saveToFirestore` (main.jsx:172) sérialisait
+`state.shared.songDb` avec `aiCache` complet pour chaque song
+(`cot_step2_guitars` × N guitares + `cot_step1` + `preset_ann/plug`,
+~7-8 KB/song en moyenne).
+
+### Solution — strip à la sérialisation, preserve au pull
+
+- **`stripAiCacheForSync(state)`** (state.js, pur) : retourne une
+  copie de `state` où chaque song dans `shared.songDb` a son
+  `aiCache` retiré. `localStorage` local reste intact. Appelé en
+  premier par `saveToFirestore`.
+- **`mergeSongDbPreservingLocalAiCache(local, remote)`** (state.js,
+  pur — remplace l'inline `mergeSongDb` de main.jsx, désormais
+  alias) :
+  - Common song : si `remote.aiCache.sv > local.aiCache.sv` →
+    adopt remote complet (cohabitation : un client v7 pré-5.7.1
+    pousse encore aiCache et son sv peut être plus récent). Sinon
+    → adopt `remote.*` mais réinjecte `local.aiCache`.
+  - Remote-only → adopté sans aiCache (sera recalculé au prochain
+    fetchAI).
+  - Local-only → préservé avec aiCache.
+  - Dedup by title+artist normalisé : même policy (max aiCache.sv).
+
+### Robustesse `saveToFirestore` (Phase 5.7.1)
+
+- Sanity check de taille avant envoi :
+  - ≥ 1 000 000 octets → `console.error` + `Promise.reject` (refus
+    de push pour éviter un 400 prévisible).
+  - ≥ 800 KB → `console.warn` (proche limite).
+- HTTP fail → `console.error` détaillé (status + taille payload).
+- `.catch` final qui re-throw pour que le `setSyncStatus("error")`
+  côté caller s'allume.
+
+### Push initial inconditionnel (one-shot post-load)
+
+L'effect `loadFromFirestore` (initial load) déclenchait
+auparavant un push UNIQUEMENT si `mergedSongs.length > remoteSongs.length`
+ou similaire. Phase 5.7.1 rend ce push inconditionnel : même si le
+state local matche exactement remote, on push la version light
+pour overwrite le payload Firestore stale (qui contient encore les
+aiCache de la dernière fois où le push a fonctionné). Sans ça, un
+state local idempotent ne se déclenchait pas de persist effect et
+Firestore restait coincé à >1 MB.
+
+### Tests (12 nouveaux dans `state.test.js`)
+
+- `stripAiCacheForSync` (5) : strip, immutabilité, songDb absent,
+  song sans aiCache, réduction taille ≥10× sur 100 songs simulés.
+- `mergeSongDbPreservingLocalAiCache` (7) :
+  - **Scénario principal** : remote stripped avec titre updated +
+    local aiCache → out a remote.title ET local.aiCache.
+  - Remote-only sans aiCache → adopté tel quel.
+  - Local-only avec aiCache → preserved.
+  - Cohabitation : remote aiCache.sv > local → adopt remote.
+  - Remote aiCache.sv < local → local préservé.
+  - Dedup by title+artist : aiCache preserved au survivant + remap id.
+  - Inputs falsy → retourne l'autre.
+
+### Test manuel post-déploiement
+
+1. Au reload : icône sync passe en ☁️ vert dans les 5s.
+2. Ajouter un morceau sur Mac → reload iPhone après 10s → morceau
+   apparaît.
+3. Aucune perte de aiCache local sur Mac après le merge
+   (les morceaux gardent leurs scores et IA cachée).
+4. Vérifier `JSON.stringify(state)` en console : `aiCache` toujours
+   présent côté local (preservé pour `localStorage`).
+
+### Pourquoi pas de migration de schéma
+
+Le state local localStorage continue de stocker les aiCache comme
+avant. C'est uniquement la sérialisation pour Firestore qui les
+exclut. Donc :
+- Pas de bump `STATE_VERSION` (reste à 7).
+- Pas de migration `migrateV7toV8`.
+- Pas de toast utilisateur.
+- Le push initial inconditionnel se charge de refresh Firestore.
+
+### Dette résiduelle
+
+- Si un client pré-5.7.1 reste actif dans la nature, il continuera
+  à pousser des payloads avec aiCache. Au prochain push 5.7.1, le
+  state Firestore redevient light. Pas de cumul possible (Firestore
+  doc remplace, n'ajoute pas).
+- L'aiCache est désormais reconstruit local-only après une
+  installation sur un nouveau device (pas re-poussé via Firestore).
+  Le premier fetchAI sur chaque morceau reconstruit le cache, ce
+  qui peut consommer du quota OpenAI/Anthropic. Acceptable : c'est
+  le mode de fonctionnement attendu de l'app (cache opportuniste
+  per-device).
+
 ## État Phase 5.7 (sync Firestore LWW + tombstones, 2026-05-11, tag `phase-5.7-done`)
 
 1 commit `[phase-5.7]`. Suite 510 → 535 tests (+25). SW CACHE

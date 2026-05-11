@@ -8,6 +8,7 @@ import {
   ensureSharedV7, ensureProfileV7, ensureProfilesV7,
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
+  stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   deriveEnabledDevices, makeDefaultProfile,
   getAllRigsGuitars,
   dedupSetlists, setlistDedupKey,
@@ -1280,5 +1281,143 @@ describe('migrateV6toV7 — Phase 5.7', () => {
 describe('TOMBSTONE_MAX_AGE_MS', () => {
   test('vaut 30 jours en ms', () => {
     expect(TOMBSTONE_MAX_AGE_MS).toBe(30 * 24 * 3600 * 1000);
+  });
+});
+
+// ─── Phase 5.7.1 — strip aiCache du push Firestore ──────────────────
+
+describe('stripAiCacheForSync — Phase 5.7.1', () => {
+  test('strip aiCache de chaque song dans shared.songDb', () => {
+    const state = {
+      shared: {
+        songDb: [
+          { id: 's1', title: 'A', artist: 'X', aiCache: { sv: 9, result: { foo: 'bar' } } },
+          { id: 's2', title: 'B', artist: 'Y', aiCache: { sv: 9, result: { bar: 'baz' } } },
+        ],
+      },
+      profiles: {},
+    };
+    const out = stripAiCacheForSync(state);
+    expect(out.shared.songDb).toHaveLength(2);
+    expect('aiCache' in out.shared.songDb[0]).toBe(false);
+    expect('aiCache' in out.shared.songDb[1]).toBe(false);
+    expect(out.shared.songDb[0].title).toBe('A');
+    expect(out.shared.songDb[1].artist).toBe('Y');
+  });
+
+  test('input non muté (state local localStorage préservé)', () => {
+    const song = { id: 's1', title: 'A', aiCache: { sv: 9 } };
+    const state = { shared: { songDb: [song] }, profiles: {} };
+    const out = stripAiCacheForSync(state);
+    expect(song.aiCache).toBeDefined();
+    expect(out).not.toBe(state);
+    expect(out.shared).not.toBe(state.shared);
+    expect(out.shared.songDb).not.toBe(state.shared.songDb);
+  });
+
+  test('shared.songDb absent → état retourné inchangé', () => {
+    const state = { shared: { setlists: [] }, profiles: {} };
+    expect(stripAiCacheForSync(state)).toBe(state);
+  });
+
+  test('song sans aiCache → preserved tel quel', () => {
+    const state = { shared: { songDb: [{ id: 's1', title: 'A' }] }, profiles: {} };
+    const out = stripAiCacheForSync(state);
+    expect(out.shared.songDb[0]).toEqual({ id: 's1', title: 'A' });
+  });
+
+  test('réduit drastiquement la taille JSON (cas réel ~7 KB par aiCache)', () => {
+    // Simule 100 morceaux avec aiCache moyen ~7 KB
+    const big = Array.from({ length: 100 }, (_, i) => ({
+      id: `s${i}`,
+      title: `Title ${i}`,
+      artist: 'Artist',
+      aiCache: {
+        sv: 9,
+        gId: 'g1',
+        result: {
+          cot_step1: 'x'.repeat(2000),
+          cot_step2_guitars: { g1: 'y'.repeat(2000), g2: 'z'.repeat(2000) },
+          preset_ann: 'a'.repeat(500),
+          preset_plug: 'b'.repeat(500),
+        },
+      },
+    }));
+    const state = { shared: { songDb: big }, profiles: {} };
+    const heavy = JSON.stringify(state).length;
+    const light = JSON.stringify(stripAiCacheForSync(state)).length;
+    expect(light).toBeLessThan(heavy / 10); // ≥10× réduction
+  });
+});
+
+describe('mergeSongDbPreservingLocalAiCache — Phase 5.7.1', () => {
+  test('SCÉNARIO PRINCIPAL — common song : adopt remote.* mais réinjecte local.aiCache', () => {
+    const local = [
+      { id: 's1', title: 'Old Title', artist: 'X', aiCache: { sv: 9, result: { foo: 'LOCAL_CACHE' } } },
+    ];
+    const remote = [
+      // Remote a été stripped (pas d'aiCache) mais a un titre mis à jour.
+      { id: 's1', title: 'New Title', artist: 'X' },
+    ];
+    const out = mergeSongDbPreservingLocalAiCache(local, remote);
+    expect(out).toHaveLength(1);
+    expect(out[0].title).toBe('New Title');       // remote field adopted
+    expect(out[0].aiCache.result.foo).toBe('LOCAL_CACHE'); // local aiCache preserved
+  });
+
+  test('remote-only song sans aiCache → adopté tel quel', () => {
+    const local = [{ id: 'l1', title: 'Local', aiCache: { sv: 9 } }];
+    const remote = [{ id: 'r1', title: 'Remote' }];
+    const out = mergeSongDbPreservingLocalAiCache(local, remote);
+    expect(out).toHaveLength(2);
+    const r = out.find((s) => s.id === 'r1');
+    expect(r.title).toBe('Remote');
+    expect(r.aiCache).toBeUndefined();
+  });
+
+  test('local-only song avec aiCache → preserved', () => {
+    const local = [{ id: 'l1', title: 'Local', aiCache: { sv: 9, result: { foo: 'X' } } }];
+    const remote = [];
+    const out = mergeSongDbPreservingLocalAiCache(local, remote);
+    expect(out).toHaveLength(1);
+    expect(out[0].aiCache.result.foo).toBe('X');
+  });
+
+  test('cohabitation : remote a un aiCache plus récent (sv supérieur) → adopté complet', () => {
+    const local = [{ id: 's1', title: 'A', aiCache: { sv: 8, result: { foo: 'OLD' } } }];
+    const remote = [{ id: 's1', title: 'A', aiCache: { sv: 9, result: { foo: 'NEW' } } }];
+    const out = mergeSongDbPreservingLocalAiCache(local, remote);
+    expect(out[0].aiCache.sv).toBe(9);
+    expect(out[0].aiCache.result.foo).toBe('NEW');
+  });
+
+  test('remote arrive avec aiCache plus ancien → local préservé', () => {
+    const local = [{ id: 's1', title: 'A', aiCache: { sv: 9, result: { foo: 'NEW' } } }];
+    const remote = [{ id: 's1', title: 'A', aiCache: { sv: 8, result: { foo: 'OLD' } } }];
+    const out = mergeSongDbPreservingLocalAiCache(local, remote);
+    expect(out[0].aiCache.sv).toBe(9);
+    expect(out[0].aiCache.result.foo).toBe('NEW');
+  });
+
+  test('dedup by title+artist : remote stripped + local aiCache → pas de perte', () => {
+    const local = [
+      { id: 'local_uid', title: 'Hotel California', artist: 'Eagles', aiCache: { sv: 9, result: { foo: 'KEEP' } } },
+    ];
+    const remote = [
+      // Même song ajoutée sur un autre device avec un id différent, sans aiCache.
+      { id: 'remote_uid', title: 'Hotel California', artist: 'Eagles' },
+    ];
+    const out = mergeSongDbPreservingLocalAiCache(local, remote);
+    expect(out).toHaveLength(1);
+    // Le survivant dedup garde celui avec aiCache (local). Pas de perte du cache.
+    expect(out[0].aiCache.result.foo).toBe('KEEP');
+    // _idRemap propage le remote_uid → local_uid (utilisé pour remapper les setlists).
+    expect(out._idRemap.remote_uid).toBe(out[0].id);
+  });
+
+  test('input local ou remote falsy → retourne l\'autre', () => {
+    const data = [{ id: 's1', title: 'A' }];
+    expect(mergeSongDbPreservingLocalAiCache(null, data)).toBe(data);
+    expect(mergeSongDbPreservingLocalAiCache(data, null)).toBe(data);
   });
 });
