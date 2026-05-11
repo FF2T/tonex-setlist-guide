@@ -10,6 +10,7 @@ import {
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,
+  toggleSetlistProfile,
   deriveEnabledDevices, makeDefaultProfile,
   getAllRigsGuitars,
   dedupSetlists, dedupSetlistsWithTombstones, setlistDedupKey,
@@ -1660,5 +1661,63 @@ describe('dedupSetlistsWithTombstones — Phase 5.7.3', () => {
     // actually first has more songs so it wins. Loser is sl_keep (id present), tombstone exists.
     // OR first has no id → if loser, no tombstone.
     expect(Object.keys(res.tombstones).length).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('toggleSetlistProfile — Phase 5.8', () => {
+  test('ajoute profileId absent → newIds avec le profileId, lastModified stampé', () => {
+    const sl = { id: 'sl1', name: 'A', profileIds: ['sebastien'], songIds: [] };
+    const before = Date.now();
+    const out = toggleSetlistProfile(sl, 'arthur', 'sebastien');
+    const after = Date.now();
+    expect(out).not.toBe(sl); // nouvelle référence
+    expect(out.profileIds).toEqual(['sebastien', 'arthur']);
+    expect(out.lastModified).toBeGreaterThanOrEqual(before);
+    expect(out.lastModified).toBeLessThanOrEqual(after);
+  });
+
+  test('retire profileId présent → newIds sans le profileId', () => {
+    const sl = { id: 'sl1', name: 'A', profileIds: ['sebastien', 'arthur'], songIds: [] };
+    const out = toggleSetlistProfile(sl, 'arthur', 'sebastien');
+    expect(out.profileIds).toEqual(['sebastien']);
+  });
+
+  test('garde-fou : retirer activeProfileId → retourne le setlist intact (même référence)', () => {
+    const sl = { id: 'sl1', name: 'A', profileIds: ['sebastien', 'arthur'], songIds: [] };
+    const out = toggleSetlistProfile(sl, 'sebastien', 'sebastien');
+    expect(out).toBe(sl); // même référence — pas de modif
+  });
+
+  test('vider toute la liste → activeProfileId réinjecté automatiquement', () => {
+    // Cas dégénéré : profileIds=['arthur'] et on retire 'arthur' alors qu'on
+    // est 'sebastien' (donc pas le garde-fou direct). La liste devient vide,
+    // on force activeProfileId à rester.
+    const sl = { id: 'sl1', name: 'A', profileIds: ['arthur'], songIds: [] };
+    const out = toggleSetlistProfile(sl, 'arthur', 'sebastien');
+    expect(out.profileIds).toEqual(['sebastien']);
+  });
+
+  test('setlist null → retourne null', () => {
+    expect(toggleSetlistProfile(null, 'arthur', 'sebastien')).toBeNull();
+  });
+
+  test('profileId vide → no-op', () => {
+    const sl = { id: 'sl1', name: 'A', profileIds: ['sebastien'], songIds: [] };
+    expect(toggleSetlistProfile(sl, '', 'sebastien')).toBe(sl);
+    expect(toggleSetlistProfile(sl, null, 'sebastien')).toBe(sl);
+  });
+
+  test('profileIds inexistant sur la setlist → défensive', () => {
+    const sl = { id: 'sl1', name: 'A', songIds: [] }; // pas de profileIds
+    const out = toggleSetlistProfile(sl, 'arthur', 'sebastien');
+    expect(out.profileIds).toEqual(['arthur']);
+  });
+
+  test('chaining toggle add+remove same profile → idempotent', () => {
+    const sl = { id: 'sl1', name: 'A', profileIds: ['sebastien'], songIds: [] };
+    const added = toggleSetlistProfile(sl, 'arthur', 'sebastien');
+    expect(added.profileIds).toEqual(['sebastien', 'arthur']);
+    const removed = toggleSetlistProfile(added, 'arthur', 'sebastien');
+    expect(removed.profileIds).toEqual(['sebastien']);
   });
 });

@@ -66,6 +66,7 @@ import {
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,
+  toggleSetlistProfile,
   getDevicesForRender,
   loadState, saveState,
   autoBackup, listBackups, restoreBackup, clearBackups,
@@ -127,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v59';
+const CACHE='backline-v60';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -551,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.8.3";
+const APP_VERSION = "8.9.0";
 const ADMIN_PIN = "212402";
 
 
@@ -3428,7 +3429,7 @@ function InlineRenameInput({initialName,onSave,onCancel,inp,placeholder,buttonLa
   </div>;
 }
 
-function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,banksAnn,onBanksAnn,banksPlug,onBanksPlug,aiProvider,aiKeys,hideHeader=false,allGuitars,allRigsGuitars,availableSources,activeProfileId,profile,onTmpPatchOverride,onLive}) {
+function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,banksAnn,onBanksAnn,banksPlug,onBanksPlug,aiProvider,aiKeys,hideHeader=false,allGuitars,allRigsGuitars,availableSources,activeProfileId,profiles,profile,onTmpPatchOverride,onLive}) {
   const [activeSlId,setActiveSlId]=useState(setlists[0]?.id||null);
   const activeSl=activeSlId?setlists.find(s=>s.id===activeSlId):null;
   const [showAdd,setShowAdd]=useState(false);
@@ -3638,7 +3639,8 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
       </div>
       {editingSetlists&&<div style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:"var(--r-md)",padding:10,marginBottom:8}}>
         {setlists.map(sl=>(
-          <div key={sl.id} style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+          <div key={sl.id} style={{display:"flex",flexDirection:"column",gap:4,marginBottom:8}}>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
             {editSlId===sl.id?<InlineRenameInput initialName={sl.name} onSave={name=>renameSetlist(sl.id,name)} onCancel={()=>setEditSlId(null)} inp={inp}/>:(<>
               <span style={{flex:1,fontSize:12,fontWeight:600,color:"var(--text)"}}>{sl.name} <span style={{color:"var(--text-dim)",fontWeight:400}}>({sl.songIds.length})</span></span>
               {/* Phase 5 (Item K) — export PDF par setlist. */}
@@ -3665,6 +3667,46 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
               >🧹</button>}
               {setlists.length>1&&<button onClick={()=>deleteSetlist(sl.id)} style={{background:"none",border:"none",color:"var(--red)",fontSize:11,cursor:"pointer"}}>🗑</button>}
             </>)}
+          </div>
+          {/* Phase 5.8 — Partage multi-profils. Visible quand il existe au
+              moins 2 profils ET qu'on n'est pas en train de renommer. Le
+              profil actif est en lock (vert non-cliquable) : on peut pas
+              se virer soi-même d'une setlist. */}
+          {profiles&&Object.keys(profiles).length>1&&editSlId!==sl.id&&(()=>{
+            const slProfileIds=Array.isArray(sl.profileIds)?sl.profileIds:[];
+            const profileEntries=Object.values(profiles);
+            return <div data-testid={`setlist-share-${sl.id}`} style={{display:"flex",alignItems:"center",gap:4,paddingLeft:4,flexWrap:"wrap"}}>
+              <span style={{fontSize:9,color:"var(--text-dim)",fontWeight:600,textTransform:"uppercase",letterSpacing:0.5}}>Partager :</span>
+              {profileEntries.map(pf=>{
+                const isMe=pf.id===activeProfileId;
+                const checked=slProfileIds.includes(pf.id);
+                const onClick=()=>{
+                  if(isMe) return; // garde-fou
+                  onSetlists(p=>p.map(s=>s.id===sl.id?toggleSetlistProfile(s,pf.id,activeProfileId):s));
+                };
+                return <button
+                  key={pf.id}
+                  data-testid={`setlist-share-pill-${sl.id}-${pf.id}`}
+                  onClick={onClick}
+                  disabled={isMe}
+                  title={isMe?"Toi (verrouillé)":(checked?"Cliquer pour retirer":"Cliquer pour partager")}
+                  style={{
+                    background:checked?(isMe?"var(--accent-soft)":"var(--accent-bg)"):"var(--a4)",
+                    border:`1px solid ${checked?"var(--accent-border)":"var(--a8)"}`,
+                    color:checked?"var(--accent)":"var(--text-dim)",
+                    borderRadius:"var(--r-sm)",
+                    padding:"2px 6px",
+                    fontSize:9,
+                    fontWeight:checked?700:500,
+                    cursor:isMe?"default":"pointer",
+                    opacity:isMe?0.85:1,
+                  }}
+                >
+                  {checked?"✓ ":""}{pf.name||pf.id}{isMe?" 🔒":""}
+                </button>;
+              })}
+            </div>;
+          })()}
           </div>
         ))}
         <InlineRenameInput initialName="" onSave={name=>{onSetlists(p=>[...p,{id:`sl_${Date.now()}`,name,songIds:[],profileIds:[activeProfileId]}]);}} onCancel={()=>{}} inp={inp} placeholder="Nouvelle setlist..." buttonLabel="+ Creer"/>
@@ -5578,7 +5620,7 @@ function JamScreen({banksAnn,banksPlug,allGuitars,availableSources,profile}){
 }
 
 // ─── SetlistsScreen (onglets Setlists + Morceaux) ────────────────────────────
-function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onNavigate,banksAnn,onBanksAnn,banksPlug,onBanksPlug,aiProvider,aiKeys,allGuitars,allRigsGuitars,availableSources,activeProfileId,profile,onTmpPatchOverride,onLive}){
+function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onNavigate,banksAnn,onBanksAnn,banksPlug,onBanksPlug,aiProvider,aiKeys,allGuitars,allRigsGuitars,availableSources,activeProfileId,profiles,profile,onTmpPatchOverride,onLive}){
   const [tab,setTab]=useState("setlists");
   const tabBtn=(id,label)=>(
     <button onClick={()=>setTab(id)} style={{background:tab===id?"var(--accent-bg)":"var(--a5)",border:tab===id?"1px solid var(--accent-border)":"1px solid var(--a8)",color:tab===id?"var(--accent)":"var(--text-sec)",borderRadius:"var(--r-md)",padding:"7px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{label}</button>
@@ -5632,7 +5674,7 @@ function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked
         {tabBtn("setlists","Setlists")}
         {tabBtn("songs","Morceaux")}
       </div>
-      {tab==="setlists"&&<ListScreen songDb={songDb} onSongDb={onSongDb} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} activeProfileId={activeProfileId} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={onLive}/>}
+      {tab==="setlists"&&<ListScreen songDb={songDb} onSongDb={onSongDb} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={onLive}/>}
       {tab==="songs"&&<div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
           <div style={{fontSize:13,color:"var(--text-sec)"}}>{songDb.length} morceaux</div>

@@ -989,6 +989,31 @@ function setTrusted(id, v) {
 // identifiée par son id canonique. Si un profil a édité localement le
 // nom d'une guitare standard, c'est l'objet brut de GUITARS qui sera
 // envoyé au prompt (pas la version éditée). Acceptable Phase 3.6.
+// Phase 5.8 — Toggle d'un profileId dans une setlist (partage multi-profils).
+// Le profil actif ne peut JAMAIS être retiré (garde-fou : sinon l'utilisateur
+// se ferait disparaître la setlist sous les yeux). Si retirer le dernier
+// profileId rendrait la setlist orpheline, on force activeProfileId à rester.
+//
+// Retourne un nouveau setlist (immutable) avec lastModified stamped pour le
+// LWW Firestore. Si pas de modif (toggle bloqué par garde-fou), retourne le
+// setlist d'origine intact (référence préservée).
+function toggleSetlistProfile(setlist, profileId, activeProfileId) {
+  if (!setlist || !profileId) return setlist;
+  const currentIds = Array.isArray(setlist.profileIds) ? [...setlist.profileIds] : [];
+  const has = currentIds.includes(profileId);
+  // Garde-fou : interdire le retrait de soi-même
+  if (has && profileId === activeProfileId) return setlist;
+  let newIds;
+  if (has) {
+    newIds = currentIds.filter((id) => id !== profileId);
+    // Assure que activeProfileId reste dans la liste si on l'a vidée
+    if (newIds.length === 0 && activeProfileId) newIds.push(activeProfileId);
+  } else {
+    newIds = [...currentIds, profileId];
+  }
+  return { ...setlist, profileIds: newIds, lastModified: Date.now() };
+}
+
 // Phase 5.7.2 — Helpers purs pour la migration Newzik (one-shot import des
 // setlists "Cours Franck B" / "Arthur & Seb" / merge "Nouvelle setlist" →
 // "Ma Setlist"). Extraits pour permettre des tests régression sans monter
@@ -1052,6 +1077,7 @@ export {
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,
+  toggleSetlistProfile,
   makeDefaultProfile,
   migrateV1toV2, migrateV2toV3, migrateV3toV4, migrateV4toV5, migrateV5toV6, migrateV6toV7,
   dedupSetlists, dedupSetlistsWithTombstones, setlistDedupKey, findSetlistDuplicatesByName,
