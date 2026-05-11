@@ -458,6 +458,99 @@ function mergeProfilesLWW(localProfiles, remoteProfiles, options = {}) {
   return out;
 }
 
+// ─── Phase 5.7.1 — strip aiCache du push Firestore ────────────────────
+//
+// Problème : l'état local atteint ~1037 KB avec 129 morceaux × aiCache
+// complets (cot_step2_guitars, cot_step1, preset_ann, preset_plug, …),
+// soit ~7-8 KB par song en moyenne. Le push Firestore renvoie alors
+// 400 Bad Request (limite document Firestore = 1 MiB = 1 048 576 octets).
+// Solution : strip aiCache à la sérialisation pour Firestore, préserver
+// aiCache local au pull.
+
+// Retourne une COPIE de `state` où chaque song dans shared.songDb a
+// son aiCache retiré. Le state local (localStorage) reste intact.
+// Pure : ne mute pas l'input. Si shared.songDb absent → retourne
+// l'input tel quel.
+function stripAiCacheForSync(state) {
+  if (!state || typeof state !== 'object') return state;
+  const shared = state.shared;
+  if (!shared || !Array.isArray(shared.songDb)) return state;
+  const lightSongs = shared.songDb.map((s) => {
+    if (!s || typeof s !== 'object') return s;
+    if (!('aiCache' in s)) return s;
+    const { aiCache, ...rest } = s;
+    return rest;
+  });
+  return { ...state, shared: { ...shared, songDb: lightSongs } };
+}
+
+// Merge songDb avec préservation explicite de aiCache local (Phase 5.7.1).
+// - Si song présent local ET remote :
+//     - Si remote.aiCache existe ET remote.aiCache.sv > local.aiCache.sv
+//       (ou local sans aiCache) → adopt remote complet. Couvre la
+//       cohabitation pendant le rollout : un client v7 (pré-5.7.1) qui
+//       pousse encore aiCache continue de propager une mise à jour
+//       d'aiCache plus récente.
+//     - Sinon → adopt remote.* mais réinjecte local.aiCache. Ce cas
+//       couvre Phase 5.7.1 (remote stripped) ET les updates de
+//       title/artist/ig/bpm/key faits sur un autre device.
+// - Si local-only → garde local (avec aiCache).
+// - Si remote-only → adopt remote (sans aiCache, sera recalculé au
+//   prochain fetchAI).
+// Puis dedup by title+artist normalisé (même song ajoutée sur 2 devices
+// avec des ids distincts) ; renvoie un `_idRemap` non-énumérable sur le
+// tableau retour pour que les call sites puissent remapper les songIds
+// dans les setlists.
+function mergeSongDbPreservingLocalAiCache(local, remote) {
+  if (!remote) return local;
+  if (!local) return remote;
+  const map = new Map(local.map((s) => [s.id, s]));
+  for (const rs of remote) {
+    if (!rs || !rs.id) continue;
+    const existing = map.get(rs.id);
+    if (!existing) {
+      map.set(rs.id, rs); // remote-only
+      continue;
+    }
+    const rsv = rs.aiCache && typeof rs.aiCache.sv === 'number' ? rs.aiCache.sv : 0;
+    const lsv = existing.aiCache && typeof existing.aiCache.sv === 'number' ? existing.aiCache.sv : 0;
+    if (rs.aiCache && (!existing.aiCache || rsv > lsv)) {
+      // Remote a un aiCache strictement plus récent (cohabitation pré-5.7.1).
+      map.set(rs.id, rs);
+    } else {
+      // Cas Phase 5.7.1 par défaut : adopt remote.* mais réinjecte
+      // local.aiCache pour ne pas perdre le cache calculé localement.
+      if (existing.aiCache !== undefined) {
+        map.set(rs.id, { ...rs, aiCache: existing.aiCache });
+      } else {
+        map.set(rs.id, rs);
+      }
+    }
+  }
+  // Dedup by title+artist normalisé (Phase 2 helper). Même policy :
+  // si conflit, garde la version au plus grand aiCache.sv (ou la 1ère
+  // si égalité).
+  const normStr = (x) => (x || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+  const byKey = new Map();
+  const idRemap = {};
+  for (const s of map.values()) {
+    const key = `${normStr(s.title)}|||${normStr(s.artist)}`;
+    const prev = byKey.get(key);
+    if (!prev) { byKey.set(key, s); continue; }
+    const psv = prev.aiCache && typeof prev.aiCache.sv === 'number' ? prev.aiCache.sv : 0;
+    const ssv = s.aiCache && typeof s.aiCache.sv === 'number' ? s.aiCache.sv : 0;
+    if (s.aiCache && (!prev.aiCache || ssv > psv)) {
+      idRemap[prev.id] = s.id;
+      byKey.set(key, s);
+    } else {
+      idRemap[s.id] = prev.id;
+    }
+  }
+  const result = [...byKey.values()];
+  result._idRemap = idRemap;
+  return result;
+}
+
 // ─── makeDefaultProfile ──────────────────────────────────────────────
 //
 // Phase 5 (Item E) — le champ legacy `devices` (pedale, anniversary,
@@ -879,6 +972,7 @@ export {
   ensureSharedV7, ensureProfileV7, ensureProfilesV7,
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
+  stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   makeDefaultProfile,
   migrateV1toV2, migrateV2toV3, migrateV3toV4, migrateV4toV5, migrateV5toV6, migrateV6toV7,
   dedupSetlists, setlistDedupKey, findSetlistDuplicatesByName,

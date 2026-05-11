@@ -64,6 +64,7 @@ import {
   ensureSharedV7, ensureProfileV7, ensureProfilesV7,
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
+  stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   getDevicesForRender,
   loadState, saveState,
   autoBackup, listBackups, restoreBackup, clearBackups,
@@ -120,9 +121,12 @@ let DEFAULT_GEMINI_KEY = "";
 //     Phase 5.7 : v55 → v56. State v7 (last-write-wins + tombstones
 //     {[id]:ts}) ; force la prise en charge du nouveau merge dès la
 //     prochaine ouverture.
+//     Phase 5.7.1 : v56 → v57. Strip aiCache du push Firestore
+//     (état >1 MB renvoyait 400). Force la nouvelle sérialisation
+//     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v56';
+const CACHE='backline-v57';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -173,8 +177,12 @@ var FS_KEY="AIzaSyAnaJMN-a47S9W_cTC60lKAnzRMAgHNMAA";
 var _lastSavedSyncId=null;
 var _lastRemoteSyncId=null;
 
+// Phase 5.7.1 — strip aiCache du payload Firestore pour rester sous la
+// limite document 1 MiB. Le state local (localStorage) conserve les
+// aiCache ; uniquement la sérialisation Firestore les exclut.
 function saveToFirestore(s){
-  var clean=JSON.parse(JSON.stringify(s));
+  var light=stripAiCacheForSync(s);
+  var clean=JSON.parse(JSON.stringify(light));
   // Phase 5.7 : timestamp arrive depuis le caller via state.shared.lastModified.
   // Fallback Date.now() si jamais shared.lastModified manque (legacy save).
   var ts=(clean.shared&&typeof clean.shared.lastModified==="number")?clean.shared.lastModified:Date.now();
@@ -182,9 +190,31 @@ function saveToFirestore(s){
   _lastSavedSyncId=sid;
   clean.syncId=sid;
   if(clean.profiles){for(var pid in clean.profiles){if(clean.profiles[pid].aiKeys)clean.profiles[pid].aiKeys={anthropic:"",gemini:""};}}
-  var body={fields:{data:{stringValue:JSON.stringify(clean)},syncId:{stringValue:sid},ts:{integerValue:String(ts)}}};
+  var payload=JSON.stringify(clean);
+  // Phase 5.7.1 — sanity check. Firestore document limit = 1 MiB.
+  // On warning à 800 KB (payload JSON-encoded), on log error et on
+  // refuse de push si ≥ 1 000 000 octets pour éviter un 400 prévisible.
+  var sz=payload.length;
+  if(sz>=1000000){
+    console.error("[firestore] Payload "+(sz/1024).toFixed(0)+" KB ≥ 1 MB — push aborted (would 400). songs="+(clean.shared&&clean.shared.songDb?clean.shared.songDb.length:0));
+    return Promise.reject(new Error("Payload too large: "+sz+" bytes"));
+  }
+  if(sz>800*1024){
+    console.warn("[firestore] Payload "+(sz/1024).toFixed(0)+" KB approche la limite 1 MB.");
+  }
+  var body={fields:{data:{stringValue:payload},syncId:{stringValue:sid},ts:{integerValue:String(ts)}}};
   return fetch(FS_BASE+"/sync/state?key="+FS_KEY,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
-    .then(function(r){if(!r.ok)throw new Error("Firestore save: "+r.status);return r.json();});
+    .then(function(r){
+      if(!r.ok){
+        console.error("[firestore] Save failed: HTTP "+r.status+" (payload "+(sz/1024).toFixed(0)+" KB).");
+        throw new Error("Firestore save: "+r.status);
+      }
+      return r.json();
+    })
+    .catch(function(e){
+      console.error("[firestore] Save error:",e);
+      throw e;
+    });
 }
 
 function loadFromFirestore(){
@@ -6649,39 +6679,12 @@ function App() {
     saveSecrets(secrets);
   },[profiles]);
 
-  // Merge songDb: union by id (never lose songs)
-  const mergeSongDb=(local,remote)=>{
-    if(!remote)return local;
-    if(!local)return remote;
-    var map=new Map(local.map(s=>[s.id,s]));
-    remote.forEach(function(s){
-      var existing=map.get(s.id);
-      if(!existing){map.set(s.id,s);}
-      else{
-        if(s.aiCache&&(!existing.aiCache||s.aiCache.sv>(existing.aiCache.sv||0))){map.set(s.id,s);}
-      }
-    });
-    // Dedup by title+artist (same song added on different devices with different IDs)
-    var byKey=new Map();
-    var idRemap={};
-    map.forEach(function(s){
-      var normStr=function(x){return (x||"").toLowerCase().replace(/&/g," and ").replace(/[^a-z0-9\s]/g,"").replace(/\s+/g," ").trim();};
-      var key=normStr(s.title)+"|||"+normStr(s.artist);
-      var prev=byKey.get(key);
-      if(!prev){byKey.set(key,s);}
-      else{
-        if(s.aiCache&&(!prev.aiCache||(s.aiCache.sv||0)>(prev.aiCache.sv||0))){
-          idRemap[prev.id]=s.id;
-          byKey.set(key,s);
-        } else {
-          idRemap[s.id]=prev.id;
-        }
-      }
-    });
-    var result=[...byKey.values()];
-    result._idRemap=idRemap;
-    return result;
-  };
+  // Phase 5.7.1 — mergeSongDb inline supprimé. Utilise désormais
+  // `mergeSongDbPreservingLocalAiCache` de state.js, qui adopte
+  // remote.* mais réinjecte local.aiCache si remote l'a stripped
+  // (push light). Le state local localStorage conserve les aiCache
+  // comme avant — seul le push Firestore les exclut.
+  const mergeSongDb = mergeSongDbPreservingLocalAiCache;
   // Phase 5.7 — mergeSetlists inline supprimé. Le merge est désormais
   // last-write-wins par setlist via `mergeSetlistsLWW` (state.js), qui
   // arbitre sur `setlist.lastModified` et respecte les tombstones
@@ -6799,24 +6802,25 @@ function App() {
             return {...sl,songIds:[...new Set(ids)]};
           });
         }
-        var localDelCount=Object.keys(deletedSetlistIds||{}).length;
-        var mergedDelCount=Object.keys(mergedDel).length;
-        if(mergedSongs.length>remoteSongs.length||mergedSl.length>remoteSl.length||mergedDelCount>Object.keys(remoteDel).length||localDelCount>0){
-          var ps={
-            version:STATE_VERSION,
-            activeProfileId:data.activeProfileId||activeProfileId,
-            shared:{
-              songDb:mergedSongs,
-              theme:data.shared.theme||theme,
-              setlists:mergedSl,
-              customGuitars:data.shared.customGuitars||customGuitars,
-              deletedSetlistIds:mergedDel,
-              lastModified:Date.now(),
-            },
-            profiles:mergeProfilesLWW(profiles,data.profiles||{},{applySecrets}),
-          };
-          saveToFirestore(ps).catch(function(){});
-        }
+        // Phase 5.7.1 — push initial inconditionnel pour refresh
+        // Firestore avec la version light (aiCache stripped). Sans ça,
+        // si applyRemoteData ne change pas le state (cas no-op), le
+        // persist effect ne push pas et Firestore reste avec un
+        // payload >1 MB qui continue de renvoyer 400 à chaque save.
+        var ps={
+          version:STATE_VERSION,
+          activeProfileId:data.activeProfileId||activeProfileId,
+          shared:{
+            songDb:mergedSongs,
+            theme:data.shared.theme||theme,
+            setlists:mergedSl,
+            customGuitars:data.shared.customGuitars||customGuitars,
+            deletedSetlistIds:mergedDel,
+            lastModified:Date.now(),
+          },
+          profiles:mergeProfilesLWW(profiles,data.profiles||{},{applySecrets}),
+        };
+        saveToFirestore(ps).catch(function(){});
       }
       setFirestoreLoaded(true);
     }).catch(()=>setFirestoreLoaded(true));
