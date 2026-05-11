@@ -948,6 +948,43 @@ function setTrusted(id, v) {
 // identifiée par son id canonique. Si un profil a édité localement le
 // nom d'une guitare standard, c'est l'objet brut de GUITARS qui sera
 // envoyé au prompt (pas la version éditée). Acceptable Phase 3.6.
+// Phase 5.7.2 — Helpers purs pour la migration Newzik (one-shot import des
+// setlists "Cours Franck B" / "Arthur & Seb" / merge "Nouvelle setlist" →
+// "Ma Setlist"). Extraits pour permettre des tests régression sans monter
+// le composant App.
+//
+// Le guard original ("idempotent per setlist name") était cassé : la
+// migration s'exécutait dans un useEffect avec dep [] AVANT que
+// loadFromFirestore réponde, donc le local fraîchement vide ne contenait
+// aucune setlist et la migration recréait tout. Sur l'iPhone fraîchement
+// nettoyé, Firestore ramenait ensuite les vraies setlists de Sébastien,
+// créant des doublons par profileIds divergents.
+//
+// Nouvelle politique : skip si une setlist du même nom existe DÉJÀ (peu
+// importe les profileIds). Le caller doit aussi gate sur firestoreLoaded
+// pour laisser le poll Firestore peupler le state avant le check.
+function computeNewzikCreateNames(setlists, listKeys, mergeInto) {
+  if (!Array.isArray(setlists) || !Array.isArray(listKeys)) return [];
+  const map = mergeInto || {};
+  const existing = new Set((setlists || []).map((sl) => sl && sl.name).filter(Boolean));
+  return listKeys.filter((n) => {
+    if (map[n]) return false;       // c'est un merge, pas un create
+    if (existing.has(n)) return false; // déjà présente
+    return true;
+  });
+}
+
+function computeNewzikMergeNames(setlists, mergeInto) {
+  if (!Array.isArray(setlists) || !mergeInto) return [];
+  return Object.keys(mergeInto).filter((srcName) => {
+    // Skip si on a déjà marqué le merge comme fait (suffix legacy)
+    if (setlists.some((sl) => sl && sl.name === srcName + '__merged')) return false;
+    // Skip si la source n'existe pas (déjà mergée ou jamais créée)
+    if (!setlists.some((sl) => sl && sl.name === srcName)) return false;
+    return true;
+  });
+}
+
 function getAllRigsGuitars(profiles, customGuitars, allStandardGuitars) {
   const std = allStandardGuitars || GUITARS;
   if (!profiles || typeof profiles !== 'object') return [...std];
@@ -973,6 +1010,7 @@ export {
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
+  computeNewzikCreateNames, computeNewzikMergeNames,
   makeDefaultProfile,
   migrateV1toV2, migrateV2toV3, migrateV3toV4, migrateV4toV5, migrateV5toV6, migrateV6toV7,
   dedupSetlists, setlistDedupKey, findSetlistDuplicatesByName,

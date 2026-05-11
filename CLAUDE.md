@@ -591,6 +591,83 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
+## État Phase 5.7.2 (gate migration Newzik, 2026-05-11, tag `phase-5.7.2-done`)
+
+1 commit `[phase-5.7.2]`. Suite 547 → 562 tests (+15). SW CACHE
+`backline-v57` → `backline-v58`. **Pas de changement de
+STATE_VERSION** (7 inchangé).
+
+**Bug rapporté** : iPhone après suppression des données de site
+montrait 10 setlists avec doublons ("Cours Franck B" ×2, "Arthur
+& Seb" ×2, etc.) au lieu de l'état Mac propre (qui est source de
+vérité). Console iPhone : `[migration] Imported 104 new songs.
+Created: Cours Franck B, Arthur & Seb. Merged into Ma Setlist:
+Nouvelle setlist`.
+
+**Cause** : la `useEffect` "One-time migration: import Newzik
+setlists" dans main.jsx (l. 6495 avant 5.7.2) s'exécutait avec dep
+array `[]` (au mount immédiat). Or `loadFromFirestore()` est async.
+Donc sur l'iPhone fraîchement nettoyé :
+1. Mount → state local vide
+2. `loadFromFirestore()` part en async (5-10s sur 5G)
+3. Migration effect s'exécute **immédiatement** → crée "Cours
+   Franck B" / "Arthur & Seb" / merge "Nouvelle setlist" → "Ma
+   Setlist", tous avec `profileIds=[activeProfileId]=['sebastien']`
+4. Firestore répond → applyRemoteData merge LWW avec les vraies
+   setlists Mac (profileIds=['sebastien','franck'] ou
+   ['arthur','sebastien'])
+5. Résultat : doublons par profileIds divergents
+
+Le guard original via `existingSetlistFor()` cherchait `name +
+sameProfileIds([activeProfileId])`. Une setlist Firestore "Cours
+Franck B" avec profileIds=['sebastien','franck'] ne matchait pas,
+la migration recréait.
+
+### Solution (3 changements)
+
+1. **Gate `useEffect` derrière `firestoreLoaded`** :
+   `if(!firestoreLoaded) return;` + dep array `[firestoreLoaded]`.
+   La migration attend que `loadFromFirestore()` ait posé son
+   `setFirestoreLoaded(true)` avant de s'exécuter.
+
+2. **Skip si setlist du même nom existe DÉJÀ (peu importe les
+   profileIds)** : helpers purs `computeNewzikCreateNames` et
+   `computeNewzikMergeNames` extraits dans `core/state.js`.
+   createNames : `if(existsByName(n)) return false;` — un seul
+   check par name. mergeNames : skip si source absente ou
+   `__merged` marker présent.
+
+3. **Helpers purs testables** : extraction dans `core/state.js`
+   permet tests régression Vitest (15 nouveaux tests). main.jsx
+   remplace les 20 lignes inline par 2 appels.
+
+### Tests (15 nouveaux dans `state.test.js`)
+
+- `computeNewzikCreateNames` (8) dont scénario bug : setlist avec
+  profileIds différents → skip (le fix Phase 5.7.2).
+- `computeNewzikMergeNames` (5) : présence source, marker
+  `__merged`, falsy inputs, multi-merge.
+- Scénario bug iPhone (2) : post-Firestore no-op + fresh install
+  crée tout.
+
+### Test manuel post-déploiement
+
+1. **iPhone** : Safari → Préférences → Avancé → Données de site →
+   Supprimer "ff2t.github.io". Recharger l'app.
+2. Attendre 5-10s pour Firestore initial load.
+3. Vérifier : 3 setlists alignées avec Mac (pas de doublon).
+   Console doit afficher `[migration] Newzik migration skipped —
+   setlists already present (Firestore sync or manual creation).`
+4. Sync icon ☁️ vert dans le header.
+
+### Dette résiduelle
+
+- mergeNames path actuel jamais déclenché en pratique (Sébastien
+  a déjà mergé "Nouvelle setlist" historiquement). Le code reste
+  pour le cas dégénéré "fresh install sans Firestore" (nouveau
+  device, compte Google différent, pas d'accès au tonex-guide
+  Firestore).
+
 ## État Phase 5.7.1 (strip aiCache du push Firestore, 2026-05-11, tag `phase-5.7.1-done`)
 
 1 commit `[phase-5.7.1]`. Suite 535 → 547 tests (+12). SW CACHE

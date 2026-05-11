@@ -9,6 +9,7 @@ import {
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
+  computeNewzikCreateNames, computeNewzikMergeNames,
   deriveEnabledDevices, makeDefaultProfile,
   getAllRigsGuitars,
   dedupSetlists, setlistDedupKey,
@@ -1419,5 +1420,144 @@ describe('mergeSongDbPreservingLocalAiCache — Phase 5.7.1', () => {
     const data = [{ id: 's1', title: 'A' }];
     expect(mergeSongDbPreservingLocalAiCache(null, data)).toBe(data);
     expect(mergeSongDbPreservingLocalAiCache(data, null)).toBe(data);
+  });
+});
+
+describe('computeNewzikCreateNames — Phase 5.7.2', () => {
+  const LISTS_KEYS = ['Cours Franck B', 'Arthur & Seb', 'Nouvelle setlist'];
+  const MERGE_INTO = { 'Nouvelle setlist': 'Ma Setlist' };
+
+  test('aucune setlist → toutes les non-merge dans createNames', () => {
+    const out = computeNewzikCreateNames([], LISTS_KEYS, MERGE_INTO);
+    expect(out).toEqual(['Cours Franck B', 'Arthur & Seb']);
+  });
+
+  test('setlist exact match (peu importe profileIds) → exclue', () => {
+    const setlists = [
+      { id: 'sl1', name: 'Cours Franck B', profileIds: ['franck'], songIds: [] },
+    ];
+    const out = computeNewzikCreateNames(setlists, LISTS_KEYS, MERGE_INTO);
+    // "Cours Franck B" exclu car déjà présent ; "Arthur & Seb" reste à créer.
+    expect(out).toEqual(['Arthur & Seb']);
+  });
+
+  test('setlist existe avec profileIds différents → quand même skip (le fix Phase 5.7.2)', () => {
+    // Scénario du bug : iPhone fraîchement nettoyé, Firestore ramène
+    // "Cours Franck B" avec profileIds=['sebastien','franck']. L'ancien
+    // guard regardait sameProfileIds([activeProfileId]) → false → recréait.
+    // Le nouveau guard regarde uniquement le name.
+    const setlists = [
+      { id: 'sl1', name: 'Cours Franck B', profileIds: ['sebastien', 'franck'], songIds: [] },
+      { id: 'sl2', name: 'Arthur & Seb', profileIds: ['arthur', 'sebastien'], songIds: [] },
+    ];
+    const out = computeNewzikCreateNames(setlists, LISTS_KEYS, MERGE_INTO);
+    expect(out).toEqual([]);
+  });
+
+  test('"Nouvelle setlist" (clé de MERGE_INTO) jamais dans createNames', () => {
+    const out = computeNewzikCreateNames([], ['Nouvelle setlist'], MERGE_INTO);
+    expect(out).toEqual([]);
+  });
+
+  test('setlists non-array → []', () => {
+    expect(computeNewzikCreateNames(null, LISTS_KEYS, MERGE_INTO)).toEqual([]);
+    expect(computeNewzikCreateNames(undefined, LISTS_KEYS, MERGE_INTO)).toEqual([]);
+  });
+
+  test('listKeys non-array → []', () => {
+    expect(computeNewzikCreateNames([], null, MERGE_INTO)).toEqual([]);
+  });
+
+  test('mergeInto falsy → traite tout comme create', () => {
+    const out = computeNewzikCreateNames([], ['A', 'B'], null);
+    expect(out).toEqual(['A', 'B']);
+  });
+
+  test('setlist avec name null/undefined → ignorée dans le set existing', () => {
+    const setlists = [
+      { id: 'sl1', name: null, songIds: [] },
+      { id: 'sl2', songIds: [] }, // pas de name
+    ];
+    const out = computeNewzikCreateNames(setlists, ['Foo'], {});
+    expect(out).toEqual(['Foo']);
+  });
+});
+
+describe('computeNewzikMergeNames — Phase 5.7.2', () => {
+  const MERGE_INTO = { 'Nouvelle setlist': 'Ma Setlist' };
+
+  test('source absente → exclue (déjà mergée ou jamais créée)', () => {
+    const setlists = [
+      { id: 'sl1', name: 'Ma Setlist', songIds: [] },
+    ];
+    const out = computeNewzikMergeNames(setlists, MERGE_INTO);
+    expect(out).toEqual([]);
+  });
+
+  test('source présente → incluse', () => {
+    const setlists = [
+      { id: 'sl1', name: 'Nouvelle setlist', songIds: [] },
+      { id: 'sl2', name: 'Ma Setlist', songIds: [] },
+    ];
+    const out = computeNewzikMergeNames(setlists, MERGE_INTO);
+    expect(out).toEqual(['Nouvelle setlist']);
+  });
+
+  test('source ET source__merged présents → exclue (déjà marqué fait)', () => {
+    const setlists = [
+      { id: 'sl1', name: 'Nouvelle setlist', songIds: [] },
+      { id: 'sl2', name: 'Nouvelle setlist__merged', songIds: [] },
+    ];
+    const out = computeNewzikMergeNames(setlists, MERGE_INTO);
+    expect(out).toEqual([]);
+  });
+
+  test('setlists ou mergeInto falsy → []', () => {
+    expect(computeNewzikMergeNames(null, MERGE_INTO)).toEqual([]);
+    expect(computeNewzikMergeNames([], null)).toEqual([]);
+  });
+
+  test('multiple merges, certains absents → seuls les présents incluse', () => {
+    const map = { 'A': 'X', 'B': 'Y', 'C': 'Z' };
+    const setlists = [
+      { id: 'sl1', name: 'A', songIds: [] },
+      { id: 'sl2', name: 'C', songIds: [] },
+    ];
+    const out = computeNewzikMergeNames(setlists, map);
+    expect(out.sort()).toEqual(['A', 'C']);
+  });
+});
+
+describe('Scénario bug iPhone nettoyé — Phase 5.7.2', () => {
+  // Reproduction du scénario réel : iPhone vide reçoit Firestore qui
+  // contient les 3 setlists. La migration ne doit RIEN faire.
+  test('iPhone post-Firestore avec setlists synchronisées → migration no-op', () => {
+    const LISTS_KEYS = ['Cours Franck B', 'Arthur & Seb', 'Nouvelle setlist'];
+    const MERGE_INTO = { 'Nouvelle setlist': 'Ma Setlist' };
+    // État après applyRemoteData : Firestore a ramené tout le contenu Mac.
+    // Sébastien a déjà mergé "Nouvelle setlist" → "Ma Setlist" sur Mac, donc
+    // "Nouvelle setlist" n'existe plus dans Firestore.
+    const setlists = [
+      { id: 'sl_main', name: 'Ma Setlist', profileIds: ['sebastien'], songIds: ['s1', 's2'] },
+      { id: 'sl_cfb', name: 'Cours Franck B', profileIds: ['sebastien', 'franck'], songIds: ['s3'] },
+      { id: 'sl_as', name: 'Arthur & Seb', profileIds: ['arthur', 'sebastien'], songIds: ['s4'] },
+    ];
+    expect(computeNewzikCreateNames(setlists, LISTS_KEYS, MERGE_INTO)).toEqual([]);
+    expect(computeNewzikMergeNames(setlists, MERGE_INTO)).toEqual([]);
+  });
+
+  test('Vraie première install (pas de Firestore, pas de local) → migration crée tout', () => {
+    const LISTS_KEYS = ['Cours Franck B', 'Arthur & Seb', 'Nouvelle setlist'];
+    const MERGE_INTO = { 'Nouvelle setlist': 'Ma Setlist' };
+    // Pas de setlists du tout : truly first install. Mais la migration
+    // attend qu'au moins "Nouvelle setlist" existe pour le merge. Du coup
+    // mergeNames est vide. Acceptable car la migration ne crée pas non plus
+    // "Nouvelle setlist" — elle suppose qu'elle existe déjà (importée par
+    // Newzik en amont). Cas dégénéré : aucun import Newzik historique
+    // détecté.
+    const setlists = [];
+    expect(computeNewzikCreateNames(setlists, LISTS_KEYS, MERGE_INTO).sort())
+      .toEqual(['Arthur & Seb', 'Cours Franck B']);
+    expect(computeNewzikMergeNames(setlists, MERGE_INTO)).toEqual([]);
   });
 });

@@ -65,6 +65,7 @@ import {
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
+  computeNewzikCreateNames, computeNewzikMergeNames,
   getDevicesForRender,
   loadState, saveState,
   autoBackup, listBackups, restoreBackup, clearBackups,
@@ -126,7 +127,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v57';
+const CACHE='backline-v58';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -6493,7 +6494,14 @@ function App() {
   },[guitarIds]);
 
   // One-time migration: import Newzik setlists (idempotent per setlist name)
+  // Phase 5.7.2 — Gate derrière firestoreLoaded + skip si Firestore a déjà
+  // amené des setlists avec ces noms (Mac est source de vérité ; iPhone
+  // fraîchement nettoyé doit recevoir les données via sync, pas re-courir
+  // la migration). Le guard original (skip-if-exists-by-name+profileIds)
+  // était cassé sur fresh local + Firestore async : la migration s'exécutait
+  // AVANT que loadFromFirestore réponde, créant des doublons.
   useEffect(()=>{
+    if(!firestoreLoaded) return;
     var LISTS={
       "Cours Franck B":[
         ["Play That Funky Music","Wild Cherry"],["I Got All You Need","Joe Bonamassa"],
@@ -6611,15 +6619,18 @@ function App() {
         return sl.name===slName && sameProfileIds(sl.profileIds,[activeProfileId]);
       });
     };
-    var createNames=Object.keys(LISTS).filter(function(n){
-      if(MERGE_INTO[n]) return false;
-      // Toujours dans la liste si on doit créer OU fusionner. La logique
-      // de fusion vs création est tranchée plus bas (existing? merge :
-      // create).
-      return true;
-    });
-    var mergeNames=Object.keys(MERGE_INTO).filter(function(n){return !setlists.some(function(sl){return sl.name===n+"__merged";});});
-    if(!createNames.length&&!mergeNames.length) return;
+    // Phase 5.7.2 — Helpers purs depuis core/state.js. Skip si une setlist
+    // du même nom existe DÉJÀ (peu importe les profileIds). Si Firestore
+    // a déjà ramené "Cours Franck B" ou "Arthur & Seb" (même partagée avec
+    // d'autres profileIds), on considère la migration faite et on n'y
+    // touche pas. Évite la création de doublons sur device fraîchement
+    // reconnecté.
+    var createNames=computeNewzikCreateNames(setlists,Object.keys(LISTS),MERGE_INTO);
+    var mergeNames=computeNewzikMergeNames(setlists,MERGE_INTO);
+    if(!createNames.length&&!mergeNames.length){
+      console.log("[migration] Newzik migration skipped — setlists already present (Firestore sync or manual creation).");
+      return;
+    }
     var needed=[].concat(createNames,mergeNames);
     var newSongs=[];var songIdMap={};
     var allItems=[].concat(...needed.map(function(n){return LISTS[n];}));
@@ -6668,7 +6679,7 @@ function App() {
       return result;
     });
     console.log("[migration] Imported "+newSongs.length+" new songs. Created: "+createNames.join(", ")+". Merged into Ma Setlist: "+mergeNames.join(", "));
-  },[]);
+  },[firestoreLoaded]);
 
   // Save secrets (aiKeys, passwords) to separate localStorage key — never synced
   useEffect(()=>{
