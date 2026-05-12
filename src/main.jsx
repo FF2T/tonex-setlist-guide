@@ -128,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v73';
+const CACHE='backline-v74';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.11.1";
+const APP_VERSION = "8.11.2";
 const ADMIN_PIN = "212402";
 
 
@@ -4475,6 +4475,9 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
     </div>
   </div>;
 
+  if(typeof window!=='undefined'&&window.__TONEX_PERF&&window.__optimizerRenderStart){
+    console.log(`[perf] BankOptimizerScreen before-return: ${(performance.now()-window.__optimizerRenderStart).toFixed(0)}ms`);
+  }
   return(
     <div>
       <Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Optimiseur"}]} onNavigate={onNavigate}/>
