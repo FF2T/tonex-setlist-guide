@@ -128,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v69';
+const CACHE='backline-v70';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.10.7";
+const APP_VERSION = "8.10.8";
 const ADMIN_PIN = "212402";
 
 
@@ -3650,7 +3650,23 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
       return enriched?bestScoreOf(enriched)<IMPROVE_THRESHOLD:false;
     });
   };
-  const improveBadgeCount=useMemo(()=>getSongsToImprove().length,[songDb,activeSl,banksAnn,banksPlug,allGuitars]);
+  // Phase 5.13.7 — TROUVÉ : ce calcul était synchrone au mount et déclenchait
+  // enrichAIResult (~500+ ops par morceau qui a aiCache.gId !== gId courant).
+  // Sur une setlist 28 morceaux où la guitare préférée a changé, c'était
+  // 14 000+ ops par mount → ~3.7s sur l'iPhone/Mac. Fix : différer le calcul
+  // après mount via setTimeout. Le badge "à améliorer" arrive 200ms plus
+  // tard mais le mount est immédiat.
+  const [improveBadgeCount,setImproveBadgeCount]=useState(0);
+  useEffect(()=>{
+    const t=setTimeout(()=>{
+      const t0=performance.now();
+      const count=getSongsToImprove().length;
+      if(typeof window!=='undefined'&&window.__TONEX_PERF) console.log(`[perf] improveBadgeCount calc: ${(performance.now()-t0).toFixed(0)}ms`);
+      setImproveBadgeCount(count);
+    },200);
+    return ()=>clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[songDb,activeSl,banksAnn,banksPlug,allGuitars]);
   const improveAll=async()=>{
     improveCancelRef.current=false;
     setCancelRequested(false);
