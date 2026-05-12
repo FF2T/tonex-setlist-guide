@@ -128,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v75';
+const CACHE='backline-v76';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.11.3";
+const APP_VERSION = "8.11.4";
 const ADMIN_PIN = "212402";
 
 
@@ -4068,7 +4068,14 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
   const [slId,setSlId]=useState(setlists[0]?.id||"");
   const [showReconfig,setShowReconfig]=useState(null); // "ann"|"plug"|null
   const sl=setlists.find(s=>s.id===slId);
-  const songs=sl?sl.songIds.map(id=>songDb.find(s=>s.id===id)).filter(Boolean):[];
+  // Phase 5.13.13 — mémoïse songs pour stabiliser sa référence. Sans
+  // ça, `songs` est un nouveau tableau à chaque render → useEffect
+  // analyzeDevice re-trigger → setAnnAnalysis → re-render → boucle
+  // infinie (~51s de cascade observée).
+  const songs=useMemo(()=>{
+    if(!sl) return [];
+    return sl.songIds.map(id=>songDb.find(s=>s.id===id)).filter(Boolean);
+  },[sl,songDb]);
   // Types de micros du rig — ordre : SC, P90, HB
   const PICKUP_ORDER=["SC","HB","P90"];
   const pickupTypes=PICKUP_ORDER.filter(t=>allGuitars.some(g=>g.type===t));
