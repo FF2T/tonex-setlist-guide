@@ -128,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v79';
+const CACHE='backline-v80';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.12.1";
+const APP_VERSION = "8.12.2";
 const ADMIN_PIN = "212402";
 
 
@@ -2327,6 +2327,30 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,onDele
         </div>
         <div style={{fontSize:12,fontWeight:600,color:"var(--text)",marginBottom:6}}>Cle Gemini</div>
         <input type="password" placeholder="AIza..." value={aiKeys.gemini} onChange={e=>onAiKeys(p=>({...p,gemini:e.target.value}))} style={{...inp,width:"100%",marginBottom:8,fontFamily:"monospace"}}/>
+        {/* Phase 5.11 — bouton "Partager la clé" déplacé ici depuis ⚙️ Paramètres
+            (où il était PIN-protégé). Push la clé Gemini locale vers Firestore
+            config/apikeys → tous les profils (Arthur, Franck, Emmanuel...) la
+            chargent via loadSharedKey() au boot. Indispensable pour que les
+            profils sans clé personnelle puissent utiliser l'IA. */}
+        <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
+          <button
+            data-testid="profile-share-gemini-key"
+            onClick={()=>{
+              if(!aiKeys.gemini){window.alert("Configure d'abord une clé Gemini.");return;}
+              if(!window.confirm("Partager ta clé Gemini avec tous les profils ?\n\n• La clé est stockée dans Firestore (config/apikeys.gemini)\n• Tous les devices (Mac, iPhone, iPad) la téléchargent au boot\n• Les profils sans clé personnelle l'utiliseront en fallback\n• Les appels IA seront facturés sur ton quota Google\n\nGemini a un free tier généreux (1500 req/jour) qui suffit largement.")) return;
+              saveSharedKey(aiKeys.gemini).then(()=>{
+                if(typeof window!=="undefined") window.DEFAULT_GEMINI_KEY=aiKeys.gemini;
+                window.alert("✓ Clé partagée. Les autres profils l'utiliseront au prochain reload.");
+              }).catch(e=>{
+                console.error("[saveSharedKey] failed:",e);
+                window.alert("Échec du partage. Vérifie ta console pour le détail.");
+              });
+            }}
+            disabled={!aiKeys.gemini}
+            style={{background:aiKeys.gemini?"var(--green)":"var(--bg-disabled)",border:"none",color:"var(--text-inverse)",borderRadius:"var(--r-md)",padding:"6px 14px",fontSize:11,fontWeight:700,cursor:aiKeys.gemini?"pointer":"not-allowed"}}
+          >🔑 Partager la clé (tous les profils)</button>
+          <span style={{fontSize:10,color:"var(--text-dim)",alignSelf:"center"}}>aistudio.google.com → Get API key</span>
+        </div>
         <div style={{fontSize:12,fontWeight:600,color:"var(--text)",marginBottom:6}}>Cle Anthropic (fallback)</div>
         <input type="password" placeholder="sk-ant-..." value={aiKeys.anthropic} onChange={e=>onAiKeys(p=>({...p,anthropic:e.target.value}))} style={{...inp,width:"100%",fontFamily:"monospace"}}/>
       </div>}
