@@ -129,7 +129,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v92';
+const CACHE='backline-v94';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -610,7 +610,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.3";
+const APP_VERSION = "8.14.5";
 const ADMIN_PIN = "212402";
 
 
@@ -3117,7 +3117,14 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
     // Phase 7.2 + 7.3 — pass recoMode au prompt fetchAI. song.recoMode
     // (override par morceau) prime sur profile.recoMode (défaut global).
     const effectiveRecoMode=song.recoMode||profile?.recoMode||"balanced";
-    fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars,null,null,effectiveRecoMode)
+    // Phase 7.6.1 — Si song.feedback existe, on concatène tous les
+    // feedbacks valides (non supprimés) en une string pour l'IA. Ainsi
+    // toute relance (auto via invalidation, ou via clic mode reco)
+    // prend en compte l'historique. Pas de re-saisie nécessaire.
+    const historicalFeedback=Array.isArray(song.feedback)&&song.feedback.length>0
+      ?song.feedback.map(f=>f.text).filter(Boolean).join(". ")
+      :null;
+    fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars,historicalFeedback,null,effectiveRecoMode)
       .then(r=>{
         setLocalAiResult(r);
         setLocalAiErr(null);
@@ -3607,10 +3614,49 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
             stocke l'historique des feedbacks dans song.feedback[]. */}
       {!reloading&&aiC&&<div style={{marginTop:8}}>
         {/* Historique des feedbacks donnés sur ce morceau */}
-        {Array.isArray(song.feedback)&&song.feedback.length>0&&<div style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:"var(--r-md)",padding:"6px 10px",marginBottom:6}}>
-          <div style={{fontSize:9,color:"var(--text-dim)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>💬 Tes feedbacks précédents ({song.feedback.length})</div>
-          {song.feedback.slice(-3).map((fb,i)=><div key={i} style={{fontSize:10,color:"var(--text-sec)",lineHeight:1.4,marginBottom:2}}>· <span style={{color:"var(--text-dim)",fontStyle:"italic"}}>{fb.ts?new Date(fb.ts).toLocaleDateString("fr"):""}</span> — {fb.text}</div>)}
-        </div>}
+        {/* Phase 7.6 — chaque feedback est supprimable via ✕. Bouton
+            "Tout effacer" si plus de 3 feedbacks. L'affichage montre
+            les 3 derniers seulement, mais ils restent supprimables
+            par leur index global dans song.feedback[]. */}
+        {Array.isArray(song.feedback)&&song.feedback.length>0&&(()=>{
+          const all=song.feedback;
+          const showFromIdx=Math.max(0,all.length-3);
+          return <div style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:"var(--r-md)",padding:"6px 10px",marginBottom:6}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+              <div style={{fontSize:9,color:"var(--text-dim)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,flex:1}}>💬 Tes feedbacks précédents ({all.length})</div>
+              {all.length>1&&<button
+                data-testid="song-feedback-clear-all"
+                onClick={()=>{
+                  if(!window.confirm(`Effacer tous les ${all.length} feedbacks pour "${song.title}" ?\n\nL'analyse IA va être recalculée sans tes corrections passées (~8s).`)) return;
+                  // Phase 7.6.1 — vider feedback ET invalider aiCache pour
+                  // déclencher le re-fetch automatique via useEffect.
+                  onSongDb(p=>p.map(x=>x.id===song.id?{...x,feedback:[],aiCache:null}:x));
+                  setLocalAiResult(null);
+                }}
+                style={{fontSize:9,background:"none",border:"1px solid var(--a10)",color:"var(--text-dim)",borderRadius:"var(--r-sm)",padding:"1px 6px",cursor:"pointer"}}
+                title="Effacer tous les feedbacks pour ce morceau"
+              >Tout effacer</button>}
+            </div>
+            {all.map((fb,i)=>{
+              if(i<showFromIdx) return null;
+              return <div key={i} style={{display:"flex",alignItems:"flex-start",gap:6,fontSize:10,color:"var(--text-sec)",lineHeight:1.4,marginBottom:2}}>
+                <span style={{flex:1}}>· <span style={{color:"var(--text-dim)",fontStyle:"italic"}}>{fb.ts?new Date(fb.ts).toLocaleDateString("fr"):""}</span> — {fb.text}</span>
+                <button
+                  data-testid={`song-feedback-delete-${i}`}
+                  onClick={()=>{
+                    // Phase 7.6.1 — supprime ET invalide aiCache pour
+                    // déclencher le re-fetch automatique avec les feedbacks
+                    // restants (concatenés dans le prompt par useEffect).
+                    onSongDb(p=>p.map(x=>x.id===song.id?{...x,feedback:(x.feedback||[]).filter((_,j)=>j!==i),aiCache:null}:x));
+                    setLocalAiResult(null);
+                  }}
+                  title="Supprimer ce feedback + recalculer la reco IA sans lui"
+                  style={{background:"none",border:"none",color:"var(--text-dim)",fontSize:11,cursor:"pointer",padding:"0 2px",lineHeight:1}}
+                >✕</button>
+              </div>;
+            })}
+          </div>;
+        })()}
         {!showFeedback
           ?<button data-testid="song-feedback-open" onClick={()=>setShowFeedback(true)} style={{fontSize:11,background:"var(--accent-bg)",border:"1px solid var(--accent-border)",color:"var(--accent)",borderRadius:"var(--r-md)",padding:"6px 12px",cursor:"pointer",fontWeight:600}}>💬 Donner un feedback à l'IA</button>
           :<FeedbackPanel onSubmit={fb=>{
