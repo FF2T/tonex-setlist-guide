@@ -6,7 +6,7 @@
 // importés en bindings nommés depuis src/data/.
 // Comportement applicatif identique à la version monolithique.
 
-import React, { useState, useMemo, useEffect, useRef, useCallback, Profiler } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 
 import { PRESET_CATALOG_FULL } from './data/preset_catalog_full.js';
@@ -128,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v70';
+const CACHE='backline-v71';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.10.8";
+const APP_VERSION = "8.10.9";
 const ADMIN_PIN = "212402";
 
 
@@ -3430,29 +3430,16 @@ function InlineRenameInput({initialName,onSave,onCancel,inp,placeholder,buttonLa
 }
 
 function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,banksAnn,onBanksAnn,banksPlug,onBanksPlug,aiProvider,aiKeys,hideHeader=false,allGuitars,allRigsGuitars,availableSources,activeProfileId,profiles,profile,onTmpPatchOverride,onLive}) {
-  // Phase 5.13.5 — Mini profiler maison via performance.mark(). Fonctionne
-  // en prod (vs React Profiler qui nécessite une build spéciale). Activer
-  // via window.__TONEX_PERF=true dans la console, puis naviguer vers
-  // Setlists. Les marks sont dumpés au useEffect post-mount.
-  const __perfMark=(label)=>{
-    if(typeof window!=="undefined"&&window.__TONEX_PERF){
-      if(!window.__listscreenPerf) window.__listscreenPerf=[];
-      window.__listscreenPerf.push({label,t:performance.now()});
-    }
-  };
-  __perfMark("listscreen-start");
   const [activeSlId,setActiveSlId]=useState(setlists[0]?.id||null);
   const activeSl=activeSlId?setlists.find(s=>s.id===activeSlId):null;
   const [showAdd,setShowAdd]=useState(false);
   const [sort,setSort]=useState((activeSl?.sort&&activeSl.sort!=="default")?activeSl.sort:"artist");
   const saveSort=(v)=>{setSort(v);if(activeSlId)onSetlists(p=>p.map(sl=>sl.id===activeSlId?{...sl,sort:v}:sl));};
   const activeSongs=useMemo(()=>{
-    const t0=performance.now();
     const sl=activeSl;
     const arr=sl?(sl.songIds||[]).map(id=>songDb.find(s=>s.id===id)).filter(Boolean):[...songDb];
     if(sort==="alpha") arr.sort((a,b)=>a.title.localeCompare(b.title,"fr"));
     else if(sort==="artist") arr.sort((a,b)=>a.artist.localeCompare(b.artist,"fr")||a.title.localeCompare(b.title,"fr"));
-    if(typeof window!=="undefined"&&window.__TONEX_PERF) console.log(`[perf] activeSongs useMemo: ${(performance.now()-t0).toFixed(1)}ms (n=${arr.length})`);
     return arr;
   },[songDb,activeSlId,sort,setlists]);
   // Phase 3.10 perf — Hoist getActiveDevicesForRender hors de la
@@ -3482,7 +3469,6 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
   // 3.9), soit ~1500 opérations pour 129 morceaux à chaque render
   // ListScreen. Avec ce useMemo, un seul passage groupé.
   const songRowData=useMemo(()=>{
-    const t0=performance.now();
     const guitars=allGuitars||GUITARS;
     const map=new Map();
     for(const s of activeSongs){
@@ -3492,23 +3478,17 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
       const g=gId?guitars.find(x=>x.id===gId):null;
       map.set(s.id,{ig,savedGId,gId,g});
     }
-    if(typeof window!=="undefined"&&window.__TONEX_PERF) console.log(`[perf] songRowData useMemo: ${(performance.now()-t0).toFixed(1)}ms (n=${activeSongs.length})`);
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[activeSongs,allGuitars,activeSl?.guitars]);
   const tmpTopRecBySongId=useMemo(()=>{
-    const t0=performance.now();
-    if(!hasTMPDevice||!activeSongs.length){
-      if(typeof window!=="undefined"&&window.__TONEX_PERF) console.log(`[perf] tmpTopRecBySongId useMemo: skipped (hasTMP=${hasTMPDevice})`);
-      return new Map();
-    }
+    if(!hasTMPDevice||!activeSongs.length) return new Map();
     const map=new Map();
     for(const s of activeSongs){
       const rd=songRowData.get(s.id);
       const recs=recommendTMPPatch(TMP_FACTORY_PATCHES,s,rd?.g||null,profile);
       if(recs[0]) map.set(s.id,recs[0]);
     }
-    if(typeof window!=="undefined"&&window.__TONEX_PERF) console.log(`[perf] tmpTopRecBySongId useMemo: ${(performance.now()-t0).toFixed(1)}ms (n=${activeSongs.length})`);
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[hasTMPDevice,activeSongs,songRowData]);
@@ -3524,16 +3504,6 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
       const dt = performance.now() - window.__tonexRenderStart;
       // eslint-disable-next-line no-console
       console.log(`[perf] ListScreen mount: ${dt.toFixed(1)}ms (${activeSongs.length} morceaux, ${enabledDevicesForRender.length} devices actifs)`);
-      // Phase 5.13.6 — dump tous les marks intermédiaires pour identifier la phase coûteuse
-      if(window.__listscreenPerf&&window.__listscreenPerf.length){
-        const start=window.__tonexRenderStart;
-        let prev=start;
-        for(const m of window.__listscreenPerf){
-          console.log(`  [mark] ${m.label}: +${(m.t-prev).toFixed(1)}ms (since start: ${(m.t-start).toFixed(1)}ms)`);
-          prev=m.t;
-        }
-        window.__listscreenPerf=[];
-      }
       window.__tonexRenderStart = null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3704,7 +3674,6 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
     }
     setImproving(false);setImproveStatus(null);setCancelRequested(false);
   };
-  __perfMark("listscreen-before-return");
   return (
     <div>
       {/* Sélecteur setlist compact */}
@@ -4075,6 +4044,18 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
 
 // ─── Bank Optimizer Screen ───────────────────────────────────────────────────
 function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBanksPlug,allGuitars,availableSources,onNavigate,profile}) {
+  // Phase 5.13.8 — perf instrumentation, même pattern que ListScreen.
+  if(typeof window!=='undefined'&&window.__TONEX_PERF){
+    if(!window.__optimizerRenderStart) window.__optimizerRenderStart=performance.now();
+  }
+  useEffect(()=>{
+    if(typeof window!=='undefined'&&window.__TONEX_PERF&&window.__optimizerRenderStart){
+      const dt=performance.now()-window.__optimizerRenderStart;
+      console.log(`[perf] BankOptimizerScreen mount: ${dt.toFixed(1)}ms`);
+      window.__optimizerRenderStart=null;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
   // Phase 2 fix : gate les sections device-spécifiques (analyse,
   // grille mini, plan de réorganisation, actions prioritaires).
   const enabledDevices=getActiveDevicesForRender(profile);
@@ -5769,11 +5750,7 @@ function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked
         {tabBtn("setlists","Setlists")}
         {tabBtn("songs","Morceaux")}
       </div>
-      {tab==="setlists"&&<Profiler id="ListScreen-wrap" onRender={(id,phase,actualDuration,baseDuration,startTime,commitTime)=>{
-        if(typeof window!=="undefined"&&window.__TONEX_PERF){
-          console.log(`[Profiler] ${id} ${phase} actual=${actualDuration.toFixed(0)}ms base=${baseDuration.toFixed(0)}ms`);
-        }
-      }}><ListScreen songDb={songDb} onSongDb={onSongDb} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={onLive}/></Profiler>}
+      {tab==="setlists"&&<ListScreen songDb={songDb} onSongDb={onSongDb} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={onLive}/>}
       {tab==="songs"&&<div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
           <div style={{fontSize:13,color:"var(--text-sec)"}}>{songDb.length} morceaux</div>
@@ -6073,6 +6050,18 @@ function OnboardingWizard({onClose,onProfile}){
 
 // ─── HomeScreen (style Google) ────────────────────────────────────────────────
 function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onProfile,onSetlistScreen,onJam,onExplore,onOptimizer,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profiles,activeProfileId,onSwitchProfile,onProfiles,customPacks,syncStatus,onViewProfile,onLogout,onLive}) {
+  // Phase 5.13.8 — perf instrumentation, même pattern que ListScreen.
+  if(typeof window!=='undefined'&&window.__TONEX_PERF){
+    if(!window.__homeRenderStart) window.__homeRenderStart=performance.now();
+  }
+  useEffect(()=>{
+    if(typeof window!=='undefined'&&window.__TONEX_PERF&&window.__homeRenderStart){
+      const dt=performance.now()-window.__homeRenderStart;
+      console.log(`[perf] HomeScreen mount: ${dt.toFixed(1)}ms (${(setlists||[]).length} setlists, ${(songDb||[]).length} songs)`);
+      window.__homeRenderStart=null;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
   const profileName=(profiles[activeProfileId]||{}).name||"Profil";
   const profile=profiles[activeProfileId]||{};
   const [splashOpen,setSplashOpen]=useState(()=>{if(sessionStorage.getItem("tonex_splash"))return false;sessionStorage.setItem("tonex_splash","1");return true;});
