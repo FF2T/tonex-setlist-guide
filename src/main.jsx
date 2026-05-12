@@ -129,7 +129,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v84';
+const CACHE='backline-v85';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -610,7 +610,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.13.2";
+const APP_VERSION = "8.13.3";
 const ADMIN_PIN = "212402";
 
 
@@ -7108,19 +7108,57 @@ function App() {
   // Phase 5.7 : `shared.lastModified` est le timestamp global de save
   // utilisé côté merge LWW. Le top-level `lastModified` est supprimé
   // (redondant avec shared.lastModified, plus simple côté arbitrage).
+  // Phase 6.1 fix — Track le dernier shared.lastModified explicitement
+  // setté par un setter (setSetlists wrapper qui stamp, etc.). Si pas de
+  // stamp depuis dernière fois, on garde l'ancien lastModified. Évite
+  // la boucle infinie de sync où chaque pull → push tire un nouveau
+  // Date.now() même sans modif réelle.
   const hasMounted = useRef(false);
   const firestoreDebounceRef = useRef(null);
+  // Phase 6.1 fix — Anti-boucle infinie de sync. On hash le contenu effectif
+  // (sans timestamps) et on skip le push si rien n'a changé depuis le
+  // dernier push. Sans ça, applyRemoteData → setSongDb → useEffect persist
+  // → push même si le state pull == state local.
+  const lastSharedModRef = useRef(Date.now());
+  const lastSyncHashRef = useRef('');
   useEffect(()=>{
+    // Hash léger : structure des setlists, profiles, customGuitars. Pas crypto,
+    // mais discrimine les vraies modifs des re-sets identiques.
+    const profileHash=Object.entries(profiles||{}).map(([id,p])=>
+      id+":"+(p.myGuitars||[]).length+":"+(p.customGuitars||[]).length+":"+(p.lastModified||0)+":"+JSON.stringify(p.availableSources||{})
+    ).join('|');
+    const syncHash=[
+      (songDb||[]).map(s=>s.id+":"+(s.aiCache?.sv||0)+":"+(s.aiCache?.rigSnapshot||'')).join(','),
+      (setlists||[]).map(s=>s.id+":"+(s.songIds||[]).length+":"+(s.lastModified||0)+":"+(s.profileIds||[]).join(',')).join('|'),
+      (customGuitars||[]).map(g=>g.id).join(','),
+      Object.keys(deletedSetlistIds||{}).join(','),
+      profileHash,
+      activeProfileId,
+      theme,
+    ].join('#');
+    const shouldBump=syncHash!==lastSyncHashRef.current;
+    if(shouldBump){
+      lastSharedModRef.current=Date.now();
+      lastSyncHashRef.current=syncHash;
+    }
     const state={
       version:STATE_VERSION,
       activeProfileId,
-      shared:{songDb,theme,setlists,customGuitars,toneNetPresets,deletedSetlistIds,lastModified:Date.now()},
+      shared:{songDb,theme,setlists,customGuitars,toneNetPresets,deletedSetlistIds,lastModified:lastSharedModRef.current},
       profiles,
     };
     autoBackup();
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){}
     if(!hasMounted.current){hasMounted.current=true;return;}
     if(!firestoreLoaded) return;
+    // Phase 6.1 fix — skip push si rien n'a réellement changé. shouldBump
+    // est true seulement quand syncHash a changé (vraie modif locale).
+    // Sans ce check, applyRemoteData re-déclenche un push à chaque pull.
+    if(!shouldBump){
+      // Toujours marquer "synced" pour ne pas laisser ⏳ infini.
+      setSyncStatus("synced");
+      return;
+    }
     if(firestoreDebounceRef.current) clearTimeout(firestoreDebounceRef.current);
     setSyncStatus("syncing");
     firestoreDebounceRef.current = setTimeout(()=>{
