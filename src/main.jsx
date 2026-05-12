@@ -129,7 +129,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v90';
+const CACHE='backline-v91';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -610,7 +610,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.1";
+const APP_VERSION = "8.14.2";
 const ADMIN_PIN = "212402";
 
 
@@ -2437,7 +2437,26 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,onDele
             </button>;
           })}
         </div>
-        <div style={{fontSize:10,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.5}}>Ce mode est passé en input à chaque appel IA. Les morceaux déjà analysés gardent leur cache — pour les actualiser, utilise "🤖 Analyser/MAJ" dans Setlists ou "Recalculer toute la base" dans Maintenance (Phase 7.4 à venir).</div>
+        <div style={{fontSize:10,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.5,marginBottom:16}}>Ce mode est passé en input à chaque appel IA. Les morceaux déjà analysés gardent leur cache jusqu'à invalidation.</div>
+        {/* Phase 7.4 — Bouton pour invalider tous les aiCache d'un coup.
+            Au prochain ouvre d'un morceau, fetchAI tournera avec le nouveau
+            recoMode profil. Combinable avec "🤖 Analyser/MAJ" dans Setlists
+            pour batch immédiat. */}
+        {profile.isAdmin&&<div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-lg)",padding:14}}>
+          <div style={{fontSize:12,fontWeight:700,color:"var(--text)",marginBottom:4}}>Appliquer le mode à toute la base</div>
+          <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:10,lineHeight:1.4}}>Invalide tous les caches IA. Au prochain ouverture de morceau (ou via "⏳ Analyser/MAJ N" dans Setlists), une nouvelle analyse sera lancée avec le mode reco actuel.</div>
+          <button
+            data-testid="reco-invalidate-all"
+            onClick={()=>{
+              const n=(songDb||[]).filter(s=>s.aiCache).length;
+              if(!n){window.alert("Aucun cache IA à invalider.");return;}
+              if(!window.confirm(`Invalider ${n} cache${n>1?"s":""} IA ?\n\nMode actuel : ${profile.recoMode||"balanced"}.\n\nLes morceaux passeront en ⏳ et seront re-analysés à la demande (ouverture ou bouton "⏳ Analyser/MAJ" en setlists).\n\nCela consomme du quota Gemini quand les re-analyses tournent (~8s par morceau).`)) return;
+              onSongDb(p=>p.map(s=>s.aiCache?{...s,aiCache:null}:s));
+              window.alert(`✓ ${n} caches invalidés. Reviens dans Setlists et clique "⏳ Analyser/MAJ".`);
+            }}
+            style={{background:"var(--wine-400)",border:"none",color:"var(--text-inverse)",borderRadius:"var(--r-md)",padding:"8px 14px",fontSize:11,fontWeight:700,cursor:"pointer"}}
+          >🗑 Invalider tous les caches IA</button>
+        </div>}
       </div>}
       {profile.isAdmin&&tab==="ia"&&<div>
         <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>Configuration de la cle API pour l'IA.</div>
