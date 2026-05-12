@@ -129,7 +129,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v86';
+const CACHE='backline-v87';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -610,7 +610,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.13.4";
+const APP_VERSION = "8.13.5";
 const ADMIN_PIN = "212402";
 
 
@@ -7121,6 +7121,12 @@ function App() {
   // → push même si le state pull == state local.
   const lastSharedModRef = useRef(Date.now());
   const lastSyncHashRef = useRef('');
+  // Phase 6.1.3 fix — Flag "just pulled" pour éviter la boucle subtile :
+  // pull adopte les 44 aiCaches manquants → syncHash change → useEffect
+  // persist déclencherait un push → écrase Firestore avec le même contenu
+  // (mais perspective locale). On set ce flag à applyRemoteData, on le
+  // reset 3s après. Le useEffect persist skip pendant cette fenêtre.
+  const justPulledRef = useRef(false);
   useEffect(()=>{
     // Hash léger : structure des setlists, profiles, customGuitars. Pas crypto,
     // mais discrimine les vraies modifs des re-sets identiques.
@@ -7154,6 +7160,14 @@ function App() {
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){}
     if(!hasMounted.current){hasMounted.current=true;return;}
     if(!firestoreLoaded) return;
+    // Phase 6.1.3 — si on vient juste de pull (justPulledRef=true), la
+    // modif syncHash est due à l'adoption des données remote, pas à une
+    // action user. Skip le push pour éviter d'écraser Firestore avec
+    // notre perspective locale.
+    if(justPulledRef.current){
+      setSyncStatus("synced");
+      return;
+    }
     // Phase 6.1 fix — skip push si rien n'a réellement changé. shouldBump
     // est true seulement quand syncHash a changé (vraie modif locale).
     // Sans ce check, applyRemoteData re-déclenche un push à chaque pull.
@@ -7179,6 +7193,10 @@ function App() {
   //    réappliqués sur les remote-adopted).
   const applyRemoteData = (data) => {
     if(!data||!data.shared) return;
+    // Phase 6.1.3 — flag justPulled pour 3s. Le useEffect persist détecte
+    // ça et skip le push, évitant l'écho infini pull → push → pull.
+    justPulledRef.current=true;
+    setTimeout(()=>{justPulledRef.current=false;},3000);
     var pollRemap={};
     if(data.shared.songDb) setSongDb(prev=>{
       const m=mergeSongDb(prev,data.shared.songDb);
