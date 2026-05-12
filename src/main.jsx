@@ -6,7 +6,7 @@
 // importés en bindings nommés depuis src/data/.
 // Comportement applicatif identique à la version monolithique.
 
-import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback, Profiler } from 'react';
 import ReactDOM from 'react-dom';
 
 import { PRESET_CATALOG_FULL } from './data/preset_catalog_full.js';
@@ -128,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v66';
+const CACHE='backline-v67';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.10.4";
+const APP_VERSION = "8.10.5";
 const ADMIN_PIN = "212402";
 
 
@@ -3825,8 +3825,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           </div>;
         })()}
       {activeSongs.length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"var(--text-dim)"}}><div style={{fontSize:24,marginBottom:8}}>🎵</div><div style={{fontSize:14}}>Setlist vide — clique sur "+ Ajouter"</div></div>}
-      {!showDeviceRows&&activeSongs.length>0&&<div data-testid="loading-rows" style={{textAlign:"center",padding:"20px",color:"var(--text-dim)",fontSize:12}}>Chargement de la liste…</div>}
-      {showDeviceRows&&(()=>{let lastArtist="";return activeSongs.slice(0,visibleCount).map(s=>{
+      {(()=>{let lastArtist="";return activeSongs.slice(0,visibleCount).map(s=>{
         const showArtistHeader=sort==="artist"&&s.artist!==lastArtist;
         if(showArtistHeader) lastArtist=s.artist;
         const isC=checked.includes(s.id);
@@ -5723,7 +5722,11 @@ function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked
         {tabBtn("setlists","Setlists")}
         {tabBtn("songs","Morceaux")}
       </div>
-      {tab==="setlists"&&<ListScreen songDb={songDb} onSongDb={onSongDb} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={onLive}/>}
+      {tab==="setlists"&&<Profiler id="ListScreen-wrap" onRender={(id,phase,actualDuration,baseDuration,startTime,commitTime)=>{
+        if(typeof window!=="undefined"&&window.__TONEX_PERF){
+          console.log(`[Profiler] ${id} ${phase} actual=${actualDuration.toFixed(0)}ms base=${baseDuration.toFixed(0)}ms`);
+        }
+      }}><ListScreen songDb={songDb} onSongDb={onSongDb} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={onLive}/></Profiler>}
       {tab==="songs"&&<div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
           <div style={{fontSize:13,color:"var(--text-sec)"}}>{songDb.length} morceaux</div>
