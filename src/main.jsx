@@ -128,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v72';
+const CACHE='backline-v73';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.11.0";
+const APP_VERSION = "8.11.1";
 const ADMIN_PIN = "212402";
 
 
@@ -4277,7 +4277,22 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
   };
 
   // Banques standard "univers" — un ampli iconique par banque, 3 slots Clean/Drive/Lead
-  const standardBanks=useMemo(()=>{
+  // Phase 5.13.10 — defer ce calcul après mount (10 universes × 3 slots × ~500 catalog filter
+  // = 15k ops synchrones). useState + useEffect setTimeout.
+  const [standardBanks,setStandardBanks]=useState([]);
+  useEffect(()=>{
+    let cancelled=false;
+    const t=setTimeout(()=>{
+      if(cancelled) return;
+      const t0=performance.now();
+      const result=computeStandardBanks();
+      if(typeof window!=='undefined'&&window.__TONEX_PERF) console.log(`[perf] standardBanks: ${(performance.now()-t0).toFixed(0)}ms`);
+      if(!cancelled) setStandardBanks(result);
+    },10);
+    return ()=>{cancelled=true;clearTimeout(t);};
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[pickupTypes,availableSources]);
+  const computeStandardBanks=()=>{
     const UNIVERSES=[
       {label:"Marshall Plexi",          amp:"Marshall Plexi",        style:"rock"},
       {label:"Marshall JCM800",         amp:"Marshall JCM800",       style:"hard_rock"},
@@ -4318,7 +4333,7 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
       });
       return {label:u.label,amp:u.amp,style:u.style,slots};
     });
-  },[pickupTypes,availableSources]);
+  };
 
   // Reconfig A/B/C pour un device
   const reconfigPlan=useMemo(()=>{
