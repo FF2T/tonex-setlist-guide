@@ -128,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v68';
+const CACHE='backline-v69';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.10.6";
+const APP_VERSION = "8.10.7";
 const ADMIN_PIN = "212402";
 
 
@@ -3524,6 +3524,16 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
       const dt = performance.now() - window.__tonexRenderStart;
       // eslint-disable-next-line no-console
       console.log(`[perf] ListScreen mount: ${dt.toFixed(1)}ms (${activeSongs.length} morceaux, ${enabledDevicesForRender.length} devices actifs)`);
+      // Phase 5.13.6 — dump tous les marks intermédiaires pour identifier la phase coûteuse
+      if(window.__listscreenPerf&&window.__listscreenPerf.length){
+        const start=window.__tonexRenderStart;
+        let prev=start;
+        for(const m of window.__listscreenPerf){
+          console.log(`  [mark] ${m.label}: +${(m.t-prev).toFixed(1)}ms (since start: ${(m.t-start).toFixed(1)}ms)`);
+          prev=m.t;
+        }
+        window.__listscreenPerf=[];
+      }
       window.__tonexRenderStart = null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3678,6 +3688,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
     }
     setImproving(false);setImproveStatus(null);setCancelRequested(false);
   };
+  __perfMark("listscreen-before-return");
   return (
     <div>
       {/* Sélecteur setlist compact */}
