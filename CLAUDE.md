@@ -591,6 +591,234 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
+## État actuel (2026-05-12, Phase 7 close, tag `phase-7.5-done`)
+
+**Backline v8.14.3 / SW backline-v92 / STATE_VERSION 7 / 578 tests verts.**
+
+Marathon de 22 sous-phases ajoutées le 12 mai 2026 :
+
+### Phase 5.7.3 (fix critiques sync, tag `phase-5.7.3-done`)
+
+- **`updateProfile` ne stampait pas `lastModified`** : symptôme = toggle
+  guitare sur iPhone disparaissait après poll Firestore. LWW tiebreak
+  ne tranchait jamais en faveur d'iPhone (timestamps égaux → keep
+  local). 2 occurrences l. 1585+1776 patchées : ajout
+  `lastModified: Date.now()`.
+- **`dedupSetlists` ne tombstonait pas les losers** : Phase 5.4 nettoyait
+  les setlists doublons en local mais ne propage pas la suppression
+  via Firestore → autres devices ressuscitaient les setlists par
+  leurs IDs originaux. Nouvelle variante `dedupSetlistsWithTombstones`
+  qui retourne `{ setlists, tombstones }`. MaintenanceTab utilise
+  cette variante et propage les tombstones via `onDeletedSetlistIds`.
+- 8 tests ajoutés.
+
+### Phase 5.8 + 5.8.1 (UI partage setlists, tags `phase-5.8-done` + `phase-5.8.1-done`)
+
+- Helper pur `toggleSetlistProfile(setlist, profileId, activeProfileId)`
+  dans `core/state.js` avec garde-fou anti-auto-retrait (le profil
+  actif ne peut PAS se retirer de la setlist).
+- UI "Partager :" sous chaque setlist en mode édition. Pills cliquables
+  par profil. Profil actif marqué 🔒 (verrouillé). Autres profils
+  cliquables → toggle inclusion/exclusion.
+- Phase 5.8.1 : fix propagation prop `profiles` au call site
+  `<SetlistsScreen>` (oubli initial). Sans ça l'UI était invisible.
+- 8 tests ajoutés.
+
+### Phase 5.10 + 5.10.1 + 5.10.2 (Auto-fetchAI, tag `phase-5.10.2-done`)
+
+- **Phase 5.10** : `useEffect` SongDetailCard n'exige plus `gId` pour
+  déclencher fetchAI. L'IA tourne sans guitare présélectionnée. À
+  son retour, si `gId` était vide et l'IA propose `ideal_guitar`,
+  on auto-adopte cette guitare via `onGuitarChange`. Les morceaux
+  Newzik (sans `ig`) ne demandent plus à l'utilisateur de choisir
+  manuellement.
+- **Phase 5.10.1** : Bouton **"⏳ Analyser N"** dans la barre d'actions
+  Setlists. Visible si `missingCount > 0`. Click → batch fetchAI
+  séquentiel avec progress `⏸ X/N` et annulation. Permet de pré-remplir
+  l'aiCache pour toute une setlist en une fois.
+- **Phase 5.10.2** : `aiCache.rigSnapshot` enregistre les ids des
+  guitares du rig au moment de l'analyse. Le `missingCount` inclut
+  désormais les morceaux dont le rig actuel diffère du snapshot.
+  Helper `computeRigSnapshot(guitars)` dans main.jsx, ajouté à
+  `updateAiCache(prev, gId, result, opts)` 4e param. Caches legacy
+  sans rigSnapshot considérés OK (pas re-fetch forcé). Label bouton
+  passe de "⏳ Analyser" à "🤖 Analyser/MAJ".
+
+### Phase 5.11 (bouton Partager Clé Mon Profil, tag `phase-5.11-done`)
+
+- Bouton **"🔑 Partager la clé (tous les profils)"** déplacé/copié de
+  ⚙️ Paramètres (PIN-protégé) vers **Mon Profil → onglet 🔑 Clé API**
+  (admin-only). Push la clé Gemini locale vers Firestore
+  `config/apikeys.gemini` → tous les profils héritent au boot via
+  `loadSharedKey()`. Indispensable pour que Arthur/Franck/Emmanuel
+  puissent utiliser l'IA sans avoir leur propre clé.
+
+### Phase 5.12 (refonte UX Sources, tag `phase-5.12-done`)
+
+- Labels révisés dans `core/sources.js` pour éliminer la confusion
+  entre device (matériel) et source (collection de presets) :
+  - `Factory` → "Pédale classique — Captures pré-installées"
+  - `Anniversary` → "Anniversary — Captures pré-installées"
+  - `PlugFactory` → "Plug — Captures pré-installées"
+  - `TSR` → "TSR — 64 Studio Rats Packs"
+  - `ML` → "ML — ML Sound Lab Essentials"
+  - `ToneNET` → "ToneNET — Presets téléchargés"
+  - `custom` → "Mes presets personnels"
+- Nouvelle table `SOURCE_DESCRIPTIONS` exposée en UI sous chaque
+  toggle. Exemple : "Si tu possèdes une ToneX Pédale classique
+  (la non-Anniversary)".
+- UI : icône + label + description + badge "verrouillé (matériel
+  coché)" remplace "auto".
+
+### Phase 5.13 → 5.13.14 (Perf Setlists/Optimiser, tag `phase-5.13-final`)
+
+Énorme refonte performance après mesure 6400ms sur ListScreen 28
+morceaux. 14 sous-phases pour atteindre <50ms.
+
+- **5.13** : `content-visibility: auto` sur chaque row de morceau.
+  `React.memo` sur `SongCollapsedDeviceRows` (comparaison custom :
+  song.id, guitar.id, aiC, banksAnn, banksPlug, enabledDevices,
+  precomputedTopRecBySongId).
+- **5.13.1** : Lazy batch rendering ListScreen. `visibleCount` débute
+  à 12, incrémente par 18 toutes les 60ms via `requestIdleCallback`.
+  Reset à 12 quand `activeSlId` ou `sort` change.
+- **5.13.2** → **5.13.3** : Defer `<SongCollapsedDeviceRows>` 80ms
+  après mount via `showDeviceRows` state. Defer aussi history line +
+  badge guitare + score.
+- **5.13.4** → **5.13.6** : Diagnostic profiling intermédiaire pour
+  identifier le bottleneck (3811ms persistant). Outils : `__perfMark`
+  helper, log par useMemo, mark `before-return`.
+- **5.13.7** : **TROUVÉ** — `improveBadgeCount` useMemo synchrone
+  qui appelait `enrichAIResult` (~500 ops par morceau qui a
+  `aiCache.gId !== gId` courant) → ~14k ops par mount = 3.7s. Fix :
+  defer via `useState + useEffect setTimeout(200ms)`. Le badge
+  apparaît 200ms après le mount. **3811ms → 16ms (×320)**.
+- **5.13.8** : Cleanup debug instrumentation + ajout perf
+  instrumentation à `BankOptimizerScreen` et `HomeScreen`.
+- **5.13.9** : Defer `analyzeDevice` × 2 (catalog complet × songs =
+  5240ms synchrones) via useState + useEffect setTimeout(0).
+- **5.13.10** : Defer `standardBanks` (15k ops) similaire.
+- **5.13.11** : Mark `before-return` BankOptimizerScreen révèle que
+  le coût n'est pas dans le mount (1ms) mais dans les re-renders
+  post-setAnnAnalysis (1162ms).
+- **5.13.12** : `content-visibility: auto` sur `sectionStyle` du
+  BankOptimizerScreen pour skip le rendering des sections offscreen.
+- **5.13.13** : **CRITIQUE** — boucle infinie analyzeDevice détectée
+  (cascade 51s). Cause : `songs` recalculé à chaque render comme
+  nouveau tableau → useEffect re-trigger en boucle. Fix : `useMemo`
+  sur `songs` avec deps `[sl, songDb]`.
+- **5.13.14** : Même problème pour `pickupTypes` (deps du useEffect
+  `standardBanks`). Fix : `useMemo` sur `pickupTypes` avec deps
+  `[allGuitars]`.
+
+**Résultat final** : ListScreen 6400ms → 16ms (×400). HomeScreen
+2.4ms. BankOptimizerScreen 1ms mount + analyses background non-bloquantes.
+
+### Phase 6 + 6.1 + 6.1.1 + 6.1.2 + 6.1.3 + 6.2 (Partage aiCache via Firestore, tag `phase-6.2-done`)
+
+- **Phase 6** : `saveToFirestore` push opportuniste de l'aiCache. Si
+  payload total < 800 KB → push avec aiCache. Sinon strip (Phase 5.7.1).
+  Le merge `mergeSongDbPreservingLocalAiCache` adopte le remote
+  aiCache si plus récent ou si local n'en a pas.
+- **Phase 6.1** : **Compression lz-string** pour faire passer les
+  states >800 KB sous la limite. Nouveau champ Firestore
+  `dataCompressed`. Au pull, priorité au champ compressé (décompression
+  via `LZString.decompressFromBase64`). Fallback `data` legacy.
+  Sébastien : 1302 KB raw → 434 KB compressed (ratio 3×).
+- **Phase 6.1.1** : **BOUCLE INFINIE détectée** entre Mac + iPhone +
+  iPad (chacun push après chaque pull). Cause : `shared.lastModified
+  = Date.now()` à chaque persist effect → state change → push. Fix :
+  hash léger du contenu (sans timestamps) + skip push si pas de
+  vraie modif.
+- **Phase 6.1.2** : Hash refait sans `lastModified` ni autres champs
+  qui mutent à chaque mergeLWW. Hash basé sur (myGuitars sorted,
+  songIds sorted, profileIds sorted, aiProvider, etc.).
+- **Phase 6.1.3** : Boucle subtile résiduelle — pull adopte les
+  aiCaches manquants → syncHash change → push → autre device pull →
+  écho. Fix : `justPulledRef` set 3s après `applyRemoteData`, le
+  persist effect skip push pendant cette fenêtre.
+- **Phase 6.2** : iPhone affichait 0 aiCache même après pull car
+  `tonex_guide_backups` pesait 1706 KB → quota Safari iOS (~2 MB)
+  saturé → `setItem(1319 KB)` échouait silencieusement. Fix :
+  `MAX_BACKUPS` 5 → 2.
+
+**Résultat** : Sync multi-device avec aiCache compressé fonctionne.
+Mac (127 aiCaches) → Firestore (439 KB compressed) → iPhone hérite
+des 127 aiCaches. Plus de ⏳ sur les devices secondaires.
+
+### Phase 7.1 → 7.5 (Feedback global + Mode reco, tag `phase-7.5-done`)
+
+- **Phase 7.1** : `profile.recoMode` ∈ {`balanced`, `faithful`,
+  `interpretation`} avec défaut `balanced`. UI : nouvel onglet
+  **Mon Profil → 🎯 Préférences IA** avec 3 cards radio.
+  `profile.guitarBias = {}` réservé pour Phase 7.6+ (non utilisé).
+- **Phase 7.2** : `fetchAI` prend un 10e param `recoMode`. Prompt
+  enrichi selon le mode :
+  - `faithful` : "Privilégie EXACTEMENT la guitare originale de
+    l'artiste, même si une autre scorerait mieux par compatibilité
+    tonale pure."
+  - `interpretation` : "Privilégie les guitares VERSATILES (ES-335,
+    SG, Strat) qui couvrent bien le style, même si ce n'est pas
+    l'instrument original."
+  - `balanced` : prompt inchangé.
+- **Phase 7.3** : Override par morceau via `song.recoMode`. 4 boutons
+  compacts dans SongDetailCard : `↻ Profil` (hérite), `⚖️ Équilibré`,
+  `🎯 Fidèle`, `🎨 Interprétation`. Changer le mode invalide le cache
+  IA du morceau → re-fetch automatique avec le nouveau mode.
+  `effectiveRecoMode = song.recoMode || profile.recoMode || balanced`.
+- **Phase 7.4** : Bouton **"🗑 Invalider tous les caches IA"** dans
+  Mon Profil → 🎯 Préférences IA (admin). Confirmation + count.
+  Click → vide tous les `aiCache`. Sébastien peut ensuite utiliser
+  "⏳ Analyser/MAJ N" dans Setlists pour batch re-analyse avec le
+  nouveau mode.
+- **Phase 7.5** : Bouton **"💬 Donner un feedback à l'IA"** dans la
+  fiche dépliée d'un morceau (FeedbackPanel existant mais mal exposé).
+  Historique des feedbacks précédents affiché au-dessus (3 derniers,
+  avec date). Submit → relance fetchAI avec `feedback + recoMode` →
+  nouvelle reco. Feedback persisté dans `song.feedback[]`
+  (synchronisé via Firestore).
+
+### Schéma localStorage v7 (inchangé depuis Phase 5.7) avec ajouts Phase 7
+
+```
+profile {
+  ...,
+  recoMode?: 'balanced' | 'faithful' | 'interpretation',  // Phase 7.1
+  guitarBias?: { [styleId]: guitarId },                   // Phase 7.1 réservé
+}
+
+shared.songDb[i] {
+  ...,
+  recoMode?: string,           // Phase 7.3 override par morceau
+  feedback?: [{ text, ts }],   // Phase 7.5 historique
+}
+
+shared.songDb[i].aiCache {
+  ...,                          // gId, result, sv, bestByGuitar
+  rigSnapshot?: string,         // Phase 5.10.2 — "g1|g2|g3..." sorted
+}
+```
+
+### Dette résiduelle Phase 7
+
+- **Phase 7.6 / Phase 7.7** : `profile.guitarBias` actuellement non
+  utilisé en scoring local. Pourrait être enrichi par les feedbacks
+  pour bias automatique (genre 3+ feedbacks "préfère ES-335 pour
+  blues" → bump ES-335 dans le scoring blues).
+- Le feedback n'influence PAS les autres morceaux. Effet local au
+  morceau précis. Pour effet global, voir Phase 7.6+.
+
+### Dette générale ouverte
+
+- **SW non enregistré** (depuis Phase 5.2 rebrand) : `navigator.serviceWorker.register(blobUrl)` échoue silencieusement, perte de l'offline. Phase 9 ou 10 à scoper.
+- **Deprecation warning `apple-mobile-web-app-capable`** : cosmétique iOS.
+- **Favicon 404** : cosmétique.
+- **Découpage main.jsx** (~7700 lignes) : dette Phase 1 persistante.
+- **Phase 8** — Basse + batterie + sections instrumentales : gros chantier non démarré. Modèle de données étendu (`device.instrument: 'guitar'|'bass'|'drums'`), Roland TD-17 comme device drums, Fender Jazz Bass Player Plus comme device bass, sections par instrument dans `song.recommendations.{guitar,bass,drums}`, LiveScreen multi-instrument.
+- **TMP custom patches editor** (dette Phase 4) : aujourd'hui Sébastien peut éditer JSON manuel `profile.tmpPatches.custom = [...]`, pas d'UI dédiée.
+- **TMP browser dans MonProfilScreen** (dette Phase 4).
+- **AI populating `preset_tmp` field dans aiCache** (dette Phase 3+).
+
 ## État Phase 5.7.2 (gate migration Newzik, 2026-05-11, tag `phase-5.7.2-done`)
 
 1 commit `[phase-5.7.2]`. Suite 547 → 562 tests (+15). SW CACHE
