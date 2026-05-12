@@ -128,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v65';
+const CACHE='backline-v66';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.10.3";
+const APP_VERSION = "8.10.4";
 const ADMIN_PIN = "212402";
 
 
@@ -3825,7 +3825,8 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           </div>;
         })()}
       {activeSongs.length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"var(--text-dim)"}}><div style={{fontSize:24,marginBottom:8}}>🎵</div><div style={{fontSize:14}}>Setlist vide — clique sur "+ Ajouter"</div></div>}
-      {(()=>{let lastArtist="";return activeSongs.slice(0,visibleCount).map(s=>{
+      {!showDeviceRows&&activeSongs.length>0&&<div data-testid="loading-rows" style={{textAlign:"center",padding:"20px",color:"var(--text-dim)",fontSize:12}}>Chargement de la liste…</div>}
+      {showDeviceRows&&(()=>{let lastArtist="";return activeSongs.slice(0,visibleCount).map(s=>{
         const showArtistHeader=sort==="artist"&&s.artist!==lastArtist;
         if(showArtistHeader) lastArtist=s.artist;
         const isC=checked.includes(s.id);
