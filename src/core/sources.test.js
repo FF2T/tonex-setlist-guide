@@ -21,10 +21,13 @@ describe('SOURCE_LABELS — long form', () => {
       expect(SOURCE_LABELS[id].length).toBeGreaterThan(0);
     });
   });
-  test('Anniversary distinct de Factory', () => {
+  test('Anniversary distinct de Factory (Phase 5.12 — refonte labels)', () => {
     expect(SOURCE_LABELS.Anniversary).not.toBe(SOURCE_LABELS.Factory);
     expect(SOURCE_LABELS.Anniversary).toContain('Anniversary');
-    expect(SOURCE_LABELS.Factory).toContain('Factory');
+    // Phase 5.12 : le label Factory ne contient plus "Factory" pour éviter
+    // la confusion avec le device. Il utilise "classique" pour distinguer
+    // de l'Anniversary.
+    expect(SOURCE_LABELS.Factory).toContain('classique');
   });
 });
 

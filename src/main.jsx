@@ -76,7 +76,7 @@ import {
   dedupSetlists, dedupSetlistsWithTombstones, findSetlistDuplicatesByName,
 } from './core/state.js';
 import {
-  SOURCE_LABELS, SOURCE_BADGES, SOURCE_INFO,
+  SOURCE_LABELS, SOURCE_DESCRIPTIONS, SOURCE_BADGES, SOURCE_INFO,
   getSourceBadge, getSourceInfo,
 } from './core/sources.js';
 
@@ -128,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v80';
+const CACHE='backline-v81';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.12.2";
+const APP_VERSION = "8.12.3";
 const ADMIN_PIN = "212402";
 
 
@@ -1738,7 +1738,7 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp,section,aiK
       {/* Mes sources de presets */}
       {s==="sources"&&<div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-lg)",padding:16,marginBottom:16}}>
         <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:4}}>Mes sources de presets</div>
-        <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:12}}>Coche les packs de presets que tu as installés.</div>
+        <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:12}}>Coche uniquement les packs et matériels ToneX que tu possèdes réellement. Les recommandations seront filtrées en conséquence.</div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {Object.entries(SOURCE_LABELS).map(([key,label])=>{
             // Auto-lock sources based on owned devices.
@@ -1749,10 +1749,18 @@ function ProfileTab({profile,profiles,onProfiles,activeProfileId,inp,section,aiK
               ||(key==="Factory"&&enabled.has('tonex-pedal'))
               ||(key==="PlugFactory"&&enabled.has('tonex-plug'));
             const on=locked||profile.availableSources?.[key]!==false;
-            return <button key={key} onClick={()=>{if(!locked)toggleSource(key);}} style={{display:"flex",alignItems:"center",gap:10,background:on?"var(--green-bg)":"var(--a3)",border:on?"1px solid var(--green-border)":"1px solid var(--a8)",borderRadius:"var(--r-md)",padding:"10px 14px",cursor:locked?"default":"pointer",textAlign:"left",opacity:locked?0.85:1}}>
-              <div style={{width:18,height:18,borderRadius:"var(--r-sm)",border:on?"2px solid var(--green)":"2px solid var(--text-muted)",background:on?"var(--green)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{on&&<span style={{color:"var(--bg)",fontSize:10,fontWeight:900}}>✓</span>}</div>
-              <div style={{flex:1,fontSize:12,color:on?"var(--text)":"var(--text-muted)",fontWeight:on?600:400}}>{label}</div>
-              {locked&&<span style={{fontSize:9,color:"var(--text-dim)"}}>auto</span>}
+            const desc=SOURCE_DESCRIPTIONS[key]||"";
+            const icon=SOURCE_INFO[key]?.icon||"📁";
+            return <button key={key} onClick={()=>{if(!locked)toggleSource(key);}} style={{display:"flex",alignItems:"flex-start",gap:10,background:on?"var(--green-bg)":"var(--a3)",border:on?"1px solid var(--green-border)":"1px solid var(--a8)",borderRadius:"var(--r-md)",padding:"10px 14px",cursor:locked?"default":"pointer",textAlign:"left",opacity:locked?0.85:1}}>
+              <div style={{width:18,height:18,borderRadius:"var(--r-sm)",border:on?"2px solid var(--green)":"2px solid var(--text-muted)",background:on?"var(--green)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:2}}>{on&&<span style={{color:"var(--bg)",fontSize:10,fontWeight:900}}>✓</span>}</div>
+              <div style={{flex:1,display:"flex",flexDirection:"column",gap:3}}>
+                <div style={{fontSize:12,color:on?"var(--text)":"var(--text-muted)",fontWeight:on?700:500,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                  <span>{icon}</span>
+                  <span>{label}</span>
+                  {locked&&<span style={{fontSize:9,color:"var(--text-dim)",background:"var(--a6)",borderRadius:"var(--r-sm)",padding:"1px 6px",fontWeight:600}}>verrouillé (matériel coché)</span>}
+                </div>
+                {desc&&<div style={{fontSize:10,color:"var(--text-dim)",lineHeight:1.4}}>{desc}</div>}
+              </div>
             </button>;
           })}
         </div>

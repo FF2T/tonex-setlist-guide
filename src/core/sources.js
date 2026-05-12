@@ -19,14 +19,28 @@ const SOURCE_IDS = ['TSR', 'ML', 'Anniversary', 'Factory', 'PlugFactory', 'ToneN
 
 // Label long pour les UI principales (filtres profil, ProfileTab,
 // ViewProfileScreen, ExportImportScreen…).
+// Phase 5.12 — labels révisés pour clarifier la distinction
+// device (matériel ToneX) vs source (collection de presets factory).
 const SOURCE_LABELS = {
-  TSR: '64 Studio Rats',
-  ML: 'ML Sound Lab Essentials',
-  Anniversary: 'ToneX Anniversary Factory',
-  Factory: 'ToneX Factory',
-  PlugFactory: 'ToneX Plug Factory',
-  ToneNET: 'ToneNET',
-  custom: 'Custom',
+  TSR: 'TSR — 64 Studio Rats Packs',
+  ML: 'ML — ML Sound Lab Essentials',
+  Anniversary: 'Anniversary — Captures pré-installées',
+  Factory: 'Pédale classique — Captures pré-installées',
+  PlugFactory: 'Plug — Captures pré-installées',
+  ToneNET: 'ToneNET — Presets téléchargés',
+  custom: 'Mes presets personnels',
+};
+
+// Phase 5.12 — Descriptions courtes affichées sous chaque label en
+// onglet Sources. Aide à comprendre quand cocher quoi.
+const SOURCE_DESCRIPTIONS = {
+  TSR: 'Si tu as acheté un ou plusieurs des 64 packs The Studio Rats.',
+  ML: 'Si tu as acheté le pack ML Sound Lab Essentials.',
+  Anniversary: 'Si tu possèdes une ToneX Pédale Anniversary (rouge).',
+  Factory: 'Si tu possèdes une ToneX Pédale classique (la non-Anniversary).',
+  PlugFactory: 'Si tu possèdes une ToneX Plug (la petite).',
+  ToneNET: 'Presets gratuits téléchargés depuis tonenet.com.',
+  custom: 'Presets que tu as créés ou modifiés toi-même.',
 };
 
 // Badge court (≤ 8 char) pour les listes denses où on n'a pas la
@@ -97,6 +111,7 @@ function isSourceAvailable(srcId, availableSources) {
 export {
   SOURCE_IDS,
   SOURCE_LABELS,
+  SOURCE_DESCRIPTIONS,
   SOURCE_BADGES,
   SOURCE_INFO,
   getSourceBadge,
