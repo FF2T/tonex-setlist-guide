@@ -128,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v62';
+const CACHE='backline-v63';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.10.0";
+const APP_VERSION = "8.10.1";
 const ADMIN_PIN = "212402";
 
 
@@ -3511,6 +3511,31 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
   const [expandedId,setExpandedId]=useState(null);
   const [showTopGuitars,setShowTopGuitars]=useState(false);
   const [editingSetlists,setEditingSetlists]=useState(false);
+  // Phase 5.13.1 — Lazy batch rendering. Au mount, on rend les 12 premiers
+  // morceaux uniquement (mount perçu rapide). Puis on monte progressivement
+  // les autres par batches de 18 toutes les 60ms via setTimeout, ce qui
+  // laisse au navigateur le temps de respirer entre chaque batch et évite
+  // le freeze 5s sur "Cours Franck B" (46 morceaux). Reset à 12 quand on
+  // change de setlist (slId) ou de tri (sort change la liste).
+  const [visibleCount,setVisibleCount]=useState(12);
+  useEffect(()=>{
+    // Reset au changement de contexte (setlist active ou sort).
+    setVisibleCount(12);
+  },[activeSlId,sort]);
+  useEffect(()=>{
+    // Si tout est déjà visible, rien à faire.
+    if(visibleCount>=activeSongs.length) return;
+    // requestIdleCallback si dispo (laisse le main thread libre pour les
+    // interactions), sinon setTimeout 60ms en fallback.
+    const ric=typeof window!=='undefined'&&window.requestIdleCallback;
+    const handle=ric
+      ? window.requestIdleCallback(()=>setVisibleCount(c=>Math.min(c+18,activeSongs.length)),{timeout:200})
+      : setTimeout(()=>setVisibleCount(c=>Math.min(c+18,activeSongs.length)),60);
+    return ()=>{
+      if(ric) window.cancelIdleCallback(handle);
+      else clearTimeout(handle);
+    };
+  },[visibleCount,activeSongs.length]);
   const [newSlName,setNewSlName]=useState("");
   const [editSlId,setEditSlId]=useState(null);
   const [editSlName,setEditSlName]=useState("");
@@ -3791,7 +3816,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           </div>;
         })()}
       {activeSongs.length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"var(--text-dim)"}}><div style={{fontSize:24,marginBottom:8}}>🎵</div><div style={{fontSize:14}}>Setlist vide — clique sur "+ Ajouter"</div></div>}
-      {(()=>{let lastArtist="";return activeSongs.map(s=>{
+      {(()=>{let lastArtist="";return activeSongs.slice(0,visibleCount).map(s=>{
         const showArtistHeader=sort==="artist"&&s.artist!==lastArtist;
         if(showArtistHeader) lastArtist=s.artist;
         const isC=checked.includes(s.id);
