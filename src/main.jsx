@@ -128,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v82';
+const CACHE='backline-v83';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -183,19 +183,38 @@ var _lastRemoteSyncId=null;
 // limite document 1 MiB. Le state local (localStorage) conserve les
 // aiCache ; uniquement la sérialisation Firestore les exclut.
 function saveToFirestore(s){
-  var light=stripAiCacheForSync(s);
-  var clean=JSON.parse(JSON.stringify(light));
-  // Phase 5.7 : timestamp arrive depuis le caller via state.shared.lastModified.
-  // Fallback Date.now() si jamais shared.lastModified manque (legacy save).
-  var ts=(clean.shared&&typeof clean.shared.lastModified==="number")?clean.shared.lastModified:Date.now();
+  // Phase 6 — push opportuniste de l'aiCache si le payload total tient
+  // sous la limite Firestore. On teste d'abord la taille avec aiCache.
+  // Si <800 KB → push avec (résout les ⏳ sur les autres devices).
+  // Sinon → strip (fallback Phase 5.7.1).
+  var SAFE_LIMIT=800*1024;
+  var ts=(s&&s.shared&&typeof s.shared.lastModified==="number")?s.shared.lastModified:Date.now();
   var sid=Date.now().toString(36)+Math.random().toString(36).slice(2);
   _lastSavedSyncId=sid;
-  clean.syncId=sid;
-  if(clean.profiles){for(var pid in clean.profiles){if(clean.profiles[pid].aiKeys)clean.profiles[pid].aiKeys={anthropic:"",gemini:""};}}
-  var payload=JSON.stringify(clean);
-  // Phase 5.7.1 — sanity check. Firestore document limit = 1 MiB.
-  // On warning à 800 KB (payload JSON-encoded), on log error et on
-  // refuse de push si ≥ 1 000 000 octets pour éviter un 400 prévisible.
+  // Helper interne pour préparer un clean d'un state donné.
+  var prep=function(stateIn){
+    var c=JSON.parse(JSON.stringify(stateIn));
+    c.syncId=sid;
+    if(c.profiles){for(var pid in c.profiles){if(c.profiles[pid].aiKeys)c.profiles[pid].aiKeys={anthropic:"",gemini:""};}}
+    return c;
+  };
+  // Tente d'abord avec aiCache complet.
+  var cleanFull=prep(s);
+  var payloadFull=JSON.stringify(cleanFull);
+  var sharedAi=true;
+  var clean=cleanFull;
+  var payload=payloadFull;
+  if(payloadFull.length>=SAFE_LIMIT){
+    // Trop gros : fallback strip.
+    sharedAi=false;
+    var light=stripAiCacheForSync(s);
+    clean=prep(light);
+    payload=JSON.stringify(clean);
+    console.log("[firestore] Push WITHOUT aiCache (size "+(payloadFull.length/1024).toFixed(0)+" KB ≥ "+(SAFE_LIMIT/1024)+" KB limit). After strip: "+(payload.length/1024).toFixed(0)+" KB.");
+  }else{
+    console.log("[firestore] Push WITH aiCache opportunistic (size "+(payloadFull.length/1024).toFixed(0)+" KB < "+(SAFE_LIMIT/1024)+" KB limit).");
+  }
+  // Sanity check. Firestore document limit = 1 MiB.
   var sz=payload.length;
   if(sz>=1000000){
     console.error("[firestore] Payload "+(sz/1024).toFixed(0)+" KB ≥ 1 MB — push aborted (would 400). songs="+(clean.shared&&clean.shared.songDb?clean.shared.songDb.length:0));
@@ -552,7 +571,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.13.0";
+const APP_VERSION = "8.13.1";
 const ADMIN_PIN = "212402";
 
 
