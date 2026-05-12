@@ -129,7 +129,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v89';
+const CACHE='backline-v90';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -610,7 +610,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.0";
+const APP_VERSION = "8.14.1";
 const ADMIN_PIN = "212402";
 
 
@@ -3095,9 +3095,10 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
     // Avant Phase 5.10, le useEffect skip si !gId, forçant l'utilisateur
     // à choisir manuellement. Maintenant l'IA tourne, puis on auto-select
     // ideal_guitar via onGuitarChange (callback parent).
-    // Phase 7.2 — pass profile.recoMode au prompt fetchAI pour customiser
-    // l'orientation de la reco (Fidèle / Interprétation / Équilibré).
-    fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars,null,null,profile?.recoMode||"balanced")
+    // Phase 7.2 + 7.3 — pass recoMode au prompt fetchAI. song.recoMode
+    // (override par morceau) prime sur profile.recoMode (défaut global).
+    const effectiveRecoMode=song.recoMode||profile?.recoMode||"balanced";
+    fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars,null,null,effectiveRecoMode)
       .then(r=>{
         setLocalAiResult(r);
         setLocalAiErr(null);
@@ -3401,6 +3402,33 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
           {g&&chosenGuitarScore&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:3,marginLeft:24}}>Compatibilite : <b style={{color:scoreColor(chosenGuitarScore)}}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated&&<span style={{marginLeft:6,color:"var(--text-tertiary)",fontStyle:"italic"}}>(estime)</span>}</div>}
           {g&&aiC&&(()=>{const fb=guitarChoiceFeedback(g,aiC,chosenGuitarCot);return fb?<div style={{fontSize:10,color:"var(--text-sec)",marginTop:3,marginLeft:24,lineHeight:1.4}}>{fb}</div>:null;})()}
           {g&&aiC&&(()=>{const s=localGuitarSettings(g,aiC);return s?<div style={{fontSize:10,background:"var(--a4)",border:"1px solid var(--a10)",borderRadius:"var(--r-md)",padding:"5px 8px",color:"var(--text-sec)",marginTop:5,marginLeft:24}}><b style={{color:"var(--text-muted)"}}>Reglages :</b> {s}</div>:null;})()}
+        </div>
+        {/* Phase 7.3 — Mode reco par morceau (override le défaut profil).
+            3 boutons compacts. Cliquer change song.recoMode + invalide
+            l'aiCache pour forcer re-fetch au prochain ouverture. */}
+        <div style={{marginBottom:12,marginLeft:24}}>
+          <div style={{fontSize:10,color:"var(--text-muted)",marginBottom:4}}>Mode IA pour ce morceau {song.recoMode?<span style={{color:"var(--accent)"}}>· override</span>:<span style={{color:"var(--text-dim)"}}>· profil ({profile?.recoMode||"balanced"})</span>}</div>
+          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+            {[
+              {id:"",icon:"↻",label:"Profil"},
+              {id:"balanced",icon:"⚖️",label:"Équilibré"},
+              {id:"faithful",icon:"🎯",label:"Fidèle"},
+              {id:"interpretation",icon:"🎨",label:"Interprétation"},
+            ].map(({id,icon,label})=>{
+              const active=(song.recoMode||"")===id;
+              return <button
+                key={id||"profile"}
+                data-testid={`song-reco-mode-${id||"profile"}`}
+                onClick={()=>{
+                  onSongDb(p=>p.map(x=>x.id===song.id?{...x,recoMode:id||undefined,aiCache:null}:x));
+                  setLocalAiResult(null);
+                }}
+                title={id?`Override : ${label}`:"Hérite du mode profil. Cliquer invalide le cache IA pour re-fetcher avec le nouveau mode."}
+                style={{fontSize:10,fontWeight:active?700:500,background:active?"var(--accent-bg)":"var(--a3)",border:active?"1px solid var(--accent-border)":"1px solid var(--a8)",color:active?"var(--accent)":"var(--text-muted)",borderRadius:"var(--r-sm)",padding:"3px 8px",cursor:"pointer"}}
+              >{icon} {label}</button>;
+            })}
+          </div>
+          <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3,fontStyle:"italic"}}>Changer le mode invalide le cache → re-analyse au prochain ouverture du morceau.</div>
         </div>
         {/* Phase 5.3 — "Meilleurs presets installés" gated par aiC :
             les rangs ToneX lisent aiC[d.presetResultKey] et planteraient
