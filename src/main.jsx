@@ -128,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v81';
+const CACHE='backline-v82';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.12.3";
+const APP_VERSION = "8.13.0";
 const ADMIN_PIN = "212402";
 
 
@@ -967,13 +967,25 @@ function preserveHistorical(prev,next){
   }
   return merged;
 }
-function updateAiCache(existing,gId,newResult){
+// Phase 5.10.2 — Helper pour calculer le snapshot du rig (ids des guitares
+// triés, joints en string). Utilisé par updateAiCache pour persister l'état
+// du rig au moment de l'analyse, et par ListScreen pour détecter les caches
+// stale après ajout/retrait de guitare.
+function computeRigSnapshot(guitars){
+  if(!Array.isArray(guitars)||!guitars.length) return "";
+  return guitars.map(g=>g.id).sort().join("|");
+}
+function updateAiCache(existing,gId,newResult,opts){
   const prevResult=existing?.result;
   const merged=preserveHistorical(prevResult,newResult);
   const prevBest=existing?.bestByGuitar?.[gId];
   const best=mergeBestResults(prevBest,merged);
   const bestByGuitar={...(existing?.bestByGuitar||{}), [gId]:best};
-  return {gId,result:merged,sv:SCORING_VERSION,bestByGuitar};
+  // Phase 5.10.2 — stocke rigSnapshot pour permettre la détection des
+  // analyses obsolètes après modif du rig. opts.rigSnapshot optionnel
+  // pour rétrocompat (anciens call sites n'ont pas à le passer).
+  const rigSnapshot=opts&&opts.rigSnapshot!=null?opts.rigSnapshot:existing?.rigSnapshot;
+  return {gId,result:merged,sv:SCORING_VERSION,bestByGuitar,rigSnapshot};
 }
 function getBestResult(song,gId,fallback){
   const cached=song.aiCache?.bestByGuitar?.[gId];
@@ -2987,7 +2999,9 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
       .then(r=>{
         setLocalAiResult(r);
         setLocalAiErr(null);
-        onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:{...updateAiCache(x.aiCache,gId,r),sv:SCORING_VERSION}}:x));
+        // Phase 5.10.2 — stocke le snapshot du rig au moment de l'analyse.
+        const rigSnapshot=computeRigSnapshot(allRigsGuitars||guitars);
+        onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:{...updateAiCache(x.aiCache,gId,r,{rigSnapshot}),sv:SCORING_VERSION}}:x));
         // Phase 5.10 — Auto-select ideal_guitar si gId vide et l'IA en a
         // proposé une. L'utilisateur peut toujours changer ensuite via le
         // sélecteur. setTimeout(0) pour laisser React commit le state
@@ -3689,12 +3703,28 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
   // Phase 5.10.1 — bouton accessible "Analyser N morceaux ⏳" depuis Setlists.
   // Compte les morceaux sans cache dans la setlist active. Click → batch
   // fetchAI séquentiel avec progress visible. Cancel-able comme improveAll.
-  const missingCount=useMemo(()=>(activeSongs||[]).filter(s=>!s.aiCache).length,[activeSongs]);
+  // Phase 5.10.2 — inclut aussi les morceaux dont rigSnapshot diffère du
+  // rig actuel (guitare ajoutée ou retirée depuis la dernière analyse).
+  // Les caches legacy sans rigSnapshot sont considérés OK (pas re-fetch
+  // forcé) pour ne pas surcharger le quota IA d'un coup.
+  const currentRigSnapshot=useMemo(()=>computeRigSnapshot(allRigsGuitars||allGuitars||GUITARS),[allRigsGuitars,allGuitars]);
+  const missingCount=useMemo(()=>(activeSongs||[]).filter(s=>{
+    if(!s.aiCache) return true;
+    // Stale rig : aiCache a un rigSnapshot ET diffère du rig actuel
+    if(s.aiCache.rigSnapshot&&s.aiCache.rigSnapshot!==currentRigSnapshot) return true;
+    return false;
+  }).length,[activeSongs,currentRigSnapshot]);
   const [analyzeAllStatus,setAnalyzeAllStatus]=useState(null); // {current,total,songTitle} | null
   const analyzeCancelRef=useRef(false);
   const analyzeMissingAll=async()=>{
     analyzeCancelRef.current=false;
-    const missing=(activeSongs||[]).filter(s=>!s.aiCache);
+    // Phase 5.10.2 — même filtre que missingCount pour cohérence : inclut
+    // les morceaux sans cache + ceux avec rig snapshot obsolète.
+    const missing=(activeSongs||[]).filter(s=>{
+      if(!s.aiCache) return true;
+      if(s.aiCache.rigSnapshot&&s.aiCache.rigSnapshot!==currentRigSnapshot) return true;
+      return false;
+    });
     if(!missing.length) return;
     const guitars=allGuitars||GUITARS;
     setAnalyzeAllStatus({current:0,total:missing.length,songTitle:""});
@@ -3706,7 +3736,9 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         // gId="" : l'IA propose elle-même la guitare idéale (Phase 5.10 logic).
         const r=await fetchAI(s,"",banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars);
         if(analyzeCancelRef.current) break;
-        onSongDb(p=>p.map(x=>x.id===s.id?{...x,aiCache:{...updateAiCache(x.aiCache,"",r),sv:SCORING_VERSION}}:x));
+        // Phase 5.10.2 — stocke rigSnapshot pour la détection stale.
+        const rigSnapshot=computeRigSnapshot(allRigsGuitars||guitars);
+        onSongDb(p=>p.map(x=>x.id===s.id?{...x,aiCache:{...updateAiCache(x.aiCache,"",r,{rigSnapshot}),sv:SCORING_VERSION}}:x));
       }catch(e){
         // Skip ce morceau mais continue les autres
         console.warn(`[analyzeMissingAll] Skip "${s.title}":`,e?.message||e);
@@ -3853,13 +3885,13 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           {missingCount>0&&!analyzeAllStatus&&<button
             data-testid="list-screen-analyze-missing"
             onClick={()=>{
-              const msg=`Analyser ${missingCount} morceau${missingCount>1?"x":""} sans cache IA ?\n\nDurée estimée : ${Math.ceil(missingCount*8)}s (~8s par morceau).\nLa clé Gemini partagée sera utilisée.\n\nTu peux annuler à tout moment.`;
+              const msg=`Analyser/actualiser ${missingCount} morceau${missingCount>1?"x":""} ?\n\nInclut :\n• Morceaux sans analyse IA (⏳)\n• Morceaux dont l'analyse date d'avant un changement de rig (guitare ajoutée/retirée)\n\nDurée estimée : ${Math.ceil(missingCount*8)}s (~8s par morceau).\nLa clé Gemini partagée sera utilisée. Tu peux annuler à tout moment.`;
               if(!window.confirm(msg)) return;
               analyzeMissingAll();
             }}
-            title={`${missingCount} morceaux sans analyse IA. Click pour lancer en batch.`}
+            title={`${missingCount} morceau(x) à analyser ou actualiser après modif du rig.`}
             style={{fontSize:10,color:"var(--accent)",background:"var(--accent-bg)",border:"1px solid var(--accent-border)",borderRadius:"var(--r-sm)",padding:"3px 8px",cursor:"pointer",fontWeight:700}}
-          >⏳ Analyser {missingCount}</button>}
+          >🤖 Analyser/MAJ {missingCount}</button>}
           {analyzeAllStatus&&<button
             data-testid="list-screen-analyze-cancel"
             onClick={()=>{analyzeCancelRef.current=true;}}
