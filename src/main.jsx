@@ -128,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v61';
+const CACHE='backline-v62';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.9.1";
+const APP_VERSION = "8.10.0";
 const ADMIN_PIN = "212402";
 
 
@@ -3837,7 +3837,21 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           );
         };
         return (
-          <div key={s.id} id={"song-"+s.id}>
+          <div
+            key={s.id}
+            id={"song-"+s.id}
+            style={{
+              // Phase 5.13 — content-visibility: auto skip le rendering
+              // des rows offscreen. Le navigateur gère le compositing
+              // sans paint le contenu tant qu'il n'est pas visible
+              // (Chrome/Edge/Firefox 125+/Safari 18+). containIntrinsicSize
+              // donne une hint sur la hauteur pré-render (utile pour le
+              // scroll bar et le layout). ~140px = hauteur typique d'un
+              // row collapsé (titre + artiste + history + devices rows).
+              contentVisibility: 'auto',
+              containIntrinsicSize: '0 140px',
+            }}
+          >
           {showArtistHeader&&<div style={{fontSize:12,fontWeight:700,color:"var(--text-sec)",marginTop:lastArtist===s.artist?0:12,marginBottom:4,paddingLeft:2,borderBottom:"1px solid var(--a7)",paddingBottom:4}}>{s.artist}</div>}
           <div style={{marginBottom: isExpanded?0:8}}>
             <div style={{display:"flex"}}>

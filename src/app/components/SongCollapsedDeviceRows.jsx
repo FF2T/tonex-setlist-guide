@@ -87,5 +87,31 @@ function SongCollapsedDeviceRows({
   );
 }
 
-export default SongCollapsedDeviceRows;
-export { getActiveDevicesForProfile };
+// Phase 5.13 — React.memo pour éviter les re-renders cascade quand les
+// props parents changent mais que les props "vraiment importantes" pour
+// cette row (song.id, guitar.id, aiC contenu, banks) restent stables.
+// Comparaison custom : on bypass le check par défaut React (shallow sur
+// toutes les props) en focalisant sur les props qui changent vraiment
+// le rendu de la row. Les props comme profile, allGuitars sont des
+// références qui peuvent muter à chaque poll Firestore sans changer le
+// rendu effectif → on ignore leur identité.
+const MemoizedSongCollapsedDeviceRows = React.memo(SongCollapsedDeviceRows, (prev, next) => {
+  // song.id : différent → re-render (devrait pas arriver, key change la diff)
+  if (prev.song?.id !== next.song?.id) return false;
+  // guitar.id : changement de guitare sélectionnée → re-render
+  if (prev.guitar?.id !== next.guitar?.id) return false;
+  // aiC : reference compare. Si le cache IA a été refresh, re-render.
+  if (prev.aiC !== next.aiC) return false;
+  // banks : reference compare. Si l'utilisateur a modifié ses banks, re-render.
+  if (prev.banksAnn !== next.banksAnn) return false;
+  if (prev.banksPlug !== next.banksPlug) return false;
+  // enabledDevices : la liste des devices activés peut changer (rare).
+  if (prev.enabledDevices !== next.enabledDevices) return false;
+  // precomputedTopRecBySongId : Map qui change quand TMP rec est recalculé.
+  if (prev.precomputedTopRecBySongId !== next.precomputedTopRecBySongId) return false;
+  // onPatchOverride : on suppose stable (useCallback côté parent)
+  return true;
+});
+
+export default MemoizedSongCollapsedDeviceRows;
+export { getActiveDevicesForProfile, SongCollapsedDeviceRows as SongCollapsedDeviceRowsRaw };
