@@ -64,7 +64,11 @@ const LS_KEY_V1 = 'tonex_guide_v1';
 const LS_SECRETS_KEY = 'tonex_secrets';
 const LS_TRUSTED_KEY = 'tonex_trusted_devices';
 const LS_BACKUP_KEY = 'tonex_guide_backups';
-const MAX_BACKUPS = 5;
+// Phase 6.2 — réduit à 2 pour tenir dans le quota localStorage Safari
+// iOS (~2 MB total). Le state lui-même peut peser 1.3 MB avec aiCache,
+// donc 5 backups complets dépassent largement le quota. 2 suffit pour
+// rollback en cas de bug.
+const MAX_BACKUPS = 2;
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 function mergeBanks(saved, init) {

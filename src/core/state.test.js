@@ -663,9 +663,9 @@ describe('autoBackup — Phase 4.1 FIX C : retry-on-quota', () => {
     autoBackup();
     expect(calls).toBe(2);
     const final = JSON.parse(store.tonex_guide_backups);
-    // Avant retry : 5 backups + 1 nouveau = 6 → tronqué à 5.
-    // Quota throw → on pop le plus ancien → 4. Set réussit.
-    expect(final.length).toBe(4);
+    // Avant retry : 5 backups + 1 nouveau = 6 → tronqué à MAX_BACKUPS (2 Phase 6.2).
+    // Quota throw → on pop le plus ancien → 1. Set réussit.
+    expect(final.length).toBe(1);
   });
 
   test('quota persistant 3x → abandon silencieux, pas de crash', () => {
