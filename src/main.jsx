@@ -8,6 +8,7 @@
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
+import LZString from 'lz-string';
 
 import { PRESET_CATALOG_FULL } from './data/preset_catalog_full.js';
 import {
@@ -128,7 +129,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v83';
+const CACHE='backline-v84';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -202,20 +203,33 @@ function saveToFirestore(s){
   var cleanFull=prep(s);
   var payloadFull=JSON.stringify(cleanFull);
   var sharedAi=true;
+  var compressed=null;
   var clean=cleanFull;
   var payload=payloadFull;
   if(payloadFull.length>=SAFE_LIMIT){
-    // Trop gros : fallback strip.
-    sharedAi=false;
-    var light=stripAiCacheForSync(s);
-    clean=prep(light);
-    payload=JSON.stringify(clean);
-    console.log("[firestore] Push WITHOUT aiCache (size "+(payloadFull.length/1024).toFixed(0)+" KB ≥ "+(SAFE_LIMIT/1024)+" KB limit). After strip: "+(payload.length/1024).toFixed(0)+" KB.");
+    // Phase 6.1 — tenter la compression lz-string sur le payload complet
+    // avec aiCache. JSON répétitif → ratio typique 4-6×. Si compressé <
+    // SAFE_LIMIT, on push compressé. Sinon fallback strip Phase 5.7.1.
+    compressed=LZString.compressToBase64(payloadFull);
+    if(compressed.length<SAFE_LIMIT){
+      console.log("[firestore] Push WITH aiCache COMPRESSED (raw "+(payloadFull.length/1024).toFixed(0)+" KB → compressed "+(compressed.length/1024).toFixed(0)+" KB).");
+      payload=null; // on push compressed seul, pas data
+    }else{
+      // Toujours trop gros même compressé : fallback strip.
+      sharedAi=false;
+      compressed=null;
+      var light=stripAiCacheForSync(s);
+      clean=prep(light);
+      payload=JSON.stringify(clean);
+      console.log("[firestore] Push WITHOUT aiCache (compressed "+(LZString.compressToBase64(payloadFull).length/1024).toFixed(0)+" KB still ≥ "+(SAFE_LIMIT/1024)+" KB limit). After strip: "+(payload.length/1024).toFixed(0)+" KB.");
+    }
   }else{
     console.log("[firestore] Push WITH aiCache opportunistic (size "+(payloadFull.length/1024).toFixed(0)+" KB < "+(SAFE_LIMIT/1024)+" KB limit).");
   }
   // Sanity check. Firestore document limit = 1 MiB.
-  var sz=payload.length;
+  // Phase 6.1 — la taille effective qu'on push est compressed||payload.
+  var actualPayload=compressed||payload;
+  var sz=actualPayload.length;
   if(sz>=1000000){
     console.error("[firestore] Payload "+(sz/1024).toFixed(0)+" KB ≥ 1 MB — push aborted (would 400). songs="+(clean.shared&&clean.shared.songDb?clean.shared.songDb.length:0));
     return Promise.reject(new Error("Payload too large: "+sz+" bytes"));
@@ -223,7 +237,20 @@ function saveToFirestore(s){
   if(sz>800*1024){
     console.warn("[firestore] Payload "+(sz/1024).toFixed(0)+" KB approche la limite 1 MB.");
   }
-  var body={fields:{data:{stringValue:payload},syncId:{stringValue:sid},ts:{integerValue:String(ts)}}};
+  // Phase 6.1 — si compressed, on push UNIQUEMENT dans dataCompressed.
+  // Les anciens clients qui lisent data verront vide → fallback sur
+  // dataCompressed s'ils sont mis à jour. Side-by-side incompatible
+  // briefly avec anciens clients qui ne savent pas lire dataCompressed.
+  var fields={syncId:{stringValue:sid},ts:{integerValue:String(ts)}};
+  if(compressed){
+    fields.dataCompressed={stringValue:compressed};
+    // On push aussi data="" pour signaler aux anciens clients qu'il faut
+    // upgrade (sinon ils continuent à lire l'ancien doc cached).
+    fields.data={stringValue:""};
+  }else{
+    fields.data={stringValue:payload};
+  }
+  var body={fields:fields};
   return fetch(FS_BASE+"/sync/state?key="+FS_KEY,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
     .then(function(r){
       if(!r.ok){
@@ -243,6 +270,18 @@ function loadFromFirestore(){
     .then(function(r){if(!r.ok)return null;return r.json();})
     .then(function(doc){
       if(!doc||!doc.fields)return null;
+      // Phase 6.1 — priorité au format compressé si présent.
+      if(doc.fields.dataCompressed&&doc.fields.dataCompressed.stringValue){
+        try{
+          var decompressed=LZString.decompressFromBase64(doc.fields.dataCompressed.stringValue);
+          if(decompressed){
+            var parsed=JSON.parse(decompressed);
+            _lastRemoteSyncId=doc.fields.syncId?doc.fields.syncId.stringValue:null;
+            console.log("[firestore] Pull WITH aiCache (compressed → "+(decompressed.length/1024).toFixed(0)+" KB).");
+            return parsed;
+          }
+        }catch(e){console.warn("[firestore] Decompress failed, fallback to data:",e);}
+      }
       // New format: JSON stored in a single "data" string field
       if(doc.fields.data&&doc.fields.data.stringValue){
         var parsed=JSON.parse(doc.fields.data.stringValue);
@@ -571,7 +610,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.13.1";
+const APP_VERSION = "8.13.2";
 const ADMIN_PIN = "212402";
 
 
