@@ -128,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v71';
+const CACHE='backline-v72';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.10.9";
+const APP_VERSION = "8.11.0";
 const ADMIN_PIN = "212402";
 
 
@@ -3613,11 +3613,15 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
     return arr.filter(s=>{
       if(!s.aiCache) return false;
       const ig=getIg(s,guitars);const savedGId=sl?.guitars?.[s.id];const gId=savedGId||ig?.[0]||"";
-      const gType=(guitars.find(x=>x.id===gId))?.type||"HB";
       const best=getBestResult(s,gId,s.aiCache?.result);
-      // Only enrich if guitar differs from cache
-      const enriched=(best&&gId&&s.aiCache?.gId!==gId)?enrichAIResult({...best},gType,gId,banksAnn,banksPlug):best;
-      return enriched?bestScoreOf(enriched)<IMPROVE_THRESHOLD:false;
+      // Phase 5.13.8 — ne PLUS appeler enrichAIResult ici (itérait sur tout
+      // le catalog ~500 ops par morceau = 14k ops sur 28 morceaux = 3.7s).
+      // On utilise le bestScore tel quel : si la guitare a changé, on
+      // affichera quand même le badge "à améliorer" pour un score qui se
+      // base sur la guitare originale du cache. Acceptable car le badge est
+      // une heuristique, pas une mesure précise. L'utilisateur peut lancer
+      // "Tout améliorer" qui fera le vrai enrich.
+      return best?bestScoreOf(best)<IMPROVE_THRESHOLD:false;
     });
   };
   // Phase 5.13.7 — TROUVÉ : ce calcul était synchrone au mount et déclenchait
@@ -4157,8 +4161,30 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
     return {songRows,usedPresets,unusedPresets,covered,acceptable,poor,noAICount};
   };
 
-  const annAnalysis=useMemo(()=>analyzeDevice(banksAnn,"ann"),[songs,allGuitars,banksAnn]);
-  const plugAnalysis=useMemo(()=>analyzeDevice(banksPlug,"plug"),[songs,allGuitars,banksPlug]);
+  // Phase 5.13.9 — defer analyzeDevice (5s synchrone) après mount.
+  // Avant : useMemo synchrone bloquait le mount. Maintenant : on mount avec
+  // analyses vides, puis on calcule via setTimeout(0) qui laisse le browser
+  // paint d'abord. Les sections qui consomment annAnalysis/plugAnalysis
+  // doivent gérer le state initial null (placeholder loading).
+  const EMPTY_ANALYSIS={songRows:[],usedPresets:new Map(),unusedPresets:[],covered:0,acceptable:0,poor:0,noAICount:0,loading:true};
+  const [annAnalysis,setAnnAnalysis]=useState(EMPTY_ANALYSIS);
+  const [plugAnalysis,setPlugAnalysis]=useState(EMPTY_ANALYSIS);
+  useEffect(()=>{
+    let cancelled=false;
+    const t=setTimeout(()=>{
+      if(cancelled) return;
+      const t0=performance.now();
+      const ann=analyzeDevice(banksAnn,"ann");
+      if(typeof window!=='undefined'&&window.__TONEX_PERF) console.log(`[perf] analyzeDevice(ann): ${(performance.now()-t0).toFixed(0)}ms`);
+      if(!cancelled) setAnnAnalysis(ann);
+      const t1=performance.now();
+      const plug=analyzeDevice(banksPlug,"plug");
+      if(typeof window!=='undefined'&&window.__TONEX_PERF) console.log(`[perf] analyzeDevice(plug): ${(performance.now()-t1).toFixed(0)}ms`);
+      if(!cancelled) setPlugAnalysis(plug);
+    },0);
+    return ()=>{cancelled=true;clearTimeout(t);};
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[songs,allGuitars,banksAnn,banksPlug,availableSources]);
 
   // Auto-pick d'une banque/slot pour installer un preset.
   // 1ère passe : un slot vide du bon gain. 2e passe : remplace le slot le plus faible
