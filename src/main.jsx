@@ -128,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v67';
+const CACHE='backline-v68';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.10.5";
+const APP_VERSION = "8.10.6";
 const ADMIN_PIN = "212402";
 
 
@@ -3430,16 +3430,29 @@ function InlineRenameInput({initialName,onSave,onCancel,inp,placeholder,buttonLa
 }
 
 function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,banksAnn,onBanksAnn,banksPlug,onBanksPlug,aiProvider,aiKeys,hideHeader=false,allGuitars,allRigsGuitars,availableSources,activeProfileId,profiles,profile,onTmpPatchOverride,onLive}) {
+  // Phase 5.13.5 — Mini profiler maison via performance.mark(). Fonctionne
+  // en prod (vs React Profiler qui nécessite une build spéciale). Activer
+  // via window.__TONEX_PERF=true dans la console, puis naviguer vers
+  // Setlists. Les marks sont dumpés au useEffect post-mount.
+  const __perfMark=(label)=>{
+    if(typeof window!=="undefined"&&window.__TONEX_PERF){
+      if(!window.__listscreenPerf) window.__listscreenPerf=[];
+      window.__listscreenPerf.push({label,t:performance.now()});
+    }
+  };
+  __perfMark("listscreen-start");
   const [activeSlId,setActiveSlId]=useState(setlists[0]?.id||null);
   const activeSl=activeSlId?setlists.find(s=>s.id===activeSlId):null;
   const [showAdd,setShowAdd]=useState(false);
   const [sort,setSort]=useState((activeSl?.sort&&activeSl.sort!=="default")?activeSl.sort:"artist");
   const saveSort=(v)=>{setSort(v);if(activeSlId)onSetlists(p=>p.map(sl=>sl.id===activeSlId?{...sl,sort:v}:sl));};
   const activeSongs=useMemo(()=>{
+    const t0=performance.now();
     const sl=activeSl;
     const arr=sl?(sl.songIds||[]).map(id=>songDb.find(s=>s.id===id)).filter(Boolean):[...songDb];
     if(sort==="alpha") arr.sort((a,b)=>a.title.localeCompare(b.title,"fr"));
     else if(sort==="artist") arr.sort((a,b)=>a.artist.localeCompare(b.artist,"fr")||a.title.localeCompare(b.title,"fr"));
+    if(typeof window!=="undefined"&&window.__TONEX_PERF) console.log(`[perf] activeSongs useMemo: ${(performance.now()-t0).toFixed(1)}ms (n=${arr.length})`);
     return arr;
   },[songDb,activeSlId,sort,setlists]);
   // Phase 3.10 perf — Hoist getActiveDevicesForRender hors de la
@@ -3469,6 +3482,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
   // 3.9), soit ~1500 opérations pour 129 morceaux à chaque render
   // ListScreen. Avec ce useMemo, un seul passage groupé.
   const songRowData=useMemo(()=>{
+    const t0=performance.now();
     const guitars=allGuitars||GUITARS;
     const map=new Map();
     for(const s of activeSongs){
@@ -3478,17 +3492,23 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
       const g=gId?guitars.find(x=>x.id===gId):null;
       map.set(s.id,{ig,savedGId,gId,g});
     }
+    if(typeof window!=="undefined"&&window.__TONEX_PERF) console.log(`[perf] songRowData useMemo: ${(performance.now()-t0).toFixed(1)}ms (n=${activeSongs.length})`);
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[activeSongs,allGuitars,activeSl?.guitars]);
   const tmpTopRecBySongId=useMemo(()=>{
-    if(!hasTMPDevice||!activeSongs.length) return new Map();
+    const t0=performance.now();
+    if(!hasTMPDevice||!activeSongs.length){
+      if(typeof window!=="undefined"&&window.__TONEX_PERF) console.log(`[perf] tmpTopRecBySongId useMemo: skipped (hasTMP=${hasTMPDevice})`);
+      return new Map();
+    }
     const map=new Map();
     for(const s of activeSongs){
       const rd=songRowData.get(s.id);
       const recs=recommendTMPPatch(TMP_FACTORY_PATCHES,s,rd?.g||null,profile);
       if(recs[0]) map.set(s.id,recs[0]);
     }
+    if(typeof window!=="undefined"&&window.__TONEX_PERF) console.log(`[perf] tmpTopRecBySongId useMemo: ${(performance.now()-t0).toFixed(1)}ms (n=${activeSongs.length})`);
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[hasTMPDevice,activeSongs,songRowData]);
