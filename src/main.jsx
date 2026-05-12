@@ -129,7 +129,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v91';
+const CACHE='backline-v92';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -610,7 +610,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.2";
+const APP_VERSION = "8.14.3";
 const ADMIN_PIN = "212402";
 
 
@@ -3603,20 +3603,32 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
         <div style={{fontSize:10,color:"var(--text-muted)",marginTop:4}}>Vérifie ta clé API dans ⚙️ Paramètres puis re-sélectionne la guitare pour relancer.</div>
       </div>}
 
-      {/* ── SECTION 6 : Améliorer ── */}
-      {!reloading&&aiC&&<div>
+      {/* ── SECTION 6 : Feedback IA ── Phase 7.5 — rendu plus visible,
+            stocke l'historique des feedbacks dans song.feedback[]. */}
+      {!reloading&&aiC&&<div style={{marginTop:8}}>
+        {/* Historique des feedbacks donnés sur ce morceau */}
+        {Array.isArray(song.feedback)&&song.feedback.length>0&&<div style={{background:"var(--a3)",border:"1px solid var(--a7)",borderRadius:"var(--r-md)",padding:"6px 10px",marginBottom:6}}>
+          <div style={{fontSize:9,color:"var(--text-dim)",fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>💬 Tes feedbacks précédents ({song.feedback.length})</div>
+          {song.feedback.slice(-3).map((fb,i)=><div key={i} style={{fontSize:10,color:"var(--text-sec)",lineHeight:1.4,marginBottom:2}}>· <span style={{color:"var(--text-dim)",fontStyle:"italic"}}>{fb.ts?new Date(fb.ts).toLocaleDateString("fr"):""}</span> — {fb.text}</div>)}
+        </div>}
         {!showFeedback
-          ?<button onClick={()=>setShowFeedback(true)} style={{fontSize:10,background:"none",border:"1px solid var(--a10)",color:"var(--text-dim)",borderRadius:"var(--r-md)",padding:"3px 8px",cursor:"pointer"}}>🔄 Affiner l'analyse</button>
+          ?<button data-testid="song-feedback-open" onClick={()=>setShowFeedback(true)} style={{fontSize:11,background:"var(--accent-bg)",border:"1px solid var(--accent-border)",color:"var(--accent)",borderRadius:"var(--r-md)",padding:"6px 12px",cursor:"pointer",fontWeight:600}}>💬 Donner un feedback à l'IA</button>
           :<FeedbackPanel onSubmit={fb=>{
             setShowFeedback(false);setReloading(true);
             const prev=aiC;
-            fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars,fb||null)
+            const effectiveRecoMode=song.recoMode||profile?.recoMode||"balanced";
+            fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars,fb||null,null,effectiveRecoMode)
               .then(r=>{
                 const pick=mergeBestResults(prev,r);
                 setLocalAiResult(pick);
-                if(onSongDb)onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:updateAiCache(x.aiCache,gId,pick)}:x));
+                // Phase 7.5 — stocke l'historique des feedbacks.
+                if(onSongDb)onSongDb(p=>p.map(x=>{
+                  if(x.id!==song.id) return x;
+                  const newFeedback=fb?[...(x.feedback||[]),{text:fb,ts:Date.now()}]:x.feedback;
+                  return {...x,aiCache:updateAiCache(x.aiCache,gId,pick),feedback:newFeedback};
+                }));
               })
-              .catch(()=>{})
+              .catch(e=>{setLocalAiErr(e?.message||String(e));})
               .finally(()=>setReloading(false));
           }} onCancel={()=>setShowFeedback(false)}/>
         }
