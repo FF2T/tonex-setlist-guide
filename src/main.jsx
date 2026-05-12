@@ -128,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v63';
+const CACHE='backline-v64';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.10.1";
+const APP_VERSION = "8.10.2";
 const ADMIN_PIN = "212402";
 
 
@@ -3518,6 +3518,15 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
   // le freeze 5s sur "Cours Franck B" (46 morceaux). Reset à 12 quand on
   // change de setlist (slId) ou de tri (sort change la liste).
   const [visibleCount,setVisibleCount]=useState(12);
+  // Phase 5.13.2 — Defer le rendu des SongCollapsedDeviceRows. Au mount,
+  // on rend uniquement les titres + artistes (très rapide). 80ms après, on
+  // affiche les blocs de recos par device. Cible : mount perçu <500ms.
+  const [showDeviceRows,setShowDeviceRows]=useState(false);
+  useEffect(()=>{
+    setShowDeviceRows(false);
+    const id=setTimeout(()=>setShowDeviceRows(true),80);
+    return ()=>clearTimeout(id);
+  },[activeSlId,sort]);
   useEffect(()=>{
     // Reset au changement de contexte (setlist active ou sort).
     setVisibleCount(12);
@@ -3927,7 +3936,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                   }
                   {gScore>0&&<span style={{fontSize:10,fontWeight:800,color:scoreColor(gScore),background:scoreBg(gScore),borderRadius:"var(--r-sm)",padding:"1px 6px",border:`1px solid ${scoreColor(gScore)}30`}} title={scoreLabel(gScore).tip+"  —  score guitare"}>{gScore}%</span>}
                 </div>;})()}
-                {!isExpanded&&<SongCollapsedDeviceRows
+                {!isExpanded&&showDeviceRows&&<SongCollapsedDeviceRows
                   profile={profile}
                   aiC={aiC}
                   banksAnn={banksAnn}
