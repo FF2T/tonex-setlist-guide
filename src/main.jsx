@@ -129,7 +129,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v88';
+const CACHE='backline-v89';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -610,7 +610,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.13.6";
+const APP_VERSION = "8.14.0";
 const ADMIN_PIN = "212402";
 
 
@@ -1070,11 +1070,19 @@ function safeParseJSON(t){
   }
 }
 
-function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars,feedback,availableSources){
+function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars,feedback,availableSources,recoMode){
   guitars=guitars||GUITARS;
   const g=guitars.find(x=>x.id===gId);
   const gType=g?.type||"HB";
   const feedbackLine=feedback?`\nREMARQUE IMPORTANTE DE L'UTILISATEUR : "${feedback}". Prends en compte cette remarque pour ajuster ta réponse.`:"";
+  // Phase 7.2 — Mode reco influence le prompt : Fidèle = matériel original
+  // de l'artiste ; Interprétation = guitares versatiles du rig ; Équilibré
+  // (défaut) = comportement actuel.
+  const modeLine=(()=>{
+    if(recoMode==="faithful") return `\nMODE RECO : FIDÈLE À L'ORIGINAL. Ton choix d'ideal_guitar doit privilégier la guitare EXACTEMENT utilisée par l'artiste sur l'enregistrement original. Si l'utilisateur a cette guitare ou une équivalente dans sa collection, choisis-la — même si une autre guitare scorerait mieux par compatibilité tonale pure. Penche le scoring vers la fidélité au matériel d'origine plutôt que vers la versatilité.`;
+    if(recoMode==="interpretation") return `\nMODE RECO : INTERPRÉTATION LIBRE. Ton choix d'ideal_guitar doit privilégier les guitares VERSATILES qui couvrent bien le style du morceau, même si ce n'est pas la guitare originale de l'artiste. Privilégie les instruments polyvalents (semi-hollow type ES-335, SG humbuckers, Stratocaster classique) qui permettent un son juste sans avoir la guitare exacte.`;
+    return "";
+  })();
   const gProfiles=guitars.map(x=>{const p=findGuitarProfile(x.id);return `- ${x.name} (${x.type}) : ${p?p.desc:"profil inconnu"}`;}).join("\n");
   const prompt=`Expert guitare ToneX. Réponds TOUJOURS en français.
 Morceau : "${song.title}" de "${song.artist}".
@@ -1082,7 +1090,7 @@ Guitare sélectionnée : ${g?g.name+" ("+g.type+")":"non précisée"}.
 
 COLLECTION DE GUITARES DISPONIBLES :
 ${gProfiles}
-${feedbackLine}
+${feedbackLine}${modeLine}
 INSTRUCTIONS : Tu dois suivre un raisonnement structuré en 4 étapes AVANT de donner ta recommandation. Ce raisonnement DOIT apparaître dans le JSON de sortie.
 
 ÉTAPE 1 – PROFIL TONAL DU MORCEAU
@@ -2310,6 +2318,7 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,onDele
           {en.has('tonex-plug')&&tabBtn("plug","🔌 ToneX Plug")}
         </>;})()}
         {tabBtn("display","🎨 Affichage")}
+        {tabBtn("reco","🎯 Préférences IA")}
         {profile.isAdmin&&tabBtn("ia","🔑 Cle API")}
         {profile.isAdmin&&tabBtn("maintenance","🔧 Maintenance")}
         {profile.isAdmin&&tabBtn("export","📋 Export / Import")}
@@ -2397,6 +2406,39 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,onDele
            Anniversary exclusives du ANNIVERSARY_CATALOG (50 banks A/B/C). */}
       {tab==="ann"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} factoryBanks={FACTORY_BANKS_ANNIVERSARY} toneNetPresets={toneNetPresets}/>}
       {tab==="plug"&&<BankEditor banks={banksPlug} onBanks={onBanksPlug} color="var(--accent)" maxBanks={10} startBank={1} factoryBanks={FACTORY_BANKS_PLUG} toneNetPresets={toneNetPresets}/>}
+      {tab==="reco"&&<div>
+        {/* Phase 7.1 — Préférences IA : Mode reco (Fidèle / Interprétation
+            / Équilibré). Influence les prompts fetchAI futurs et le
+            scoring local. */}
+        <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>Comment l'IA propose les recommandations.</div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+          {[
+            {id:"balanced",icon:"⚖️",label:"Équilibré (défaut)",desc:"Mélange fidélité au morceau original et versatilité du rig. Comportement actuel."},
+            {id:"faithful",icon:"🎯",label:"Fidèle à l'original",desc:"L'IA privilégie la guitare/ampli/effets exacts utilisés sur l'enregistrement original. Reco proche du son du disque."},
+            {id:"interpretation",icon:"🎨",label:"Interprétation libre",desc:"L'IA privilégie les guitares versatiles (ES-335, SG, Strat) qui couvrent bien le style, même si ce n'est pas l'instrument original. Pratique si tu as un rig limité."},
+          ].map(({id,icon,label,desc})=>{
+            const active=(profile.recoMode||"balanced")===id;
+            return <button
+              key={id}
+              data-testid={`reco-mode-${id}`}
+              onClick={()=>{
+                onProfiles(p=>({...p,[activeProfileId]:{...p[activeProfileId],recoMode:id,lastModified:Date.now()}}));
+              }}
+              style={{display:"flex",alignItems:"flex-start",gap:10,background:active?"var(--accent-bg)":"var(--a3)",border:active?"1px solid var(--accent-border)":"1px solid var(--a8)",borderRadius:"var(--r-md)",padding:"12px 14px",cursor:"pointer",textAlign:"left"}}
+            >
+              <div style={{width:18,height:18,borderRadius:"50%",border:active?"2px solid var(--accent)":"2px solid var(--text-muted)",background:active?"var(--accent)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:2}}>{active&&<span style={{color:"var(--bg)",fontSize:11,fontWeight:900}}>✓</span>}</div>
+              <div style={{flex:1,display:"flex",flexDirection:"column",gap:4}}>
+                <div style={{fontSize:13,color:active?"var(--text)":"var(--text-muted)",fontWeight:active?700:500,display:"flex",alignItems:"center",gap:6}}>
+                  <span>{icon}</span>
+                  <span>{label}</span>
+                </div>
+                <div style={{fontSize:11,color:"var(--text-dim)",lineHeight:1.5}}>{desc}</div>
+              </div>
+            </button>;
+          })}
+        </div>
+        <div style={{fontSize:10,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.5}}>Ce mode est passé en input à chaque appel IA. Les morceaux déjà analysés gardent leur cache — pour les actualiser, utilise "🤖 Analyser/MAJ" dans Setlists ou "Recalculer toute la base" dans Maintenance (Phase 7.4 à venir).</div>
+      </div>}
       {profile.isAdmin&&tab==="ia"&&<div>
         <div style={{fontSize:13,color:"var(--text-sec)",marginBottom:12}}>Configuration de la cle API pour l'IA.</div>
         <div style={{fontSize:11,color:"var(--text-muted)",background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-md)",padding:"8px 12px",marginBottom:12,display:"flex",alignItems:"center",gap:6}}>
@@ -3053,7 +3095,9 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
     // Avant Phase 5.10, le useEffect skip si !gId, forçant l'utilisateur
     // à choisir manuellement. Maintenant l'IA tourne, puis on auto-select
     // ideal_guitar via onGuitarChange (callback parent).
-    fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars)
+    // Phase 7.2 — pass profile.recoMode au prompt fetchAI pour customiser
+    // l'orientation de la reco (Fidèle / Interprétation / Équilibré).
+    fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars,null,null,profile?.recoMode||"balanced")
       .then(r=>{
         setLocalAiResult(r);
         setLocalAiErr(null);
@@ -3792,7 +3836,8 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
       setAnalyzeAllStatus({current:i+1,total:missing.length,songTitle:s.title});
       try{
         // gId="" : l'IA propose elle-même la guitare idéale (Phase 5.10 logic).
-        const r=await fetchAI(s,"",banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars);
+        // Phase 7.2 — pass recoMode au batch analyze missing aussi.
+        const r=await fetchAI(s,"",banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars,null,null,profile?.recoMode||"balanced");
         if(analyzeCancelRef.current) break;
         // Phase 5.10.2 — stocke rigSnapshot pour la détection stale.
         const rigSnapshot=computeRigSnapshot(allRigsGuitars||guitars);

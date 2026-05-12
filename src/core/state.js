@@ -584,6 +584,15 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
     loginHistory: [],
     // Phase 5.7 — last-write-wins per-profile.
     lastModified: Date.now(),
+    // Phase 7.1 — Préférences pour les recos IA.
+    // recoMode : 'balanced' (défaut, comportement actuel),
+    //   'faithful' (l'IA privilégie la guitare/ampli originaux),
+    //   'interpretation' (privilégie versatilité, ES-335/SG/Strat).
+    // guitarBias : map { styleId: guitarId } pour préférences explicites.
+    //   Ex: { blues: 'es335', hard_rock: 'sg61' } biaise le scoring vers
+    //   ces guitares quand on tombe sur ces styles de morceau.
+    recoMode: 'balanced',
+    guitarBias: {},
   };
 }
 
