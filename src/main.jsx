@@ -128,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v77';
+const CACHE='backline-v78';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.11.5";
+const APP_VERSION = "8.12.0";
 const ADMIN_PIN = "212402";
 
 
@@ -2942,19 +2942,32 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
       setTimeout(()=>onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:{...updateAiCache(x.aiCache,gId,recalc),sv:SCORING_VERSION}}:x)),0);
       return;
     }
-    if(!gId||!onSongDb) return;
+    if(!onSongDb) return;
     setReloading(true);
     setLocalAiErr(null);
-    // Phase 3.6 — re-fetch passif (aiCache absent ou périmé) : on
-    // pousse au prompt IA l'union all-rigs des guitares (tous profils
-    // + customs). Permet à un profil non-admin (Arthur, Franck) de
-    // voir ses guitares custom dans cot_step2_guitars dès le premier
-    // calcul, sans avoir à déclencher un recalcul lui-même.
+    // Phase 5.10 — fetchAI sans guitare présélectionnée. Le prompt IA
+    // accepte gId="" (cf. fetchAI l. 1005-1011 où "non précisée" est géré)
+    // et retourne quand même cot_step1, cot_step2_guitars + ideal_guitar.
+    // Avant Phase 5.10, le useEffect skip si !gId, forçant l'utilisateur
+    // à choisir manuellement. Maintenant l'IA tourne, puis on auto-select
+    // ideal_guitar via onGuitarChange (callback parent).
     fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars)
       .then(r=>{
         setLocalAiResult(r);
         setLocalAiErr(null);
         onSongDb(p=>p.map(x=>x.id===song.id?{...x,aiCache:{...updateAiCache(x.aiCache,gId,r),sv:SCORING_VERSION}}:x));
+        // Phase 5.10 — Auto-select ideal_guitar si gId vide et l'IA en a
+        // proposé une. L'utilisateur peut toujours changer ensuite via le
+        // sélecteur. setTimeout(0) pour laisser React commit le state
+        // précédent avant de re-déclencher un render via onGuitarChange.
+        if(!gId&&r?.ideal_guitar&&onGuitarChange){
+          const matched=findGuitarByAIName(r.ideal_guitar,allRigsGuitars||guitars);
+          if(matched){
+            setTimeout(()=>{
+              try{onGuitarChange(matched.id);}catch(e){/* parent may not provide */}
+            },0);
+          }
+        }
       })
       .catch(e=>{
         // Phase 5 (Item A) — capture l'erreur (clé API manquante,
