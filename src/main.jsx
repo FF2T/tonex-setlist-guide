@@ -129,7 +129,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v85';
+const CACHE='backline-v86';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -610,7 +610,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.13.3";
+const APP_VERSION = "8.13.4";
 const ADMIN_PIN = "212402";
 
 
@@ -7124,14 +7124,17 @@ function App() {
   useEffect(()=>{
     // Hash léger : structure des setlists, profiles, customGuitars. Pas crypto,
     // mais discrimine les vraies modifs des re-sets identiques.
+    // Phase 6.1.1 — Hash basé UNIQUEMENT sur les vraies données, pas
+    // les timestamps. Les lastModified peuvent muter à chaque mergeLWW
+    // sans qu'il y ait vraiment eu modif locale → cause boucle.
     const profileHash=Object.entries(profiles||{}).map(([id,p])=>
-      id+":"+(p.myGuitars||[]).length+":"+(p.customGuitars||[]).length+":"+(p.lastModified||0)+":"+JSON.stringify(p.availableSources||{})
+      id+":"+(p.myGuitars||[]).slice().sort().join(',')+":"+(p.customGuitars||[]).map(g=>g.id).slice().sort().join(',')+":"+JSON.stringify(p.availableSources||{})+":"+(p.enabledDevices||[]).slice().sort().join(',')+":"+(p.aiProvider||'')
     ).join('|');
     const syncHash=[
-      (songDb||[]).map(s=>s.id+":"+(s.aiCache?.sv||0)+":"+(s.aiCache?.rigSnapshot||'')).join(','),
-      (setlists||[]).map(s=>s.id+":"+(s.songIds||[]).length+":"+(s.lastModified||0)+":"+(s.profileIds||[]).join(',')).join('|'),
-      (customGuitars||[]).map(g=>g.id).join(','),
-      Object.keys(deletedSetlistIds||{}).join(','),
+      (songDb||[]).map(s=>s.id+":"+(s.aiCache?.sv||0)+":"+(s.aiCache?.rigSnapshot||'')+":"+(s.aiCache?.gId||'')).join(','),
+      (setlists||[]).map(s=>s.id+":"+(s.songIds||[]).slice().sort().join(',')+":"+(s.profileIds||[]).slice().sort().join(',')+":"+(s.name||'')).join('|'),
+      (customGuitars||[]).map(g=>g.id).slice().sort().join(','),
+      Object.keys(deletedSetlistIds||{}).slice().sort().join(','),
       profileHash,
       activeProfileId,
       theme,
