@@ -128,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v74';
+const CACHE='backline-v75';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.11.2";
+const APP_VERSION = "8.11.3";
 const ADMIN_PIN = "212402";
 
 
@@ -4385,7 +4385,11 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
     setShowReconfig(null);
   };
 
-  const sectionStyle={background:"var(--bg-elev-1)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-lg)",padding:"var(--s-4)",marginBottom:"var(--s-4)"};
+  // Phase 5.13.12 — content-visibility:auto sur les sections de l'Optimiseur.
+  // Permet au navigateur de skip le rendering des sections offscreen, ce qui
+  // réduit le coût du re-render après setAnnAnalysis/setPlugAnalysis. La hint
+  // containIntrinsicSize donne au scroll bar une estimation pendant le skip.
+  const sectionStyle={background:"var(--bg-elev-1)",border:"1px solid var(--border-subtle)",borderRadius:"var(--r-lg)",padding:"var(--s-4)",marginBottom:"var(--s-4)",contentVisibility:"auto",containIntrinsicSize:"0 600px"};
   const eyebrow=(icon,label)=><div style={{fontFamily:"var(--font-mono)",fontSize:"var(--fs-xs)",textTransform:"uppercase",letterSpacing:"var(--tracking-wider)",color:"var(--accent)",marginBottom:"var(--s-3)",display:"flex",alignItems:"center",gap:5}}>{icon} {label}</div>;
 
   const renderStats=(a)=><div style={{display:"flex",gap:"var(--s-2)",marginBottom:"var(--s-3)"}}>
