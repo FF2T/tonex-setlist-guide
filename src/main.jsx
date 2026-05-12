@@ -128,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v78';
+const CACHE='backline-v79';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.12.0";
+const APP_VERSION = "8.12.1";
 const ADMIN_PIN = "212402";
 
 
@@ -3654,6 +3654,35 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
     return ()=>clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[songDb,activeSl,banksAnn,banksPlug,allGuitars]);
+  // Phase 5.10.1 — bouton accessible "Analyser N morceaux ⏳" depuis Setlists.
+  // Compte les morceaux sans cache dans la setlist active. Click → batch
+  // fetchAI séquentiel avec progress visible. Cancel-able comme improveAll.
+  const missingCount=useMemo(()=>(activeSongs||[]).filter(s=>!s.aiCache).length,[activeSongs]);
+  const [analyzeAllStatus,setAnalyzeAllStatus]=useState(null); // {current,total,songTitle} | null
+  const analyzeCancelRef=useRef(false);
+  const analyzeMissingAll=async()=>{
+    analyzeCancelRef.current=false;
+    const missing=(activeSongs||[]).filter(s=>!s.aiCache);
+    if(!missing.length) return;
+    const guitars=allGuitars||GUITARS;
+    setAnalyzeAllStatus({current:0,total:missing.length,songTitle:""});
+    for(let i=0;i<missing.length;i++){
+      if(analyzeCancelRef.current) break;
+      const s=missing[i];
+      setAnalyzeAllStatus({current:i+1,total:missing.length,songTitle:s.title});
+      try{
+        // gId="" : l'IA propose elle-même la guitare idéale (Phase 5.10 logic).
+        const r=await fetchAI(s,"",banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars);
+        if(analyzeCancelRef.current) break;
+        onSongDb(p=>p.map(x=>x.id===s.id?{...x,aiCache:{...updateAiCache(x.aiCache,"",r),sv:SCORING_VERSION}}:x));
+      }catch(e){
+        // Skip ce morceau mais continue les autres
+        console.warn(`[analyzeMissingAll] Skip "${s.title}":`,e?.message||e);
+      }
+    }
+    setAnalyzeAllStatus(null);
+    analyzeCancelRef.current=false;
+  };
   const improveAll=async()=>{
     improveCancelRef.current=false;
     setCancelRequested(false);
@@ -3788,6 +3817,23 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         <div style={{marginLeft:"auto",display:"flex",gap:4}}>
           {activeSongs.length>0&&<button onClick={()=>setShowTopGuitars(!showTopGuitars)} style={{fontSize:10,color:showTopGuitars?"var(--accent)":"var(--text-muted)",background:showTopGuitars?"var(--accent-bg)":"var(--a5)",border:"1px solid "+(showTopGuitars?"var(--accent-border)":"var(--a10)"),borderRadius:"var(--r-sm)",padding:"3px 8px",cursor:"pointer"}}>Guitares</button>}
           {activeSongs.length>0&&<button onClick={toggleAll} style={{fontSize:10,color:"var(--text-muted)",background:"var(--a5)",border:"1px solid var(--a10)",borderRadius:"var(--r-sm)",padding:"3px 8px",cursor:"pointer"}}>{checked.length===activeSongs.length?"Décocher":"Cocher"}</button>}
+          {/* Phase 5.10.1 — Bouton "Analyser N morceaux ⏳" visible si missingCount>0. */}
+          {missingCount>0&&!analyzeAllStatus&&<button
+            data-testid="list-screen-analyze-missing"
+            onClick={()=>{
+              const msg=`Analyser ${missingCount} morceau${missingCount>1?"x":""} sans cache IA ?\n\nDurée estimée : ${Math.ceil(missingCount*8)}s (~8s par morceau).\nLa clé Gemini partagée sera utilisée.\n\nTu peux annuler à tout moment.`;
+              if(!window.confirm(msg)) return;
+              analyzeMissingAll();
+            }}
+            title={`${missingCount} morceaux sans analyse IA. Click pour lancer en batch.`}
+            style={{fontSize:10,color:"var(--accent)",background:"var(--accent-bg)",border:"1px solid var(--accent-border)",borderRadius:"var(--r-sm)",padding:"3px 8px",cursor:"pointer",fontWeight:700}}
+          >⏳ Analyser {missingCount}</button>}
+          {analyzeAllStatus&&<button
+            data-testid="list-screen-analyze-cancel"
+            onClick={()=>{analyzeCancelRef.current=true;}}
+            style={{fontSize:10,color:"var(--wine-400)",background:"rgba(155,58,44,0.12)",border:"1px solid rgba(155,58,44,0.3)",borderRadius:"var(--r-sm)",padding:"3px 8px",cursor:"pointer",fontWeight:700}}
+            title={`Annuler l'analyse en cours (${analyzeAllStatus.current}/${analyzeAllStatus.total})`}
+          >⏸ {analyzeAllStatus.current}/{analyzeAllStatus.total}</button>}
           {/* Phase 5.5 — "Retirer non-cochés" : visible si activeSlId
               + au moins 1 morceau coché. Permet le tri inverse (garder
               les cochés, virer le reste) pour réduire vite une setlist
