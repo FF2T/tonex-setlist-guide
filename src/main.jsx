@@ -128,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v64';
+const CACHE='backline-v65';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.10.2";
+const APP_VERSION = "8.10.3";
 const ADMIN_PIN = "212402";
 
 
@@ -3916,12 +3916,12 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                   <span style={{marginLeft:"auto",fontSize:11,color:"var(--text-dim)"}}>{isExpanded?"▲":"▼"}</span>
                 </div>
                 {sort!=="artist"&&<div style={{fontSize:11,color:"var(--text-muted)",marginBottom:hist?3:0}}>{s.artist}</div>}
-                {hist&&!isExpanded&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:2,display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
+                {showDeviceRows&&hist&&!isExpanded&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:2,display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
                   <span style={{color:"var(--text-secondary)",fontWeight:600}}>{hist.guitarist}</span>
                   <span style={{color:"var(--text-tertiary)"}}>·</span>
                   <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,minWidth:0}}>{hist.amp}</span>
                 </div>}
-                {!isExpanded&&(g||aiC?.ideal_guitar)&&(()=>{
+                {showDeviceRows&&!isExpanded&&(g||aiC?.ideal_guitar)&&(()=>{
                   // Même métrique que la vue dépliée : compatibilité guitare↔morceau (cot_step2_guitars)
                   // avec fallback localGuitarSongScore, et idealGuitarScore quand on affiche la guitare idéale
                   const chosenGuitarCot=findCotEntryForGuitar(aiC?.cot_step2_guitars,g);
