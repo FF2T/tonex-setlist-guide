@@ -128,7 +128,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v76';
+const CACHE='backline-v77';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.11.4";
+const APP_VERSION = "8.11.5";
 const ADMIN_PIN = "212402";
 
 
@@ -4078,7 +4078,9 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
   },[sl,songDb]);
   // Types de micros du rig — ordre : SC, P90, HB
   const PICKUP_ORDER=["SC","HB","P90"];
-  const pickupTypes=PICKUP_ORDER.filter(t=>allGuitars.some(g=>g.type===t));
+  // Phase 5.13.14 — mémoïse pickupTypes pour stabiliser sa référence et
+  // éviter une boucle infinie de re-renders via useEffect standardBanks.
+  const pickupTypes=useMemo(()=>PICKUP_ORDER.filter(t=>allGuitars.some(g=>g.type===t)),[allGuitars]);
   const TYPE_LABELS={HB:"Humbucker",SC:"Single Coil",P90:"P-90"};
 
   // Pour chaque morceau, trouver la meilleure guitare du rig
