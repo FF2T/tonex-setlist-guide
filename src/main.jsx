@@ -73,7 +73,7 @@ import {
   autoBackup, listBackups, restoreBackup, clearBackups,
   loadSecrets, saveSecrets,
   loadTrusted, isTrusted, setTrusted,
-  getAllRigsGuitars,
+  getAllRigsGuitars, computeGuitarBiasFromFeedback,
   dedupSetlists, dedupSetlistsWithTombstones, findSetlistDuplicatesByName,
 } from './core/state.js';
 import {
@@ -129,7 +129,7 @@ let DEFAULT_GEMINI_KEY = "";
 //     côté push + le pull avec aiCache preserve.
 if('serviceWorker' in navigator){
   const SW_CODE=`
-const CACHE='backline-v94';
+const CACHE='backline-v95';
 const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
 self.addEventListener('install',e=>{
   e.waitUntil(
@@ -610,7 +610,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.5";
+const APP_VERSION = "8.14.6";
 const ADMIN_PIN = "212402";
 
 
@@ -1070,7 +1070,7 @@ function safeParseJSON(t){
   }
 }
 
-function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars,feedback,availableSources,recoMode){
+function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars,feedback,availableSources,recoMode,guitarBias){
   guitars=guitars||GUITARS;
   const g=guitars.find(x=>x.id===gId);
   const gType=g?.type||"HB";
@@ -1083,6 +1083,16 @@ function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars,feedback,
     if(recoMode==="interpretation") return `\nMODE RECO : INTERPRÉTATION LIBRE. Ton choix d'ideal_guitar doit privilégier les guitares VERSATILES qui couvrent bien le style du morceau, même si ce n'est pas la guitare originale de l'artiste. Privilégie les instruments polyvalents (semi-hollow type ES-335, SG humbuckers, Stratocaster classique) qui permettent un son juste sans avoir la guitare exacte.`;
     return "";
   })();
+  // Phase 7.7 — Bias auto-dérivé des feedbacks utilisateur. Soft hint :
+  // l'IA reste libre, mais sait que tel style a souvent reçu telle guitare
+  // après correction utilisateur. Ne s'applique pas au scoring local V9.
+  const biasLine=(()=>{
+    if(!guitarBias||typeof guitarBias!=="object") return "";
+    const entries=Object.entries(guitarBias).filter(([,v])=>v&&v.guitarName);
+    if(entries.length===0) return "";
+    const lines=entries.map(([style,v])=>`- ${style} : ${v.guitarName} (${v.count} morceau${v.count>1?"x":""} feedbacké${v.count>1?"s":""})`).join("\n");
+    return `\nPRÉFÉRENCES UTILISATEUR (déduites de l'historique de feedback) :\n${lines}\nSi le style du morceau matche une de ces entrées, tiens-en compte sans forcer ton choix.`;
+  })();
   const gProfiles=guitars.map(x=>{const p=findGuitarProfile(x.id);return `- ${x.name} (${x.type}) : ${p?p.desc:"profil inconnu"}`;}).join("\n");
   const prompt=`Expert guitare ToneX. Réponds TOUJOURS en français.
 Morceau : "${song.title}" de "${song.artist}".
@@ -1090,7 +1100,7 @@ Guitare sélectionnée : ${g?g.name+" ("+g.type+")":"non précisée"}.
 
 COLLECTION DE GUITARES DISPONIBLES :
 ${gProfiles}
-${feedbackLine}${modeLine}
+${feedbackLine}${modeLine}${biasLine}
 INSTRUCTIONS : Tu dois suivre un raisonnement structuré en 4 étapes AVANT de donner ta recommandation. Ce raisonnement DOIT apparaître dans le JSON de sortie.
 
 ÉTAPE 1 – PROFIL TONAL DU MORCEAU
@@ -2244,7 +2254,7 @@ function MesAppareilsTab({profile,profiles,onProfiles,activeProfileId}) {
   );
 }
 
-function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,onDeletedSetlistIds,banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAiKeys,theme,onTheme,profile,profiles,onProfiles,activeProfileId,allGuitars,initTab,customGuitars,onCustomGuitars,toneNetPresets,onToneNetPresets,fullState,onImportState,onLogout}) {
+function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,onDeletedSetlistIds,banksAnn,onBanksAnn,banksPlug,onBanksPlug,onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAiKeys,theme,onTheme,profile,profiles,onProfiles,activeProfileId,allGuitars,allRigsGuitars,guitarBias,initTab,customGuitars,onCustomGuitars,toneNetPresets,onToneNetPresets,fullState,onImportState,onLogout}) {
   const [tab,setTab]=useState(initTab||"profile");
   const [newSlName,setNewSlName]=useState("");
   const [editSlId,setEditSlId]=useState(null);
@@ -2290,7 +2300,7 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,onDele
     const ns={id:`c_${Date.now()}`,title,artist,isCustom:true,ig:[],aiCache:null};
     onSongDb(p=>[...p,ns]);
     if(newSongSlIds.length>0)onSetlists(p=>p.map(sl=>newSongSlIds.includes(sl.id)?{...sl,songIds:[...sl.songIds,ns.id]}:sl));
-    fetchAI(ns,"",banksAnn,banksPlug,aiProvider,aiKeys,allGuitars)
+    fetchAI(ns,"",banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,null,null,profile?.recoMode||"balanced",guitarBias)
       .then(r=>onSongDb(p=>p.map(x=>x.id===ns.id?{...x,aiCache:updateAiCache(x.aiCache,"",r)}:x)))
       .catch(()=>{});
     setNewSongTitle("");setNewSongArtist("");setNewSongSlIds([]);
@@ -2438,6 +2448,30 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,onDele
           })}
         </div>
         <div style={{fontSize:10,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.5,marginBottom:16}}>Ce mode est passé en input à chaque appel IA. Les morceaux déjà analysés gardent leur cache jusqu'à invalidation.</div>
+        {/* Phase 7.7 — Préférences détectées : bias style→guitare auto-dérivé
+            des feedbacks. Soft hint injecté dans le prompt IA. Read-only :
+            l'utilisateur ne peut pas l'éditer, la source de vérité est
+            song.feedback[]. Section visible pour tous (admin et non-admin). */}
+        {(()=>{
+          const biasEntries=guitarBias&&typeof guitarBias==="object"?Object.entries(guitarBias):[];
+          return <div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-lg)",padding:14,marginBottom:16}}>
+            <div style={{fontSize:12,fontWeight:700,color:"var(--text)",marginBottom:4}}>Préférences détectées par tes feedbacks</div>
+            <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:10,lineHeight:1.4}}>L'IA injecte ces préférences dans ses prompts (soft hint, ne force pas son choix). Dès qu'un (style, guitare) atteint 3 morceaux feedbackés, il apparaît ici.</div>
+            {biasEntries.length===0
+              ?<div data-testid="bias-empty" style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic"}}>Aucune préférence détectée pour l'instant. Continue à donner des feedbacks sur tes morceaux pour que l'IA apprenne tes goûts.</div>
+              :<div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {biasEntries.map(([style,v])=><div key={style} data-testid={`bias-row-${style}`} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--a6)",borderRadius:"var(--r-md)",padding:"6px 10px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:11,fontWeight:700,color:"var(--accent)",textTransform:"uppercase",letterSpacing:0.5}}>{style}</span>
+                    <span style={{fontSize:11,color:"var(--text-dim)"}}>→</span>
+                    <span style={{fontSize:12,fontWeight:600,color:"var(--text)"}}>{v.guitarName}</span>
+                  </div>
+                  <span style={{fontSize:10,color:"var(--text-muted)"}}>{v.count} feedback{v.count>1?"s":""}</span>
+                </div>)}
+              </div>
+            }
+          </div>;
+        })()}
         {/* Phase 7.4 — Bouton pour invalider tous les aiCache d'un coup.
             Au prochain ouvre d'un morceau, fetchAI tournera avec le nouveau
             recoMode profil. Combinable avec "🤖 Analyser/MAJ" dans Setlists
@@ -2493,7 +2527,7 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,onDele
         <div style={{fontSize:12,fontWeight:600,color:"var(--text)",marginBottom:6}}>Cle Anthropic (fallback)</div>
         <input type="password" placeholder="sk-ant-..." value={aiKeys.anthropic} onChange={e=>onAiKeys(p=>({...p,anthropic:e.target.value}))} style={{...inp,width:"100%",fontFamily:"monospace"}}/>
       </div>}
-      {profile.isAdmin&&tab==="maintenance"&&<MaintenanceTab songDb={songDb} onSongDb={onSongDb} setlists={allSetlists} onSetlists={onSetlists} onDeletedSetlistIds={onDeletedSetlistIds} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys}/>}
+      {profile.isAdmin&&tab==="maintenance"&&<MaintenanceTab songDb={songDb} onSongDb={onSongDb} setlists={allSetlists} onSetlists={onSetlists} onDeletedSetlistIds={onDeletedSetlistIds} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} profile={profile} guitarBias={guitarBias}/>}
       {profile.isAdmin&&tab==="export"&&<ExportImportScreen banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} onBack={()=>setTab("profile")} onNavigate={onNavigate} fullState={fullState} onImportState={onImportState} inline={true}/>}
       {profile.isAdmin&&tab==="admin_profiles"&&<ProfilesAdmin profiles={profiles} onProfiles={onProfiles}/>}
       {/* Aide, MAJ, Déconnexion */}
@@ -2562,7 +2596,7 @@ function ParametresScreen({onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAi
             </div>
           </div>}
           {tab==="profiles"&&<ProfilesAdmin profiles={profiles} onProfiles={onProfiles}/>}
-          {tab==="maintenance"&&<MaintenanceTab songDb={songDb} onSongDb={onSongDb} setlists={allSetlists} onSetlists={onSetlists} onDeletedSetlistIds={onDeletedSetlistIds} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys}/>}
+          {tab==="maintenance"&&<MaintenanceTab songDb={songDb} onSongDb={onSongDb} setlists={allSetlists} onSetlists={onSetlists} onDeletedSetlistIds={onDeletedSetlistIds} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} profile={profile} guitarBias={guitarBias}/>}
           {tab==="export"&&<div>
             <button onClick={()=>onNavigate("exportimport")} style={{width:"100%",background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",color:"var(--yellow)",borderRadius:"var(--r-lg)",padding:"12px 16px",fontSize:13,fontWeight:700,cursor:"pointer",textAlign:"left"}}>
               📋 Export / Import →
@@ -2574,7 +2608,7 @@ function ParametresScreen({onBack,onNavigate,aiProvider,onAiProvider,aiKeys,onAi
   );
 }
 
-function MaintenanceTab({songDb,onSongDb,setlists,onSetlists,onDeletedSetlistIds,banksAnn,banksPlug,aiProvider,aiKeys,onFullReset}){
+function MaintenanceTab({songDb,onSongDb,setlists,onSetlists,onDeletedSetlistIds,banksAnn,banksPlug,aiProvider,aiKeys,profile,guitarBias,onFullReset}){
   const [recalculating,setRecalculating]=useState(false);
   const [progress,setProgress]=useState({done:0,total:0,current:""});
   const [done,setDone]=useState(false);
@@ -2623,7 +2657,7 @@ function MaintenanceTab({songDb,onSongDb,setlists,onSetlists,onDeletedSetlistIds
       const s=songDb[i];
       setProgress({done:i,total,current:s.title});
       try{
-        const r=await fetchAI(s,"",banksAnn,banksPlug,aiProvider,aiKeys,GUITARS);
+        const r=await fetchAI(s,"",banksAnn,banksPlug,aiProvider,aiKeys,GUITARS,null,null,profile?.recoMode||"balanced",guitarBias);
         onSongDb(p=>p.map(x=>x.id===s.id?{...x,aiCache:updateAiCache(x.aiCache,"",r)}:x));
       }catch(e){console.warn("Recalc failed for",s.title,e);}
       // Pause between requests to avoid rate limit
@@ -2945,7 +2979,7 @@ function ProfilesAdmin({profiles,onProfiles}){
 }
 
 // ─── Modal Ajout Morceau ──────────────────────────────────────────────────────
-function AddSongModal({songDb,onSongDb,setlists,onSetlists,activeSlId,onClose,banksAnn,banksPlug,aiProvider,aiKeys,guitars}) {
+function AddSongModal({songDb,onSongDb,setlists,onSetlists,activeSlId,onClose,banksAnn,banksPlug,aiProvider,aiKeys,guitars,guitarBias}) {
   const [mode,setMode]=useState("existing");
   const [search,setSearch]=useState("");
   const [selectedSongs,setSelectedSongs]=useState([]);
@@ -2966,7 +3000,7 @@ function AddSongModal({songDb,onSongDb,setlists,onSetlists,activeSlId,onClose,ba
       const ns={id:`c_${Date.now()}`,title:newTitle.trim(),artist:newArtist.trim()||"Artiste inconnu",isCustom:true,ig:[],aiCache:null};
       onSongDb(p=>[...p,ns]);
       onSetlists(p=>p.map(sl=>targetSlIds.includes(sl.id)?{...sl,songIds:[...sl.songIds,ns.id]}:sl));
-      fetchAI(ns,"",banksAnn,banksPlug,aiProvider,aiKeys,guitars)
+      fetchAI(ns,"",banksAnn,banksPlug,aiProvider,aiKeys,guitars,null,null,"balanced",guitarBias)
         .then(r=>onSongDb(p=>p.map(x=>x.id===ns.id?{...x,aiCache:updateAiCache(x.aiCache,"",r)}:x)))
         .catch(()=>{});
     }
@@ -3072,7 +3106,7 @@ function getJamRecs(guitarId, style, banksAnn, banksPlug, guitars, availableSour
 }
 
 // ─── SongDetailCard ──────────────────────────────────────────────────────────
-function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,guitars,allRigsGuitars,availableSources,savedGuitarId,onGuitarChange,aiProvider,aiKeys,onSongDb,profile,onTmpPatchOverride}){
+function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,guitars,allRigsGuitars,availableSources,savedGuitarId,onGuitarChange,aiProvider,aiKeys,onSongDb,profile,guitarBias,onTmpPatchOverride}){
   const ig=getIg(song,guitars);
   const [gId,setGId]=useState(savedGuitarId||ig[0]||"");
   const [reloading,setReloading]=useState(false);
@@ -3124,7 +3158,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
     const historicalFeedback=Array.isArray(song.feedback)&&song.feedback.length>0
       ?song.feedback.map(f=>f.text).filter(Boolean).join(". ")
       :null;
-    fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars,historicalFeedback,null,effectiveRecoMode)
+    fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars,historicalFeedback,null,effectiveRecoMode,guitarBias)
       .then(r=>{
         setLocalAiResult(r);
         setLocalAiErr(null);
@@ -3663,7 +3697,7 @@ function SongDetailCard({song,banksAnn,banksPlug,onBanksAnn,onBanksPlug,onClose,
             setShowFeedback(false);setReloading(true);
             const prev=aiC;
             const effectiveRecoMode=song.recoMode||profile?.recoMode||"balanced";
-            fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars,fb||null,null,effectiveRecoMode)
+            fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars,fb||null,null,effectiveRecoMode,guitarBias)
               .then(r=>{
                 const pick=mergeBestResults(prev,r);
                 setLocalAiResult(pick);
@@ -3695,7 +3729,7 @@ function InlineRenameInput({initialName,onSave,onCancel,inp,placeholder,buttonLa
   </div>;
 }
 
-function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,banksAnn,onBanksAnn,banksPlug,onBanksPlug,aiProvider,aiKeys,hideHeader=false,allGuitars,allRigsGuitars,availableSources,activeProfileId,profiles,profile,onTmpPatchOverride,onLive}) {
+function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,banksAnn,onBanksAnn,banksPlug,onBanksPlug,aiProvider,aiKeys,hideHeader=false,allGuitars,allRigsGuitars,availableSources,activeProfileId,profiles,profile,guitarBias,onTmpPatchOverride,onLive}) {
   const [activeSlId,setActiveSlId]=useState(setlists[0]?.id||null);
   const activeSl=activeSlId?setlists.find(s=>s.id===activeSlId):null;
   const [showAdd,setShowAdd]=useState(false);
@@ -3942,7 +3976,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
       try{
         // gId="" : l'IA propose elle-même la guitare idéale (Phase 5.10 logic).
         // Phase 7.2 — pass recoMode au batch analyze missing aussi.
-        const r=await fetchAI(s,"",banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars,null,null,profile?.recoMode||"balanced");
+        const r=await fetchAI(s,"",banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars,null,null,profile?.recoMode||"balanced",guitarBias);
         if(analyzeCancelRef.current) break;
         // Phase 5.10.2 — stocke rigSnapshot pour la détection stale.
         const rigSnapshot=computeRigSnapshot(allRigsGuitars||guitars);
@@ -3983,7 +4017,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
         try{
           // Phase 3.6 — passe l'union all-rigs au prompt IA pour que
           // cot_step2_guitars couvre TOUTES les guitares de la famille.
-          const r=await waitOrCancel(fetchAI(s,gId,banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars));
+          const r=await waitOrCancel(fetchAI(s,gId,banksAnn,banksPlug,aiProvider,aiKeys,allRigsGuitars||guitars,null,null,profile?.recoMode||"balanced",guitarBias));
           if(improveCancelRef.current) break;
           onSongDb(p=>p.map(x=>x.id===s.id?{...x,aiCache:updateAiCache(x.aiCache,gId,r)}:x));
         }catch(e){if(improveCancelRef.current) break; /* skip */}
@@ -4325,7 +4359,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
                 onMouseLeave={(e)=>{e.currentTarget.style.color="var(--text-dim)";}}
               >🗑️</button>}
             </div>
-            {isExpanded&&<SongDetailCard song={s} banksAnn={banksAnn} banksPlug={banksPlug} onBanksAnn={onBanksAnn} onBanksPlug={onBanksPlug} onClose={()=>setExpandedId(null)} guitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} savedGuitarId={activeSl?.guitars?.[s.id]} onGuitarChange={(songId,gId)=>{if(activeSlId)onSetlists(p=>p.map(sl=>sl.id===activeSlId?{...sl,guitars:{...(sl.guitars||{}),[songId]:gId}}:sl));}} aiProvider={aiProvider} aiKeys={aiKeys} onSongDb={onSongDb} profile={profile} onTmpPatchOverride={onTmpPatchOverride}/>}
+            {isExpanded&&<SongDetailCard song={s} banksAnn={banksAnn} banksPlug={banksPlug} onBanksAnn={onBanksAnn} onBanksPlug={onBanksPlug} onClose={()=>setExpandedId(null)} guitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} savedGuitarId={activeSl?.guitars?.[s.id]} onGuitarChange={(songId,gId)=>{if(activeSlId)onSetlists(p=>p.map(sl=>sl.id===activeSlId?{...sl,guitars:{...(sl.guitars||{}),[songId]:gId}}:sl));}} aiProvider={aiProvider} aiKeys={aiKeys} onSongDb={onSongDb} profile={profile} guitarBias={guitarBias} onTmpPatchOverride={onTmpPatchOverride}/>}
           </div>
           </div>
         );
@@ -4372,7 +4406,7 @@ function ListScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
           }}
         >↩ Annuler</button>
       </div>}
-      {showAdd&&<AddSongModal songDb={songDb} onSongDb={onSongDb} setlists={setlists} onSetlists={onSetlists} activeSlId={activeSlId} onClose={()=>setShowAdd(false)} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} guitars={allGuitars}/>}
+      {showAdd&&<AddSongModal songDb={songDb} onSongDb={onSongDb} setlists={setlists} onSetlists={onSetlists} activeSlId={activeSlId} onClose={()=>setShowAdd(false)} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} guitars={allGuitars} guitarBias={guitarBias}/>}
     </div>
   );
 }
@@ -5073,7 +5107,7 @@ function BankOptimizerScreen({songDb,setlists,banksAnn,onBanksAnn,banksPlug,onBa
 }
 
 // ─── Recap Screen ─────────────────────────────────────────────────────────────
-function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profile,onTmpPatchOverride}) {
+function RecapScreen({songs,onBack,onNavigate,onValidate,songDb,onSongDb,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,guitarBias,availableSources,profile,onTmpPatchOverride}) {
   // Phase 2 fix : iterate sur les devices activés pour le rendu compact
   // par morceau et pour la liste des presets manquants.
   const enabledDevices=getActiveDevicesForRender(profile);
@@ -6084,7 +6118,7 @@ function JamScreen({banksAnn,banksPlug,allGuitars,availableSources,profile}){
 }
 
 // ─── SetlistsScreen (onglets Setlists + Morceaux) ────────────────────────────
-function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onNavigate,banksAnn,onBanksAnn,banksPlug,onBanksPlug,aiProvider,aiKeys,allGuitars,allRigsGuitars,availableSources,activeProfileId,profiles,profile,onTmpPatchOverride,onLive}){
+function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onNavigate,banksAnn,onBanksAnn,banksPlug,onBanksPlug,aiProvider,aiKeys,allGuitars,allRigsGuitars,guitarBias,availableSources,activeProfileId,profiles,profile,onTmpPatchOverride,onLive}){
   const [tab,setTab]=useState("setlists");
   const tabBtn=(id,label)=>(
     <button onClick={()=>setTab(id)} style={{background:tab===id?"var(--accent-bg)":"var(--a5)",border:tab===id?"1px solid var(--accent-border)":"1px solid var(--a8)",color:tab===id?"var(--accent)":"var(--text-sec)",borderRadius:"var(--r-md)",padding:"7px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{label}</button>
@@ -6118,7 +6152,7 @@ function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked
     const ns={id:`c_${Date.now()}`,title,artist,isCustom:true,ig:[],aiCache:null};
     onSongDb(p=>[...p,ns]);
     if(newSongSlIds.length>0)onSetlists(p=>p.map(sl=>newSongSlIds.includes(sl.id)?{...sl,songIds:[...sl.songIds,ns.id]}:sl));
-    fetchAI(ns,"",banksAnn,banksPlug,aiProvider,aiKeys,allGuitars)
+    fetchAI(ns,"",banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,null,null,profile?.recoMode||"balanced",guitarBias)
       .then(r=>onSongDb(p=>p.map(x=>x.id===ns.id?{...x,aiCache:updateAiCache(x.aiCache,"",r)}:x)))
       .catch(()=>{});
     setNewSongTitle("");setNewSongArtist("");setNewSongSlIds([]);
@@ -6138,7 +6172,7 @@ function SetlistsScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked
         {tabBtn("setlists","Setlists")}
         {tabBtn("songs","Morceaux")}
       </div>
-      {tab==="setlists"&&<ListScreen songDb={songDb} onSongDb={onSongDb} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={onLive}/>}
+      {tab==="setlists"&&<ListScreen songDb={songDb} onSongDb={onSongDb} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={guitarBias} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={onLive}/>}
       {tab==="songs"&&<div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
           <div style={{fontSize:13,color:"var(--text-sec)"}}>{songDb.length} morceaux</div>
@@ -6437,7 +6471,7 @@ function OnboardingWizard({onClose,onProfile}){
 }
 
 // ─── HomeScreen (style Google) ────────────────────────────────────────────────
-function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onProfile,onSetlistScreen,onJam,onExplore,onOptimizer,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,availableSources,profiles,activeProfileId,onSwitchProfile,onProfiles,customPacks,syncStatus,onViewProfile,onLogout,onLive}) {
+function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onChecked,onNext,onSettings,onProfile,onSetlistScreen,onJam,onExplore,onOptimizer,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,guitarBias,availableSources,profiles,activeProfileId,onSwitchProfile,onProfiles,customPacks,syncStatus,onViewProfile,onLogout,onLive}) {
   // Phase 5.13.8 — perf instrumentation, même pattern que ListScreen.
   if(typeof window!=='undefined'&&window.__TONEX_PERF){
     if(!window.__homeRenderStart) window.__homeRenderStart=performance.now();
@@ -6470,7 +6504,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
     const prev=songResult;
     const gId=selectedGuitar?.id||"";
     const song={id:`tmp_${Date.now()}`,title:confirmedSong.title,artist:confirmedSong.artist};
-    fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,feedback.trim())
+    fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,feedback.trim(),null,profile?.recoMode||"balanced",guitarBias)
       .then(r=>{
         const pick=mergeBestResults(prev,r);
         setSongResult(pick);setSongBaseAI(pick);setFeedback("");
@@ -6536,7 +6570,7 @@ function HomeScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,checked,onC
             }
             setSongLoading(true);
             const song={id:`tmp_${Date.now()}`,title:canonTitle,artist:canonArtist};
-            fetchAI(song,"",banksAnn,banksPlug,aiProvider,aiKeys,allGuitars)
+            fetchAI(song,"",banksAnn,banksPlug,aiProvider,aiKeys,allGuitars,null,null,profile?.recoMode||"balanced",guitarBias)
               .then(r=>{
                 setSongResult(r);setSongBaseAI(r);
                 // Auto-sélectionne la guitare idéale (Bug 4 : "Guitare choisie" reflète un vrai choix)
@@ -6993,6 +7027,15 @@ function App() {
   const allRigsGuitars = useMemo(
     ()=>getAllRigsGuitars(profiles, customGuitars, GUITARS),
     [profiles, customGuitars],
+  );
+
+  // Phase 7.7 — Bias auto-dérivé des feedbacks (style → guitare préférée).
+  // Soft hint injecté dans chaque fetchAI via le prompt. Recompute à chaque
+  // mutation de songDb ou du rig. Pas persisté dans profile : la source de
+  // vérité est song.feedback[] (déjà sync Firestore).
+  const derivedGuitarBias = useMemo(
+    ()=>computeGuitarBiasFromFeedback(songDb, allRigsGuitars),
+    [songDb, allRigsGuitars],
   );
 
   // Non-persisted
@@ -7586,15 +7629,15 @@ function App() {
   var screenContent=null;
   if(screen==="viewprofile"&&viewProfileId&&profiles[viewProfileId]) screenContent=<ViewProfileScreen profile={profiles[viewProfileId]} onBack={()=>setScreen("list")} onNavigate={setScreen}/>;
   else if(screen==="exportimport") screenContent=<ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("settings")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/>;
-  else if(screen==="profile") screenContent=<MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} onDeletedSetlistIds={setDeletedSetlistIds} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/>;
+  else if(screen==="profile") screenContent=<MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} onDeletedSetlistIds={setDeletedSetlistIds} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={derivedGuitarBias} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/>;
   else if(screen==="settings") screenContent=<ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} songDb={songDb} onSongDb={setSongDb} setlists={setlists} onSetlists={setSetlists}/>;
-  else if(screen==="setlists") screenContent=<SetlistsScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
+  else if(screen==="setlists") screenContent=<SetlistsScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={derivedGuitarBias} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
   else if(screen==="jam") screenContent=<div><Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Jammer"}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>🎲 Jammer</div><JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources} profile={profile}/></div>;
   else if(screen==="explore") screenContent=<div><Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Explorer"}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>🎛️ Explorer les presets</div><PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={profile.customPacks} guitars={allGuitars} toneNetPresets={toneNetPresets}/></div>;
   else if(screen==="optimizer") screenContent=<BankOptimizerScreen songDb={songDb} setlists={mySetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} allGuitars={allGuitars} availableSources={availableSources} onNavigate={setScreen} profile={profile}/>;
   else if(screen==="synthesis"&&synth) screenContent=<SynthesisScreen songs={songs} gps={synth.gps} aiR={synth.aiR} onBack={()=>setScreen("recap")} onNavigate={setScreen} songDb={songDb} banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources} profile={profile}/>;
-  else if(screen==="recap") screenContent=<RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDb} onSongDb={setSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profile={profile} onTmpPatchOverride={onTmpPatchOverride}/>;
-  else screenContent=<HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} onOptimizer={()=>setScreen("optimizer")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
+  else if(screen==="recap") screenContent=<RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDb} onSongDb={setSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} guitarBias={derivedGuitarBias} availableSources={availableSources} profile={profile} onTmpPatchOverride={onTmpPatchOverride}/>;
+  else screenContent=<HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} onOptimizer={()=>setScreen("optimizer")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} guitarBias={derivedGuitarBias} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
 
   return <div className="page-root">
     <AppHeader {...headerProps}/>

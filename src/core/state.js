@@ -49,6 +49,7 @@
 // scenes/footswitchMap). Aucune transformation.
 
 import { GUITARS } from './guitars.js';
+import { findGuitarByAIName } from './scoring/guitar.js';
 import { INIT_SONG_DB_META } from './songs.js';
 import { INIT_SETLISTS } from './setlists.js';
 import {
@@ -1064,6 +1065,43 @@ function computeNewzikMergeNames(setlists, mergeInto) {
   });
 }
 
+// Phase 7.7 — Dérive un biais guitare/style à partir des morceaux feedbackés.
+// Pour chaque song avec feedback[].length > 0 et aiCache.result.song_style +
+// ideal_guitar définis, on tally (style → guitarId) en résolvant le nom IA via
+// findGuitarByAIName. Si un (style, guitarId) atteint le seuil (3 par défaut),
+// il est retenu dans le bias. Tie-break déterministe : plus grand count, puis
+// guitarId alpha. Retourne { [style]: { guitarId, guitarName, count } }.
+// Pur, testable, idempotent.
+function computeGuitarBiasFromFeedback(songDb, guitars, threshold = 3) {
+  if (!Array.isArray(songDb) || !Array.isArray(guitars) || guitars.length === 0) return {};
+  const tally = {};
+  songDb.forEach((s) => {
+    if (!s || !Array.isArray(s.feedback) || s.feedback.length === 0) return;
+    const result = s.aiCache && s.aiCache.result;
+    if (!result) return;
+    const style = result.song_style;
+    const idealName = result.ideal_guitar;
+    if (!style || !idealName) return;
+    const matched = findGuitarByAIName(idealName, guitars);
+    if (!matched) return;
+    if (!tally[style]) tally[style] = {};
+    tally[style][matched.id] = (tally[style][matched.id] || 0) + 1;
+  });
+  const out = {};
+  Object.entries(tally).forEach(([style, byGuitar]) => {
+    const sorted = Object.entries(byGuitar).sort((a, b) => {
+      if (b[1] !== a[1]) return b[1] - a[1];
+      return a[0] < b[0] ? -1 : 1;
+    });
+    const [topId, topCount] = sorted[0] || [null, 0];
+    if (topCount >= threshold && topId) {
+      const g = guitars.find((x) => x.id === topId);
+      out[style] = { guitarId: topId, guitarName: g ? g.name : topId, count: topCount };
+    }
+  });
+  return out;
+}
+
 function getAllRigsGuitars(profiles, customGuitars, allStandardGuitars) {
   const std = allStandardGuitars || GUITARS;
   if (!profiles || typeof profiles !== 'object') return [...std];
@@ -1099,4 +1137,5 @@ export {
   loadSecrets, saveSecrets,
   loadTrusted, isTrusted, setTrusted,
   getAllRigsGuitars,
+  computeGuitarBiasFromFeedback,
 };

@@ -13,6 +13,7 @@ import {
   toggleSetlistProfile,
   deriveEnabledDevices, makeDefaultProfile,
   getAllRigsGuitars,
+  computeGuitarBiasFromFeedback,
   dedupSetlists, dedupSetlistsWithTombstones, setlistDedupKey,
   autoBackup, listBackups, clearBackups, isQuotaError,
 } from './state.js';
@@ -497,6 +498,125 @@ describe('getAllRigsGuitars (Phase 3.6) · union des guitares de tous les profil
 
   test('profiles null → fallback sur la liste standard complète (defensive)', () => {
     expect(getAllRigsGuitars(null, [], STD).length).toBe(STD.length);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────
+// Phase 7.7 — computeGuitarBiasFromFeedback
+// ───────────────────────────────────────────────────────────────────
+
+describe('computeGuitarBiasFromFeedback (Phase 7.7) · dérive un bias style→guitare depuis song.feedback', () => {
+  const GUITARS_FX = [
+    { id: 'es335', name: 'ES-335' },
+    { id: 'sg61', name: 'SG 61' },
+    { id: 'strat61', name: 'Strat 61' },
+  ];
+
+  const mkSong = (id, style, idealGuitar, nbFeedbacks) => ({
+    id,
+    feedback: Array.from({ length: nbFeedbacks }, (_, i) => ({ text: `fb${i}`, ts: i })),
+    aiCache: { result: { song_style: style, ideal_guitar: idealGuitar } },
+  });
+
+  test('songDb vide ou guitars vide → {} (defensive)', () => {
+    expect(computeGuitarBiasFromFeedback([], GUITARS_FX)).toEqual({});
+    expect(computeGuitarBiasFromFeedback([mkSong('s1', 'blues', 'ES-335', 1)], [])).toEqual({});
+    expect(computeGuitarBiasFromFeedback(null, GUITARS_FX)).toEqual({});
+    expect(computeGuitarBiasFromFeedback([mkSong('s1', 'blues', 'ES-335', 1)], null)).toEqual({});
+  });
+
+  test('songs sans feedback ne comptent pas', () => {
+    const db = [
+      { id: 's1', feedback: [], aiCache: { result: { song_style: 'blues', ideal_guitar: 'ES-335' } } },
+      { id: 's2', aiCache: { result: { song_style: 'blues', ideal_guitar: 'ES-335' } } },
+    ];
+    expect(computeGuitarBiasFromFeedback(db, GUITARS_FX)).toEqual({});
+  });
+
+  test('songs sans aiCache.result ne comptent pas', () => {
+    const db = [
+      { id: 's1', feedback: [{ text: 'x', ts: 1 }] },
+      { id: 's2', feedback: [{ text: 'x', ts: 1 }], aiCache: null },
+      { id: 's3', feedback: [{ text: 'x', ts: 1 }], aiCache: { result: { song_style: 'blues' } } }, // ideal_guitar absent
+    ];
+    expect(computeGuitarBiasFromFeedback(db, GUITARS_FX)).toEqual({});
+  });
+
+  test('seuil = 3 par défaut : 2 occurrences ne suffisent pas', () => {
+    const db = [
+      mkSong('s1', 'blues', 'ES-335', 1),
+      mkSong('s2', 'blues', 'ES-335', 1),
+    ];
+    expect(computeGuitarBiasFromFeedback(db, GUITARS_FX)).toEqual({});
+  });
+
+  test('seuil atteint (3 morceaux feedbackés même style+guitare) → bias retenu', () => {
+    const db = [
+      mkSong('s1', 'blues', 'ES-335', 1),
+      mkSong('s2', 'blues', 'ES-335', 2),
+      mkSong('s3', 'blues', 'ES-335', 1),
+    ];
+    const out = computeGuitarBiasFromFeedback(db, GUITARS_FX);
+    expect(out).toEqual({ blues: { guitarId: 'es335', guitarName: 'ES-335', count: 3 } });
+  });
+
+  test('plusieurs styles indépendants tally séparément', () => {
+    const db = [
+      mkSong('s1', 'blues', 'ES-335', 1),
+      mkSong('s2', 'blues', 'ES-335', 1),
+      mkSong('s3', 'blues', 'ES-335', 1),
+      mkSong('s4', 'hard_rock', 'SG 61', 1),
+      mkSong('s5', 'hard_rock', 'SG 61', 1),
+      mkSong('s6', 'hard_rock', 'SG 61', 1),
+    ];
+    const out = computeGuitarBiasFromFeedback(db, GUITARS_FX);
+    expect(out.blues).toEqual({ guitarId: 'es335', guitarName: 'ES-335', count: 3 });
+    expect(out.hard_rock).toEqual({ guitarId: 'sg61', guitarName: 'SG 61', count: 3 });
+  });
+
+  test('plusieurs guitares pour un même style : la plus fréquente gagne', () => {
+    const db = [
+      mkSong('s1', 'blues', 'ES-335', 1),
+      mkSong('s2', 'blues', 'ES-335', 1),
+      mkSong('s3', 'blues', 'ES-335', 1),
+      mkSong('s4', 'blues', 'SG 61', 1), // 1 seule ES-335 wins
+    ];
+    const out = computeGuitarBiasFromFeedback(db, GUITARS_FX);
+    expect(out.blues.guitarId).toBe('es335');
+    expect(out.blues.count).toBe(3);
+  });
+
+  test('égalité de count → tiebreak alphabétique sur guitarId (déterministe)', () => {
+    const db = [
+      mkSong('s1', 'rock', 'ES-335', 1),
+      mkSong('s2', 'rock', 'ES-335', 1),
+      mkSong('s3', 'rock', 'ES-335', 1),
+      mkSong('s4', 'rock', 'SG 61', 1),
+      mkSong('s5', 'rock', 'SG 61', 1),
+      mkSong('s6', 'rock', 'SG 61', 1),
+    ];
+    const out = computeGuitarBiasFromFeedback(db, GUITARS_FX);
+    // 'es335' < 'sg61' alpha
+    expect(out.rock.guitarId).toBe('es335');
+  });
+
+  test('nom IA inconnu (ne match aucune guitare) ignoré', () => {
+    const db = [
+      mkSong('s1', 'blues', 'Telecaster Custom Shop Inconnue', 1),
+      mkSong('s2', 'blues', 'Telecaster Custom Shop Inconnue', 1),
+      mkSong('s3', 'blues', 'Telecaster Custom Shop Inconnue', 1),
+    ];
+    expect(computeGuitarBiasFromFeedback(db, GUITARS_FX)).toEqual({});
+  });
+
+  test('threshold custom (2) → bias retenu à 2 occurrences', () => {
+    const db = [
+      mkSong('s1', 'jazz', 'ES-335', 1),
+      mkSong('s2', 'jazz', 'ES-335', 1),
+    ];
+    const out = computeGuitarBiasFromFeedback(db, GUITARS_FX, 2);
+    expect(out.jazz.guitarId).toBe('es335');
+    expect(out.jazz.count).toBe(2);
   });
 });
 
