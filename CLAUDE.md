@@ -10,10 +10,15 @@ quand le scope a dépassé le strict ToneX Pedal pour couvrir 4 devices).
 
 Tagline : *"Le guide intelligent pour tes pédales et amplis modélisés"*.
 
-URL canonique : `https://ff2t.github.io/tonex-setlist-guide/index.html`
-(le slug GitHub Pages reste historique pour ne pas casser les
-bookmarks ; c'est `index.html` à la racine qui sert l'app, et
-`ToneX_Setlist_Guide.html` un redirect HTML vers `index.html`).
+URL canonique : `https://mybackline.app/` (Phase 7.29, mai 2026).
+Domaine alternatif `mybackline.fr` → redirect 301 vers `.app`.
+Anciennes URLs `ff2t.github.io/tonex-setlist-guide/*` toujours
+servies par GitHub Pages (les bookmarks Mac/iPhone/iPad de Sébastien
++ les PWA installées avant Phase 7.29 continuent à fonctionner).
+`ToneX_Setlist_Guide.html` reste un redirect HTML legacy vers
+`mybackline.app`.
+
+Édité par **PathToMusic inc.** (2026).
 
 PWA mono-fichier React de gestion de setlists et de presets pour
 guitaristes. Aide à choisir la bonne guitare et le bon preset pour
@@ -32,7 +37,8 @@ L'appli embarque un moteur de scoring guitare↔preset (5 dimensions,
 versionné) et un assistant IA optionnel (OpenAI/Anthropic). Stockage
 local + import/export JSON.
 
-Déployée sur GitHub Pages : https://ff2t.github.io/tonex-setlist-guide/
+Déployée sur GitHub Pages, accessible via `mybackline.app` (URL principale,
+Phase 7.29) ou `ff2t.github.io/tonex-setlist-guide/` (legacy, toujours OK).
 
 ## Public et contraintes d'usage
 
