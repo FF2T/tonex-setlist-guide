@@ -591,6 +591,26 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
+## État actuel (2026-05-13, Phase 7.11 close, tag `phase-7.11-done`)
+
+**Backline v8.14.10 / SW backline-v99 / STATE_VERSION 7 / 616 tests verts.**
+
+Phase 7.11 = TMP browser dans Mon Profil. Nouveau tab **"🎚️ Patches
+TMP"** visible si `tonemaster-pro ∈ profile.enabledDevices`. Liste
+read-only des 20 factory groupés par source (Arthur 3 / seed 4 /
+family 13) + customs `profile.tmpPatches.custom`. Chaque carte montre
+le name + chain summary + badges style/gain + usages courts. Drawer
+expandable affichant la chaîne complète bloc par bloc (réutilise
+`pickTopParams` + `formatBlockParam` de RecommendBlock).
+
+Badge **⚙️ personnalisé** sur les patches factory qui ont un override
+profil (`factoryOverrides[patchId]`). Un seul drawer ouvert à la fois.
+
+Composant `src/devices/tonemaster-pro/Browser.jsx` (TmpBrowser +
+PatchCard). 9 tests Vitest dans `Browser.test.jsx`. L'éditeur (créer
+des customs from scratch, modifier un factory complet) reste dette
+Phase 4 séparée.
+
 ## État actuel (2026-05-13, Phase 7.10 close, tag `phase-7.10-done`)
 
 **Backline v8.14.9 / SW backline-v98 / STATE_VERSION 7 / 607 tests verts.**
@@ -890,16 +910,16 @@ shared.songDb[i].aiCache {
 
 - **Découpage main.jsx** (~7700 lignes) : dette Phase 1 persistante.
 - **Phase 8** — Basse + batterie + sections instrumentales : gros chantier non démarré. Modèle de données étendu (`device.instrument: 'guitar'|'bass'|'drums'`), Roland TD-17 comme device drums, Fender Jazz Bass Player Plus comme device bass, sections par instrument dans `song.recommendations.{guitar,bass,drums}`, LiveScreen multi-instrument.
-- **TMP custom patches editor** (dette Phase 4) : aujourd'hui Sébastien peut éditer JSON manuel `profile.tmpPatches.custom = [...]`, pas d'UI dédiée.
-- **TMP browser dans MonProfilScreen** (dette Phase 4).
+- **TMP custom patches editor** (dette Phase 4) : aujourd'hui Sébastien peut éditer JSON manuel `profile.tmpPatches.custom = [...]`, pas d'UI dédiée. Le browser Phase 7.11 affiche les customs mais ne permet pas d'en créer/modifier.
 - **AI preset_tmp pour patches custom** : Phase 7.10 ne sérialise que
   TMP_FACTORY_PATCHES dans le prompt. L'IA ne peut pas suggérer un
   patch custom de l'utilisateur. À étendre quand l'UI editor (Phase 4
   dette) sera là.
 
 Items clôturés Phase 7.8 (`SW non enregistré`, `Deprecation warning
-apple-mobile-web-app-capable`, `Favicon 404`) et Phase 7.10 (`AI
-populating preset_tmp field`).
+apple-mobile-web-app-capable`, `Favicon 404`), Phase 7.10 (`AI
+populating preset_tmp field`) et Phase 7.11 (`TMP browser dans
+MonProfilScreen`).
 
 ## État Phase 5.7.2 (gate migration Newzik, 2026-05-11, tag `phase-5.7.2-done`)
 
