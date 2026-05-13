@@ -553,7 +553,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.10";
+const APP_VERSION = "8.14.11";
 const ADMIN_PIN = "212402";
 
 
@@ -2378,7 +2378,13 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,onDele
            Anniversary exclusives du ANNIVERSARY_CATALOG (50 banks A/B/C). */}
       {tab==="ann"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} factoryBanks={FACTORY_BANKS_ANNIVERSARY} toneNetPresets={toneNetPresets}/>}
       {tab==="plug"&&<BankEditor banks={banksPlug} onBanks={onBanksPlug} color="var(--accent)" maxBanks={10} startBank={1} factoryBanks={FACTORY_BANKS_PLUG} toneNetPresets={toneNetPresets}/>}
-      {tab==="tmp"&&<TmpBrowser profile={profile}/>}
+      {tab==="tmp"&&<TmpBrowser profile={profile} onUpdateCustoms={(customs)=>{
+        onProfiles(p=>{
+          const cur=p[activeProfileId];if(!cur) return p;
+          const prevTmp=cur.tmpPatches||{custom:[],factoryOverrides:{}};
+          return {...p,[activeProfileId]:{...cur,tmpPatches:{...prevTmp,custom:customs},lastModified:Date.now()}};
+        });
+      }}/>}
       {tab==="reco"&&<div>
         {/* Phase 7.1 — Préférences IA : Mode reco (Fidèle / Interprétation
             / Équilibré). Influence les prompts fetchAI futurs et le

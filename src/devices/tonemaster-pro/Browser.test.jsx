@@ -3,7 +3,7 @@
 // Tests UI du TMP Browser (Phase 7.11) : groupements factory/custom,
 // expand/collapse, badge override.
 
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 import React from 'react';
 import TmpBrowser from './Browser.jsx';
@@ -89,5 +89,64 @@ describe('TmpBrowser — Phase 7.11', () => {
   test('profile null/sans tmpPatches → ne crashe pas', () => {
     const { container } = render(<TmpBrowser profile={null}/>);
     expect(container.querySelector('[data-testid="tmp-browser-root"]')).not.toBeNull();
+  });
+});
+
+describe('TmpBrowser — Phase 7.12 wiring clone/edit/delete', () => {
+  test('sans onUpdateCustoms → pas de boutons clone/edit/delete', () => {
+    const { container } = render(<TmpBrowser profile={{}}/>);
+    expect(container.querySelector('[data-testid="tmp-browser-clone-rock_preset"]')).toBeNull();
+  });
+
+  test('avec onUpdateCustoms → bouton clone visible sur factory', () => {
+    const { container } = render(<TmpBrowser profile={{}} onUpdateCustoms={() => {}}/>);
+    expect(container.querySelector('[data-testid="tmp-browser-clone-rock_preset"]')).not.toBeNull();
+  });
+
+  test('click clone → ouvre editor avec patch cloné', () => {
+    const onUpdateCustoms = vi.fn();
+    const { container } = render(<TmpBrowser profile={{}} onUpdateCustoms={onUpdateCustoms}/>);
+    fireEvent.click(container.querySelector('[data-testid="tmp-browser-clone-rock_preset"]'));
+    // Editor overlay visible
+    expect(container.querySelector('[data-testid="tmp-editor-overlay"]')).not.toBeNull();
+    // Nom prefilled "Rock Preset (copie)"
+    const nameInput = container.querySelector('[data-testid="tmp-editor-name"]');
+    expect(nameInput.value).toBe('Rock Preset (copie)');
+  });
+
+  test('clone + save → onUpdateCustoms appelé avec le nouveau patch ajouté', () => {
+    const onUpdateCustoms = vi.fn();
+    const { container } = render(<TmpBrowser profile={{}} onUpdateCustoms={onUpdateCustoms}/>);
+    fireEvent.click(container.querySelector('[data-testid="tmp-browser-clone-rock_preset"]'));
+    fireEvent.click(container.querySelector('[data-testid="tmp-editor-save"]'));
+    expect(onUpdateCustoms).toHaveBeenCalledOnce();
+    const customs = onUpdateCustoms.mock.calls[0][0];
+    expect(customs.length).toBe(1);
+    expect(customs[0].name).toBe('Rock Preset (copie)');
+    expect(customs[0].id).toMatch(/^custom_/);
+  });
+
+  test('custom existant + edit → ouvre editor en mode edit', () => {
+    const customs = [{ ...require('./catalog.js').ROCK_PRESET, id: 'custom_42', name: 'Mon Rock', factory: false }];
+    const profile = { tmpPatches: { custom: customs, factoryOverrides: {} } };
+    const { container } = render(<TmpBrowser profile={profile} onUpdateCustoms={() => {}}/>);
+    fireEvent.click(container.querySelector('[data-testid="tmp-browser-edit-custom_42"]'));
+    expect(container.querySelector('[data-testid="tmp-editor-overlay"]')).not.toBeNull();
+    // Mode edit → bouton delete visible
+    expect(container.querySelector('[data-testid="tmp-editor-delete"]')).not.toBeNull();
+  });
+
+  test('edit + save → onUpdateCustoms appelé avec le patch remplacé (pas ajouté)', () => {
+    const customs = [{ ...require('./catalog.js').ROCK_PRESET, id: 'custom_42', name: 'Mon Rock', factory: false }];
+    const profile = { tmpPatches: { custom: customs, factoryOverrides: {} } };
+    const onUpdateCustoms = vi.fn();
+    const { container } = render(<TmpBrowser profile={profile} onUpdateCustoms={onUpdateCustoms}/>);
+    fireEvent.click(container.querySelector('[data-testid="tmp-browser-edit-custom_42"]'));
+    fireEvent.change(container.querySelector('[data-testid="tmp-editor-name"]'), { target: { value: 'Mon Rock Renommé' } });
+    fireEvent.click(container.querySelector('[data-testid="tmp-editor-save"]'));
+    const updated = onUpdateCustoms.mock.calls[0][0];
+    expect(updated.length).toBe(1);
+    expect(updated[0].id).toBe('custom_42');
+    expect(updated[0].name).toBe('Mon Rock Renommé');
   });
 });
