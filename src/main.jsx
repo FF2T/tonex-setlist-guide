@@ -2390,9 +2390,10 @@ import SynthesisScreen from './app/screens/SynthesisScreen.jsx';
 import PresetBrowser from './app/screens/PresetBrowser.jsx';
 import JamScreen from './app/screens/JamScreen.jsx';
 import ViewProfileScreen from './app/screens/ViewProfileScreen.jsx';
-// Phase 7.14 step 8 — HomeScreen + sub-components extraits. L'import
-// était inline dans le range supprimé par le sed Phase 7.17 → restauré ici.
+// Phase 7.14 — HomeScreen + SetlistsScreen extraits. Les imports étaient
+// inline dans le range supprimé par le sed Phase 7.17 → restaurés ici.
 import HomeScreen from './app/screens/HomeScreen.jsx';
+import SetlistsScreen from './app/screens/SetlistsScreen.jsx';
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 // Fusionne les banks sauvées avec les banks initiales (ajoute les nouvelles sans écraser les modifs utilisateur)
