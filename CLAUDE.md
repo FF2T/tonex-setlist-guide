@@ -591,9 +591,25 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
-## État actuel (2026-05-13, Phase 7.7 close, tag `phase-7.7-done`)
+## État actuel (2026-05-13, Phase 7.8 close, tag `phase-7.8-done`)
 
-**Backline v8.14.6 / SW backline-v95 / STATE_VERSION 7 / 588 tests verts.**
+**Backline v8.14.7 / SW backline-v96 / STATE_VERSION 7 / 588 tests verts.**
+
+Phase 7.8 = lot "petits chantiers" (3 fixes deploy, pas une nouvelle
+feature) :
+
+- **SW externalisé** dans `public/sw.js` (au lieu d'une registration via
+  blob URL). Vite copy verbatim → `dist/sw.js`. `main.jsx` registrer
+  `./sw.js`. Restaure l'offline + stale-while-revalidate qui était
+  silencieusement cassé depuis le rebrand Phase 5.2 : le blob URL a un
+  origin distinct du document → le SW ne contrôlait jamais les fetchs
+  de la page. **Workflow déploiement augmenté** : copier `dist/sw.js`
+  → `main:/sw.js` en plus de `dist/index.html` à chaque release.
+- **Favicon SVG inline** (`link rel=icon` réutilisant la silhouette
+  Backline) → plus de 404 sur `/favicon.ico`.
+- **`meta mobile-web-app-capable=yes`** couplé à l'Apple deprecated
+  (deprecation warning iOS disparaît).
+- `vite.config.js` : `publicDir: false` → `publicDir: '../public'`.
 
 Marathon de 22 sous-phases ajoutées le 12 mai 2026 :
 
@@ -841,14 +857,14 @@ shared.songDb[i].aiCache {
 
 ### Dette générale ouverte
 
-- **SW non enregistré** (depuis Phase 5.2 rebrand) : `navigator.serviceWorker.register(blobUrl)` échoue silencieusement, perte de l'offline. Phase 9 ou 10 à scoper.
-- **Deprecation warning `apple-mobile-web-app-capable`** : cosmétique iOS.
-- **Favicon 404** : cosmétique.
 - **Découpage main.jsx** (~7700 lignes) : dette Phase 1 persistante.
 - **Phase 8** — Basse + batterie + sections instrumentales : gros chantier non démarré. Modèle de données étendu (`device.instrument: 'guitar'|'bass'|'drums'`), Roland TD-17 comme device drums, Fender Jazz Bass Player Plus comme device bass, sections par instrument dans `song.recommendations.{guitar,bass,drums}`, LiveScreen multi-instrument.
 - **TMP custom patches editor** (dette Phase 4) : aujourd'hui Sébastien peut éditer JSON manuel `profile.tmpPatches.custom = [...]`, pas d'UI dédiée.
 - **TMP browser dans MonProfilScreen** (dette Phase 4).
 - **AI populating `preset_tmp` field dans aiCache** (dette Phase 3+).
+
+Items clôturés Phase 7.8 (`SW non enregistré`, `Deprecation warning
+apple-mobile-web-app-capable`, `Favicon 404`).
 
 ## État Phase 5.7.2 (gate migration Newzik, 2026-05-11, tag `phase-5.7.2-done`)
 
