@@ -119,7 +119,27 @@ import {
   saveToFirestore, loadFromFirestore, pollRemoteSyncId,
   loadSharedKey, saveSharedKey,
   getLastSavedSyncId, getLastRemoteSyncId,
+  setNoSyncMode,
 } from './app/utils/firestore.js';
+
+// Phase 7.25 — Auto-activation du mode beta via URL param `?beta=1`.
+// L'utilisateur reçoit un lien `https://ff2t.github.io/...?beta=1` →
+// le mode local est activé AVANT toute initialisation Firestore (avant
+// le mount de App), donc aucune donnée Sébastien/Arthur/Franck n'est
+// pull. L'URL est nettoyée du param pour éviter la confusion.
+if (typeof window !== 'undefined' && window.location && window.location.search) {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('beta') === '1') {
+      setNoSyncMode(true);
+      params.delete('beta');
+      const newSearch = params.toString();
+      const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '') + window.location.hash;
+      window.history.replaceState({}, '', newUrl);
+      console.log('[beta] Auto-activated no-sync mode via URL param. Local-only.');
+    }
+  } catch (e) { console.warn('[beta] URL param check failed:', e); }
+}
 
 // ─── Code applicatif (verbatim depuis <script type="text/babel">) ───
 //     Lignes 365-7400 du HTML monolithe — sans la redéclaration
@@ -188,7 +208,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.24";
+const APP_VERSION = "8.14.25";
 const ADMIN_PIN = "212402";
 
 
