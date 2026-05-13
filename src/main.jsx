@@ -379,8 +379,8 @@ import {
   findInBanks, worstSlot, findBestAvailable, getInstallRec,
 } from './app/utils/preset-helpers.js';
 
-const CC = {A:"var(--brass-300)",B:"var(--copper-400)",C:"var(--wine-400)"};
-const CL = {A:"Clean",B:"Drive",C:"Lead"};
+// Phase 7.14 — CC/CL extracted to src/app/utils/ui-constants.js.
+import { CC, CL, TYPE_LABELS, TYPE_COLORS } from './app/utils/ui-constants.js';
 
 // ─── Helpers song (data access) ──────────────────────────────────────
 // Phase 7.14 — extracted to src/app/utils/song-helpers.js.
@@ -472,22 +472,8 @@ function parseCSV(text) {
 const s = (base) => ({...base});
 
 
-function GuitarSelect({value,onChange,ig=[],guitars=GUITARS}) {
-  const g=guitars.find(x=>x.id===value);
-  const ideal=value&&ig.includes(value);
-  const warn=value&&ig.length>0&&!ideal;
-  return (
-    <div>
-      <select value={value||""} onChange={e=>onChange(e.target.value)}
-        style={{width:"100%",background:"var(--bg-card)",color:"var(--text)",border:`1px solid ${ideal?"rgba(74,222,128,0.5)":warn?"rgba(251,191,36,0.5)":"var(--a15)"}`,borderRadius:"var(--r-md)",padding:"8px 10px",fontSize:13,cursor:"pointer",marginBottom:4}}>
-        <option value="">— Choisir une guitare —</option>
-        {guitars.map(x=><option key={x.id} value={x.id}>{ig.includes(x.id)?"★ ":""}{x.name} ({x.type})</option>)}
-      </select>
-      {ideal&&<div style={{fontSize:11,color:"var(--green)"}}>✓ Choix optimal</div>}
-      {warn&&g&&<div style={{fontSize:11,color:"var(--yellow)"}}>⚠️ Idéalement : {ig.map(i=>guitars.find(x=>x.id===i)?.short||GUITARS.find(x=>x.id===i)?.short).filter(Boolean).join(", ")}</div>}
-    </div>
-  );
-}
+// Phase 7.14 — GuitarSelect extracted to src/app/components/GuitarSelect.jsx.
+import GuitarSelect from './app/components/GuitarSelect.jsx';
 
 // ─── Breadcrumb ──────────────────────────────────────────────────────────────
 // crumbs = [{label,screen},{label,screen},...,{label}]  — le dernier est l'écran courant (non cliquable)
@@ -5598,8 +5584,7 @@ const JAM_STYLES=[
   {id:"hard_rock",label:"Hard Rock",emoji:"🔥", color:"148,163,184"},
   {id:"metal",  label:"Metal",      emoji:"💀", color:"148,163,184"},
 ];
-const TYPE_LABELS={HB:"Humbucker",SC:"Single Coil",P90:"P-90"};
-const TYPE_COLORS={HB:"194,158,92",SC:"184,115,51",P90:"155,58,44"};
+// Phase 7.14 — TYPE_LABELS / TYPE_COLORS extraits à src/app/utils/ui-constants.js (importés en tête de fichier).
 
 function JamPresetItem({p,rank,isSelected,onSelect,banksAnn,banksPlug,guitars}){
   const rankColors=["var(--accent)","var(--text-sec)","var(--text-muted)"];
