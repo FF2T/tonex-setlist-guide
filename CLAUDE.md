@@ -591,6 +591,36 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
+## État actuel (2026-05-13, Phase 7.13 close, tag `phase-7.13-done`)
+
+**Backline v8.14.12 / SW backline-v101 / STATE_VERSION 7 / 643 tests verts.**
+
+Phase 7.13 = TMP editor étendu (complet). Sur la base du MVP Phase 7.12,
+l'éditeur supporte maintenant **tous les aspects** du modèle TMPPatch :
+
+- **9 blocs éditables** : amp, cab (déjà MVP) + drive, mod, delay,
+  reverb, comp, noise_gate, eq. Boucle sur `RENDER_ORDER`, BlockEditor
+  identique partout. Plus de section read-only.
+- **Add/remove blocks** : amp et cab non-removable (contrainte du
+  modèle). Pour les 7 optionnels, un bouton 🗑️ Supprimer dans le
+  BlockEditor + une section "Ajouter un bloc" en bas avec un bouton
+  par type absent. `buildDefaultBlock(slot)` initialise avec premier
+  model whitelist + `STANDARD_PARAMS` à 5 (defaults sensibles pour
+  cab.mic="Dyn SM57"/axis="on", mod.type="sine").
+- **ScenesEditor branché** : section "Scenes / Footswitch" en bas du
+  modal, rend `<ScenesEditor patch={patch} onScenesChange onFootswitchChange/>`
+  (composant Phase 4 réutilisé tel quel). Édite `patch.scenes` et
+  `patch.footswitchMap` inline.
+- **Cleanup au remove** : supprimer un bloc qui était cible d'un
+  footswitch (`type: 'toggle', block: <slot>`) nettoie automatiquement
+  l'entry FS correspondante. Les scene.blockToggles qui le ciblaient
+  deviennent no-op silencieusement (acceptable Phase 7.13, à nettoyer
+  Phase 7.14 si nécessaire).
+
+7 nouveaux tests régression dans `Editor.test.jsx` (643 tests verts au
+total). La dette Phase 4 sur l'éditeur custom TMP est désormais
+**entièrement clôturée**.
+
 ## État actuel (2026-05-13, Phase 7.12 close, tag `phase-7.12-done`)
 
 **Backline v8.14.11 / SW backline-v100 / STATE_VERSION 7 / 636 tests verts.**
@@ -946,20 +976,15 @@ shared.songDb[i].aiCache {
 
 - **Découpage main.jsx** (~7700 lignes) : dette Phase 1 persistante.
 - **Phase 8** — Basse + batterie + sections instrumentales : gros chantier non démarré. Modèle de données étendu (`device.instrument: 'guitar'|'bass'|'drums'`), Roland TD-17 comme device drums, Fender Jazz Bass Player Plus comme device bass, sections par instrument dans `song.recommendations.{guitar,bass,drums}`, LiveScreen multi-instrument.
-- **TMP editor étendu (Phase 7.13)** : Phase 7.12 ne permet d'éditer
-  que name/notes/style/gain/pickupAffinity + amp + cab. Les blocs FX
-  (drive, mod, delay, reverb, comp, noise_gate, eq) sont préservés mais
-  pas éditables. Pas d'add/remove de blocs ni de scenes via le browser
-  (ScenesEditor Phase 4 existe mais n'est pas branché ici).
 - **AI preset_tmp pour patches custom** : Phase 7.10 ne sérialise que
   TMP_FACTORY_PATCHES dans le prompt. L'IA ne peut pas suggérer un
-  patch custom de l'utilisateur. À étendre Phase 7.13+.
+  patch custom de l'utilisateur. À étendre Phase 7.14+.
 
 Items clôturés Phase 7.8 (`SW non enregistré`, `Deprecation warning
 apple-mobile-web-app-capable`, `Favicon 404`), Phase 7.10 (`AI
 populating preset_tmp field`), Phase 7.11 (`TMP browser dans
-MonProfilScreen`) et Phase 7.12 MVP (`TMP custom patches editor` —
-metadata + amp + cab; FX et scenes restants Phase 7.13).
+MonProfilScreen`), Phase 7.12 (`TMP custom patches editor MVP`) et
+Phase 7.13 (`TMP editor étendu — 9 blocs + add/remove + scenes`).
 
 ## État Phase 5.7.2 (gate migration Newzik, 2026-05-11, tag `phase-5.7.2-done`)
 
