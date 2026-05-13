@@ -591,6 +591,42 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
+## État actuel (2026-05-13, Phase 7.12 close, tag `phase-7.12-done`)
+
+**Backline v8.14.11 / SW backline-v100 / STATE_VERSION 7 / 636 tests verts.**
+
+Phase 7.12 = TMP custom patches editor (MVP). Modal overlay déclenchée
+depuis le browser Phase 7.11 :
+
+- **Clone factory** : bouton 📋 sur chaque card factory → ouvre l'éditeur
+  avec un deep clone (`clonePatchAsCustom`). Nouvel id `custom_<ts>_<rand>`,
+  name suffixé "(copie)", factory:false, source:'custom'.
+- **Édition métadonnées** : name (input), notes (textarea), style
+  (dropdown 6 styles), gain (dropdown low/mid/high), pickupAffinity
+  (3 inputs HB/SC/P90, 0-100).
+- **Édition amp + cab** : model dropdown depuis la whitelist du type +
+  toggle enabled + inputs numériques (ou text pour cab.mic/axis) pour
+  chaque param présent. Pas d'ajout/suppression de params en v1 (preserve
+  la forme du factory cloné).
+- **Blocs FX préservés** : drive, mod, delay, reverb, comp, noise_gate,
+  eq affichés en read-only ("préservés tels quels au save"). Phase 7.13
+  les rendra éditables.
+- **Save** : `validatePatch` (chain-model.js) avant write. Errors
+  affichées inline. Au save, callback `onUpdateCustoms(nextArray)` →
+  `profile.tmpPatches.custom` mis à jour via `onProfiles` (stamp
+  lastModified pour LWW Firestore).
+- **Delete** : bouton 🗑️ dans le modal (mode edit uniquement) + dans la
+  card custom du browser. Confirmation modale.
+
+Composants : `src/devices/tonemaster-pro/Editor.jsx` (TmpPatchEditor +
+helpers clonePatchAsCustom, genCustomId, deepClone). 14 tests Vitest
+dans `Editor.test.jsx`. Browser.jsx étendu avec 6 tests régression
+(clone, save additive, edit replace, delete).
+
+Phase 7.13 (dette résiduelle) : étendre l'éditeur aux 7 autres blocs +
+permettre add/remove blocks + brancher le ScenesEditor existant
+(Phase 4) pour scenes/footswitchMap.
+
 ## État actuel (2026-05-13, Phase 7.11 close, tag `phase-7.11-done`)
 
 **Backline v8.14.10 / SW backline-v99 / STATE_VERSION 7 / 616 tests verts.**
@@ -910,16 +946,20 @@ shared.songDb[i].aiCache {
 
 - **Découpage main.jsx** (~7700 lignes) : dette Phase 1 persistante.
 - **Phase 8** — Basse + batterie + sections instrumentales : gros chantier non démarré. Modèle de données étendu (`device.instrument: 'guitar'|'bass'|'drums'`), Roland TD-17 comme device drums, Fender Jazz Bass Player Plus comme device bass, sections par instrument dans `song.recommendations.{guitar,bass,drums}`, LiveScreen multi-instrument.
-- **TMP custom patches editor** (dette Phase 4) : aujourd'hui Sébastien peut éditer JSON manuel `profile.tmpPatches.custom = [...]`, pas d'UI dédiée. Le browser Phase 7.11 affiche les customs mais ne permet pas d'en créer/modifier.
+- **TMP editor étendu (Phase 7.13)** : Phase 7.12 ne permet d'éditer
+  que name/notes/style/gain/pickupAffinity + amp + cab. Les blocs FX
+  (drive, mod, delay, reverb, comp, noise_gate, eq) sont préservés mais
+  pas éditables. Pas d'add/remove de blocs ni de scenes via le browser
+  (ScenesEditor Phase 4 existe mais n'est pas branché ici).
 - **AI preset_tmp pour patches custom** : Phase 7.10 ne sérialise que
   TMP_FACTORY_PATCHES dans le prompt. L'IA ne peut pas suggérer un
-  patch custom de l'utilisateur. À étendre quand l'UI editor (Phase 4
-  dette) sera là.
+  patch custom de l'utilisateur. À étendre Phase 7.13+.
 
 Items clôturés Phase 7.8 (`SW non enregistré`, `Deprecation warning
 apple-mobile-web-app-capable`, `Favicon 404`), Phase 7.10 (`AI
-populating preset_tmp field`) et Phase 7.11 (`TMP browser dans
-MonProfilScreen`).
+populating preset_tmp field`), Phase 7.11 (`TMP browser dans
+MonProfilScreen`) et Phase 7.12 MVP (`TMP custom patches editor` —
+metadata + amp + cab; FX et scenes restants Phase 7.13).
 
 ## État Phase 5.7.2 (gate migration Newzik, 2026-05-11, tag `phase-5.7.2-done`)
 
