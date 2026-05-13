@@ -1,0 +1,95 @@
+// src/data/tsr-packs.js — Phase 7.14 (découpage main.jsx).
+//
+// Mapping name → URL slug pour les packs The Studio Rats. Utilisé par
+// SongDetailCard pour suggérer des packs à acheter quand le ref_amp d'un
+// morceau ne matche aucun preset installé.
+//
+// TSR_PACK_GROUPS : regroupement par famille d'ampli, pour affichage
+// secondaire (catégories dans PresetBrowser, etc.).
+
+const TSR_PACK_ZIPS = {
+  '50-51': 'TSR-50-51-TONEX-Pack-ithoaj',
+  'Ampeg Pro 4': 'TSR-A-Peg-Pro-4-TONEX-Pack--xqj9tk',
+  'Amp Nation ODR': 'TSR-Amp-Nation-ODR-0yt0ig',
+  'Amp Nation WOD': 'TSR-Amp-Nation-WOD-bxkixg',
+  'Ample Betty': 'TSR-Ample-Betty',
+  'Bass Elliot': 'TSR-Bass-Elliot-yp8vl7',
+  'Bass Pack 1': 'TSR-The-Bass-Pack-1-w8fa9b',
+  'Bogner Ecstasy 101B': 'TSR-Bogner-Ecstasy-101B-wjmrhd',
+  'Bogner G-Finger': 'TSR-Bogy-GFINGER-Tonex-23sa3p',
+  'Bogner Helioclipse': 'TSR-Bogy-Helioclipse',
+  'British Chime (Budda V20)': 'TSR-British-Chime-Pack-zni3bq',
+  'British Rock (Vox DC30)': 'TSR-British-Rock-Pack-lzwcob',
+  'Bumble Deluxe': 'TSR-Bumble-Dluxe-fakul2',
+  'Cat Cub': 'TSR-CAT-CUB-Pack-oqqm9q',
+  'Chandler GAV19T': 'American-Pack-1-j9zcnx',
+  'Cornford Harlequin': 'TSR-Cornfield-Harle-dp9nw5',
+  D13: 'TSR-D13-Pack',
+  'D13 AMP39': 'TSR-D13-AMP39-TONEX-Pack-hl0ehr',
+  'D13 Best Tweed': 'TSR-D13-Pack',
+  'Deity (Ironlung)': 'TSR-Deity-Pack',
+  'Deluxe Reverb II': 'TSR-Dlux-Verb-II-3yvqet',
+  'Diesel Humbert': 'TSR-Diesel-Humbert-8hukym',
+  'Drive Pedal Pack 3': 'TSR-Drive-Pedal-Pack-3-wk09fp',
+  'Electro Dime': 'TSR-Electro-Dime-TONEX-Pack-loehp2',
+  'Fender Blackface Bassman': 'TSR-TONEX-Blackface-Pack--lzzfed',
+  'Fender Concert': 'TSR-FNDR-Consert-z4zidm',
+  'Fender Silverface Twin': 'TSR-The-Silverface-Pack-juvwgv',
+  'Fender Super S': 'TSR-Super-S-a4ad1n',
+  'Friedman BE/DE': 'TSR-Freeman-BE-DE-id5zii',
+  'Friedman Phil X': 'Friedman-Phil-X-cnnnxx',
+  'GK MBS150 (Bass)': 'TSR-GK-MBS150-TONEX-hksx95',
+  'Hiwatt HG100': 'TSR-High-What-HG100-q28r50',
+  'Hiwatt Wizard': 'TSR-HOKK-PACK-iy5xyz',
+  'Indi 35-2': 'TSR-INDI-35-2-9nxtpt',
+  'Jimi Hendrix 20W': 'TSR-Jimi-H-20-TONEX-qhxcsu',
+  'Jivey Drives': 'TSR-Jivey-Drives-vrb7o5',
+  'Jivey Drives 2': 'Jivey-Drives-2-6u19yp',
+  'Marshall 800 SL': 'TSR-Mars-800SL-TONEX-Pack-a6hrsy',
+  'Marshall JCM900': 'TSR-Mars-900-JCM-900-1aovpo',
+  'Marshall JTM': 'TSR-JTM-Pack',
+  'Marshall Plexi': 'TSR-Plexi-Pack',
+  'Marshall SLT60': 'TSR-Mars-SLT60-TONEX-Pack-dhqozw',
+  'Matchless HC15': 'TSR-Tonex-MATCHBOX-HC15-PACK-wthh21',
+  'Matchless Independence': 'TSR-Matchbox-Pack',
+  'Mega Barba Skill': 'MEGA-BARBA-SKILL-gitill',
+  'Mesa Boogie IIC+': 'TSR-MBoogie-IIC-ii0r3b',
+  'Mesa Rectifier': 'TSR-Rectified--6eqai9',
+  'Amplifonics & Gain': 'TSR-TONEX-Aliphonivs-And-Gain-Pack-v4mzay',
+  'Reinhardt RT-36': 'TSR-Reinguard-RT-36-TONEX-uk0r7i',
+  'Roland JC': 'TSR-JC-Pack-jchfsq',
+  'Rouge Plate D50': 'TSR-Rouge-Plate-ofucpf',
+  'Silver Jubilee': 'TSR-Silver-J-Pack-1ykk0n',
+  'Soldano 100': 'TSR-SLODANO-100-l7ppmu',
+  'Soldano GP77': 'TSR-SLODANO-GP77-05bqpx',
+  'Sons Amp': 'TSR-Sons-Amp-TONEX-Pack-2-ealhrl',
+  'Synergy SYN 30': 'American-Pack-1-j9zcnx',
+  'Talon 50': 'TSR-Talon-50-nqmscm',
+  TSR20: 'TSR-TSR20-mmb5hz',
+  'Tube King Imp MK2': 'TSR-Tube-King-Imp-MK2-2g9lph',
+  'TWS 2864-S': 'TWS-2864-S-Pack-yspvyu',
+  'Two Rock Bloomfield': 'TSR-TWO-ROCK-Bloomfield-Drive-Pack-84jzuk',
+  'Two Rock Stevie G': 'TSR-Stevie-G-jrfy9q',
+  'VMP-1': 'TSR-VMP-1--5i4ehm',
+  Zwrek: 'TSR-ZWREK-TONEX-Pack',
+};
+
+// Regroupement des packs TSR par famille d'ampli, pour affichage
+// catégorisé dans PresetBrowser et MaintenanceTab.
+const TSR_PACK_GROUPS = {
+  Fender: ['Bumble Deluxe', 'D13 Best Tweed', 'Deluxe Reverb II', 'Fender Blackface Bassman', 'Fender Concert', 'Fender Silverface Twin', 'Fender Super S'],
+  Marshall: ['Marshall 800 SL', 'Marshall JCM900', 'Marshall JTM', 'Marshall Plexi', 'Marshall SLT60', 'Silver Jubilee', 'Jimi Hendrix 20W'],
+  'Mesa/Boogie': ['Mesa Boogie IIC+', 'Mesa Rectifier'],
+  Bogner: ['Bogner Ecstasy 101B', 'Bogner G-Finger', 'Bogner Helioclipse'],
+  Matchless: ['Matchless HC15', 'Matchless Independence'],
+  'Two Rock': ['Two Rock Bloomfield', 'Two Rock Stevie G'],
+  Friedman: ['Friedman BE/DE', 'Friedman Phil X'],
+  Hiwatt: ['Hiwatt HG100', 'Hiwatt Wizard'],
+  Soldano: ['Soldano 100', 'Soldano GP77'],
+  D13: ['D13', 'D13 AMP39'],
+  'Vox / British': ['British Chime (Budda V20)', 'British Rock (Vox DC30)'],
+  'Drives / Pedals': ['Drive Pedal Pack 3', 'Jivey Drives', 'Jivey Drives 2'],
+  Bass: ['Ampeg Pro 4', 'Bass Elliot', 'Bass Pack 1', 'GK MBS150 (Bass)'],
+};
+
+export { TSR_PACK_ZIPS, TSR_PACK_GROUPS };
