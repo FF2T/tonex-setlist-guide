@@ -23,6 +23,7 @@ import './devices/tonex-anniversary/index.js';
 import './devices/tonex-plug/index.js';
 import './devices/tonemaster-pro/index.js';
 import { TMP_FACTORY_PATCHES, recommendTMPPatch } from './devices/tonemaster-pro/index.js';
+import TmpBrowser from './devices/tonemaster-pro/Browser.jsx';
 import { INIT_BANKS_ANN, FACTORY_BANKS_PEDALE } from './devices/tonex-pedal/index.js';
 import { FACTORY_BANKS_ANNIVERSARY } from './devices/tonex-anniversary/index.js';
 import { INIT_BANKS_PLUG, FACTORY_BANKS_PLUG } from './devices/tonex-plug/index.js';
@@ -552,7 +553,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.9";
+const APP_VERSION = "8.14.10";
 const ADMIN_PIN = "212402";
 
 
@@ -2286,6 +2287,7 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,onDele
           {en.has('tonex-pedal')&&tabBtn("pedale","🎛 Pedale ToneX")}
           {en.has('tonex-anniversary')&&tabBtn("ann","🎛 ToneX Ann.")}
           {en.has('tonex-plug')&&tabBtn("plug","🔌 ToneX Plug")}
+          {en.has('tonemaster-pro')&&tabBtn("tmp","🎚️ Patches TMP")}
         </>;})()}
         {tabBtn("display","🎨 Affichage")}
         {tabBtn("reco","🎯 Préférences IA")}
@@ -2376,6 +2378,7 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,onDele
            Anniversary exclusives du ANNIVERSARY_CATALOG (50 banks A/B/C). */}
       {tab==="ann"&&<BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} factoryBanks={FACTORY_BANKS_ANNIVERSARY} toneNetPresets={toneNetPresets}/>}
       {tab==="plug"&&<BankEditor banks={banksPlug} onBanks={onBanksPlug} color="var(--accent)" maxBanks={10} startBank={1} factoryBanks={FACTORY_BANKS_PLUG} toneNetPresets={toneNetPresets}/>}
+      {tab==="tmp"&&<TmpBrowser profile={profile}/>}
       {tab==="reco"&&<div>
         {/* Phase 7.1 — Préférences IA : Mode reco (Fidèle / Interprétation
             / Équilibré). Influence les prompts fetchAI futurs et le
