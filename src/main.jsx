@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.8";
+const APP_VERSION = "8.14.9";
 const ADMIN_PIN = "212402";
 
 
@@ -1035,6 +1035,21 @@ function fetchAI(song,gId,banksAnn,banksPlug,aiProvider,aiKeys,guitars,feedback,
     const lines=entries.map(([style,v])=>`- ${style} : ${v.guitarName} (${v.count} morceau${v.count>1?"x":""} feedbacké${v.count>1?"s":""})`).join("\n");
     return `\nPRÉFÉRENCES UTILISATEUR (déduites de l'historique de feedback) :\n${lines}\nSi le style du morceau matche une de ces entrées, tiens-en compte sans forcer ton choix.`;
   })();
+  // Phase 7.10 — Catalogue TMP exposé à l'IA. Pour chaque patch factory :
+  // nom, ampli, style/gain, usages (artistes ciblés). L'IA pourra choisir
+  // un patch via le champ preset_tmp dans sa réponse JSON. Si aucun ne
+  // colle au morceau, elle retourne null et le RecommendBlock fallback
+  // sur le scoring local recommendTMPPatch.
+  const tmpCatalogLine=(()=>{
+    if(!Array.isArray(TMP_FACTORY_PATCHES)||TMP_FACTORY_PATCHES.length===0) return "";
+    const lines=TMP_FACTORY_PATCHES.map(p=>{
+      const amp=p.amp?.model||"?";
+      const usages=Array.isArray(p.usages)?p.usages.map(u=>u.artist).filter(Boolean).slice(0,4).join(", "):"";
+      const usagesPart=usages?` — pour ${usages}`:"";
+      return `- "${p.name}" : ${amp} (${p.style||"?"}, ${p.gain||"?"} gain)${usagesPart}`;
+    }).join("\n");
+    return `\nCATALOGUE TMP (Tone Master Pro) — patches factory disponibles :\n${lines}`;
+  })();
   const gProfiles=guitars.map(x=>{const p=findGuitarProfile(x.id);return `- ${x.name} (${x.type}) : ${p?p.desc:"profil inconnu"}`;}).join("\n");
   const prompt=`Expert guitare ToneX. Réponds TOUJOURS en français.
 Morceau : "${song.title}" de "${song.artist}".
@@ -1042,8 +1057,8 @@ Guitare sélectionnée : ${g?g.name+" ("+g.type+")":"non précisée"}.
 
 COLLECTION DE GUITARES DISPONIBLES :
 ${gProfiles}
-${feedbackLine}${modeLine}${biasLine}
-INSTRUCTIONS : Tu dois suivre un raisonnement structuré en 4 étapes AVANT de donner ta recommandation. Ce raisonnement DOIT apparaître dans le JSON de sortie.
+${feedbackLine}${modeLine}${biasLine}${tmpCatalogLine}
+INSTRUCTIONS : Tu dois suivre un raisonnement structuré AVANT de donner ta recommandation. Ce raisonnement DOIT apparaître dans le JSON de sortie.
 
 ÉTAPE 1 – PROFIL TONAL DU MORCEAU
 Analyse en détail : artiste, guitare originale utilisée sur l'enregistrement, ampli original, type de gain (clean/crunch/overdrive/high gain), texture sonore (chaud, brillant, mid-heavy, scooped…), style de jeu typique.
@@ -1069,8 +1084,11 @@ Pour la guitare recommandée, calcule un score global de 0 à 100 basé sur ces 
 - Adéquation ampli/gain (30%)
 Justifie chaque sous-score.
 
+ÉTAPE 5 – CHOIX TMP (Tone Master Pro) — optionnelle
+Si un des patches du CATALOGUE TMP ci-dessus convient au morceau, retourne son nom EXACT dans le champ preset_tmp (entre guillemets). Match prioritaire : usages contenant l'artiste ou le morceau > matching style+gain+ampli. Si AUCUN patch ne colle (style trop éloigné, gain mauvais, ampli incompatible), retourne null pour preset_tmp.
+
 Réponds en JSON pur (sans backticks ni markdown). Tous les textes en français :
-{"cot_step1":"3-5 phrases analysant le profil tonal du morceau","cot_step2_guitars":[{"name":"nom exact guitare de la collection","score":85,"reason":"1-2 phrases"},{"name":"2e guitare","score":75,"reason":"justification"}],"cot_step3_amp":"2-3 phrases décrivant l'ampli idéal et son caractère tonal","cot_step4_score":{"guitar_score":85,"micro":{"score":90,"reason":"justification"},"body":{"score":80,"reason":"justification"},"history":{"score":95,"reason":"justification"},"amp_match":{"score":85,"reason":"justification"}},"song_year":1970,"song_album":"album","song_desc":"2-3 phrases sur le morceau","song_key":"tonalite du morceau (ex: Em, A, Bb)","song_bpm":120,"song_style":"blues/rock/hard_rock/jazz/metal/pop","target_gain":5,"tonal_school":"fender_clean/marshall_crunch/vox_chime/dumble_smooth/mesa_heavy/hiwatt_clean","pickup_preference":"HB/SC/P90/any","ideal_guitar":"nom complet guitare idéale de la collection","guitar_reason":"1-2 phrases expliquant le choix","settings_preset":"conseils réglage preset","settings_guitar":"conseils de jeu guitare","ref_guitarist":"guitariste original","ref_guitar":"guitare(s) originale(s) (modèle précis)","ref_amp":"ampli(s) original(aux) (modèle précis)","ref_effects":"effets ou 'Aucun effet'"}
+{"cot_step1":"3-5 phrases analysant le profil tonal du morceau","cot_step2_guitars":[{"name":"nom exact guitare de la collection","score":85,"reason":"1-2 phrases"},{"name":"2e guitare","score":75,"reason":"justification"}],"cot_step3_amp":"2-3 phrases décrivant l'ampli idéal et son caractère tonal","cot_step4_score":{"guitar_score":85,"micro":{"score":90,"reason":"justification"},"body":{"score":80,"reason":"justification"},"history":{"score":95,"reason":"justification"},"amp_match":{"score":85,"reason":"justification"}},"song_year":1970,"song_album":"album","song_desc":"2-3 phrases sur le morceau","song_key":"tonalite du morceau (ex: Em, A, Bb)","song_bpm":120,"song_style":"blues/rock/hard_rock/jazz/metal/pop","target_gain":5,"tonal_school":"fender_clean/marshall_crunch/vox_chime/dumble_smooth/mesa_heavy/hiwatt_clean","pickup_preference":"HB/SC/P90/any","ideal_guitar":"nom complet guitare idéale de la collection","guitar_reason":"1-2 phrases expliquant le choix","settings_preset":"conseils réglage preset","settings_guitar":"conseils de jeu guitare","ref_guitarist":"guitariste original","ref_guitar":"guitare(s) originale(s) (modèle précis)","ref_amp":"ampli(s) original(aux) (modèle précis)","ref_effects":"effets ou 'Aucun effet'","preset_tmp":"nom exact du patch TMP du catalogue OU null si aucun ne convient"}
 
 Champs spéciaux :
 - song_key : tonalite du morceau (notation anglaise, ex: Em, A, Bb, F#m)

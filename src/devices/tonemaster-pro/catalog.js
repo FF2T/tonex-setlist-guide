@@ -715,6 +715,19 @@ function getFactoryPatches() {
   return TMP_FACTORY_PATCHES;
 }
 
+// Phase 7.10 — Résolution d'un patch par nom (case-insensitive,
+// normalisation des espaces). Utilisé pour matcher le champ
+// aiCache.result.preset_tmp retourné par l'IA contre le catalog
+// factory + custom. Retourne null si pas de match. Trim + collapse
+// whitespace pour être robuste aux espaces accidentels.
+function resolveTmpPatchByName(name, patches = TMP_FACTORY_PATCHES) {
+  if (!name || typeof name !== 'string') return null;
+  const norm = (s) => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const target = norm(name);
+  if (!target) return null;
+  return (Array.isArray(patches) ? patches : []).find((p) => p && norm(p.name) === target) || null;
+}
+
 // ─── Device catalog metadata (consommé par registerDevice) ──────────
 
 const TONEMASTER_PRO_CATALOG = {
@@ -751,6 +764,6 @@ export {
   JAZZ_ARCHTOP_CLEAN, FUNK_STRAT_CHICKEN, ORANGE_STONER_GRIT,
   AMBIENT_POST_ROCK,
   SPRING_REVERB_DEFAULT, SM57_AXIS_ON_6, R121_OFF_AXIS_3,
-  findPatchById, getFactoryPatches,
+  findPatchById, getFactoryPatches, resolveTmpPatchByName,
   TONEMASTER_PRO_CATALOG, isPresetSourceCompatible,
 };

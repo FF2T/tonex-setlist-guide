@@ -340,3 +340,54 @@ describe('TMPRecommendBlock — edge cases', () => {
     expect(true).toBe(true);
   });
 });
+
+describe('TMPRecommendBlock — Phase 7.10 préférence preset_tmp IA', () => {
+  test('aiCache.result.preset_tmp résolvable → utilisé comme top (override le scoring local)', () => {
+    // Morceau blues "naturellement" matché à Bluesbreaker par le scoring
+    // local, mais l'IA suggère Clean Preset (BB King → Twin Reverb).
+    const bbking = {
+      id: 'bbking', title: 'The Thrill is Gone', artist: 'BB King',
+      aiCache: {
+        result: {
+          ref_amp: 'Fender Twin Reverb',
+          song_style: 'blues',
+          preset_tmp: 'Clean Preset',
+        },
+      },
+    };
+    const ES339 = { id: 'es339', type: 'HB', name: 'ES-339' };
+    const { container } = render(
+      <RecommendBlock song={bbking} guitar={ES339} profile={null} _allGuitars={null}/>,
+    );
+    const block = container.querySelector('[data-testid="tmp-recommend-block"]');
+    expect(block).not.toBeNull();
+    expect(block.getAttribute('data-tmp-patch-id')).toBe('clean_preset');
+  });
+
+  test('aiCache.result.preset_tmp = null → fallback scoring local', () => {
+    const songNullPresetTmp = {
+      ...ACDC_HTH,
+      aiCache: { result: { ...ACDC_HTH.aiCache.result, preset_tmp: null } },
+    };
+    const { container } = render(
+      <RecommendBlock song={songNullPresetTmp} guitar={SG} profile={null} _allGuitars={null}/>,
+    );
+    const block = container.querySelector('[data-testid="tmp-recommend-block"]');
+    // AC/DC + SG → scoring local choisit rock_preset.
+    expect(block.getAttribute('data-tmp-patch-id')).toBe('rock_preset');
+  });
+
+  test('aiCache.result.preset_tmp = nom inconnu → fallback scoring local (pas de crash)', () => {
+    const songBadPresetTmp = {
+      ...ACDC_HTH,
+      aiCache: { result: { ...ACDC_HTH.aiCache.result, preset_tmp: 'Patch Inventé 42' } },
+    };
+    const { container } = render(
+      <RecommendBlock song={songBadPresetTmp} guitar={SG} profile={null} _allGuitars={null}/>,
+    );
+    const block = container.querySelector('[data-testid="tmp-recommend-block"]');
+    expect(block).not.toBeNull();
+    // Fallback sur scoring local → rock_preset attendu.
+    expect(block.getAttribute('data-tmp-patch-id')).toBe('rock_preset');
+  });
+});

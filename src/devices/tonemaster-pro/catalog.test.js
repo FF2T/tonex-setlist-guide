@@ -6,7 +6,7 @@ import {
   TMP_FACTORY_PATCHES,
   ROCK_PRESET, CLEAN_PRESET, FLIPPER_PATCH,
   STAIRWAY_PATCH, MONEY_PATCH, ROMEO_PATCH, MUDDY_PATCH,
-  findPatchById, getFactoryPatches,
+  findPatchById, getFactoryPatches, resolveTmpPatchByName,
 } from './catalog.js';
 import { validatePatch } from './chain-model.js';
 import { recommendTMPPatch } from './scoring.js';
@@ -195,6 +195,43 @@ describe('Catalog TMP — tous les patches passent validatePatch', () => {
       throw new Error(`Patch ${patch.id} fails validation: ${r.errors.join(' | ')}`);
     }
     expect(r.valid).toBe(true);
+  });
+});
+
+describe('resolveTmpPatchByName (Phase 7.10) · matching nom patch retourné par l\'IA', () => {
+  test('match exact (case sensitive)', () => {
+    const p = resolveTmpPatchByName('Rock Preset');
+    expect(p).toBeTruthy();
+    expect(p.id).toBe('rock_preset');
+  });
+  test('match case-insensitive', () => {
+    expect(resolveTmpPatchByName('ROCK PRESET').id).toBe('rock_preset');
+    expect(resolveTmpPatchByName('rock preset').id).toBe('rock_preset');
+    expect(resolveTmpPatchByName('Rock preset').id).toBe('rock_preset');
+  });
+  test('normalize whitespace (doubles, tabs, trim)', () => {
+    expect(resolveTmpPatchByName('  Rock   Preset  ').id).toBe('rock_preset');
+    expect(resolveTmpPatchByName('\tClean\tPreset\t').id).toBe('clean_preset');
+  });
+  test('nom inconnu → null', () => {
+    expect(resolveTmpPatchByName('Patch Inconnu 42')).toBe(null);
+    expect(resolveTmpPatchByName('Plexi')).toBe(null);  // amp name pas patch name
+  });
+  test('inputs falsy → null', () => {
+    expect(resolveTmpPatchByName(null)).toBe(null);
+    expect(resolveTmpPatchByName('')).toBe(null);
+    expect(resolveTmpPatchByName('   ')).toBe(null);
+    expect(resolveTmpPatchByName(42)).toBe(null);
+  });
+  test('patches arg custom → cherche dedans, pas dans factory', () => {
+    const custom = [{ id: 'cx1', name: 'Mon Patch Custom' }];
+    expect(resolveTmpPatchByName('Mon Patch Custom', custom).id).toBe('cx1');
+    // Factory pas cherchée si custom fourni
+    expect(resolveTmpPatchByName('Rock Preset', custom)).toBe(null);
+  });
+  test('patches arg vide → null sans crash', () => {
+    expect(resolveTmpPatchByName('Rock Preset', [])).toBe(null);
+    expect(resolveTmpPatchByName('Rock Preset', null)).toBe(null);
   });
 });
 

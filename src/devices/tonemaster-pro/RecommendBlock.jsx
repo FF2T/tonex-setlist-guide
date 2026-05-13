@@ -11,7 +11,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { recommendTMPPatch } from './scoring.js';
-import { TMP_FACTORY_PATCHES, TONEMASTER_PRO_CATALOG } from './catalog.js';
+import { TMP_FACTORY_PATCHES, TONEMASTER_PRO_CATALOG, resolveTmpPatchByName } from './catalog.js';
 import { getPatchBlocks, RENDER_ORDER } from './chain-model.js';
 import { AMP_SCALE_BY_MODEL, DEFAULT_AMP_SCALE } from './whitelist.js';
 import ScenesEditor from './ScenesEditor.jsx';
@@ -252,11 +252,21 @@ function TMPRecommendBlock({
   //    useMemo unique pour tous les morceaux), on l'utilise tel quel.
   //    Évite les 129 useMemo invalidations indépendantes au premier
   //    rendu de Setlists avec une grosse base de morceaux.
+  // Phase 7.10 — Préférence à la choix IA si l'aiCache contient un
+  // preset_tmp résolvable dans le catalog. Sinon fallback sur le
+  // scoring local. La choix IA bénéficie d'un score conventionnel de
+  // 92 (high confidence) — pas tiré du scoring local (qui scorait
+  // peut-être plus bas si l'IA voit un usage que le scoring rate).
+  const aiPatchName = song?.aiCache?.result?.preset_tmp;
   const recs = useMemo(() => {
     if (precomputedTopRec) return [precomputedTopRec];
+    if (aiPatchName) {
+      const aiPatch = resolveTmpPatchByName(aiPatchName, TMP_FACTORY_PATCHES);
+      if (aiPatch) return [{ patch: aiPatch, score: 92, usagesBonus: 0, source: 'ai' }];
+    }
     return recommendTMPPatch(TMP_FACTORY_PATCHES, song, guitar, profile);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [song, guitar, precomputedTopRec]);
+  }, [song, guitar, precomputedTopRec, aiPatchName]);
   const top = recs[0];
   if (!top) return null;
   // Phase 4 — applique les overrides utilisateur sur le patch factory
