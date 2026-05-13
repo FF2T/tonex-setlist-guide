@@ -82,14 +82,8 @@ import {
   getSourceBadge, getSourceInfo,
 } from './core/sources.js';
 
-// Helper Phase 2 fix : devices à afficher pour ce profil. Robuste
-// face aux désynchros (Firestore stale, profil v3 partiel) — dérive
-// du legacy profile.devices si profile.enabledDevices manque, sinon
-// fallback sur les defaults registry.
-function getActiveDevicesForRender(profile) {
-  const ids = getDevicesForRender(profile);
-  return getEnabledDevices({ enabledDevices: ids });
-}
+// Phase 7.14 — extracted to src/app/utils/devices-render.js.
+import { getActiveDevicesForRender } from './app/utils/devices-render.js';
 
 // ─── App UI helpers + leaf components (Phase 1, étape 5) ────────────
 import {
@@ -483,74 +477,13 @@ function getInstallRec(presetName, gType, banks, guitarId){
 const CC = {A:"var(--brass-300)",B:"var(--copper-400)",C:"var(--wine-400)"};
 const CL = {A:"Clean",B:"Drive",C:"Lead"};
 
-// ─── Helpers preset (données sérialisables) ───────────────────────────────────
-function getPA(song, type) {
-  const p = SONG_PRESETS[song.id];
-  if(!p) return null;
-  return p.pA[type] || p.pA["HB"] || null;
-}
-function getPP(song, type) {
-  const p = SONG_PRESETS[song.id];
-  if(!p) return null;
-  return p.pP[type] || p.pP["HB"] || null;
-}
-function getSet(song, type) {
-  const p = SONG_PRESETS[song.id];
-  if(!p) return {};
-  return p.set[type] || p.set["HB"] || {};
-}
-function getGr(song, type) {
-  const p = SONG_PRESETS[song.id];
-  if(!p) return "";
-  return p.gr[type] || p.gr["HB"] || "";
-}
-function getIg(song, guitars) {
-  var allG=guitars||GUITARS;
-  var aiC=song.aiCache?.result;
-  // Phase 3.9 — Auto-pick robuste au cache IA stale.
-  // Avant Phase 3.9 on faisait confiance aveugle à aiC.ideal_guitar
-  // (texte). Conséquence : une guitare ajoutée APRÈS la dernière passe
-  // IA (custom Epiphone ES-339 dans le profil Arthur) ne pouvait
-  // jamais devenir top tant que le cache n'était pas re-fetché. Le
-  // bouton "🔄 Rafraîchir l'IA" Phase 3.7 résout le cas d'usage admin
-  // mais nécessite un re-fetch effectif (long, consomme du quota IA).
-  // Désormais on combine IA cot_step2_guitars + scoring local sur
-  // TOUTES les guitares de allG (pickTopGuitar). Une guitare absente
-  // du cache mais qui scoring-bat la guitare ranked-IA emporte le
-  // top auto.
-  if(aiC&&allG.length){
-    var top=pickTopGuitar(aiC,allG,song);
-    if(top) return [top.id];
-  }
-  // Fallback historique : SONG_PRESETS.ig (morceau du seed sans
-  // aiCache, ou aiCache mal formé).
-  var p = SONG_PRESETS[song.id];
-  var ig=song.ig?.length?song.ig:p?.ig;
-  if(ig?.length){
-    var filtered=ig.filter(function(id){return allG.some(function(g){return g.id===id;});});
-    if(filtered.length) return filtered;
-    if(allG.length) return [allG[0].id];
-  }
-  return [];
-}
-function getTsr(song, type) {
-  const p = SONG_PRESETS[song.id];
-  if(!p) return null;
-  if(p.tsrRef) return null; // handled by parent
-  return p.tsr || null;
-}
-function getTsrRef(song) {
-  return SONG_PRESETS[song.id]?.tsrRef || null;
-}
+// ─── Helpers song (data access) ──────────────────────────────────────
+// Phase 7.14 — extracted to src/app/utils/song-helpers.js.
+import {
+  getPA, getPP, getSet, getGr, getIg, getTsr, getTsrRef, getSongHist,
+} from './app/utils/song-helpers.js';
 
 const getType = id => findGuitar(id)?.type||"HB";
-
-// Retourne {guitarist,guitar,amp,effects} depuis le cache IA ou SONG_HISTORY (fallback)
-function getSongHist(song, aiResult=null){
-  const r=aiResult||song.aiCache?.result;
-  if(r&&r.ref_guitarist) return {guitarist:r.ref_guitarist,guitar:r.ref_guitar,amp:r.ref_amp,effects:r.ref_effects};
-  return SONG_HISTORY[song.id]||null;
-}
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
 const APP_VERSION = "8.14.13";
