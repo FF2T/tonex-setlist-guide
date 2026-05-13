@@ -46,7 +46,7 @@ function ProfileSelector({ profiles, activeProfileId, onSwitch, onSettings, onVi
         {(active?.name || '?')[0].toUpperCase()}
       </button>
       {open && <div style={{ position: 'absolute', top: 40, left: 0, background: 'var(--bg-card)', border: '1px solid var(--a12)', borderRadius: 'var(--r-lg)', padding: 8, zIndex: 50, minWidth: 200, boxShadow: 'var(--shadow-lg)' }}>
-        {Object.values(profiles).sort((a, b) => a.name.localeCompare(b.name)).map((p) => {
+        {Object.values(profiles).filter((p) => active?.isAdmin || p.id === activeProfileId).sort((a, b) => a.name.localeCompare(b.name)).map((p) => {
           const isActive = p.id === activeProfileId;
           const c = profileColor(p.id);
           const isLogin = loginId === p.id;
