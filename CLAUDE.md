@@ -591,6 +591,142 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
+## État actuel (2026-05-13, Phase 7.19 close)
+
+**Backline v8.14.19 / SW backline-v108 / STATE_VERSION 7 / 650 tests verts.**
+**main.jsx 7671 → 1334 lignes (-6337, -83%)**. Déployé sur main.
+
+Phase 7.18 + 7.19 = poursuite du découpage main.jsx. **18 extractions** sans
+régression comportementale, tous tests verts maintenus du début à la fin.
+
+**Phase 7.18** (commits `7abce99` refactor + `cbbd456` deploy) — 3211 → 2542 lignes :
+
+11 extractions vers `src/app/screens/` et `src/app/components/` :
+- `csv-helpers.js` : exportJSON, generateCSV, downloadFile, parseCSV.
+- `ExportImportScreen` : tab "📋 Export/Import" — JSON/CSV banks.
+- `ParametresScreen` : écran ⚙️ Paramètres avec PIN admin. Reçoit
+  PacksTab/ProfilesAdmin/MaintenanceTab en `XxxComponent` props pour
+  éviter une dépendance circulaire le temps du découpage. Bugfix latent :
+  `onDeletedSetlistIds` et `guitarBias` étaient `undefined` car
+  ParametresScreen ne les recevait pas en props — maintenant injectés
+  depuis App scope.
+- `ProfilePickerScreen` : écran de sélection profil au démarrage.
+  `APP_VERSION` passé en prop `appVersion`.
+- `ProfilesAdmin` : tab "👤 Profils" CRUD utilisateurs.
+- `PresetSearchModal`, `FuzzyPresetMatch` (+ `fuzzyMatch` helper),
+  `BankEditor` : modals et éditeur des banks ToneX.
+- `ProfileSelector` : avatar + dropdown switch profil header.
+- `profile-color.js` : `profileColor()` + `PROFILE_COLORS` (palette
+  brass/copper/wine déterministe par hash d'id).
+- `GuitarSearchAdd` : mini-form recherche IA Gemini + saisie manuelle.
+
+`saveSharedKey` (Firestore) passé via callback `onSaveSharedKey` pour
+découpler ParametresScreen de FS_BASE/FS_KEY.
+
+**Phase 7.19** (commits `c34fc4c` refactor + `64b6d80` deploy) — 2542 → 1334 lignes :
+
+7 extractions :
+- `MesAppareilsTab` : checkbox par device (boucle `getAllDevices()`
+  registry). Garde-fou ≥1 device coché.
+- `ToneNetTab` : ajout/édition presets ToneNET avec pré-remplissage IA
+  via `inferPresetInfo`.
+- `infer-preset.js` (utils) : heuristique amp/gain/style/channel depuis
+  un nom de preset libre. Utilisé par ToneNetTab ET le merge
+  `PRESET_CATALOG_MERGED` enrichment dans main.jsx.
+- `PacksTab` : ingestion packs presets via Vision IA (Gemini ou Claude),
+  extraction du catalogue presets + contexte amp.
+- `ProfileTab` : guitares (catalogue standard + custom par marque) +
+  sources de presets (verrouillage auto selon matériel coché).
+- `MonProfilScreen` : wrapper de tous les tabs profil (338 lignes).
+  MaintenanceTab reste dans main.jsx mais passé en composant prop
+  `MaintenanceTabComponent` le temps de l'extraction.
+- `MaintenanceTab` : maintenance admin (recalc IA, fusionner doublons
+  songDb, recalculer scoring local, restaurer backups, dédup setlists
+  strict/aggressif, reset total).
+
+**Architecture livrée à fin Phase 7.19** :
+
+```
+src/app/
+  utils/
+    devices-render.js       getActiveDevicesForRender
+    song-helpers.js         getPA, getPP, getSet, getGr, getIg, getTsr,
+                            getTsrRef, getSongHist, normalizeSongTitle,
+                            normalizeArtist, findDuplicateSong
+    preset-helpers.js       findInBanks, worstSlot, findBestAvailable,
+                            getInstallRec, guitarScore, presetScore,
+                            COMPAT_STYLES
+    ai-helpers.js           AMP_ALIASES, resolveRefAmp, computeBestPresets,
+                            enrichAIResult, mergeBestResults, bestScoreOf,
+                            preserveHistorical, HISTORICAL_FIELDS,
+                            computeRigSnapshot, updateAiCache,
+                            getBestResult, safeParseJSON
+    fetchAI.js              fetchAI (prompt + retry tryBest)
+    shared-key.js           getSharedGeminiKey, setSharedGeminiKey
+    ui-constants.js         CC, CL, TYPE_LABELS, TYPE_COLORS
+    csv-helpers.js          [7.18] exportJSON, generateCSV, downloadFile,
+                            parseCSV
+    infer-preset.js         [7.19] inferPresetInfo (amp/gain/style/channel
+                            depuis nom de preset libre)
+  components/
+    GuitarSelect.jsx
+    StatusDot.jsx
+    PBlock.jsx              + ScoreWithBreakdown co-located
+    FeedbackPanel.jsx       + FEEDBACK_TAGS
+    AddSongModal.jsx
+    BankEditor.jsx          [7.18] éditeur banks ToneX 50/10 + factory reset
+    PresetSearchModal.jsx   [7.18] recherche dans PRESET_CATALOG_MERGED
+    FuzzyPresetMatch.jsx    [7.18] suggestions approchantes + fuzzyMatch
+    ProfileSelector.jsx     [7.18] avatar header + switch profil
+    profile-color.js        [7.18] profileColor() + PROFILE_COLORS
+    GuitarSearchAdd.jsx     [7.18] form ajout guitare via IA Gemini
+  screens/
+    RecapScreen.jsx
+    HomeScreen.jsx          + SongSearchBar, SplashPopup, OnboardingWizard
+    SongDetailCard.jsx
+    ListScreen.jsx          + InlineRenameInput
+    SetlistsScreen.jsx
+    BankOptimizerScreen.jsx
+    SynthesisScreen.jsx
+    JamScreen.jsx           + getJamRecs
+    PresetBrowser.jsx       + PresetDetailInline + PresetList
+    LiveScreen.jsx
+    ViewProfileScreen.jsx
+    ExportImportScreen.jsx  [7.18]
+    ParametresScreen.jsx    [7.18]
+    ProfilePickerScreen.jsx [7.18]
+    ProfilesAdmin.jsx       [7.18]
+    MesAppareilsTab.jsx     [7.19]
+    ToneNetTab.jsx          [7.19]
+    PacksTab.jsx            [7.19]
+    ProfileTab.jsx          [7.19]
+    MonProfilScreen.jsx     [7.19]
+    MaintenanceTab.jsx      [7.19]
+src/data/
+  tsr-packs.js              TSR_PACK_ZIPS + TSR_PACK_GROUPS
+```
+
+**Encore dans main.jsx (~1334 lignes)** :
+- AppHeader + AppNavBottom (~50 lignes)
+- Helpers Firestore : saveToFirestore, loadFromFirestore, firestoreToJs,
+  pollRemoteSyncId, loadSharedKey, saveSharedKey (~150 lignes)
+- applySecrets, srcBadge, presetSourceInfo, styleBadge (~30 lignes)
+- **`App()` lui-même** (~1000 lignes) : useState massif, useEffect
+  Firestore/poll/migration, dispatch d'écrans, helpers locaux pour
+  setProfileField/recordLogin/onTmpPatchOverride/etc.
+- Imports et init
+
+**Dette résiduelle Phase 7.19** :
+- Découpage final de `App()` (optionnel, plus risqué — cœur de l'état).
+- Bouton "Dédupliquer songDb" dans MaintenanceTab pour nettoyer la dette
+  des doublons par id (`c_1778428303600_jch2`, `c_1778309153614_ined`)
+  observée Phase 7.17. Fix défensif au render actuellement, source à
+  nettoyer.
+- AI populating `preset_tmp` pour patches custom (Phase 7.10 ne sérialise
+  que les 20 factory dans le prompt).
+- `window.DEFAULT_GEMINI_KEY` legacy bridge à auditer.
+- `ReactDOM.render → createRoot` (warning React 18 cosmétique).
+
 ## État actuel (2026-05-13, Phase 7.14 close, tag `phase-7.14-done`)
 
 **Backline v8.14.14 / SW backline-v103 / STATE_VERSION 7 / 650 tests verts.**
