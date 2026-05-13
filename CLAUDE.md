@@ -591,6 +591,29 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
+## État actuel (2026-05-13, Phase 7.13.1 close, tag `phase-7.13.1-done`)
+
+**Backline v8.14.13 / SW backline-v102 / STATE_VERSION 7 / 650 tests verts.**
+
+Phase 7.13.1 = création d'un patch TMP from scratch. Bouton **🆕 Nouveau
+patch** en haut du tab 🎚️ Patches TMP (à droite du compteur). Click →
+ouvre l'éditeur en mode clone avec un patch vide.
+
+- Helper `buildBlankPatch()` (Editor.jsx) retourne un patch minimal
+  validatePatch-valide : id `custom_<ts>_<rand>`, name "Nouveau patch",
+  factory:false, source:'custom', style:'rock', gain:'mid',
+  pickupAffinity 50/50/50, amp + cab par défaut (premier model
+  whitelist, params à 5 + defaults mic="Dyn SM57"/axis="on"), aucun
+  bloc optionnel.
+- Le user complète : édite name/notes/style/gain/pickup, modifie
+  amp+cab, ajoute les blocs FX désirés via "+ Ajouter un bloc", édite
+  scenes/footswitchMap via ScenesEditor branché. Save → écrit dans
+  `profile.tmpPatches.custom`.
+
+7 nouveaux tests (3 buildBlankPatch + 4 Browser bouton "Nouveau patch").
+TMP entièrement fonctionnel pour création et édition : clôt aussi la
+dette implicite "création from scratch" qui restait après Phase 7.13.
+
 ## État actuel (2026-05-13, Phase 7.13 close, tag `phase-7.13-done`)
 
 **Backline v8.14.12 / SW backline-v101 / STATE_VERSION 7 / 643 tests verts.**
