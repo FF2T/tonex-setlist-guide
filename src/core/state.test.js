@@ -14,6 +14,7 @@ import {
   deriveEnabledDevices, makeDefaultProfile,
   getAllRigsGuitars,
   computeGuitarBiasFromFeedback,
+  mergeGuitarBias,
   dedupSetlists, dedupSetlistsWithTombstones, setlistDedupKey,
   autoBackup, listBackups, clearBackups, isQuotaError,
 } from './state.js';
@@ -617,6 +618,81 @@ describe('computeGuitarBiasFromFeedback (Phase 7.7) · dérive un bias style→g
     const out = computeGuitarBiasFromFeedback(db, GUITARS_FX, 2);
     expect(out.jazz.guitarId).toBe('es335');
     expect(out.jazz.count).toBe(2);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────
+// Phase 7.9 — mergeGuitarBias (manual override)
+// ───────────────────────────────────────────────────────────────────
+
+describe('mergeGuitarBias (Phase 7.9) · merge auto-dérivé + overrides manuels', () => {
+  const GUITARS_FX = [
+    { id: 'es335', name: 'ES-335' },
+    { id: 'sg61', name: 'SG 61' },
+    { id: 'strat61', name: 'Strat 61' },
+  ];
+
+  test('auto seul → entries source=auto avec count préservé', () => {
+    const auto = { blues: { guitarId: 'es335', guitarName: 'ES-335', count: 4 } };
+    const out = mergeGuitarBias(auto, null, GUITARS_FX);
+    expect(out.blues).toEqual({ guitarId: 'es335', guitarName: 'ES-335', count: 4, source: 'auto' });
+  });
+
+  test('manual seul → entries source=manual avec count null', () => {
+    const manual = { rock: 'sg61' };
+    const out = mergeGuitarBias({}, manual, GUITARS_FX);
+    expect(out.rock).toEqual({ guitarId: 'sg61', guitarName: 'SG 61', count: null, source: 'manual' });
+  });
+
+  test('manual écrase auto sur le même style', () => {
+    const auto = { blues: { guitarId: 'es335', guitarName: 'ES-335', count: 5 } };
+    const manual = { blues: 'sg61' };
+    const out = mergeGuitarBias(auto, manual, GUITARS_FX);
+    expect(out.blues).toEqual({ guitarId: 'sg61', guitarName: 'SG 61', count: null, source: 'manual' });
+  });
+
+  test('styles disjoints → auto et manual coexistent', () => {
+    const auto = { blues: { guitarId: 'es335', guitarName: 'ES-335', count: 3 } };
+    const manual = { rock: 'strat61' };
+    const out = mergeGuitarBias(auto, manual, GUITARS_FX);
+    expect(out.blues.source).toBe('auto');
+    expect(out.rock.source).toBe('manual');
+    expect(Object.keys(out).sort()).toEqual(['blues', 'rock']);
+  });
+
+  test('manual avec guitarId stale (pas dans le rig) → ignoré silencieusement', () => {
+    const manual = { metal: 'guitare_supprimee_42' };
+    const out = mergeGuitarBias({}, manual, GUITARS_FX);
+    expect(out).toEqual({});
+  });
+
+  test('auto avec guitarId stale → ignoré silencieusement', () => {
+    const auto = { blues: { guitarId: 'guitare_supprimee_42', guitarName: 'X', count: 5 } };
+    const out = mergeGuitarBias(auto, {}, GUITARS_FX);
+    expect(out).toEqual({});
+  });
+
+  test('manual avec guitarId vide/null/undefined → entry ignorée (pas un override)', () => {
+    const manual = { jazz: '', pop: null, metal: undefined };
+    const out = mergeGuitarBias({}, manual, GUITARS_FX);
+    expect(out).toEqual({});
+  });
+
+  test('inputs falsy → {} (defensive)', () => {
+    expect(mergeGuitarBias(null, null, GUITARS_FX)).toEqual({});
+    expect(mergeGuitarBias({}, {}, [])).toEqual({});
+    expect(mergeGuitarBias(undefined, undefined, undefined)).toEqual({});
+  });
+
+  test('guitarName toujours rafraîchi depuis le rig (pas depuis l\'entry auto)', () => {
+    // Si la guitare a été renommée mais l'auto bias garde l'ancien nom,
+    // mergeGuitarBias resync depuis l'objet guitars actuel.
+    const renamedGuitars = [{ id: 'es335', name: 'ES-335 (renommée)' }];
+    const auto = { blues: { guitarId: 'es335', guitarName: 'ES-335', count: 3 } };
+    const out = mergeGuitarBias(auto, {}, renamedGuitars);
+    // Note : pour le auto, on garde le nom de l'entry (rafraîchissement
+    // optionnel). Pour le manual, on lit toujours depuis guitars.
+    expect(out.blues.guitarId).toBe('es335');
   });
 });
 

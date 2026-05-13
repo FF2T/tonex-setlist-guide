@@ -73,7 +73,7 @@ import {
   autoBackup, listBackups, restoreBackup, clearBackups,
   loadSecrets, saveSecrets,
   loadTrusted, isTrusted, setTrusted,
-  getAllRigsGuitars, computeGuitarBiasFromFeedback,
+  getAllRigsGuitars, computeGuitarBiasFromFeedback, mergeGuitarBias,
   dedupSetlists, dedupSetlistsWithTombstones, findSetlistDuplicatesByName,
 } from './core/state.js';
 import {
@@ -552,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.7";
+const APP_VERSION = "8.14.8";
 const ADMIN_PIN = "212402";
 
 
@@ -2390,28 +2390,71 @@ function MonProfilScreen({songDb,onSongDb,setlists,allSetlists,onSetlists,onDele
           })}
         </div>
         <div style={{fontSize:10,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.5,marginBottom:16}}>Ce mode est passé en input à chaque appel IA. Les morceaux déjà analysés gardent leur cache jusqu'à invalidation.</div>
-        {/* Phase 7.7 — Préférences détectées : bias style→guitare auto-dérivé
-            des feedbacks. Soft hint injecté dans le prompt IA. Read-only :
-            l'utilisateur ne peut pas l'éditer, la source de vérité est
-            song.feedback[]. Section visible pour tous (admin et non-admin). */}
+        {/* Phase 7.7 + 7.9 — Préférences guitare/style. Auto-dérivé des
+            feedbacks (Phase 7.7) ET overridable manuellement par style
+            (Phase 7.9). Manual > auto. Soft hint injecté dans chaque
+            fetchAI. Section visible pour tous (admin et non-admin). */}
         {(()=>{
-          const biasEntries=guitarBias&&typeof guitarBias==="object"?Object.entries(guitarBias):[];
+          const BIAS_STYLES=[
+            {id:"blues",label:"Blues"},
+            {id:"rock",label:"Rock"},
+            {id:"hard_rock",label:"Hard rock"},
+            {id:"jazz",label:"Jazz"},
+            {id:"metal",label:"Metal"},
+            {id:"pop",label:"Pop"},
+          ];
+          const manualMap=(profile.guitarBias&&typeof profile.guitarBias==="object")?profile.guitarBias:{};
+          const manualCount=Object.values(manualMap).filter(Boolean).length;
+          const writeOverride=(style,guitarId)=>{
+            onProfiles(p=>{
+              const cur=p[activeProfileId];if(!cur) return p;
+              const nextBias={...(cur.guitarBias||{})};
+              if(guitarId) nextBias[style]=guitarId; else delete nextBias[style];
+              return {...p,[activeProfileId]:{...cur,guitarBias:nextBias,lastModified:Date.now()}};
+            });
+          };
+          const resetAllManual=()=>{
+            if(!window.confirm(`Effacer ${manualCount} override${manualCount>1?"s":""} manuel${manualCount>1?"s":""} ?\n\nLe bias retombera sur les valeurs auto-dérivées de tes feedbacks.`)) return;
+            onProfiles(p=>{
+              const cur=p[activeProfileId];if(!cur) return p;
+              return {...p,[activeProfileId]:{...cur,guitarBias:{},lastModified:Date.now()}};
+            });
+          };
           return <div style={{background:"var(--a4)",border:"1px solid var(--a8)",borderRadius:"var(--r-lg)",padding:14,marginBottom:16}}>
-            <div style={{fontSize:12,fontWeight:700,color:"var(--text)",marginBottom:4}}>Préférences détectées par tes feedbacks</div>
-            <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:10,lineHeight:1.4}}>L'IA injecte ces préférences dans ses prompts (soft hint, ne force pas son choix). Dès qu'un (style, guitare) atteint 3 morceaux feedbackés, il apparaît ici.</div>
-            {biasEntries.length===0
-              ?<div data-testid="bias-empty" style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic"}}>Aucune préférence détectée pour l'instant. Continue à donner des feedbacks sur tes morceaux pour que l'IA apprenne tes goûts.</div>
-              :<div style={{display:"flex",flexDirection:"column",gap:6}}>
-                {biasEntries.map(([style,v])=><div key={style} data-testid={`bias-row-${style}`} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"var(--a6)",borderRadius:"var(--r-md)",padding:"6px 10px"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{fontSize:11,fontWeight:700,color:"var(--accent)",textTransform:"uppercase",letterSpacing:0.5}}>{style}</span>
-                    <span style={{fontSize:11,color:"var(--text-dim)"}}>→</span>
-                    <span style={{fontSize:12,fontWeight:600,color:"var(--text)"}}>{v.guitarName}</span>
+            <div style={{fontSize:12,fontWeight:700,color:"var(--text)",marginBottom:4}}>Préférences guitare/style</div>
+            <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:10,lineHeight:1.4}}>L'IA apprend tes préférences depuis tes feedbacks (📊 auto, dès 3 morceaux feedbackés). Tu peux forcer un choix manuel (🎯 manuel — gagne sur l'auto). Soft hint dans le prompt, l'IA reste libre.</div>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              {BIAS_STYLES.map(({id,label})=>{
+                const effective=guitarBias&&guitarBias[id];
+                const manualId=manualMap[id]||"";
+                return <div key={id} data-testid={`bias-row-${id}`} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,background:"var(--a6)",borderRadius:"var(--r-md)",padding:"6px 10px",flexWrap:"wrap"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,minWidth:140}}>
+                    <span style={{fontSize:11,fontWeight:700,color:"var(--accent)",textTransform:"uppercase",letterSpacing:0.5,minWidth:70}}>{label}</span>
+                    {effective
+                      ?<span style={{fontSize:10,padding:"2px 6px",borderRadius:"var(--r-sm)",background:effective.source==="manual"?"var(--accent-bg)":"var(--a8)",color:effective.source==="manual"?"var(--accent)":"var(--text-sec)",fontWeight:600}}>
+                          {effective.source==="manual"?"🎯 manuel":`📊 auto · ${effective.count} fb`}
+                        </span>
+                      :<span style={{fontSize:10,color:"var(--text-dim)",fontStyle:"italic"}}>aucune</span>
+                    }
+                    {effective&&<span style={{fontSize:11,color:"var(--text)",fontWeight:500}}>→ {effective.guitarName}</span>}
                   </div>
-                  <span style={{fontSize:10,color:"var(--text-muted)"}}>{v.count} feedback{v.count>1?"s":""}</span>
-                </div>)}
-              </div>
-            }
+                  <select
+                    data-testid={`bias-override-${id}`}
+                    value={manualId}
+                    onChange={e=>writeOverride(id,e.target.value)}
+                    style={{background:"var(--bg-card)",color:"var(--text)",border:"1px solid var(--a15)",borderRadius:"var(--r-sm)",padding:"4px 6px",fontSize:11,minWidth:140}}
+                  >
+                    <option value="">— Pas d'override —</option>
+                    {(allGuitars||[]).map(g=><option key={g.id} value={g.id}>{g.name}</option>)}
+                  </select>
+                </div>;
+              })}
+            </div>
+            {manualCount>0&&<button
+              data-testid="bias-reset-manual"
+              onClick={resetAllManual}
+              style={{marginTop:10,fontSize:11,background:"transparent",border:"1px solid var(--a15)",color:"var(--text-sec)",borderRadius:"var(--r-md)",padding:"6px 10px",cursor:"pointer"}}
+            >Réinitialiser les {manualCount} override{manualCount>1?"s":""} manuel{manualCount>1?"s":""}</button>}
           </div>;
         })()}
         {/* Phase 7.4 — Bouton pour invalider tous les aiCache d'un coup.
@@ -6980,6 +7023,15 @@ function App() {
     [songDb, allRigsGuitars],
   );
 
+  // Phase 7.9 — Merge avec les overrides manuels (profile.guitarBias). Les
+  // entries manuelles écrasent le auto-dérivé sur le même style. Source:
+  // 'manual' marque les overrides, 'auto' les détectés. C'est cet objet qui
+  // est passé partout (UI + prompt fetchAI), pas le auto brut.
+  const effectiveGuitarBias = useMemo(
+    ()=>mergeGuitarBias(derivedGuitarBias, profile?.guitarBias, allRigsGuitars),
+    [derivedGuitarBias, profile?.guitarBias, allRigsGuitars],
+  );
+
   // Non-persisted
   const [screen,  setScreen]  = useState("loading");
   const [checked, setChecked] = useState([]);
@@ -7571,15 +7623,15 @@ function App() {
   var screenContent=null;
   if(screen==="viewprofile"&&viewProfileId&&profiles[viewProfileId]) screenContent=<ViewProfileScreen profile={profiles[viewProfileId]} onBack={()=>setScreen("list")} onNavigate={setScreen}/>;
   else if(screen==="exportimport") screenContent=<ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("settings")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/>;
-  else if(screen==="profile") screenContent=<MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} onDeletedSetlistIds={setDeletedSetlistIds} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={derivedGuitarBias} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/>;
+  else if(screen==="profile") screenContent=<MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} onDeletedSetlistIds={setDeletedSetlistIds} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={effectiveGuitarBias} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}}/>;
   else if(screen==="settings") screenContent=<ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} songDb={songDb} onSongDb={setSongDb} setlists={setlists} onSetlists={setSetlists}/>;
-  else if(screen==="setlists") screenContent=<SetlistsScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={derivedGuitarBias} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
+  else if(screen==="setlists") screenContent=<SetlistsScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
   else if(screen==="jam") screenContent=<div><Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Jammer"}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>🎲 Jammer</div><JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources} profile={profile}/></div>;
   else if(screen==="explore") screenContent=<div><Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Explorer"}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>🎛️ Explorer les presets</div><PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={profile.customPacks} guitars={allGuitars} toneNetPresets={toneNetPresets}/></div>;
   else if(screen==="optimizer") screenContent=<BankOptimizerScreen songDb={songDb} setlists={mySetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} allGuitars={allGuitars} availableSources={availableSources} onNavigate={setScreen} profile={profile}/>;
   else if(screen==="synthesis"&&synth) screenContent=<SynthesisScreen songs={songs} gps={synth.gps} aiR={synth.aiR} onBack={()=>setScreen("recap")} onNavigate={setScreen} songDb={songDb} banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources} profile={profile}/>;
-  else if(screen==="recap") screenContent=<RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDb} onSongDb={setSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} guitarBias={derivedGuitarBias} availableSources={availableSources} profile={profile} onTmpPatchOverride={onTmpPatchOverride}/>;
-  else screenContent=<HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} onOptimizer={()=>setScreen("optimizer")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} guitarBias={derivedGuitarBias} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
+  else if(screen==="recap") screenContent=<RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDb} onSongDb={setSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} profile={profile} onTmpPatchOverride={onTmpPatchOverride}/>;
+  else screenContent=<HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} onOptimizer={()=>setScreen("optimizer")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
 
   return <div className="page-root">
     <AppHeader {...headerProps}/>

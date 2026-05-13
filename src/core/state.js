@@ -1102,6 +1102,40 @@ function computeGuitarBiasFromFeedback(songDb, guitars, threshold = 3) {
   return out;
 }
 
+// Phase 7.9 — Merge le bias auto-dérivé (Phase 7.7) avec les overrides
+// manuels (profile.guitarBias = { [style]: guitarId }). Les overrides
+// manuels gagnent toujours. Si l'utilisateur a explicitement écrit un
+// guitarId, on l'utilise même si le auto-dérivé propose autre chose.
+// Une entry manuelle dont la guitare n'existe plus dans le rig est
+// ignorée (id stale). count: null marque les entries manuelles. Pur,
+// testable.
+function mergeGuitarBias(autoBias, manualBias, guitars) {
+  const out = {};
+  const autoObj = autoBias && typeof autoBias === 'object' ? autoBias : {};
+  const manualObj = manualBias && typeof manualBias === 'object' ? manualBias : {};
+  const guitarsArr = Array.isArray(guitars) ? guitars : [];
+  // 1) Auto entries d'abord (source: 'auto').
+  Object.entries(autoObj).forEach(([style, entry]) => {
+    if (!entry || !entry.guitarId) return;
+    const g = guitarsArr.find((x) => x.id === entry.guitarId);
+    if (!g) return;
+    out[style] = {
+      guitarId: entry.guitarId,
+      guitarName: entry.guitarName || g.name,
+      count: typeof entry.count === 'number' ? entry.count : null,
+      source: 'auto',
+    };
+  });
+  // 2) Manual overrides écrasent (source: 'manual', count: null).
+  Object.entries(manualObj).forEach(([style, guitarId]) => {
+    if (!guitarId) return;
+    const g = guitarsArr.find((x) => x.id === guitarId);
+    if (!g) return;
+    out[style] = { guitarId, guitarName: g.name, count: null, source: 'manual' };
+  });
+  return out;
+}
+
 function getAllRigsGuitars(profiles, customGuitars, allStandardGuitars) {
   const std = allStandardGuitars || GUITARS;
   if (!profiles || typeof profiles !== 'object') return [...std];
@@ -1138,4 +1172,5 @@ export {
   loadTrusted, isTrusted, setTrusted,
   getAllRigsGuitars,
   computeGuitarBiasFromFeedback,
+  mergeGuitarBias,
 };
