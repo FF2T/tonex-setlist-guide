@@ -358,9 +358,6 @@ function ScoreWithBreakdown({score,breakdown,size}){
     </span>
   );
 }
-// V2 wrappers — delegate to computeSimpleScore
-function guitarScore(name,guitarId){return computeSimpleScore(name,guitarId,null);}
-function presetScore(name,gType){return computeSimpleScore(name,null,gType);}
 // Phase 5 (Item F) — labels/badges/info centralisés dans core/sources.js.
 function srcBadge(name){return getSourceBadge(findCatalogEntry(name)?.src);}
 function presetSourceInfo(entry){
@@ -370,109 +367,17 @@ function presetSourceInfo(entry){
 function styleBadge(style){const l={hard_rock:"Hard Rock",rock:"Rock",blues:"Blues",jazz:"Jazz",pop:"Pop",metal:"Metal"}[style]||style;return <span className="badge badge-brass">{l}</span>;}
 function gainBadge(gain){const l={low:"Low",mid:"Mid",high:"High"}[gain]||gain;return <span className="badge badge-wine">{l} gain</span>;}
 
-// Normalise un titre de morceau pour détection de doublons stricte
-// "T.N.T." === "TNT", "Romeo & Juliet" === "Romeo and Juliet"
-function normalizeSongTitle(t){
-  if(!t) return "";
-  return t.toLowerCase()
-    .replace(/&/g,"and")
-    .replace(/[^a-z0-9]/g,"");
-}
-function normalizeArtist(a){
-  if(!a) return "";
-  return a.toLowerCase().replace(/&/g,"and").replace(/[^a-z0-9]/g,"");
-}
-function findDuplicateSong(songDb,title,artist){
-  const nt=normalizeSongTitle(title), na=normalizeArtist(artist);
-  return songDb.find(s=>normalizeSongTitle(s.title)===nt&&(!na||!s.artist||normalizeArtist(s.artist)===na));
-}
-
-// Cherche un preset dans les banks d'une pédale (comparaison souple)
-function findInBanks(name, banks){
-  if(!name||!banks) return null;
-  // Exact match d'abord (rapide)
-  for(const [k,bank] of Object.entries(banks)){
-    for(const slot of ["A","B","C"]){
-      if(bank[slot]===name) return {bank:Number(k),slot};
-    }
-  }
-  // Fuzzy match si pas trouvé
-  const norm=normalizePresetName(name);
-  for(const [k,bank] of Object.entries(banks)){
-    for(const slot of ["A","B","C"]){
-      if(normalizePresetName(bank[slot])===norm) return {bank:Number(k),slot};
-    }
-  }
-  return null;
-}
-
-// Trouve le slot le moins pertinent pour un type de guitare (candidat au remplacement)
-function worstSlot(banks, gType, exclude=[]){
-  let worst={score:101,bank:null,slot:null,name:null};
-  for(const [k,bank] of Object.entries(banks)){
-    for(const slot of ["A","B","C"]){
-      const name=bank[slot];
-      if(!name||exclude.includes(name)) continue;
-      const s=presetScore(name,gType);
-      if(s<worst.score) worst={score:s,bank:Number(k),slot,name};
-    }
-  }
-  return worst;
-}
-
-// Cherche la meilleure alternative disponible dans le catalogue pour le même style musical
-// Retourne le preset avec le score gType le plus élevé du même style, non installé dans banks
-// ou installé mais avec un score significativement plus élevé
-// Styles compatibles : on accepte les styles proches pour trouver de meilleurs presets
-const COMPAT_STYLES={
-  blues:["blues","jazz","rock"],
-  jazz:["jazz","blues"],
-  rock:["rock","hard_rock","blues"],
-  hard_rock:["hard_rock","rock","metal"],
-  metal:["metal","hard_rock"],
-  pop:["pop","rock","blues"],
-};
-function findBestAvailable(presetName, gType, banks, availableSources, guitarId){
-  const entry=findCatalogEntry(presetName);
-  if(!entry) return null;
-  const currentScore=guitarId?guitarScore(presetName,guitarId):(entry.scores?.[gType]??60);
-  const compatStyles=COMPAT_STYLES[entry.style]||[entry.style];
-  const gainOrder={low:0,mid:1,high:2};
-  const currentGainLevel=gainOrder[entry.gain]??1;
-
-  let best={score:0,name:null,installed:false,bank:null,slot:null};
-  for(const [name,info] of Object.entries(PRESET_CATALOG_MERGED)){
-    if(!compatStyles.includes(info.style)) continue;
-    if(availableSources&&availableSources[info.src]===false) continue;
-    const gainDiff=Math.abs((gainOrder[info.gain]??1)-currentGainLevel);
-    if(gainDiff>1) continue;
-    const s=guitarId?guitarScore(name,guitarId):(info.scores?.[gType]??60);
-    if(s>best.score||(s===best.score&&!best.installed)){
-      const found=findInBanks(name,banks);
-      if(s>best.score||(s===best.score&&found&&!best.installed)){
-        best={score:s,name,src:info.src,amp:info.amp,installed:!!found,bank:found?.bank??null,slot:found?.slot??null};
-      }
-    }
-  }
-  if(!best.name) return null;
-  const isCurrent=best.name===presetName;
-  return {...best,isCurrent,currentScore};
-}
-
-// Recommandation d'installation pour un preset donné
-// Retourne: {name, score, installed, bank?, slot?, replaceBank?, replaceSlot?, replaceName?, replaceScore?, upgrade?}
-// upgrade = {name, score, installed, bank?, slot?} si un meilleur preset est disponible
-function getInstallRec(presetName, gType, banks, guitarId){
-  if(!presetName) return null;
-  const score=guitarId?guitarScore(presetName,guitarId):presetScore(presetName,gType);
-  const found=findInBanks(presetName,banks);
-  if(found){
-    const upgrade=findBestAvailable(presetName,gType,banks,null,guitarId);
-    return {name:presetName,score,installed:true,bank:found.bank,slot:found.slot,upgrade};
-  }
-  const ws=worstSlot(banks,gType,[presetName]);
-  return {name:presetName,score,installed:false,replaceBank:ws.bank,replaceSlot:ws.slot,replaceName:ws.name,replaceScore:ws.score};
-}
+// Phase 7.14 — extracted to src/app/utils/song-helpers.js (normalize + dup)
+// and src/app/utils/preset-helpers.js (findInBanks, worstSlot,
+// findBestAvailable, getInstallRec, guitarScore, presetScore, COMPAT_STYLES).
+import {
+  normalizeSongTitle, normalizeArtist, findDuplicateSong,
+} from './app/utils/song-helpers.js';
+import {
+  COMPAT_STYLES,
+  guitarScore, presetScore,
+  findInBanks, worstSlot, findBestAvailable, getInstallRec,
+} from './app/utils/preset-helpers.js';
 
 const CC = {A:"var(--brass-300)",B:"var(--copper-400)",C:"var(--wine-400)"};
 const CL = {A:"Clean",B:"Drive",C:"Lead"};

@@ -12,6 +12,24 @@ import { GUITARS } from '../../core/guitars.js';
 import { SONG_PRESETS, SONG_HISTORY } from '../../core/songs.js';
 import { pickTopGuitar } from '../../core/scoring/guitar.js';
 
+// Normalisation pour détection de doublons stricte
+// "T.N.T." === "TNT", "Romeo & Juliet" === "Romeo and Juliet"
+function normalizeSongTitle(t) {
+  if (!t) return '';
+  return t.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]/g, '');
+}
+
+function normalizeArtist(a) {
+  if (!a) return '';
+  return a.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]/g, '');
+}
+
+function findDuplicateSong(songDb, title, artist) {
+  const nt = normalizeSongTitle(title);
+  const na = normalizeArtist(artist);
+  return songDb.find((s) => normalizeSongTitle(s.title) === nt && (!na || !s.artist || normalizeArtist(s.artist) === na));
+}
+
 function getPA(song, type) {
   const p = SONG_PRESETS[song.id];
   if (!p) return null;
@@ -86,4 +104,5 @@ function getSongHist(song, aiResult = null) {
 
 export {
   getPA, getPP, getSet, getGr, getIg, getTsr, getTsrRef, getSongHist,
+  normalizeSongTitle, normalizeArtist, findDuplicateSong,
 };
