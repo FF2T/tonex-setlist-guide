@@ -591,6 +591,46 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
+## État actuel (2026-05-13, Phase 7.14 step 5 sur refactor-and-tmp, pas déployé)
+
+**Backline v8.14.13 (deployed main) / SW backline-v102 / STATE_VERSION 7 / 650 tests verts.**
+
+Phase 7.14 = début du découpage main.jsx (prep Phase 8). Refacto pure
+côté code, aucun changement de comportement utilisateur, pas de bump
+APP_VERSION. Smoke-testé en dev local (npm run dev), pas déployé sur
+main pour l'instant.
+
+5 steps livrés (commits sur refactor-and-tmp uniquement) :
+
+- **Step 1** : `src/app/utils/devices-render.js` (getActiveDevicesForRender)
+  + `src/app/utils/song-helpers.js` (getPA, getPP, getSet, getGr, getIg,
+  getTsr, getTsrRef, getSongHist).
+- **Step 2** : `src/app/utils/preset-helpers.js` (findInBanks, worstSlot,
+  findBestAvailable, getInstallRec, guitarScore, presetScore,
+  COMPAT_STYLES) + song-helpers étendu (normalizeSongTitle, normalizeArtist,
+  findDuplicateSong).
+- **Step 3** : `src/app/utils/ai-helpers.js` (AMP_ALIASES, resolveRefAmp,
+  computeBestPresets, enrichAIResult, mergeBestResults, bestScoreOf,
+  preserveHistorical, HISTORICAL_FIELDS, computeRigSnapshot, updateAiCache,
+  getBestResult, safeParseJSON).
+- **Step 4** : `src/app/components/GuitarSelect.jsx` + `src/app/utils/ui-constants.js`
+  (CC, CL, TYPE_LABELS, TYPE_COLORS — TYPE_LABELS/COLORS étaient dupliqués
+  dans main.jsx).
+- **Step 5 (proof of concept)** : `src/app/screens/RecapScreen.jsx` —
+  premier des 4 screens Phase 8. Utilise tous les helpers/constants/components
+  extraits steps 1-4. Importé tel quel dans main.jsx.
+
+**Résultat** : main.jsx 7671 → 7008 lignes (-663, -8.6%). Bundle build
+inchangé (1771 KB). Smoke test runtime validé : HomeScreen, ListScreen,
+Setlists, RecapScreen, SongDetailCard, Mon Profil (Patches TMP +
+Préférences IA) rendent sans erreur console.
+
+**Suite Phase 7.14** (sessions à venir) : extraire HomeScreen,
+ListScreen, SongDetailCard, SetlistsScreen vers `src/app/screens/`
+suivant le même modèle. Chaque screen sera trivial maintenant que les
+helpers sont extraits — main.jsx descendra vers ~4000-5000 lignes
+avant attaque Phase 8.
+
 ## État actuel (2026-05-13, Phase 7.13.1 close, tag `phase-7.13.1-done`)
 
 **Backline v8.14.13 / SW backline-v102 / STATE_VERSION 7 / 650 tests verts.**
