@@ -76,6 +76,7 @@ import {
   loadTrusted, isTrusted, setTrusted,
   getAllRigsGuitars, computeGuitarBiasFromFeedback, mergeGuitarBias,
   dedupSetlists, dedupSetlistsWithTombstones, findSetlistDuplicatesByName,
+  applySecrets,
 } from './core/state.js';
 import {
   SOURCE_LABELS, SOURCE_DESCRIPTIONS, SOURCE_BADGES, SOURCE_INFO,
@@ -113,171 +114,12 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
 
-// ─── Firestore REST API (déplacé du <head>) ─────────────────────────
-// Firestore REST API — no SDK needed, just fetch()
-var FS_BASE="https://firestore.googleapis.com/v1/projects/tonex-guide/databases/(default)/documents";
-var FS_KEY="AIzaSyAnaJMN-a47S9W_cTC60lKAnzRMAgHNMAA";
-var _lastSavedSyncId=null;
-var _lastRemoteSyncId=null;
-
-// Phase 5.7.1 — strip aiCache du payload Firestore pour rester sous la
-// limite document 1 MiB. Le state local (localStorage) conserve les
-// aiCache ; uniquement la sérialisation Firestore les exclut.
-function saveToFirestore(s){
-  // Phase 6 — push opportuniste de l'aiCache si le payload total tient
-  // sous la limite Firestore. On teste d'abord la taille avec aiCache.
-  // Si <800 KB → push avec (résout les ⏳ sur les autres devices).
-  // Sinon → strip (fallback Phase 5.7.1).
-  var SAFE_LIMIT=800*1024;
-  var ts=(s&&s.shared&&typeof s.shared.lastModified==="number")?s.shared.lastModified:Date.now();
-  var sid=Date.now().toString(36)+Math.random().toString(36).slice(2);
-  _lastSavedSyncId=sid;
-  // Helper interne pour préparer un clean d'un state donné.
-  var prep=function(stateIn){
-    var c=JSON.parse(JSON.stringify(stateIn));
-    c.syncId=sid;
-    if(c.profiles){for(var pid in c.profiles){if(c.profiles[pid].aiKeys)c.profiles[pid].aiKeys={anthropic:"",gemini:""};}}
-    return c;
-  };
-  // Tente d'abord avec aiCache complet.
-  var cleanFull=prep(s);
-  var payloadFull=JSON.stringify(cleanFull);
-  var sharedAi=true;
-  var compressed=null;
-  var clean=cleanFull;
-  var payload=payloadFull;
-  if(payloadFull.length>=SAFE_LIMIT){
-    // Phase 6.1 — tenter la compression lz-string sur le payload complet
-    // avec aiCache. JSON répétitif → ratio typique 4-6×. Si compressé <
-    // SAFE_LIMIT, on push compressé. Sinon fallback strip Phase 5.7.1.
-    compressed=LZString.compressToBase64(payloadFull);
-    if(compressed.length<SAFE_LIMIT){
-      console.log("[firestore] Push WITH aiCache COMPRESSED (raw "+(payloadFull.length/1024).toFixed(0)+" KB → compressed "+(compressed.length/1024).toFixed(0)+" KB).");
-      payload=null; // on push compressed seul, pas data
-    }else{
-      // Toujours trop gros même compressé : fallback strip.
-      sharedAi=false;
-      compressed=null;
-      var light=stripAiCacheForSync(s);
-      clean=prep(light);
-      payload=JSON.stringify(clean);
-      console.log("[firestore] Push WITHOUT aiCache (compressed "+(LZString.compressToBase64(payloadFull).length/1024).toFixed(0)+" KB still ≥ "+(SAFE_LIMIT/1024)+" KB limit). After strip: "+(payload.length/1024).toFixed(0)+" KB.");
-    }
-  }else{
-    console.log("[firestore] Push WITH aiCache opportunistic (size "+(payloadFull.length/1024).toFixed(0)+" KB < "+(SAFE_LIMIT/1024)+" KB limit).");
-  }
-  // Sanity check. Firestore document limit = 1 MiB.
-  // Phase 6.1 — la taille effective qu'on push est compressed||payload.
-  var actualPayload=compressed||payload;
-  var sz=actualPayload.length;
-  if(sz>=1000000){
-    console.error("[firestore] Payload "+(sz/1024).toFixed(0)+" KB ≥ 1 MB — push aborted (would 400). songs="+(clean.shared&&clean.shared.songDb?clean.shared.songDb.length:0));
-    return Promise.reject(new Error("Payload too large: "+sz+" bytes"));
-  }
-  if(sz>800*1024){
-    console.warn("[firestore] Payload "+(sz/1024).toFixed(0)+" KB approche la limite 1 MB.");
-  }
-  // Phase 6.1 — si compressed, on push UNIQUEMENT dans dataCompressed.
-  // Les anciens clients qui lisent data verront vide → fallback sur
-  // dataCompressed s'ils sont mis à jour. Side-by-side incompatible
-  // briefly avec anciens clients qui ne savent pas lire dataCompressed.
-  var fields={syncId:{stringValue:sid},ts:{integerValue:String(ts)}};
-  if(compressed){
-    fields.dataCompressed={stringValue:compressed};
-    // On push aussi data="" pour signaler aux anciens clients qu'il faut
-    // upgrade (sinon ils continuent à lire l'ancien doc cached).
-    fields.data={stringValue:""};
-  }else{
-    fields.data={stringValue:payload};
-  }
-  var body={fields:fields};
-  return fetch(FS_BASE+"/sync/state?key="+FS_KEY,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
-    .then(function(r){
-      if(!r.ok){
-        console.error("[firestore] Save failed: HTTP "+r.status+" (payload "+(sz/1024).toFixed(0)+" KB).");
-        throw new Error("Firestore save: "+r.status);
-      }
-      return r.json();
-    })
-    .catch(function(e){
-      console.error("[firestore] Save error:",e);
-      throw e;
-    });
-}
-
-function loadFromFirestore(){
-  return fetch(FS_BASE+"/sync/state?key="+FS_KEY)
-    .then(function(r){if(!r.ok)return null;return r.json();})
-    .then(function(doc){
-      if(!doc||!doc.fields)return null;
-      // Phase 6.1 — priorité au format compressé si présent.
-      if(doc.fields.dataCompressed&&doc.fields.dataCompressed.stringValue){
-        try{
-          var decompressed=LZString.decompressFromBase64(doc.fields.dataCompressed.stringValue);
-          if(decompressed){
-            var parsed=JSON.parse(decompressed);
-            _lastRemoteSyncId=doc.fields.syncId?doc.fields.syncId.stringValue:null;
-            console.log("[firestore] Pull WITH aiCache (compressed → "+(decompressed.length/1024).toFixed(0)+" KB).");
-            return parsed;
-          }
-        }catch(e){console.warn("[firestore] Decompress failed, fallback to data:",e);}
-      }
-      // New format: JSON stored in a single "data" string field
-      if(doc.fields.data&&doc.fields.data.stringValue){
-        var parsed=JSON.parse(doc.fields.data.stringValue);
-        _lastRemoteSyncId=doc.fields.syncId?doc.fields.syncId.stringValue:null;
-        return parsed;
-      }
-      // Legacy format: native Firestore fields from old SDK — convert inline
-      try{
-        var f=doc.fields;
-        var legacy=firestoreToJs(f);
-        _lastRemoteSyncId=legacy.syncId||null;
-        return legacy;
-      }catch(e){console.warn("Legacy parse failed:",e);return null;}
-    })
-    .catch(function(e){console.error("loadFromFirestore:",e);return null;});
-}
-// Convert Firestore REST value format to plain JS
-function firestoreToJs(fields){
-  var result={};
-  for(var k in fields){
-    result[k]=fsVal(fields[k]);
-  }
-  return result;
-}
-function fsVal(v){
-  if(v.stringValue!==undefined)return v.stringValue;
-  if(v.integerValue!==undefined)return Number(v.integerValue);
-  if(v.doubleValue!==undefined)return v.doubleValue;
-  if(v.booleanValue!==undefined)return v.booleanValue;
-  if(v.nullValue!==undefined)return null;
-  if(v.mapValue)return firestoreToJs(v.mapValue.fields||{});
-  if(v.arrayValue)return(v.arrayValue.values||[]).map(fsVal);
-  return null;
-}
-
-// Poll for remote syncId changes (lightweight — only reads syncId+ts fields)
-function pollRemoteSyncId(){
-  return fetch(FS_BASE+"/sync/state?key="+FS_KEY+"&mask.fieldPaths=syncId&mask.fieldPaths=ts")
-    .then(function(r){if(!r.ok)return null;return r.json();})
-    .then(function(doc){
-      if(!doc||!doc.fields||!doc.fields.syncId)return null;
-      return doc.fields.syncId.stringValue;
-    })
-    .catch(function(){return null;});
-}
-
-function loadSharedKey(){
-  return fetch(FS_BASE+"/config/apikeys?key="+FS_KEY)
-    .then(function(r){if(!r.ok)return;return r.json();})
-    .then(function(doc){if(doc&&doc.fields&&doc.fields.gemini)setSharedGeminiKey(doc.fields.gemini.stringValue);})
-    .catch(function(){});
-}
-function saveSharedKey(key){
-  var body={fields:{gemini:{stringValue:key}}};
-  return fetch(FS_BASE+"/config/apikeys?key="+FS_KEY,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}).catch(function(){});
-}
+// Phase 7.22 — Firestore REST API extracted to src/app/utils/firestore.js.
+import {
+  saveToFirestore, loadFromFirestore, pollRemoteSyncId,
+  loadSharedKey, saveSharedKey,
+  getLastSavedSyncId, getLastRemoteSyncId,
+} from './app/utils/firestore.js';
 
 // ─── Code applicatif (verbatim depuis <script type="text/babel">) ───
 //     Lignes 365-7400 du HTML monolithe — sans la redéclaration
@@ -318,16 +160,9 @@ import FeedbackPanel, { FEEDBACK_TAGS } from './app/components/FeedbackPanel.jsx
 // ─── Contexte musical par ampli ───────────────────────────────────────────────
 // Utilisé par PresetBrowser pour enrichir chaque preset de ses références musicales
 
-// Couleur selon score
-// Seuils V2 : 80+ excellent (fidèle au son original), 65+ bon, 50+ acceptable, <50 mauvais
-// Phase 5 (Item F) — labels/badges/info centralisés dans core/sources.js.
-function srcBadge(name){return getSourceBadge(findCatalogEntry(name)?.src);}
-function presetSourceInfo(entry){
-  return getSourceInfo(entry);
-}
-// isSrcCompatible : importé depuis ./devices/registry.js (étape 4).
-function styleBadge(style){const l={hard_rock:"Hard Rock",rock:"Rock",blues:"Blues",jazz:"Jazz",pop:"Pop",metal:"Metal"}[style]||style;return <span className="badge badge-brass">{l}</span>;}
-function gainBadge(gain){const l={low:"Low",mid:"Mid",high:"High"}[gain]||gain;return <span className="badge badge-wine">{l} gain</span>;}
+// Phase 7.22 — badge helpers (srcBadge, presetSourceInfo, styleBadge,
+// gainBadge) supprimés : dead code, plus aucune référence dans main.jsx
+// post-découpage Phase 7.14+. JamScreen a son propre gainBadge inline.
 
 // Phase 7.14 — extracted to src/app/utils/song-helpers.js (normalize + dup)
 // and src/app/utils/preset-helpers.js (findInBanks, worstSlot,
@@ -353,7 +188,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.21";
+const APP_VERSION = "8.14.22";
 const ADMIN_PIN = "212402";
 
 
@@ -372,54 +207,6 @@ import GuitarSelect from './app/components/GuitarSelect.jsx';
 // crumbs = [{label,screen},{label,screen},...,{label}]  — le dernier est l'écran courant (non cliquable)
 // Phase 7.14 — StatusDot extracted to src/app/components/StatusDot.jsx.
 import StatusDot from './app/components/StatusDot.jsx';
-function AppHeader({profiles,activeProfileId,onProfile,screen,onNavigate,isAdmin,syncStatus}){
-  var profileName=(profiles[activeProfileId]||{}).name||"";
-  var c=profileColor(activeProfileId);
-  var NAV_ITEMS=[
-    {id:"list",label:"Accueil"},
-    {id:"setlists",label:"Setlists"},
-    {id:"explore",label:"Explorer"},
-    {id:"jam",label:"Jammer"},
-    {id:"optimizer",label:"Optimiser"},
-  ];
-  return <div>
-    {/* Header bar — fixed on mobile */}
-    <div className="app-header-bar" style={{display:"flex",alignItems:"center",gap:8,padding:"8px var(--s-3,12px)",background:"var(--surface-card,var(--bg-card))",borderBottom:"1px solid var(--border-subtle,var(--a8))"}}>
-      <button onClick={onProfile} style={{background:c,color:"var(--text-inverse)",border:"none",borderRadius:"var(--r-pill,50%)",width:32,height:32,fontSize:14,fontWeight:800,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}} title={profileName}>{profileName[0]?.toUpperCase()||"?"}</button>
-      <div style={{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:6}}>
-        <BacklineIcon size={20} color="var(--brass-300)"/>
-        <div style={{fontSize:14,fontWeight:800,color:"var(--text-primary)",fontFamily:"var(--font-display,system-ui)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{APP_NAME}</div>
-      </div>
-      {syncStatus&&<span style={{fontSize:10,color:syncStatus==="synced"?"var(--status-success,var(--green))":syncStatus==="syncing"?"var(--status-warning,var(--yellow))":"var(--text-dim)"}}>{syncStatus==="synced"?"☁️":syncStatus==="syncing"?"⏳":"⚠️"}</span>}
-      <span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"var(--font-mono,monospace)"}}>v{APP_VERSION}</span>
-    </div>
-    {/* Desktop nav — inline tabs in header */}
-    <div className="nav-desktop" style={{display:"none",gap:4,marginBottom:12}}>
-      {NAV_ITEMS.map(function(item){
-        var active=screen===item.id;
-        return <button key={item.id} onClick={function(){onNavigate(item.id);}} style={{background:active?"var(--accent-soft,rgba(129,140,248,0.1))":"transparent",border:active?"1px solid var(--border-accent,rgba(129,140,248,0.3))":"1px solid transparent",color:active?"var(--accent,#818cf8)":"var(--text-tertiary,var(--text-muted))",borderRadius:"var(--r-md,8px)",padding:"6px 12px",fontSize:12,fontWeight:active?700:500,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}><NavIcon id={item.id} size={16}/>{item.label}</button>;
-      })}
-    </div>
-  </div>;
-}
-function AppNavBottom({screen,onNavigate}){
-  var NAV_ITEMS=[
-    {id:"list",icon:"🏠",label:"Accueil"},
-    {id:"setlists",icon:"🎵",label:"Setlists"},
-    {id:"explore",label:"Explorer"},
-    {id:"jam",label:"Jammer"},
-    {id:"optimizer",label:"Optimiser"},
-  ];
-  return <div className="nav-mobile" style={{display:"flex",position:"fixed",bottom:0,left:0,right:0,background:"var(--surface-card,var(--bg-card))",borderTop:"1px solid var(--border-subtle,var(--a8))",zIndex:50,paddingBottom:"max(4px,env(safe-area-inset-bottom))"}}>
-    {NAV_ITEMS.map(function(item){
-      var active=screen===item.id;
-      return <button key={item.id} onClick={function(){onNavigate(item.id);}} style={{flex:1,background:"none",border:"none",color:active?"var(--accent,#818cf8)":"var(--text-tertiary,var(--text-muted))",padding:"8px 0 4px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-        <NavIcon id={item.id} size={20}/>
-        <span style={{fontSize:9,fontWeight:active?700:500}}>{item.label}</span>
-      </button>;
-    })}
-  </div>;
-}
 
 
 // ─── Calcul algorithmique des meilleurs presets ──────────────────────────────
@@ -514,22 +301,11 @@ import ViewProfileScreen from './app/screens/ViewProfileScreen.jsx';
 import HomeScreen from './app/screens/HomeScreen.jsx';
 import SetlistsScreen from './app/screens/SetlistsScreen.jsx';
 
+// Phase 7.22 — AppHeader + AppNavBottom extracted.
+import { AppHeader, AppNavBottom } from './app/components/AppHeader.jsx';
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 // Fusionne les banks sauvées avec les banks initiales (ajoute les nouvelles sans écraser les modifs utilisateur)
-
-function applySecrets(profiles){
-  const secrets=loadSecrets();
-  const result={...profiles};
-  for(const [id,p] of Object.entries(result)){
-    const s=secrets[id]||{};
-    // Local secrets override Firestore only if they exist (non-empty)
-    result[id]={...p,
-      aiKeys:(s.aiKeys&&(s.aiKeys.gemini||s.aiKeys.anthropic))?s.aiKeys:(p.aiKeys||{anthropic:"",gemini:""}),
-      password:s.password?s.password:(p.password||"")
-    };
-  }
-  return result;
-}
 
 function App() {
   const saved = loadState();
@@ -1171,9 +947,9 @@ function App() {
       pollRemoteSyncId().then(remoteSid=>{
         if(!remoteSid) return;
         // Skip our own saves
-        if(remoteSid===_lastSavedSyncId) return;
+        if(remoteSid===getLastSavedSyncId()) return;
         // Skip if nothing changed since last poll
-        if(remoteSid===_lastRemoteSyncId) return;
+        if(remoteSid===getLastRemoteSyncId()) return;
         // New remote change detected — fetch full data
         loadFromFirestore().then(data=>{
           if(!data) return;
@@ -1271,7 +1047,7 @@ function App() {
   };
 
   const [profileInitTab,setProfileInitTab]=useState(null);
-  var headerProps={profiles:profiles,activeProfileId:activeProfileId,onProfile:function(){setProfileInitTab(null);setScreen("profile");},screen:screen,onNavigate:setScreen,isAdmin:isAdmin,syncStatus:syncStatus};
+  var headerProps={profiles:profiles,activeProfileId:activeProfileId,onProfile:function(){setProfileInitTab(null);setScreen("profile");},screen:screen,onNavigate:setScreen,isAdmin:isAdmin,syncStatus:syncStatus,appVersion:APP_VERSION};
   var mainScreens=["list","setlists","explore","jam","optimizer","recap","synthesis","profile","settings","viewprofile","exportimport"];
   var showNav=mainScreens.includes(screen);
 

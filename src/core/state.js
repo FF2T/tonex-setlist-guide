@@ -1136,6 +1136,24 @@ function mergeGuitarBias(autoBias, manualBias, guitars) {
   return out;
 }
 
+// Phase 7.22 — applySecrets : injecte aiKeys + password depuis le store
+// localStorage local (LS_SECRETS_KEY) sur les profils chargés (initialement
+// depuis localStorage state ou Firestore remote). Les secrets restent
+// device-local et ne sont jamais sync via Firestore.
+function applySecrets(profiles) {
+  const secrets = loadSecrets();
+  const result = { ...profiles };
+  for (const [id, p] of Object.entries(result)) {
+    const s = secrets[id] || {};
+    result[id] = {
+      ...p,
+      aiKeys: (s.aiKeys && (s.aiKeys.gemini || s.aiKeys.anthropic)) ? s.aiKeys : (p.aiKeys || { anthropic: '', gemini: '' }),
+      password: s.password ? s.password : (p.password || ''),
+    };
+  }
+  return result;
+}
+
 // Phase 7.20 — Dédup songDb par id. Anciennes migrations Newzik et collisions
 // Date.now() sur ajouts simultanés ont laissé des doublons (`c_1778428303600_jch2`,
 // `c_1778309153614_ined`). Le fix défensif Phase 7.17 est au rendering ; ce
@@ -1225,4 +1243,5 @@ export {
   computeGuitarBiasFromFeedback,
   mergeGuitarBias,
   dedupSongDb,
+  applySecrets,
 };
