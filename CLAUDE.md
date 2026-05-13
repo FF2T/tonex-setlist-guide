@@ -591,9 +591,25 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
-## État actuel (2026-05-13, Phase 7.8 close, tag `phase-7.8-done`)
+## État actuel (2026-05-13, Phase 7.9 close, tag `phase-7.9-done`)
 
-**Backline v8.14.7 / SW backline-v96 / STATE_VERSION 7 / 588 tests verts.**
+**Backline v8.14.8 / SW backline-v97 / STATE_VERSION 7 / 597 tests verts.**
+
+Phase 7.9 = override manuel `profile.guitarBias` par style. UI éditable
+dans Mon Profil → 🎯 Préférences IA : table de 6 styles (blues, rock,
+hard_rock, jazz, metal, pop), badge effective value (🎯 manuel · 📊 auto
+N feedbacks · aucune), dropdown override "Pas d'override | each guitar
+du rig". Bouton "Réinitialiser N overrides manuels" si applicable.
+
+Helper pur `mergeGuitarBias(auto, manual, guitars)` dans `core/state.js` :
+manuel > auto, drop entries stales (guitarId inexistant). 9 tests Vitest.
+
+`effectiveGuitarBias = useMemo(mergeGuitarBias(derivedGuitarBias,
+profile.guitarBias, allRigsGuitars))` au niveau App. Propagé partout en
+prop `guitarBias` (remplace `derivedGuitarBias` de Phase 7.7). Le prompt
+`fetchAI` reçoit donc la fusion : un override manuel `blues → SG 61`
+écrase le auto-dérivé `blues → ES-335` injecté dans la section
+"PRÉFÉRENCES UTILISATEUR".
 
 Phase 7.8 = lot "petits chantiers" (3 fixes deploy, pas une nouvelle
 feature) :
@@ -843,17 +859,14 @@ shared.songDb[i].aiCache {
 
 ### Dette résiduelle Phase 7
 
-- **Phase 7.8 (optionnel)** : permettre à l'utilisateur d'éditer
-  manuellement `profile.guitarBias` (override des biais auto-dérivés
-  Phase 7.7) via une UI dans 🎯 Préférences IA. Aujourd'hui le bias
-  est read-only et 100% dérivé de `song.feedback[]`.
-- **Phase 7.9 (optionnel)** : appliquer le bias au scoring local V9
-  (pas seulement au prompt IA). Implique un bump V10 + nouveaux
-  snapshots. À éviter sauf demande explicite, V9 est verrouillée.
+- **V10 scoring** (optionnel, à éviter) : appliquer le bias au scoring
+  local V9 (pas seulement au prompt IA). Implique un bump V10 +
+  régénération des snapshots + invalidation de tous les aiCache (sv
+  mismatch). À éviter sauf demande explicite, V9 est verrouillée.
 - Le feedback influence désormais les autres morceaux via le bias
-  global Phase 7.7 dès que le seuil (3 occurrences) est atteint sur
-  un (style, guitare). En deçà, l'effet reste local au morceau
-  feedbacké.
+  global Phase 7.7+7.9 dès que le seuil (3 occurrences) est atteint
+  sur un (style, guitare) OU que l'utilisateur a posé un override
+  manuel. En deçà, l'effet reste local au morceau feedbacké.
 
 ### Dette générale ouverte
 
