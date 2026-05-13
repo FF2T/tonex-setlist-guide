@@ -591,9 +591,9 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
-## État actuel (2026-05-12, Phase 7 close, tag `phase-7.5-done`)
+## État actuel (2026-05-13, Phase 7.7 close, tag `phase-7.7-done`)
 
-**Backline v8.14.3 / SW backline-v92 / STATE_VERSION 7 / 578 tests verts.**
+**Backline v8.14.6 / SW backline-v95 / STATE_VERSION 7 / 588 tests verts.**
 
 Marathon de 22 sous-phases ajoutées le 12 mai 2026 :
 
@@ -777,6 +777,27 @@ des 127 aiCaches. Plus de ⏳ sur les devices secondaires.
   avec date). Submit → relance fetchAI avec `feedback + recoMode` →
   nouvelle reco. Feedback persisté dans `song.feedback[]`
   (synchronisé via Firestore).
+- **Phase 7.6 + 7.6.1** : Suppression individuelle des feedbacks (✕ par
+  ligne) + bouton "Tout effacer" si >3. Concat de l'historique
+  `song.feedback[]` en string envoyée à chaque `fetchAI` (relance auto
+  via invalidation cache, ou clic mode reco) → l'IA prend en compte
+  l'historique complet sans re-saisie. Suppression → `aiCache: null`
+  pour re-déclencher l'analyse sans le feedback retiré.
+- **Phase 7.7** : Bias auto-dérivé `style → guitare` depuis
+  `song.feedback[]`. Helper pur `computeGuitarBiasFromFeedback(songDb,
+  guitars, threshold=3)` dans `core/state.js` : scanne les morceaux
+  avec `feedback[].length > 0` + `aiCache.result.song_style` +
+  `ideal_guitar`, tally (style → guitarId), retient `{guitarId,
+  guitarName, count}` quand ≥3 occurrences. Tiebreak alpha sur
+  guitarId. `derivedGuitarBias = useMemo(...)` au niveau App,
+  recompute à chaque mutation `songDb`. Injecté dans `fetchAI` (11e
+  param `guitarBias`) → section `PRÉFÉRENCES UTILISATEUR (déduites
+  de l'historique de feedback)` ajoutée au prompt en soft hint
+  ("tiens-en compte sans forcer"). UI read-only dans Mon Profil →
+  🎯 Préférences IA. **Pas de modif du scoring V9 local** : le bias
+  ne s'applique qu'au prompt IA. Source de vérité = `song.feedback[]`
+  (déjà sync Firestore), `profile.guitarBias` toujours non utilisé.
+  10 tests Vitest sur le helper.
 
 ### Schéma localStorage v7 (inchangé depuis Phase 5.7) avec ajouts Phase 7
 
@@ -784,7 +805,12 @@ des 127 aiCaches. Plus de ⏳ sur les devices secondaires.
 profile {
   ...,
   recoMode?: 'balanced' | 'faithful' | 'interpretation',  // Phase 7.1
-  guitarBias?: { [styleId]: guitarId },                   // Phase 7.1 réservé
+  guitarBias?: { [styleId]: guitarId },                   // Phase 7.1 réservé,
+                                                          //   toujours non utilisé
+                                                          //   Phase 7.7 (le bias
+                                                          //   effectif est calculé
+                                                          //   à la volée depuis
+                                                          //   song.feedback[]).
 }
 
 shared.songDb[i] {
@@ -801,12 +827,17 @@ shared.songDb[i].aiCache {
 
 ### Dette résiduelle Phase 7
 
-- **Phase 7.6 / Phase 7.7** : `profile.guitarBias` actuellement non
-  utilisé en scoring local. Pourrait être enrichi par les feedbacks
-  pour bias automatique (genre 3+ feedbacks "préfère ES-335 pour
-  blues" → bump ES-335 dans le scoring blues).
-- Le feedback n'influence PAS les autres morceaux. Effet local au
-  morceau précis. Pour effet global, voir Phase 7.6+.
+- **Phase 7.8 (optionnel)** : permettre à l'utilisateur d'éditer
+  manuellement `profile.guitarBias` (override des biais auto-dérivés
+  Phase 7.7) via une UI dans 🎯 Préférences IA. Aujourd'hui le bias
+  est read-only et 100% dérivé de `song.feedback[]`.
+- **Phase 7.9 (optionnel)** : appliquer le bias au scoring local V9
+  (pas seulement au prompt IA). Implique un bump V10 + nouveaux
+  snapshots. À éviter sauf demande explicite, V9 est verrouillée.
+- Le feedback influence désormais les autres morceaux via le bias
+  global Phase 7.7 dès que le seuil (3 occurrences) est atteint sur
+  un (style, guitare). En deçà, l'effet reste local au morceau
+  feedbacké.
 
 ### Dette générale ouverte
 
