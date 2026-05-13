@@ -94,7 +94,10 @@ function SetlistsScreen({
             </select>
           </div>
           {(() => {
-            const sorted = [...songDb];
+            // Defensive dedup by id (cf ListScreen) pour éviter le warning
+            // React keys dupliquées sur songDb corrompue.
+            const seen = new Set();
+            const sorted = songDb.filter((s) => { if (seen.has(s.id)) return false; seen.add(s.id); return true; });
             if (songSort === 'alpha') sorted.sort((a, b) => a.title.localeCompare(b.title, 'fr'));
             else if (songSort === 'artist') sorted.sort((a, b) => a.artist.localeCompare(b.artist, 'fr') || a.title.localeCompare(b.title, 'fr'));
             else sorted.reverse();

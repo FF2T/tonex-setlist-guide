@@ -73,9 +73,14 @@ function ListScreen({
   const activeSongs = useMemo(() => {
     const sl = activeSl;
     const arr = sl ? (sl.songIds || []).map((id) => songDb.find((s) => s.id === id)).filter(Boolean) : [...songDb];
-    if (sort === 'alpha') arr.sort((a, b) => a.title.localeCompare(b.title, 'fr'));
-    else if (sort === 'artist') arr.sort((a, b) => a.artist.localeCompare(b.artist, 'fr') || a.title.localeCompare(b.title, 'fr'));
-    return arr;
+    // Defensive : dedup by id pour éviter les warning React keys dupliquées
+    // (cas observé : songDb a 2 entrées même id suite à corruption locale
+    // ou collision Date.now() sur ajouts rapides).
+    const seen = new Set();
+    const deduped = arr.filter((s) => { if (seen.has(s.id)) return false; seen.add(s.id); return true; });
+    if (sort === 'alpha') deduped.sort((a, b) => a.title.localeCompare(b.title, 'fr'));
+    else if (sort === 'artist') deduped.sort((a, b) => a.artist.localeCompare(b.artist, 'fr') || a.title.localeCompare(b.title, 'fr'));
+    return deduped;
   }, [songDb, activeSlId, sort, setlists]);
 
   const enabledDevicesForRender = useMemo(
