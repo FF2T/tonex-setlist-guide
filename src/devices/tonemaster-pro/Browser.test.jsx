@@ -149,4 +149,36 @@ describe('TmpBrowser — Phase 7.12 wiring clone/edit/delete', () => {
     expect(updated[0].id).toBe('custom_42');
     expect(updated[0].name).toBe('Mon Rock Renommé');
   });
+
+  test('Phase 7.13.1 — bouton "Nouveau patch" visible avec onUpdateCustoms', () => {
+    const { container } = render(<TmpBrowser profile={{}} onUpdateCustoms={() => {}}/>);
+    expect(container.querySelector('[data-testid="tmp-browser-new-blank"]')).not.toBeNull();
+  });
+
+  test('Phase 7.13.1 — sans onUpdateCustoms → bouton absent', () => {
+    const { container } = render(<TmpBrowser profile={{}}/>);
+    expect(container.querySelector('[data-testid="tmp-browser-new-blank"]')).toBeNull();
+  });
+
+  test('Phase 7.13.1 — click "Nouveau patch" → ouvre editor avec patch vide', () => {
+    const onUpdateCustoms = vi.fn();
+    const { container } = render(<TmpBrowser profile={{}} onUpdateCustoms={onUpdateCustoms}/>);
+    fireEvent.click(container.querySelector('[data-testid="tmp-browser-new-blank"]'));
+    expect(container.querySelector('[data-testid="tmp-editor-overlay"]')).not.toBeNull();
+    const nameInput = container.querySelector('[data-testid="tmp-editor-name"]');
+    expect(nameInput.value).toBe('Nouveau patch');
+  });
+
+  test('Phase 7.13.1 — Nouveau patch + save → custom ajouté avec amp + cab valides', () => {
+    const onUpdateCustoms = vi.fn();
+    const { container } = render(<TmpBrowser profile={{}} onUpdateCustoms={onUpdateCustoms}/>);
+    fireEvent.click(container.querySelector('[data-testid="tmp-browser-new-blank"]'));
+    fireEvent.click(container.querySelector('[data-testid="tmp-editor-save"]'));
+    expect(onUpdateCustoms).toHaveBeenCalledOnce();
+    const customs = onUpdateCustoms.mock.calls[0][0];
+    expect(customs.length).toBe(1);
+    expect(customs[0].name).toBe('Nouveau patch');
+    expect(customs[0].amp.model).toBeTruthy();
+    expect(customs[0].cab.model).toBeTruthy();
+  });
 });

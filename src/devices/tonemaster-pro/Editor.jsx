@@ -45,6 +45,25 @@ function clonePatchAsCustom(factoryPatch) {
   return cloned;
 }
 
+// Phase 7.13.1 — Crée un patch vide pour le "from scratch". amp et cab
+// obligatoires (premier model whitelist + STANDARD_PARAMS à 5). Style
+// rock / gain mid / pickupAffinity 50-50-50 (neutre). Aucun bloc
+// optionnel — l'utilisateur les ajoute via "Ajouter un bloc".
+function buildBlankPatch() {
+  return {
+    id: genCustomId(),
+    name: 'Nouveau patch',
+    factory: false,
+    source: 'custom',
+    notes: '',
+    style: 'rock',
+    gain: 'mid',
+    pickupAffinity: { HB: 50, SC: 50, P90: 50 },
+    amp: buildDefaultBlock('amp'),
+    cab: buildDefaultBlock('cab'),
+  };
+}
+
 // Phase 7.13 — Crée un bloc neutre pour un type donné. Utilisé par le
 // bouton "+ Ajouter <type>". Premier model de la whitelist + params
 // STANDARD_PARAMS initialisés à 5 (valeur centrale lisible).
@@ -342,4 +361,11 @@ function TmpPatchEditor({ patch: initialPatch, onSave, onDelete, onCancel, mode 
 }
 
 export default TmpPatchEditor;
-export { TmpPatchEditor, clonePatchAsCustom, genCustomId, deepClone };
+export {
+  TmpPatchEditor,
+  clonePatchAsCustom,
+  buildBlankPatch,
+  buildDefaultBlock,
+  genCustomId,
+  deepClone,
+};

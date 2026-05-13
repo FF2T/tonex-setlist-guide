@@ -14,7 +14,7 @@ import React, { useState, useMemo } from 'react';
 import { TMP_FACTORY_PATCHES, TONEMASTER_PRO_CATALOG } from './catalog.js';
 import { getPatchBlocks, RENDER_ORDER } from './chain-model.js';
 import { summarizeChain, pickTopParams, formatBlockParam } from './RecommendBlock.jsx';
-import TmpPatchEditor, { clonePatchAsCustom } from './Editor.jsx';
+import TmpPatchEditor, { clonePatchAsCustom, buildBlankPatch } from './Editor.jsx';
 
 const SOURCE_LABELS = {
   arthur: 'Patches Arthur',
@@ -152,6 +152,9 @@ function TmpBrowser({ profile, onUpdateCustoms }) {
   const openEdit = (customPatch) => {
     setEditorState({ patch: customPatch, mode: 'edit' });
   };
+  const openBlank = () => {
+    setEditorState({ patch: buildBlankPatch(), mode: 'clone' });
+  };
   const closeEditor = () => setEditorState(null);
 
   const handleSave = (savedPatch) => {
@@ -175,8 +178,17 @@ function TmpBrowser({ profile, onUpdateCustoms }) {
 
   return (
     <div data-testid="tmp-browser-root">
-      <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>
-        {totalCount} patches Tone Master Pro disponibles. {customs.length > 0 && `${customs.length} custom + `}{TMP_FACTORY_PATCHES.length} factory.
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 13, color: 'var(--text-sec)' }}>
+          {totalCount} patches Tone Master Pro disponibles. {customs.length > 0 && `${customs.length} custom + `}{TMP_FACTORY_PATCHES.length} factory.
+        </div>
+        {onUpdateCustoms && (
+          <button
+            data-testid="tmp-browser-new-blank"
+            onClick={openBlank}
+            style={{ fontSize: 12, padding: '6px 12px', background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', cursor: 'pointer', fontWeight: 700 }}
+          >🆕 Nouveau patch</button>
+        )}
       </div>
       {['custom', 'arthur', 'orphan', 'generated'].map((key) => {
         const list = groups[key];

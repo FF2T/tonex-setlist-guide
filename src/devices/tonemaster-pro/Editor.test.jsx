@@ -6,8 +6,11 @@
 import { describe, test, expect, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 import React from 'react';
-import TmpPatchEditor, { clonePatchAsCustom, genCustomId, deepClone } from './Editor.jsx';
+import TmpPatchEditor, {
+  clonePatchAsCustom, genCustomId, deepClone, buildBlankPatch, buildDefaultBlock,
+} from './Editor.jsx';
 import { ROCK_PRESET, CLEAN_PRESET } from './catalog.js';
+import { validatePatch } from './chain-model.js';
 
 describe('clonePatchAsCustom (Phase 7.12)', () => {
   test('clone deep, nouvel id, factory:false, source:custom, name + (copie)', () => {
@@ -32,6 +35,39 @@ describe('clonePatchAsCustom (Phase 7.12)', () => {
     expect(c.delay).toBeDefined();
     expect(c.reverb).toBeDefined();
     expect(c.noise_gate).toBeDefined();
+  });
+});
+
+describe('buildBlankPatch (Phase 7.13.1) — création from scratch', () => {
+  test('retourne un patch validatePatch-valide (amp + cab + style + gain)', () => {
+    const blank = buildBlankPatch();
+    expect(blank.id).toMatch(/^custom_/);
+    expect(blank.name).toBe('Nouveau patch');
+    expect(blank.factory).toBe(false);
+    expect(blank.source).toBe('custom');
+    expect(blank.amp).toBeDefined();
+    expect(blank.amp.model).toBeTruthy();
+    expect(blank.cab).toBeDefined();
+    expect(blank.cab.model).toBeTruthy();
+    const v = validatePatch(blank);
+    expect(v.valid).toBe(true);
+  });
+
+  test('aucun bloc optionnel par défaut (l\'utilisateur ajoute via "+ Ajouter")', () => {
+    const blank = buildBlankPatch();
+    expect(blank.drive).toBeUndefined();
+    expect(blank.delay).toBeUndefined();
+    expect(blank.reverb).toBeUndefined();
+    expect(blank.comp).toBeUndefined();
+    expect(blank.mod).toBeUndefined();
+    expect(blank.noise_gate).toBeUndefined();
+    expect(blank.eq).toBeUndefined();
+  });
+
+  test('chaque call → id distinct', () => {
+    const a = buildBlankPatch();
+    const b = buildBlankPatch();
+    expect(a.id).not.toBe(b.id);
   });
 });
 
