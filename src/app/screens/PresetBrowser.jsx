@@ -452,8 +452,23 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
     <div>
       <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>Explore ta bibliothèque de presets et découvre leur contexte musical.</div>
 
-      <input placeholder="🔍 Rechercher artiste, morceau, ampli..." value={search} onChange={(e) => setSearch(e.target.value)}
-        style={{ width: '100%', background: 'var(--bg-card)', color: 'var(--text)', border: '2px solid var(--a15)', borderRadius: 'var(--r-lg)', padding: '14px 16px', fontSize: 15, boxSizing: 'border-box', marginBottom: 14 }}/>
+      <div style={{ position: 'relative', marginBottom: 6 }}>
+        <input
+          type="search"
+          enterKeyHint="search"
+          placeholder="🔍 Rechercher artiste, morceau, ampli..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+          style={{ width: '100%', background: 'var(--bg-card)', color: 'var(--text)', border: '2px solid var(--a15)', borderRadius: 'var(--r-lg)', padding: '14px 44px 14px 16px', fontSize: 15, boxSizing: 'border-box' }}
+        />
+        {search && (
+          <button onClick={() => setSearch('')} aria-label="Effacer la recherche"
+            style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: '50%', width: 28, height: 28, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >✕</button>
+        )}
+      </div>
+      <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, fontStyle: 'italic' }}>Résultats filtrés en temps réel</div>
 
       <button onClick={pickRandom} style={{ width: '100%', background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-lg)', padding: '12px', fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 16 }}>
         🎲 Preset aléatoire
