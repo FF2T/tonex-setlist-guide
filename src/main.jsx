@@ -103,74 +103,16 @@ import SongCollapsedDeviceRows from './app/components/SongCollapsedDeviceRows.js
 
 let DEFAULT_GEMINI_KEY = "";
 
-// ─── Service Worker (déplacé du <head>, CACHE bumpé v48 → v49, ──────
-//     ToneX_Setlist_Guide.html → index.html dans le nouveau dist/) ──
-//     Phase 4 : v50 → v51 (Scenes / footswitchMap / bpm / key / LiveScreen).
-//     Phase 4.1 : v51 → v52 (dedup setlists + bouton mode scène multi-profils
-//     + rotation backups robuste au quota).
-//     Phase 5 (Item C) : v52 → v53. Stratégie de fetch passe en
-//     stale-while-revalidate sur le HTML : on sert immédiatement la
-//     version cachée (instantané, marche offline) et on fetche en
-//     background pour mettre à jour le cache pour la prochaine visite.
-//     Évite le cas où l'utilisateur reste bloqué sur l'ancienne version
-//     même après push d'une nouvelle (l'ancien SW network-first
-//     attendait le réseau avant de servir, et tombait en cache au
-//     timeout, donc en pratique cache-first sur connexion lente).
-//     Phase 5 (Item E) : v53 → v54 (state v6 = drop legacy
-//     profile.devices).
-//     Phase 5.2 : tonex-v54 → backline-v55. Changement de prefix pour
-//     signaler le rebrand ; les anciens caches "tonex-v*" sont purgés
-//     automatiquement à l'install via le filtre k!==CACHE.
-//     Phase 5.7 : v55 → v56. State v7 (last-write-wins + tombstones
-//     {[id]:ts}) ; force la prise en charge du nouveau merge dès la
-//     prochaine ouverture.
-//     Phase 5.7.1 : v56 → v57. Strip aiCache du push Firestore
-//     (état >1 MB renvoyait 400). Force la nouvelle sérialisation
-//     côté push + le pull avec aiCache preserve.
-if('serviceWorker' in navigator){
-  const SW_CODE=`
-const CACHE='backline-v95';
-const HTML_URL=self.location.href.replace(/sw\\.js.*/,'index.html');
-self.addEventListener('install',e=>{
-  e.waitUntil(
-    caches.open(CACHE).then(c=>c.addAll([self.registration.scope+'index.html']))
-    .catch(()=>{})
-  );
-  self.skipWaiting();
-});
-self.addEventListener('activate',e=>{e.waitUntil(
-  caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())
-)});
-self.addEventListener('fetch',e=>{
-  const req=e.request;
-  // Stale-while-revalidate sur le HTML (navigation ou request explicite
-  // index.html). On sert le cache immédiatement, fetch en background,
-  // met à jour pour la prochaine visite.
-  const isHtml = req.mode === 'navigate'
-    || (req.method === 'GET' && req.url.includes('index.html'));
-  if(isHtml){
-    e.respondWith((async()=>{
-      const cache=await caches.open(CACHE);
-      const cached=await cache.match(req)
-        || await cache.match(self.registration.scope+'index.html');
-      const networkPromise=fetch(req).then(res=>{
-        if(res && res.ok) cache.put(req,res.clone()).catch(()=>{});
-        return res;
-      }).catch(()=>null);
-      // Sert cache immédiatement si dispo, sinon attend réseau (1er
-      // chargement).
-      return cached || (await networkPromise) || new Response('Offline',{status:503});
-    })());
-    return;
-  }
-  // Autres requêtes : network-first avec fallback cache.
-  e.respondWith(
-    fetch(req).then(res=>res).catch(()=>caches.match(req))
-  );
-});`;
-  const blob=new Blob([SW_CODE],{type:'application/javascript'});
-  const swUrl=URL.createObjectURL(blob);
-  navigator.serviceWorker.register(swUrl).catch(()=>{});
+// ─── Service Worker ──────────────────────────────────────────────────
+// Phase 7.8 : SW externalisé dans public/sw.js (copié dans dist/sw.js par
+// Vite). L'ancienne approche blob URL (Phase 5.2 → 7.7) registrait un SW
+// dont le scope vivait à blob:…, distinct de l'origine de la page → le SW
+// ne contrôlait jamais les fetchs du document. L'offline était cassé
+// silencieusement. Désormais ./sw.js a pour scope la racine du site et
+// reprend en main offline + stale-while-revalidate. Bumper le CACHE dans
+// public/sw.js à chaque release.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
 
 // ─── Firestore REST API (déplacé du <head>) ─────────────────────────
@@ -610,7 +552,7 @@ function getSongHist(song, aiResult=null){
 }
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.6";
+const APP_VERSION = "8.14.7";
 const ADMIN_PIN = "212402";
 
 
