@@ -208,8 +208,10 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.25";
-const ADMIN_PIN = "212402";
+const APP_VERSION = "8.14.26";
+// Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
+// avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
+// l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
 
 
 // Phase 7.18 — CSV/JSON helpers extracted to src/app/utils/csv-helpers.js.
@@ -283,8 +285,7 @@ import { inferPresetInfo } from './app/utils/infer-preset.js';
 // prop pour éviter une dépendance circulaire le temps de la séparation).
 import MonProfilScreen from './app/screens/MonProfilScreen.jsx';
 
-// Phase 7.18 — ParametresScreen extracted to src/app/screens/ParametresScreen.jsx.
-import ParametresScreen from './app/screens/ParametresScreen.jsx';
+// Phase 7.26 — ParametresScreen retiré (redondant avec Mon Profil).
 
 // Phase 7.19 — MaintenanceTab extracted to src/app/screens/MaintenanceTab.jsx.
 import MaintenanceTab from './app/screens/MaintenanceTab.jsx';
@@ -903,7 +904,7 @@ function App() {
 
   const [profileInitTab,setProfileInitTab]=useState(null);
   var headerProps={profiles:profiles,activeProfileId:activeProfileId,onProfile:function(){setProfileInitTab(null);setScreen("profile");},screen:screen,onNavigate:setScreen,isAdmin:isAdmin,syncStatus:syncStatus,appVersion:APP_VERSION};
-  var mainScreens=["list","setlists","explore","jam","optimizer","recap","synthesis","profile","settings","viewprofile","exportimport"];
+  var mainScreens=["list","setlists","explore","jam","optimizer","recap","synthesis","profile","viewprofile","exportimport"];
   var showNav=mainScreens.includes(screen);
 
   if(screen==="loading") return <div className="page-root"><div style={{textAlign:"center",padding:"60px 20px"}}><div style={{marginBottom:16,display:"flex",justifyContent:"center"}}><BacklineIcon size={56} color="var(--brass-300)"/></div><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)"}}>{APP_NAME}</div><div style={{fontSize:13,color:"var(--text-muted)",marginTop:8}}>Chargement...</div></div></div>;
@@ -943,16 +944,15 @@ function App() {
 
   var screenContent=null;
   if(screen==="viewprofile"&&viewProfileId&&profiles[viewProfileId]) screenContent=<ViewProfileScreen profile={profiles[viewProfileId]} onBack={()=>setScreen("list")} onNavigate={setScreen}/>;
-  else if(screen==="exportimport") screenContent=<ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("settings")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/>;
+  else if(screen==="exportimport") screenContent=<ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("profile")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/>;
   else if(screen==="profile") screenContent=<MonProfilScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} onDeletedSetlistIds={setDeletedSetlistIds} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={effectiveGuitarBias} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}} MaintenanceTabComponent={MaintenanceTab} onSaveSharedKey={saveSharedKey}/>;
-  else if(screen==="settings") screenContent=<ParametresScreen onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} fullState={fullState} onImportState={onImportState} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} songDb={songDb} onSongDb={setSongDb} setlists={setlists} onSetlists={setSetlists} PacksTabComponent={PacksTab} ProfilesAdminComponent={ProfilesAdmin} MaintenanceTabComponent={MaintenanceTab} onDeletedSetlistIds={setDeletedSetlistIds} guitarBias={guitarBias} onSaveSharedKey={saveSharedKey}/>;
   else if(screen==="setlists") screenContent=<SetlistsScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
   else if(screen==="jam") screenContent=<div><Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Jammer"}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>🎲 Jammer</div><JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources} profile={profile}/></div>;
   else if(screen==="explore") screenContent=<div><Breadcrumb crumbs={[{label:"Accueil",screen:"list"},{label:"Explorer"}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>🎛️ Explorer les presets</div><PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={profile.customPacks} guitars={allGuitars} toneNetPresets={toneNetPresets}/></div>;
   else if(screen==="optimizer") screenContent=<BankOptimizerScreen songDb={songDb} setlists={mySetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} allGuitars={allGuitars} availableSources={availableSources} onNavigate={setScreen} profile={profile}/>;
   else if(screen==="synthesis"&&synth) screenContent=<SynthesisScreen songs={songs} gps={synth.gps} aiR={synth.aiR} onBack={()=>setScreen("recap")} onNavigate={setScreen} songDb={songDb} banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources} profile={profile}/>;
   else if(screen==="recap") screenContent=<RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDb} onSongDb={setSongDb} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} profile={profile} onTmpPatchOverride={onTmpPatchOverride}/>;
-  else screenContent=<HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("settings")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} onOptimizer={()=>setScreen("optimizer")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
+  else screenContent=<HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} onOptimizer={()=>setScreen("optimizer")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
 
   return <div className="page-root">
     <AppHeader {...headerProps}/>

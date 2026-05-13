@@ -1,6 +1,6 @@
 // src/app/screens/PacksTab.jsx — Phase 7.19 (découpage main.jsx).
 //
-// Onglet "📦 Sources / Packs" dans MonProfilScreen et ParametresScreen.
+// Onglet "📦 Sources / Packs" dans MonProfilScreen.
 // Permet d'ajouter un pack de presets en joignant une photo ou
 // document — l'IA (Gemini ou Claude) en extrait les presets + le
 // contexte amp. Sauvegarde dans profile.customPacks.

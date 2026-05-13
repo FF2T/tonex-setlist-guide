@@ -61,7 +61,7 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
   return (
     <div>
       {toast && <div style={{ position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', background: 'var(--green)', color: 'var(--text)', borderRadius: 'var(--r-lg)', padding: '10px 22px', fontSize: 13, fontWeight: 700, zIndex: 999 }}>✅ {toast}</div>}
-      <Breadcrumb crumbs={[{ label: 'Accueil', screen: 'list' }, { label: 'Paramètres', screen: 'settings' }, { label: 'Import / Export' }]} onNavigate={onNavigate}/>
+      <Breadcrumb crumbs={[{ label: 'Accueil', screen: 'list' }, { label: 'Mon Profil', screen: 'profile' }, { label: 'Import / Export' }]} onNavigate={onNavigate}/>
       <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 20 }}>📋 Export / Import</div>
 
       {/* Sauvegarde JSON */}
