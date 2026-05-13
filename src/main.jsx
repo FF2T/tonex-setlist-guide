@@ -353,7 +353,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.14";
+const APP_VERSION = "8.14.15";
 const ADMIN_PIN = "212402";
 
 

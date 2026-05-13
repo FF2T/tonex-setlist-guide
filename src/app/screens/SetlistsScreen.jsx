@@ -13,6 +13,7 @@ import { updateAiCache } from '../utils/ai-helpers.js';
 import { fetchAI } from '../utils/fetchAI.js';
 import Breadcrumb from '../components/Breadcrumb.jsx';
 import ListScreen from './ListScreen.jsx';
+import { SongSearchBar } from './HomeScreen.jsx';
 
 function SetlistsScreen({
   songDb, onSongDb, setlists, allSetlists, onSetlists,
@@ -29,18 +30,20 @@ function SetlistsScreen({
 
   // Songs tab state
   const [songSort, setSongSort] = useState('artist');
-  const [newSongTitle, setNewSongTitle] = useState('');
-  const [newSongArtist, setNewSongArtist] = useState('');
   const [newSongSlIds, setNewSongSlIds] = useState([]);
   const [expandedSongId, setExpandedSongId] = useState(null);
   const toggleNewSongSl = (id) => setNewSongSlIds((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
   const toggleSongInSetlist = (songId, slId) => onSetlists((p) => p.map((sl) => sl.id !== slId ? sl : { ...sl, songIds: sl.songIds.includes(songId) ? sl.songIds.filter((x) => x !== songId) : [...sl.songIds, songId] }));
 
-  const addSongToDb = () => {
-    if (!newSongTitle.trim()) return;
-    const title = newSongTitle.trim();
-    const artist = newSongArtist.trim() || 'Artiste inconnu';
-    const dup = findDuplicateSong(songDb, title, artist);
+  // Phase 7.14 — Add song via SongSearchBar (même flow que HomeScreen :
+  // input → IA correction → confirmation user). Le user a pré-sélectionné
+  // les setlists cibles via newSongSlIds avant de chercher. Sur confirm,
+  // on dédup contre songDb (findDuplicateSong) ; si déjà présent on
+  // ajoute juste aux setlists, sinon on crée le custom song + fetchAI
+  // en background + propagation aux setlists.
+  const handleSongSearchConfirm = (title, artist) => {
+    const finalArtist = artist || 'Artiste inconnu';
+    const dup = findDuplicateSong(songDb, title, finalArtist);
     if (dup) {
       const slCount = newSongSlIds.length;
       const msg = `"${dup.title}" (${dup.artist}) est déjà dans la base.${slCount > 0 ? '\n\nVoulez-vous l\'ajouter ' + (slCount > 1 ? 'aux setlists sélectionnées' : 'à la setlist sélectionnée') + ' ?' : ''}`;
@@ -51,16 +54,16 @@ function SetlistsScreen({
       } else {
         window.alert(msg);
       }
-      setNewSongTitle(''); setNewSongArtist(''); setNewSongSlIds([]);
+      setNewSongSlIds([]);
       return;
     }
-    const ns = { id: `c_${Date.now()}`, title, artist, isCustom: true, ig: [], aiCache: null };
+    const ns = { id: `c_${Date.now()}`, title, artist: finalArtist, isCustom: true, ig: [], aiCache: null };
     onSongDb((p) => [...p, ns]);
     if (newSongSlIds.length > 0) onSetlists((p) => p.map((sl) => newSongSlIds.includes(sl.id) ? { ...sl, songIds: [...sl.songIds, ns.id] } : sl));
     fetchAI(ns, '', banksAnn, banksPlug, aiProvider, aiKeys, allGuitars, null, null, profile?.recoMode || 'balanced', guitarBias)
       .then((r) => onSongDb((p) => p.map((x) => x.id === ns.id ? { ...x, aiCache: updateAiCache(x.aiCache, '', r) } : x)))
       .catch(() => {});
-    setNewSongTitle(''); setNewSongArtist(''); setNewSongSlIds([]);
+    setNewSongSlIds([]);
   };
 
   const deleteSongFromDb = (id) => {
@@ -70,8 +73,6 @@ function SetlistsScreen({
     onSongDb((p) => p.filter((x) => x.id !== id));
     onSetlists((p) => p.map((sl) => ({ ...sl, songIds: sl.songIds.filter((x) => x !== id) })));
   };
-
-  const inp = { background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '6px 10px', fontSize: 12, boxSizing: 'border-box' };
 
   return (
     <div>
@@ -128,18 +129,22 @@ function SetlistsScreen({
           })()}
           <div style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-soft)', borderRadius: 'var(--r-lg)', padding: 14, marginTop: 10 }}>
             <div style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600, marginBottom: 10 }}>+ Ajouter un morceau</div>
-            <input placeholder="Titre *" value={newSongTitle} onChange={(e) => setNewSongTitle(e.target.value)} style={{ ...inp, width: '100%', marginBottom: 7 }}/>
-            <input placeholder="Artiste" value={newSongArtist} onChange={(e) => setNewSongArtist(e.target.value)} style={{ ...inp, width: '100%', marginBottom: 10 }}/>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>Ajouter aussi à :</div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-              {setlists.map((sl) => {
-                const sel = newSongSlIds.includes(sl.id);
-                return (
-                  <button key={sl.id} onClick={() => toggleNewSongSl(sl.id)} style={{ background: sel ? 'var(--accent-bg)' : 'var(--a5)', border: sel ? '1px solid var(--border-accent)' : '1px solid var(--a10)', color: sel ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>{sl.name}</button>
-                );
-              })}
-            </div>
-            <button onClick={addSongToDb} disabled={!newSongTitle.trim()} style={{ width: '100%', background: newSongTitle.trim() ? 'var(--accent)' : 'var(--bg-elev-3)', color: 'var(--text)', border: 'none', borderRadius: 'var(--r-md)', padding: '9px', fontSize: 13, fontWeight: 600, cursor: newSongTitle.trim() ? 'pointer' : 'not-allowed' }}>Ajouter à la base</button>
+            {setlists.length > 0 && (
+              <>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>Ajouter aussi à :</div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+                  {setlists.map((sl) => {
+                    const sel = newSongSlIds.includes(sl.id);
+                    return (
+                      <button key={sl.id} onClick={() => toggleNewSongSl(sl.id)} style={{ background: sel ? 'var(--accent-bg)' : 'var(--a5)', border: sel ? '1px solid var(--border-accent)' : '1px solid var(--a10)', color: sel ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>{sl.name}</button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+            {/* Phase 7.14 — même flow que HomeScreen : recherche IA + correction
+                avant ajout. Le user a déjà coché les setlists cibles ci-dessus. */}
+            <SongSearchBar songDb={songDb} aiProvider={aiProvider} aiKeys={aiKeys} onConfirm={handleSongSearchConfirm}/>
           </div>
         </div>
       )}
