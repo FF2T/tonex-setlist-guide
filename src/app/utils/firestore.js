@@ -16,6 +16,21 @@ import { setSharedGeminiKey } from './shared-key.js';
 const FS_BASE = 'https://firestore.googleapis.com/v1/projects/tonex-guide/databases/(default)/documents';
 const FS_KEY = 'AIzaSyAnaJMN-a47S9W_cTC60lKAnzRMAgHNMAA';
 
+// Phase 7.24 — Mode "no-sync" pour les beta testeurs : désactive tous
+// les appels Firestore. Le flag est lu au chargement et à chaque call.
+// Activé via le toggle dans Mon Profil → 🔧 Maintenance → "Mode local".
+// Stockage localStorage simple (pas synchronisé bien sûr).
+const NO_SYNC_KEY = 'backline_no_sync';
+export function isNoSyncMode() {
+  try { return localStorage.getItem(NO_SYNC_KEY) === '1'; } catch (e) { return false; }
+}
+export function setNoSyncMode(enabled) {
+  try {
+    if (enabled) localStorage.setItem(NO_SYNC_KEY, '1');
+    else localStorage.removeItem(NO_SYNC_KEY);
+  } catch (e) {}
+}
+
 // IDs partagés avec le reste de main.jsx via les helpers
 // getLastSavedSyncId() / getLastRemoteSyncId() pour les checks anti-echo.
 let _lastSavedSyncId = null;
@@ -26,6 +41,7 @@ export function getLastRemoteSyncId() { return _lastRemoteSyncId; }
 export function setLastRemoteSyncId(sid) { _lastRemoteSyncId = sid; }
 
 export function saveToFirestore(s) {
+  if (isNoSyncMode()) return Promise.resolve({ skipped: 'no-sync' });
   const SAFE_LIMIT = 800 * 1024;
   const ts = (s && s.shared && typeof s.shared.lastModified === 'number') ? s.shared.lastModified : Date.now();
   const sid = Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -88,6 +104,7 @@ export function saveToFirestore(s) {
 }
 
 export function loadFromFirestore() {
+  if (isNoSyncMode()) return Promise.resolve(null);
   return fetch(FS_BASE + '/sync/state?key=' + FS_KEY)
     .then((r) => { if (!r.ok) return null; return r.json(); })
     .then((doc) => {
@@ -138,6 +155,7 @@ export function fsVal(v) {
 }
 
 export function pollRemoteSyncId() {
+  if (isNoSyncMode()) return Promise.resolve(null);
   return fetch(FS_BASE + '/sync/state?key=' + FS_KEY + '&mask.fieldPaths=syncId&mask.fieldPaths=ts')
     .then((r) => { if (!r.ok) return null; return r.json(); })
     .then((doc) => {
@@ -148,6 +166,7 @@ export function pollRemoteSyncId() {
 }
 
 export function loadSharedKey() {
+  if (isNoSyncMode()) return Promise.resolve();
   return fetch(FS_BASE + '/config/apikeys?key=' + FS_KEY)
     .then((r) => { if (!r.ok) return; return r.json(); })
     .then((doc) => { if (doc && doc.fields && doc.fields.gemini) setSharedGeminiKey(doc.fields.gemini.stringValue); })
@@ -155,6 +174,7 @@ export function loadSharedKey() {
 }
 
 export function saveSharedKey(key) {
+  if (isNoSyncMode()) return Promise.resolve();
   const body = { fields: { gemini: { stringValue: key } } };
   return fetch(FS_BASE + '/config/apikeys?key=' + FS_KEY, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
 }

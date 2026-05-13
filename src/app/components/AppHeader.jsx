@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { APP_NAME } from '../../core/branding.js';
+import { isNoSyncMode } from '../utils/firestore.js';
 import BacklineIcon from './BacklineIcon.jsx';
 import NavIcon from './NavIcon.jsx';
 import { profileColor } from './profile-color.js';
@@ -30,7 +31,10 @@ function AppHeader({ profiles, activeProfileId, onProfile, screen, onNavigate, i
           <BacklineIcon size={20} color="var(--brass-300)"/>
           <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-display,system-ui)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{APP_NAME}</div>
         </div>
-        {syncStatus && <span style={{ fontSize: 10, color: syncStatus === 'synced' ? 'var(--status-success,var(--green))' : syncStatus === 'syncing' ? 'var(--status-warning,var(--yellow))' : 'var(--text-dim)' }}>{syncStatus === 'synced' ? '☁️' : syncStatus === 'syncing' ? '⏳' : '⚠️'}</span>}
+        {isNoSyncMode()
+          ? <span title="Mode local — aucune sync Firestore" style={{ fontSize: 10, color: 'var(--text-dim)' }}>🔒</span>
+          : syncStatus && <span style={{ fontSize: 10, color: syncStatus === 'synced' ? 'var(--status-success,var(--green))' : syncStatus === 'syncing' ? 'var(--status-warning,var(--yellow))' : 'var(--text-dim)' }}>{syncStatus === 'synced' ? '☁️' : syncStatus === 'syncing' ? '⏳' : '⚠️'}</span>
+        }
         <span style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'var(--font-mono,monospace)' }}>v{appVersion}</span>
       </div>
       <div className="nav-desktop" style={{ display: 'none', gap: 4, marginBottom: 12 }}>

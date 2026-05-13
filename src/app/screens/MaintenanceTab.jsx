@@ -20,6 +20,7 @@ import {
 import { normalizeSongTitle, normalizeArtist } from '../utils/song-helpers.js';
 import { enrichAIResult, updateAiCache } from '../utils/ai-helpers.js';
 import { fetchAI } from '../utils/fetchAI.js';
+import { isNoSyncMode, setNoSyncMode } from '../utils/firestore.js';
 
 function MaintenanceTab({ songDb, onSongDb, setlists, onSetlists, onDeletedSetlistIds, banksAnn, banksPlug, aiProvider, aiKeys, profile, guitarBias, onFullReset }) {
   const [recalculating, setRecalculating] = useState(false);
@@ -273,6 +274,30 @@ function MaintenanceTab({ songDb, onSongDb, setlists, onSetlists, onDeletedSetli
             </div>
           </div>;
         })()}
+      </div>
+
+      {/* Phase 7.24 — Toggle mode no-sync (beta testeurs). */}
+      <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Mode local (pas de sync Firestore)</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.4 }}>
+          Désactive complètement la synchronisation Firestore : tes données restent uniquement sur cet appareil. Utile pour tester l'app en isolation (beta testeurs Reddit) sans collisions avec d'autres utilisateurs. Au prochain reload, l'icône sync passe en 🔒.
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, fontStyle: 'italic' }}>
+          {isNoSyncMode() ? '🔒 Mode local actif — aucun appel Firestore.' : '☁️ Sync Firestore actif (par défaut).'}
+        </div>
+        <button
+          data-testid="maint-toggle-no-sync"
+          onClick={() => {
+            const nextOn = !isNoSyncMode();
+            const msg = nextOn
+              ? "Activer le mode local ?\n\n• Les modifications ne seront PLUS syncées vers tes autres appareils.\n• Les morceaux et profils sont stockés uniquement dans ce navigateur.\n• Les autres profils (Arthur, Franck) ne verront pas tes modifications.\n• Tu peux revenir en mode sync à tout moment.\n\nL'app va se recharger pour appliquer."
+              : 'Désactiver le mode local ?\n\n• Reprise de la sync Firestore au prochain reload.\n• Tes données locales seront fusionnées avec le state remote (LWW per record).\n\nContinuer ?';
+            if (!window.confirm(msg)) return;
+            setNoSyncMode(nextOn);
+            location.reload();
+          }}
+          style={{ background: isNoSyncMode() ? 'var(--accent)' : 'var(--a7)', border: 'none', color: isNoSyncMode() ? 'var(--text-inverse)' : 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+        >{isNoSyncMode() ? '☁️ Réactiver la sync' : '🔒 Activer le mode local'}</button>
       </div>
 
       <div style={{ background: 'var(--red-bg)', border: '1px solid var(--red-border)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
