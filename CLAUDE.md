@@ -591,45 +591,73 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
-## État actuel (2026-05-13, Phase 7.14 step 5 sur refactor-and-tmp, pas déployé)
+## État actuel (2026-05-13, Phase 7.14 close, tag `phase-7.14-done`)
 
-**Backline v8.14.13 (deployed main) / SW backline-v102 / STATE_VERSION 7 / 650 tests verts.**
+**Backline v8.14.14 / SW backline-v103 / STATE_VERSION 7 / 650 tests verts.**
+**main.jsx 7671 → 4723 lignes (-2948, -38.4%)**. Déployé sur main.
 
-Phase 7.14 = début du découpage main.jsx (prep Phase 8). Refacto pure
-côté code, aucun changement de comportement utilisateur, pas de bump
-APP_VERSION. Smoke-testé en dev local (npm run dev), pas déployé sur
-main pour l'instant.
+Phase 7.14 = découpage main.jsx pure (zéro changement comportement
+utilisateur). Tous les screens Phase 8-critiques sont extraits, prêts
+à accueillir les modifications bass/drums sans rendre main.jsx
+ingérable.
 
-5 steps livrés (commits sur refactor-and-tmp uniquement) :
+**Architecture livrée** :
 
-- **Step 1** : `src/app/utils/devices-render.js` (getActiveDevicesForRender)
-  + `src/app/utils/song-helpers.js` (getPA, getPP, getSet, getGr, getIg,
-  getTsr, getTsrRef, getSongHist).
-- **Step 2** : `src/app/utils/preset-helpers.js` (findInBanks, worstSlot,
-  findBestAvailable, getInstallRec, guitarScore, presetScore,
-  COMPAT_STYLES) + song-helpers étendu (normalizeSongTitle, normalizeArtist,
-  findDuplicateSong).
-- **Step 3** : `src/app/utils/ai-helpers.js` (AMP_ALIASES, resolveRefAmp,
-  computeBestPresets, enrichAIResult, mergeBestResults, bestScoreOf,
-  preserveHistorical, HISTORICAL_FIELDS, computeRigSnapshot, updateAiCache,
-  getBestResult, safeParseJSON).
-- **Step 4** : `src/app/components/GuitarSelect.jsx` + `src/app/utils/ui-constants.js`
-  (CC, CL, TYPE_LABELS, TYPE_COLORS — TYPE_LABELS/COLORS étaient dupliqués
-  dans main.jsx).
-- **Step 5 (proof of concept)** : `src/app/screens/RecapScreen.jsx` —
-  premier des 4 screens Phase 8. Utilise tous les helpers/constants/components
-  extraits steps 1-4. Importé tel quel dans main.jsx.
+```
+src/app/
+  utils/
+    devices-render.js     getActiveDevicesForRender
+    song-helpers.js       getPA, getPP, getSet, getGr, getIg, getTsr,
+                          getTsrRef, getSongHist, normalizeSongTitle,
+                          normalizeArtist, findDuplicateSong
+    preset-helpers.js     findInBanks, worstSlot, findBestAvailable,
+                          getInstallRec, guitarScore, presetScore,
+                          COMPAT_STYLES
+    ai-helpers.js         AMP_ALIASES, resolveRefAmp, computeBestPresets,
+                          enrichAIResult, mergeBestResults, bestScoreOf,
+                          preserveHistorical, HISTORICAL_FIELDS,
+                          computeRigSnapshot, updateAiCache,
+                          getBestResult, safeParseJSON
+    fetchAI.js            fetchAI (prompt + retry tryBest)
+    shared-key.js         getSharedGeminiKey, setSharedGeminiKey
+    ui-constants.js       CC, CL, TYPE_LABELS, TYPE_COLORS
+  components/
+    GuitarSelect.jsx
+    StatusDot.jsx
+    PBlock.jsx            + ScoreWithBreakdown co-located
+    FeedbackPanel.jsx     + FEEDBACK_TAGS
+    AddSongModal.jsx
+  screens/
+    RecapScreen.jsx       (step 5)
+    HomeScreen.jsx        + SongSearchBar, SplashPopup, OnboardingWizard
+                          co-localisés (step 8)
+    SongDetailCard.jsx    (step 9, 612 lignes — le plus complexe)
+    ListScreen.jsx        + InlineRenameInput co-localisé (step 10,
+                          682 lignes — perf-sensitive)
+    SetlistsScreen.jsx    wrapper 2-tabs (step 11)
+    LiveScreen.jsx        (déjà depuis Phase 4)
+src/data/
+  tsr-packs.js            TSR_PACK_ZIPS + TSR_PACK_GROUPS
+```
 
-**Résultat** : main.jsx 7671 → 7008 lignes (-663, -8.6%). Bundle build
-inchangé (1771 KB). Smoke test runtime validé : HomeScreen, ListScreen,
-Setlists, RecapScreen, SongDetailCard, Mon Profil (Patches TMP +
-Préférences IA) rendent sans erreur console.
+**11 commits atomiques** sur refactor-and-tmp, chacun gardant
+`npm test` + `npm run build` verts. Smoke-testé local après step 5
+(quick wins) puis step 8 (HomeScreen big) puis step 9 (SongDetailCard
+gros + complexe) puis step 11 (SetlistsScreen). Déployé sur main avec
+bump SW v102 → v103 (purement cosmétique pour distinguer le build).
 
-**Suite Phase 7.14** (sessions à venir) : extraire HomeScreen,
-ListScreen, SongDetailCard, SetlistsScreen vers `src/app/screens/`
-suivant le même modèle. Chaque screen sera trivial maintenant que les
-helpers sont extraits — main.jsx descendra vers ~4000-5000 lignes
-avant attaque Phase 8.
+**Dette résiduelle Phase 7.14** (non-bloquant pour Phase 8) :
+- BankOptimizerScreen (694 lignes) — gros, indépendant
+- SynthesisScreen (393 lignes)
+- MonProfilScreen (404 lignes, avec ses tabs internes ProfileTab,
+  PacksTab, ToneNetTab, MesAppareilsTab, MaintenanceTab,
+  ProfilesAdmin, ParametresScreen)
+- ExportImportScreen (475 lignes)
+- PresetBrowser (262 lignes)
+- JamScreen (103 lignes) + getJamRecs helper
+- ViewProfileScreen (67 lignes)
+- À grignoter opportunistically. main.jsx vise <500 lignes (cible
+  CLAUDE.md style), 4723 → ~3000 atteignable au prochain coup.
 
 ## État actuel (2026-05-13, Phase 7.13.1 close, tag `phase-7.13.1-done`)
 
