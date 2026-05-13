@@ -142,14 +142,95 @@ describe('TmpPatchEditor — rendering + interactions', () => {
     expect(onSave.mock.calls[0][0].pickupAffinity.HB).toBe(80);
   });
 
-  test('readonly blocks affichés pour info (drive, delay, reverb sur ROCK_PRESET)', () => {
+  test('Phase 7.13 — TOUS les blocs présents éditables (drive, delay, reverb…)', () => {
     const cloned = clonePatchAsCustom(ROCK_PRESET);
     const { container } = render(
       <TmpPatchEditor patch={cloned} mode="clone" onSave={() => {}} onCancel={() => {}}/>,
     );
-    const ro = container.querySelector('[data-testid="tmp-editor-readonly-blocks"]');
-    expect(ro).not.toBeNull();
-    expect(ro.textContent).toMatch(/drive/i);
-    expect(ro.textContent).toMatch(/reverb/i);
+    // ROCK_PRESET a noise_gate, drive, amp, cab, delay, reverb
+    expect(container.querySelector('[data-testid="tmp-editor-block-drive"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="tmp-editor-block-delay"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="tmp-editor-block-reverb"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="tmp-editor-block-noise_gate"]')).not.toBeNull();
+  });
+});
+
+describe('TmpPatchEditor — Phase 7.13 add/remove blocks + scenes', () => {
+  test('amp et cab : pas de bouton remove (obligatoires)', () => {
+    const cloned = clonePatchAsCustom(ROCK_PRESET);
+    const { container } = render(
+      <TmpPatchEditor patch={cloned} mode="clone" onSave={() => {}} onCancel={() => {}}/>,
+    );
+    expect(container.querySelector('[data-testid="tmp-editor-remove-amp"]')).toBeNull();
+    expect(container.querySelector('[data-testid="tmp-editor-remove-cab"]')).toBeNull();
+  });
+
+  test('blocs optionnels présents : bouton remove visible', () => {
+    const cloned = clonePatchAsCustom(ROCK_PRESET);
+    const { container } = render(
+      <TmpPatchEditor patch={cloned} mode="clone" onSave={() => {}} onCancel={() => {}}/>,
+    );
+    expect(container.querySelector('[data-testid="tmp-editor-remove-drive"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="tmp-editor-remove-delay"]')).not.toBeNull();
+  });
+
+  test('remove drive + save → patch n\'a plus de drive', () => {
+    const cloned = clonePatchAsCustom(ROCK_PRESET);
+    const onSave = vi.fn();
+    const { container } = render(
+      <TmpPatchEditor patch={cloned} mode="clone" onSave={onSave} onCancel={() => {}}/>,
+    );
+    fireEvent.click(container.querySelector('[data-testid="tmp-editor-remove-drive"]'));
+    fireEvent.click(container.querySelector('[data-testid="tmp-editor-save"]'));
+    expect(onSave.mock.calls[0][0].drive).toBeUndefined();
+  });
+
+  test('blocs absents listés dans "Ajouter un bloc" (mod absent de ROCK_PRESET)', () => {
+    const cloned = clonePatchAsCustom(ROCK_PRESET);
+    const { container } = render(
+      <TmpPatchEditor patch={cloned} mode="clone" onSave={() => {}} onCancel={() => {}}/>,
+    );
+    expect(container.querySelector('[data-testid="tmp-editor-add-mod"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="tmp-editor-add-comp"]')).not.toBeNull();
+    // drive est présent → pas dans la liste add
+    expect(container.querySelector('[data-testid="tmp-editor-add-drive"]')).toBeNull();
+  });
+
+  test('add mod + save → patch a un mod block avec model + params', () => {
+    const cloned = clonePatchAsCustom(ROCK_PRESET);
+    const onSave = vi.fn();
+    const { container } = render(
+      <TmpPatchEditor patch={cloned} mode="clone" onSave={onSave} onCancel={() => {}}/>,
+    );
+    fireEvent.click(container.querySelector('[data-testid="tmp-editor-add-mod"]'));
+    fireEvent.click(container.querySelector('[data-testid="tmp-editor-save"]'));
+    const saved = onSave.mock.calls[0][0];
+    expect(saved.mod).toBeDefined();
+    expect(saved.mod.model).toBeTruthy();
+    expect(saved.mod.enabled).toBe(true);
+    expect(saved.mod.params).toBeDefined();
+  });
+
+  test('section scenes/footswitch rendue (ScenesEditor branché)', () => {
+    const cloned = clonePatchAsCustom(ROCK_PRESET);
+    const { container } = render(
+      <TmpPatchEditor patch={cloned} mode="clone" onSave={() => {}} onCancel={() => {}}/>,
+    );
+    expect(container.querySelector('[data-testid="tmp-editor-scenes-section"]')).not.toBeNull();
+  });
+
+  test('remove un bloc référencé par footswitchMap toggle → FS nettoyé', () => {
+    const cloned = clonePatchAsCustom(ROCK_PRESET);
+    // Force un FS qui pointe sur drive
+    cloned.footswitchMap = { ...(cloned.footswitchMap || {}), fs3: { type: 'toggle', block: 'drive' } };
+    const onSave = vi.fn();
+    const { container } = render(
+      <TmpPatchEditor patch={cloned} mode="clone" onSave={onSave} onCancel={() => {}}/>,
+    );
+    fireEvent.click(container.querySelector('[data-testid="tmp-editor-remove-drive"]'));
+    fireEvent.click(container.querySelector('[data-testid="tmp-editor-save"]'));
+    const saved = onSave.mock.calls[0][0];
+    expect(saved.drive).toBeUndefined();
+    expect(saved.footswitchMap?.fs3).toBeUndefined();
   });
 });

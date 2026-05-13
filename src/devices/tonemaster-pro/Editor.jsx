@@ -20,7 +20,10 @@ import React, { useState, useMemo } from 'react';
 import {
   AMP_MODELS, CAB_MODELS, STYLES, GAINS, MODELS_BY_TYPE,
 } from './whitelist.js';
-import { validatePatch, RENDER_ORDER } from './chain-model.js';
+import {
+  validatePatch, RENDER_ORDER, OPTIONAL_BLOCK_SLOTS, STANDARD_PARAMS,
+} from './chain-model.js';
+import ScenesEditor from './ScenesEditor.jsx';
 
 // Deep clone simple — patches sont des plain objects (pas de cycles).
 function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
@@ -42,6 +45,27 @@ function clonePatchAsCustom(factoryPatch) {
   return cloned;
 }
 
+// Phase 7.13 — Crée un bloc neutre pour un type donné. Utilisé par le
+// bouton "+ Ajouter <type>". Premier model de la whitelist + params
+// STANDARD_PARAMS initialisés à 5 (valeur centrale lisible).
+function buildDefaultBlock(slot) {
+  const models = MODELS_BY_TYPE[slot] || [];
+  const standardKeys = STANDARD_PARAMS[slot] || [];
+  const params = {};
+  standardKeys.forEach((k) => {
+    // Cab : mic et axis sont des strings (mic name, axis on/off)
+    if (slot === 'cab' && k === 'mic') params[k] = 'Dyn SM57';
+    else if (slot === 'cab' && k === 'axis') params[k] = 'on';
+    else if (slot === 'mod' && k === 'type') params[k] = 'sine';
+    else params[k] = 5;
+  });
+  return {
+    model: models[0] || '',
+    enabled: true,
+    params,
+  };
+}
+
 function ParamInput({ paramKey, value, onChange, type }) {
   // Cab autorise des strings (mic, axis). Reste : numeric.
   const isString = (type === 'cab' && (paramKey === 'mic' || paramKey === 'axis'));
@@ -60,13 +84,23 @@ function ParamInput({ paramKey, value, onChange, type }) {
   );
 }
 
-function BlockEditor({ slot, block, onChange }) {
+function BlockEditor({ slot, block, onChange, onRemove }) {
   if (!block) return null;
   const models = MODELS_BY_TYPE[slot] || [];
   const paramKeys = Object.keys(block.params || {});
   return (
     <div data-testid={`tmp-editor-block-${slot}`} style={{ marginBottom: 12, background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: 10 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>{slot.replace('_', ' ')}</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{slot.replace('_', ' ')}</div>
+        {onRemove && (
+          <button
+            data-testid={`tmp-editor-remove-${slot}`}
+            onClick={onRemove}
+            style={{ fontSize: 10, padding: '2px 6px', background: 'transparent', border: '1px solid var(--a15)', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', cursor: 'pointer' }}
+            title="Supprimer ce bloc du patch"
+          >🗑️ Supprimer</button>
+        )}
+      </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <label style={{ fontSize: 10, color: 'var(--text-muted)', minWidth: 70, textTransform: 'uppercase', letterSpacing: 0.5 }}>Model</label>
@@ -123,11 +157,28 @@ function TmpPatchEditor({ patch: initialPatch, onSave, onDelete, onCancel, mode 
     onSave(patch);
   };
 
-  // Blocs non éditables mais préservés.
-  const readOnlyBlocks = useMemo(
-    () => RENDER_ORDER.filter((slot) => slot !== 'amp' && slot !== 'cab' && patch[slot]),
+  // Phase 7.13 — Slots absents (ajoutables). On exclut amp et cab (toujours
+  // présents par contrat patch) et les slots déjà présents.
+  const addableSlots = useMemo(
+    () => OPTIONAL_BLOCK_SLOTS.filter((slot) => !patch[slot]),
     [patch],
   );
+  const addBlock = (slot) => setBlock(slot, buildDefaultBlock(slot));
+  const removeBlock = (slot) => setPatch((p) => {
+    const { [slot]: _drop, ...rest } = p;
+    // Si scenes ou footswitchMap référencent ce slot via toggle, on nettoie
+    // au minimum les FS qui ciblent le bloc (peu coûteux ; les scenes
+    // gardent leurs blockToggles qui deviennent no-op silencieusement).
+    if (rest.footswitchMap) {
+      const fsm = { ...rest.footswitchMap };
+      ['fs1', 'fs2', 'fs3', 'fs4'].forEach((k) => {
+        const e = fsm[k];
+        if (e && e.type === 'toggle' && e.block === slot) delete fsm[k];
+      });
+      rest.footswitchMap = fsm;
+    }
+    return rest;
+  });
 
   return (
     <div data-testid="tmp-editor-overlay" style={{
@@ -229,23 +280,45 @@ function TmpPatchEditor({ patch: initialPatch, onSave, onDelete, onCancel, mode 
           </div>
         </div>
 
-        {/* Blocs éditables : amp + cab */}
-        <BlockEditor slot="amp" block={patch.amp} onChange={(b) => setBlock('amp', b)} />
-        <BlockEditor slot="cab" block={patch.cab} onChange={(b) => setBlock('cab', b)} />
+        {/* Phase 7.13 — Blocs éditables (TOUS les présents dans RENDER_ORDER).
+            amp et cab obligatoires (pas de remove). Les autres ont un bouton
+            🗑️ Supprimer. */}
+        {RENDER_ORDER.filter((slot) => patch[slot]).map((slot) => (
+          <BlockEditor
+            key={slot}
+            slot={slot}
+            block={patch[slot]}
+            onChange={(b) => setBlock(slot, b)}
+            onRemove={(slot === 'amp' || slot === 'cab') ? null : () => removeBlock(slot)}
+          />
+        ))}
 
-        {/* Blocs non éditables (préservés) */}
-        {readOnlyBlocks.length > 0 && (
-          <div data-testid="tmp-editor-readonly-blocks" style={{ marginBottom: 12, background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: 10 }}>
-            <div style={{ fontSize: 10, color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: 6 }}>
-              {readOnlyBlocks.length} bloc{readOnlyBlocks.length > 1 ? 's' : ''} préservé{readOnlyBlocks.length > 1 ? 's' : ''} tel{readOnlyBlocks.length > 1 ? 's' : ''} quel{readOnlyBlocks.length > 1 ? 's' : ''} (non éditable en v1, restera tel quel au save) :
-            </div>
+        {/* Phase 7.13 — Ajouter un bloc optionnel absent. */}
+        {addableSlots.length > 0 && (
+          <div data-testid="tmp-editor-add-blocks" style={{ marginBottom: 12, background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Ajouter un bloc</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {readOnlyBlocks.map((slot) => (
-                <span key={slot} style={{ fontSize: 10, padding: '2px 6px', background: 'var(--a6)', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)' }}>{slot.replace('_', ' ')} · {patch[slot].model}</span>
+              {addableSlots.map((slot) => (
+                <button
+                  key={slot}
+                  data-testid={`tmp-editor-add-${slot}`}
+                  onClick={() => addBlock(slot)}
+                  style={{ fontSize: 11, padding: '4px 10px', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-sm)', cursor: 'pointer', fontWeight: 600 }}
+                >+ {slot.replace('_', ' ')}</button>
               ))}
             </div>
           </div>
         )}
+
+        {/* Phase 7.13 — Scenes / Footswitch via ScenesEditor (composant Phase 4). */}
+        <div data-testid="tmp-editor-scenes-section" style={{ marginTop: 16, marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Scenes / Footswitch</div>
+          <ScenesEditor
+            patch={patch}
+            onScenesChange={(scenes) => set('scenes', scenes)}
+            onFootswitchChange={(footswitchMap) => set('footswitchMap', footswitchMap)}
+          />
+        </div>
 
         {/* Actions */}
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 16 }}>
