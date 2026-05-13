@@ -7,9 +7,10 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { isTrusted, setTrusted } from '../../core/state.js';
+import { verifyPassword, hashPassword, isPasswordLegacy } from '../../core/crypto-utils.js';
 import { profileColor } from './profile-color.js';
 
-function ProfileSelector({ profiles, activeProfileId, onSwitch, onSettings, onViewProfile }) {
+function ProfileSelector({ profiles, activeProfileId, onSwitch, onSettings, onViewProfile, onUpgradePassword }) {
   const [open, setOpen] = useState(false);
   const [loginId, setLoginId] = useState(null);
   const [pwd, setPwd] = useState('');
@@ -30,10 +31,16 @@ function ProfileSelector({ profiles, activeProfileId, onSwitch, onSettings, onVi
     if (!p.password || isTrusted(id)) { onSwitch(id); setOpen(false); setLoginId(null); return; }
     setLoginId(id); setPwd(''); setPwdErr(false); setRemember(true);
   };
-  const tryLogin = () => {
+  const tryLogin = async () => {
     const p = profiles[loginId];
     if (!p) return;
-    if (p.password === pwd) {
+    const ok = await verifyPassword(pwd, p.password);
+    if (ok) {
+      // Phase 7.28 — silent upgrade legacy plaintext → hash au prochain login.
+      if (p.password && isPasswordLegacy(p.password) && onUpgradePassword) {
+        const newHash = await hashPassword(pwd);
+        onUpgradePassword(loginId, newHash);
+      }
       setTrusted(loginId, remember);
       onSwitch(loginId); setOpen(false); setLoginId(null);
     } else setPwdErr(true);

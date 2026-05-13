@@ -8,8 +8,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { isTrusted, setTrusted } from '../../core/state.js';
 import { APP_NAME } from '../../core/branding.js';
 import { profileColor } from '../components/profile-color.js';
+import { verifyPassword, hashPassword, isPasswordLegacy } from '../../core/crypto-utils.js';
 
-function ProfilePickerScreen({ profiles, onPick, appVersion }) {
+function ProfilePickerScreen({ profiles, onPick, appVersion, onUpgradePassword }) {
   const [selectedId, setSelectedId] = useState(null);
   const [pwd, setPwd] = useState('');
   const [pwdErr, setPwdErr] = useState(false);
@@ -22,13 +23,22 @@ function ProfilePickerScreen({ profiles, onPick, appVersion }) {
     if (isTrusted(id)) { onPick(id); return; }
     setSelectedId(id); setPwd(''); setPwdErr(false); setRemember(true);
   };
-  const tryLogin = () => {
+  const tryLogin = async () => {
     const p = profiles[selectedId];
     if (!p) return;
-    if (!p.password || p.password === pwd) {
+    const ok = await verifyPassword(pwd, p.password);
+    if (ok) {
+      // Phase 7.28 — silent upgrade : si le password stocké est legacy
+      // plaintext, on le hash et on remonte au parent pour update.
+      if (p.password && isPasswordLegacy(p.password) && onUpgradePassword) {
+        const newHash = await hashPassword(pwd);
+        onUpgradePassword(selectedId, newHash);
+      }
       if (p.password) setTrusted(selectedId, remember);
       onPick(selectedId);
-    } else { setPwdErr(true); }
+    } else {
+      setPwdErr(true);
+    }
   };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', padding: 20 }}>

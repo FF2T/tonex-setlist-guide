@@ -10,21 +10,16 @@
 // La section "devices" de l'ancien ProfileTab a été déplacée vers
 // MesAppareilsTab Phase 2.
 //
-// Le pin admin pour création de profils (createProfile) reste dans
-// ProfileTab mais n'est pas exposé en UI ici — c'est dans
-// ProfilesAdmin que la création se fait. Code conservé verbatim.
+// Phase 7.28 — `createProfile` dead code supprimé (création gérée par
+// ProfilesAdmin). ADMIN_PIN local n'a plus de raison d'exister.
 
 import React, { useState } from 'react';
 import { GUITARS, GUITAR_BRANDS } from '../../core/guitars.js';
-import { makeDefaultProfile } from '../../core/state.js';
 import { SOURCE_LABELS, SOURCE_DESCRIPTIONS, SOURCE_INFO } from '../../core/sources.js';
 import GuitarSearchAdd from '../components/GuitarSearchAdd.jsx';
 
-const ADMIN_PIN = '212402';
-
 function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, section, aiKeys, customGuitars, onCustomGuitars }) {
   const [editName, setEditName] = useState(profile.name);
-  const [newProfileName, setNewProfileName] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editingGuitarId, setEditingGuitarId] = useState(null);
   const [editGName, setEditGName] = useState('');
@@ -65,16 +60,6 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
   const resetGuitar = (id) => {
     updateProfile('editedGuitars', (prev) => { const n = { ...(prev || {}) }; delete n[id]; return n; });
     setEditingGuitarId(null);
-  };
-  const [adminPin, setAdminPin] = useState('');
-  const [adminPinErr, setAdminPinErr] = useState(false);
-  const createProfile = () => {
-    if (!newProfileName.trim()) return;
-    if (adminPin !== ADMIN_PIN) { setAdminPinErr(true); return; }
-    setAdminPinErr(false);
-    const id = newProfileName.trim().toLowerCase().replace(/[^a-z0-9]/g, '_') + `_${Date.now()}`;
-    onProfiles((p) => ({ ...p, [id]: makeDefaultProfile(id, newProfileName.trim()) }));
-    setNewProfileName(''); setAdminPin('');
   };
   const deleteProfile = () => {
     if (Object.keys(profiles).length <= 1) return;

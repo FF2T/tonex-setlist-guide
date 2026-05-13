@@ -208,7 +208,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.27";
+const APP_VERSION = "8.14.28";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -908,7 +908,7 @@ function App() {
   var showNav=mainScreens.includes(screen);
 
   if(screen==="loading") return <div className="page-root"><div style={{textAlign:"center",padding:"60px 20px"}}><div style={{marginBottom:16,display:"flex",justifyContent:"center"}}><BacklineIcon size={56} color="var(--brass-300)"/></div><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)"}}>{APP_NAME}</div><div style={{fontSize:13,color:"var(--text-muted)",marginTop:8}}>Chargement...</div></div></div>;
-  if(screen==="pick") return <div className="page-root"><ProfilePickerScreen profiles={profiles} onPick={pickProfile} appVersion={APP_VERSION}/></div>;
+  if(screen==="pick") return <div className="page-root"><ProfilePickerScreen profiles={profiles} onPick={pickProfile} appVersion={APP_VERSION} onUpgradePassword={(id,newHash)=>setProfiles(p=>({...p,[id]:{...p[id],password:newHash,lastModified:Date.now()}}))}/></div>;
 
   // Phase 4 — mode scène plein écran. Le LiveScreen gère lui-même son
   // layout (pas d'AppHeader/AppNavBottom).

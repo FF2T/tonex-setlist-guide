@@ -6,6 +6,7 @@
 
 import React, { useState } from 'react';
 import { makeDefaultProfile, isTrusted, setTrusted } from '../../core/state.js';
+import { hashPassword } from '../../core/crypto-utils.js';
 
 function ProfilesAdmin({ profiles, onProfiles }) {
   const [name, setName] = useState('');
@@ -14,18 +15,22 @@ function ProfilesAdmin({ profiles, onProfiles }) {
   const [editPwdVal, setEditPwdVal] = useState('');
   const [editNameId, setEditNameId] = useState(null);
   const [editNameVal, setEditNameVal] = useState('');
-  const create = () => {
+  const create = async () => {
     if (!name.trim()) return;
     const id = name.trim().toLowerCase().replace(/[^a-z0-9]/g, '_') + `_${Date.now()}`;
-    onProfiles((p) => ({ ...p, [id]: makeDefaultProfile(id, name.trim(), false, newPwd) }));
+    // Phase 7.28 — hash le password à la création (jamais stocké en clair).
+    const hashed = await hashPassword(newPwd);
+    onProfiles((p) => ({ ...p, [id]: makeDefaultProfile(id, name.trim(), false, hashed) }));
     setName(''); setNewPwd('');
   };
   const deleteProfile = (id) => {
     if (Object.keys(profiles).length <= 1) return;
     onProfiles((p) => { const n = { ...p }; delete n[id]; return n; });
   };
-  const savePwd = (id) => {
-    onProfiles((p) => ({ ...p, [id]: { ...p[id], password: editPwdVal } }));
+  const savePwd = async (id) => {
+    // Phase 7.28 — hash le nouveau password avant stockage.
+    const hashed = await hashPassword(editPwdVal);
+    onProfiles((p) => ({ ...p, [id]: { ...p[id], password: hashed } }));
     setTrusted(id, false);
     setEditPwdId(null); setEditPwdVal('');
   };
