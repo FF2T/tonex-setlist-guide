@@ -1136,6 +1136,57 @@ function mergeGuitarBias(autoBias, manualBias, guitars) {
   return out;
 }
 
+// Phase 7.20 — Dédup songDb par id. Anciennes migrations Newzik et collisions
+// Date.now() sur ajouts simultanés ont laissé des doublons (`c_1778428303600_jch2`,
+// `c_1778309153614_ined`). Le fix défensif Phase 7.17 est au rendering ; ce
+// helper nettoie la source à la demande (bouton MaintenanceTab).
+//
+// Garde le premier de chaque id, mais merge defensively :
+// - aiCache : garde le plus riche (sv le plus récent OU avec result.cot_step1
+//   présent OU non-null si l'autre est null).
+// - feedback : union dédoublonnée par (text, ts).
+// - autres champs : on garde ceux du premier rencontré (canonical).
+//
+// Retourne { songs, removed } où `removed` est le nombre de doublons supprimés.
+function dedupSongDb(songDb) {
+  if (!Array.isArray(songDb)) return { songs: [], removed: 0 };
+  const seen = new Map();
+  let removed = 0;
+  for (const s of songDb) {
+    if (!s || !s.id) continue;
+    const existing = seen.get(s.id);
+    if (!existing) {
+      seen.set(s.id, { ...s });
+      continue;
+    }
+    removed++;
+    // Merge aiCache : richer wins (presence > null, higher sv, presence of cot_step1).
+    const richness = (c) => {
+      if (!c) return 0;
+      let r = 1;
+      if (c.result?.cot_step1) r += 2;
+      if (typeof c.sv === 'number') r += c.sv;
+      return r;
+    };
+    if (richness(s.aiCache) > richness(existing.aiCache)) {
+      existing.aiCache = s.aiCache;
+    }
+    // Merge feedback : union par (text, ts).
+    const fbExisting = Array.isArray(existing.feedback) ? existing.feedback : [];
+    const fbIncoming = Array.isArray(s.feedback) ? s.feedback : [];
+    if (fbIncoming.length) {
+      const key = (f) => `${f.text || ''}|${f.ts || 0}`;
+      const seenKeys = new Set(fbExisting.map(key));
+      const merged = [...fbExisting];
+      for (const f of fbIncoming) {
+        if (!seenKeys.has(key(f))) { merged.push(f); seenKeys.add(key(f)); }
+      }
+      existing.feedback = merged;
+    }
+  }
+  return { songs: [...seen.values()], removed };
+}
+
 function getAllRigsGuitars(profiles, customGuitars, allStandardGuitars) {
   const std = allStandardGuitars || GUITARS;
   if (!profiles || typeof profiles !== 'object') return [...std];
@@ -1173,4 +1224,5 @@ export {
   getAllRigsGuitars,
   computeGuitarBiasFromFeedback,
   mergeGuitarBias,
+  dedupSongDb,
 };

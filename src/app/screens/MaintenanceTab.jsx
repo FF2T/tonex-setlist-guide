@@ -15,6 +15,7 @@ import { SCORING_VERSION } from '../../core/scoring/index.js';
 import {
   listBackups, restoreBackup, clearBackups,
   dedupSetlistsWithTombstones, findSetlistDuplicatesByName,
+  dedupSongDb,
 } from '../../core/state.js';
 import { normalizeSongTitle, normalizeArtist } from '../utils/song-helpers.js';
 import { enrichAIResult, updateAiCache } from '../utils/ai-helpers.js';
@@ -36,6 +37,28 @@ function MaintenanceTab({ songDb, onSongDb, setlists, onSetlists, onDeletedSetli
     return Object.values(byKey).filter((g) => g.length > 1);
   }, [songDb]);
   const dupCount = duplicateGroups.reduce((n, g) => n + g.length - 1, 0);
+
+  // Phase 7.20 — Dédup par id (anciennes collisions Date.now() / migrations).
+  // Distinct du mergeDuplicates par titre normalisé ci-dessus.
+  const idDupCount = useMemo(() => {
+    if (!Array.isArray(songDb)) return 0;
+    const ids = new Set();
+    let dup = 0;
+    for (const s of songDb) {
+      if (!s || !s.id) continue;
+      if (ids.has(s.id)) dup++;
+      else ids.add(s.id);
+    }
+    return dup;
+  }, [songDb]);
+
+  const mergeIdDuplicates = () => {
+    if (idDupCount <= 0) return;
+    if (!window.confirm(`${idDupCount} entrée${idDupCount > 1 ? 's' : ''} avec id dupliqué dans la base.\n\nLa première occurrence de chaque id est conservée, les aiCache et feedbacks sont fusionnés.\n\nConfirmer ?`)) return;
+    const { songs, removed } = dedupSongDb(songDb);
+    onSongDb(() => songs);
+    setDone(true); setTimeout(() => setDone(false), 3000);
+  };
 
   const mergeDuplicates = () => {
     if (!duplicateGroups.length) return;
@@ -132,6 +155,17 @@ function MaintenanceTab({ songDb, onSongDb, setlists, onSetlists, onDeletedSetli
             : 'Aucun doublon détecté dans la base.'}
         </div>
         {dupCount > 0 && <button onClick={mergeDuplicates} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Fusionner ({dupCount})</button>}
+      </div>
+
+      {/* Phase 7.20 — Dédup par id (collisions Date.now() / migrations). */}
+      <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Dédupliquer la base (par id)</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>
+          {idDupCount > 0
+            ? `${idDupCount} entrée${idDupCount > 1 ? 's' : ''} avec un id en doublon (collisions Date.now() ou anciennes migrations). Conserve la première occurrence, fusionne aiCache et feedbacks.`
+            : 'Aucun id dupliqué dans la base.'}
+        </div>
+        {idDupCount > 0 && <button data-testid="maint-dedup-songdb-by-id" onClick={mergeIdDuplicates} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Dédupliquer ({idDupCount})</button>}
       </div>
 
       <div style={{ background: 'var(--a3)', border: '1px solid var(--brass-400)', borderLeftWidth: 3, borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>

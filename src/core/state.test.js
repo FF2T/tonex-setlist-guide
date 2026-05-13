@@ -16,6 +16,7 @@ import {
   computeGuitarBiasFromFeedback,
   mergeGuitarBias,
   dedupSetlists, dedupSetlistsWithTombstones, setlistDedupKey,
+  dedupSongDb,
   autoBackup, listBackups, clearBackups, isQuotaError,
 } from './state.js';
 
@@ -1915,5 +1916,124 @@ describe('toggleSetlistProfile — Phase 5.8', () => {
     expect(added.profileIds).toEqual(['sebastien', 'arthur']);
     const removed = toggleSetlistProfile(added, 'arthur', 'sebastien');
     expect(removed.profileIds).toEqual(['sebastien']);
+  });
+});
+
+describe('dedupSongDb — Phase 7.20', () => {
+  test('songDb sans doublons → identique, removed=0', () => {
+    const input = [
+      { id: 's1', title: 'A', artist: 'X' },
+      { id: 's2', title: 'B', artist: 'Y' },
+    ];
+    const { songs, removed } = dedupSongDb(input);
+    expect(removed).toBe(0);
+    expect(songs).toHaveLength(2);
+    expect(songs.map((s) => s.id)).toEqual(['s1', 's2']);
+  });
+
+  test('garde le premier rencontré par id', () => {
+    const input = [
+      { id: 's1', title: 'A v1', artist: 'X' },
+      { id: 's1', title: 'A v2', artist: 'Y' },
+      { id: 's1', title: 'A v3', artist: 'Z' },
+    ];
+    const { songs, removed } = dedupSongDb(input);
+    expect(removed).toBe(2);
+    expect(songs).toHaveLength(1);
+    expect(songs[0].title).toBe('A v1');
+    expect(songs[0].artist).toBe('X');
+  });
+
+  test('aiCache : adopte le plus riche (sv plus récent gagne)', () => {
+    const input = [
+      { id: 's1', title: 'A', aiCache: { sv: 5, result: { ideal_guitar: 'sg' } } },
+      { id: 's1', title: 'A bis', aiCache: { sv: 9, result: { cot_step1: 'x', ideal_guitar: 'lp' } } },
+    ];
+    const { songs, removed } = dedupSongDb(input);
+    expect(removed).toBe(1);
+    expect(songs[0].title).toBe('A');
+    expect(songs[0].aiCache.sv).toBe(9);
+    expect(songs[0].aiCache.result.cot_step1).toBe('x');
+  });
+
+  test('aiCache : remplace null par non-null', () => {
+    const input = [
+      { id: 's1', title: 'A', aiCache: null },
+      { id: 's1', title: 'A bis', aiCache: { sv: 9, result: { cot_step1: 'x' } } },
+    ];
+    const { songs } = dedupSongDb(input);
+    expect(songs[0].aiCache).not.toBeNull();
+    expect(songs[0].aiCache.sv).toBe(9);
+  });
+
+  test('aiCache : préserve le premier si plus riche', () => {
+    const input = [
+      { id: 's1', title: 'A', aiCache: { sv: 9, result: { cot_step1: 'x' } } },
+      { id: 's1', title: 'A bis', aiCache: { sv: 5, result: { ideal_guitar: 'sg' } } },
+    ];
+    const { songs } = dedupSongDb(input);
+    expect(songs[0].aiCache.sv).toBe(9);
+    expect(songs[0].aiCache.result.cot_step1).toBe('x');
+  });
+
+  test('feedback : union dédoublonnée par (text, ts)', () => {
+    const input = [
+      { id: 's1', title: 'A', feedback: [{ text: 'fb1', ts: 100 }, { text: 'fb2', ts: 200 }] },
+      { id: 's1', title: 'A bis', feedback: [{ text: 'fb2', ts: 200 }, { text: 'fb3', ts: 300 }] },
+    ];
+    const { songs } = dedupSongDb(input);
+    expect(songs[0].feedback).toHaveLength(3);
+    expect(songs[0].feedback.map((f) => f.text)).toEqual(['fb1', 'fb2', 'fb3']);
+  });
+
+  test('feedback absent ou non-array : pas de crash', () => {
+    const input = [
+      { id: 's1', title: 'A' },
+      { id: 's1', title: 'A bis', feedback: [{ text: 'fb', ts: 1 }] },
+    ];
+    const { songs } = dedupSongDb(input);
+    expect(songs[0].feedback).toHaveLength(1);
+    expect(songs[0].feedback[0].text).toBe('fb');
+  });
+
+  test('scénario bug réel : 2 doublons par collision Date.now()', () => {
+    const input = [
+      { id: 'c_1778428303600_jch2', title: 'Wonderful World', aiCache: { sv: 9, result: {} } },
+      { id: 'c_1778309153614_ined', title: 'Mr Jones', aiCache: { sv: 9, result: {} } },
+      { id: 'c_1778428303600_jch2', title: 'Wonderful World', aiCache: null },
+      { id: 'c_1778309153614_ined', title: 'Mr Jones', aiCache: null },
+    ];
+    const { songs, removed } = dedupSongDb(input);
+    expect(removed).toBe(2);
+    expect(songs).toHaveLength(2);
+    expect(songs.every((s) => s.aiCache !== null)).toBe(true);
+  });
+
+  test('songs sans id (corrompus) : ignorés silencieusement', () => {
+    const input = [
+      { id: 's1', title: 'A' },
+      { title: 'sans id' },
+      { id: null, title: 'id null' },
+      { id: 's1', title: 'A bis' },
+    ];
+    const { songs, removed } = dedupSongDb(input);
+    expect(songs).toHaveLength(1);
+    expect(removed).toBe(1);
+  });
+
+  test('input falsy ou non-array → { songs: [], removed: 0 }', () => {
+    expect(dedupSongDb(null)).toEqual({ songs: [], removed: 0 });
+    expect(dedupSongDb(undefined)).toEqual({ songs: [], removed: 0 });
+    expect(dedupSongDb('not array')).toEqual({ songs: [], removed: 0 });
+  });
+
+  test('immutabilité : input non muté', () => {
+    const input = [
+      { id: 's1', title: 'A' },
+      { id: 's1', title: 'A bis' },
+    ];
+    const snap = JSON.stringify(input);
+    dedupSongDb(input);
+    expect(JSON.stringify(input)).toBe(snap);
   });
 });
