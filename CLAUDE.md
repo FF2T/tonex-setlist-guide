@@ -591,9 +591,27 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
-## État actuel (2026-05-13, Phase 7.9 close, tag `phase-7.9-done`)
+## État actuel (2026-05-13, Phase 7.10 close, tag `phase-7.10-done`)
 
-**Backline v8.14.8 / SW backline-v97 / STATE_VERSION 7 / 597 tests verts.**
+**Backline v8.14.9 / SW backline-v98 / STATE_VERSION 7 / 607 tests verts.**
+
+Phase 7.10 = AI populating `preset_tmp` field. Le prompt `fetchAI` reçoit
+désormais le catalogue complet des 20 patches TMP factory (nom, ampli,
+style/gain, usages — artistes ciblés), et une **ÉTAPE 5** demande à l'IA
+de retourner `preset_tmp: "nom exact du patch"` ou `null` dans le JSON
+output. Aucun bump SCORING_VERSION (le scoring V9 local est inchangé) ;
+les aiCache existants n'ont pas `preset_tmp` mais le récupèreront au
+prochain fetchAI naturel.
+
+Helper `resolveTmpPatchByName(name, patches=TMP_FACTORY_PATCHES)` dans
+`devices/tonemaster-pro/catalog.js` : case-insensitive, normalise les
+espaces. 7 tests Vitest.
+
+`RecommendBlock` TMP : si `song.aiCache.result.preset_tmp` résolvable →
+utilisé comme top avec score conventionnel 92 (high confidence). Sinon
+fallback `recommendTMPPatch` scoring local. 3 tests régression. Les
+overrides Phase 4 (`profile.tmpPatches.factoryOverrides[id]`) continuent
+de s'appliquer au patch retenu, peu importe la source (AI ou scoring).
 
 Phase 7.9 = override manuel `profile.guitarBias` par style. UI éditable
 dans Mon Profil → 🎯 Préférences IA : table de 6 styles (blues, rock,
@@ -874,10 +892,14 @@ shared.songDb[i].aiCache {
 - **Phase 8** — Basse + batterie + sections instrumentales : gros chantier non démarré. Modèle de données étendu (`device.instrument: 'guitar'|'bass'|'drums'`), Roland TD-17 comme device drums, Fender Jazz Bass Player Plus comme device bass, sections par instrument dans `song.recommendations.{guitar,bass,drums}`, LiveScreen multi-instrument.
 - **TMP custom patches editor** (dette Phase 4) : aujourd'hui Sébastien peut éditer JSON manuel `profile.tmpPatches.custom = [...]`, pas d'UI dédiée.
 - **TMP browser dans MonProfilScreen** (dette Phase 4).
-- **AI populating `preset_tmp` field dans aiCache** (dette Phase 3+).
+- **AI preset_tmp pour patches custom** : Phase 7.10 ne sérialise que
+  TMP_FACTORY_PATCHES dans le prompt. L'IA ne peut pas suggérer un
+  patch custom de l'utilisateur. À étendre quand l'UI editor (Phase 4
+  dette) sera là.
 
 Items clôturés Phase 7.8 (`SW non enregistré`, `Deprecation warning
-apple-mobile-web-app-capable`, `Favicon 404`).
+apple-mobile-web-app-capable`, `Favicon 404`) et Phase 7.10 (`AI
+populating preset_tmp field`).
 
 ## État Phase 5.7.2 (gate migration Newzik, 2026-05-11, tag `phase-5.7.2-done`)
 
