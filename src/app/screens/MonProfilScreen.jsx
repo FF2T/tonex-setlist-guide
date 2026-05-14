@@ -296,15 +296,41 @@ function MonProfilScreen({
             >Réinitialiser les {manualCount} override{manualCount > 1 ? 's' : ''} manuel{manualCount > 1 ? 's' : ''}</button>}
           </div>;
         })()}
+        {/* Phase 7.33 — Bouton scoped accessible à TOUS les profils
+            (admin + non-admin). Invalide uniquement les caches IA des
+            morceaux dans les setlists du profil actif. Évite à un beta-
+            testeur d'avoir à demander à l'admin de wiper son cache. */}
+        {(() => {
+          const mySongIds = new Set();
+          (setlists || []).forEach((sl) => (sl.songIds || []).forEach((id) => mySongIds.add(id)));
+          const myCount = (songDb || []).filter((s) => mySongIds.has(s.id) && s.aiCache).length;
+          return (
+            <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 14, marginBottom: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Réinitialiser mes analyses IA</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.4 }}>Invalide les caches IA UNIQUEMENT pour les morceaux de tes setlists ({myCount} morceau{myCount > 1 ? 'x' : ''} concerné{myCount > 1 ? 's' : ''}). Pratique pour forcer une ré-analyse après un changement de banks, de sources ou de mode reco. Au prochain ouverture (ou via "🤖 Analyser/MAJ" en Setlists), une nouvelle analyse sera lancée.</div>
+              <button
+                data-testid="reco-invalidate-mine"
+                disabled={myCount === 0}
+                onClick={() => {
+                  if (!myCount) { window.alert('Aucun cache IA à invalider sur tes morceaux.'); return; }
+                  if (!window.confirm(`Invalider ${myCount} cache${myCount > 1 ? 's' : ''} IA sur tes morceaux ?\n\nMode actuel : ${profile.recoMode || 'balanced'}.\n\nLes morceaux passeront en ⏳ et seront re-analysés à la demande.\n\nCela consomme du quota Gemini quand les re-analyses tournent (~8s par morceau).`)) return;
+                  onSongDb((p) => p.map((s) => (mySongIds.has(s.id) && s.aiCache) ? { ...s, aiCache: null } : s));
+                  window.alert(`✓ ${myCount} cache${myCount > 1 ? 's' : ''} invalidé${myCount > 1 ? 's' : ''}. Va dans Setlists et clique "🤖 Analyser/MAJ".`);
+                }}
+                style={{ background: myCount === 0 ? 'var(--bg-disabled)' : 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 11, fontWeight: 700, cursor: myCount === 0 ? 'not-allowed' : 'pointer', opacity: myCount === 0 ? 0.5 : 1 }}
+              >🔄 Réinitialiser mes analyses ({myCount})</button>
+            </div>
+          );
+        })()}
         {profile.isAdmin && <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 14 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Appliquer le mode à toute la base</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.4 }}>Invalide tous les caches IA. Au prochain ouverture de morceau (ou via "⏳ Analyser/MAJ N" dans Setlists), une nouvelle analyse sera lancée avec le mode reco actuel.</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Appliquer le mode à toute la base (admin)</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.4 }}>Invalide TOUS les caches IA — y compris les morceaux des autres profils. À utiliser après un changement structurel (prompt, scoring) qui affecte tous les profils.</div>
           <button
             data-testid="reco-invalidate-all"
             onClick={() => {
               const n = (songDb || []).filter((s) => s.aiCache).length;
               if (!n) { window.alert('Aucun cache IA à invalider.'); return; }
-              if (!window.confirm(`Invalider ${n} cache${n > 1 ? 's' : ''} IA ?\n\nMode actuel : ${profile.recoMode || 'balanced'}.\n\nLes morceaux passeront en ⏳ et seront re-analysés à la demande (ouverture ou bouton "⏳ Analyser/MAJ" en setlists).\n\nCela consomme du quota Gemini quand les re-analyses tournent (~8s par morceau).`)) return;
+              if (!window.confirm(`Invalider ${n} cache${n > 1 ? 's' : ''} IA (TOUS profils) ?\n\nMode actuel : ${profile.recoMode || 'balanced'}.\n\nLes morceaux passeront en ⏳ et seront re-analysés à la demande (ouverture ou bouton "⏳ Analyser/MAJ" en setlists).\n\nCela consomme du quota Gemini quand les re-analyses tournent (~8s par morceau).`)) return;
               onSongDb((p) => p.map((s) => s.aiCache ? { ...s, aiCache: null } : s));
               window.alert(`✓ ${n} caches invalidés. Reviens dans Setlists et clique "⏳ Analyser/MAJ".`);
             }}
