@@ -597,7 +597,75 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
-## État actuel (2026-05-14, Phase 7.32 close)
+## État actuel (2026-05-14, Phase 7.33 close)
+
+**Backline v8.14.33 / SW backline-v133 / STATE_VERSION 7 / 674 tests verts.**
+Phase 7.33 ajoute un bouton d'invalidation cache IA scopé au profil actif,
+accessible à TOUS les profils (admin + non-admin). Avant : seul l'admin
+pouvait invalider, et le bouton wipeait TOUS les caches (y compris ceux
+d'autres profils). Cas Bruno : pour forcer une ré-analyse après un fix
+backend, il devait demander à Sébastien de wiper, ce qui invalidait aussi
+les 127 caches de Sébastien. Coûteux et bloquant pour le beta test.
+
+### Fix Phase 7.33 (1 changement)
+
+**`src/app/screens/MonProfilScreen.jsx`** : nouveau bloc en tête de
+Préférences IA (tab `reco`), visible à TOUS les profils :
+
+```
+Réinitialiser mes analyses IA
+Invalide les caches IA UNIQUEMENT pour les morceaux de tes setlists
+(N morceaux concernés). Pratique pour forcer une ré-analyse après
+un changement de banks, de sources ou de mode reco.
+[🔄 Réinitialiser mes analyses (N)]
+```
+
+Calcul de `mySongIds` au render : `Set` des `songIds` de toutes les
+setlists du profil actif (via la prop `setlists` qui est déjà filtrée
+par profileIds côté main.jsx, cf Phase 7.29.5). `myCount` = nombre de
+ces morceaux avec `aiCache` non null. Bouton désactivé si N=0.
+
+Le bouton admin "Invalider tous les caches IA" reste accessible en
+dessous, mais relégué et relabelé "(admin)" pour clarifier qu'il
+écrase aussi les caches des autres profils. À utiliser après un
+changement structurel (prompt, scoring) qui affecte tout le monde.
+
+### Conséquences
+
+- Pas de bump STATE_VERSION (UI seulement).
+- Pas de migration localStorage.
+- Bundle 1780 KB → 1782 KB (+2 KB pour le compteur dynamique).
+- 674/674 tests verts.
+- Bruno peut désormais re-déclencher ses 6 analyses sans solliciter
+  l'admin et sans toucher aux 127 caches de Sébastien.
+
+### Architecture livrée à fin Phase 7.33
+
+```
+src/main.jsx                       APP_VERSION 8.14.32 → 8.14.33
+public/sw.js                       CACHE backline-v132 → backline-v133
+src/app/screens/MonProfilScreen.jsx [7.33] bloc "Réinitialiser mes
+                                   analyses" en tête tab reco, scoped
+                                   sur setlists profil actif. Bouton
+                                   "Invalider tous" relabelé (admin)
+                                   en wine en dessous.
+```
+
+### Dette résiduelle Phase 7.33
+
+- Pas de tests Vitest dédiés sur le compteur dynamique ni sur l'action
+  scoped. Le path se teste indirectement via la suite existante
+  MonProfilScreen.test (si elle existe) ou par smoke test manuel.
+- Si l'utilisateur a plusieurs profils trusted sur le même device et
+  switch souvent, le compteur N suit le profil actif (correct).
+- Possibilité future : exposer ce bouton aussi en barre d'actions
+  Setlists (à côté de "🤖 Analyser/MAJ N") pour un usage encore plus
+  immédiat. Non fait Phase 7.33 — d'abord valider le placement Mon
+  Profil avant de dupliquer.
+
+---
+
+## État précédent (2026-05-14, Phase 7.32 close)
 
 **Backline v8.14.32 / SW backline-v132 / STATE_VERSION 7 / 674 tests verts.**
 Phase 7.32 corrige 3 incohérences d'affichage et de scoring repérées en
