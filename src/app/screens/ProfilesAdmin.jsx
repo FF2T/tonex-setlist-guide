@@ -15,6 +15,17 @@ function ProfilesAdmin({ profiles, onProfiles }) {
   const [editPwdVal, setEditPwdVal] = useState('');
   const [editNameId, setEditNameId] = useState(null);
   const [editNameVal, setEditNameVal] = useState('');
+  const adminCount = Object.values(profiles).filter((p) => p.isAdmin === true).length;
+  const toggleAdmin = (id) => {
+    const p = profiles[id]; if (!p) return;
+    const next = !p.isAdmin;
+    if (!next && p.isAdmin && adminCount <= 1) {
+      window.alert("Impossible : ce profil est le dernier admin. Promeus un autre profil admin avant de retirer celui-ci.");
+      return;
+    }
+    if (!window.confirm(next ? `Promouvoir "${p.name}" administrateur ?` : `Retirer le statut admin à "${p.name}" ?`)) return;
+    onProfiles((prev) => ({ ...prev, [id]: { ...prev[id], isAdmin: next, lastModified: Date.now() } }));
+  };
   const create = async () => {
     if (!name.trim()) return;
     const id = name.trim().toLowerCase().replace(/[^a-z0-9]/g, '_') + `_${Date.now()}`;
@@ -56,9 +67,10 @@ function ProfilesAdmin({ profiles, onProfiles }) {
               </>
             ) : (
               <>
-                <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{p.name}{p.isAdmin && <span style={{ fontSize: 9, color: 'var(--text-dim)', marginLeft: 6 }}>admin</span>}</div>
+                <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{p.name}{p.isAdmin && <span style={{ fontSize: 9, color: 'var(--brass-300)', marginLeft: 6, fontWeight: 700 }}>ADMIN</span>}</div>
                 <button onClick={() => { setEditNameId(p.id); setEditNameVal(p.name); }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer', padding: '2px 4px' }}>✏️</button>
                 <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{p.password ? (isTrusted(p.id) ? '🔓' : '🔒') : '🔓'}</span>
+                <button onClick={() => toggleAdmin(p.id)} title={p.isAdmin ? 'Retirer le statut admin' : 'Promouvoir admin'} style={{ background: p.isAdmin ? 'var(--brass-200)' : 'var(--a7)', border: 'none', color: p.isAdmin ? 'var(--ink)' : 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '3px 7px', fontSize: 10, cursor: 'pointer', fontWeight: p.isAdmin ? 700 : 500 }}>{p.isAdmin ? '★ Admin' : '☆ Admin'}</button>
                 <button onClick={() => { setEditPwdId(editPwdId === p.id ? null : p.id); setEditPwdVal(p.password || ''); }} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '3px 7px', fontSize: 10, cursor: 'pointer' }}>Mot de passe</button>
                 {p.password && isTrusted(p.id) && <button onClick={() => forgetDevice(p.id)} title="Le mot de passe sera redemandé au prochain login sur cet appareil" style={{ background: 'var(--a5)', border: 'none', color: 'var(--text-muted)', borderRadius: 'var(--r-sm)', padding: '3px 7px', fontSize: 10, cursor: 'pointer' }}>Oublier appareil</button>}
                 {Object.keys(profiles).length > 1 && !p.isAdmin && <button onClick={() => deleteProfile(p.id)} style={{ background: 'var(--red-bg)', border: '1px solid var(--red-border)', color: 'var(--red)', borderRadius: 'var(--r-md)', padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>Supprimer</button>}
