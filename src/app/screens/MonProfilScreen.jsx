@@ -103,7 +103,7 @@ function MonProfilScreen({
         {tabBtn('profile', '🎸 Guitares')}
         {tabBtn('devices', '📱 Mes appareils')}
         {tabBtn('sources', '📦 Sources')}
-        {tabBtn('tonenet', '🌐 ToneNET')}
+        {profile.isAdmin && tabBtn('tonenet', '🌐 ToneNET')}
         {(() => { const en = new Set(profile.enabledDevices || []); return <>
           {en.has('tonex-pedal') && tabBtn('pedale', '🎛 Pedale ToneX')}
           {en.has('tonex-anniversary') && tabBtn('ann', '🎛 ToneX Ann.')}
@@ -120,7 +120,7 @@ function MonProfilScreen({
       {tab === 'profile' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="guitars" aiKeys={aiKeys} customGuitars={customGuitars} onCustomGuitars={onCustomGuitars}/>}
       {tab === 'devices' && <MesAppareilsTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId}/>}
       {tab === 'sources' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="sources"/>}
-      {tab === 'tonenet' && <ToneNetTab toneNetPresets={toneNetPresets} onToneNetPresets={onToneNetPresets} inp={inp}/>}
+      {profile.isAdmin && tab === 'tonenet' && <ToneNetTab toneNetPresets={toneNetPresets} onToneNetPresets={onToneNetPresets} inp={inp}/>}
       {tab === 'setlists' && <div>
         <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>{setlists.length} setlist{setlists.length > 1 ? 's' : ''}</div>
         {setlists.map((sl) => (

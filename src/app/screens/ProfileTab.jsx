@@ -19,6 +19,7 @@ import { SOURCE_LABELS, SOURCE_DESCRIPTIONS, SOURCE_INFO } from '../../core/sour
 import GuitarSearchAdd from '../components/GuitarSearchAdd.jsx';
 
 function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, section, aiKeys, customGuitars, onCustomGuitars }) {
+  const isAdmin = profile?.isAdmin === true;
   const [editName, setEditName] = useState(profile.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editingGuitarId, setEditingGuitarId] = useState(null);
@@ -131,8 +132,8 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                         <div style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: sel ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: sel ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{sel && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
                         <div style={{ flex: 1 }}><span style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{g.short}</span><span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 6 }}>{g.name}</span></div>
                         <span style={{ fontSize: 10, color: 'var(--text-dim)', marginRight: 4 }}>{g.type}</span>
-                        {sel && <button onClick={(e) => { e.stopPropagation(); startEditGuitar(g, true); }} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '3px 7px', fontSize: 10, cursor: 'pointer' }}>✏️</button>}
-                        <button onClick={(e) => { e.stopPropagation(); removeCustomGuitar(g.id); }} style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 11, padding: '2px 4px' }}>✕</button>
+                        {isAdmin && sel && <button onClick={(e) => { e.stopPropagation(); startEditGuitar(g, true); }} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '3px 7px', fontSize: 10, cursor: 'pointer' }}>✏️</button>}
+                        {isAdmin && <button onClick={(e) => { e.stopPropagation(); removeCustomGuitar(g.id); }} style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 11, padding: '2px 4px' }}>✕</button>}
                       </div>
                       {isEditing && <div style={{ background: 'var(--a5)', borderRadius: '0 0 8px 8px', padding: '10px 12px', marginTop: -1, border: '1px solid var(--a8)', borderTop: 'none' }}>
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
@@ -152,12 +153,12 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
             })}
           </div>;
         })()}
-        <GuitarSearchAdd inp={inp} aiKeys={aiKeys} onAdd={(name, short, type) => {
+        {isAdmin && <GuitarSearchAdd inp={inp} aiKeys={aiKeys} onAdd={(name, short, type) => {
           const knownBrands = ['Gibson', 'Fender', 'Epiphone', 'PRS', 'Ibanez', 'ESP', 'Jackson', 'Schecter', 'Gretsch', 'Squier', 'Yamaha', 'Taylor', 'Martin'];
           const firstWord = name.split(' ')[0];
           const brand = knownBrands.find((b) => b.toLowerCase() === firstWord.toLowerCase()) || 'Mes guitares';
           addCustomGuitar({ id: `cg_${Date.now()}`, name, short, type, brand });
-        }}/>
+        }}/>}
       </div>}
 
       {s === 'sources' && <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 16 }}>
