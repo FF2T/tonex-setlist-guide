@@ -597,6 +597,78 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
+## Workflow de déploiement
+
+Le site est servi par GitHub Pages depuis la branche `main` du repo
+`FF2T/tonex-setlist-guide`. Les artefacts déployés vivent à la
+RACINE de `main` :
+
+- `index.html` (le bundle mono-fichier Vite)
+- `sw.js` (le service worker)
+- `ToneX_Setlist_Guide.html` (redirect HTML legacy pour les anciens
+  bookmarks et PWA installées pré-7.29)
+- `CNAME` (custom domain `mybackline.app`)
+
+Le développement et les commits incrémentaux se font sur
+`refactor-and-tmp`. Le `dist/` est gitignored sur cette branche, donc
+le build doit être copié manuellement vers `main` au déploiement.
+
+### Workflow recommandé (via git worktree)
+
+Le worktree évite tout switch de branche sur le checkout principal —
+zéro risque sur le workspace `refactor-and-tmp` (qui peut avoir des
+fichiers staged/non-committés sans rapport avec le déploiement).
+
+```bash
+# 1. Depuis refactor-and-tmp : build + commit + push de la branche
+git push origin refactor-and-tmp     # (et tags si applicable)
+npm test                              # 710/710 verts
+npm run build                         # produit dist/index.html + dist/sw.js
+
+# 2. Créer un worktree pour main à côté
+git worktree add ../ToneX-main main
+
+# 3. Copier les artefacts depuis dist/
+cp dist/index.html ../ToneX-main/index.html
+cp dist/sw.js ../ToneX-main/sw.js
+
+# 4. Commit + push depuis le worktree main
+cd ../ToneX-main
+git add index.html sw.js
+git commit -m "Update prod with Backline vX.Y.Z (Phase N.M)"
+git push origin main
+
+# 5. Nettoyer le worktree
+cd -
+git worktree remove ../ToneX-main
+```
+
+GitHub Pages redéploie automatiquement en 30-60s après le push sur
+`main`. Vérifier le déploiement en rechargeant `mybackline.app` et
+en confirmant `vX.Y.Z` dans le header.
+
+### À NE PAS faire
+
+- ~~`cp dist/index.html main:/index.html`~~ — le préfixe `main:/`
+  n'existe pas en bash, c'était un raccourci ambigu dans d'anciennes
+  notes. Le déploiement nécessite forcément d'accéder à un checkout
+  de la branche `main` (worktree ou switch).
+- `git checkout main` directement depuis `refactor-and-tmp` quand il
+  y a des fichiers staged/non-committés non destinés à `main` (genre
+  BETA_TESTING.md, handoff/, etc.). Le worktree contourne ce piège.
+- Pousser sans avoir bumpé `APP_VERSION` (`src/main.jsx`) ET `CACHE`
+  (`public/sw.js`) — sinon le SW garde l'ancien cache et les
+  utilisateurs ne voient pas la mise à jour.
+
+### Versions à bumper à chaque release applicative
+
+- `src/main.jsx` : `const APP_VERSION = "X.Y.Z";`
+- `public/sw.js` : `const CACHE = 'backline-vNNN';`
+
+Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
+automatiquement les anciens caches via le filtre `k !== CACHE` dans
+son handler `activate`.
+
 ## État actuel (2026-05-14, Phase 7.46 close)
 
 **Backline v8.14.47 / SW backline-v147 / STATE_VERSION 7 / 710 tests verts.**
