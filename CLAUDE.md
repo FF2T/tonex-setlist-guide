@@ -597,7 +597,111 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
-## État actuel (2026-05-14, Phase 7.44 close)
+## État actuel (2026-05-14, Phase 7.45 close)
+
+**Backline v8.14.46 / SW backline-v146 / STATE_VERSION 7 / 710 tests verts.**
+Phase 7.45 reframe les conseils `settings_preset` et `settings_guitar`
+de l'IA pour qu'ils soient présentés comme **personnalisation au
+matériel/contexte de l'utilisateur**, pas comme **correction du
+preset**. Anti-pattern à éviter dans les communications avec pack
+creators (TSR Paul a répondu ce soir, ce qui a soulevé la question).
+
+### Risque évité
+
+Le champ `settings_preset` retournait des conseils du type :
+> *"Pousse les basses et les aigus vers 6-7, garde les médiums vers 4
+> pour le côté 'scooped' caractéristique du son californien."*
+
+Lecture possible par un pack creator (TSR, ML, Galtone, Amalgam) :
+- **Neutre** : "voici comment ajuster le preset à TA guitare/pièce"
+- **Vexante** : "le preset TSR a besoin d'être corrigé, voici comment"
+
+La lecture vexante peut blesser inutilement les créateurs dont les
+captures sont leur métier (Paul de TSR fait des captures studio
+mind-blowing — toute suggestion de "tweak" peut être interprétée
+comme imperfection perçue).
+
+### Fix Phase 7.45 (1 changement)
+
+**`src/app/utils/fetchAI.js`** : ajout d'une section **"CONSIGNE DE
+PHRASING POUR settings_preset ET settings_guitar"** entre ÉTAPE 6 et
+OUTPUT TRILINGUE :
+
+- **À FAIRE** :
+  - Framer les conseils comme adaptation au matériel utilisateur :
+    "Sur ta guitare, tu peux pousser les mids vers 6 pour compenser…",
+    "Avec ton ampli FRFR, baisse légèrement les aigus pour…"
+  - Présenter les ajustements comme optionnels et contextuels :
+    "Si ta pièce est très réverbérante, tu peux…", "Pour faire
+    ressortir ton attaque, essaie…"
+  - Mettre en avant le point de départ qualitatif : "Le preset est
+    déjà très juste pour ce morceau. Tu peux affiner avec…"
+
+- **À ÉVITER ABSOLUMENT** :
+  - "Corrige les basses du preset à 4", "Le preset gagne à avoir les
+    mids à 6" (sous-entend défaut)
+  - "Le preset manque de chaleur" / "trop scoopé" / "trop fort en
+    aigus" (critique directe)
+  - Toute formulation lisible comme défaut du capture par son créateur.
+
+Le preset est explicitement présenté comme **calibré correctement par
+son créateur** (TSR, ML Sound Lab, Galtone, Amalgam, ToneNET
+community, IK Multimedia factory).
+
+### Conséquences
+
+- Pas de bump STATE_VERSION (changement prompt uniquement).
+- Pas de migration localStorage.
+- Les aiCache existants restent en place avec le phrasing ancien
+  jusqu'à ré-analyse (les anciennes recos Bruno notamment). Pour
+  basculer sur le nouveau phrasing : "🔄 Réinitialiser mes analyses"
+  Phase 7.33 ou "🗑 Invalider tous les caches IA" admin.
+- Bundle 1880 KB → 1882 KB (+2 KB pour le nouveau bloc prompt).
+- 710/710 tests verts.
+
+### Pourquoi le timing maintenant
+
+Paul de TSR a répondu en quelques minutes au DM du soir :
+> *"Thanks so much for your support! I'd love to see that working.
+> Let me know if there's any packs you need!"*
+
+→ Réponse hyper positive, ouverture à tester l'app. Avant qu'il y
+plonge, il fallait s'assurer que le phrasing AI ne le pique pas
+indirectement. C'est un signal clair sur la sensibilité du sujet
+pour les créateurs : à intégrer comme contrainte produit
+permanente, pas seulement pour TSR.
+
+### Architecture livrée à fin Phase 7.45
+
+```
+src/main.jsx                   APP_VERSION 8.14.45 → 8.14.46
+public/sw.js                   CACHE backline-v145 → backline-v146
+src/app/utils/fetchAI.js       [7.45] +section "CONSIGNE DE PHRASING
+                               POUR settings_preset ET settings_guitar"
+                               entre ÉTAPE 6 et OUTPUT TRILINGUE.
+                               Backticks templates échappés en
+                               guillemets pour éviter rupture du
+                               template literal (build error).
+```
+
+### Dette résiduelle Phase 7.45
+
+- Le respect du phrasing dépend de Gemini Flash. Si l'IA continue
+  à utiliser des formulations "le preset gagne à...", solution
+  Phase 7.46 : post-processing JS qui filtre/réécrit les outputs
+  qui contiennent des mots-clés défensifs ("corrige", "manque de",
+  "trop", "remplace par"...).
+- Aucun test Vitest dédié sur le respect du phrasing. Difficile à
+  tester automatiquement vu la nature non-déterministe du LLM. À
+  surveiller en feedback utilisateur (Paul lui-même peut nous
+  signaler des cas problématiques).
+- Quand un beta-testeur ML/Galtone/Amalgam rejoindra, valider que
+  leur phrasing reste respectueux côté apostrophes culturelles
+  (chaque pack creator a sa sensibilité).
+
+---
+
+## État précédent (2026-05-14, Phase 7.44 close)
 
 **Backline v8.14.45 / SW backline-v145 / STATE_VERSION 7 / 710 tests verts.**
 Phase 7.44 ajoute un disclaimer de marques tierces dans `AppFooter`,

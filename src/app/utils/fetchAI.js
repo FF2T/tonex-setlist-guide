@@ -155,6 +155,21 @@ Si une capture des listes "CAPTURES INSTALLÉES" ci-dessus matche le morceau, re
 
 Si AUCUNE des 3 étapes ne donne de match, retourne null pour preset_ann_name et preset_plug_name — le scoring fallback choisira.
 
+CONSIGNE DE PHRASING POUR settings_preset ET settings_guitar
+Le champ "settings_preset" regroupe des conseils de **personnalisation du preset** pour la guitare et le contexte d'écoute de l'utilisateur — PAS des corrections du preset lui-même. Le preset est considéré comme calibré correctement par son créateur (TSR, ML Sound Lab, Galtone, Amalgam, ToneNET community, IK Multimedia factory, etc.).
+
+À FAIRE dans le phrasing :
+- Framer les conseils comme adaptation au matériel de l'utilisateur : "Sur ta guitare, tu peux pousser les mids vers 6 pour compenser…", "Avec ton ampli FRFR, baisse légèrement les aigus pour…"
+- Présenter les ajustements comme optionnels et contextuels : "Si ta pièce est très réverbérante, tu peux…", "Pour faire ressortir ton attaque, essaie…"
+- Mettre en avant le point de départ qualitatif : "Le preset est déjà très juste pour ce morceau. Tu peux affiner avec…"
+
+À ÉVITER ABSOLUMENT :
+- "Corrige les basses du preset à 4", "Le preset gagne à avoir les mids à 6" (sous-entend défaut)
+- "Le preset manque de chaleur" / "trop scoopé" / "trop fort en aigus" (critique directe)
+- Toute formulation qui pourrait être lue comme un défaut du capture par son créateur.
+
+Idem pour "settings_guitar" : ce sont des conseils de jeu et d'utilisation des contrôles guitare (volume, tone, micros, attaque, palm muting…), pas des corrections de la guitare elle-même.
+
 OUTPUT TRILINGUE — Format des champs texte :
 Les champs marqués "TEXTE TRILINGUE" ci-dessous DOIVENT être un objet à 3 clés {"fr":"...","en":"...","es":"..."} avec la même information traduite dans chaque langue. Garde le sens et le niveau de détail constant entre les 3 versions. Les NOMS PROPRES (noms d'artistes, modèles d'amplis "Marshall JCM800", noms de guitares "Stratocaster '62", titres de morceaux) restent identiques dans les 3 langues. Les autres champs (noms, scores numériques, énums) restent des valeurs scalaires.
 
