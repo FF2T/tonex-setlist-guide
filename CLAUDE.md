@@ -597,7 +597,92 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
-## État actuel (2026-05-14, Phase 7.31 close)
+## État actuel (2026-05-14, Phase 7.32 close)
+
+**Backline v8.14.32 / SW backline-v132 / STATE_VERSION 7 / 674 tests verts.**
+Phase 7.32 corrige 3 incohérences d'affichage et de scoring repérées en
+inspectant le retour Phase 7.31 sur les 6 morceaux de Bruno (Reddit beta) :
+captures custom ignorées au profit de Factory à amp égal, `ideal_guitar`
+citée hors du rig du profil actif, et "Recommandation idéale Preset"
+qui n'affichait pas le top installé quand il battait le catalog top.
+
+### Fix Phase 7.32 (3 changements)
+
+**Fix A — `src/app/screens/SongDetailCard.jsx`** : `ideal_guitar` filtrée
+sur le rig du profil actif. Le partage de l'aiCache via Phase 3.6 (union
+all-rigs) faisait que `aiC.ideal_guitar` pouvait nommer "Les Paul Standard
+60" pour Bruno (qui n'a que Schecter + Ibanez Gio miKro). Nouvelle dérivation
+`displayIdealGuitarName` :
+- D'abord essaie `findGuitarByAIName(aiC.ideal_guitar, guitars)` (guitars =
+  rig profil actif, pas all-rigs).
+- Sinon parcourt `cot_step2_guitars` et prend la PREMIÈRE qui matche
+  `findGuitarByAIName(c.name, guitars)`.
+- Sinon cache la ligne "Guitare" plutôt que d'afficher une guitare absente
+  du rig. `idealGuitarScore` recalculé à partir de la guitare trouvée.
+
+**Fix B — `src/app/screens/SongDetailCard.jsx`** : "Recommandation idéale
+Preset" affiche maintenant le MEILLEUR preset accessible (max de preset_ann,
+preset_plug, ideal_preset). Avant : on affichait `aiC.ideal_preset` (catalog
+top) même quand `preset_ann` installé scorait plus haut. Cas Bruno : Pedal
+48B Blink-182 Mesa Boggie 90% + Plug 2B Some Grit 89% + ideal_preset
+"Some Grit" 89% → on affichait Some Grit 89% au lieu de Blink-182 Mesa
+Boggie 90%. Nouveau `displayTopPreset` = sort par score décroissant des
+3 candidats, prend le top. Toutes les références `aiC.ideal_preset` dans
+le bloc Section 3 (install button, modal title, doInstall body) basculées
+sur `displayPresetName`.
+
+**Fix C — `src/app/utils/fetchAI.js`** : prompt Étape 6 étendu avec
+priorité 3 niveaux explicite :
+1. Capture mentionnant l'artiste/morceau (comportement Phase 7.31).
+2. Capture custom/specialty (src: TSR, ML, custom, ToneNET) dont l'ampli
+   matche l'ampli historique — préfère "TSR Mars 800SL Cn1&2 HG" pour Iron
+   Maiden à "HG 800" (Factory).
+3. En dernier recours : Factory dont l'ampli matche.
+
+Objectif Fix C : que Bruno voie "TSR Mars 800SL Cn1&2 HG" (49C custom)
+recommandé pour Fear of the Dark au lieu de "HG 800" (10C factory),
+les deux étant des captures JCM800 mais le TSR plus authentique studio.
+
+### Conséquences
+
+- Pas de bump STATE_VERSION (logique d'affichage + prompt seulement).
+- Pas de migration localStorage.
+- Les aiCache existants restent valides pour Fix A et B (display-side).
+  Pour Fix C, ré-analyse nécessaire pour que le nouveau prompt influence
+  le choix IA — invalidation manuelle via "🗑 Invalider tous les caches
+  IA" ou attente de feedback/fetch naturel.
+- Bundle 1779 KB → 1780 KB (+1 KB pour la dérivation displayTopPreset).
+- 674/674 tests verts.
+
+### Architecture livrée à fin Phase 7.32
+
+```
+src/main.jsx                       APP_VERSION 8.14.31 → 8.14.32
+public/sw.js                       CACHE backline-v131 → backline-v132
+src/app/screens/SongDetailCard.jsx [7.32] displayIdealGuitarName +
+                                   displayTopPreset, refs aiC.ideal_preset
+                                   → displayPresetName dans Section 3
+src/app/utils/fetchAI.js           [7.32] Étape 6 prompt étendu :
+                                   priorité 3-niveaux artist → custom → factory
+```
+
+### Dette résiduelle Phase 7.32
+
+- Fix C dépend de l'IA pour respecter le prompt à 3 niveaux. Si l'IA
+  continue à privilégier Factory malgré l'instruction, on devra basculer
+  vers un `srcBonus` (+5 sur custom/TSR/ML/ToneNET) dans `computeBestPresets`,
+  ce qui bumperait SCORING_VERSION → V10. Évité pour rester sur V9.
+- `idealGuitarObj` (line 109 ancien) supprimé du flow render mais
+  encore référencé par d'anciens commentaires/tests qui ne testent pas
+  l'attribut. À nettoyer si découplage Phase 7.33.
+- Pas de tests Vitest dédiés Phase 7.32 sur la dérivation
+  `displayIdealGuitarName` / `displayTopPreset`. La suite existante
+  (SongDetailCard.guitar-select.test.jsx) couvre indirectement le rendu
+  via 12 tests.
+
+---
+
+## État précédent (2026-05-14, Phase 7.31 close)
 
 **Backline v8.14.31 / SW backline-v131 / STATE_VERSION 7 / 674 tests verts.**
 Phase 7.31 corrige un bug majeur de recommandation découvert pendant

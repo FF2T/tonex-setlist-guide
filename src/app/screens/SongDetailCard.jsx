@@ -104,12 +104,38 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   const needRescore = !localAiResult && aiCraw && gId && song.aiCache?.gId !== gId;
   const aiC = needRescore ? enrichAIResult({ ...aiCraw, preset_ann: null, preset_plug: null, ideal_preset: null, ideal_preset_score: 0, ideal_top3: null }, type, gId, banksAnn, banksPlug) : aiCraw;
   const songInfo = getSongInfo(song);
+  // Phase 7.32 — Restreindre ideal_guitar aux guitares POSSÉDÉES par le
+  // profil actif. L'aiCache est partagé via Phase 3.6 (union all-rigs), donc
+  // ideal_guitar peut nommer une guitare d'un autre profil (ex. Sébastien a
+  // Les Paul, Bruno ne l'a pas mais le cache mentionne "Les Paul Standard 60").
+  // On filtre côté affichage : on cherche la première guitare de cot_step2_guitars
+  // qui est dans le rig actif. Fallback : si aucune cot_step2 matche, on cache
+  // la ligne Guitare plutôt que de mentir.
   const idealGuitarFromCollection = aiC?.ideal_guitar ? findGuitarByAIName(aiC.ideal_guitar, guitars) : null;
-  const idealGuitarCot = idealGuitarFromCollection ? findCotEntryForGuitar(aiC?.cot_step2_guitars, idealGuitarFromCollection) : null;
-  const idealGuitarObj = idealGuitarCot || aiC?.cot_step2_guitars?.[0];
-  const idealGuitarScore = idealGuitarCot?.score
-    || (idealGuitarFromCollection ? localGuitarSongScore(idealGuitarFromCollection, aiC) : null)
-    || idealGuitarObj?.score || null;
+  // Si ideal_guitar n'est pas dans le rig actif, chercher dans cot_step2_guitars
+  // une guitare qui EST dans le rig actif (ordre de préférence IA respecté).
+  const idealGuitarCotInRig = idealGuitarFromCollection
+    ? findCotEntryForGuitar(aiC?.cot_step2_guitars, idealGuitarFromCollection)
+    : (aiC?.cot_step2_guitars || []).find((c) => findGuitarByAIName(c.name, guitars));
+  const idealGuitarInRigObj = idealGuitarCotInRig
+    ? findGuitarByAIName(idealGuitarCotInRig.name, guitars)
+    : null;
+  const displayIdealGuitarName = idealGuitarInRigObj?.name || null;
+  const idealGuitarObj = idealGuitarCotInRig || aiC?.cot_step2_guitars?.[0];
+  const idealGuitarScore = idealGuitarCotInRig?.score
+    || (idealGuitarInRigObj ? localGuitarSongScore(idealGuitarInRigObj, aiC) : null)
+    || null;
+  // Phase 7.32 — Le "Preset" de la Recommandation idéale doit refléter le
+  // meilleur preset RÉELLEMENT accessible à l'utilisateur (max de preset_ann,
+  // preset_plug, ideal_preset). Avant : on affichait ideal_preset (catalog
+  // top) même si preset_ann installé scorait plus haut, ce qui créait des
+  // incohérences visuelles (preset_ann 90% en bas, "Preset 89%" en haut).
+  const _displayPresetCandidates = [
+    aiC?.preset_ann?.label && { type: 'ann', score: aiC.preset_ann.score || 0, label: aiC.preset_ann.label, bank: aiC.preset_ann.bank, col: aiC.preset_ann.col },
+    aiC?.preset_plug?.label && { type: 'plug', score: aiC.preset_plug.score || 0, label: aiC.preset_plug.label, bank: aiC.preset_plug.bank, col: aiC.preset_plug.col },
+    aiC?.ideal_preset && { type: 'catalog', score: aiC.ideal_preset_score || 0, label: aiC.ideal_preset, bank: null, col: null },
+  ].filter(Boolean);
+  const displayTopPreset = _displayPresetCandidates.sort((a, b) => b.score - a.score)[0] || null;
   const chosenGuitarCot = findCotEntryForGuitar(aiC?.cot_step2_guitars, g);
   const chosenGuitarScore = chosenGuitarCot?.score || localGuitarSongScore(g, aiC);
   const chosenGuitarScoreEstimated = !chosenGuitarCot && chosenGuitarScore != null;
@@ -214,20 +240,21 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           <div style={sectionStyle}>
             {sectionTitle(<StatusDot score={100} ideal={true} size={10}/>, 'Recommandation ideale')}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {aiC.ideal_guitar && (
+              {displayIdealGuitarName && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
                   <StatusDot score={idealGuitarScore} ideal={true}/>
-                  <div style={{ flex: 1 }}>Guitare <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{aiC.ideal_guitar}</span></div>
+                  <div style={{ flex: 1 }}>Guitare <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{displayIdealGuitarName}</span></div>
                   {idealGuitarScore && <b style={{ color: scoreColor(idealGuitarScore), flexShrink: 0 }}>{idealGuitarScore}%</b>}
                 </div>
               )}
               {aiC.guitar_reason && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: -2, marginBottom: 2 }}>{aiC.guitar_reason}</div>}
-              {aiC.ideal_preset && getActiveDevicesForRender(profile).some((d) => d.deviceKey === 'ann' || d.deviceKey === 'plug') && (() => {
-                const idealScore = aiC.ideal_preset_score || 0;
-                const locAnn = findInBanks(aiC.ideal_preset, banksAnn);
-                const locPlug = findInBanks(aiC.ideal_preset, banksPlug);
+              {displayTopPreset && getActiveDevicesForRender(profile).some((d) => d.deviceKey === 'ann' || d.deviceKey === 'plug') && (() => {
+                const displayPresetName = displayTopPreset.label;
+                const idealScore = displayTopPreset.score || 0;
+                const locAnn = findInBanks(displayPresetName, banksAnn);
+                const locPlug = findInBanks(displayPresetName, banksPlug);
                 const loc = locAnn || locPlug;
-                const entry = findCatalogEntry(aiC.ideal_preset);
+                const entry = findCatalogEntry(displayPresetName);
                 if (availableSources && entry?.src && availableSources[entry.src] === false) return null;
                 const canInstallAnn = !locAnn && onBanksAnn;
                 const canInstallPlug = !locPlug && onBanksPlug;
@@ -236,7 +263,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   const sl = installSlot[device];
                   const onBanks = device === 'ann' ? onBanksAnn : onBanksPlug;
                   if (isNaN(bk) || !sl || !onBanks) return;
-                  onBanks((p) => ({ ...p, [bk]: { ...(p[bk] || { cat: '', A: '', B: '', C: '' }), [sl]: aiC.ideal_preset } }));
+                  onBanks((p) => ({ ...p, [bk]: { ...(p[bk] || { cat: '', A: '', B: '', C: '' }), [sl]: displayPresetName } }));
                   setInstallTarget(null);
                 };
                 const bankInput = (device, maxBanks) => {
@@ -266,23 +293,23 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
                       <StatusDot score={idealScore} ideal={true}/>
-                      <div style={{ flex: 1 }}>Preset <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{aiC.ideal_preset}</span></div>
+                      <div style={{ flex: 1 }}>Preset <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{displayPresetName}</span></div>
                       {idealScore > 0 && <b style={{ color: scoreColor(idealScore), flexShrink: 0 }}>{idealScore}%</b>}
                     </div>
                     <div style={{ fontSize: 9, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       {loc ? <span style={{ color: 'var(--green)' }}>✓ Installe — Banque {loc.bank}{loc.slot}</span>
                         : <span style={{ color: 'var(--yellow)' }}>⬇ Non installe</span>}
                       {(() => { const si = getSourceInfo(entry); return si ? <span style={{ color: loc ? 'var(--text-tertiary)' : 'var(--text-sec)' }}>· {si.icon} {si.label}</span> : null; })()}
-                      {!loc && !installTarget && (canInstallAnn || canInstallPlug) && <button onClick={() => setInstallTarget({ preset: aiC.ideal_preset })} style={{ fontSize: 9, background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-sm)', padding: '2px 8px', cursor: 'pointer', fontWeight: 600, marginLeft: 'auto' }}>Installer</button>}
+                      {!loc && !installTarget && (canInstallAnn || canInstallPlug) && <button onClick={() => setInstallTarget({ preset: displayPresetName })} style={{ fontSize: 9, background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-sm)', padding: '2px 8px', cursor: 'pointer', fontWeight: 600, marginLeft: 'auto' }}>Installer</button>}
                     </div>
-                    {installTarget?.preset === aiC.ideal_preset && (() => {
+                    {installTarget?.preset === displayPresetName && (() => {
                       const activeEnabled = getActiveDevicesForRender(profile);
                       const canPedal = canInstallAnn && activeEnabled.some((d) => d.deviceKey === 'ann');
                       const canPlug = canInstallPlug && activeEnabled.some((d) => d.deviceKey === 'plug');
                       if (!canPedal && !canPlug) return null;
                       return (
                         <div style={{ marginTop: 6, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: 10 }}>
-                          <div style={{ fontSize: 10, color: 'var(--text-sec)', marginBottom: 8, fontWeight: 600 }}>Installer "{aiC.ideal_preset}" sur :</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-sec)', marginBottom: 8, fontWeight: 600 }}>Installer "{displayPresetName}" sur :</div>
                           {canPedal && bankInput('ann', 49)}
                           {canPlug && bankInput('plug', 10)}
                           <button onClick={() => setInstallTarget(null)} style={{ fontSize: 9, background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}>Annuler</button>
