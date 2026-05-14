@@ -597,7 +597,115 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
-## État actuel (2026-05-14, Phase 7.45 close)
+## État actuel (2026-05-14, Phase 7.46 close)
+
+**Backline v8.14.47 / SW backline-v147 / STATE_VERSION 7 / 710 tests verts.**
+Phase 7.46 corrige un bug majeur de sync Firestore : les éditions de
+banks (ainsi que customPacks, editedGuitars, tmpPatches, recoMode,
+guitarBias) ne remontaient JAMAIS à Firestore depuis Phase 6.1.1
+(2026-05-12). Symptôme reporté ce soir par Sébastien : il a perdu ses
+banks plusieurs fois dans la soirée et a dû réimporter son CSV à
+chaque fois ; il a aussi constaté que les banks modifiées sur Mac ne
+descendaient pas sur l'iPhone.
+
+### Bug racine (depuis Phase 6.1.1)
+
+Le `syncHash` (anti-boucle infinie de sync, `src/main.jsx:696-698`
+pré-7.46) ne hashait que 5 champs profile : `myGuitars`,
+`customGuitars` (ids), `availableSources`, `enabledDevices`,
+`aiProvider`. Tous les autres champs LWW étaient invisibles au
+détecteur de changement.
+
+Conséquence chaîne :
+
+1. User édite ses banks sur Mac → `setBanksAnn` → `setProfileField` →
+   `setProfiles` stamp bien `profile.lastModified = Date.now()`.
+2. Le `useEffect` persist se déclenche, recompute le hash → **hash
+   inchangé** (banks pas hashées) → `shouldBump=false` → `if(!shouldBump) return;`
+   ligne 734 → **push Firestore skippé**.
+3. localStorage est bien écrit (banks persistent localement).
+4. Firestore reste sur l'ancien état.
+5. Plus tard, n'importe quel autre device (ou un événement local du
+   genre login, ajout de morceau, toggle guitare) bumpe le hash →
+   push à Firestore avec son profil ET son `lastModified` plus récent.
+6. Le device qui avait les banks fraîches poll Firestore → `mergeProfilesLWW`
+   voit `remote.lastModified > local.lastModified` → adopte
+   ENTIÈREMENT le profil remote → **banks vaporisées**.
+
+### Fix Phase 7.46 (1 changement)
+
+**`src/main.jsx:696-712`** : `profileHash` étendu pour inclure tous
+les champs LWW qu'un user peut éditer :
+
+```js
+const profileHash=Object.entries(profiles||{}).map(([id,p])=>
+  id
+  +":"+(p.myGuitars||[]).slice().sort().join(',')
+  +":"+(p.customGuitars||[]).map(g=>g.id).slice().sort().join(',')
+  +":"+JSON.stringify(p.availableSources||{})
+  +":"+(p.enabledDevices||[]).slice().sort().join(',')
+  +":"+(p.aiProvider||'')
+  +":"+JSON.stringify(p.banksAnn||{})        // NOUVEAU 7.46
+  +":"+JSON.stringify(p.banksPlug||{})       // NOUVEAU 7.46
+  +":"+(p.customPacks||[]).map(pk=>(pk.name||'')+":"+((pk.presets||[]).map(pr=>pr.name||'').sort().join(','))).join('|')  // NOUVEAU 7.46
+  +":"+JSON.stringify(p.editedGuitars||{})   // NOUVEAU 7.46
+  +":"+JSON.stringify(p.tmpPatches||{})      // NOUVEAU 7.46
+  +":"+(p.recoMode||'')                      // NOUVEAU 7.46
+  +":"+JSON.stringify(p.guitarBias||{})      // NOUVEAU 7.46
+).join('|');
+```
+
+### Champs volontairement EXCLUS
+
+- `aiKeys` : stripés à `saveToFirestore` ligne 58 (anthropic + gemini
+  vidés) et réinjectés via `applySecrets` au pull. Ne transitent
+  jamais via Firestore, pas besoin de les hasher.
+- `password` : pareil, stocké séparément en `tonex_secrets`
+  localStorage et réinjecté par `applySecrets`.
+- `loginHistory` : mute à chaque login (recordLogin stamp
+  lastModified). Inclure dans le hash forcerait un push à chaque
+  login, ce qui n'apporte rien — le log est local seulement.
+
+### Conséquences
+
+- Pas de bump STATE_VERSION (changement runtime uniquement).
+- Pas de migration localStorage.
+- Bundle 1881.99 KB → 1882.22 KB (+0.23 KB pour les fields supplémentaires).
+- 710/710 tests verts (aucune régression).
+- **Comportement attendu après déploiement** : édition d'une slot
+  banks → icône sync ⏳ pendant ~2s (debounce) → ☁️ → autre device
+  picke les banks dans les 5-10s suivants (poll 5s).
+
+### Limite résiduelle Phase 7.46
+
+- **Pas de test Vitest dédié au hash**. Il est inline dans un
+  `useEffect` de main.jsx, peu testable en isolation. Pour ajouter
+  un filet de régression : extraire le hash en helper pur
+  `computeSyncHash(state)` dans `core/state.js`. Phase 7.47+ si
+  jugé utile.
+- **Pertes irréversibles avant déploiement** : les banks Sébastien
+  perdues ce soir sont vraiment perdues — réimport CSV requis une
+  dernière fois. Après v8.14.47 actif sur tous les devices, plus de
+  perte.
+- **Cohabitation pré-7.46/post-7.46** : un device pré-7.46 qui pousse
+  encore un profil avec ses anciennes banks peut écraser un device
+  post-7.46. Bumper APP_VERSION + SW CACHE force le pull de la
+  nouvelle version au prochain reload de chaque device, ce qui
+  limite la fenêtre à quelques minutes.
+
+### Architecture livrée à fin Phase 7.46
+
+```
+src/main.jsx                   APP_VERSION 8.14.46 → 8.14.47
+                               +profileHash étendu (banks, customPacks,
+                               editedGuitars, tmpPatches, recoMode,
+                               guitarBias)
+public/sw.js                   CACHE backline-v146 → backline-v147
+```
+
+---
+
+## État précédent (2026-05-14, Phase 7.45 close)
 
 **Backline v8.14.46 / SW backline-v146 / STATE_VERSION 7 / 710 tests verts.**
 Phase 7.45 reframe les conseils `settings_preset` et `settings_guitar`

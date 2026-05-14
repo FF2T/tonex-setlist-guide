@@ -209,7 +209,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.46";
+const APP_VERSION = "8.14.47";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -693,8 +693,29 @@ function App() {
     // Phase 6.1.1 — Hash basé UNIQUEMENT sur les vraies données, pas
     // les timestamps. Les lastModified peuvent muter à chaque mergeLWW
     // sans qu'il y ait vraiment eu modif locale → cause boucle.
+    // Phase 7.46 — Inclure tous les champs LWW qu'un user peut éditer
+    // (banks, customPacks, editedGuitars, tmpPatches, recoMode,
+    // guitarBias). Bug pré-7.46 : modifier les banks bumpe
+    // profile.lastModified mais le hash skippait le push → banks
+    // restaient en local, jamais propagées à Firestore. Un autre device
+    // qui pushe son profil ensuite (avec lastModified plus récent par
+    // login ou autre) écrasait ces banks fraîches via mergeProfilesLWW.
+    // Les secrets (aiKeys, password) restent EXCLUS : stripés au push
+    // dans saveToFirestore et réinjectés via applySecrets côté pull.
     const profileHash=Object.entries(profiles||{}).map(([id,p])=>
-      id+":"+(p.myGuitars||[]).slice().sort().join(',')+":"+(p.customGuitars||[]).map(g=>g.id).slice().sort().join(',')+":"+JSON.stringify(p.availableSources||{})+":"+(p.enabledDevices||[]).slice().sort().join(',')+":"+(p.aiProvider||'')
+      id
+      +":"+(p.myGuitars||[]).slice().sort().join(',')
+      +":"+(p.customGuitars||[]).map(g=>g.id).slice().sort().join(',')
+      +":"+JSON.stringify(p.availableSources||{})
+      +":"+(p.enabledDevices||[]).slice().sort().join(',')
+      +":"+(p.aiProvider||'')
+      +":"+JSON.stringify(p.banksAnn||{})
+      +":"+JSON.stringify(p.banksPlug||{})
+      +":"+(p.customPacks||[]).map(pk=>(pk.name||'')+":"+((pk.presets||[]).map(pr=>pr.name||'').sort().join(','))).join('|')
+      +":"+JSON.stringify(p.editedGuitars||{})
+      +":"+JSON.stringify(p.tmpPatches||{})
+      +":"+(p.recoMode||'')
+      +":"+JSON.stringify(p.guitarBias||{})
     ).join('|');
     const syncHash=[
       (songDb||[]).map(s=>s.id+":"+(s.aiCache?.sv||0)+":"+(s.aiCache?.rigSnapshot||'')+":"+(s.aiCache?.gId||'')).join(','),
