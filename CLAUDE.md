@@ -597,7 +597,83 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
-## État actuel (2026-05-14, Phase 7.33 close)
+## État actuel (2026-05-14, Phase 7.34 close)
+
+**Backline v8.14.34 / SW backline-v134 / STATE_VERSION 7 / 674 tests verts.**
+Phase 7.34 renforce le prompt Étape 6 de fetchAI avec un garde-fou anti
+cross-contamination : une capture nommée d'après un artiste/groupe est
+RÉSERVÉE à cet artiste. Le retour Phase 7.32 sur les 6 morceaux de Bruno
+avait montré que l'IA poussait "Blink-182 Mesa Boggie" (48B custom Mesa
+Triple Rectifier) pour Self Esteem de The Offspring uniquement parce que
+les deux morceaux veulent du Mesa Boogie — confusion entre "capture
+signature d'un artiste" et "capture générique d'un ampli".
+
+### Fix Phase 7.34 (1 changement)
+
+**`src/app/utils/fetchAI.js`** : prompt Étape 6 réécrit avec règle
+impérative en tête et 3 étapes strictement ordonnées :
+
+**Règle impérative — Cross-contamination interdite** : une capture
+mentionnant un artiste/groupe/morceau (ex: "Blink-182 Mesa Boggie",
+"Kirk & James - Gasoline v2", "Drain You - Punk", "ACDC - Marshall")
+est RÉSERVÉE à cet artiste. Interdiction de proposer "Blink-182 Mesa
+Boggie" pour un morceau qui n'est pas de Blink-182, même si l'ampli
+est cohérent. EXCLUS-la complètement de la considération pour les
+autres artistes.
+
+1. **Match artiste/morceau direct** : capture dont le nom contient
+   le nom de l'artiste OU un titre de l'artiste analysé.
+2. **Pas de match artiste → capture custom/specialty générique** :
+   capture dont le nom NE MENTIONNE PAS d'artiste/groupe (ex: "TSR
+   Mars 800SL Cn1&2 HG", "5150-CAB57-1073") avec src custom/TSR/ML/
+   Anniversary/ToneNET et amp matchant.
+3. **En dernier recours** : Factory matchant l'ampli ("HG 800", etc.).
+
+### Conséquences
+
+- Pas de bump STATE_VERSION.
+- Pas de migration localStorage.
+- Les aiCache existants restent en place mais sous-optimaux pour les
+  cas cross-contaminés (Self Esteem → Blink-182 Mesa Boggie). Ré-analyse
+  nécessaire via le bouton "🔄 Réinitialiser mes analyses" Phase 7.33.
+- Bundle 1782 KB → 1783 KB (+1 KB pour le prompt étendu).
+- 674/674 tests verts.
+
+### Cas Bruno après Phase 7.34 (attendu)
+
+| Morceau | Attendu après ré-analyse |
+|---|---|
+| All the Small Things (Blink-182) | 48B Blink-182 Mesa Boggie ← Étape 1 |
+| The Final Countdown (Europe) | 49B Silver Jubilee 2555 HG (custom) OU 10B DR 800 (factory) si IA ne pin pas ← Étape 2 ou 3 |
+| Dr. Stein (Helloween) | 49C TSR Mars 800SL Cn1&2 HG ← Étape 2 |
+| Fear of the Dark (Iron Maiden) | 49C TSR Mars 800SL Cn1&2 HG ← Étape 2 (capture custom JCM800) |
+| For Whom the Bell Tolls (Metallica) | 48A Kirk & James - Gasoline v2 ← Étape 1 |
+| Self Esteem (Offspring) | PAS 48B Blink-182 (exclusion stricte). Factory JCM900 ou Mesa générique ← Étape 3 |
+
+### Architecture livrée à fin Phase 7.34
+
+```
+src/main.jsx                   APP_VERSION 8.14.33 → 8.14.34
+public/sw.js                   CACHE backline-v133 → backline-v134
+src/app/utils/fetchAI.js       [7.34] Étape 6 prompt réécrit avec règle
+                               anti cross-contamination + 3 étapes
+                               strictement ordonnées
+```
+
+### Dette résiduelle Phase 7.34
+
+- Le respect strict du prompt dépend de Gemini 3 Flash. Si l'IA continue
+  à cross-contaminer malgré la règle impérative, fallback Phase 7.35 :
+  pré-filtrer la liste des captures en JS avant de l'envoyer à l'IA
+  (omettre les captures nommées d'après un artiste qui n'est PAS celui
+  du morceau analysé).
+- Non-déterminisme LLM : deux analyses successives du même morceau peuvent
+  différer. Solution future : aiCache.locked (Phase ~8) qui permet à
+  l'utilisateur de "verrouiller" un choix IA validé.
+
+---
+
+## État précédent (2026-05-14, Phase 7.33 close)
 
 **Backline v8.14.33 / SW backline-v133 / STATE_VERSION 7 / 674 tests verts.**
 Phase 7.33 ajoute un bouton d'invalidation cache IA scopé au profil actif,
