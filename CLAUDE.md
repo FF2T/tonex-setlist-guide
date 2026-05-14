@@ -597,7 +597,189 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
-## État actuel (2026-05-14, Phase 7.35 close)
+## État actuel (2026-05-14, Phase 7.43 close)
+
+**Backline v8.14.44 / SW backline-v144 / STATE_VERSION 7 / 710 tests verts.**
+**Multilingue FR/EN/ES complet** sur ~605 strings UI + 26 entrées seed +
+champs texte IA via prompt trilingue. Bundle 1788 → 1880 KB (+92 KB pour
+1170+ traductions inline). Plan déroulé en 8 sous-phases (7.36 → 7.43).
+
+### Architecture i18n (Phase 7.36–7.43)
+
+**`src/i18n/index.js`** :
+- `SUPPORTED_LOCALES = [fr, en, es]`, auto-détection `navigator.language`
+  au premier boot (persisté immédiatement pour stabilité reload — fix
+  du design Phase 7.26 qui supprimait la clé pour FR).
+- `getLocale()` avec cache module-level `_cachedLocale` (Phase 7.41) +
+  `_tCache = Map` qui memoize résolution t(key, locale). Évite ~100
+  `localStorage.getItem` + lookup hasOwnProperty par render de ListScreen.
+  Cache vidé à `setLocale()`.
+- `lookup()` supporte format **plat** (`dict['home.search.placeholder']`)
+  prioritaire sur format imbriqué (reduce sur split('.')). en.js/es.js
+  sont plats pour faciliter l'édition. fr.js reste vide volontairement
+  (fallbacks inline FR = source de vérité).
+- Helpers : `t(key, fallback)`, `tFormat(key, params, fallback)` avec
+  remplacement `{placeholder}`, `tPlural(key, n, params, {one, other})`.
+- Hook `useLocale()` (useState + subscribeLocale via useEffect) à appeler
+  en tête de tout composant qui contient des t() et doit suivre le switch.
+  Présent dans App (main.jsx), HomeScreen, SongDetailCard, MonProfilScreen.
+- Sélecteur de langue dans Mon Profil → 🎨 Affichage (3 boutons drapeaux).
+
+**`src/i18n/en.js`, `es.js`** : 605 traductions chacun. Termes guitare
+en EN restent en anglais (preset, pickup, humbucker, gain, BPM, clean,
+drive, lead). ES : "pastilla" pour pickup, "ampli" pour amp, "canción"
+pour song, "banco" pour bank. Pluriels `{one, other}` pour les clés
+tPlural. Tutoiement informel pour matcher le FR "tu". Namespaces :
+add-song, bank-editor, common, devices, export, feedback, fuzzy,
+guitar-add, home, jam, list, live, loading, maintenance, nav, optimizer,
+packs, picker, preset-browser, preset-search, profile, profile-selector,
+profile-tab, profiles, recap, setlists, song-detail, sound, synthesis,
+tonenet, view-profile.
+
+### IA trilingue (Phase 7.39 — Option D)
+
+Le prompt `fetchAI.js` demande à Gemini de retourner les champs texte
+au format `{"fr":"...","en":"...","es":"..."}` en UN seul appel :
+- `cot_step1`, `cot_step3_amp`, `song_desc`, `guitar_reason`,
+  `settings_preset`, `settings_guitar` (objets trilingues)
+- `cot_step2_guitars[].reason` (objet trilingue par guitare)
+- `cot_step4_score.{micro,body,history,amp_match}.reason` (idem)
+- Champs scalaires NOMS PROPRES restent identiques : `ideal_guitar`,
+  `ref_guitarist`, `ref_guitar`, `ref_amp`, `preset_*_name`,
+  `cot_step2_guitars[].name`. Scores numériques inchangés.
+
+Helper `getLocalizedText(value, locale)` dans `ai-helpers.js` décode :
+- String legacy (aiCache pré-7.39) → retourne tel quel (FR pour tous)
+- Objet trilingue `{fr, en, es}` → pioche locale avec cascade fallback
+  fr → en → es → ''. Skip vides.
+- null/undefined → ''
+- Number → coerce string
+
+Câblé dans HomeScreen + SongDetailCard sur tous les sites de rendu
+texte IA. **Pas de bump STATE_VERSION** : schéma additif rétrocompat.
+
+### Schéma localStorage v7 (inchangé, additif côté champs)
+
+```
+shared.songDb[i].aiCache.result {
+  ...,
+  cot_step1: string | { fr, en, es },   // legacy ou trilingue
+  cot_step2_guitars: [{ name, score, reason: string|{fr,en,es} }],
+  cot_step3_amp: string | { fr, en, es },
+  guitar_reason: string | { fr, en, es },
+  settings_preset: string | { fr, en, es },
+  settings_guitar: string | { fr, en, es },
+  song_desc: string | { fr, en, es },   // pareil, si fetched post-7.39
+  // ref_*, ideal_*, *_name, scores, song_year/album/key/bpm/style : inchangés
+}
+```
+
+### SONG_HISTORY + INIT_SONG_DB_META trilingues (Phase 7.40)
+
+`src/core/songs.js` : 13 morceaux seed × 2 champs trilingues =
+26 traductions ajoutées.
+- `INIT_SONG_DB_META[i].desc` : passe de string à `{fr, en, es}`.
+- `SONG_HISTORY[id].effects` : pareil. Les autres champs (guitarist,
+  guitar, amp) restent string FR car noms propres + annotations FR
+  mineures négligeables ("(ébène)", "(modifié)").
+
+`getSongInfo()` retourne `desc` brut (objet ou string), décodage côté
+UI via `getLocalizedText(info.desc, locale)`. Sites câblés : HomeScreen,
+SongDetailCard, SetlistPdfExport.
+
+### Perf ListScreen (Phase 7.42)
+
+Bug latent pré-Phase A révélé par Sébastien testant une setlist de
+120 morceaux : `enrichAIResult` coûte ~150ms/song sur ses customPacks
+gonflés → 14s par render bloquant le main thread → timeout navigateur.
+Phase A→E n'a pas introduit le bug, juste a poussé à le constater.
+
+3 fixes appliqués :
+1. **`mySetlists` memoizé** (main.jsx) : était `setlists.filter(...)`
+   nu, ref-changée à chaque render → cascade `mySongIds` → `activeSongs`
+   → `songRowData` → `collapsedAiCBySongId` recompute inutile.
+   Maintenant `useMemo([setlists, activeProfileId])`.
+2. **`collapsedAiCBySongId` progressif** (ListScreen.jsx) :
+   passe d'un `useMemo` synchrone à un `useState` + `useEffect` qui
+   process en batches de 3 songs via `requestIdleCallback` (fallback
+   setTimeout). L'UI affiche immediately les rows (Map vide initiale +
+   raw aiCache fallback), puis les badges enrichis arrivent
+   progressivement entre frames. Persistance setState : les rows déjà
+   enrichies conservent leur aiC ref → React.memo
+   SongCollapsedDeviceRows continue de fonctionner. Reset complet de la
+   Map au changement de setlist/banks/availableSources.
+3. **i18n cache** : `_cachedLocale` + `_tCache` (cf section Architecture
+   ci-dessus).
+
+Diagnostic perf gardé derrière `window.__TONEX_PERF = true` (logs
+`[perf] collapsedAiCBySongId total: Xms (N enriched)`).
+
+**Dette résiduelle perf** : `enrichAIResult` lui-même reste lent
+(itère PRESET_CATALOG_MERGED ~700–1500 entries × scoring math). Optims
+futures possibles : cache scoring par (gType, style, refAmp, targetGain)
+réutilisable entre songs avec mêmes attributs, ou Web Worker pour
+offloader le scoring.
+
+### Comportement utilisateur
+
+- **User FR** : tout en français, comportement identique à Phase 7.35.
+  aiCache existants restent en FR (fallback inline).
+- **User EN/ES (auto-détecté via navigator.language au premier boot)** :
+  UI 100% traduite. aiCache legacy reste affiché en FR jusqu'à
+  ré-analyse (Phase D rétro-compatible). Pour bascule des aiCache en
+  trilingue : "🔄 Réinitialiser mes analyses" (Mon Profil → 🎯
+  Préférences IA, tous profils) ou "🗑 Invalider tous les caches" (admin)
+  puis "🤖 Analyser/MAJ N" dans Setlists.
+- **Switch de langue** : Mon Profil → 🎨 Affichage → 🇫🇷/🇬🇧/🇪🇸.
+  Instantané, persisté en localStorage. Au switch, aiCache trilingues
+  bascule sans appel IA supplémentaire (3 langues déjà en cache).
+
+### Commits (8 phases)
+
+```
+8231bc2 [phase-7.43] Wrap nav titles + SOUND_PROFILES + page titles inline main.jsx
+65e64b9 [phase-7.42] Fix perf ListScreen + locale cache i18n
+2862c62 [phase-7.40] Traductions EN + ES complètes (572 clés UI + 26 seed)
+65563d9 [phase-7.39] Option D - IA trilingue {fr,en,es} en 1 fetch
+d964718 [phase-7.38] Wrapping i18n Phase C - 18 écrans restants
+d070444 [phase-7.37] Wrapping i18n top 5 fichiers
+897a917 [phase-7.36] Fondations i18n + sélecteur langue FR/EN/ES
+```
+
+### Scripts dédiés
+
+`scripts/extract-i18n-keys.cjs` : scan src/ pour extraire toutes les
+paires (key, fallback FR) depuis les appels t/tFormat/tPlural.
+Produit un JSON groupé par namespace, utilisé Phase 7.40 pour générer
+en.js/es.js à partir des fallbacks inline. À relancer après ajout de
+nouveau wrapping pour identifier les clés à traduire dans en/es.
+
+### Dette résiduelle Phase 7.43
+
+- **Annotations FR mineures** dans `SONG_HISTORY` : `guitar:"Gibson SG
+  Custom (ébène)"` — "(ébène)" reste FR. Pareil pour `(modifié)`,
+  `(peinte)`. Si polish 100% propre voulu, ~10 mini-traductions à
+  inliner. Pas critique.
+- **References à "⚙️ Paramètres"** dans certains messages d'erreur
+  (`packs.api-key-missing`, `song-detail.ai-error-hint`) : cet écran a
+  été supprimé Phase 7.26, devrait pointer vers "Mon Profil → 🔑 Clé
+  API". 2 strings à mettre à jour FR+EN+ES.
+- **`fr.js` reste vide** : volontaire (fallbacks inline FR = source de
+  vérité). Aucune valeur fonctionnelle à le remplir mais ça donnerait
+  un seul point d'édition pour les traductions FR si jamais besoin.
+- **`enrichAIResult` lent** : ~150ms/song sur catalog gonflé (cf section
+  Perf). Compute progressif Phase 7.42 masque le problème, optim de
+  fond optionnelle (Phase 8 ou plus tard).
+- **Test CI sur clés manquantes** : à coder. Un script qui détecte les
+  clés `t('x.y', '...')` qui n'existent pas dans en.js / es.js
+  empêcherait de régresser à l'avenir.
+- **Coût IA opérationnel** : prompt trilingue = +30% tokens output par
+  fetch (3× texte au lieu de 1×), 1 appel toujours. Acceptable
+  (Gemini largement gratuit), à surveiller si beta s'agrandit.
+
+---
+
+## État précédent (2026-05-14, Phase 7.35 close)
 
 **Backline v8.14.35 / SW backline-v135 / STATE_VERSION 7 / 674 tests verts.**
 Phase 7.35 permet à TOUS les profils (admin + non-admin) de changer leur
