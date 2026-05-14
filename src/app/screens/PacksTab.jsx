@@ -6,6 +6,7 @@
 // contexte amp. Sauvegarde dans profile.customPacks.
 
 import React, { useState, useRef } from 'react';
+import { t, tFormat } from '../../i18n/index.js';
 import { safeParseJSON } from '../utils/ai-helpers.js';
 import { getSharedGeminiKey } from '../utils/shared-key.js';
 
@@ -32,7 +33,7 @@ function PacksTab({ profile, onProfiles, activeProfileId, aiProvider, aiKeys }) 
     if (!packName.trim() || !filePreview) return;
     const key = aiKeys?.gemini || aiKeys?.anthropic || getSharedGeminiKey();
     const provider = (aiKeys?.gemini || getSharedGeminiKey()) ? 'gemini' : 'anthropic';
-    if (!key) { setErr('Clé API manquante — configure-la dans ⚙️ Paramètres.'); return; }
+    if (!key) { setErr(t('packs.api-key-missing', 'Clé API manquante — configure-la dans ⚙️ Paramètres.')); return; }
     setLoading(true); setErr(null);
     const prompt = `Analyse cette image/document d'un pack de presets pour guitare ToneX appelé "${packName.trim()}".
 Extrais TOUS les noms de presets visibles et pour chacun déduis :
@@ -90,36 +91,36 @@ Réponds UNIQUEMENT en JSON (sans markdown) :
 
   return (
     <div>
-      <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 16 }}>Ajoute des packs de presets en joignant une photo ou un document. L'IA en extraira les presets.</div>
+      <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 16 }}>{t('packs.intro', "Ajoute des packs de presets en joignant une photo ou un document. L'IA en extraira les presets.")}</div>
       {packs.length > 0 && <div style={{ marginBottom: 16 }}>
         {packs.map((p) => (
           <div key={p.id} style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 12, marginBottom: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
               <div style={{ flex: 1, fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{p.name}</div>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.presetCount || p.presets?.length || 0} presets</span>
-              <button onClick={() => deletePack(p.id)} style={{ background: 'var(--red-bg)', border: '1px solid var(--red-border)', color: 'var(--red)', borderRadius: 'var(--r-md)', padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>Supprimer</button>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{tFormat('packs.presets-count', { count: p.presetCount || p.presets?.length || 0 }, '{count} presets')}</span>
+              <button onClick={() => deletePack(p.id)} style={{ background: 'var(--red-bg)', border: '1px solid var(--red-border)', color: 'var(--red)', borderRadius: 'var(--r-md)', padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>{t('packs.delete', 'Supprimer')}</button>
             </div>
             {p.presets?.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
               {p.presets.slice(0, 8).map((pr, i) => <span key={i} style={{ fontSize: 10, background: 'var(--a5)', border: '1px solid var(--a8)', borderRadius: 'var(--r-sm)', padding: '2px 6px', color: 'var(--text-sec)' }}>{pr.name}</span>)}
-              {p.presets.length > 8 && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>+{p.presets.length - 8} autres</span>}
+              {p.presets.length > 8 && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{tFormat('packs.more-others', { count: p.presets.length - 8 }, '+{count} autres')}</span>}
             </div>}
           </div>
         ))}
       </div>}
       <div style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-soft)', borderRadius: 'var(--r-lg)', padding: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)', marginBottom: 12 }}>+ Nouveau pack</div>
-        <input placeholder="Nom du pack (ex: TSR Blues Pack)" value={packName} onChange={(e) => setPackName(e.target.value)} style={{ ...inp, width: '100%', marginBottom: 10 }}/>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)', marginBottom: 12 }}>{t('packs.new-pack', '+ Nouveau pack')}</div>
+        <input placeholder={t('packs.pack-name', 'Nom du pack (ex: TSR Blues Pack)')} value={packName} onChange={(e) => setPackName(e.target.value)} style={{ ...inp, width: '100%', marginBottom: 10 }}/>
         <div style={{ marginBottom: 10 }}>
           <input ref={fileRef} type="file" accept="image/*,.pdf" onChange={handleFile} style={{ fontSize: 12, color: 'var(--text-sec)' }}/>
         </div>
         {filePreview && filePreview.startsWith('data:image') && <div style={{ marginBottom: 10, borderRadius: 'var(--r-md)', overflow: 'hidden', border: '1px solid var(--a8)' }}>
           <img src={filePreview} style={{ width: '100%', maxHeight: 200, objectFit: 'contain', background: 'var(--a3)' }}/>
         </div>}
-        {filePreview && !filePreview.startsWith('data:image') && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>Document joint ({file?.name})</div>}
+        {filePreview && !filePreview.startsWith('data:image') && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>{tFormat('packs.document-attached', { name: file?.name || '' }, 'Document joint ({name})')}</div>}
         {err && <div style={{ fontSize: 12, color: 'var(--red)', marginBottom: 10 }}>{err}</div>}
         <button onClick={extractPresets} disabled={!packName.trim() || !filePreview || loading}
           style={{ width: '100%', background: packName.trim() && filePreview && !loading ? 'var(--accent)' : 'var(--bg-disabled)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-lg)', padding: '12px', fontSize: 13, fontWeight: 700, cursor: packName.trim() && filePreview && !loading ? 'pointer' : 'not-allowed' }}>
-          {loading ? 'Extraction IA en cours...' : 'Extraire les presets avec l\'IA'}
+          {loading ? t('packs.extracting', 'Extraction IA en cours...') : t('packs.extract', "Extraire les presets avec l'IA")}
         </button>
       </div>
     </div>

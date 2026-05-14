@@ -7,6 +7,7 @@
 // ils restent visibles dans Recap/Setlists collapsed.
 
 import React from 'react';
+import { t, tFormat, tPlural } from '../../i18n/index.js';
 import { GUITARS } from '../../core/guitars.js';
 import { getActiveDevicesForRender } from '../utils/devices-render.js';
 import { getBestResult, enrichAIResult } from '../utils/ai-helpers.js';
@@ -46,27 +47,27 @@ function SynthesisScreen({ songs, gps, aiR, onBack, onNavigate, songDb, banksAnn
     return (
       <div>
         {rec?.installed
-          ? <span style={{ fontWeight: 700, color: accentColor, fontSize: 13, marginRight: 4 }}>Banque {rec.bank}{rec.slot}</span>
-          : <span style={{ fontSize: 10, background: 'var(--yellow-bg)', color: 'var(--yellow)', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700, marginRight: 4 }}>⬇ À installer</span>
+          ? <span style={{ fontWeight: 700, color: accentColor, fontSize: 13, marginRight: 4 }}>{tFormat('synthesis.bank', { bank: rec.bank, slot: rec.slot }, 'Banque {bank}{slot}')}</span>
+          : <span style={{ fontSize: 10, background: 'var(--yellow-bg)', color: 'var(--yellow)', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700, marginRight: 4 }}>{t('synthesis.to-install', '⬇ À installer')}</span>
         }
         {sc != null && <span style={{ fontSize: 10, fontWeight: 800, color: scC, background: scB, borderRadius: 'var(--r-sm)', padding: '1px 6px' }}>{sc}%</span>}
         <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.5, marginTop: 2 }}>{name}</div>
-        {!rec?.installed && rec?.replaceBank != null && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 1 }}>→ Remplace Banque {rec.replaceBank}{rec.replaceSlot}</div>}
+        {!rec?.installed && rec?.replaceBank != null && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 1 }}>{tFormat('synthesis.replaces-bank', { bank: rec.replaceBank, slot: rec.replaceSlot }, '→ Remplace Banque {bank}{slot}')}</div>}
       </div>
     );
   };
   return (
     <div>
-      <Breadcrumb crumbs={[{ label: 'Accueil', screen: 'list' }, { label: 'Récap', screen: 'recap' }, { label: 'Synthèse' }]} onNavigate={onNavigate}/>
+      <Breadcrumb crumbs={[{ label: t('common.home', 'Accueil'), screen: 'list' }, { label: t('synthesis.breadcrumb-recap', 'Récap'), screen: 'recap' }, { label: t('synthesis.breadcrumb', 'Synthèse') }]} onNavigate={onNavigate}/>
       <div style={{ marginBottom: 20 }}>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 800, color: 'var(--text-primary)' }}>Tableau de synthèse</div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{songs.length} morceau{songs.length > 1 ? 'x' : ''}</div>
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 800, color: 'var(--text-primary)' }}>{t('synthesis.title', 'Tableau de synthèse')}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{tPlural('synthesis.songs-count', songs.length, {}, { one: '1 morceau', other: '{count} morceaux' })}</div>
       </div>
       <div style={{ overflowX: 'auto', borderRadius: 'var(--r-lg)', border: '1px solid var(--a8)' }}>
         <table>
           <thead><tr style={{ background: 'var(--a4)' }}>
-            <th style={th}>Morceau</th>
-            <th style={th}>Guitare</th>
+            <th style={th}>{t('synthesis.col-song', 'Morceau')}</th>
+            <th style={th}>{t('synthesis.col-guitar', 'Guitare')}</th>
             {enabledDevices.map((d) => (
               <th key={d.id} style={{ ...th, color: d.id === 'tonex-plug' ? 'var(--accent)' : 'var(--text-sec)' }}>{d.icon} {d.label}</th>
             ))}

@@ -19,6 +19,7 @@
 // InlineRenameInput est co-localisé car n'est utilisé que par ce screen.
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { t, tFormat, tPlural } from '../../i18n/index.js';
 import { GUITARS } from '../../core/guitars.js';
 import { SCORING_VERSION, computeFinalScore } from '../../core/scoring/index.js';
 import {
@@ -51,7 +52,7 @@ function InlineRenameInput({ initialName, onSave, onCancel, inp, placeholder, bu
   return (
     <div style={{ display: 'flex', gap: 6 }}>
       <input value={val} onChange={(e) => setVal(e.target.value)} placeholder={placeholder || ''} style={{ ...inp, flex: 1 }} autoFocus={!!initialName} onKeyDown={(e) => e.key === 'Enter' && submit()}/>
-      <button onClick={submit} disabled={!val.trim()} style={{ background: val.trim() ? 'var(--accent)' : 'var(--a7)', border: 'none', color: val.trim() ? 'var(--text-inverse)' : 'var(--text-dim)', borderRadius: 'var(--r-md)', padding: '4px 12px', fontSize: 11, fontWeight: 700, cursor: val.trim() ? 'pointer' : 'not-allowed' }}>{buttonLabel || 'OK'}</button>
+      <button onClick={submit} disabled={!val.trim()} style={{ background: val.trim() ? 'var(--accent)' : 'var(--a7)', border: 'none', color: val.trim() ? 'var(--text-inverse)' : 'var(--text-dim)', borderRadius: 'var(--r-md)', padding: '4px 12px', fontSize: 11, fontWeight: 700, cursor: val.trim() ? 'pointer' : 'not-allowed' }}>{buttonLabel || t('list.ok', 'OK')}</button>
       {initialName && <button onClick={onCancel} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer' }}>✕</button>}
     </div>
   );
@@ -209,7 +210,10 @@ function ListScreen({
     const sl = setlists.find((s) => s.id === id);
     if (!sl) return;
     const n = sl.songIds.length;
-    if (!window.confirm(`Supprimer la setlist "${sl.name}" ?${n > 0 ? '\nElle contient ' + n + ' morceau' + (n > 1 ? 'x' : '') + ' (les morceaux ne sont pas supprimés de la base).' : ''}`)) return;
+    const detail = n > 0
+      ? '\n' + tFormat('list.delete-detail', { songs: tPlural('list.songs-count', n, {}, { one: '1 morceau', other: '{count} morceaux' }) }, 'Elle contient {songs} (les morceaux ne sont pas supprimés de la base).')
+      : '';
+    if (!window.confirm(tFormat('list.delete-setlist-confirm', { name: sl.name, detail }, 'Supprimer la setlist "{name}" ?{detail}'))) return;
     onSetlists((p) => p.filter((s) => s.id !== id));
     if (activeSlId === id) { setActiveSlId(null); onChecked([]); }
   };
@@ -328,10 +332,10 @@ function ListScreen({
       {/* Sélecteur setlist compact */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
         <select value={activeSlId || ''} onChange={(e) => { const v = e.target.value; setActiveSlId(v || null); onChecked([]); const ss = v && setlists.find((s) => s.id === v)?.sort; setSort(ss && ss !== 'default' ? ss : 'artist'); }} style={{ flex: 1, background: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border-strong,var(--a15))', borderRadius: 'var(--r-md)', padding: '8px 12px', fontSize: 13, cursor: 'pointer' }}>
-          <option value="">Tous les morceaux ({mySongIds ? songDb.filter((s) => mySongIds.has(s.id)).length : songDb.length})</option>
+          <option value="">{tFormat('list.all-songs', { count: mySongIds ? songDb.filter((s) => mySongIds.has(s.id)).length : songDb.length }, 'Tous les morceaux ({count})')}</option>
           {setlists.map((sl) => <option key={sl.id} value={sl.id}>{sl.name} ({sl.songIds.length})</option>)}
         </select>
-        {typeof onLive === 'function' && activeSongs.length > 0 && <button data-testid="list-screen-live" onClick={() => onLive(activeSlId || null)} title="Mode scène plein écran" style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-md)', padding: '8px 10px', fontSize: 13, cursor: 'pointer', flexShrink: 0, fontWeight: 700 }}>🎤</button>}
+        {typeof onLive === 'function' && activeSongs.length > 0 && <button data-testid="list-screen-live" onClick={() => onLive(activeSlId || null)} title={t('list.live-mode', 'Mode scène plein écran')} style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-md)', padding: '8px 10px', fontSize: 13, cursor: 'pointer', flexShrink: 0, fontWeight: 700 }}>🎤</button>}
         <button onClick={() => setEditingSetlists(!editingSetlists)} style={{ background: editingSetlists ? 'var(--accent-bg)' : 'var(--a5)', border: '1px solid ' + (editingSetlists ? 'var(--accent-border)' : 'var(--a10)'), color: editingSetlists ? 'var(--accent)' : 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '8px 10px', fontSize: 11, cursor: 'pointer', flexShrink: 0 }}>{editingSetlists ? '✕' : '✏️'}</button>
       </div>
       {editingSetlists && (
@@ -352,10 +356,10 @@ function ListScreen({
                       <button onClick={() => setEditSlId(sl.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer' }}>✏️</button>
                       {sl.songIds.length > 0 && <button
                         data-testid={`setlist-empty-${sl.id}`}
-                        title="Vider la setlist (garde la setlist mais retire tous les morceaux)"
+                        title={t('list.empty-setlist-title', 'Vider la setlist (garde la setlist mais retire tous les morceaux)')}
                         onClick={() => {
                           const n = sl.songIds.length;
-                          const msg = `Vider "${sl.name}" ?\n\n${n} morceau${n > 1 ? 'x' : ''} vont être retirés de cette setlist.\n\nLes morceaux restent disponibles dans la base globale (Setlists → onglet Morceaux). La setlist "${sl.name}" continue d'exister, juste vide.`;
+                          const msg = tFormat('list.empty-setlist-confirm', { name: sl.name, songs: tPlural('list.songs-count', n, {}, { one: '1 morceau', other: '{count} morceaux' }) }, 'Vider "{name}" ?\n\n{songs} vont être retirés de cette setlist.\n\nLes morceaux restent disponibles dans la base globale (Setlists → onglet Morceaux). La setlist "{name}" continue d\'exister, juste vide.');
                           if (!window.confirm(msg)) return;
                           onSetlists((p) => p.map((s) => s.id === sl.id ? { ...s, songIds: [] } : s));
                         }}
@@ -370,7 +374,7 @@ function ListScreen({
                 const profileEntries = Object.values(profiles);
                 return (
                   <div data-testid={`setlist-share-${sl.id}`} style={{ display: 'flex', alignItems: 'center', gap: 4, paddingLeft: 4, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 9, color: 'var(--text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Partager :</span>
+                    <span style={{ fontSize: 9, color: 'var(--text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('list.share', 'Partager :')}</span>
                     {profileEntries.map((pf) => {
                       const isMe = pf.id === activeProfileId;
                       const isChecked = slProfileIds.includes(pf.id);
@@ -384,7 +388,7 @@ function ListScreen({
                           data-testid={`setlist-share-pill-${sl.id}-${pf.id}`}
                           onClick={onClick}
                           disabled={isMe}
-                          title={isMe ? 'Toi (verrouillé)' : (isChecked ? 'Cliquer pour retirer' : 'Cliquer pour partager')}
+                          title={isMe ? t('list.share-you', 'Toi (verrouillé)') : (isChecked ? t('list.share-remove', 'Cliquer pour retirer') : t('list.share-add', 'Cliquer pour partager'))}
                           style={{
                             background: isChecked ? (isMe ? 'var(--accent-soft)' : 'var(--accent-bg)') : 'var(--a4)',
                             border: `1px solid ${isChecked ? 'var(--accent-border)' : 'var(--a8)'}`,
@@ -403,49 +407,52 @@ function ListScreen({
               })()}
             </div>
           ))}
-          <InlineRenameInput initialName="" onSave={(name) => { onSetlists((p) => [...p, { id: `sl_${Date.now()}`, name, songIds: [], profileIds: [activeProfileId] }]); }} onCancel={() => {}} inp={inp} placeholder="Nouvelle setlist..." buttonLabel="+ Creer"/>
+          <InlineRenameInput initialName="" onSave={(name) => { onSetlists((p) => [...p, { id: `sl_${Date.now()}`, name, songIds: [], profileIds: [activeProfileId] }]); }} onCancel={() => {}} inp={inp} placeholder={t('list.new-setlist-placeholder', 'Nouvelle setlist...')} buttonLabel={t('list.create', '+ Creer')}/>
         </div>
       )}
 
       {/* Barre d'actions compacte */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{activeSongs.length} morceau{activeSongs.length > 1 ? 'x' : ''}</span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{tPlural('list.songs-count', activeSongs.length, {}, { one: '1 morceau', other: '{count} morceaux' })}</span>
         <select value={sort} onChange={(e) => saveSort(e.target.value)} style={{ background: 'var(--bg-card)', color: 'var(--text-sec)', border: '1px solid var(--a10)', borderRadius: 'var(--r-sm)', padding: '3px 6px', fontSize: 10, cursor: 'pointer' }}>
-          <option value="artist">Par artiste</option>
-          <option value="alpha">A → Z</option>
+          <option value="artist">{t('list.sort-artist', 'Par artiste')}</option>
+          <option value="alpha">{t('list.sort-alpha', 'A → Z')}</option>
         </select>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
-          {activeSongs.length > 0 && <button onClick={() => setShowTopGuitars(!showTopGuitars)} style={{ fontSize: 10, color: showTopGuitars ? 'var(--accent)' : 'var(--text-muted)', background: showTopGuitars ? 'var(--accent-bg)' : 'var(--a5)', border: '1px solid ' + (showTopGuitars ? 'var(--accent-border)' : 'var(--a10)'), borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer' }}>Guitares</button>}
-          {activeSongs.length > 0 && <button onClick={toggleAll} style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--a5)', border: '1px solid var(--a10)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer' }}>{checked.length === activeSongs.length ? 'Décocher' : 'Cocher'}</button>}
+          {activeSongs.length > 0 && <button onClick={() => setShowTopGuitars(!showTopGuitars)} style={{ fontSize: 10, color: showTopGuitars ? 'var(--accent)' : 'var(--text-muted)', background: showTopGuitars ? 'var(--accent-bg)' : 'var(--a5)', border: '1px solid ' + (showTopGuitars ? 'var(--accent-border)' : 'var(--a10)'), borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer' }}>{t('list.guitars', 'Guitares')}</button>}
+          {activeSongs.length > 0 && <button onClick={toggleAll} style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--a5)', border: '1px solid var(--a10)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer' }}>{checked.length === activeSongs.length ? t('list.uncheck-all', 'Décocher') : t('list.check-all', 'Cocher')}</button>}
           {missingCount > 0 && !analyzeAllStatus && <button
             data-testid="list-screen-analyze-missing"
             onClick={() => {
-              const msg = `Analyser/actualiser ${missingCount} morceau${missingCount > 1 ? 'x' : ''} ?\n\nInclut :\n• Morceaux sans analyse IA (⏳)\n• Morceaux dont l'analyse date d'avant un changement de rig (guitare ajoutée/retirée)\n\nDurée estimée : ${Math.ceil(missingCount * 8)}s (~8s par morceau).\nLa clé Gemini partagée sera utilisée. Tu peux annuler à tout moment.`;
+              const msg = tFormat('list.analyze-confirm', { songs: tPlural('list.songs-count', missingCount, {}, { one: '1 morceau', other: '{count} morceaux' }), duration: Math.ceil(missingCount * 8) }, "Analyser/actualiser {songs} ?\n\nInclut :\n• Morceaux sans analyse IA (⏳)\n• Morceaux dont l'analyse date d'avant un changement de rig (guitare ajoutée/retirée)\n\nDurée estimée : {duration}s (~8s par morceau).\nLa clé Gemini partagée sera utilisée. Tu peux annuler à tout moment.");
               if (!window.confirm(msg)) return;
               analyzeMissingAll();
             }}
-            title={`${missingCount} morceau(x) à analyser ou actualiser après modif du rig.`}
+            title={tFormat('list.analyze-title', { count: missingCount }, '{count} morceau(x) à analyser ou actualiser après modif du rig.')}
             style={{ fontSize: 10, color: 'var(--accent)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer', fontWeight: 700 }}
-          >🤖 Analyser/MAJ {missingCount}</button>}
+          >{tFormat('list.analyze-button', { count: missingCount }, '🤖 Analyser/MAJ {count}')}</button>}
           {analyzeAllStatus && <button
             data-testid="list-screen-analyze-cancel"
             onClick={() => { analyzeCancelRef.current = true; }}
             style={{ fontSize: 10, color: 'var(--wine-400)', background: 'rgba(155,58,44,0.12)', border: '1px solid rgba(155,58,44,0.3)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer', fontWeight: 700 }}
-            title={`Annuler l'analyse en cours (${analyzeAllStatus.current}/${analyzeAllStatus.total})`}
+            title={tFormat('list.cancel-analyze', { current: analyzeAllStatus.current, total: analyzeAllStatus.total }, "Annuler l'analyse en cours ({current}/{total})")}
           >⏸ {analyzeAllStatus.current}/{analyzeAllStatus.total}</button>}
           {activeSlId && checked.length > 0 && checked.length < activeSongs.length && <button
             data-testid="list-screen-keep-checked"
             onClick={() => {
               const keepIds = new Set(checked);
               const removeCount = activeSongs.length - checked.length;
-              const msg = `Garder ${checked.length} morceau${checked.length > 1 ? 'x' : ''} et retirer les ${removeCount} autre${removeCount > 1 ? 's' : ''} de "${activeSl?.name || 'cette setlist'}" ?\n\nLes morceaux retirés restent dans la base globale.`;
+              const keepLabel = tPlural('list.songs-count', checked.length, {}, { one: '1 morceau', other: '{count} morceaux' });
+              const removeLabel = tPlural('list.others-count', removeCount, {}, { one: "1 autre", other: '{count} autres' });
+              const slName = activeSl?.name || t('list.this-setlist', 'cette setlist');
+              const msg = tFormat('list.keep-checked-confirm', { keep: keepLabel, remove: removeLabel, name: slName }, 'Garder {keep} et retirer les {remove} de "{name}" ?\n\nLes morceaux retirés restent dans la base globale.');
               if (!window.confirm(msg)) return;
               onSetlists((p) => p.map((sl) => sl.id === activeSlId ? { ...sl, songIds: sl.songIds.filter((id) => keepIds.has(id)) } : sl));
               onChecked([]);
             }}
             style={{ fontSize: 10, color: 'var(--wine-400)', background: 'rgba(155,58,44,0.12)', border: '1px solid rgba(155,58,44,0.3)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer', fontWeight: 600 }}
-            title="Retirer les morceaux non cochés de cette setlist (garde-fou : confirmation)"
-          >🧹 Retirer non-cochés ({activeSongs.length - checked.length})</button>}
+            title={t('list.remove-unchecked-title', 'Retirer les morceaux non cochés de cette setlist (garde-fou : confirmation)')}
+          >{tFormat('list.remove-unchecked', { count: activeSongs.length - checked.length }, '🧹 Retirer non-cochés ({count})')}</button>}
           <button onClick={() => setShowAdd(true)} style={{ fontSize: 10, color: 'var(--accent)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer', fontWeight: 600 }}>+</button>
         </div>
       </div>
@@ -506,7 +513,7 @@ function ListScreen({
         );
       })()}
 
-      {activeSongs.length === 0 && <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-dim)' }}><div style={{ fontSize: 24, marginBottom: 8 }}>🎵</div><div style={{ fontSize: 14 }}>Setlist vide — clique sur "+ Ajouter"</div></div>}
+      {activeSongs.length === 0 && <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-dim)' }}><div style={{ fontSize: 24, marginBottom: 8 }}>🎵</div><div style={{ fontSize: 14 }}>{t('list.empty', 'Setlist vide — clique sur "+ Ajouter"')}</div></div>}
 
       {(() => {
         let lastArtist = '';
@@ -545,7 +552,7 @@ function ListScreen({
               <div style={{ display: 'flex', alignItems: 'center', gap: 5 }} data-device-id={deviceId || 'unknown'}>
                 <StatusDot score={sc} ideal={isIdeal}/>
                 {loc
-                  ? <span title={`Banque ${loc.bank}, slot ${loc.slot} — ${CL[loc.slot]}`} style={{ fontSize: 10, background: `${badgeColor}18`, color: badgeColor, border: `1px solid ${badgeColor}40`, borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700 }}>{loc.bank}{loc.slot}</span>
+                  ? <span title={tFormat('list.bank-tooltip', { bank: loc.bank, slot: loc.slot, label: CL[loc.slot] }, 'Banque {bank}, slot {slot} — {label}')} style={{ fontSize: 10, background: `${badgeColor}18`, color: badgeColor, border: `1px solid ${badgeColor}40`, borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700 }}>{loc.bank}{loc.slot}</span>
                   : <span style={{ fontSize: 10, background: 'var(--yellow-bg)', color: 'var(--yellow)', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700 }}>⬇</span>}
                 {label && <span style={{ fontSize: 10, color: scColorV || 'var(--text-sec)', background: scBgV || 'transparent', border: scColorV ? `1px solid ${scColorV}30` : 'none', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                   <span>{label}</span>
@@ -598,7 +605,7 @@ function ListScreen({
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 4 }}>
                           <StatusDot score={gScore || null} ideal={isIdealGuitar}/>
                           {g
-                            ? <span style={{ fontSize: 10, color: 'var(--text-sec)', background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '1px 7px', fontWeight: 600 }}>{g.name} ({g.type}){savedGId && !ig.includes(savedGId) ? ' (choix perso)' : ''}</span>
+                            ? <span style={{ fontSize: 10, color: 'var(--text-sec)', background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '1px 7px', fontWeight: 600 }}>{g.name} ({g.type}){savedGId && !ig.includes(savedGId) ? ' ' + t('list.custom-choice', '(choix perso)') : ''}</span>
                             : aiC?.ideal_guitar && <span style={{ fontSize: 10, color: 'var(--text-sec)', background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '1px 7px', fontWeight: 600 }}>{aiC.ideal_guitar}</span>}
                           {gScore > 0 && <span style={{ fontSize: 10, fontWeight: 800, color: scoreColor(gScore), background: scoreBg(gScore), borderRadius: 'var(--r-sm)', padding: '1px 6px', border: `1px solid ${scoreColor(gScore)}30` }} title={scoreLabel(gScore).tip + '  —  score guitare'}>{gScore}%</span>}
                         </div>
@@ -620,7 +627,7 @@ function ListScreen({
                   {activeSlId && <button
                     data-testid={`song-row-remove-${s.id}`}
                     onClick={(e) => { e.stopPropagation(); removeSongFromActiveSetlist(s.id, s.title); }}
-                    title={`Retirer "${s.title}" de la setlist`}
+                    title={tFormat('list.remove-song-title', { title: s.title }, 'Retirer "{title}" de la setlist')}
                     style={{
                       background: isC ? 'rgba(74,222,128,0.05)' : 'var(--a3)',
                       border: isC ? '1px solid var(--green-border)' : '1px solid var(--a7)',
@@ -640,7 +647,7 @@ function ListScreen({
         });
       })()}
 
-      {checked.length > 0 && <div className="bottom-action" style={{ paddingTop: 12 }}><button onClick={onNext} style={{ width: '100%', background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-lg)', padding: '14px', fontSize: 15, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)', fontFamily: 'var(--font-ui)' }}>Générer le récap — {checked.length} morceau{checked.length > 1 ? 'x' : ''} →</button></div>}
+      {checked.length > 0 && <div className="bottom-action" style={{ paddingTop: 12 }}><button onClick={onNext} style={{ width: '100%', background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-lg)', padding: '14px', fontSize: 15, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)', fontFamily: 'var(--font-ui)' }}>{tFormat('list.generate-recap', { songs: tPlural('list.songs-count', checked.length, {}, { one: '1 morceau', other: '{count} morceaux' }) }, 'Générer le récap — {songs} →')}</button></div>}
 
       {removedSong && <div
         data-testid="song-remove-toast"
@@ -656,7 +663,7 @@ function ListScreen({
         }}
       >
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          <b style={{ color: 'var(--text-bright)' }}>"{removedSong.songTitle}"</b> retiré
+          <b style={{ color: 'var(--text-bright)' }}>"{removedSong.songTitle}"</b> {t('list.removed', 'retiré')}
         </span>
         <button
           data-testid="song-remove-toast-undo"
@@ -667,7 +674,7 @@ function ListScreen({
             padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
             flexShrink: 0,
           }}
-        >↩ Annuler</button>
+        >{t('list.undo', '↩ Annuler')}</button>
       </div>}
 
       {showAdd && <AddSongModal songDb={songDb} onSongDb={onSongDb} setlists={setlists} onSetlists={onSetlists} activeSlId={activeSlId} onClose={() => setShowAdd(false)} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} guitars={allGuitars} guitarBias={guitarBias}/>}

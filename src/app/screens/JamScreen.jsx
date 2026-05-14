@@ -10,6 +10,7 @@
 // helper local — il n'est utilisé que par JamScreen.
 
 import React, { useState, useMemo } from 'react';
+import { t, tFormat } from '../../i18n/index.js';
 import { GUITARS } from '../../core/guitars.js';
 import { findCatalogEntry, PRESET_CATALOG_MERGED } from '../../core/catalog.js';
 import { computeFinalScore } from '../../core/scoring/index.js';
@@ -31,8 +32,9 @@ const JAM_STYLES = [
 // Mini badge du gain (low/mid/high) — version locale (l'inline gainBadge
 // de main.jsx n'a pas été extrait, on duplique ici à 3 lignes près).
 function gainBadge(gain) {
-  const l = { low: 'Low', mid: 'Mid', high: 'High' }[gain] || gain;
-  return <span className="badge badge-wine">{l} gain</span>;
+  const labels = { low: t('jam.gain-low', 'Low'), mid: t('jam.gain-mid', 'Mid'), high: t('jam.gain-high', 'High') };
+  const l = labels[gain] || gain;
+  return <span className="badge badge-wine">{tFormat('jam.gain-suffix', { gain: l }, '{gain} gain')}</span>;
 }
 
 // Compute jam recommendations : top 3 presets installés Pédale + top 3
@@ -99,7 +101,7 @@ function JamPresetItem({ p, rank, isSelected, onSelect, banksAnn, banksPlug, gui
       <div className="preset-result-card" onClick={onSelect} style={{ cursor: 'pointer', borderRadius: isSelected ? '10px 10px 0 0' : 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 18, fontWeight: 900, color: rankColors[rank] || 'var(--text-muted)', minWidth: 22 }}>#{rank + 1}</span>
-          {'bank' in p && <span style={{ background: 'var(--accent-bg)', color: 'var(--accent)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-sm)', padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>Banque {p.bank}{p.slot}</span>}
+          {'bank' in p && <span style={{ background: 'var(--accent-bg)', color: 'var(--accent)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-sm)', padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>{tFormat('jam.bank', { bank: p.bank, slot: p.slot }, 'Banque {bank}{slot}')}</span>}
           <span style={{ fontSize: 11, fontWeight: 800, color: sc, background: sb, borderRadius: 'var(--r-sm)', padding: '1px 7px', border: `1px solid ${sc}40` }}>{p.scoreLabel || p.score + '%'}</span>
           {gainBadge(p.gain)}
           <span style={{ fontSize: 9, color: 'var(--text-muted)', background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '1px 5px', fontWeight: 600 }}>{p.src}</span>
@@ -137,7 +139,7 @@ function JamScreen({ banksAnn, banksPlug, allGuitars, availableSources, profile 
     return (
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-          <button onClick={reset} style={{ background: 'var(--a8)', border: '1px solid var(--a12)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>← Nouveau Jam</button>
+          <button onClick={reset} style={{ background: 'var(--a8)', border: '1px solid var(--a12)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>{t('jam.new-jam', '← Nouveau Jam')}</button>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 12, background: `rgba(${typeRgb},0.15)`, color: `rgb(${typeRgb})`, border: `1px solid rgba(${typeRgb},0.4)`, borderRadius: 'var(--r-md)', padding: '3px 10px', fontWeight: 700 }}>{guitar?.name} · {TYPE_LABELS[recs.gType]}</span>
             <span style={{ fontSize: 12, background: `rgba(${styleInfo?.color || '99,102,241'},0.15)`, color: `rgb(${styleInfo?.color || '99,102,241'})`, border: `1px solid rgba(${styleInfo?.color || '99,102,241'},0.4)`, borderRadius: 'var(--r-md)', padding: '3px 10px', fontWeight: 700 }}>{styleInfo?.emoji} {styleInfo?.label}</span>
@@ -146,24 +148,24 @@ function JamScreen({ banksAnn, banksPlug, allGuitars, availableSources, profile 
 
         {hasPedalDevice && (
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 8 }}>📦 Top 3 — Pedale <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400, textTransform: 'none' }}>(presets installés)</span></div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 8 }}>{t('jam.top3-pedale', '📦 Top 3 — Pedale')} <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400, textTransform: 'none' }}>{t('jam.installed-hint', '(presets installés)')}</span></div>
             {recs.annTop3.length > 0
               ? recs.annTop3.map((p, i) => <JamPresetItem key={p.name} p={p} rank={i} isSelected={selectedJam === p.name} onSelect={() => setSelectedJam(selectedJam === p.name ? null : p.name)} banksAnn={banksAnn} banksPlug={banksPlug} guitars={guitars}/>)
-              : <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: '12px', background: 'var(--a3)', borderRadius: 'var(--r-md)', textAlign: 'center' }}>Aucun preset {styleInfo?.label} installé sur la Pédale pour ce type de guitare.</div>}
+              : <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: '12px', background: 'var(--a3)', borderRadius: 'var(--r-md)', textAlign: 'center' }}>{tFormat('jam.no-preset-pedale', { style: styleInfo?.label || '' }, 'Aucun preset {style} installé sur la Pédale pour ce type de guitare.')}</div>}
           </div>
         )}
 
         {hasPlugDevice && (
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 8 }}>🔌 Top 3 — ToneX Plug <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400, textTransform: 'none' }}>(presets installés)</span></div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 8 }}>{t('jam.top3-plug', '🔌 Top 3 — ToneX Plug')} <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400, textTransform: 'none' }}>{t('jam.installed-hint', '(presets installés)')}</span></div>
             {recs.plugBest.length > 0
               ? recs.plugBest.map((p, i) => <JamPresetItem key={p.name} p={p} rank={i} isSelected={selectedJam === p.name} onSelect={() => setSelectedJam(selectedJam === p.name ? null : p.name)} banksAnn={banksAnn} banksPlug={banksPlug} guitars={guitars}/>)
-              : <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: '12px', background: 'var(--a3)', borderRadius: 'var(--r-md)', textAlign: 'center' }}>Aucun preset {styleInfo?.label} installé sur le Plug pour ce type de guitare.</div>}
+              : <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: '12px', background: 'var(--a3)', borderRadius: 'var(--r-md)', textAlign: 'center' }}>{tFormat('jam.no-preset-plug', { style: styleInfo?.label || '' }, 'Aucun preset {style} installé sur le Plug pour ce type de guitare.')}</div>}
           </div>
         )}
 
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 8 }}>🌐 Top 3 — Catalogue complet <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400, textTransform: 'none' }}>(tous presets, installés ou non)</span></div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 8 }}>{t('jam.top3-catalog', '🌐 Top 3 — Catalogue complet')} <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400, textTransform: 'none' }}>{t('jam.all-presets-hint', '(tous presets, installés ou non)')}</span></div>
           {recs.fullTop3.map((p, i) => <JamPresetItem key={p.name} p={p} rank={i} isSelected={selectedJam === p.name} onSelect={() => setSelectedJam(selectedJam === p.name ? null : p.name)} banksAnn={banksAnn} banksPlug={banksPlug} guitars={guitars}/>)}
         </div>
       </div>
@@ -173,9 +175,9 @@ function JamScreen({ banksAnn, banksPlug, allGuitars, availableSources, profile 
   if (step === 'style') {
     return (
       <div>
-        <button onClick={() => setStep('guitar')} style={{ background: 'var(--a8)', border: '1px solid var(--a12)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 12, cursor: 'pointer', marginBottom: 16 }}>← Changer de guitare</button>
-        <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 700, marginBottom: 4 }}>Guitare : <span style={{ color: 'var(--green)' }}>{guitar?.name}</span></div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>Quel style joues-tu ?</div>
+        <button onClick={() => setStep('guitar')} style={{ background: 'var(--a8)', border: '1px solid var(--a12)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 12, cursor: 'pointer', marginBottom: 16 }}>{t('jam.change-guitar', '← Changer de guitare')}</button>
+        <div style={{ fontSize: 14, color: 'var(--text)', fontWeight: 700, marginBottom: 4 }}>{t('jam.guitar-label', 'Guitare :')} <span style={{ color: 'var(--green)' }}>{guitar?.name}</span></div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>{t('jam.what-style', 'Quel style joues-tu ?')}</div>
         <div className="style-grid">
           {JAM_STYLES.map((s) => (
             <button key={s.id} onClick={() => { setStyle(s.id); setStep('results'); }}
@@ -194,7 +196,7 @@ function JamScreen({ banksAnn, banksPlug, allGuitars, availableSources, profile 
   guitars.forEach((g) => typeGroups[g.type]?.push(g));
   return (
     <div>
-      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>Sélectionne ta guitare pour ce jam :</div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>{t('jam.pick-guitar', 'Sélectionne ta guitare pour ce jam :')}</div>
       {Object.entries(typeGroups).filter(([, arr]) => arr.length > 0).map(([type, arr]) => (
         <div key={type} style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 11, color: `rgb(${TYPE_COLORS[type] || '99,102,241'})`, fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 8 }}>{type} — {TYPE_LABELS[type]}</div>

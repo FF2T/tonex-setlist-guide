@@ -13,6 +13,7 @@
 // pour les marathons d'optim (5.13.9-14).
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { t, tFormat, tPlural } from '../../i18n/index.js';
 import {
   computePickupScore, computeFinalScore, computeSimpleScore,
   computeRefAmpScore, computeStyleMatchScore,
@@ -235,7 +236,7 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
   };
   const applyAllForDevice = (list, deviceLabel, curMean, projMean) => {
     if (!list.length) return;
-    if (!window.confirm(`Appliquer les ${list.length} actions ${deviceLabel} ?\nGain estimé : ${curMean}% → ${projMean}% (+${projMean - curMean}%)`)) return;
+    if (!window.confirm(tFormat('optimizer.apply-confirm', { count: list.length, device: deviceLabel, cur: curMean, proj: projMean, delta: projMean - curMean }, 'Appliquer les {count} actions {device} ?\nGain estimé : {cur}% → {proj}% (+{delta}%)'))) return;
     list.forEach(applyAction);
   };
 
@@ -351,7 +352,7 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
 
   const renderStats = (a) => (
     <div style={{ display: 'flex', gap: 'var(--s-2)', marginBottom: 'var(--s-3)' }}>
-      {[{ n: a.covered, c: 'var(--success)', bg: 'var(--green-bg)', bd: 'var(--green-border)', l: 'Couverts' }, { n: a.acceptable, c: 'var(--yellow)', bg: 'var(--yellow-bg)', bd: 'var(--yellow-border)', l: 'Moyens' }, { n: a.poor, c: 'var(--danger)', bg: 'var(--red-bg)', bd: 'var(--red-border)', l: 'Faibles' }].map(({ n, c, bg, bd, l }) => (
+      {[{ n: a.covered, c: 'var(--success)', bg: 'var(--green-bg)', bd: 'var(--green-border)', l: t('optimizer.stat-covered', 'Couverts') }, { n: a.acceptable, c: 'var(--yellow)', bg: 'var(--yellow-bg)', bd: 'var(--yellow-border)', l: t('optimizer.stat-medium', 'Moyens') }, { n: a.poor, c: 'var(--danger)', bg: 'var(--red-bg)', bd: 'var(--red-border)', l: t('optimizer.stat-weak', 'Faibles') }].map(({ n, c, bg, bd, l }) => (
         <div key={l} style={{ flex: 1, background: bg, border: '1px solid ' + bd, borderRadius: 'var(--r-md)', padding: 'var(--s-2)', textAlign: 'center' }}>
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: c }}>{n}</div>
           <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{l}</div>
@@ -367,8 +368,8 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
 
   return (
     <div>
-      <Breadcrumb crumbs={[{ label: 'Accueil', screen: 'list' }, { label: 'Optimiseur' }]} onNavigate={onNavigate}/>
-      <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 'var(--s-4)' }}>🔧 Optimiseur de Banks</div>
+      <Breadcrumb crumbs={[{ label: t('common.home', 'Accueil'), screen: 'list' }, { label: t('optimizer.breadcrumb', 'Optimiseur') }]} onNavigate={onNavigate}/>
+      <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 'var(--s-4)' }}>{t('optimizer.title', '🔧 Optimiseur de Banks')}</div>
 
       <div style={{ marginBottom: 'var(--s-3)' }}>
         <select value={slId} onChange={(e) => setSlId(e.target.value)} style={{ width: '100%', background: 'var(--bg-elev-1)', color: 'var(--text-primary)', border: '1px solid var(--border-strong)', borderRadius: 'var(--r-md)', padding: '8px 12px', fontSize: 13 }}>
@@ -386,7 +387,7 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
             <div style={{ background: 'var(--bg-elev-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--r-md)', padding: 'var(--s-3)' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 'var(--s-2)' }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{deviceLabel}</span>
-                <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 'auto' }}>Score</span>
+                <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 'auto' }}>{t('optimizer.score', 'Score')}</span>
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 800, color: scoreColor(curMean) }}>{curMean}%</span>
                 {actions.length > 0 && projMean != null && (
                   <>
@@ -400,10 +401,10 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
                 ? (
                   <div>
                     {stuck.length === 0
-                      ? <div style={{ fontSize: 11, color: 'var(--success)', padding: '6px 0' }}>✓ Rien à optimiser sur ce device</div>
+                      ? <div style={{ fontSize: 11, color: 'var(--success)', padding: '6px 0' }}>{t('optimizer.nothing-to-optimize', '✓ Rien à optimiser sur ce device')}</div>
                       : (
                         <div>
-                          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 5 }}>Pas de meilleur preset disponible pour {stuck.length} morceau{stuck.length > 1 ? 'x' : ''} (déjà au plafond du catalogue compatible) :</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 5 }}>{tFormat('optimizer.no-better-preset', { songs: tPlural('optimizer.songs-count', stuck.length, {}, { one: '1 morceau', other: '{count} morceaux' }) }, 'Pas de meilleur preset disponible pour {songs} (déjà au plafond du catalogue compatible) :')}</div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                             {stuck.map((r) => (
                               <div key={r.song.id} style={{ fontSize: 10, color: 'var(--text-tertiary)', display: 'flex', gap: 6, alignItems: 'baseline' }}>
@@ -413,7 +414,7 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
                               </div>
                             ))}
                           </div>
-                          <div style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 6, fontStyle: 'italic' }}>Pour faire mieux : changer la guitare assignée, activer un pack non coché dans Profil → Sources, ou créer un preset custom.</div>
+                          <div style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 6, fontStyle: 'italic' }}>{t('optimizer.improvement-tip', 'Pour faire mieux : changer la guitare assignée, activer un pack non coché dans Profil → Sources, ou créer un preset custom.')}</div>
                         </div>
                       )}
                   </div>
@@ -429,21 +430,21 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
                               <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)', minWidth: 18 }}>#{i + 1}</span>
                               <span style={{ fontSize: 10, background: 'var(--green-bg)', color: 'var(--success)', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700, border: '1px solid var(--green-border)' }}>+{a.totalDelta}%</span>
-                              <span style={{ fontSize: 9, color: 'var(--text-tertiary)', marginLeft: 'auto' }}>{a.songs.length} morceau{a.songs.length > 1 ? 'x' : ''}</span>
+                              <span style={{ fontSize: 9, color: 'var(--text-tertiary)', marginLeft: 'auto' }}>{tPlural('optimizer.songs-count', a.songs.length, {}, { one: '1 morceau', other: '{count} morceaux' })}</span>
                             </div>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis' }}>Installer "{a.preset.name}"</div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis' }}>{tFormat('optimizer.install-preset', { name: a.preset.name }, 'Installer "{name}"')}</div>
                             {(() => { const e = findCatalogEntry(a.preset.name); const si = getSourceInfo(e); if (!si) return null; return <div style={{ fontSize: 9, color: 'var(--text-sec)', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}><span>{si.icon} {si.label}</span>{e?.pack && TSR_PACK_ZIPS?.[e.pack] && <span style={{ color: 'var(--text-dim)' }}>📁 {TSR_PACK_ZIPS[e.pack]}.zip</span>}</div>; })()}
                             <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 5 }}>
-                              → Banque <span style={{ fontFamily: 'var(--font-mono)', color: CC[a.place.slot], fontWeight: 700 }}>{a.place.bank}{a.place.slot}</span>
-                              {a.place.replaces && <span style={{ color: 'var(--yellow)', marginLeft: 4 }}>· remplace "{a.place.replaces}" ({a.place.replacesScore}%)</span>}
+                              {t('optimizer.arrow-bank', '→ Banque ')}<span style={{ fontFamily: 'var(--font-mono)', color: CC[a.place.slot], fontWeight: 700 }}>{a.place.bank}{a.place.slot}</span>
+                              {a.place.replaces && <span style={{ color: 'var(--yellow)', marginLeft: 4 }}>{tFormat('optimizer.replaces', { name: a.place.replaces, score: a.place.replacesScore }, '· remplace "{name}" ({score}%)')}</span>}
                               <span style={{ display: 'block', marginTop: 2 }}>{songsPreview}</span>
                             </div>
-                            <button onClick={() => applyAction(a)} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-sm)', padding: '4px 10px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>Installer</button>
+                            <button onClick={() => applyAction(a)} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-sm)', padding: '4px 10px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>{t('optimizer.install', 'Installer')}</button>
                           </div>
                         );
                       })}
                     </div>
-                    {actions.length > 1 && <button onClick={() => applyAllForDevice(actions, deviceLabel, curMean, projMean)} style={{ width: '100%', background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-sm)', padding: '7px', fontSize: 11, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>⚡ Tout appliquer {deviceLabel} ({actions.length})</button>}
+                    {actions.length > 1 && <button onClick={() => applyAllForDevice(actions, deviceLabel, curMean, projMean)} style={{ width: '100%', background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-sm)', padding: '7px', fontSize: 11, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>{tFormat('optimizer.apply-all', { device: deviceLabel, count: actions.length }, '⚡ Tout appliquer {device} ({count})')}</button>}
                   </>
                 )}
             </div>
@@ -463,7 +464,7 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
       {/* SECTION 1 : DIAGNOSTIC */}
       <div style={sectionStyle}>
         {eyebrow('📊', 'Diagnostic')}
-        {songs.length === 0 ? <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-tertiary)' }}>Setlist vide</div> : (
+        {songs.length === 0 ? <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-tertiary)' }}>{t('optimizer.empty-setlist', 'Setlist vide')}</div> : (
           <>
             <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 'var(--s-3)' }}>🎸 {allGuitars.map((g) => g.short || g.name).join(', ')} · {songs.length} morceau{songs.length > 1 ? 'x' : ''}</div>
             <div style={{ display: 'grid', gridTemplateColumns: hasPedalDevice && hasPlugDevice ? '1fr 1fr' : '1fr', gap: 'var(--s-3)', marginBottom: 'var(--s-3)' }}>
@@ -516,7 +517,7 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
                     <span><span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: 1, background: 'var(--green)', marginRight: 2, verticalAlign: 'middle' }}/>80%+</span>
                     <span><span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: 1, background: 'var(--accent-primary,#818cf8)', marginRight: 2, verticalAlign: 'middle' }}/>65-79%</span>
                     <span><span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: 1, background: 'var(--red)', marginRight: 2, verticalAlign: 'middle' }}/>&lt;65%</span>
-                    <span><span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: 1, background: 'var(--bg-elev-3)', border: '1px solid var(--border-subtle)', marginRight: 2, verticalAlign: 'middle' }}/>Non utilise</span>
+                    <span><span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: 1, background: 'var(--bg-elev-3)', border: '1px solid var(--border-subtle)', marginRight: 2, verticalAlign: 'middle' }}/>{t('optimizer.not-used', 'Non utilise')}</span>
                   </div>
                 </div>
               );
@@ -607,7 +608,7 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
                               {x.sc > 0 && <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: scoreColor(x.sc), flexShrink: 0 }}>{x.sc}%</span>}
                             </div>
                           ))}
-                          <button onClick={applyOne} style={{ marginTop: 6, width: '100%', background: 'var(--bg-elev-1)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)', borderRadius: 'var(--r-sm)', padding: '3px 6px', fontSize: 9, fontWeight: 700, cursor: 'pointer' }}>Appliquer cette banque</button>
+                          <button onClick={applyOne} style={{ marginTop: 6, width: '100%', background: 'var(--bg-elev-1)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)', borderRadius: 'var(--r-sm)', padding: '3px 6px', fontSize: 9, fontWeight: 700, cursor: 'pointer' }}>{t('optimizer.apply-this-bank', 'Appliquer cette banque')}</button>
                         </div>
                       );
                     })}
@@ -626,7 +627,7 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
             return (
               <div style={sectionStyle}>
                 {eyebrow('🎯', 'Plan de reorganisation')}
-                <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 'var(--s-3)' }}>Banques regroupees pour le live. Standards (tes gouts) en premier, puis une banque par morceau. A=Clean, B=Drive, C=Lead.</div>
+                <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 'var(--s-3)' }}>{t('optimizer.bank-grouping-hint', 'Banques regroupees pour le live. Standards (tes gouts) en premier, puis une banque par morceau. A=Clean, B=Drive, C=Lead.')}</div>
                 {hasAnn2 && hasPedalDevice && renderPlan(annPlan, '📦', 'Pedale', onBanksAnn)}
                 {hasPlug2 && hasPlugDevice && renderPlan(plugPlan, '🔌', 'Plug', onBanksPlug)}
               </div>

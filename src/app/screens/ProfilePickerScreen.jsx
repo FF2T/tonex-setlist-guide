@@ -7,6 +7,7 @@
 // empêcher l'énumération des comptes existants.
 
 import React, { useState, useRef, useEffect } from 'react';
+import { t, tFormat } from '../../i18n/index.js';
 import { isTrusted, setTrusted } from '../../core/state.js';
 import { APP_NAME } from '../../core/branding.js';
 import { profileColor } from '../components/profile-color.js';
@@ -66,7 +67,7 @@ function ProfilePickerScreen({ profiles, onPick, appVersion, onUpgradePassword }
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', padding: 20 }}>
       <div style={{ fontSize: 32, marginBottom: 8 }}>🎸</div>
       <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>{APP_NAME}</div>
-      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 32 }}>{trustedProfiles.length > 0 ? "Qui joue aujourd'hui ?" : 'Connexion'}</div>
+      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 32 }}>{trustedProfiles.length > 0 ? t('picker.who-plays', "Qui joue aujourd'hui ?") : t('picker.login', 'Connexion')}</div>
       {trustedProfiles.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 12, width: '100%', maxWidth: 400, marginBottom: 16 }}>
         {trustedProfiles.sort((a, b) => a.name.localeCompare(b.name)).map((p) => {
           const c = profileColor(p.id);
@@ -79,33 +80,33 @@ function ProfilePickerScreen({ profiles, onPick, appVersion, onUpgradePassword }
         })}
       </div>}
       {selectedId && profiles[selectedId]?.password && !isTrusted(selectedId) && <div style={{ width: '100%', maxWidth: 300 }}>
-        <div style={{ fontSize: 12, color: 'var(--text-sec)', marginBottom: 8, textAlign: 'center' }}>Mot de passe pour {profiles[selectedId].name}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-sec)', marginBottom: 8, textAlign: 'center' }}>{tFormat('picker.password-for', { name: profiles[selectedId].name }, 'Mot de passe pour {name}')}</div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <input ref={pwdRef} type="password" inputMode="numeric" autoFocus placeholder="Mot de passe" value={pwd} onChange={(e) => { setPwd(e.target.value); setPwdErr(false); }} onKeyDown={(e) => e.key === 'Enter' && tryLogin()} style={{ flex: 1, background: 'var(--bg-card)', color: 'var(--text)', border: `1px solid ${pwdErr ? 'var(--red)' : 'var(--a15)'}`, borderRadius: 'var(--r-md)', padding: '10px 14px', fontSize: 14 }}/>
-          <button onClick={tryLogin} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>OK</button>
+          <input ref={pwdRef} type="password" inputMode="numeric" autoFocus placeholder={t('picker.password', 'Mot de passe')} value={pwd} onChange={(e) => { setPwd(e.target.value); setPwdErr(false); }} onKeyDown={(e) => e.key === 'Enter' && tryLogin()} style={{ flex: 1, background: 'var(--bg-card)', color: 'var(--text)', border: `1px solid ${pwdErr ? 'var(--red)' : 'var(--a15)'}`, borderRadius: 'var(--r-md)', padding: '10px 14px', fontSize: 14 }}/>
+          <button onClick={tryLogin} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{t('picker.ok', 'OK')}</button>
         </div>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, fontSize: 12, color: 'var(--text-sec)', cursor: 'pointer', justifyContent: 'center' }}>
           <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} style={{ cursor: 'pointer' }}/>
-          Mémoriser sur cet appareil
+          {t('picker.remember', 'Mémoriser sur cet appareil')}
         </label>
-        {pwdErr && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 6, textAlign: 'center' }}>Mot de passe incorrect</div>}
+        {pwdErr && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 6, textAlign: 'center' }}>{t('picker.wrong-password', 'Mot de passe incorrect')}</div>}
       </div>}
       {!selectedId && <div style={{ width: '100%', maxWidth: 300, marginTop: trustedProfiles.length > 0 ? 8 : 0 }}>
-        {!showOtherForm && <button onClick={() => setShowOtherForm(true)} style={{ background: 'none', border: 'none', color: 'var(--text-sec)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline', padding: 8, width: '100%', textAlign: 'center' }}>Se connecter à un autre profil</button>}
+        {!showOtherForm && <button onClick={() => setShowOtherForm(true)} style={{ background: 'none', border: 'none', color: 'var(--text-sec)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline', padding: 8, width: '100%', textAlign: 'center' }}>{t('picker.other-profile', 'Se connecter à un autre profil')}</button>}
         {showOtherForm && <div>
-          <div style={{ fontSize: 12, color: 'var(--text-sec)', marginBottom: 8, textAlign: 'center' }}>Identifiants</div>
-          <input type="text" autoComplete="username" placeholder="Nom du profil" value={otherName} onChange={(e) => { setOtherName(e.target.value); setOtherErr(false); }} style={{ width: '100%', background: 'var(--bg-card)', color: 'var(--text)', border: `1px solid ${otherErr ? 'var(--red)' : 'var(--a15)'}`, borderRadius: 'var(--r-md)', padding: '10px 14px', fontSize: 14, marginBottom: 8, boxSizing: 'border-box' }}/>
+          <div style={{ fontSize: 12, color: 'var(--text-sec)', marginBottom: 8, textAlign: 'center' }}>{t('picker.credentials', 'Identifiants')}</div>
+          <input type="text" autoComplete="username" placeholder={t('picker.profile-name', 'Nom du profil')} value={otherName} onChange={(e) => { setOtherName(e.target.value); setOtherErr(false); }} style={{ width: '100%', background: 'var(--bg-card)', color: 'var(--text)', border: `1px solid ${otherErr ? 'var(--red)' : 'var(--a15)'}`, borderRadius: 'var(--r-md)', padding: '10px 14px', fontSize: 14, marginBottom: 8, boxSizing: 'border-box' }}/>
           <div style={{ display: 'flex', gap: 8 }}>
-            <input type="password" autoComplete="current-password" placeholder="Mot de passe" value={otherPwd} onChange={(e) => { setOtherPwd(e.target.value); setOtherErr(false); }} onKeyDown={(e) => e.key === 'Enter' && tryOtherLogin()} style={{ flex: 1, background: 'var(--bg-card)', color: 'var(--text)', border: `1px solid ${otherErr ? 'var(--red)' : 'var(--a15)'}`, borderRadius: 'var(--r-md)', padding: '10px 14px', fontSize: 14 }}/>
-            <button onClick={tryOtherLogin} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>OK</button>
+            <input type="password" autoComplete="current-password" placeholder={t('picker.password', 'Mot de passe')} value={otherPwd} onChange={(e) => { setOtherPwd(e.target.value); setOtherErr(false); }} onKeyDown={(e) => e.key === 'Enter' && tryOtherLogin()} style={{ flex: 1, background: 'var(--bg-card)', color: 'var(--text)', border: `1px solid ${otherErr ? 'var(--red)' : 'var(--a15)'}`, borderRadius: 'var(--r-md)', padding: '10px 14px', fontSize: 14 }}/>
+            <button onClick={tryOtherLogin} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{t('picker.ok', 'OK')}</button>
           </div>
-          {otherErr && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 6, textAlign: 'center' }}>Identifiants incorrects</div>}
-          {trustedProfiles.length > 0 && <button onClick={() => { setShowOtherForm(false); setOtherName(''); setOtherPwd(''); setOtherErr(false); }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 11, cursor: 'pointer', textDecoration: 'underline', padding: 6, width: '100%', textAlign: 'center', marginTop: 4 }}>Retour</button>}
+          {otherErr && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 6, textAlign: 'center' }}>{t('picker.wrong-credentials', 'Identifiants incorrects')}</div>}
+          {trustedProfiles.length > 0 && <button onClick={() => { setShowOtherForm(false); setOtherName(''); setOtherPwd(''); setOtherErr(false); }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 11, cursor: 'pointer', textDecoration: 'underline', padding: 6, width: '100%', textAlign: 'center', marginTop: 4 }}>{t('picker.back', 'Retour')}</button>}
         </div>}
       </div>}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 32 }}>
         <span style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>v{appVersion}</span>
-        <button onClick={() => { location.reload(true); }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 10, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'var(--font-mono)' }} title="Recharger pour récupérer la dernière version">MAJ</button>
+        <button onClick={() => { location.reload(true); }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 10, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'var(--font-mono)' }} title={t('picker.reload-title', 'Recharger pour récupérer la dernière version')}>{t('picker.update', 'MAJ')}</button>
       </div>
     </div>
   );

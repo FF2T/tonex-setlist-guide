@@ -7,6 +7,7 @@
 // moins un device doit rester coché.
 
 import React from 'react';
+import { t } from '../../i18n/index.js';
 import { getAllDevices } from '../../devices/registry.js';
 
 function MesAppareilsTab({ profile, profiles, onProfiles, activeProfileId }) {
@@ -31,8 +32,8 @@ function MesAppareilsTab({ profile, profiles, onProfiles, activeProfileId }) {
   };
   return (
     <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 16 }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>Mes appareils audio</div>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>Coche les appareils que tu utilises. Les blocs Recap et Synthèse n'afficheront que ceux-ci. Au moins un appareil doit rester coché.</div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>{t('devices.title', 'Mes appareils audio')}</div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>{t('devices.hint', "Coche les appareils que tu utilises. Les blocs Recap et Synthèse n'afficheront que ceux-ci. Au moins un appareil doit rester coché.")}</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {allDevices.map((d) => {
           const on = enabled.has(d.id);

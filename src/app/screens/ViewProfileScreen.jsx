@@ -11,6 +11,7 @@
 // ouvert. Corrigé ici.
 
 import React from 'react';
+import { t, tFormat } from '../../i18n/index.js';
 import { GUITARS } from '../../core/guitars.js';
 import { CC } from '../utils/ui-constants.js';
 import Breadcrumb from '../components/Breadcrumb.jsx';
@@ -27,24 +28,24 @@ function ViewProfileScreen({ profile, onBack, onNavigate }) {
   const customG = profile.customGuitars || [];
   return (
     <div>
-      <Breadcrumb crumbs={[{ label: 'Accueil', screen: 'list' }, { label: 'Config de ' + profile.name }]} onNavigate={onNavigate}/>
+      <Breadcrumb crumbs={[{ label: t('common.home', 'Accueil'), screen: 'list' }, { label: tFormat('view-profile.breadcrumb', { name: profile.name }, 'Config de {name}') }]} onNavigate={onNavigate}/>
       <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>👁 {profile.name}</div>
-      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>Configuration en lecture seule</div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>{t('view-profile.read-only', 'Configuration en lecture seule')}</div>
 
       {/* Matériel */}
       <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 12, marginBottom: 10 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>Matériel</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>{t('view-profile.hardware', 'Matériel')}</div>
         <div style={{ fontSize: 11, color: 'var(--text-sec)' }}>
-          {hasPedalStd && !hasAnniversary && 'Pédale ToneX Standard'}
-          {hasAnniversary && 'Pédale ToneX Anniversary'}
+          {hasPedalStd && !hasAnniversary && t('view-profile.pedal-std', 'Pédale ToneX Standard')}
+          {hasAnniversary && t('view-profile.pedal-ann', 'Pédale ToneX Anniversary')}
           {hasPedale && hasPlug && ' + '}{hasPlug && 'ToneX Plug'}
-          {!hasPedale && !hasPlug && 'Aucun appareil configuré'}
+          {!hasPedale && !hasPlug && t('view-profile.no-device', 'Aucun appareil configuré')}
         </div>
       </div>
 
       {/* Guitares */}
       <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 12, marginBottom: 10 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>Guitares ({guitars.length + customG.length})</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>{tFormat('view-profile.guitars-count', { count: guitars.length + customG.length }, 'Guitares ({count})')}</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
           {guitars.map((g) => <span key={g.id} style={{ fontSize: 10, background: 'var(--a5)', borderRadius: 'var(--r-sm)', padding: '2px 8px', color: 'var(--text-sec)' }}>{g.short} ({g.type})</span>)}
           {customG.map((g) => <span key={g.id} style={{ fontSize: 10, background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '2px 8px', color: 'var(--text-bright)' }}>{g.short} ({g.type})</span>)}
@@ -54,7 +55,7 @@ function ViewProfileScreen({ profile, onBack, onNavigate }) {
       {/* Banques Pédale */}
       {hasPedale && (
         <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 12, marginBottom: 10 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>Banques Pédale (50)</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>{t('view-profile.pedal-banks', 'Banques Pédale (50)')}</div>
           <div style={{ maxHeight: 200, overflowY: 'auto' }}>
             {Object.entries(profile.banksAnn || {}).sort((a, b) => Number(a[0]) - Number(b[0])).map(([k, v]) => (
               v.A || v.B || v.C
@@ -73,7 +74,7 @@ function ViewProfileScreen({ profile, onBack, onNavigate }) {
       {/* Banques Plug */}
       {hasPlug && (
         <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 12, marginBottom: 10 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>Banques Plug (10)</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>{t('view-profile.plug-banks', 'Banques Plug (10)')}</div>
           {Object.entries(profile.banksPlug || {}).sort((a, b) => Number(a[0]) - Number(b[0])).map(([k, v]) => (
             v.A || v.B || v.C
               ? (
@@ -87,7 +88,7 @@ function ViewProfileScreen({ profile, onBack, onNavigate }) {
         </div>
       )}
 
-      <button onClick={onBack} style={{ width: '100%', background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '10px', fontSize: 13, cursor: 'pointer', marginTop: 8 }}>Retour</button>
+      <button onClick={onBack} style={{ width: '100%', background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '10px', fontSize: 13, cursor: 'pointer', marginTop: 8 }}>{t('view-profile.back', 'Retour')}</button>
     </div>
   );
 }

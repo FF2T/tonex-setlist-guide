@@ -10,6 +10,7 @@
 // passe le gps + aiR au SynthesisScreen suivant.
 
 import React, { useState, useMemo } from 'react';
+import { t, tFormat, tPlural } from '../../i18n/index.js';
 import { GUITARS } from '../../core/guitars.js';
 import { findGuitarByAIName } from '../../core/scoring/guitar.js';
 import { findCatalogEntry } from '../../core/catalog.js';
@@ -170,18 +171,18 @@ function RecapScreen({
 
   return (
     <div>
-      <Breadcrumb crumbs={[{ label: 'Accueil', screen: 'list' }, { label: 'Récap' }]} onNavigate={onNavigate}/>
+      <Breadcrumb crumbs={[{ label: t('common.home', 'Accueil'), screen: 'list' }, { label: t('recap.breadcrumb', 'Récap') }]} onNavigate={onNavigate}/>
       <div style={{ marginBottom: 20 }}>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 800, color: 'var(--text-primary)' }}>Récap de session</div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{songs.length} morceau{songs.length > 1 ? 'x' : ''}</div>
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 800, color: 'var(--text-primary)' }}>{t('recap.title', 'Récap de session')}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{tPlural('recap.songs-count', songs.length, {}, { one: '1 morceau', other: '{count} morceaux' })}</div>
       </div>
 
       {/* Choix du mode : 1 guitare unique ou top 3 */}
       <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 14, marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 8 }}>Combien de guitares ?</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 8 }}>{t('recap.how-many-guitars', 'Combien de guitares ?')}</div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => setMode('single')} style={{ flex: 1, fontSize: 13, fontWeight: mode === 'single' ? 700 : 500, color: mode === 'single' ? 'var(--green)' : 'var(--text-muted)', background: mode === 'single' ? 'var(--green-bg)' : 'var(--a3)', border: mode === 'single' ? '1px solid rgba(74,222,128,0.4)' : '1px solid var(--a7)', borderRadius: 'var(--r-lg)', padding: '10px 12px', cursor: 'pointer', textAlign: 'center' }}>1 seule guitare</button>
-          <button onClick={() => setMode('multi')} style={{ flex: 1, fontSize: 13, fontWeight: mode === 'multi' ? 700 : 500, color: mode === 'multi' ? 'var(--accent)' : 'var(--text-muted)', background: mode === 'multi' ? 'var(--accent-soft)' : 'var(--a3)', border: mode === 'multi' ? '1px solid var(--border-accent)' : '1px solid var(--a7)', borderRadius: 'var(--r-lg)', padding: '10px 12px', cursor: 'pointer', textAlign: 'center' }}>Top 3 guitares</button>
+          <button onClick={() => setMode('single')} style={{ flex: 1, fontSize: 13, fontWeight: mode === 'single' ? 700 : 500, color: mode === 'single' ? 'var(--green)' : 'var(--text-muted)', background: mode === 'single' ? 'var(--green-bg)' : 'var(--a3)', border: mode === 'single' ? '1px solid rgba(74,222,128,0.4)' : '1px solid var(--a7)', borderRadius: 'var(--r-lg)', padding: '10px 12px', cursor: 'pointer', textAlign: 'center' }}>{t('recap.single-guitar', '1 seule guitare')}</button>
+          <button onClick={() => setMode('multi')} style={{ flex: 1, fontSize: 13, fontWeight: mode === 'multi' ? 700 : 500, color: mode === 'multi' ? 'var(--accent)' : 'var(--text-muted)', background: mode === 'multi' ? 'var(--accent-soft)' : 'var(--a3)', border: mode === 'multi' ? '1px solid var(--border-accent)' : '1px solid var(--a7)', borderRadius: 'var(--r-lg)', padding: '10px 12px', cursor: 'pointer', textAlign: 'center' }}>{t('recap.top3-guitars', 'Top 3 guitares')}</button>
         </div>
       </div>
 
@@ -189,16 +190,16 @@ function RecapScreen({
       <div style={{ background: 'var(--a4)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-xl)', padding: 16, marginBottom: 20 }}>
         {mode === 'single' ? (
           <div>
-            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>🎸 Guitare pour cette session</div>
-            {topGuitar && <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 8 }}>Recommandee : {topGuitar.name} ({rankedGuitars[0]?.count || 0}/{songs.length} morceaux)</div>}
+            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>{t('recap.guitar-for-session', '🎸 Guitare pour cette session')}</div>
+            {topGuitar && <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 8 }}>{tFormat('recap.recommended', { name: topGuitar.name, count: rankedGuitars[0]?.count || 0, total: songs.length }, 'Recommandee : {name} ({count}/{total} morceaux)')}</div>}
             <div style={{ marginBottom: 4 }}>
               <GuitarSelect value={chosenGuitar?.id || ''} onChange={(v) => setSelectedGuitarId(v)} ig={rankedGuitars.map((r) => r.gId)} guitars={guitars}/>
             </div>
-            {chosenGuitar && chosenGuitar.id !== topGuitar?.id && <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 4 }}>Choix perso — les presets sont recalcules pour {chosenGuitar.short || chosenGuitar.name} ({chosenGuitar.type})</div>}
+            {chosenGuitar && chosenGuitar.id !== topGuitar?.id && <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 4 }}>{tFormat('recap.custom-choice', { short: chosenGuitar.short || chosenGuitar.name, type: chosenGuitar.type }, 'Choix perso — les presets sont recalcules pour {short} ({type})')}</div>}
           </div>
         ) : (
           <div>
-            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 10 }}>🎸 Top 3 guitares à prendre</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 10 }}>{t('recap.top3-title', '🎸 Top 3 guitares à prendre')}</div>
             {top3.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {top3.map(({ gId, count, guitar }, i) => {
@@ -208,19 +209,19 @@ function RecapScreen({
                       <span style={{ fontSize: 14, fontWeight: 800, color: `rgb(${rgb})`, width: 20, textAlign: 'center' }}>{i + 1}</span>
                       <span style={{ fontSize: 13, fontWeight: 700, color: `rgb(${rgb})`, flex: 1 }}>{guitar.name}</span>
                       <span style={{ fontSize: 10, color: `rgb(${rgb})`, background: `rgba(${rgb},0.12)`, borderRadius: 'var(--r-sm)', padding: '2px 7px', fontWeight: 600 }}>{TYPE_LABELS[guitar.type] || guitar.type}</span>
-                      <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>{count} morceau{count > 1 ? 'x' : ''}</span>
+                      <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>{tPlural('recap.songs-count-short', count, {}, { one: '1 morceau', other: '{count} morceaux' })}</span>
                     </div>
                   );
                 })}
               </div>
-            ) : <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Aucune guitare configurée</div>}
+            ) : <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t('recap.no-guitars', 'Aucune guitare configurée')}</div>}
           </div>
         )}
       </div>
 
       {/* Liste des morceaux avec preset/guitare */}
       <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 10 }}>🎵 Morceaux</div>
+        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 10 }}>{t('recap.songs-section', '🎵 Morceaux')}</div>
         {songRows.map(({ song, guitar, presetAnn, presetPlug }) => {
           const rgb = guitar ? TYPE_COLORS[guitar.type] || '148,163,184' : '148,163,184';
           const perDevice = enabledDevices.map((d) => {
@@ -244,7 +245,7 @@ function RecapScreen({
                     <span style={{ color: d.deviceKey === 'plug' ? 'var(--accent)' : 'var(--green)', fontWeight: 700, flexShrink: 0 }}>{d.icon}</span>
                     <span style={{ color: 'var(--text-bright)', fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{presetData.label}</span>
                     {presetData.score && <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: scoreColor(presetData.score), flexShrink: 0 }}>{presetData.score}%</span>}
-                    {loc ? <span style={{ fontSize: 9, color: CC[loc.slot], fontWeight: 700, flexShrink: 0 }}>{loc.bank}{loc.slot}</span> : <span style={{ fontSize: 9, color: 'var(--yellow)', flexShrink: 0 }}>non installé</span>}
+                    {loc ? <span style={{ fontSize: 9, color: CC[loc.slot], fontWeight: 700, flexShrink: 0 }}>{loc.bank}{loc.slot}</span> : <span style={{ fontSize: 9, color: 'var(--yellow)', flexShrink: 0 }}>{t('recap.not-installed', 'non installé')}</span>}
                   </div>
                 ))}
                 {enabledDevices.filter((d) => typeof d.RecommendBlock === 'function').map((d) => (
@@ -255,7 +256,7 @@ function RecapScreen({
                     <d.RecommendBlock song={song} guitar={guitar} profile={profile} allGuitars={allGuitars} onPatchOverride={onTmpPatchOverride}/>
                   </div>
                 ))}
-                {perDevice.length === 0 && enabledDevices.filter((d) => typeof d.RecommendBlock === 'function').length === 0 && <div style={{ fontSize: 11, color: 'var(--text-dim)', fontStyle: 'italic' }}>Pas de cache IA — lance une analyse depuis la fiche du morceau</div>}
+                {perDevice.length === 0 && enabledDevices.filter((d) => typeof d.RecommendBlock === 'function').length === 0 && <div style={{ fontSize: 11, color: 'var(--text-dim)', fontStyle: 'italic' }}>{t('recap.no-cache', 'Pas de cache IA — lance une analyse depuis la fiche du morceau')}</div>}
               </div>
             </div>
           );
@@ -265,8 +266,8 @@ function RecapScreen({
       {/* Presets manquants à installer */}
       {missingPresets.length > 0 && (
         <div style={{ background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 'var(--r-xl)', padding: 16, marginBottom: 20 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--yellow)', marginBottom: 4 }}>⬇ Presets à installer</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>{missingPresets.length} preset{missingPresets.length > 1 ? 's' : ''} non installé{missingPresets.length > 1 ? 's' : ''}</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--yellow)', marginBottom: 4 }}>{t('recap.presets-to-install', '⬇ Presets à installer')}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>{tPlural('recap.presets-not-installed', missingPresets.length, {}, { one: '1 preset non installé', other: '{count} presets non installés' })}</div>
           {missingPresets.map((p) => {
             const dev = enabledDevices.find((d) => d.deviceKey === p.device);
             const icon = dev ? dev.icon : (p.device === 'ann' ? '📦' : '🔌');
@@ -286,7 +287,7 @@ function RecapScreen({
 
       <div className="bottom-action" style={{ paddingTop: 8 }}>
         <button onClick={() => onValidate(gps, aiR)} style={{ width: '100%', background: 'var(--accent)', border: 'none', color: 'var(--text)', borderRadius: 'var(--r-lg)', padding: '16px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
-          ✅ Valider et voir le tableau de synthèse →
+          {t('recap.validate-button', '✅ Valider et voir le tableau de synthèse →')}
         </button>
       </div>
     </div>

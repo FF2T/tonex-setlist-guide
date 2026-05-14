@@ -6,6 +6,7 @@
 // FuzzyPresetMatch, et de réinitialiser à la config factory.
 
 import React, { useState } from 'react';
+import { t } from '../../i18n/index.js';
 import { findCatalogEntry } from '../../core/catalog.js';
 import { CC } from '../utils/ui-constants.js';
 import PresetSearchModal from './PresetSearchModal.jsx';
@@ -30,12 +31,12 @@ function BankEditor({ banks, onBanks, color, maxBanks, startBank, factoryBanks, 
   return (
     <div>
       {factoryBanks && <div style={{ marginBottom: 12 }}>
-        {!confirmReset ? <button onClick={() => setConfirmReset(true)} style={{ background: 'var(--yellow-bg)', border: '1px solid var(--yellow-border)', color: 'var(--yellow)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Réinitialiser (config usine)</button>
+        {!confirmReset ? <button onClick={() => setConfirmReset(true)} style={{ background: 'var(--yellow-bg)', border: '1px solid var(--yellow-border)', color: 'var(--yellow)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{t('bank-editor.reset-factory', 'Réinitialiser (config usine)')}</button>
           : <div style={{ background: 'var(--red-bg)', border: '1px solid var(--red-border)', borderRadius: 'var(--r-lg)', padding: 12 }}>
-            <div style={{ fontSize: 12, color: 'var(--red)', fontWeight: 600, marginBottom: 8 }}>Revenir à la configuration d'usine ? Toutes tes modifications seront perdues.</div>
+            <div style={{ fontSize: 12, color: 'var(--red)', fontWeight: 600, marginBottom: 8 }}>{t('bank-editor.reset-warning', "Revenir à la configuration d'usine ? Toutes tes modifications seront perdues.")}</div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={resetFactory} style={{ background: 'var(--red)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Oui, réinitialiser</button>
-              <button onClick={() => setConfirmReset(false)} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>Annuler</button>
+              <button onClick={resetFactory} style={{ background: 'var(--red)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{t('bank-editor.reset-confirm', 'Oui, réinitialiser')}</button>
+              <button onClick={() => setConfirmReset(false)} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>{t('bank-editor.cancel', 'Annuler')}</button>
             </div>
           </div>}
       </div>}
@@ -67,16 +68,16 @@ function BankEditor({ banks, onBanks, color, maxBanks, startBank, factoryBanks, 
             {selInfo ? <div>
               <PresetDetailInline name={selectedPreset.name} info={selInfo} banksAnn={banks} banksPlug={banks}/>
               <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                <button onClick={() => { setEditingPreset({ bank: k, slot: selectedPreset.slot }); setSelectedPreset(null); }} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '5px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Modifier</button>
-                <button onClick={() => setSelectedPreset(null)} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>Fermer</button>
+                <button onClick={() => { setEditingPreset({ bank: k, slot: selectedPreset.slot }); setSelectedPreset(null); }} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '5px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>{t('bank-editor.edit', 'Modifier')}</button>
+                <button onClick={() => setSelectedPreset(null)} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>{t('bank-editor.close', 'Fermer')}</button>
               </div>
             </div>
               : <FuzzyPresetMatch name={selectedPreset.name} bank={k} slot={selectedPreset.slot} onAccept={(name) => { edit(k, selectedPreset.slot, name); setSelectedPreset(null); }} onSearch={() => { setEditingPreset({ bank: k, slot: selectedPreset.slot }); setSelectedPreset(null); }} onManual={() => { setCustomInput({ bank: k, slot: selectedPreset.slot }); setSelectedPreset(null); }} onClose={() => setSelectedPreset(null)}/>}
           </div>}
           {customInput && customInput.bank === k && <div style={{ marginTop: 6, display: 'flex', gap: 6, alignItems: 'center' }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: CC[customInput.slot] }}>{customInput.slot}</span>
-            <input autoFocus value={v[customInput.slot] || ''} onChange={(e) => edit(k, customInput.slot, e.target.value)} style={{ ...inp, flex: 1 }} placeholder="Nom du preset custom"/>
-            <button onClick={() => setCustomInput(null)} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-sm)', padding: '4px 10px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>OK</button>
+            <input autoFocus value={v[customInput.slot] || ''} onChange={(e) => edit(k, customInput.slot, e.target.value)} style={{ ...inp, flex: 1 }} placeholder={t('bank-editor.custom-name', 'Nom du preset custom')}/>
+            <button onClick={() => setCustomInput(null)} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-sm)', padding: '4px 10px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>{t('bank-editor.ok', 'OK')}</button>
           </div>}
         </div>;
       })}

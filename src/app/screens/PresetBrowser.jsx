@@ -8,6 +8,7 @@
 // afficher le détail d'un preset jam-pick.
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { t, tFormat, tPlural } from '../../i18n/index.js';
 import { GUITARS } from '../../core/guitars.js';
 import { normalizePresetName } from '../../core/catalog.js';
 import { SOURCE_LABELS } from '../../core/sources.js';
@@ -156,7 +157,7 @@ function PresetDetailInline({ name, info, banksAnn, banksPlug, presetContext, gu
         </div>
         {info.comment && <div style={{ fontSize: 10, color: 'var(--text-sec)', fontStyle: 'italic', marginBottom: 6 }}>{info.comment}</div>}
         {ctx?.desc && <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.5 }}>{ctx.desc}</div>}
-        {!ctx?.desc && <div style={{ fontSize: 11, color: 'var(--text-dim)', fontStyle: 'italic' }}>Pas de description disponible pour cet ampli.</div>}
+        {!ctx?.desc && <div style={{ fontSize: 11, color: 'var(--text-dim)', fontStyle: 'italic' }}>{t('preset-browser.no-desc', 'Pas de description disponible pour cet ampli.')}</div>}
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 6 }}>
           {annLoc
             ? <span style={{ fontSize: 10, color: 'var(--green)', background: 'var(--green-bg)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-md)', padding: '3px 8px', fontWeight: 600 }}>📦 Banque {annLoc.bank}{annLoc.slot}</span>
@@ -169,8 +170,8 @@ function PresetDetailInline({ name, info, banksAnn, banksPlug, presetContext, gu
       <div style={sectionStyle}>
         {sectionTitle('🎛', 'Style & gain')}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <div style={{ fontSize: 11, color: 'var(--text-sec)' }}><span style={{ color: 'var(--text-muted)', fontSize: 10 }}>Gain</span> <span style={{ fontWeight: 600 }}>{GAIN_LABELS[info.gain] || info.gain}</span></div>
-          <div style={{ fontSize: 11, color: 'var(--text-sec)' }}><span style={{ color: 'var(--text-muted)', fontSize: 10 }}>Style catalogue</span> <span style={{ fontWeight: 600 }}>{STYLE_LABELS[info.style] || info.style}</span></div>
+          <div style={{ fontSize: 11, color: 'var(--text-sec)' }}><span style={{ color: 'var(--text-muted)', fontSize: 10 }}>{t('preset-browser.gain', 'Gain')}</span> <span style={{ fontWeight: 600 }}>{GAIN_LABELS[info.gain] || info.gain}</span></div>
+          <div style={{ fontSize: 11, color: 'var(--text-sec)' }}><span style={{ color: 'var(--text-muted)', fontSize: 10 }}>{t('preset-browser.style', 'Style catalogue')}</span> <span style={{ fontWeight: 600 }}>{STYLE_LABELS[info.style] || info.style}</span></div>
           <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>{gainStyles.desc}</div>
         </div>
       </div>
@@ -450,28 +451,28 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
   const hasFilter = soundProfile !== 'all' || filterBrand || search.trim();
   return (
     <div>
-      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>Explore ta bibliothèque de presets et découvre leur contexte musical.</div>
+      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>{t('preset-browser.intro', 'Explore ta bibliothèque de presets et découvre leur contexte musical.')}</div>
 
       <div style={{ position: 'relative', marginBottom: 6 }}>
         <input
           type="search"
           enterKeyHint="search"
-          placeholder="🔍 Rechercher artiste, morceau, ampli..."
+          placeholder={t('preset-browser.search-placeholder', '🔍 Rechercher artiste, morceau, ampli...')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
           style={{ width: '100%', background: 'var(--bg-card)', color: 'var(--text)', border: '2px solid var(--a15)', borderRadius: 'var(--r-lg)', padding: '14px 44px 14px 16px', fontSize: 15, boxSizing: 'border-box' }}
         />
         {search && (
-          <button onClick={() => setSearch('')} aria-label="Effacer la recherche"
+          <button onClick={() => setSearch('')} aria-label={t('preset-browser.clear-search', 'Effacer la recherche')}
             style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: '50%', width: 28, height: 28, fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >✕</button>
         )}
       </div>
-      <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, fontStyle: 'italic' }}>Résultats filtrés en temps réel</div>
+      <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, fontStyle: 'italic' }}>{t('preset-browser.live-filter', 'Résultats filtrés en temps réel')}</div>
 
       <button onClick={pickRandom} style={{ width: '100%', background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-lg)', padding: '12px', fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 16 }}>
-        🎲 Preset aléatoire
+        {t('preset-browser.random', '🎲 Preset aléatoire')}
       </button>
 
       {randomPick && (
@@ -487,17 +488,17 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
       {(() => {
         const tile = (active) => ({ fontSize: 11, fontWeight: active ? 700 : 500, color: active ? 'var(--accent)' : 'var(--text-muted)', background: active ? 'var(--accent-bg)' : 'var(--a3)', border: active ? '1px solid var(--accent-border)' : '1px solid var(--a7)', borderRadius: 'var(--r-md)', padding: '6px 12px', cursor: 'pointer', textAlign: 'left' });
         const PROFILE_GROUPS = [
-          { title: 'Sons cleans', profiles: ['clean_cristallin', 'blues_vintage', 'jazz_warm', 'funk_soul'] },
-          { title: 'Sons crunch / drive', profiles: ['crunch_70s', 'british', 'blues_rock'] },
-          { title: 'Sons satures', profiles: ['hard_rock', 'metal', 'high_gain_lead'] },
-          { title: 'Autre', profiles: ['pedales'] },
+          { title: t('preset-browser.group-clean', 'Sons cleans'), profiles: ['clean_cristallin', 'blues_vintage', 'jazz_warm', 'funk_soul'] },
+          { title: t('preset-browser.group-crunch', 'Sons crunch / drive'), profiles: ['crunch_70s', 'british', 'blues_rock'] },
+          { title: t('preset-browser.group-saturated', 'Sons satures'), profiles: ['hard_rock', 'metal', 'high_gain_lead'] },
+          { title: t('preset-browser.group-other', 'Autre'), profiles: ['pedales'] },
         ];
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
             <div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 6 }}>Quel son cherches-tu ?</div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 6 }}>{t('preset-browser.what-sound', 'Quel son cherches-tu ?')}</div>
               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
-                <button onClick={() => setSoundProfile('all')} style={tile(soundProfile === 'all')}>Tous</button>
+                <button onClick={() => setSoundProfile('all')} style={tile(soundProfile === 'all')}>{t('preset-browser.all', 'Tous')}</button>
               </div>
               {PROFILE_GROUPS.map((g) => (
                 <div key={g.title} style={{ marginBottom: 6 }}>
@@ -520,13 +521,13 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
             {hasFilter && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {filterBrand && !filterModel && <button onClick={() => { setFilterBrand(''); setFilterModel(''); }} style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>← Amplis</button>}
+                  {filterBrand && !filterModel && <button onClick={() => { setFilterBrand(''); setFilterModel(''); }} style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>{t('preset-browser.back-to-amps', '← Amplis')}</button>}
                   {filterBrand && filterModel && <button onClick={() => setFilterModel('')} style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>← {filterBrand}</button>}
                   {filterBrand && !filterModel && <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{filterBrand}</span>}
                   {filterModel && <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{filterModel}</span>}
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{filtered.length} preset{filtered.length > 1 ? 's' : ''}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{tPlural('preset-browser.presets-count', filtered.length, {}, { one: '1 preset', other: '{count} presets' })}</span>
                 </div>
-                <button onClick={() => { setSoundProfile('all'); setFilterBrand(''); setFilterModel(''); setFilterPacks([]); setSearch(''); }} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Reinitialiser</button>
+                <button onClick={() => { setSoundProfile('all'); setFilterBrand(''); setFilterModel(''); setFilterPacks([]); setSearch(''); }} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>{t('preset-browser.reset', 'Reinitialiser')}</button>
               </div>
             )}
           </div>
@@ -535,7 +536,7 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
 
       {!hasFilter && (
         <div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 10 }}>Parcourir par ampli — {Object.keys(fullCatalog).length} presets</div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 10 }}>{tFormat('preset-browser.browse-by-amp', { count: Object.keys(fullCatalog).length }, 'Parcourir par ampli — {count} presets')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6 }}>
             {ampBrands.slice(0, 18).map(([brand, count]) => (
               <button key={brand} onClick={() => { setFilterBrand(brand); setFilterModel(''); }}
@@ -543,7 +544,7 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
                 onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--a15)'; e.currentTarget.style.background = 'var(--a7)'; }}
                 onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--a8)'; e.currentTarget.style.background = 'var(--a4)'; }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{brand}</div>
-                <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>{count} preset{count > 1 ? 's' : ''}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>{tPlural('preset-browser.presets-count', count, {}, { one: '1 preset', other: '{count} presets' })}</div>
               </button>
             ))}
           </div>
@@ -570,7 +571,7 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
           </div>
         </div>
       )}
-      {hasFilter && (filterModel || search.trim() || !filterBrand) && filtered.length === 0 && <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-dim)', fontSize: 13 }}>Aucun preset ne correspond à ces critères.</div>}
+      {hasFilter && (filterModel || search.trim() || !filterBrand) && filtered.length === 0 && <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-dim)', fontSize: 13 }}>{t('preset-browser.no-match', 'Aucun preset ne correspond à ces critères.')}</div>}
       {hasFilter && (filterModel || search.trim() || !filterBrand) && filtered.length > 0 && <PresetList filtered={filtered} selected={selected} setSelected={setSelected} banksAnn={banksAnn} banksPlug={banksPlug} fullCatalog={fullCatalog} filterSrcs={[]} filterPacks={filterPacks} togglePack={togglePack} setFilterPacks={setFilterPacks} mergedContext={mergedContext} guitars={guitars}/>}
     </div>
   );

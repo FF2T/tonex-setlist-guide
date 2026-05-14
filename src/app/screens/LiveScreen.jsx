@@ -19,6 +19,7 @@
 //                       éventuelle depuis un LiveBlock (TMP).
 
 import React, { useEffect, useRef, useState } from 'react';
+import { t, tFormat } from '../../i18n/index.js';
 import { getSongInfo, SONG_HISTORY } from '../../core/songs.js';
 
 const SWIPE_MIN_DISTANCE = 50; // px
@@ -155,7 +156,7 @@ function LiveScreen({
             color: 'var(--text-bright)',
           }}
         >
-          ← Sortir
+          {t('live.exit', '← Sortir')}
         </button>
       </div>
     );
@@ -201,7 +202,7 @@ function LiveScreen({
             color: 'var(--text-bright)',
           }}
         >
-          ← Sortir
+          {t('live.exit', '← Sortir')}
         </button>
         <div
           style={{
@@ -247,7 +248,7 @@ function LiveScreen({
           >
             {info.bpm && (
               <span>
-                <b style={{ color: 'var(--text-bright)' }}>{info.bpm}</b> BPM
+                <b style={{ color: 'var(--text-bright)' }}>{info.bpm}</b> {t('live.bpm', 'BPM')}
               </span>
             )}
             {info.key && (
@@ -309,7 +310,7 @@ function LiveScreen({
               }}
             >
               <span style={{ marginRight: 6 }}>{d.icon}</span>
-              {d.label} — pas de mode live disponible.
+              {tFormat('live.no-live-mode', { label: d.label }, '{label} — pas de mode live disponible.')}
             </div>
           );
         })}
@@ -338,7 +339,7 @@ function LiveScreen({
             color: index === 0 ? 'var(--text-dim)' : 'var(--text-bright)',
           }}
         >
-          ← Précédent
+          {t('live.previous', '← Précédent')}
         </button>
         <button
           type="button"
@@ -355,7 +356,7 @@ function LiveScreen({
             color: index >= total - 1 ? 'var(--text-dim)' : 'var(--text-bright)',
           }}
         >
-          Suivant →
+          {t('live.next', 'Suivant →')}
         </button>
       </div>
     </div>

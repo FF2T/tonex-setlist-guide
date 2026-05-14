@@ -6,6 +6,7 @@
 // d'un autre profil (lecture seule).
 
 import React, { useState, useRef, useEffect } from 'react';
+import { t } from '../../i18n/index.js';
 import { isTrusted, setTrusted } from '../../core/state.js';
 import { verifyPassword, hashPassword, isPasswordLegacy } from '../../core/crypto-utils.js';
 import { profileColor } from './profile-color.js';
@@ -65,16 +66,16 @@ function ProfileSelector({ profiles, activeProfileId, onSwitch, onSettings, onVi
                 {p.password && <span style={{ fontSize: 9, color: 'var(--text-dim)' }}>{isTrusted(p.id) ? '🔓' : '🔒'}</span>}
               </button>
               {isActive && <span style={{ fontSize: 11, color: 'var(--green)' }}>✓</span>}
-              {!isActive && <button onClick={() => { if (onViewProfile) { onViewProfile(p.id); setOpen(false); } }} style={{ background: 'var(--a5)', border: 'none', color: 'var(--text-dim)', borderRadius: 'var(--r-sm)', padding: '2px 6px', fontSize: 9, cursor: 'pointer' }} title="Voir la config">👁</button>}
+              {!isActive && <button onClick={() => { if (onViewProfile) { onViewProfile(p.id); setOpen(false); } }} style={{ background: 'var(--a5)', border: 'none', color: 'var(--text-dim)', borderRadius: 'var(--r-sm)', padding: '2px 6px', fontSize: 9, cursor: 'pointer' }} title={t('profile-selector.view-config', 'Voir la config')}>👁</button>}
             </div>
             {isLogin && <div style={{ padding: '4px 8px 8px' }}>
               <div style={{ display: 'flex', gap: 6 }}>
-                <input ref={pwdRef2} type="password" inputMode="numeric" autoFocus placeholder="Mot de passe" value={pwd} onChange={(e) => { setPwd(e.target.value); setPwdErr(false); }} onKeyDown={(e) => e.key === 'Enter' && tryLogin()} style={{ flex: 1, background: 'var(--bg-elev-1)', color: 'var(--text)', border: `1px solid ${pwdErr ? 'var(--red)' : 'var(--a15)'}`, borderRadius: 'var(--r-md)', padding: '5px 8px', fontSize: 11 }}/>
-                <button onClick={tryLogin} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>OK</button>
+                <input ref={pwdRef2} type="password" inputMode="numeric" autoFocus placeholder={t('profile-selector.password', 'Mot de passe')} value={pwd} onChange={(e) => { setPwd(e.target.value); setPwdErr(false); }} onKeyDown={(e) => e.key === 'Enter' && tryLogin()} style={{ flex: 1, background: 'var(--bg-elev-1)', color: 'var(--text)', border: `1px solid ${pwdErr ? 'var(--red)' : 'var(--a15)'}`, borderRadius: 'var(--r-md)', padding: '5px 8px', fontSize: 11 }}/>
+                <button onClick={tryLogin} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '5px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('profile-selector.ok', 'OK')}</button>
               </div>
               <label style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 5, fontSize: 10, color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} style={{ cursor: 'pointer' }}/>
-                Mémoriser sur cet appareil
+                {t('profile-selector.remember', 'Mémoriser sur cet appareil')}
               </label>
             </div>}
           </div>;

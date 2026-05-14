@@ -7,6 +7,7 @@
 //   l'ajoute aux setlists cibles.
 
 import React, { useState } from 'react';
+import { t, tFormat } from '../../i18n/index.js';
 import { fetchAI } from '../utils/fetchAI.js';
 import { updateAiCache } from '../utils/ai-helpers.js';
 
@@ -29,7 +30,7 @@ function AddSongModal({ songDb, onSongDb, setlists, onSetlists, activeSlId, onCl
       onSetlists((p) => p.map((sl) => targetSlIds.includes(sl.id) ? { ...sl, songIds: [...new Set([...sl.songIds, ...selectedSongs])] } : sl));
     } else {
       if (!newTitle.trim() || targetSlIds.length === 0) return;
-      const ns = { id: `c_${Date.now()}`, title: newTitle.trim(), artist: newArtist.trim() || 'Artiste inconnu', isCustom: true, ig: [], aiCache: null };
+      const ns = { id: `c_${Date.now()}`, title: newTitle.trim(), artist: newArtist.trim() || t('add-song.unknown-artist', 'Artiste inconnu'), isCustom: true, ig: [], aiCache: null };
       onSongDb((p) => [...p, ns]);
       onSetlists((p) => p.map((sl) => targetSlIds.includes(sl.id) ? { ...sl, songIds: [...sl.songIds, ns.id] } : sl));
       fetchAI(ns, '', banksAnn, banksPlug, aiProvider, aiKeys, guitars, null, null, 'balanced', guitarBias)
@@ -43,19 +44,19 @@ function AddSongModal({ songDb, onSongDb, setlists, onSetlists, activeSlId, onCl
     <div style={{ position: 'fixed', inset: 0, background: 'var(--overlay)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 100 }} onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div style={{ background: 'var(--bg-card)', borderRadius: '16px 16px 0 0', padding: 20, width: '100%', maxWidth: 700, maxHeight: '85vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Ajouter un morceau</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>{t('add-song.title', 'Ajouter un morceau')}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-sec)', fontSize: 20, cursor: 'pointer' }}>✕</button>
         </div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-          {[{ v: 'existing', l: 'Depuis la base' }, { v: 'new', l: 'Nouveau morceau' }].map(({ v, l }) => (
+          {[{ v: 'existing', l: t('add-song.from-db', 'Depuis la base') }, { v: 'new', l: t('add-song.new-song', 'Nouveau morceau') }].map(({ v, l }) => (
             <button key={v} onClick={() => setMode(v)} style={{ flex: 1, background: mode === v ? 'var(--accent-bg)' : 'var(--a5)', border: mode === v ? '1px solid var(--border-accent)' : '1px solid var(--a10)', color: mode === v ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '8px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{l}</button>
           ))}
         </div>
         {mode === 'existing' && (
           <>
-            <input placeholder="Rechercher..." value={search} onChange={(e) => setSearch(e.target.value)} style={{ width: '100%', background: 'var(--bg-elev-1)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '9px 12px', fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }}/>
+            <input placeholder={t('add-song.search', 'Rechercher...')} value={search} onChange={(e) => setSearch(e.target.value)} style={{ width: '100%', background: 'var(--bg-elev-1)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '9px 12px', fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }}/>
             <div style={{ maxHeight: 200, overflowY: 'auto', marginBottom: 14 }}>
-              {filtered.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0' }}>Aucun morceau disponible</div>}
+              {filtered.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0' }}>{t('add-song.no-songs', 'Aucun morceau disponible')}</div>}
               {filtered.map((s) => {
                 const sel = selectedSongs.includes(s.id);
                 return (
@@ -70,13 +71,13 @@ function AddSongModal({ songDb, onSongDb, setlists, onSetlists, activeSlId, onCl
         )}
         {mode === 'new' && (
           <div style={{ marginBottom: 14 }}>
-            <input placeholder="Titre *" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} style={{ width: '100%', background: 'var(--bg-elev-1)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '9px 12px', fontSize: 13, marginBottom: 8, boxSizing: 'border-box' }}/>
-            <input placeholder="Artiste" value={newArtist} onChange={(e) => setNewArtist(e.target.value)} style={{ width: '100%', background: 'var(--bg-elev-1)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '9px 12px', fontSize: 13, boxSizing: 'border-box' }}/>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>Analysé par l'IA dans le récap.</div>
+            <input placeholder={t('add-song.title-placeholder', 'Titre *')} value={newTitle} onChange={(e) => setNewTitle(e.target.value)} style={{ width: '100%', background: 'var(--bg-elev-1)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '9px 12px', fontSize: 13, marginBottom: 8, boxSizing: 'border-box' }}/>
+            <input placeholder={t('add-song.artist-placeholder', 'Artiste')} value={newArtist} onChange={(e) => setNewArtist(e.target.value)} style={{ width: '100%', background: 'var(--bg-elev-1)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '9px 12px', fontSize: 13, boxSizing: 'border-box' }}/>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>{t('add-song.ai-hint', "Analysé par l'IA dans le récap.")}</div>
           </div>
         )}
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 12, color: 'var(--text-sec)', fontWeight: 600, marginBottom: 8 }}>Ajouter à :</div>
+          <div style={{ fontSize: 12, color: 'var(--text-sec)', fontWeight: 600, marginBottom: 8 }}>{t('add-song.add-to', 'Ajouter à :')}</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {setlists.map((sl) => {
               const sel = targetSlIds.includes(sl.id);
@@ -88,7 +89,7 @@ function AddSongModal({ songDb, onSongDb, setlists, onSetlists, activeSlId, onCl
         </div>
         <button onClick={handleAdd} disabled={targetSlIds.length === 0 || (mode === 'existing' && selectedSongs.length === 0) || (mode === 'new' && !newTitle.trim())}
           style={{ width: '100%', background: targetSlIds.length > 0 ? 'var(--accent)' : 'var(--bg-elev-3)', border: 'none', color: 'var(--text)', borderRadius: 'var(--r-lg)', padding: '13px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-          ✅ Ajouter{selectedSongs.length > 1 ? ` (${selectedSongs.length})` : ''}
+          {selectedSongs.length > 1 ? tFormat('add-song.add-with-count', { count: selectedSongs.length }, '✅ Ajouter ({count})') : t('add-song.add', '✅ Ajouter')}
         </button>
       </div>
     </div>

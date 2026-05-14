@@ -8,6 +8,7 @@
 //   d'un morceau custom (titre + artiste libre + setlists cibles).
 
 import React, { useState, useMemo } from 'react';
+import { t, tFormat, tPlural } from '../../i18n/index.js';
 import { findDuplicateSong } from '../utils/song-helpers.js';
 import { updateAiCache } from '../utils/ai-helpers.js';
 import { fetchAI } from '../utils/fetchAI.js';
@@ -46,11 +47,14 @@ function SetlistsScreen({
   // ajoute juste aux setlists, sinon on crée le custom song + fetchAI
   // en background + propagation aux setlists.
   const handleSongSearchConfirm = (title, artist) => {
-    const finalArtist = artist || 'Artiste inconnu';
+    const finalArtist = artist || t('setlists.unknown-artist', 'Artiste inconnu');
     const dup = findDuplicateSong(songDb, title, finalArtist);
     if (dup) {
       const slCount = newSongSlIds.length;
-      const msg = `"${dup.title}" (${dup.artist}) est déjà dans la base.${slCount > 0 ? '\n\nVoulez-vous l\'ajouter ' + (slCount > 1 ? 'aux setlists sélectionnées' : 'à la setlist sélectionnée') + ' ?' : ''}`;
+      const addToTarget = slCount > 1
+        ? t('setlists.add-to-selected-plural', 'aux setlists sélectionnées')
+        : t('setlists.add-to-selected-single', 'à la setlist sélectionnée');
+      const msg = tFormat('setlists.already-in-db', { title: dup.title, artist: dup.artist, ask: slCount > 0 ? '\n\n' + tFormat('setlists.add-question', { target: addToTarget }, "Voulez-vous l'ajouter {target} ?") : '' }, '"{title}" ({artist}) est déjà dans la base.{ask}');
       if (slCount > 0) {
         if (window.confirm(msg)) {
           onSetlists((p) => p.map((sl) => newSongSlIds.includes(sl.id) && !sl.songIds.includes(dup.id) ? { ...sl, songIds: [...sl.songIds, dup.id] } : sl));
@@ -73,28 +77,28 @@ function SetlistsScreen({
   const deleteSongFromDb = (id) => {
     const s = songDb.find((x) => x.id === id);
     if (!s) return;
-    if (!window.confirm(`Supprimer "${s.title}" (${s.artist}) de la base ?\nLe morceau sera retiré de toutes les setlists.`)) return;
+    if (!window.confirm(tFormat('setlists.delete-confirm', { title: s.title, artist: s.artist }, 'Supprimer "{title}" ({artist}) de la base ?\nLe morceau sera retiré de toutes les setlists.'))) return;
     onSongDb((p) => p.filter((x) => x.id !== id));
     onSetlists((p) => p.map((sl) => ({ ...sl, songIds: sl.songIds.filter((x) => x !== id) })));
   };
 
   return (
     <div>
-      <Breadcrumb crumbs={[{ label: 'Accueil', screen: 'list' }, { label: 'Setlists & Morceaux' }]} onNavigate={onNavigate}/>
-      <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8 }}>Setlists</div>
+      <Breadcrumb crumbs={[{ label: t('common.home', 'Accueil'), screen: 'list' }, { label: t('setlists.breadcrumb', 'Setlists & Morceaux') }]} onNavigate={onNavigate}/>
+      <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8 }}>{t('setlists.title', 'Setlists')}</div>
       <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-        {tabBtn('setlists', 'Setlists')}
-        {tabBtn('songs', 'Morceaux')}
+        {tabBtn('setlists', t('setlists.tab-setlists', 'Setlists'))}
+        {tabBtn('songs', t('setlists.tab-songs', 'Morceaux'))}
       </div>
       {tab === 'setlists' && <ListScreen songDb={songDb} onSongDb={onSongDb} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} mySongIds={mySongIds} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={guitarBias} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={onLive}/>}
       {tab === 'songs' && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div style={{ fontSize: 13, color: 'var(--text-sec)' }}>{visibleSongDb.length} morceaux</div>
+            <div style={{ fontSize: 13, color: 'var(--text-sec)' }}>{tPlural('setlists.songs-count', visibleSongDb.length, {}, { one: '1 morceau', other: '{count} morceaux' })}</div>
             <select value={songSort} onChange={(e) => setSongSort(e.target.value)} style={{ background: 'var(--bg-card)', color: 'var(--text-sec)', border: '1px solid var(--a12)', borderRadius: 'var(--r-md)', padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>
-              <option value="alpha">A → Z (titre)</option>
-              <option value="artist">Par artiste</option>
-              <option value="recent">Récents</option>
+              <option value="alpha">{t('setlists.sort-alpha', 'A → Z (titre)')}</option>
+              <option value="artist">{t('setlists.sort-artist', 'Par artiste')}</option>
+              <option value="recent">{t('setlists.sort-recent', 'Récents')}</option>
             </select>
           </div>
           {(() => {
@@ -116,8 +120,8 @@ function SetlistsScreen({
                   <div style={{ background: 'var(--a3)', border: '1px solid var(--a6)', borderRadius: 'var(--r-lg)', marginBottom: 4, overflow: 'hidden' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px' }}>
                       <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{s.title}</div>{songSort !== 'artist' && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{s.artist}{s.isCustom ? ' · ✨IA' : ''}</div>}</div>
-                      <button onClick={() => setExpandedSongId(expanded ? null : s.id)} style={{ background: expanded ? 'var(--accent-bg)' : 'var(--a7)', border: expanded ? '1px solid var(--accent-border)' : '1px solid var(--a10)', color: expanded ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '4px 8px', fontSize: 11, cursor: 'pointer' }}>Setlists</button>
-                      <button onClick={() => deleteSongFromDb(s.id)} style={{ background: 'var(--red-bg)', border: '1px solid var(--red-border)', color: 'var(--red)', borderRadius: 'var(--r-md)', padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>Supprimer</button>
+                      <button onClick={() => setExpandedSongId(expanded ? null : s.id)} style={{ background: expanded ? 'var(--accent-bg)' : 'var(--a7)', border: expanded ? '1px solid var(--accent-border)' : '1px solid var(--a10)', color: expanded ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '4px 8px', fontSize: 11, cursor: 'pointer' }}>{t('setlists.setlists-btn', 'Setlists')}</button>
+                      <button onClick={() => deleteSongFromDb(s.id)} style={{ background: 'var(--red-bg)', border: '1px solid var(--red-border)', color: 'var(--red)', borderRadius: 'var(--r-md)', padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>{t('setlists.delete', 'Supprimer')}</button>
                     </div>
                     {expanded && (
                       <div style={{ padding: '8px 12px 10px', borderTop: '1px solid var(--a5)', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -135,10 +139,10 @@ function SetlistsScreen({
             });
           })()}
           <div style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-soft)', borderRadius: 'var(--r-lg)', padding: 14, marginTop: 10 }}>
-            <div style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600, marginBottom: 10 }}>+ Ajouter un morceau</div>
+            <div style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600, marginBottom: 10 }}>{t('setlists.add-song', '+ Ajouter un morceau')}</div>
             {setlists.length > 0 && (
               <>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>Ajouter aussi à :</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>{t('setlists.also-add-to', 'Ajouter aussi à :')}</div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
                   {setlists.map((sl) => {
                     const sel = newSongSlIds.includes(sl.id);

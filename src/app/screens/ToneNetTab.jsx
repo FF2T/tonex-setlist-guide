@@ -6,6 +6,7 @@
 // style inférés depuis le nom).
 
 import React, { useState } from 'react';
+import { t, tFormat, tPlural } from '../../i18n/index.js';
 import { inferPresetInfo } from '../utils/infer-preset.js';
 
 const GAIN_OPTS = ['low', 'mid', 'high'];
@@ -71,40 +72,40 @@ function ToneNetTab({ toneNetPresets, onToneNetPresets, inp }) {
   const deletePreset = (id) => onToneNetPresets((prev) => prev.filter((p) => p.id !== id));
   return (
     <div>
-      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Presets ToneNET</div>
-      <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 12 }}>Ajoute les presets que tu as téléchargés depuis ToneNET.</div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>{t('tonenet.title', 'Presets ToneNET')}</div>
+      <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 12 }}>{t('tonenet.intro', 'Ajoute les presets que tu as téléchargés depuis ToneNET.')}</div>
       <div style={{ background: 'var(--accent-soft)', border: '1px solid var(--border-accent)', borderRadius: 'var(--r-lg)', padding: 'var(--s-4)', marginBottom: 'var(--s-4)' }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-xs)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', color: 'var(--accent)', marginBottom: 'var(--s-3)' }}>{editId ? 'Modifier le preset' : 'Ajouter un preset'}</div>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-xs)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', color: 'var(--accent)', marginBottom: 'var(--s-3)' }}>{editId ? t('tonenet.edit-preset', 'Modifier le preset') : t('tonenet.add-preset', 'Ajouter un preset')}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s-2)' }}>
-          <input placeholder="Nom du preset *" value={name} onChange={(e) => onNameChange(e.target.value)} style={{ ...inp, fontSize: 13 }}/>
+          <input placeholder={t('tonenet.preset-name', 'Nom du preset *')} value={name} onChange={(e) => onNameChange(e.target.value)} style={{ ...inp, fontSize: 13 }}/>
           <div style={{ position: 'relative' }}>
-            <input placeholder="Modèle d'ampli (ex: Fender Twin)" value={amp} onChange={(e) => { onAmpChange(e.target.value); setAutoFilled(false); }} style={{ ...inp, fontSize: 13 }}/>
-            {autoFilled && amp && <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 9, color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>auto</span>}
+            <input placeholder={t('tonenet.amp-model', "Modèle d'ampli (ex: Fender Twin)")} value={amp} onChange={(e) => { onAmpChange(e.target.value); setAutoFilled(false); }} style={{ ...inp, fontSize: 13 }}/>
+            {autoFilled && amp && <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 9, color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>{t('tonenet.auto', 'auto')}</span>}
           </div>
           <div style={{ display: 'flex', gap: 'var(--s-2)' }}>
             <select value={gain} onChange={(e) => setGain(e.target.value)} style={{ ...inp, flex: 1, fontSize: 13 }}>
-              {GAIN_OPTS.map((g) => <option key={g} value={g}>{g === 'low' ? 'Low gain' : g === 'mid' ? 'Mid gain' : 'High gain'}</option>)}
+              {GAIN_OPTS.map((g) => <option key={g} value={g}>{g === 'low' ? t('tonenet.gain-low', 'Low gain') : g === 'mid' ? t('tonenet.gain-mid', 'Mid gain') : t('tonenet.gain-high', 'High gain')}</option>)}
             </select>
             <select value={style} onChange={(e) => setStyle(e.target.value)} style={{ ...inp, flex: 1, fontSize: 13 }}>
               {STYLE_OPTS.map((s) => <option key={s.v} value={s.v}>{s.l}</option>)}
             </select>
           </div>
           <div style={{ display: 'flex', gap: 'var(--s-2)' }}>
-            <input placeholder="Canal (ex: Ch1, Clean, Lead)" value={channel} onChange={(e) => setChannel(e.target.value)} style={{ ...inp, flex: 1, fontSize: 12 }}/>
-            <input placeholder="Cab (ex: 4x12 Greenback)" value={cab} onChange={(e) => setCab(e.target.value)} style={{ ...inp, flex: 1, fontSize: 12 }}/>
+            <input placeholder={t('tonenet.channel', 'Canal (ex: Ch1, Clean, Lead)')} value={channel} onChange={(e) => setChannel(e.target.value)} style={{ ...inp, flex: 1, fontSize: 12 }}/>
+            <input placeholder={t('tonenet.cab', 'Cab (ex: 4x12 Greenback)')} value={cab} onChange={(e) => setCab(e.target.value)} style={{ ...inp, flex: 1, fontSize: 12 }}/>
           </div>
-          <input placeholder="Notes (optionnel)" value={comment} onChange={(e) => setComment(e.target.value)} style={{ ...inp, fontSize: 12 }}/>
+          <input placeholder={t('tonenet.notes', 'Notes (optionnel)')} value={comment} onChange={(e) => setComment(e.target.value)} style={{ ...inp, fontSize: 12 }}/>
           <div style={{ display: 'flex', gap: 'var(--s-2)' }}>
             {editId ? <>
-              <button onClick={saveEdit} disabled={!name.trim()} style={{ flex: 1, background: name.trim() ? 'var(--accent)' : 'var(--bg-elev-3)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px', fontSize: 12, fontWeight: 700, cursor: name.trim() ? 'pointer' : 'not-allowed' }}>Sauver</button>
-              <button onClick={resetForm} style={{ background: 'var(--bg-elev-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, cursor: 'pointer' }}>Annuler</button>
-            </> : <button onClick={addPreset} disabled={!name.trim()} style={{ width: '100%', background: name.trim() ? 'linear-gradient(180deg,var(--brass-200),var(--brass-400))' : 'var(--bg-elev-3)', border: 'none', color: name.trim() ? 'var(--tolex-900)' : 'var(--text-tertiary)', borderRadius: 'var(--r-md)', padding: '8px', fontSize: 12, fontWeight: 700, cursor: name.trim() ? 'pointer' : 'not-allowed', boxShadow: name.trim() ? 'var(--shadow-sm)' : 'none' }}>+ Ajouter</button>}
+              <button onClick={saveEdit} disabled={!name.trim()} style={{ flex: 1, background: name.trim() ? 'var(--accent)' : 'var(--bg-elev-3)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px', fontSize: 12, fontWeight: 700, cursor: name.trim() ? 'pointer' : 'not-allowed' }}>{t('tonenet.save', 'Sauver')}</button>
+              <button onClick={resetForm} style={{ background: 'var(--bg-elev-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, cursor: 'pointer' }}>{t('tonenet.cancel', 'Annuler')}</button>
+            </> : <button onClick={addPreset} disabled={!name.trim()} style={{ width: '100%', background: name.trim() ? 'linear-gradient(180deg,var(--brass-200),var(--brass-400))' : 'var(--bg-elev-3)', border: 'none', color: name.trim() ? 'var(--tolex-900)' : 'var(--text-tertiary)', borderRadius: 'var(--r-md)', padding: '8px', fontSize: 12, fontWeight: 700, cursor: name.trim() ? 'pointer' : 'not-allowed', boxShadow: name.trim() ? 'var(--shadow-sm)' : 'none' }}>{t('tonenet.add', '+ Ajouter')}</button>}
           </div>
         </div>
       </div>
-      {toneNetPresets.length === 0 ? <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-tertiary)', fontSize: 12 }}>Aucun preset ToneNET ajouté</div>
+      {toneNetPresets.length === 0 ? <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-tertiary)', fontSize: 12 }}>{t('tonenet.empty', 'Aucun preset ToneNET ajouté')}</div>
         : <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s-2)' }}>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-xs)', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 2 }}>{toneNetPresets.length} preset{toneNetPresets.length > 1 ? 's' : ''}</div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-xs)', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 2 }}>{tPlural('tonenet.presets-count', toneNetPresets.length, {}, { one: '1 preset', other: '{count} presets' })}</div>
           {toneNetPresets.map((p) => (
             <div key={p.id} style={{ background: editId === p.id ? 'var(--accent-soft)' : 'var(--bg-elev-1)', border: editId === p.id ? '1px solid var(--border-accent)' : '1px solid var(--border-subtle)', borderRadius: 'var(--r-lg)', padding: 'var(--s-3) var(--s-4)', display: 'flex', alignItems: 'center', gap: 'var(--s-3)' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
