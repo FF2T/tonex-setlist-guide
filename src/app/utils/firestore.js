@@ -12,9 +12,15 @@
 import LZString from 'lz-string';
 import { stripAiCacheForSync } from '../../core/state.js';
 import { setSharedGeminiKey } from './shared-key.js';
+import { authedFetch as anonAuthedFetch } from './firebase-auth.js';
 
 const FS_BASE = 'https://firestore.googleapis.com/v1/projects/tonex-guide/databases/(default)/documents';
 const FS_KEY = 'AIzaSyAnaJMN-a47S9W_cTC60lKAnzRMAgHNMAA';
+
+// Phase 7.30 — wrapper qui injecte le idToken Firebase Anonymous Auth
+// dans chaque appel Firestore. Sans token, les rules `if request.auth
+// != null` retournent 403 → bloque la fuite GitGuardian.
+function authedFetch(url, init) { return anonAuthedFetch(FS_KEY, url, init); }
 
 // Phase 7.24 — Mode "no-sync" pour les beta testeurs : désactive tous
 // les appels Firestore. Le flag est lu au chargement et à chaque call.
@@ -89,7 +95,7 @@ export function saveToFirestore(s) {
     fields.data = { stringValue: payload };
   }
   const body = { fields };
-  return fetch(FS_BASE + '/sync/state?key=' + FS_KEY, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  return authedFetch(FS_BASE + '/sync/state?key=' + FS_KEY, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     .then((r) => {
       if (!r.ok) {
         console.error('[firestore] Save failed: HTTP ' + r.status + ' (payload ' + (sz / 1024).toFixed(0) + ' KB).');
@@ -105,7 +111,7 @@ export function saveToFirestore(s) {
 
 export function loadFromFirestore() {
   if (isNoSyncMode()) return Promise.resolve(null);
-  return fetch(FS_BASE + '/sync/state?key=' + FS_KEY)
+  return authedFetch(FS_BASE + '/sync/state?key=' + FS_KEY)
     .then((r) => { if (!r.ok) return null; return r.json(); })
     .then((doc) => {
       if (!doc || !doc.fields) return null;
@@ -156,7 +162,7 @@ export function fsVal(v) {
 
 export function pollRemoteSyncId() {
   if (isNoSyncMode()) return Promise.resolve(null);
-  return fetch(FS_BASE + '/sync/state?key=' + FS_KEY + '&mask.fieldPaths=syncId&mask.fieldPaths=ts')
+  return authedFetch(FS_BASE + '/sync/state?key=' + FS_KEY + '&mask.fieldPaths=syncId&mask.fieldPaths=ts')
     .then((r) => { if (!r.ok) return null; return r.json(); })
     .then((doc) => {
       if (!doc || !doc.fields || !doc.fields.syncId) return null;
@@ -167,7 +173,7 @@ export function pollRemoteSyncId() {
 
 export function loadSharedKey() {
   if (isNoSyncMode()) return Promise.resolve();
-  return fetch(FS_BASE + '/config/apikeys?key=' + FS_KEY)
+  return authedFetch(FS_BASE + '/config/apikeys?key=' + FS_KEY)
     .then((r) => { if (!r.ok) return; return r.json(); })
     .then((doc) => { if (doc && doc.fields && doc.fields.gemini) setSharedGeminiKey(doc.fields.gemini.stringValue); })
     .catch(() => {});
@@ -176,5 +182,5 @@ export function loadSharedKey() {
 export function saveSharedKey(key) {
   if (isNoSyncMode()) return Promise.resolve();
   const body = { fields: { gemini: { stringValue: key } } };
-  return fetch(FS_BASE + '/config/apikeys?key=' + FS_KEY, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
+  return authedFetch(FS_BASE + '/config/apikeys?key=' + FS_KEY, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
 }
