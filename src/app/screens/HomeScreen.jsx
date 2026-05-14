@@ -276,12 +276,16 @@ function OnboardingWizard({ onClose, onProfile }) {
 
 // ─── HomeScreen ──────────────────────────────────────────────────────
 function HomeScreen({
-  songDb, onSongDb, setlists, allSetlists, onSetlists,
+  songDb, onSongDb, setlists, allSetlists, onSetlists, mySongIds,
   checked, onChecked, onNext, onSettings, onProfile, onSetlistScreen, onJam, onExplore, onOptimizer,
   banksAnn, banksPlug, aiProvider, aiKeys, allGuitars, guitarBias, availableSources,
   profiles, activeProfileId, onSwitchProfile, onProfiles, customPacks, syncStatus,
   onViewProfile, onLogout, onLive,
 }) {
+  const visibleSongDb = useMemo(
+    () => (mySongIds ? songDb.filter((s) => mySongIds.has(s.id)) : songDb),
+    [songDb, mySongIds]
+  );
   // Phase 5.13.8 — perf instrumentation, même pattern que ListScreen.
   if (typeof window !== 'undefined' && window.__TONEX_PERF) {
     if (!window.__homeRenderStart) window.__homeRenderStart = performance.now();
@@ -355,7 +359,7 @@ function HomeScreen({
             })()}
 
             <div style={{ width: '100%' }}>
-              <SongSearchBar songDb={songDb} aiProvider={aiProvider} aiKeys={aiKeys} onConfirm={(title, artist) => {
+              <SongSearchBar songDb={visibleSongDb} aiProvider={aiProvider} aiKeys={aiKeys} onConfirm={(title, artist) => {
                 const existing = findDuplicateSong(songDb, title, artist) || songDb.find((s) => normalizePresetName(s.title) === normalizePresetName(title));
                 const canonTitle = existing ? existing.title : title;
                 const canonArtist = existing ? existing.artist : artist;

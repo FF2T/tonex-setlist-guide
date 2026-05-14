@@ -58,7 +58,7 @@ function InlineRenameInput({ initialName, onSave, onCancel, inp, placeholder, bu
 }
 
 function ListScreen({
-  songDb, onSongDb, setlists, allSetlists, onSetlists,
+  songDb, onSongDb, setlists, allSetlists, onSetlists, mySongIds,
   checked, onChecked, onNext, onSettings,
   banksAnn, onBanksAnn, banksPlug, onBanksPlug,
   aiProvider, aiKeys, hideHeader = false, allGuitars, allRigsGuitars,
@@ -72,7 +72,8 @@ function ListScreen({
   const saveSort = (v) => { setSort(v); if (activeSlId) onSetlists((p) => p.map((sl) => sl.id === activeSlId ? { ...sl, sort: v } : sl)); };
   const activeSongs = useMemo(() => {
     const sl = activeSl;
-    const arr = sl ? (sl.songIds || []).map((id) => songDb.find((s) => s.id === id)).filter(Boolean) : [...songDb];
+    const baseAll = mySongIds ? songDb.filter((s) => mySongIds.has(s.id)) : songDb;
+    const arr = sl ? (sl.songIds || []).map((id) => songDb.find((s) => s.id === id)).filter(Boolean) : [...baseAll];
     // Defensive : dedup by id pour éviter les warning React keys dupliquées
     // (cas observé : songDb a 2 entrées même id suite à corruption locale
     // ou collision Date.now() sur ajouts rapides).
@@ -81,7 +82,7 @@ function ListScreen({
     if (sort === 'alpha') deduped.sort((a, b) => a.title.localeCompare(b.title, 'fr'));
     else if (sort === 'artist') deduped.sort((a, b) => a.artist.localeCompare(b.artist, 'fr') || a.title.localeCompare(b.title, 'fr'));
     return deduped;
-  }, [songDb, activeSlId, sort, setlists]);
+  }, [songDb, activeSlId, sort, setlists, mySongIds]);
 
   const enabledDevicesForRender = useMemo(
     () => getActiveDevicesForRender(profile),
@@ -306,7 +307,7 @@ function ListScreen({
       {/* Sélecteur setlist compact */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
         <select value={activeSlId || ''} onChange={(e) => { const v = e.target.value; setActiveSlId(v || null); onChecked([]); const ss = v && setlists.find((s) => s.id === v)?.sort; setSort(ss && ss !== 'default' ? ss : 'artist'); }} style={{ flex: 1, background: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border-strong,var(--a15))', borderRadius: 'var(--r-md)', padding: '8px 12px', fontSize: 13, cursor: 'pointer' }}>
-          <option value="">Tous les morceaux ({songDb.length})</option>
+          <option value="">Tous les morceaux ({mySongIds ? songDb.filter((s) => mySongIds.has(s.id)).length : songDb.length})</option>
           {setlists.map((sl) => <option key={sl.id} value={sl.id}>{sl.name} ({sl.songIds.length})</option>)}
         </select>
         {typeof onLive === 'function' && activeSongs.length > 0 && <button data-testid="list-screen-live" onClick={() => onLive(activeSlId || null)} title="Mode scène plein écran" style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-md)', padding: '8px 10px', fontSize: 13, cursor: 'pointer', flexShrink: 0, fontWeight: 700 }}>🎤</button>}

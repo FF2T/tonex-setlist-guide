@@ -7,7 +7,7 @@
 //   bouton supprimer (de la base). En bas, formulaire d'ajout rapide
 //   d'un morceau custom (titre + artiste libre + setlists cibles).
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { findDuplicateSong } from '../utils/song-helpers.js';
 import { updateAiCache } from '../utils/ai-helpers.js';
 import { fetchAI } from '../utils/fetchAI.js';
@@ -16,13 +16,17 @@ import ListScreen from './ListScreen.jsx';
 import { SongSearchBar } from './HomeScreen.jsx';
 
 function SetlistsScreen({
-  songDb, onSongDb, setlists, allSetlists, onSetlists,
+  songDb, onSongDb, setlists, allSetlists, onSetlists, mySongIds,
   checked, onChecked, onNext, onSettings, onNavigate,
   banksAnn, onBanksAnn, banksPlug, onBanksPlug,
   aiProvider, aiKeys, allGuitars, allRigsGuitars, guitarBias,
   availableSources, activeProfileId, profiles, profile,
   onTmpPatchOverride, onLive,
 }) {
+  const visibleSongDb = useMemo(
+    () => (mySongIds ? songDb.filter((s) => mySongIds.has(s.id)) : songDb),
+    [songDb, mySongIds]
+  );
   const [tab, setTab] = useState('setlists');
   const tabBtn = (id, label) => (
     <button onClick={() => setTab(id)} style={{ background: tab === id ? 'var(--accent-bg)' : 'var(--a5)', border: tab === id ? '1px solid var(--accent-border)' : '1px solid var(--a8)', color: tab === id ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{label}</button>
@@ -82,11 +86,11 @@ function SetlistsScreen({
         {tabBtn('setlists', 'Setlists')}
         {tabBtn('songs', 'Morceaux')}
       </div>
-      {tab === 'setlists' && <ListScreen songDb={songDb} onSongDb={onSongDb} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={guitarBias} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={onLive}/>}
+      {tab === 'setlists' && <ListScreen songDb={songDb} onSongDb={onSongDb} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} mySongIds={mySongIds} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={guitarBias} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={onLive}/>}
       {tab === 'songs' && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div style={{ fontSize: 13, color: 'var(--text-sec)' }}>{songDb.length} morceaux</div>
+            <div style={{ fontSize: 13, color: 'var(--text-sec)' }}>{visibleSongDb.length} morceaux</div>
             <select value={songSort} onChange={(e) => setSongSort(e.target.value)} style={{ background: 'var(--bg-card)', color: 'var(--text-sec)', border: '1px solid var(--a12)', borderRadius: 'var(--r-md)', padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>
               <option value="alpha">A → Z (titre)</option>
               <option value="artist">Par artiste</option>
@@ -97,7 +101,7 @@ function SetlistsScreen({
             // Defensive dedup by id (cf ListScreen) pour éviter le warning
             // React keys dupliquées sur songDb corrompue.
             const seen = new Set();
-            const sorted = songDb.filter((s) => { if (seen.has(s.id)) return false; seen.add(s.id); return true; });
+            const sorted = visibleSongDb.filter((s) => { if (seen.has(s.id)) return false; seen.add(s.id); return true; });
             if (songSort === 'alpha') sorted.sort((a, b) => a.title.localeCompare(b.title, 'fr'));
             else if (songSort === 'artist') sorted.sort((a, b) => a.artist.localeCompare(b.artist, 'fr') || a.title.localeCompare(b.title, 'fr'));
             else sorted.reverse();
