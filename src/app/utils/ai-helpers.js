@@ -233,11 +233,94 @@ function computeBestPresets(gType, style, banksAnn, banksPlug, guitarId, refAmp,
   };
 }
 
+// Phase 7.31 — Cherche un slot bank par nom exact (case-insensitive),
+// retourne {bank, col, label} ou null. Permet à enrichAIResult d'honorer
+// preset_ann_name / preset_plug_name retournés par l'IA.
+function findSlotByName(banks, name) {
+  if (!banks || !name) return null;
+  const target = String(name).trim().toLowerCase();
+  for (const [k, v] of Object.entries(banks)) {
+    for (const c of ['A', 'B', 'C']) {
+      if (v?.[c] && String(v[c]).trim().toLowerCase() === target) {
+        return { bank: Number(k), col: c, label: v[c] };
+      }
+    }
+  }
+  return null;
+}
+
 function enrichAIResult(aiResult, gType, gId, banksAnn, banksPlug, availableSources) {
   if (availableSources === undefined && typeof window !== 'undefined') availableSources = window.__activeSources;
   const style = aiResult.song_style || 'rock';
   const targetGain = typeof aiResult.target_gain === 'number' ? aiResult.target_gain : null;
   const best = computeBestPresets(gType, style, banksAnn, banksPlug, gId, aiResult.ref_amp, targetGain, availableSources);
+  // Phase 7.31 — Si l'IA a nommé une capture installée précise via
+  // preset_ann_name / preset_plug_name (Étape 6 du prompt), on lui fait
+  // confiance et on bypass le scoring V9 pour cette dimension. Le scoring
+  // V9 (computeBestPresets ci-dessus) sert toujours de fallback si l'IA
+  // n'a pas nommé de slot (ou si son nom n'existe pas dans les banks).
+  // Les flags ci-dessous protègent ce choix contre le "never regress" plus
+  // bas qui sinon écraserait le slot nommé par un slot V9 mieux scoré.
+  let annPinnedByAI = false;
+  let plugPinnedByAI = false;
+  const aiAnnName = aiResult.preset_ann_name;
+  if (aiAnnName) {
+    const slot = findSlotByName(banksAnn, aiAnnName);
+    if (slot) {
+      // Récupère le score V9 du slot nommé pour cohérence d'affichage
+      const info = findCatalogEntry(slot.label);
+      let scoreObj = null;
+      if (info) {
+        const dims = [
+          { key: 'pickup', score: computePickupScore(info.style, getGainRange(typeof info.gain === 'number' ? info.gain : gainToNumeric(info.gain)), gType), weight: 0.25 },
+          { key: 'gainMatch', score: computeGainMatchScore(typeof info.gain === 'number' ? info.gain : gainToNumeric(info.gain), targetGain), weight: 0.20 },
+          { key: 'refAmp', score: computeRefAmpScore(info.amp, aiResult.ref_amp), weight: 0.30 },
+          { key: 'styleMatch', score: computeStyleMatchScore(info.style, style), weight: 0.25 },
+        ];
+        const active = dims.filter((d) => d.score !== null);
+        const totalWeight = active.reduce((s, d) => s + d.weight, 0);
+        let final = 0; const breakdown = {};
+        for (const d of active) {
+          const ew = d.weight / totalWeight;
+          final += ew * d.score;
+          breakdown[d.key] = { raw: d.score, weight: Math.round(ew * 100), contribution: Math.round(ew * d.score) };
+        }
+        const v9Score = Math.max(0, Math.min(100, Math.round(final)));
+        // Boost de confiance : nommé par l'IA → score min 90, sinon V9
+        scoreObj = { score: Math.max(90, v9Score), breakdown };
+      }
+      aiResult.preset_ann = { bank: slot.bank, col: slot.col, label: slot.label, score: scoreObj?.score || 90, breakdown: scoreObj?.breakdown || null };
+      annPinnedByAI = true;
+    }
+  }
+  const aiPlugName = aiResult.preset_plug_name;
+  if (aiPlugName) {
+    const slot = findSlotByName(banksPlug, aiPlugName);
+    if (slot) {
+      const info = findCatalogEntry(slot.label);
+      let scoreObj = null;
+      if (info) {
+        const dims = [
+          { key: 'pickup', score: computePickupScore(info.style, getGainRange(typeof info.gain === 'number' ? info.gain : gainToNumeric(info.gain)), gType), weight: 0.25 },
+          { key: 'gainMatch', score: computeGainMatchScore(typeof info.gain === 'number' ? info.gain : gainToNumeric(info.gain), targetGain), weight: 0.20 },
+          { key: 'refAmp', score: computeRefAmpScore(info.amp, aiResult.ref_amp), weight: 0.30 },
+          { key: 'styleMatch', score: computeStyleMatchScore(info.style, style), weight: 0.25 },
+        ];
+        const active = dims.filter((d) => d.score !== null);
+        const totalWeight = active.reduce((s, d) => s + d.weight, 0);
+        let final = 0; const breakdown = {};
+        for (const d of active) {
+          const ew = d.weight / totalWeight;
+          final += ew * d.score;
+          breakdown[d.key] = { raw: d.score, weight: Math.round(ew * 100), contribution: Math.round(ew * d.score) };
+        }
+        const v9Score = Math.max(0, Math.min(100, Math.round(final)));
+        scoreObj = { score: Math.max(90, v9Score), breakdown };
+      }
+      aiResult.preset_plug = { bank: slot.bank, col: slot.col, label: slot.label, score: scoreObj?.score || 90, breakdown: scoreObj?.breakdown || null };
+      plugPinnedByAI = true;
+    }
+  }
   // Si l'IA a proposé un ideal_preset depuis un pack non possédé → reset.
   if (availableSources && aiResult.ideal_preset) {
     const e = findCatalogEntry(aiResult.ideal_preset);
@@ -261,11 +344,16 @@ function enrichAIResult(aiResult, gType, gId, banksAnn, banksPlug, availableSour
     if (e?.src && availableSources[e.src] === false) aiResult.preset_plug = null;
   }
   // Never regress: keep the better of old vs new for each dimension.
-  if (best.annTop) {
+  // Phase 7.31 — Si l'IA a explicitement nommé un slot via preset_ann_name /
+  // preset_plug_name (et que ce slot existe), on respecte son choix même si
+  // le V9 best.annTop scorait mieux : l'IA a vu la liste des captures et a
+  // sciemment préféré "Blink-182 Mesa Boggie" pour un morceau Blink-182 même
+  // si "ACDC - Marshall" scorait plus haut par compatibilité d'ampli.
+  if (best.annTop && !annPinnedByAI) {
     const newAnn = { bank: best.annTop.bank, col: best.annTop.col, label: best.annTop.name, score: best.annTop.score, breakdown: best.annTop.breakdown || null };
     if (!aiResult.preset_ann || newAnn.score >= (aiResult.preset_ann.score || 0)) aiResult.preset_ann = newAnn;
   }
-  if (best.plugTop) {
+  if (best.plugTop && !plugPinnedByAI) {
     const newPlug = { bank: best.plugTop.bank, col: best.plugTop.col, label: best.plugTop.name, score: best.plugTop.score, breakdown: best.plugTop.breakdown || null };
     if (!aiResult.preset_plug || newPlug.score >= (aiResult.preset_plug.score || 0)) aiResult.preset_plug = newPlug;
   }

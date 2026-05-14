@@ -208,7 +208,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.30";
+const APP_VERSION = "8.14.31";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -457,6 +457,33 @@ function App() {
   // dans tous les call-sites de fetchAI/enrichAIResult. Sync pendant le render
   // pour être disponible dès le premier appel (avant useEffect).
   if(typeof window!=="undefined") window.__activeSources=profile?.availableSources||null;
+
+  // Phase 7.30 — Sync customPacks du profil actif dans PRESET_CATALOG_MERGED
+  // pour que findCatalogEntry retourne la vraie metadata (amp/style/gain) des
+  // captures user au lieu du fallback guessPresetInfo. Mirror du pattern
+  // ToneNET (line ~423). Tourne aussi en useMemo synchrone pour être prêt
+  // avant les child useMemos qui scorent les banks (computeBestPresets).
+  // Évite que "Blink-182 Mesa Boggie" (capture Mesa Triple Rectifier) soit
+  // interprété comme metadata fragile guessée depuis le mot "boogie".
+  useMemo(()=>{
+    for(const k of Object.keys(PRESET_CATALOG_MERGED)){
+      if(PRESET_CATALOG_MERGED[k].src==="custom") delete PRESET_CATALOG_MERGED[k];
+    }
+    (profile?.customPacks||[]).forEach(pack=>{
+      (pack.presets||[]).forEach(p=>{
+        if(!p.name) return;
+        PRESET_CATALOG_MERGED[p.name]={
+          src:"custom",
+          amp:p.amp||"Custom",
+          gain:p.gain||"mid",
+          style:p.style||"rock",
+          channel:p.channel||"",
+          pack:pack.name||"Custom Pack",
+          scores:p.scores||{HB:75,SC:75,P90:75},
+        };
+      });
+    });
+  },[profile?.customPacks]);
 
   // Per-profile convenience setters. Phase 5.7 : stamp profile.lastModified
   // au write pour permettre le LWW per-profile côté merge Firestore.

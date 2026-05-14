@@ -597,7 +597,116 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
-## État actuel (2026-05-14, Phase 7.30 close)
+## État actuel (2026-05-14, Phase 7.31 close)
+
+**Backline v8.14.31 / SW backline-v131 / STATE_VERSION 7 / 674 tests verts.**
+Phase 7.31 corrige un bug majeur de recommandation découvert pendant
+l'onboarding du beta testeur Bruno (Reddit, profil metal/punk avec
+captures custom Amalgam + TSR + Galtone + ToneNET dans ses banks 45-49).
+
+### Bug recos captures user (Phase 7.31)
+
+Symptôme observé : Bruno avait `Blink-182 Mesa Boggie` en 48B et
+`Kirk & James - Gasoline v2` en 48A (captures Mesa dédiées) mais l'IA
+recommandait `ACDC - Marshall` (46A) pour All the Small Things et
+`DR 800` factory (10B) pour For Whom the Bell Tolls — captures
+inadaptées au son original Mesa Triple Rectifier / Mesa Mark IIC+.
+
+Cause racine (chaîne de 3 problèmes empilés) :
+
+1. **fetchAI.js ne threadait pas les banks user au prompt IA.** L'IA
+   ignorait l'existence des 15 captures Bruno. Sans cette info, elle
+   proposait un `ideal_preset` "générique" (`Marshall JCM800`, `WT
+   Mars Super100 Br 3`) basé sur sa connaissance pré-entraînée — pas
+   sur l'inventaire installé.
+2. **`PRESET_CATALOG_MERGED` n'intégrait pas `profile.customPacks`
+   globalement** (seul site historique : local à `PresetBrowser.jsx`).
+   Quand `computeBestPresets` appelait `findCatalogEntry("Blink-182
+   Mesa Boggie")`, fallback sur `guessPresetInfo` qui parsait "boogie"
+   → metadata fragile `{amp:"Mesa Boogie", gain:"mid", style:"hard_rock",
+   scores:{HB:75,SC:75,P90:75}, guessed:true}` au lieu de la vraie
+   metadata du customPack (`amp:"Mesa Triple Rectifier"`, `gain:"high"`,
+   etc.).
+3. **Effet domino sur le scoring V9** (refAmp pèse 30%) : avec un
+   `ref_amp` halluciné "Marshall Super100" pour Blink-182,
+   `computeRefAmpScore("Marshall", "Marshall Super100")` ≈ 95 vs
+   `computeRefAmpScore("Mesa Boogie", "Marshall Super100")` ≈ 25 →
+   `ACDC - Marshall` (slot custom de Bruno) gagne contre `Blink-182
+   Mesa Boggie` (slot custom de Bruno aussi). Le résolveur a choisi
+   le mauvais slot **parmi les slots user**, ce qui le rend visuellement
+   crédible et difficile à debug à l'œil nu.
+
+### Fix Phase 7.31 (3 changements)
+
+**Fix A — `src/main.jsx`** : nouveau `useMemo` après `profile = ...`
+qui mirrore le pattern ToneNET (line ~423-436) pour
+`profile.customPacks`. À chaque mutation de customPacks :
+- Drop toutes les entrées `src==="custom"` de `PRESET_CATALOG_MERGED`.
+- Re-ajoute chaque preset des customPacks du profil actif avec
+  `{src:"custom", amp, gain, style, channel, pack:pack.name, scores}`.
+- Conséquence : `findCatalogEntry("Blink-182 Mesa Boggie")` retourne
+  immédiatement la vraie metadata du pack au lieu du guess fragile.
+
+**Fix B — `src/app/utils/fetchAI.js`** : nouvelle fonction
+`buildInstalledSlotsSection(banksAnn, banksPlug)` qui itère les slots
+non-vides, appelle `findCatalogEntry` pour chacun et produit des lignes
+`- 48B "Blink-182 Mesa Boggie" — Mesa Triple Rectifier — rock high gain
+— src:custom`. Section ajoutée au prompt après le catalogue TMP.
+Nouvelle Étape 6 dans les instructions demande à l'IA de retourner
+`preset_ann_name` (nom EXACT d'une capture Pedale/Anniversary) et
+`preset_plug_name` (nom EXACT d'une capture Plug). Priorité explicite :
+nom de capture mentionnant l'artiste/morceau > match ampli historique >
+match style+gain.
+
+**Fix C — `src/app/utils/ai-helpers.js`** : nouvelle fonction
+`findSlotByName(banks, name)` (case-insensitive). `enrichAIResult`
+honore `preset_ann_name` / `preset_plug_name` retournés par l'IA :
+si le nom existe dans les banks, on set `preset_ann` / `preset_plug`
+sur ce slot avec score `max(90, V9Score)` et un breakdown V9 préservé.
+Flags `annPinnedByAI` / `plugPinnedByAI` empêchent le "never-regress"
+plus bas (line ~340) d'écraser le choix IA même si V9 aurait scoré
+mieux un autre slot (cas Bruno : V9 préfère ACDC-Marshall 95 par
+match Marshall hallucineé, mais l'IA voit la liste et nomme
+explicitement Blink-182 Mesa Boggie).
+
+### Conséquences
+
+- Pas de bump STATE_VERSION (purement logique côté prompt + scoring).
+- Pas de migration localStorage.
+- Les aiCache existants restent valides mais sous-optimaux ; ils
+  seront naturellement régénérés au prochain feedback ou via
+  "🤖 Analyser/MAJ N" / "🗑 Invalider tous les caches IA".
+- Bundle taille inchangée à la marge (1779 KB / 484 KB gzip).
+- 674/674 tests verts (aucune régression sur les snapshots V9).
+
+### Architecture livrée à fin Phase 7.31
+
+```
+src/main.jsx                 [7.31] +useMemo customPacks → PRESET_CATALOG_MERGED
+src/app/utils/fetchAI.js     [7.31] +buildInstalledSlotsSection,
+                             Étape 6 prompt, preset_ann_name/_plug_name JSON
+src/app/utils/ai-helpers.js  [7.31] +findSlotByName, enrichAIResult
+                             honore preset_ann_name/preset_plug_name avec
+                             flags pinning anti-regress
+```
+
+### Dette résiduelle Phase 7.31
+
+- Pas de tests Vitest dédiés Phase 7.31 sur `findSlotByName` et le
+  flag pinning (les comportements indirects sont couverts par la
+  suite existante). À ajouter si le code touche encore au flow IA.
+- Si l'IA retourne un nom approximatif (typo, casse différente),
+  `findSlotByName` ne match pas (exact case-insensitive only). Le
+  fuzzy matching de `normalizePresetName` n'est pas appliqué ici.
+  Acceptable car l'IA a la liste exacte sous les yeux dans le prompt.
+- Pour les profils sans customPacks (Sébastien admin avec
+  Anniversary device : packs builtin TSR/ML), Fix A n'a aucun effet
+  (loop vide). Le bug n'existait que pour les profils à banks
+  remplies de captures custom user.
+
+---
+
+## État précédent (2026-05-14, Phase 7.30 close)
 
 **Backline v8.14.30 / SW backline-v130 / STATE_VERSION 7 / 674 tests verts.**
 Déployé sur `https://mybackline.app/`. Session du 2026-05-14 = stack de

@@ -19,10 +19,50 @@
 import { GUITARS } from '../../core/guitars.js';
 import { findGuitarProfile } from '../../core/scoring/guitar.js';
 import { TMP_FACTORY_PATCHES } from '../../devices/tonemaster-pro/index.js';
+import { findCatalogEntry } from '../../core/catalog.js';
 import {
   enrichAIResult, mergeBestResults, bestScoreOf, safeParseJSON,
 } from './ai-helpers.js';
 import { getSharedGeminiKey } from './shared-key.js';
+
+// Phase 7.31 — Construit une section "CAPTURES INSTALLÉES" listant les slots
+// non vides des banks avec leur metadata catalog (amp/style/gain). Sans ça,
+// l'IA ignore les captures user spécifiques (Blink-182 Mesa Boggie, Kirk &
+// James Gasoline, etc.) et hallucine un ref_amp générique Marshall/JCM800
+// → le résolveur V9 mappe alors sur un mauvais slot.
+function buildInstalledSlotsSection(banksAnn, banksPlug) {
+  const lines = [];
+  const fmt = (bank, col, name) => {
+    const info = findCatalogEntry(name);
+    if (!info) return null;
+    const amp = info.amp || '?';
+    const style = info.style || '?';
+    const gain = info.gain || '?';
+    const src = info.src || '?';
+    return `- ${bank}${col} "${name}" — ${amp} — ${style} ${gain} gain — src:${src}`;
+  };
+  const annLines = [];
+  for (const [k, v] of Object.entries(banksAnn || {})) {
+    for (const c of ['A', 'B', 'C']) {
+      if (v?.[c]) { const l = fmt(k, c, v[c]); if (l) annLines.push(l); }
+    }
+  }
+  const plugLines = [];
+  for (const [k, v] of Object.entries(banksPlug || {})) {
+    for (const c of ['A', 'B', 'C']) {
+      if (v?.[c]) { const l = fmt(k, c, v[c]); if (l) plugLines.push(l); }
+    }
+  }
+  if (!annLines.length && !plugLines.length) return '';
+  if (annLines.length) {
+    lines.push(`\nCAPTURES INSTALLÉES DANS LES BANKS PEDALE/ANNIVERSARY (50 banks × 3 slots A/B/C) :\n${annLines.join('\n')}`);
+  }
+  if (plugLines.length) {
+    lines.push(`\nCAPTURES INSTALLÉES DANS LES BANKS PLUG (10 banks × 3 slots A/B/C) :\n${plugLines.join('\n')}`);
+  }
+  lines.push(`\nINSTRUCTION CAPTURES : Si une de ces captures matche le morceau (par nom d'artiste/morceau dans le preset, par ampli historique, ou par style/gain), retourne son nom EXACT dans preset_ann_name (pour Pedale/Anniversary) et preset_plug_name (pour Plug). Priorise les captures contenant le nom d'artiste/morceau (ex: "Blink-182 Mesa Boggie" pour un morceau Blink-182). Sinon retourne null pour ces champs et laisse le scoring fallback choisir.`);
+  return lines.join('\n');
+}
 
 function fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, feedback, availableSources, recoMode, guitarBias) {
   guitars = guitars || GUITARS;
@@ -56,6 +96,12 @@ function fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, fe
     }).join('\n');
     return `\nCATALOGUE TMP (Tone Master Pro) — patches factory disponibles :\n${lines}`;
   })();
+  // Phase 7.31 — Captures installées dans les banks user (lookup via
+  // PRESET_CATALOG_MERGED enrichi de customPacks au mount). Critique pour
+  // que l'IA nomme les vrais slots user ("Blink-182 Mesa Boggie" en 48B)
+  // au lieu de proposer un nom catalog generic ("Marshall JCM800") qui
+  // résoudrait sur le mauvais slot.
+  const installedSlotsLine = buildInstalledSlotsSection(banksAnn, banksPlug);
   const gProfiles = guitars.map((x) => {
     const p = findGuitarProfile(x.id);
     return `- ${x.name} (${x.type}) : ${p ? p.desc : 'profil inconnu'}`;
@@ -66,7 +112,7 @@ Guitare sélectionnée : ${g ? g.name + ' (' + g.type + ')' : 'non précisée'}.
 
 COLLECTION DE GUITARES DISPONIBLES :
 ${gProfiles}
-${feedbackLine}${modeLine}${biasLine}${tmpCatalogLine}
+${feedbackLine}${modeLine}${biasLine}${tmpCatalogLine}${installedSlotsLine}
 INSTRUCTIONS : Tu dois suivre un raisonnement structuré AVANT de donner ta recommandation. Ce raisonnement DOIT apparaître dans le JSON de sortie.
 
 ÉTAPE 1 – PROFIL TONAL DU MORCEAU
@@ -96,8 +142,11 @@ Justifie chaque sous-score.
 ÉTAPE 5 – CHOIX TMP (Tone Master Pro) — optionnelle
 Si un des patches du CATALOGUE TMP ci-dessus convient au morceau, retourne son nom EXACT dans le champ preset_tmp (entre guillemets). Match prioritaire : usages contenant l'artiste ou le morceau > matching style+gain+ampli. Si AUCUN patch ne colle (style trop éloigné, gain mauvais, ampli incompatible), retourne null pour preset_tmp.
 
+ÉTAPE 6 – CHOIX CAPTURES INSTALLÉES (Pedale/Anniversary + Plug) — optionnelle
+Si une capture des listes "CAPTURES INSTALLÉES" ci-dessus matche le morceau, retourne son nom EXACT dans preset_ann_name (pour Pedale/Anniversary) et preset_plug_name (pour Plug). Priorité : nom de capture mentionnant l'artiste/morceau ("Blink-182 Mesa Boggie" pour Blink-182, "Kirk & James - Gasoline" pour Metallica, "Drain You - Punk" pour Nirvana/punk grunge) > match ampli historique > match style+gain. Si aucune capture user ne colle, retourne null pour ces champs.
+
 Réponds en JSON pur (sans backticks ni markdown). Tous les textes en français :
-{"cot_step1":"3-5 phrases analysant le profil tonal du morceau","cot_step2_guitars":[{"name":"nom exact guitare de la collection","score":85,"reason":"1-2 phrases"},{"name":"2e guitare","score":75,"reason":"justification"}],"cot_step3_amp":"2-3 phrases décrivant l'ampli idéal et son caractère tonal","cot_step4_score":{"guitar_score":85,"micro":{"score":90,"reason":"justification"},"body":{"score":80,"reason":"justification"},"history":{"score":95,"reason":"justification"},"amp_match":{"score":85,"reason":"justification"}},"song_year":1970,"song_album":"album","song_desc":"2-3 phrases sur le morceau","song_key":"tonalite du morceau (ex: Em, A, Bb)","song_bpm":120,"song_style":"blues/rock/hard_rock/jazz/metal/pop","target_gain":5,"tonal_school":"fender_clean/marshall_crunch/vox_chime/dumble_smooth/mesa_heavy/hiwatt_clean","pickup_preference":"HB/SC/P90/any","ideal_guitar":"nom complet guitare idéale de la collection","guitar_reason":"1-2 phrases expliquant le choix","settings_preset":"conseils réglage preset","settings_guitar":"conseils de jeu guitare","ref_guitarist":"guitariste original","ref_guitar":"guitare(s) originale(s) (modèle précis)","ref_amp":"ampli(s) original(aux) (modèle précis)","ref_effects":"effets ou 'Aucun effet'","preset_tmp":"nom exact du patch TMP du catalogue OU null si aucun ne convient"}
+{"cot_step1":"3-5 phrases analysant le profil tonal du morceau","cot_step2_guitars":[{"name":"nom exact guitare de la collection","score":85,"reason":"1-2 phrases"},{"name":"2e guitare","score":75,"reason":"justification"}],"cot_step3_amp":"2-3 phrases décrivant l'ampli idéal et son caractère tonal","cot_step4_score":{"guitar_score":85,"micro":{"score":90,"reason":"justification"},"body":{"score":80,"reason":"justification"},"history":{"score":95,"reason":"justification"},"amp_match":{"score":85,"reason":"justification"}},"song_year":1970,"song_album":"album","song_desc":"2-3 phrases sur le morceau","song_key":"tonalite du morceau (ex: Em, A, Bb)","song_bpm":120,"song_style":"blues/rock/hard_rock/jazz/metal/pop","target_gain":5,"tonal_school":"fender_clean/marshall_crunch/vox_chime/dumble_smooth/mesa_heavy/hiwatt_clean","pickup_preference":"HB/SC/P90/any","ideal_guitar":"nom complet guitare idéale de la collection","guitar_reason":"1-2 phrases expliquant le choix","settings_preset":"conseils réglage preset","settings_guitar":"conseils de jeu guitare","ref_guitarist":"guitariste original","ref_guitar":"guitare(s) originale(s) (modèle précis)","ref_amp":"ampli(s) original(aux) (modèle précis)","ref_effects":"effets ou 'Aucun effet'","preset_tmp":"nom exact du patch TMP du catalogue OU null si aucun ne convient","preset_ann_name":"nom EXACT d'une capture des banks Pedale/Anniversary OU null","preset_plug_name":"nom EXACT d'une capture des banks Plug OU null"}
 
 Champs spéciaux :
 - song_key : tonalite du morceau (notation anglaise, ex: Em, A, Bb, F#m)
