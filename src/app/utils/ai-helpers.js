@@ -429,6 +429,29 @@ function getBestResult(song, gId, fallback) {
 }
 
 // Parseur JSON robuste — gère les réponses tronquées par maxOutputTokens.
+// Phase 7.39 — Option D trilingue. Helper qui retourne un texte localisé
+// depuis un champ aiCache. Trois formes acceptées :
+// - string  : ancien format (legacy aiCache pré-Phase 7.39) → retourne tel quel
+//             quelle que soit la locale demandée (le user verra du FR).
+// - {fr, en, es} : nouveau format trilingue → pioche locale, fallback fr → en →
+//             es → '' selon disponibilité.
+// - null/undefined : retourne ''.
+//
+// Robuste si l'IA renvoie partiellement (ex: {fr: "...", en: ""}). Si la
+// locale demandée n'a pas de valeur exploitable, on cascade sur les
+// autres langues disponibles plutôt que de retourner vide.
+function getLocalizedText(value, locale) {
+  if (value == null) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value !== 'object') return String(value);
+  const order = [locale || 'fr', 'fr', 'en', 'es'];
+  for (const loc of order) {
+    const v = value[loc];
+    if (typeof v === 'string' && v.trim()) return v;
+  }
+  return '';
+}
+
 function safeParseJSON(t) {
   let s = t.replace(/```json|```/g, '').trim();
   try { return JSON.parse(s); } catch (e) {
@@ -461,4 +484,5 @@ export {
   updateAiCache,
   getBestResult,
   safeParseJSON,
+  getLocalizedText,
 };

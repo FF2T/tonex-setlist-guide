@@ -106,7 +106,7 @@ function fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, fe
     const p = findGuitarProfile(x.id);
     return `- ${x.name} (${x.type}) : ${p ? p.desc : 'profil inconnu'}`;
   }).join('\n');
-  const prompt = `Expert guitare ToneX. Réponds TOUJOURS en français.
+  const prompt = `Expert guitare ToneX. Tu génères les textes en TROIS langues (français, anglais, espagnol) pour permettre à l'app de servir le user dans sa langue préférée.
 Morceau : "${song.title}" de "${song.artist}".
 Guitare sélectionnée : ${g ? g.name + ' (' + g.type + ')' : 'non précisée'}.
 
@@ -155,17 +155,31 @@ Si une capture des listes "CAPTURES INSTALLÉES" ci-dessus matche le morceau, re
 
 Si AUCUNE des 3 étapes ne donne de match, retourne null pour preset_ann_name et preset_plug_name — le scoring fallback choisira.
 
-Réponds en JSON pur (sans backticks ni markdown). Tous les textes en français :
-{"cot_step1":"3-5 phrases analysant le profil tonal du morceau","cot_step2_guitars":[{"name":"nom exact guitare de la collection","score":85,"reason":"1-2 phrases"},{"name":"2e guitare","score":75,"reason":"justification"}],"cot_step3_amp":"2-3 phrases décrivant l'ampli idéal et son caractère tonal","cot_step4_score":{"guitar_score":85,"micro":{"score":90,"reason":"justification"},"body":{"score":80,"reason":"justification"},"history":{"score":95,"reason":"justification"},"amp_match":{"score":85,"reason":"justification"}},"song_year":1970,"song_album":"album","song_desc":"2-3 phrases sur le morceau","song_key":"tonalite du morceau (ex: Em, A, Bb)","song_bpm":120,"song_style":"blues/rock/hard_rock/jazz/metal/pop","target_gain":5,"tonal_school":"fender_clean/marshall_crunch/vox_chime/dumble_smooth/mesa_heavy/hiwatt_clean","pickup_preference":"HB/SC/P90/any","ideal_guitar":"nom complet guitare idéale de la collection","guitar_reason":"1-2 phrases expliquant le choix","settings_preset":"conseils réglage preset","settings_guitar":"conseils de jeu guitare","ref_guitarist":"guitariste original","ref_guitar":"guitare(s) originale(s) (modèle précis)","ref_amp":"ampli(s) original(aux) (modèle précis)","ref_effects":"effets ou 'Aucun effet'","preset_tmp":"nom exact du patch TMP du catalogue OU null si aucun ne convient","preset_ann_name":"nom EXACT d'une capture des banks Pedale/Anniversary OU null","preset_plug_name":"nom EXACT d'une capture des banks Plug OU null"}
+OUTPUT TRILINGUE — Format des champs texte :
+Les champs marqués "TEXTE TRILINGUE" ci-dessous DOIVENT être un objet à 3 clés {"fr":"...","en":"...","es":"..."} avec la même information traduite dans chaque langue. Garde le sens et le niveau de détail constant entre les 3 versions. Les NOMS PROPRES (noms d'artistes, modèles d'amplis "Marshall JCM800", noms de guitares "Stratocaster '62", titres de morceaux) restent identiques dans les 3 langues. Les autres champs (noms, scores numériques, énums) restent des valeurs scalaires.
 
-Champs spéciaux :
-- song_key : tonalite du morceau (notation anglaise, ex: Em, A, Bb, F#m)
-- song_bpm : tempo en BPM (nombre entier)
-- target_gain : 0-10 (0=clean cristallin, 3=edge of breakup, 5=crunch, 7=drive, 9=high gain, 10=metal extrême)
-- tonal_school : famille tonale de l'ampli original
-- pickup_preference : type de micro idéal
-- cot_step2_guitars : guitares choisies UNIQUEMENT dans la collection listée ci-dessus
-- ideal_guitar : DOIT être une guitare de la collection ci-dessus`;
+Réponds en JSON pur (sans backticks ni markdown) :
+{"cot_step1":{"fr":"3-5 phrases analysant le profil tonal","en":"3-5 sentences analyzing the tonal profile","es":"3-5 frases analizando el perfil tonal"},"cot_step2_guitars":[{"name":"nom exact guitare","score":85,"reason":{"fr":"justification","en":"justification","es":"justificación"}},{"name":"2e guitare","score":75,"reason":{"fr":"...","en":"...","es":"..."}}],"cot_step3_amp":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"cot_step4_score":{"guitar_score":85,"micro":{"score":90,"reason":{"fr":"...","en":"...","es":"..."}},"body":{"score":80,"reason":{"fr":"...","en":"...","es":"..."}},"history":{"score":95,"reason":{"fr":"...","en":"...","es":"..."}},"amp_match":{"score":85,"reason":{"fr":"...","en":"...","es":"..."}}},"song_year":1970,"song_album":"album","song_desc":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"song_key":"Em","song_bpm":120,"song_style":"blues/rock/hard_rock/jazz/metal/pop","target_gain":5,"tonal_school":"fender_clean/marshall_crunch/vox_chime/dumble_smooth/mesa_heavy/hiwatt_clean","pickup_preference":"HB/SC/P90/any","ideal_guitar":"nom complet guitare idéale","guitar_reason":{"fr":"...","en":"...","es":"..."},"settings_preset":{"fr":"conseils","en":"settings","es":"ajustes"},"settings_guitar":{"fr":"conseils de jeu","en":"playing tips","es":"consejos de juego"},"ref_guitarist":"guitariste","ref_guitar":"modèle guitare","ref_amp":"modèle ampli","ref_effects":"effets ou 'Aucun effet'","preset_tmp":"nom exact patch TMP OU null","preset_ann_name":"nom EXACT capture OU null","preset_plug_name":"nom EXACT capture OU null"}
+
+Champs TEXTE TRILINGUE (à fournir en {fr, en, es}) :
+- cot_step1, cot_step3_amp, song_desc, guitar_reason, settings_preset, settings_guitar
+- cot_step2_guitars[].reason
+- cot_step4_score.{micro,body,history,amp_match}.reason
+
+Champs SCALAIRES (valeur unique, pas d'objet) :
+- song_year (number), song_album (string nom album), song_key (string notation), song_bpm (number)
+- song_style, target_gain, tonal_school, pickup_preference : ENUMS
+- ideal_guitar, ref_guitarist, ref_guitar, ref_amp : NOMS PROPRES (pas de traduction)
+- ref_effects : nom des effets en anglais ou null/'Aucun effet'
+- preset_tmp, preset_ann_name, preset_plug_name : noms exacts depuis listes fournies
+- cot_step2_guitars[].name (string), .score (number)
+- cot_step4_score.guitar_score (number), .{micro,body,history,amp_match}.score (number)
+
+Contraintes :
+- cot_step2_guitars : guitares UNIQUEMENT dans la collection listée
+- ideal_guitar : DOIT être une guitare de la collection
+- song_key : notation anglaise (Em, A, Bb, F#m)
+- target_gain : 0-10`;
   const defaultKey = getSharedGeminiKey();
   const key = aiKeys.gemini || aiKeys.anthropic || defaultKey;
   const provider = (aiKeys.gemini || defaultKey) ? 'gemini' : 'anthropic';

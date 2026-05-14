@@ -10,7 +10,7 @@
 // Les valeurs comparées à des outputs IA ('Aucun effet') restent FR.
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { t, tFormat } from '../../i18n/index.js';
+import { t, tFormat, useLocale } from '../../i18n/index.js';
 import { APP_NAME, APP_TAGLINE } from '../../core/branding.js';
 import { getSongInfo } from '../../core/songs.js';
 import {
@@ -24,6 +24,7 @@ import {
 } from '../utils/song-helpers.js';
 import {
   enrichAIResult, mergeBestResults, updateAiCache, safeParseJSON,
+  getLocalizedText,
 } from '../utils/ai-helpers.js';
 import { findInBanks } from '../utils/preset-helpers.js';
 import { getActiveDevicesForRender } from '../utils/devices-render.js';
@@ -303,6 +304,7 @@ function HomeScreen({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  const locale = useLocale();
   const profileName = (profiles[activeProfileId] || {}).name || t('home.profile-default', 'Profil');
   const profile = profiles[activeProfileId] || {};
   const [splashOpen, setSplashOpen] = useState(() => { if (sessionStorage.getItem('tonex_splash')) return false; sessionStorage.setItem('tonex_splash', '1'); return true; });
@@ -429,7 +431,7 @@ function HomeScreen({
                     {/* Section Infos */}
                     <div style={sectionStyle}>
                       {sectionTitle('📖', t('home.song.info-section', 'Infos morceau'))}
-                      {info.desc && <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.5, marginBottom: 6 }}>{info.desc}</div>}
+                      {info.desc && <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.5, marginBottom: 6 }}>{getLocalizedText(info.desc, locale)}</div>}
                       {(songResult.ref_guitarist || songResult.ref_guitar || songResult.ref_amp) && (
                         <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.6 }}>
                           <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 10 }}>{songResult.ref_guitarist || t('home.song.ref-default', 'Référence')}</span><br/>
@@ -450,19 +452,19 @@ function HomeScreen({
                           <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
                             {songResult.cot_step1 && <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
                               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('home.song.cot-tonal', 'Profil tonal')}</div>
-                              <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{songResult.cot_step1}</div>
+                              <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{getLocalizedText(songResult.cot_step1, locale)}</div>
                             </div>}
                             {songResult.cot_step2_guitars?.length > 0 && <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
                               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('home.song.cot-guitars', 'Scoring guitares')}</div>
                               {songResult.cot_step2_guitars.map((gt, i) => <div key={i} style={{ fontSize: 11, color: 'var(--text-sec)', marginBottom: i < songResult.cot_step2_guitars.length - 1 ? 4 : 0, display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
                                 <span style={{ fontWeight: 600, color: 'var(--text-bright)', flexShrink: 0 }}>{gt.name}</span>
                                 <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: scoreColor(gt.score), flexShrink: 0 }}>{gt.score}%</span>
-                                <span style={{ color: 'var(--text-dim)' }}>{gt.reason}</span>
+                                <span style={{ color: 'var(--text-dim)' }}>{getLocalizedText(gt.reason, locale)}</span>
                               </div>)}
                             </div>}
                             {songResult.cot_step3_amp && <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
                               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('home.song.cot-amp', 'Profil ampli')}</div>
-                              <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{songResult.cot_step3_amp}</div>
+                              <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{getLocalizedText(songResult.cot_step3_amp, locale)}</div>
                             </div>}
                           </div>
                         )}
@@ -480,7 +482,7 @@ function HomeScreen({
                             {idealGuitarScore && <b style={{ color: scoreColor(idealGuitarScore), flexShrink: 0 }}>{idealGuitarScore}%</b>}
                           </div>
                         )}
-                        {songResult.guitar_reason && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: -2, marginBottom: 2 }}>{songResult.guitar_reason}</div>}
+                        {songResult.guitar_reason && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: -2, marginBottom: 2 }}>{getLocalizedText(songResult.guitar_reason, locale)}</div>}
                         {songResult.ideal_preset && (() => {
                           const idealScore = songResult.ideal_preset_score || 0;
                           const loc = findInBanks(songResult.ideal_preset, banksAnn) || findInBanks(songResult.ideal_preset, banksPlug);
@@ -504,8 +506,8 @@ function HomeScreen({
                         })()}
                         {(songResult.settings_preset || songResult.settings_guitar) && (
                           <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                            {songResult.settings_preset && <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)' }}><b style={{ color: 'var(--text-muted)' }}>{t('home.song.preset-settings', 'Preset :')}</b> {songResult.settings_preset}</div>}
-                            {songResult.settings_guitar && <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)' }}><b style={{ color: 'var(--text-muted)' }}>{t('home.song.guitar-settings', 'Guitare :')}</b> {songResult.settings_guitar}</div>}
+                            {songResult.settings_preset && <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)' }}><b style={{ color: 'var(--text-muted)' }}>{t('home.song.preset-settings', 'Preset :')}</b> {getLocalizedText(songResult.settings_preset, locale)}</div>}
+                            {songResult.settings_guitar && <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)' }}><b style={{ color: 'var(--text-muted)' }}>{t('home.song.guitar-settings', 'Guitare :')}</b> {getLocalizedText(songResult.settings_guitar, locale)}</div>}
                           </div>
                         )}
                       </div>
