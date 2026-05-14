@@ -216,6 +216,7 @@ const es = {
   'jam.top3-catalog': '🌐 Top 3 — Catálogo completo',
   'jam.top3-pedale': '📦 Top 3 — Pedal',
   'jam.top3-plug': '🔌 Top 3 — ToneX Plug',
+  'jam.page-title': '🎲 Jam',
   'jam.what-style': '¿Qué estilo tocas?',
 
   // list
@@ -400,6 +401,7 @@ const es = {
   'preset-browser.reset': 'Reiniciar',
   'preset-browser.search-placeholder': '🔍 Buscar artista, canción, ampli...',
   'preset-browser.style': 'Estilo catálogo',
+  'preset-browser.page-title': '🎛️ Explorar presets',
   'preset-browser.what-sound': '¿Qué sonido buscas?',
 
   // preset-search
@@ -632,6 +634,40 @@ const es = {
   'tonenet.presets-count': { one: '1 preset', other: '{count} presets' },
   'tonenet.save': 'Guardar',
   'tonenet.title': 'Presets ToneNET',
+
+  // nav (Phase 7.43)
+  'nav.home': 'Inicio',
+  'nav.setlists': 'Setlists',
+  'nav.explore': 'Explorar',
+  'nav.jam': 'Jam',
+  'nav.optimizer': 'Optimizador',
+  'nav.no-sync-tooltip': 'Modo local — sin sync Firestore',
+  'loading': 'Cargando...',
+
+  // sound profiles (Phase 7.43 — PresetBrowser SOUND_PROFILES)
+  'sound.all': 'Todos los presets',
+  'sound.clean-label': 'Clean cristalino',
+  'sound.clean-desc': 'Fender, jazz, pop',
+  'sound.blues-vintage-label': 'Blues vintage',
+  'sound.blues-vintage-desc': 'B.B. King, Clapton, edge of breakup',
+  'sound.jazz-label': 'Jazz cálido',
+  'sound.jazz-desc': 'Tono redondo y cálido',
+  'sound.crunch-70s-label': 'Crunch rock 70s',
+  'sound.crunch-70s-desc': 'Led Zep, Stones, Hendrix',
+  'sound.british-label': 'British invasion',
+  'sound.british-desc': 'Marshall, Vox, AC/DC',
+  'sound.blues-rock-label': 'Blues-rock texano',
+  'sound.blues-rock-desc': 'SRV, Mayer, Bonamassa',
+  'sound.funk-label': 'Funk / Soul',
+  'sound.funk-desc': 'Clean dinámico, Nile Rodgers',
+  'sound.hard-rock-label': 'Hard rock clásico',
+  'sound.hard-rock-desc': "AC/DC, GN'R, Van Halen",
+  'sound.metal-label': 'Metal moderno',
+  'sound.metal-desc': 'Metallica, Tool, Petrucci',
+  'sound.high-gain-label': 'High gain lead',
+  'sound.high-gain-desc': 'Solos, shred, sustain',
+  'sound.pedals-label': 'Pedales de drive',
+  'sound.pedals-desc': 'Capturas de pedales solas',
 
   // view-profile
   'view-profile.back': 'Atrás',

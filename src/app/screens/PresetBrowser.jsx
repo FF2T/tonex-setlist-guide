@@ -375,19 +375,22 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
     return cat;
   }, [customPacks, toneNetPresets, availableSources]);
 
+  // Phase 7.43 — labels et desc wrappés via t() pour le multilingue.
+  // Les artistes (BB King, Clapton, etc.) restent FR/identiques car
+  // noms propres. Les filtres restent inchangés (logique sur i.gain/style).
   const SOUND_PROFILES = {
-    all: { label: 'Tous les presets', filter: () => true },
-    clean_cristallin: { label: 'Clean cristallin', desc: 'Fender, jazz, pop', filter: (i) => i.gain === 'low' && ['jazz', 'pop', 'blues', 'rock'].includes(i.style) },
-    blues_vintage: { label: 'Blues vintage', desc: 'B.B. King, Clapton, edge of breakup', filter: (i) => (i.style === 'blues') || (i.gain === 'low' && i.style === 'rock') },
-    jazz_warm: { label: 'Jazz warm', desc: 'Son rond, chaleureux', filter: (i) => i.style === 'jazz' || (i.gain === 'low' && i.style === 'pop') },
-    crunch_70s: { label: 'Crunch rock 70s', desc: 'Led Zep, Stones, Hendrix', filter: (i) => i.gain === 'mid' && ['rock', 'blues'].includes(i.style) },
-    british: { label: 'British invasion', desc: 'Marshall, Vox, AC/DC', filter: (i) => i.gain === 'mid' && ['rock', 'hard_rock'].includes(i.style) },
-    blues_rock: { label: 'Blues-rock texan', desc: 'SRV, Mayer, Bonamassa', filter: (i) => i.style === 'blues' && ['mid', 'low'].includes(i.gain) },
-    funk_soul: { label: 'Funk / Soul', desc: 'Clean dynamique, Nile Rodgers', filter: (i) => i.gain === 'low' && ['pop', 'rock'].includes(i.style) },
-    hard_rock: { label: 'Hard rock classique', desc: 'AC/DC, GN\'R, Van Halen', filter: (i) => i.style === 'hard_rock' && ['mid', 'high'].includes(i.gain) },
-    metal: { label: 'Metal moderne', desc: 'Metallica, Tool, Petrucci', filter: (i) => i.style === 'metal' || (i.gain === 'high' && i.style === 'hard_rock') },
-    high_gain_lead: { label: 'High gain lead', desc: 'Solos, shred, sustain', filter: (i) => i.gain === 'high' },
-    pedales: { label: 'Pedales de drive', desc: 'Captures pedales seules', filter: (i) => (i.amp || '').includes('drive') || (i.amp || '').includes('Pedal') || (i.amp || '').toLowerCase().includes('pédale') },
+    all: { label: t('sound.all', 'Tous les presets'), filter: () => true },
+    clean_cristallin: { label: t('sound.clean-label', 'Clean cristallin'), desc: t('sound.clean-desc', 'Fender, jazz, pop'), filter: (i) => i.gain === 'low' && ['jazz', 'pop', 'blues', 'rock'].includes(i.style) },
+    blues_vintage: { label: t('sound.blues-vintage-label', 'Blues vintage'), desc: t('sound.blues-vintage-desc', 'B.B. King, Clapton, edge of breakup'), filter: (i) => (i.style === 'blues') || (i.gain === 'low' && i.style === 'rock') },
+    jazz_warm: { label: t('sound.jazz-label', 'Jazz warm'), desc: t('sound.jazz-desc', 'Son rond, chaleureux'), filter: (i) => i.style === 'jazz' || (i.gain === 'low' && i.style === 'pop') },
+    crunch_70s: { label: t('sound.crunch-70s-label', 'Crunch rock 70s'), desc: t('sound.crunch-70s-desc', 'Led Zep, Stones, Hendrix'), filter: (i) => i.gain === 'mid' && ['rock', 'blues'].includes(i.style) },
+    british: { label: t('sound.british-label', 'British invasion'), desc: t('sound.british-desc', 'Marshall, Vox, AC/DC'), filter: (i) => i.gain === 'mid' && ['rock', 'hard_rock'].includes(i.style) },
+    blues_rock: { label: t('sound.blues-rock-label', 'Blues-rock texan'), desc: t('sound.blues-rock-desc', 'SRV, Mayer, Bonamassa'), filter: (i) => i.style === 'blues' && ['mid', 'low'].includes(i.gain) },
+    funk_soul: { label: t('sound.funk-label', 'Funk / Soul'), desc: t('sound.funk-desc', 'Clean dynamique, Nile Rodgers'), filter: (i) => i.gain === 'low' && ['pop', 'rock'].includes(i.style) },
+    hard_rock: { label: t('sound.hard-rock-label', 'Hard rock classique'), desc: t('sound.hard-rock-desc', 'AC/DC, GN\'R, Van Halen'), filter: (i) => i.style === 'hard_rock' && ['mid', 'high'].includes(i.gain) },
+    metal: { label: t('sound.metal-label', 'Metal moderne'), desc: t('sound.metal-desc', 'Metallica, Tool, Petrucci'), filter: (i) => i.style === 'metal' || (i.gain === 'high' && i.style === 'hard_rock') },
+    high_gain_lead: { label: t('sound.high-gain-label', 'High gain lead'), desc: t('sound.high-gain-desc', 'Solos, shred, sustain'), filter: (i) => i.gain === 'high' },
+    pedales: { label: t('sound.pedals-label', 'Pedales de drive'), desc: t('sound.pedals-desc', 'Captures pedales seules'), filter: (i) => (i.amp || '').includes('drive') || (i.amp || '').includes('Pedal') || (i.amp || '').toLowerCase().includes('pédale') },
   };
 
   const ampBrands = useMemo(() => {

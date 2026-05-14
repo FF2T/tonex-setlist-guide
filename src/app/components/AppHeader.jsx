@@ -6,22 +6,25 @@
 // AppNavBottom).
 
 import React from 'react';
+import { t } from '../../i18n/index.js';
 import { APP_NAME } from '../../core/branding.js';
 import { isNoSyncMode } from '../utils/firestore.js';
 import BacklineIcon from './BacklineIcon.jsx';
 import NavIcon from './NavIcon.jsx';
 import { profileColor } from './profile-color.js';
 
-const NAV_ITEMS = [
-  { id: 'list', label: 'Accueil' },
-  { id: 'setlists', label: 'Setlists' },
-  { id: 'explore', label: 'Explorer' },
-  { id: 'jam', label: 'Jammer' },
-  { id: 'optimizer', label: 'Optimiser', adminOnly: true },
+// Phase 7.43 — getNavItems() au lieu d'un const top-level pour permettre
+// au switch de langue de re-évaluer les labels à chaque render.
+const getNavItems = () => [
+  { id: 'list', label: t('nav.home', 'Accueil') },
+  { id: 'setlists', label: t('nav.setlists', 'Setlists') },
+  { id: 'explore', label: t('nav.explore', 'Explorer') },
+  { id: 'jam', label: t('nav.jam', 'Jammer') },
+  { id: 'optimizer', label: t('nav.optimizer', 'Optimiser'), adminOnly: true },
 ];
 
 function AppHeader({ profiles, activeProfileId, onProfile, screen, onNavigate, isAdmin, syncStatus, appVersion }) {
-  const visibleNav = NAV_ITEMS.filter((it) => !it.adminOnly || isAdmin);
+  const visibleNav = getNavItems().filter((it) => !it.adminOnly || isAdmin);
   const profileName = (profiles[activeProfileId] || {}).name || '';
   const c = profileColor(activeProfileId);
   return (
@@ -33,7 +36,7 @@ function AppHeader({ profiles, activeProfileId, onProfile, screen, onNavigate, i
           <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-display,system-ui)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{APP_NAME}</div>
         </div>
         {isNoSyncMode()
-          ? <span title="Mode local — aucune sync Firestore" style={{ fontSize: 10, color: 'var(--text-dim)' }}>🔒</span>
+          ? <span title={t('nav.no-sync-tooltip', 'Mode local — aucune sync Firestore')} style={{ fontSize: 10, color: 'var(--text-dim)' }}>🔒</span>
           : syncStatus && <span style={{ fontSize: 10, color: syncStatus === 'synced' ? 'var(--status-success,var(--green))' : syncStatus === 'syncing' ? 'var(--status-warning,var(--yellow))' : 'var(--text-dim)' }}>{syncStatus === 'synced' ? '☁️' : syncStatus === 'syncing' ? '⏳' : '⚠️'}</span>
         }
         <span style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'var(--font-mono,monospace)' }}>v{appVersion}</span>
@@ -50,11 +53,11 @@ function AppHeader({ profiles, activeProfileId, onProfile, screen, onNavigate, i
 
 function AppNavBottom({ screen, onNavigate, isAdmin }) {
   const ITEMS = [
-    { id: 'list', icon: '🏠', label: 'Accueil' },
-    { id: 'setlists', icon: '🎵', label: 'Setlists' },
-    { id: 'explore', label: 'Explorer' },
-    { id: 'jam', label: 'Jammer' },
-    { id: 'optimizer', label: 'Optimiser', adminOnly: true },
+    { id: 'list', icon: '🏠', label: t('nav.home', 'Accueil') },
+    { id: 'setlists', icon: '🎵', label: t('nav.setlists', 'Setlists') },
+    { id: 'explore', label: t('nav.explore', 'Explorer') },
+    { id: 'jam', label: t('nav.jam', 'Jammer') },
+    { id: 'optimizer', label: t('nav.optimizer', 'Optimiser'), adminOnly: true },
   ];
   const visibleItems = ITEMS.filter((it) => !it.adminOnly || isAdmin);
   return (
