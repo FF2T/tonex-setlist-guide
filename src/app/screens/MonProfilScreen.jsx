@@ -13,6 +13,7 @@ import { findDuplicateSong } from '../utils/song-helpers.js';
 import { updateAiCache } from '../utils/ai-helpers.js';
 import { fetchAI } from '../utils/fetchAI.js';
 import { setSharedGeminiKey } from '../utils/shared-key.js';
+import { hashPassword, verifyPassword, isPasswordLegacy } from '../../core/crypto-utils.js';
 import Breadcrumb from '../components/Breadcrumb.jsx';
 import BankEditor from '../components/BankEditor.jsx';
 import ProfileTab from './ProfileTab.jsx';
@@ -112,6 +113,7 @@ function MonProfilScreen({
         </>; })()}
         {tabBtn('display', '🎨 Affichage')}
         {tabBtn('reco', '🎯 Préférences IA')}
+        {tabBtn('password', '🔐 Mot de passe')}
         {profile.isAdmin && tabBtn('ia', '🔑 Cle API')}
         {profile.isAdmin && tabBtn('maintenance', '🔧 Maintenance')}
         {profile.isAdmin && tabBtn('export', '📋 Export / Import')}
@@ -204,6 +206,7 @@ function MonProfilScreen({
           return { ...p, [activeProfileId]: { ...cur, tmpPatches: { ...prevTmp, custom: customs }, lastModified: Date.now() } };
         });
       }}/>}
+      {tab === 'password' && <PasswordTab profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp}/>}
       {tab === 'reco' && <div>
         <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>Comment l'IA propose les recommandations.</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
@@ -381,5 +384,72 @@ function MonProfilScreen({
   );
 }
 
+// Phase 7.35 — Onglet "🔐 Mot de passe" accessible à TOUS les profils
+// (admin et non-admin). Permet à chacun de changer SON PROPRE mot de
+// passe sans dépendre de l'admin. Flow :
+// 1. Saisir mot de passe actuel (vérification via verifyPassword).
+// 2. Saisir nouveau mot de passe + confirmation (matche obligatoire).
+// 3. Hash via hashPassword (SHA-256 + salt) avant stockage.
+// L'admin reste libre de changer le password de n'importe quel profil
+// via l'onglet "👥 Profils" (ProfilesAdmin).
+function PasswordTab({ profile, onProfiles, activeProfileId, inp }) {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [err, setErr] = useState('');
+  const [success, setSuccess] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const hasPassword = !!profile?.password;
+
+  const onSubmit = async () => {
+    setErr(''); setSuccess(false);
+    if (hasPassword) {
+      if (!current) { setErr('Saisis ton mot de passe actuel pour confirmer.'); return; }
+    }
+    if (!next || next.length < 4) { setErr('Le nouveau mot de passe doit faire au moins 4 caractères.'); return; }
+    if (next !== confirm) { setErr('Les deux saisies du nouveau mot de passe ne correspondent pas.'); return; }
+    setSubmitting(true);
+    try {
+      if (hasPassword) {
+        const ok = isPasswordLegacy(profile.password)
+          ? profile.password === current
+          : await verifyPassword(current, profile.password);
+        if (!ok) { setErr('Mot de passe actuel incorrect.'); setSubmitting(false); return; }
+      }
+      const hashed = await hashPassword(next);
+      onProfiles((p) => ({ ...p, [activeProfileId]: { ...p[activeProfileId], password: hashed, lastModified: Date.now() } }));
+      setCurrent(''); setNext(''); setConfirm('');
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 4000);
+    } catch (e) {
+      setErr('Erreur : ' + (e?.message || String(e)));
+    }
+    setSubmitting(false);
+  };
+
+  return <div>
+    <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>Change le mot de passe de TON profil ({profile.name}). Il te sera redemandé au prochain login sur un nouvel appareil.</div>
+    <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, maxWidth: 480 }}>
+      {hasPassword && <>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>Mot de passe actuel</div>
+        <input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder="Mot de passe actuel" autoComplete="current-password" style={{ ...inp, width: '100%', marginBottom: 12 }}/>
+      </>}
+      {!hasPassword && <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '6px 10px', marginBottom: 12 }}>Ton profil n'a pas encore de mot de passe — saisis-en un nouveau.</div>}
+      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>Nouveau mot de passe</div>
+      <input type="password" value={next} onChange={(e) => setNext(e.target.value)} placeholder="4 caractères minimum" autoComplete="new-password" style={{ ...inp, width: '100%', marginBottom: 12 }}/>
+      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>Confirme le nouveau mot de passe</div>
+      <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Resaisis le nouveau mot de passe" autoComplete="new-password" style={{ ...inp, width: '100%', marginBottom: 12 }}/>
+      {err && <div style={{ fontSize: 11, color: 'var(--wine-400)', background: 'var(--a4)', border: '1px solid var(--wine-400)', borderRadius: 'var(--r-md)', padding: '6px 10px', marginBottom: 12 }}>{err}</div>}
+      {success && <div style={{ fontSize: 11, color: 'var(--green)', background: 'var(--a4)', border: '1px solid var(--green)', borderRadius: 'var(--r-md)', padding: '6px 10px', marginBottom: 12 }}>✓ Mot de passe mis à jour avec succès.</div>}
+      <button
+        data-testid="password-change-submit"
+        disabled={submitting}
+        onClick={onSubmit}
+        style={{ background: submitting ? 'var(--bg-disabled)' : 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.6 : 1 }}
+      >{submitting ? 'En cours…' : 'Enregistrer le nouveau mot de passe'}</button>
+    </div>
+  </div>;
+}
+
 export default MonProfilScreen;
-export { MonProfilScreen };
+export { MonProfilScreen, PasswordTab };

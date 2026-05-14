@@ -597,7 +597,74 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
-## État actuel (2026-05-14, Phase 7.34 close)
+## État actuel (2026-05-14, Phase 7.35 close)
+
+**Backline v8.14.35 / SW backline-v135 / STATE_VERSION 7 / 674 tests verts.**
+Phase 7.35 permet à TOUS les profils (admin + non-admin) de changer leur
+propre mot de passe sans dépendre de l'admin. Avant : seul l'admin pouvait
+modifier les passwords via l'onglet "👥 Profils" (ProfilesAdmin), donc un
+beta-testeur comme Bruno devait demander à Sébastien pour rotater son
+password initial `bruno2026`. Friction inutile pour un test.
+
+### Fix Phase 7.35 (1 changement)
+
+**`src/app/screens/MonProfilScreen.jsx`** : nouveau composant `PasswordTab`
+exposé via un onglet "🔐 Mot de passe" visible à TOUS les profils.
+
+Flow utilisateur :
+1. Mot de passe actuel (vérifié via `verifyPassword` ou fallback legacy
+   plain-text si `isPasswordLegacy`). Champ caché si le profil n'a pas
+   encore de password.
+2. Nouveau mot de passe (4 caractères min).
+3. Confirmation (doit matcher).
+4. Submit → `hashPassword` (SHA-256 + salt 128 bits) → stamp profile +
+   `lastModified` pour LWW Firestore.
+
+Validation côté client :
+- 4 caractères min pour le nouveau password (alerte sinon).
+- Confirmation matche obligatoirement.
+- Si profil sans password (cas dégénéré), la vérification du current est
+  skippée et un message explicatif s'affiche.
+
+L'onglet admin "👥 Profils → Mot de passe" reste actif pour les cas où
+un admin veut rotater le password d'un autre profil (ex. reset forcé
+après oubli, ou pour un nouveau beta-testeur).
+
+### Conséquences
+
+- Pas de bump STATE_VERSION.
+- Pas de migration localStorage.
+- Bundle 1783 KB → 1787 KB (+4 KB pour le PasswordTab).
+- 674/674 tests verts.
+- Bruno peut désormais changer `bruno2026` → un password de son choix
+  dès son premier login.
+
+### Architecture livrée à fin Phase 7.35
+
+```
+src/main.jsx                       APP_VERSION 8.14.34 → 8.14.35
+public/sw.js                       CACHE backline-v134 → backline-v135
+src/app/screens/MonProfilScreen.jsx [7.35] +import hashPassword,
+                                   verifyPassword, isPasswordLegacy ;
+                                   +tabBtn('password') visible à tous ;
+                                   +composant PasswordTab (current /
+                                   next / confirm + submit hashé).
+```
+
+### Dette résiduelle Phase 7.35
+
+- Pas de tests Vitest dédiés sur PasswordTab. Le flow hashPassword est
+  déjà couvert par 13 tests `core/crypto-utils.test.js`.
+- Si l'utilisateur oublie son nouveau password, le seul recours reste
+  l'admin via ProfilesAdmin (qui peut overwrite n'importe quel
+  password). Pas de flow "mot de passe oublié" par email puisque l'app
+  n'a pas de backend mail.
+- L'UI ne montre pas la force du nouveau password (pas de meter). Le
+  minimum 4 caractères est très bas — à durcir si beta test public.
+
+---
+
+## État précédent (2026-05-14, Phase 7.34 close)
 
 **Backline v8.14.34 / SW backline-v134 / STATE_VERSION 7 / 674 tests verts.**
 Phase 7.34 renforce le prompt Étape 6 de fetchAI avec un garde-fou anti
