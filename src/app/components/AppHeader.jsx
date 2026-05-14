@@ -17,10 +17,11 @@ const NAV_ITEMS = [
   { id: 'setlists', label: 'Setlists' },
   { id: 'explore', label: 'Explorer' },
   { id: 'jam', label: 'Jammer' },
-  { id: 'optimizer', label: 'Optimiser' },
+  { id: 'optimizer', label: 'Optimiser', adminOnly: true },
 ];
 
 function AppHeader({ profiles, activeProfileId, onProfile, screen, onNavigate, isAdmin, syncStatus, appVersion }) {
+  const visibleNav = NAV_ITEMS.filter((it) => !it.adminOnly || isAdmin);
   const profileName = (profiles[activeProfileId] || {}).name || '';
   const c = profileColor(activeProfileId);
   return (
@@ -38,7 +39,7 @@ function AppHeader({ profiles, activeProfileId, onProfile, screen, onNavigate, i
         <span style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'var(--font-mono,monospace)' }}>v{appVersion}</span>
       </div>
       <div className="nav-desktop" style={{ display: 'none', gap: 4, marginBottom: 12 }}>
-        {NAV_ITEMS.map((item) => {
+        {visibleNav.map((item) => {
           const active = screen === item.id;
           return <button key={item.id} onClick={() => { onNavigate(item.id); }} style={{ background: active ? 'var(--accent-soft,rgba(129,140,248,0.1))' : 'transparent', border: active ? '1px solid var(--border-accent,rgba(129,140,248,0.3))' : '1px solid transparent', color: active ? 'var(--accent,#818cf8)' : 'var(--text-tertiary,var(--text-muted))', borderRadius: 'var(--r-md,8px)', padding: '6px 12px', fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}><NavIcon id={item.id} size={16}/>{item.label}</button>;
         })}
@@ -47,17 +48,18 @@ function AppHeader({ profiles, activeProfileId, onProfile, screen, onNavigate, i
   );
 }
 
-function AppNavBottom({ screen, onNavigate }) {
+function AppNavBottom({ screen, onNavigate, isAdmin }) {
   const ITEMS = [
     { id: 'list', icon: '🏠', label: 'Accueil' },
     { id: 'setlists', icon: '🎵', label: 'Setlists' },
     { id: 'explore', label: 'Explorer' },
     { id: 'jam', label: 'Jammer' },
-    { id: 'optimizer', label: 'Optimiser' },
+    { id: 'optimizer', label: 'Optimiser', adminOnly: true },
   ];
+  const visibleItems = ITEMS.filter((it) => !it.adminOnly || isAdmin);
   return (
     <div className="nav-mobile" style={{ display: 'flex', position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--surface-card,var(--bg-card))', borderTop: '1px solid var(--border-subtle,var(--a8))', zIndex: 50, paddingBottom: 'max(4px,env(safe-area-inset-bottom))' }}>
-      {ITEMS.map((item) => {
+      {visibleItems.map((item) => {
         const active = screen === item.id;
         return <button key={item.id} onClick={() => { onNavigate(item.id); }} style={{ flex: 1, background: 'none', border: 'none', color: active ? 'var(--accent,#818cf8)' : 'var(--text-tertiary,var(--text-muted))', padding: '8px 0 4px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
           <NavIcon id={item.id} size={20}/>
