@@ -105,6 +105,27 @@ function ListScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSongs, allGuitars, activeSl?.guitars]);
 
+  // Phase 7.29.11 — bank-specific recommendations (preset_ann / preset_plug)
+  // sont stockés en cache dans song.aiCache.result mais reflètent les banks
+  // du profil qui a fait l'analyse au moment du fetchAI. Quand un autre
+  // profil consulte la même song (aiCache partagé via Firestore), il voit
+  // les recos des banks du premier profil. On recompute ici pour le profil
+  // actif. Memoizé par banks / availableSources : un seul recompute par
+  // switch de profil, pas par render.
+  const collapsedAiCBySongId = useMemo(() => {
+    const m = new Map();
+    for (const s of activeSongs) {
+      const rd = songRowData.get(s.id);
+      if (!rd?.gId || !s.aiCache?.result) continue;
+      const aiCraw = getBestResult(s, rd.gId, s.aiCache.result);
+      if (!aiCraw) continue;
+      const gType = rd.g?.type || 'HB';
+      const cleaned = { ...aiCraw, preset_ann: null, preset_plug: null, ideal_preset: null, ideal_preset_score: 0, ideal_top3: null };
+      m.set(s.id, enrichAIResult(cleaned, gType, rd.gId, banksAnn, banksPlug, availableSources));
+    }
+    return m;
+  }, [activeSongs, songRowData, banksAnn, banksPlug, availableSources]);
+
   const tmpTopRecBySongId = useMemo(() => {
     if (!hasTMPDevice || !activeSongs.length) return new Map();
     const map = new Map();
@@ -502,7 +523,12 @@ function ListScreen({
           const isExpanded = expandedId === s.id;
           const aiCraw = getBestResult(s, gId, s.aiCache?.result) || null;
           const needRescore = isExpanded && aiCraw && gId && s.aiCache?.gId !== gId;
-          const aiC = needRescore ? enrichAIResult({ ...aiCraw }, gType, gId, banksAnn, banksPlug) : aiCraw;
+          // Pour la vue repliée (badges device), on utilise les recos
+          // recomputées pour le profil actif (collapsedAiCBySongId).
+          // Pour la vue dépliée, SongDetailCard fait son propre rescore.
+          const aiC = needRescore
+            ? enrichAIResult({ ...aiCraw }, gType, gId, banksAnn, banksPlug)
+            : (collapsedAiCBySongId.get(s.id) || aiCraw);
           const aiPA = aiC?.preset_ann || null;
           const aiPP = aiC?.preset_plug || null;
           const hist = getSongHist(s);
