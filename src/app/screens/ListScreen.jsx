@@ -92,6 +92,9 @@ function ListScreen({
   );
   const hasTMPDevice = enabledDevicesForRender.some((d) => d.id === 'tonemaster-pro');
 
+  // Phase 7.42 — visibleCount hoisté avant collapsedAiCBySongId qui le consomme.
+  const [visibleCount, setVisibleCount] = useState(12);
+
   const songRowData = useMemo(() => {
     const guitars = allGuitars || GUITARS;
     const map = new Map();
@@ -106,25 +109,70 @@ function ListScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSongs, allGuitars, activeSl?.guitars]);
 
-  // Phase 7.29.11 — bank-specific recommendations (preset_ann / preset_plug)
-  // sont stockés en cache dans song.aiCache.result mais reflètent les banks
-  // du profil qui a fait l'analyse au moment du fetchAI. Quand un autre
-  // profil consulte la même song (aiCache partagé via Firestore), il voit
-  // les recos des banks du premier profil. On recompute ici pour le profil
-  // actif. Memoizé par banks / availableSources : un seul recompute par
-  // switch de profil, pas par render.
-  const collapsedAiCBySongId = useMemo(() => {
-    const m = new Map();
-    for (const s of activeSongs) {
-      const rd = songRowData.get(s.id);
-      if (!rd?.gId || !s.aiCache?.result) continue;
-      const aiCraw = getBestResult(s, rd.gId, s.aiCache.result);
-      if (!aiCraw) continue;
-      const gType = rd.g?.type || 'HB';
-      const cleaned = { ...aiCraw, preset_ann: null, preset_plug: null, ideal_preset: null, ideal_preset_score: 0, ideal_top3: null };
-      m.set(s.id, enrichAIResult(cleaned, gType, rd.gId, banksAnn, banksPlug, availableSources));
+  // Phase 7.29.11 + 7.42 — bank-specific recommendations recomputées
+  // pour le profil actif. enrichAIResult coûte ~150ms par song sur des
+  // gros catalogs (customPacks user). Pour 120 morceaux ça donnait 14s
+  // synchrones qui bloquaient le main thread → timeout navigateur.
+  //
+  // Solution Phase 7.42 : compute PROGRESSIF en background via
+  // requestIdleCallback. Batches de 3 songs entre frames. L'UI affiche
+  // immediately les rows sans badges enrichis (fallback raw aiCache),
+  // puis les badges arrivent progressivement. Persistance via setState
+  // de la Map → les rows déjà enrichies conservent leur aiC ref (memo
+  // React.memo SongCollapsedDeviceRows OK), seules les nouvelles entrées
+  // déclenchent un re-render incrémental.
+  const [collapsedAiCBySongId, setCollapsedAiCBySongId] = useState(() => new Map());
+  useEffect(() => {
+    let cancelled = false;
+    setCollapsedAiCBySongId(new Map()); // reset au changement de setlist/banks/etc.
+    if (!activeSongs.length) return undefined;
+    let i = 0;
+    const BATCH = 3;
+    const perfEnabled = typeof window !== 'undefined' && window.__TONEX_PERF;
+    const overallStart = perfEnabled ? performance.now() : 0;
+    let totalEnriched = 0;
+    const tick = () => {
+      if (cancelled) return;
+      const batch = activeSongs.slice(i, i + BATCH);
+      if (batch.length === 0) {
+        if (perfEnabled) {
+          // eslint-disable-next-line no-console
+          console.log(`[perf] collapsedAiCBySongId total: ${(performance.now() - overallStart).toFixed(0)}ms (${totalEnriched}/${activeSongs.length} enriched)`);
+        }
+        return;
+      }
+      const newEntries = [];
+      for (const s of batch) {
+        const rd = songRowData.get(s.id);
+        if (!rd?.gId || !s.aiCache?.result) continue;
+        const aiCraw = getBestResult(s, rd.gId, s.aiCache.result);
+        if (!aiCraw) continue;
+        const gType = rd.g?.type || 'HB';
+        const cleaned = { ...aiCraw, preset_ann: null, preset_plug: null, ideal_preset: null, ideal_preset_score: 0, ideal_top3: null };
+        newEntries.push([s.id, enrichAIResult(cleaned, gType, rd.gId, banksAnn, banksPlug, availableSources)]);
+        totalEnriched += 1;
+      }
+      if (newEntries.length && !cancelled) {
+        setCollapsedAiCBySongId((prev) => {
+          const next = new Map(prev);
+          for (const [k, v] of newEntries) next.set(k, v);
+          return next;
+        });
+      }
+      i += BATCH;
+      if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(tick, { timeout: 200 });
+      } else {
+        setTimeout(tick, 0);
+      }
+    };
+    // Premier tick après render initial.
+    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(tick, { timeout: 50 });
+    } else {
+      setTimeout(tick, 0);
     }
-    return m;
+    return () => { cancelled = true; };
   }, [activeSongs, songRowData, banksAnn, banksPlug, availableSources]);
 
   const tmpTopRecBySongId = useMemo(() => {
@@ -155,7 +203,7 @@ function ListScreen({
   const [expandedId, setExpandedId] = useState(null);
   const [showTopGuitars, setShowTopGuitars] = useState(false);
   const [editingSetlists, setEditingSetlists] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(12);
+  // visibleCount déclaré plus haut (avant collapsedAiCBySongId, Phase 7.42).
   const [showDeviceRows, setShowDeviceRows] = useState(false);
   useEffect(() => {
     setShowDeviceRows(false);

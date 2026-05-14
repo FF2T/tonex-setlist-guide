@@ -209,7 +209,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.40";
+const APP_VERSION = "8.14.43";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -569,8 +569,17 @@ function App() {
 
   // Destructure profile fields for convenience
   const {banksAnn, banksPlug, aiProvider, aiKeys, availableSources} = profile;
-  // Filter setlists for current profile
-  const mySetlists = setlists.filter(sl => !sl.profileIds || sl.profileIds.length === 0 || sl.profileIds.includes(activeProfileId));
+  // Filter setlists for current profile.
+  // Phase 7.42 — useMemo crucial : sans memo, mySetlists devient une
+  // nouvelle ref à chaque render de App → invalide mySongIds → activeSongs
+  // → songRowData → collapsedAiCBySongId qui recompute enrichAIResult
+  // pour CHAQUE morceau (chacun itère PRESET_CATALOG_MERGED ~700 entries).
+  // Pour 100+ morceaux × ~10ms = ~1s par re-render → 5s cumulés sur
+  // plusieurs renders du mount = écran lent + timeout navigateur.
+  const mySetlists = useMemo(
+    () => setlists.filter(sl => !sl.profileIds || sl.profileIds.length === 0 || sl.profileIds.includes(activeProfileId)),
+    [setlists, activeProfileId]
+  );
   // Phase 7.29.5 — visibilité songDb : admin voit tout, non-admin voit
   // uniquement les morceaux présents dans au moins une de ses setlists.
   // null = pas de filtre (admin), Set = filtre actif (non-admin).

@@ -33,13 +33,24 @@ function detectBrowserLocale() {
   return 'fr';
 }
 
+// Phase 7.41 — Cache la locale au niveau du module pour éviter un
+// localStorage.getItem à chaque appel t()/tFormat()/tPlural(). Sans
+// cache, un écran comme ListScreen (~30 morceaux × ~3 calls = 100
+// lectures localStorage par render) devenait perceptiblement lent.
+let _cachedLocale = null;
+
 export function getLocale() {
+  if (_cachedLocale !== null) return _cachedLocale;
   try {
     const stored = localStorage.getItem(LOCALE_KEY);
-    if (stored && SUPPORTED_IDS.has(stored)) return stored;
+    if (stored && SUPPORTED_IDS.has(stored)) {
+      _cachedLocale = stored;
+      return stored;
+    }
     // Premier boot : détecte et persiste pour stabilité au reload.
     const detected = detectBrowserLocale();
     try { localStorage.setItem(LOCALE_KEY, detected); } catch (e) {}
+    _cachedLocale = detected;
     return detected;
   } catch (e) {
     return 'fr';
@@ -50,6 +61,8 @@ const listeners = new Set();
 
 export function setLocale(loc) {
   if (!SUPPORTED_IDS.has(loc)) return;
+  _cachedLocale = loc;
+  _tCache.clear(); // Phase 7.41 — invalider le memo t() au changement de langue.
   try { localStorage.setItem(LOCALE_KEY, loc); } catch (e) {}
   listeners.forEach((cb) => { try { cb(loc); } catch (e) {} });
 }
@@ -78,19 +91,31 @@ function lookup(key, locale) {
   return key.split('.').reduce((acc, k) => (acc && acc[k] !== undefined) ? acc[k] : undefined, dict);
 }
 
+// Phase 7.41 — Memo des résultats t()/lookup pour éviter de re-lookup
+// la même clé à chaque render. ListScreen fait ~60-90 t/tFormat calls
+// dans la boucle des songs ; sans memo c'était perceptible (10-30ms
+// par render sur iOS). Cache invalidé via setLocale() qui clear la Map.
+const _tCache = new Map(); // key: `${locale}|${key}`, value: resolved string ou undefined (negative cache)
+
+function resolveT(key, locale, fallback) {
+  const cacheKey = locale + '|' + key;
+  if (_tCache.has(cacheKey)) {
+    const cached = _tCache.get(cacheKey);
+    return cached !== undefined ? cached : (fallback !== undefined ? fallback : key);
+  }
+  let v = lookup(key, locale);
+  if (v === undefined && locale !== 'fr') {
+    v = lookup(key, 'fr');
+  }
+  _tCache.set(cacheKey, v); // undefined = negative cache (fallback inline sera utilisé)
+  return v !== undefined ? v : (fallback !== undefined ? fallback : key);
+}
+
 // t('home.add-song', 'Ajouter un morceau') — fallback obligatoire pour
 // les strings non encore wrappées. La string FR reste la source de
 // vérité tant qu'on n'a pas rempli le dict.
 export function t(key, fallback) {
-  const locale = getLocale();
-  const v = lookup(key, locale);
-  if (v !== undefined) return v;
-  // Fallback FR si la clé existe en français mais pas dans la locale active.
-  if (locale !== 'fr') {
-    const frVal = lookup(key, 'fr');
-    if (frVal !== undefined) return frVal;
-  }
-  return fallback !== undefined ? fallback : key;
+  return resolveT(key, getLocale(), fallback);
 }
 
 // tFormat('profile.deleted', { name: 'Bruno' }, 'Profil {name} supprimé')
