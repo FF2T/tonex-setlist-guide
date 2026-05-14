@@ -20,6 +20,8 @@
 // jsPDF clés sont appelées.
 
 import { jsPDF } from 'jspdf';
+import { getLocale } from '../../i18n/index.js';
+import { getLocalizedText } from '../utils/ai-helpers.js';
 import { getSongInfo, SONG_HISTORY } from '../../core/songs.js';
 import { getEnabledDevices } from '../../devices/registry.js';
 import { recommendTMPPatch } from '../../devices/tonemaster-pro/scoring.js';
@@ -120,8 +122,9 @@ function renderSongPage(doc, song, ctx) {
     y += 5;
     if (hist.guitar) { doc.text('Guitare : ' + truncate(hist.guitar, 60), MARGIN_X, y); y += 5; }
     if (hist.amp) { doc.text('Ampli : ' + truncate(hist.amp, 60), MARGIN_X, y); y += 5; }
-    if (hist.effects && hist.effects !== 'Aucun effet') {
-      doc.text('Effets : ' + truncate(hist.effects, 60), MARGIN_X, y); y += 5;
+    const fx = getLocalizedText(hist.effects, getLocale());
+    if (fx && !/^aucun effet$|^no effect$|^ningún efecto$/i.test(fx.split(' —')[0].trim())) {
+      doc.text('Effets : ' + truncate(fx, 60), MARGIN_X, y); y += 5;
     }
     y += 4;
     doc.line(MARGIN_X, y, PAGE_W - MARGIN_X, y);
@@ -186,11 +189,12 @@ function renderSongPage(doc, song, ctx) {
   }
 
   // Notes du morceau (si description seed).
-  if (info.desc) {
+  const descLocalized = getLocalizedText(info.desc, getLocale());
+  if (descLocalized) {
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(10);
     doc.setTextColor(80);
-    const lines = doc.splitTextToSize(info.desc, PAGE_W - 2 * MARGIN_X);
+    const lines = doc.splitTextToSize(descLocalized, PAGE_W - 2 * MARGIN_X);
     doc.text(lines.slice(0, 4), MARGIN_X, y);
     doc.setTextColor(0);
   }

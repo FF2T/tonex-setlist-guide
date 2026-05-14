@@ -110,11 +110,28 @@ describe('t', () => {
     expect(t('inexistante.cle', 'Texte par défaut')).toBe('Texte par défaut');
   });
 
-  it('fallback identique en EN et ES tant que les dicts sont vides', () => {
+  it('clé absente des dicts retourne le fallback FR inline', () => {
+    // Phase 7.40 : en.js / es.js sont remplis. Pour tester le fallback
+    // inline il faut une clé qui n'existe dans aucun dict.
     setLocale('en');
-    expect(t('home.add-song', 'Ajouter un morceau')).toBe('Ajouter un morceau');
+    expect(t('inexistante.cle.x', 'Ajouter un morceau')).toBe('Ajouter un morceau');
     setLocale('es');
-    expect(t('home.add-song', 'Ajouter un morceau')).toBe('Ajouter un morceau');
+    expect(t('inexistante.cle.x', 'Ajouter un morceau')).toBe('Ajouter un morceau');
+  });
+
+  it('clé présente dans en.js retourne la valeur EN', () => {
+    setLocale('en');
+    expect(t('add-song.title', 'Ajouter un morceau')).toBe('Add a song');
+  });
+
+  it('clé présente dans es.js retourne la valeur ES', () => {
+    setLocale('es');
+    expect(t('add-song.title', 'Ajouter un morceau')).toBe('Añadir una canción');
+  });
+
+  it('locale fr → fallback inline (fr.js vide, comportement Phase E)', () => {
+    setLocale('fr');
+    expect(t('add-song.title', 'Ajouter un morceau')).toBe('Ajouter un morceau');
   });
 });
 

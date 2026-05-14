@@ -196,7 +196,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         {hist && !aiC && (
           <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.6 }}>
             <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 10 }}>{hist.guitarist}</span><br/>
-            🎸 {hist.guitar} · 🔊 {hist.amp}{hist.effects ? ' · 🎚 ' + hist.effects : ''}
+            🎸 {hist.guitar} · 🔊 {hist.amp}{(() => { const fx = getLocalizedText(hist.effects, locale); return fx ? ' · 🎚 ' + fx : ''; })()}
           </div>
         )}
       </div>

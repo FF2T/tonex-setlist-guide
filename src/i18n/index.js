@@ -71,6 +71,10 @@ export function useLocale() {
 
 function lookup(key, locale) {
   const dict = DICTS[locale] || DICTS.fr;
+  if (!dict) return undefined;
+  // Format plat : la clé entière est une key du dict (en.js / es.js Phase E).
+  if (Object.prototype.hasOwnProperty.call(dict, key)) return dict[key];
+  // Format imbriqué : reduce sur split('.') (legacy fr.js, future flexibilité).
   return key.split('.').reduce((acc, k) => (acc && acc[k] !== undefined) ? acc[k] : undefined, dict);
 }
 
