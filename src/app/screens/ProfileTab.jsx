@@ -18,6 +18,7 @@ import { GUITARS, GUITAR_BRANDS } from '../../core/guitars.js';
 import { SOURCE_LABELS, SOURCE_DESCRIPTIONS, SOURCE_INFO } from '../../core/sources.js';
 import GuitarSearchAdd from '../components/GuitarSearchAdd.jsx';
 import { resizeImageToDataUrl } from '../utils/image-resize.js';
+import { inferBrand, BRAND_KEYWORDS } from '../utils/infer-brand.js';
 import defaultGuitarSvg from '../../assets/default.svg';
 
 function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, section, aiKeys, customGuitars, onCustomGuitars }) {
@@ -29,6 +30,7 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
   const [editGShort, setEditGShort] = useState('');
   const [editGType, setEditGType] = useState('HB');
   const [editGImage, setEditGImage] = useState(null);
+  const [editGBrand, setEditGBrand] = useState('');
   const [imgErr, setImgErr] = useState(null);
 
   const updateProfile = (field, value) => onProfiles((p) => ({ ...p, [activeProfileId]: { ...p[activeProfileId], [field]: typeof value === 'function' ? value(p[activeProfileId][field]) : value, lastModified: Date.now() } }));
@@ -52,6 +54,7 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
     const orig = isCustom ? g : ({ ...GUITARS.find((x) => x.id === g.id), ...(edits[g.id] || {}) });
     setEditingGuitarId(g.id); setEditGName(orig.name); setEditGShort(orig.short); setEditGType(orig.type);
     setEditGImage(isCustom ? (orig.image || null) : null);
+    setEditGBrand(isCustom ? (orig.brand || inferBrand(orig.name) || 'Mes guitares') : '');
     setImgErr(null);
   };
   const onImageUpload = async (file) => {
@@ -68,7 +71,7 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
     if (!editGName.trim() || !editGShort.trim()) { setEditingGuitarId(null); return; }
     const isCustom = editingGuitarId?.startsWith('cg_');
     if (isCustom) {
-      onCustomGuitars((prev) => (prev || []).map((g) => g.id === editingGuitarId ? { ...g, name: editGName.trim(), short: editGShort.trim(), type: editGType, image: editGImage || null } : g));
+      onCustomGuitars((prev) => (prev || []).map((g) => g.id === editingGuitarId ? { ...g, name: editGName.trim(), short: editGShort.trim(), type: editGType, image: editGImage || null, brand: editGBrand || 'Mes guitares' } : g));
     } else {
       updateProfile('editedGuitars', (prev) => ({ ...(prev || {}), [editingGuitarId]: { name: editGName.trim(), short: editGShort.trim(), type: editGType } }));
     }
@@ -146,7 +149,6 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                     return <div key={g.id}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: sel ? 'var(--accent-soft)' : 'var(--a3)', border: sel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '8px 12px', cursor: 'pointer' }} onClick={() => toggleGuitar(g.id)}>
                         <div style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: sel ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: sel ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{sel && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
-                        <img src={g.image || defaultGuitarSvg} alt="" style={{ width: 36, height: 28, objectFit: 'contain', flexShrink: 0, opacity: g.image ? 1 : 0.5, color: 'var(--text-muted)' }}/>
                         <div style={{ flex: 1 }}><span style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{g.short}</span><span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 6 }}>{g.name}</span></div>
                         <span style={{ fontSize: 10, color: 'var(--text-dim)', marginRight: 4 }}>{g.type}</span>
                         {isAdmin && sel && <button onClick={(e) => { e.stopPropagation(); startEditGuitar(g, true); }} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '3px 7px', fontSize: 10, cursor: 'pointer' }}>✏️</button>}
@@ -157,6 +159,12 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                           <input placeholder="Nom" value={editGName} onChange={(e) => setEditGName(e.target.value)} style={{ ...inp, flex: '1 1 140px', fontSize: 11, padding: '5px 8px' }}/>
                           <input placeholder="Abrégé" value={editGShort} onChange={(e) => setEditGShort(e.target.value)} style={{ ...inp, flex: '0 1 80px', fontSize: 11, padding: '5px 8px' }}/>
                           <select value={editGType} onChange={(e) => setEditGType(e.target.value)} style={{ ...inp, flex: '0 0 55px', fontSize: 11, padding: '5px 4px' }}><option value="HB">HB</option><option value="SC">SC</option><option value="P90">P90</option></select>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
+                          <span style={{ fontSize: 11, color: 'var(--text-sec)' }}>Marque :</span>
+                          <select value={editGBrand} onChange={(e) => setEditGBrand(e.target.value)} style={{ ...inp, flex: 1, fontSize: 11, padding: '5px 8px' }}>
+                            {[...BRAND_KEYWORDS, 'Mes guitares'].filter((b, i, a) => a.indexOf(b) === i).map((b) => <option key={b} value={b}>{b}</option>)}
+                          </select>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                           <img src={editGImage || defaultGuitarSvg} alt="" style={{ width: 48, height: 36, objectFit: 'contain', border: '1px solid var(--a8)', borderRadius: 'var(--r-sm)', background: 'var(--a3)', padding: 2, opacity: editGImage ? 1 : 0.5, color: 'var(--text-muted)' }}/>
@@ -180,10 +188,7 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
           </div>;
         })()}
         {isAdmin && <GuitarSearchAdd inp={inp} aiKeys={aiKeys} onAdd={(name, short, type) => {
-          const knownBrands = ['Gibson', 'Fender', 'Epiphone', 'PRS', 'Ibanez', 'ESP', 'Jackson', 'Schecter', 'Gretsch', 'Squier', 'Yamaha', 'Taylor', 'Martin'];
-          const firstWord = name.split(' ')[0];
-          const brand = knownBrands.find((b) => b.toLowerCase() === firstWord.toLowerCase()) || 'Mes guitares';
-          addCustomGuitar({ id: `cg_${Date.now()}`, name, short, type, brand });
+          addCustomGuitar({ id: `cg_${Date.now()}`, name, short, type, brand: inferBrand(name) });
         }}/>}
       </div>}
 
