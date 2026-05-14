@@ -597,6 +597,265 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
+## État actuel (2026-05-14, Phase 7.30 close)
+
+**Backline v8.14.30 / SW backline-v130 / STATE_VERSION 7 / 674 tests verts.**
+Déployé sur `https://mybackline.app/`. Session du 2026-05-14 = stack de
+13 sous-phases 7.29.X + Phase 7.30 (sécurité Firestore).
+
+### Sécurité Firestore (Phase 7.30 — fix fuite GitGuardian)
+
+Le 2026-05-09, GitGuardian a flaggé la Firebase Web API Key
+`AIzaSyAnaJMN-a47S9W_cTC60lKAnzRMAgHNMAA` hardcodée dans le bundle
+(`src/app/utils/firestore.js:17`). Les rules Firestore étaient
+permissives :
+
+```
+match /sync/{doc}   { allow read, write: if true; }
+match /config/{doc} { allow read: if true; allow write: if false; }
+```
+
+→ N'importe qui pouvait pull `/sync/state` (toutes les données users,
+incluant passwords hashés) et `/config/apikeys` (clé Gemini partagée
+en clair).
+
+**Solution déployée** : Firebase Anonymous Auth (REST API, sans SDK)
++ rules tightening + restrictions Cloud Console.
+
+- **`src/app/utils/firebase-auth.js`** (nouveau) :
+  - `ensureAuthToken(apiKey)` : signUp anonyme au 1er appel, cache
+    idToken + refreshToken en localStorage (`backline_anon_auth`),
+    refresh auto avant expiration (~1h).
+  - `authedFetch(apiKey, url, init)` : wrappe fetch en ajoutant
+    `Authorization: Bearer <idToken>`.
+- **`src/app/utils/firestore.js`** : tous les `fetch(FS_BASE+...)`
+  passent par `authedFetch` (5 sites : saveToFirestore,
+  loadFromFirestore, pollRemoteSyncId, loadSharedKey, saveSharedKey).
+- Mode no-sync (Phase 7.24) respecté en amont → zéro appel auth ni
+  Firestore quand activé.
+
+**Manuel côté Firebase / GCP Console (fait par Sébastien)** :
+
+1. Firebase Console → Authentication → Sign-in method → **Anonymous
+   activé**
+2. Firebase Console → Firestore → Rules :
+   ```
+   match /sync/{doc}   { allow read, write: if request.auth != null; }
+   match /config/{doc} { allow read:  if request.auth != null; allow write: if false; }
+   ```
+3. Cloud Console (projet `tonex-guide`) → 2 clés Firebase Web key
+   restreintes :
+   - `AIzaSyAnaJMN-...MAA` (principale, dans le bundle)
+   - `AIzaSyBVEbaPUM-...wk` (auto-créée par Firebase à l'activation
+     Anonymous Auth)
+   - **HTTP referrers** : `https://mybackline.app/*`,
+     `https://mybackline.fr/*`,
+     `https://ff2t.github.io/tonex-setlist-guide/*`,
+     `http://localhost:5173/*`, `http://localhost:4173/*`
+   - **API restrictions** : Cloud Firestore API + Identity Toolkit API
+     uniquement
+4. Cloud Console (projet `claude - ToneX Poweruser`) → clé Gemini
+   `AIzaSyCx0oA-...JVk` : mêmes HTTP referrers, API restriction =
+   Gemini API uniquement.
+
+**Limite résiduelle connue** : un attaquant qui a la Firebase Web Key
+peut techniquement appeler `identitytoolkit.googleapis.com/accounts:signUp`
+depuis un autre origin pour obtenir son propre token anonyme → mais
+les HTTP referrer restrictions Cloud Console bloquent ce path. Sans
+les referrers, l'auth seule serait contournable. Avec les deux
+combinés, la fuite est mitigée à ~99%.
+
+Note PWA iOS standalone : selon les versions Safari, l'en-tête
+`Referer` peut être absent → si Bruno casse en mode PWA installée,
+basculer sur App Check (P5, non implémenté).
+
+### Visibilité songDb filtrée par profil (Phase 7.29.5 + 7.29.11)
+
+Pour préparer le mode partagé avec beta testeurs :
+
+- **`mySongIds`** (main.jsx App()) : `Set | null`. Admin = null (pas de
+  filtre), non-admin = Set des `songIds` de ses `mySetlists`.
+- Propagé à HomeScreen, SetlistsScreen, ListScreen.
+- **`collapsedAiCBySongId`** (ListScreen, Phase 7.29.11) : useMemo qui
+  recompute `preset_ann` + `preset_plug` + `ideal_preset` filtrés par
+  `availableSources` pour TOUTES les songs visibles avec les banks du
+  profil actif. Memoizé sur `[activeSongs, songRowData, banksAnn,
+  banksPlug, availableSources]` → un seul recompute par switch de
+  profil. Bug Phase 7.29.11 : la vue repliée affichait les
+  preset_ann/plug cachés (banks du premier analyseur) → fix par recompute.
+- **HomeScreen `visibleSongDb`** : SongSearchBar autocomplete filtré
+  → un non-admin tape "Highway to Hell" et ne voit que ses morceaux
+  en suggestion. **Mais** au moment de l'add, le code checke le
+  songDb COMPLET (lines 363/403/570 HomeScreen) → si Sébastien a
+  déjà la song, dédup vers son id existant → aiCache partagé.
+- **Trade-off documenté** : `song.feedback[]`, `song.notes`,
+  `song.recoMode` restent partagés (un beta qui croise une song de
+  Sébastien voit ses feedbacks). À adresser plus tard via
+  annotations per-profile si besoin.
+
+### Gating admin-only (Phase 7.29.3 + 7.29.4 + 7.29.7)
+
+- **Optimiser** (Phase 7.29.3) : route `screen==='optimizer'` bloquée
+  si `!isAdmin`. `AppHeader.NAV_ITEMS` + `AppNavBottom.ITEMS` marquent
+  l'entrée `adminOnly: true`, filtrés via `isAdmin` prop.
+- **ToneNET tab** (Phase 7.29.4) : `MonProfilScreen` tab `tonenet`
+  bouton + route gated `profile.isAdmin`. Empêche un beta de polluer
+  `shared.toneNetPresets`.
+- **Custom guitars edit/delete** (Phase 7.29.4) : dans `ProfileTab`,
+  les boutons ✏️ et ✕ sur custom guitars + le `GuitarSearchAdd`
+  sont gated `isAdmin`. Le toggle pour cocher une custom guitar reste
+  ouvert (per-profile `myGuitars`).
+- **Toggle ★/☆ Admin** (Phase 7.29.7) : `ProfilesAdmin` reçoit un
+  bouton par profil pour toggle `isAdmin`. Garde-fou : empêche de
+  retirer admin au dernier admin (alert "Impossible : ce profil est
+  le dernier admin").
+- **ViewProfile** (Phase 7.27, antérieur) : déjà gated `isAdmin`.
+
+### Confidentialité ProfilePicker (Phase 7.29.6)
+
+Avant : le picker au boot listait TOUS les profils par nom (Sébastien,
+Arthur, Franck, Emmanuel, Bruno) → fuite des identités.
+
+Après : grid affiche UNIQUEMENT les profils trusted sur l'appareil
+(via `isTrusted(p.id)` cookie localStorage `tonex_trusted_devices`).
+Sinon, form "Identifiants" (nom + password) déplié par défaut.
+Message d'erreur générique "Identifiants incorrects" → empêche
+l'énumération.
+
+- Sur device frais (pas de trusted) : form direct → user tape son
+  nom + password, après succès l'appareil devient trusted, son profil
+  apparaît dans le grid au prochain reload.
+- Sur device existant : grid trusted + lien "Se connecter à un autre
+  profil" pour rouvrir le form.
+
+### Visuel custom guitars (Phase 7.29.9 + 7.29.10)
+
+- **`src/assets/default.svg`** : silhouette outline générique pour
+  fallback.
+- **`src/app/utils/image-resize.js`** : `resizeImageToDataUrl(file,
+  maxWidth=240, quality=0.85)` → Canvas resize → data-URL JPEG
+  ~30 KB. Évite d'exploser localStorage / 1MB Firestore avec photos
+  brutes.
+- **ProfileTab edit dialog** (admin-only via Phase 7.29.4) : input
+  file `📷 Ajouter/Changer l'image` → preview live + bouton "Retirer".
+- **Data model** : `customGuitar.image: string | null` (data-URL).
+- **Retrait du thumbnail dans la liste** (Phase 7.29.10) : feedback
+  user — l'image reste stockée et uploadable, juste plus affichée
+  dans la ligne ProfileTab pour aérer.
+
+### Détection de marque pour custom guitars (Phase 7.29.10)
+
+Bug : "Tele Pro II" (full name "Fender Telecaster American Pro II")
+classé dans "Mes guitares" au lieu de "Fender", car la détection
+old-school prenait le 1er mot du nom et le matchait contre 13 marques.
+
+Fix :
+- **`src/app/utils/infer-brand.js`** : `inferBrand(name)` qui scanne
+  toute la chaîne pour un nom de marque, puis fallback heuristique
+  modèle→marque (`Telecaster|Strat|Jazz Bass → Fender`,
+  `Les Paul|SG|ES-3xx|Flying V → Gibson`, `Pacifica → Yamaha`,
+  `White Falcon|Duo Jet → Gretsch`, etc.).
+- **Edit dialog ProfileTab** : nouveau dropdown "Marque" pour
+  re-classifier manuellement les guitares historiquement parquées
+  dans "Mes guitares". `saveEditGuitar` persiste désormais `brand`.
+
+### Badge collapsed amélioré (Phase 7.29.13)
+
+Avant : `[10B] [Marshall JCM800] [85%]` → user comprenait que
+"Marshall JCM800" était le nom du preset (alors que c'est l'amp).
+
+Après : `[10B] [DR 800 · JCM800] [85%]` — le PRESET NAME en gras
+primaire, l'amp en plus discret après ` · ` (avec prefixes redondants
+"Marshall " / "Fender " strippés pour la place).
+
+### AppFooter monté + rebrand PathToTone (Phase 7.29.1 + 7.29.2)
+
+- `AppFooter` était importé dans `main.jsx` depuis Phase 7.29 mais
+  JAMAIS rendu en JSX → invisible. Fix : `<AppFooter/>` ajouté entre
+  `{screenContent}` et `<AppNavBottom>` → visible sur tous les écrans
+  sauf LiveScreen (fullscreen).
+- Rebrand cosmétique : "PathToMusic inc." → "PathToTone" (nom
+  inventé, plus aligné avec l'univers guitar tone). Texte final :
+  `© 2026 PathToTone · Made with 🎸 and ❤️`.
+
+### Documentation beta (Phase 7.29.7 + 7.29.12)
+
+- **`BETA_ONBOARDING.md`** (versionné, template générique) :
+  procédure 9 étapes pour créer un beta testeur, préparer son setup,
+  créer sa setlist, lui envoyer le lien, observer son usage,
+  révoquer. Mentionne les trade-offs (feedbacks partagés, etc.).
+- **`BETA_CREDENTIALS.md`** (gitignored via Phase 7.29.12) : fichier
+  local pour stocker les vraies infos (nom + password) sans risque
+  de push.
+
+### Discipline SW cache (leçon Phase 7.29.8)
+
+Le SW ne bumpait pas son CACHE name entre Phase 7.29.1 → 7.29.7 →
+6 deploys mais aucun n'arrivait aux utilisateurs (cache identique
+v118). À retenir : **bump `CACHE` dans `public/sw.js` + bump
+`APP_VERSION` dans `main.jsx` à chaque deploy main qui touche du
+code applicatif**. L'activate handler purge auto les anciens caches
+via le filtre `k !== CACHE`.
+
+### Beta testeur live
+
+- **Bruno** créé via ProfilesAdmin par Sébastien. Mode partagé
+  Firestore (pas `?beta=1`).
+- Setlist personnelle préparée par Sébastien avec ses morceaux
+  (Blink 182, etc.). Schecter C-1 Platinum (HB) coché.
+- Bruno doit recharger sa PWA jusqu'à voir `v8.14.30` dans le header
+  pour pouvoir se connecter (rules tightened → ancien bundle = 403).
+
+### Architecture livrée à fin Phase 7.30
+
+```
+src/app/utils/
+  ...existing
+  firebase-auth.js     [7.30] ensureAuthToken / authedFetch
+  image-resize.js      [7.29.9] resizeImageToDataUrl Canvas helper
+  infer-brand.js       [7.29.10] inferBrand + BRAND_KEYWORDS
+src/assets/
+  default.svg          [7.29.9] silhouette outline fallback
+src/app/screens/
+  ProfilePickerScreen.jsx   [refondu 7.29.6] trusted-only grid +
+                            login form
+  ProfilesAdmin.jsx         [7.29.7] toggle ★/☆ Admin + dropdown
+                            isAdmin + adminCount guard
+  ProfileTab.jsx            [7.29.4 + 7.29.9 + 7.29.10] isAdmin
+                            gating (GuitarSearchAdd, ✏️, ✕) + image
+                            upload + brand dropdown
+  ListScreen.jsx            [7.29.11 + 7.29.13] mySongIds filter +
+                            collapsedAiCBySongId + badge label/amp
+  HomeScreen.jsx            [7.29.5] visibleSongDb pour SongSearchBar
+  SetlistsScreen.jsx        [7.29.5] visibleSongDb pour tab Morceaux
+  MonProfilScreen.jsx       [7.29.4] tonenet tab gated
+BETA_ONBOARDING.md      [7.29.7] template (versionné)
+BETA_CREDENTIALS.md     [7.29.12] gitignored
+```
+
+### Dette résiduelle Phase 7.30
+
+- Découpage final de `App()` (~945 lignes, dette persistante).
+- AI populating `preset_tmp` pour patches custom (depuis Phase 7.10).
+- `window.DEFAULT_GEMINI_KEY` legacy bridge à auditer.
+- `ReactDOM.render → createRoot` (warning React 18 cosmétique).
+- ToneX One + ToneX One+ devices (PDFs dans `tone_models/`, scope
+  discuté mais non implémenté — bank model flat 20 slots vs 50×3 à
+  travailler).
+- App Check (P5, défense ultime) : si PWA iOS Safari standalone
+  perd ses Referer headers → fallback Firebase App Check avec
+  reCAPTCHA Enterprise. À envisager si breaks PWA.
+- `song.feedback[]` / `song.notes` / `song.recoMode` partagés : si
+  besoin d'isolation per-profile, refacto vers
+  `profile.songAnnotations[songId]`.
+- Rotation clé Gemini partagée (`AIzaSyCx0oA...`) : transitait en
+  clair pendant les mois où `/config/apikeys` était public.
+  Préventif — pas critique tant qu'aucun abus n'est constaté.
+- i18n : scaffolding Phase 7.24 jamais cabled. À démarrer si beta
+  anglophone.
+
+---
+
 ## État actuel (2026-05-13, Phase 7.29 close)
 
 **Backline v8.14.29 / SW backline-v118 / STATE_VERSION 7 / 674 tests verts.**
