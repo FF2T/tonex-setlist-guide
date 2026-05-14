@@ -38,6 +38,7 @@ const en = {
 
   // common
   'common.home': 'Home',
+  'common.footer-disclaimer': 'Independent tool — ToneX™ is a trademark of IK Multimedia SpA. Other mentioned trademarks belong to their respective owners.',
 
   // devices
   'devices.hint': 'Check the devices you use. The Recap and Synthesis blocks will only display those. At least one device must remain checked.',

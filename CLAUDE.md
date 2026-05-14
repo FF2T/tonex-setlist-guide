@@ -597,7 +597,76 @@ npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
 
-## État actuel (2026-05-14, Phase 7.43 close)
+## État actuel (2026-05-14, Phase 7.44 close)
+
+**Backline v8.14.45 / SW backline-v145 / STATE_VERSION 7 / 710 tests verts.**
+Phase 7.44 ajoute un disclaimer de marques tierces dans `AppFooter`,
+en réponse au premier contact externe officiel (email envoyé à The
+Studio Rats le 2026-05-14, réponse cordiale immédiate de Paul). Avant
+ce contact, l'app n'avait que le copyright "© 2026 PathToTone" sans
+mention explicite des marques utilisées (ToneX, ToneNET, etc.).
+
+### Fix Phase 7.44 (1 changement)
+
+**`src/app/components/AppFooter.jsx`** : nouvelle ligne sous le
+copyright, plus discrète (fontSize 9 vs 10, opacity 0.7) :
+
+```
+© 2026 PathToTone · Made with 🎸 and ❤️
+Outil indépendant — ToneX™ est une marque d'IK Multimedia SpA.
+Autres marques citées appartiennent à leurs propriétaires respectifs.
+```
+
+Wrapping i18n via `t('common.footer-disclaimer', fallback FR)`.
+Traductions ajoutées dans :
+- `src/i18n/en.js` : "Independent tool — ToneX™ is a trademark of
+  IK Multimedia SpA. Other mentioned trademarks belong to their
+  respective owners."
+- `src/i18n/es.js` : "Herramienta independiente — ToneX™ es una marca
+  de IK Multimedia SpA. Las demás marcas mencionadas pertenecen a sus
+  respectivos propietarios."
+
+Hook `useLocale()` ajouté pour re-render au switch de langue.
+
+### Conséquences
+
+- Pas de bump STATE_VERSION.
+- Pas de migration localStorage.
+- Bundle 1880 KB → 1881 KB (+1 KB pour les 3 traductions et le 2e div).
+- 710/710 tests verts.
+- **Protection légale préventive** : usage nominatif des marques
+  clarifié, indépendance affichée. Réduit le risque de contestation
+  par IKM ou tout autre détenteur si le projet gagne en visibilité.
+
+### Architecture livrée à fin Phase 7.44
+
+```
+src/main.jsx                       APP_VERSION 8.14.44 → 8.14.45
+public/sw.js                       CACHE backline-v144 → backline-v145
+src/app/components/AppFooter.jsx   [7.44] +import t/useLocale, +2e div
+                                   disclaimer marques tierces wrappé
+                                   t('common.footer-disclaimer')
+src/i18n/en.js                     [7.44] +common.footer-disclaimer
+src/i18n/es.js                     [7.44] +common.footer-disclaimer
+```
+
+### Dette résiduelle Phase 7.44
+
+- Le disclaimer ne mentionne nominativement que ToneX/IK Multimedia.
+  Les autres marques utilisées (TSR, ML Sound Lab, Galtone, Amalgam,
+  Marshall, Fender, Mesa Boogie, Vox, etc.) sont couvertes par la
+  formule générique "Autres marques citées…". Suffisant légalement
+  mais pourrait être enrichi en Phase 7.45+ si TSR/ML/etc. demandent
+  une mention explicite.
+- Une page dédiée "Mentions légales" (Option B du conseil utilisateur
+  initial) reste possible plus tard si le projet bascule vers
+  scenario (b) freemium ou (c) open-source. Pas urgent.
+- Pas de mention de licence du code Backline (par défaut "all rights
+  reserved" GitHub). À trancher quand le scenario business est clair.
+
+---
+
+## État précédent (2026-05-14, Phase 7.43 close)
 
 **Backline v8.14.44 / SW backline-v144 / STATE_VERSION 7 / 710 tests verts.**
 **Multilingue FR/EN/ES complet** sur ~605 strings UI + 26 entrées seed +
@@ -3239,6 +3308,77 @@ profile {
 - Manifest et icône en data-URI inline → sortir dans `public/`.
 - Service Worker stratégie cache-first peut bloquer les updates →
   passer en stale-while-revalidate sur le HTML.
+
+## Idées en attente (proposées, pas encore validées)
+
+### Phase 7.44 (proposée) — Bouton "Demander un compte" sur ProfilePicker
+
+**Idée** : ajouter sur l'écran de connexion (`ProfilePickerScreen`) un
+lien discret *"Pas encore de compte ? Demander un accès"* qui ouvre un
+formulaire collectant en une fois :
+- Pseudo / prénom
+- Email (pour recevoir le password généré par admin)
+- Guitares principales (input libre, 2-4 max)
+- Modèle ToneX (radio : Pedal standard / Anniversary / One / Plug / Autre)
+- 5-10 morceaux prioritaires (textarea libre, séparés par virgule)
+- Champ honeypot caché (anti-bot)
+- Disclaimer *"Beta limitée — je reviens vers toi sous 48h"*
+
+**Objectif** : remplacer le workflow actuel "DM Reddit + setup manuel"
+par un onboarding semi-automatisé, scalable au-delà de 10-20 testeurs.
+Conserve la curation côté admin (pas d'auto-création de profil).
+
+**Implémentation suggérée** (2 niveaux, démarrer par le plus simple) :
+
+- **Niveau 1 (MVP, ~2h dev)** : formulaire → Formspree/Web3Forms (free)
+  → email à Sébastien. Pas de stockage Firestore, pas de queue admin.
+  Sébastien lit l'email, crée le profil dans ProfilesAdmin avec
+  password random fort, pré-configure rig + setlist (10 min), envoie
+  email de confirmation au demandeur.
+- **Niveau 2 (si volume justifie)** : formulaire → Firestore collection
+  `requests/` avec `status: pending|approved|rejected`. Nouvelle section
+  `RequestsQueue` dans MaintenanceTab admin pour traiter la file. Bouton
+  "Approuver" qui auto-crée le profil avec les infos saisies (parser
+  guitars/songs en best-effort, l'admin peut ajuster ensuite).
+
+**Timing recommandé** : pas avant le post case study J+10. Avant ce
+moment, la demande organique est trop faible pour justifier le code.
+Après le post, si demande spike → le formulaire absorbe sans saturer
+les DM Reddit.
+
+**Risques à cadrer avant build** :
+- **GDPR** : collecte email + nom + préférences musicales. Ajouter
+  privacy notice ("données utilisées uniquement pour création du compte
+  et contact"), permettre suppression sur demande, ne pas vendre/partager.
+- **Spam/bot** : honeypot champ caché + rate-limit Cloudflare/Formspree.
+  reCAPTCHA seulement si abus avéré (ajoute friction).
+- **Charge admin** : 1 nouvelle demande = ~30 min de processing
+  (lecture + setup + email). Mettre un quota mental (~5/sem max) ou
+  fermer le formulaire temporairement si overflow.
+- **Perte de curation** : actuellement les beta-testeurs sont
+  pré-qualifiés via conversation Reddit/forum. Un formulaire public
+  abaisse la barre — accepter que certains profils créés ne reviendront
+  jamais (~50% taux d'abandon prévu).
+
+**Composants à créer/modifier** :
+- `src/app/components/RequestAccessForm.jsx` — nouveau, formulaire
+  contrôlé avec validation honeypot.
+- `src/app/screens/ProfilePickerScreen.jsx` — ajouter le lien
+  *"Demander un accès"* sous le form login + ouverture modale du
+  formulaire.
+- `src/core/branding.js` — constantes pour URL Formspree, copywriting.
+- Mail de confirmation type à drafter (FR + EN + ES) avec :
+  - Identifiants (pseudo + password généré)
+  - Lien direct vers app
+  - Comment installer en PWA
+  - Rappel de la beta (limitée, support best-effort)
+
+**Question préalable à trancher avec utilisateur** : niveau 1 (email)
+ou niveau 2 (Firestore queue) ? MVP recommandé niveau 1.
+
+**Décision actuelle** : pas implémenté. Idée enregistrée pour Phase
+7.44 hypothétique, à activer si signal de demande publique post J+10
+case study Reddit (cf. BETA_TESTING.md local pour la stratégie).
 
 ## Hors scope (pour rappel, à NE PAS faire sans demande explicite)
 
