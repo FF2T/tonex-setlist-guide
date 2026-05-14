@@ -957,6 +957,7 @@ function App() {
   return <div className="page-root">
     <AppHeader {...headerProps}/>
     {screenContent}
+    <AppFooter/>
     {showNav&&<AppNavBottom screen={screen} onNavigate={setScreen}/>}
     {migrationToast&&<div style={{position:"fixed",bottom:80,left:"50%",transform:"translateX(-50%)",background:"var(--brass)",color:"var(--ink)",padding:"10px 18px",borderRadius:"var(--r-md)",fontSize:13,fontWeight:600,zIndex:9999,boxShadow:"var(--shadow-md)",maxWidth:"90vw",textAlign:"center"}}>{migrationToast}</div>}
   </div>;

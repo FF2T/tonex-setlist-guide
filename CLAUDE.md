@@ -18,7 +18,7 @@ servies par GitHub Pages (les bookmarks Mac/iPhone/iPad de Sébastien
 `ToneX_Setlist_Guide.html` reste un redirect HTML legacy vers
 `mybackline.app`.
 
-Édité par **PathToMusic inc.** (2026).
+Édité par **PathToTone** (2026).
 
 PWA mono-fichier React de gestion de setlists et de presets pour
 guitaristes. Aide à choisir la bonne guitare et le bon preset pour
@@ -596,6 +596,149 @@ npm run preview    # sert dist/ pour test final sur http://localhost:4173
 npm test           # Vitest run, 57 tests sur core/scoring + devices
 npm run test:watch # Vitest watch mode
 ```
+
+## État actuel (2026-05-13, Phase 7.29 close)
+
+**Backline v8.14.29 / SW backline-v118 / STATE_VERSION 7 / 674 tests verts.**
+**main.jsx 1334 → 945 lignes** (Phase 7.23 a passé le cap des 1000 lignes
+pour la première fois). Déployé sur `https://mybackline.app/`.
+
+### Migration domaine + signature PathToTone (Phase 7.29)
+
+- URL canonique : `https://mybackline.app/` (Let's Encrypt via GitHub
+  Pages, 4 A records sur `@`).
+- `mybackline.fr` → 301 vers `.app` (côté OVH, hors code).
+- `src/index-redirect-from-old.html` redirige les anciens bookmarks
+  `ff2t.github.io/tonex-setlist-guide/ToneX_Setlist_Guide.html` vers
+  `https://mybackline.app/` (meta refresh + window.location.replace).
+- **`AppFooter`** : "© 2026 PathToTone · Made with 🎸" en bas de
+  toutes les pages.
+- Clé Gemini Cloud Console : referrer `mybackline.app` ajouté (action
+  manuelle Sébastien).
+
+### Sécurité passwords (Phase 7.28)
+
+- `core/crypto-utils.js` : `hashPassword` (SHA-256 + salt 128 bits,
+  format `h1:salt:hash`) + `verifyPassword` + `isPasswordLegacy`.
+  WebCrypto natif, pas de lib. 13 tests Vitest.
+- **Migration auto** : passwords plain text legacy re-hashés
+  silencieusement au prochain login successful (callback
+  `onUpgradePassword`).
+- Avant : `profile.password` en clair dans localStorage + Firestore
+  (quiconque lisait le doc Firestore voyait tous les passwords).
+- Nouveaux passwords (beta testeurs créés par admin) hashés à la
+  création directement.
+
+### Suppression PIN admin global + gating isAdmin (Phase 7.26 + 7.27)
+
+- Suppression de `ADMIN_PIN='212402'` (PIN hardcodé en clair sur le
+  GitHub public — mauvaise mesure).
+- Suppression de l'écran `⚙️ Paramètres` (redondant avec Mon Profil →
+  tabs admin déjà gated par `profile.isAdmin`).
+- **`ProfileSelector` dropdown gated** : un profil non-admin ne voit
+  QUE son propre profil dans la liste (les autres profils restent
+  password-protected mais ne sont plus listés).
+- Route `screen==='viewprofile'` bloquée si `!profile.isAdmin` (URL
+  hack defense).
+- `ProfilePicker` au boot continue d'afficher tous les profils (il
+  faut bien pouvoir picker le sien). Chaque profil reste
+  password-protected.
+- `ListScreen` "Partager :" continue de lister tous les profils
+  (légitime — partager une setlist avec un autre user).
+
+### Mode no-sync + URL beta + i18n scaffolding (Phase 7.24 + 7.25)
+
+- Flag localStorage `backline_no_sync` : si actif,
+  `saveToFirestore`/`loadFromFirestore`/`pollRemoteSyncId`/`load+saveSharedKey`
+  return early (zéro appel HTTP). Helpers `isNoSyncMode()` +
+  `setNoSyncMode()` dans `firestore.js`.
+- **`MaintenanceTab` section "Mode local"** : toggle + confirmation
+  modale + reload (réinitialise les useEffect Firestore).
+- **`AppHeader`** : icône sync 🔒 quand no-sync actif (vs ☁️/⏳/⚠️).
+- **URL `?beta=1`** : active no-sync AVANT le mount React → aucun
+  pull Firestore. Le param est nettoyé de l'URL après activation.
+  Usage : beta testeurs Reddit isolés.
+- `src/i18n/{index,fr}.js` : infra minimale `t(key, fallback)` + dict
+  FR vide. Scaffolding pour quand un beta testeur anglophone arrive.
+  Aucun string n'utilise encore `t()`.
+
+### Découpage main.jsx final batch (Phase 7.22 + 7.23)
+
+- **Phase 7.22** : `firestore.js` (saveToFirestore, loadFromFirestore,
+  firestoreToJs, fsVal, pollRemoteSyncId, load+saveSharedKey, FS_BASE,
+  FS_KEY, getLastSavedSyncId, getLastRemoteSyncId), `AppHeader.jsx`
+  (AppHeader + AppNavBottom co-localisés, `appVersion` en prop),
+  `applySecrets` déplacé vers `core/state.js`. Dead code supprimé :
+  `srcBadge`, `presetSourceInfo`, `styleBadge`, `gainBadge` inline.
+  main.jsx 1334 → 1110 lignes.
+- **Phase 7.23** : `newzik-migration.js` —
+  `prepareNewzikMigration(songDb, setlists, activeProfileId)` retourne
+  `{ newSongs, createNames, mergeNames, setlistUpdater }` ou `null` si
+  idempotent. main.jsx useEffect réduit à 10 lignes. Les 3 listes
+  Newzik (Cours Franck B, Arthur & Seb, Nouvelle setlist) — données
+  figées historiques — vivent désormais dans le module. main.jsx
+  1110 → 945 lignes (**sous 1000 pour la première fois**).
+
+### Quality-of-life (Phase 7.20 + 7.21)
+
+- **Phase 7.20** : `dedupSongDb(songDb)` helper pur dans
+  `core/state.js` (garde premier de chaque id, merge `aiCache` par
+  `sv` + cot_step1 + non-null, merge `feedback` union par (text, ts)).
+  Bouton "Dédupliquer la base (par id)" dans `MaintenanceTab` admin.
+  Distinct du bouton "Fusionner les doublons" (groupe par titre+artiste
+  normalisés). Counter en useMemo. 11 tests Vitest. Nettoie la dette
+  des doublons par id (collisions `Date.now()` ajouts simultanés +
+  anciennes migrations Newzik). Le fix défensif au render (Phase 7.17)
+  reste comme filet.
+- **Phase 7.21** : Explorer search UX — input `type=search` +
+  `enterKeyHint=search` (clavier iOS "Rechercher"), bouton ✕ pour
+  effacer rapidement, Enter dismiss le clavier sans valider, caption
+  "Résultats filtrés en temps réel".
+
+### Architecture livrée à fin Phase 7.29
+
+```
+src/app/utils/
+  ...existing (devices-render, song-helpers, preset-helpers,
+              ai-helpers, fetchAI, shared-key, ui-constants,
+              csv-helpers, infer-preset)
+  firestore.js         [7.22] saveToFirestore, loadFromFirestore,
+                       fsVal, firestoreToJs, pollRemoteSyncId,
+                       load+saveSharedKey, FS_BASE/FS_KEY,
+                       isNoSyncMode, setNoSyncMode (Phase 7.24)
+  newzik-migration.js  [7.23] prepareNewzikMigration
+src/app/components/
+  ...existing
+  AppHeader.jsx        [7.22] AppHeader + AppNavBottom
+  AppFooter.jsx        [7.29] © PathToTone
+src/core/
+  ...existing
+  crypto-utils.js      [7.28] hashPassword/verifyPassword/isPasswordLegacy
+src/i18n/              [7.24] scaffolding minimal
+  index.js             t(key, fallback)
+  fr.js                dict FR vide
+src/index-redirect-from-old.html   [5.2 + 7.29] → mybackline.app
+```
+
+### Encore dans main.jsx (~945 lignes)
+
+- Imports + init (~80 lignes)
+- **`App()` lui-même** (~850 lignes) : useState massif, useEffect
+  Firestore/poll/migration, dispatch d'écrans, helpers locaux pour
+  setProfileField/recordLogin/onTmpPatchOverride/etc.
+
+### Dette résiduelle Phase 7.29
+
+- Découpage final de `App()` (optionnel, plus risqué — cœur de
+  l'état).
+- AI populating `preset_tmp` pour patches custom (Phase 7.10 ne
+  sérialise que les 20 factory dans le prompt).
+- `window.DEFAULT_GEMINI_KEY` legacy bridge à auditer.
+- `ReactDOM.render → createRoot` (warning React 18 cosmétique).
+- i18n : aucun string n'utilise encore `t()` — à câbler quand un
+  beta anglophone matérialise le besoin.
+
+---
 
 ## État actuel (2026-05-13, Phase 7.19 close)
 
