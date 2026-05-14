@@ -17,6 +17,8 @@ import React, { useState } from 'react';
 import { GUITARS, GUITAR_BRANDS } from '../../core/guitars.js';
 import { SOURCE_LABELS, SOURCE_DESCRIPTIONS, SOURCE_INFO } from '../../core/sources.js';
 import GuitarSearchAdd from '../components/GuitarSearchAdd.jsx';
+import { resizeImageToDataUrl } from '../utils/image-resize.js';
+import defaultGuitarSvg from '../../assets/default.svg';
 
 function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, section, aiKeys, customGuitars, onCustomGuitars }) {
   const isAdmin = profile?.isAdmin === true;
@@ -26,6 +28,8 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
   const [editGName, setEditGName] = useState('');
   const [editGShort, setEditGShort] = useState('');
   const [editGType, setEditGType] = useState('HB');
+  const [editGImage, setEditGImage] = useState(null);
+  const [imgErr, setImgErr] = useState(null);
 
   const updateProfile = (field, value) => onProfiles((p) => ({ ...p, [activeProfileId]: { ...p[activeProfileId], [field]: typeof value === 'function' ? value(p[activeProfileId][field]) : value, lastModified: Date.now() } }));
 
@@ -47,12 +51,24 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
     const edits = profile.editedGuitars || {};
     const orig = isCustom ? g : ({ ...GUITARS.find((x) => x.id === g.id), ...(edits[g.id] || {}) });
     setEditingGuitarId(g.id); setEditGName(orig.name); setEditGShort(orig.short); setEditGType(orig.type);
+    setEditGImage(isCustom ? (orig.image || null) : null);
+    setImgErr(null);
+  };
+  const onImageUpload = async (file) => {
+    setImgErr(null);
+    if (!file) return;
+    try {
+      const dataUrl = await resizeImageToDataUrl(file, 240, 0.85);
+      setEditGImage(dataUrl);
+    } catch (e) {
+      setImgErr(e.message || 'Erreur lors du chargement');
+    }
   };
   const saveEditGuitar = () => {
     if (!editGName.trim() || !editGShort.trim()) { setEditingGuitarId(null); return; }
     const isCustom = editingGuitarId?.startsWith('cg_');
     if (isCustom) {
-      onCustomGuitars((prev) => (prev || []).map((g) => g.id === editingGuitarId ? { ...g, name: editGName.trim(), short: editGShort.trim(), type: editGType } : g));
+      onCustomGuitars((prev) => (prev || []).map((g) => g.id === editingGuitarId ? { ...g, name: editGName.trim(), short: editGShort.trim(), type: editGType, image: editGImage || null } : g));
     } else {
       updateProfile('editedGuitars', (prev) => ({ ...(prev || {}), [editingGuitarId]: { name: editGName.trim(), short: editGShort.trim(), type: editGType } }));
     }
@@ -130,6 +146,7 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                     return <div key={g.id}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: sel ? 'var(--accent-soft)' : 'var(--a3)', border: sel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '8px 12px', cursor: 'pointer' }} onClick={() => toggleGuitar(g.id)}>
                         <div style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: sel ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: sel ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{sel && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
+                        <img src={g.image || defaultGuitarSvg} alt="" style={{ width: 36, height: 28, objectFit: 'contain', flexShrink: 0, opacity: g.image ? 1 : 0.5, color: 'var(--text-muted)' }}/>
                         <div style={{ flex: 1 }}><span style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{g.short}</span><span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 6 }}>{g.name}</span></div>
                         <span style={{ fontSize: 10, color: 'var(--text-dim)', marginRight: 4 }}>{g.type}</span>
                         {isAdmin && sel && <button onClick={(e) => { e.stopPropagation(); startEditGuitar(g, true); }} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '3px 7px', fontSize: 10, cursor: 'pointer' }}>✏️</button>}
@@ -141,6 +158,15 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                           <input placeholder="Abrégé" value={editGShort} onChange={(e) => setEditGShort(e.target.value)} style={{ ...inp, flex: '0 1 80px', fontSize: 11, padding: '5px 8px' }}/>
                           <select value={editGType} onChange={(e) => setEditGType(e.target.value)} style={{ ...inp, flex: '0 0 55px', fontSize: 11, padding: '5px 4px' }}><option value="HB">HB</option><option value="SC">SC</option><option value="P90">P90</option></select>
                         </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                          <img src={editGImage || defaultGuitarSvg} alt="" style={{ width: 48, height: 36, objectFit: 'contain', border: '1px solid var(--a8)', borderRadius: 'var(--r-sm)', background: 'var(--a3)', padding: 2, opacity: editGImage ? 1 : 0.5, color: 'var(--text-muted)' }}/>
+                          <label style={{ background: 'var(--a7)', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>
+                            📷 {editGImage ? "Changer l'image" : 'Ajouter une image'}
+                            <input type="file" accept="image/*" onChange={(e) => onImageUpload(e.target.files?.[0])} style={{ display: 'none' }}/>
+                          </label>
+                          {editGImage && <button onClick={() => setEditGImage(null)} style={{ background: 'var(--a5)', border: 'none', color: 'var(--text-muted)', borderRadius: 'var(--r-sm)', padding: '5px 8px', fontSize: 10, cursor: 'pointer' }}>Retirer</button>}
+                        </div>
+                        {imgErr && <div style={{ fontSize: 10, color: 'var(--red)', marginBottom: 6 }}>{imgErr}</div>}
                         <div style={{ display: 'flex', gap: 6 }}>
                           <button onClick={saveEditGuitar} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Sauver</button>
                           <button onClick={() => setEditingGuitarId(null)} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>Annuler</button>
