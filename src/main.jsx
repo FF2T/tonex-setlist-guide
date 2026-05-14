@@ -39,6 +39,7 @@ import LiveScreen from './app/screens/LiveScreen.jsx';
 import { exportSetlistPdf } from './app/screens/SetlistPdfExport.js';
 import { APP_NAME, APP_TAGLINE } from './core/branding.js';
 import BacklineIcon from './app/components/BacklineIcon.jsx';
+import { useLocale } from './i18n/index.js';
 import { INIT_SETLISTS } from './core/setlists.js';
 import {
   PRESET_CATALOG_MERGED, findCatalogEntry, guessPresetInfo, normalizePresetName,
@@ -208,7 +209,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.35";
+const APP_VERSION = "8.14.36";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -332,6 +333,11 @@ import { prepareNewzikMigration } from './app/utils/newzik-migration.js';
 // Fusionne les banks sauvées avec les banks initiales (ajoute les nouvelles sans écraser les modifs utilisateur)
 
 function App() {
+  // Re-render global de App à chaque setLocale() pour propager le
+  // changement de langue à tout l'arbre. Phase 7.36 : aucune string
+  // wrappée encore, donc l'effet visible est uniquement le sélecteur
+  // dans Mon Profil → Affichage.
+  useLocale();
   const saved = loadState();
   const [firestoreLoaded, setFirestoreLoaded] = useState(false);
   const initDefault = saved || {

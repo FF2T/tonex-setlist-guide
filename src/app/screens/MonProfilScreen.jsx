@@ -9,6 +9,7 @@
 // temps de la séparation.
 
 import React, { useState } from 'react';
+import { SUPPORTED_LOCALES, setLocale, useLocale } from '../../i18n/index.js';
 import { findDuplicateSong } from '../utils/song-helpers.js';
 import { updateAiCache } from '../utils/ai-helpers.js';
 import { fetchAI } from '../utils/fetchAI.js';
@@ -40,6 +41,7 @@ function MonProfilScreen({
   fullState, onImportState, onLogout,
   MaintenanceTabComponent, onSaveSharedKey,
 }) {
+  const locale = useLocale();
   const [tab, setTab] = useState(initTab || 'profile');
   const [newSlName, setNewSlName] = useState('');
   const [editSlId, setEditSlId] = useState(null);
@@ -183,7 +185,7 @@ function MonProfilScreen({
       </div>}
       {tab === 'display' && <div>
         <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 16 }}>Apparence de l'application.</div>
-        <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16 }}>
+        <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>Thème</div>
           <div style={{ display: 'flex', gap: 8 }}>
             {[{ v: 'dark', l: '🌙 Sombre', desc: 'Fond sombre' }, { v: 'light', l: '☀️ Clair', desc: 'Fond clair' }].map(({ v, l, desc }) => (
@@ -193,6 +195,24 @@ function MonProfilScreen({
                 <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{desc}</div>
               </button>
             ))}
+          </div>
+        </div>
+        <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>Langue</div>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 12, lineHeight: 1.5 }}>L'interface est encore majoritairement en français. Les traductions sont en cours de déploiement progressif.</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {SUPPORTED_LOCALES.map(({ id, label, flag }) => {
+              const active = locale === id;
+              return <button
+                key={id}
+                data-testid={`locale-${id}`}
+                onClick={() => { setLocale(id); }}
+                style={{ flex: 1, background: active ? 'var(--accent-bg)' : 'var(--a5)', border: active ? '1px solid var(--border-accent)' : '1px solid var(--a10)', color: active ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-lg)', padding: '14px 8px', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'center' }}
+              >
+                <div style={{ fontSize: 22, marginBottom: 4 }}>{flag}</div>
+                <div>{label}</div>
+              </button>;
+            })}
           </div>
         </div>
       </div>}
