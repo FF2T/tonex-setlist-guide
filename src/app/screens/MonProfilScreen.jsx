@@ -9,7 +9,7 @@
 // temps de la séparation.
 
 import React, { useState } from 'react';
-import { SUPPORTED_LOCALES, setLocale, useLocale } from '../../i18n/index.js';
+import { SUPPORTED_LOCALES, setLocale, useLocale, t, tFormat } from '../../i18n/index.js';
 import { findDuplicateSong } from '../utils/song-helpers.js';
 import { updateAiCache } from '../utils/ai-helpers.js';
 import { fetchAI } from '../utils/fetchAI.js';
@@ -100,26 +100,26 @@ function MonProfilScreen({
 
   return (
     <div>
-      <Breadcrumb crumbs={[{ label: 'Accueil', screen: 'list' }, { label: 'Mon profil' }]} onNavigate={onNavigate}/>
-      <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 16 }}>👤 Mon profil</div>
+      <Breadcrumb crumbs={[{ label: t('common.home', 'Accueil'), screen: 'list' }, { label: t('profile.title-short', 'Mon profil') }]} onNavigate={onNavigate}/>
+      <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 16 }}>{t('profile.title', '👤 Mon profil')}</div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        {tabBtn('profile', '🎸 Guitares')}
-        {tabBtn('devices', '📱 Mes appareils')}
-        {tabBtn('sources', '📦 Sources')}
-        {profile.isAdmin && tabBtn('tonenet', '🌐 ToneNET')}
+        {tabBtn('profile', t('profile.tab.guitars', '🎸 Guitares'))}
+        {tabBtn('devices', t('profile.tab.devices', '📱 Mes appareils'))}
+        {tabBtn('sources', t('profile.tab.sources', '📦 Sources'))}
+        {profile.isAdmin && tabBtn('tonenet', t('profile.tab.tonenet', '🌐 ToneNET'))}
         {(() => { const en = new Set(profile.enabledDevices || []); return <>
-          {en.has('tonex-pedal') && tabBtn('pedale', '🎛 Pedale ToneX')}
-          {en.has('tonex-anniversary') && tabBtn('ann', '🎛 ToneX Ann.')}
-          {en.has('tonex-plug') && tabBtn('plug', '🔌 ToneX Plug')}
-          {en.has('tonemaster-pro') && tabBtn('tmp', '🎚️ Patches TMP')}
+          {en.has('tonex-pedal') && tabBtn('pedale', t('profile.tab.pedal', '🎛 Pedale ToneX'))}
+          {en.has('tonex-anniversary') && tabBtn('ann', t('profile.tab.ann', '🎛 ToneX Ann.'))}
+          {en.has('tonex-plug') && tabBtn('plug', t('profile.tab.plug', '🔌 ToneX Plug'))}
+          {en.has('tonemaster-pro') && tabBtn('tmp', t('profile.tab.tmp', '🎚️ Patches TMP'))}
         </>; })()}
-        {tabBtn('display', '🎨 Affichage')}
-        {tabBtn('reco', '🎯 Préférences IA')}
-        {tabBtn('password', '🔐 Mot de passe')}
-        {profile.isAdmin && tabBtn('ia', '🔑 Cle API')}
-        {profile.isAdmin && tabBtn('maintenance', '🔧 Maintenance')}
-        {profile.isAdmin && tabBtn('export', '📋 Export / Import')}
-        {profile.isAdmin && tabBtn('admin_profiles', '👥 Profils')}
+        {tabBtn('display', t('profile.tab.display', '🎨 Affichage'))}
+        {tabBtn('reco', t('profile.tab.reco', '🎯 Préférences IA'))}
+        {tabBtn('password', t('profile.tab.password', '🔐 Mot de passe'))}
+        {profile.isAdmin && tabBtn('ia', t('profile.tab.api-key', '🔑 Cle API'))}
+        {profile.isAdmin && tabBtn('maintenance', t('profile.tab.maintenance', '🔧 Maintenance'))}
+        {profile.isAdmin && tabBtn('export', t('profile.tab.export', '📋 Export / Import'))}
+        {profile.isAdmin && tabBtn('admin_profiles', t('profile.tab.profiles', '👥 Profils'))}
       </div>
       {tab === 'profile' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="guitars" aiKeys={aiKeys} customGuitars={customGuitars} onCustomGuitars={onCustomGuitars}/>}
       {tab === 'devices' && <MesAppareilsTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId}/>}
@@ -184,22 +184,22 @@ function MonProfilScreen({
         </div>
       </div>}
       {tab === 'display' && <div>
-        <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 16 }}>Apparence de l'application.</div>
+        <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 16 }}>{t('profile.display.intro', 'Apparence de l\'application.')}</div>
         <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>Thème</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>{t('profile.display.theme', 'Thème')}</div>
           <div style={{ display: 'flex', gap: 8 }}>
-            {[{ v: 'dark', l: '🌙 Sombre', desc: 'Fond sombre' }, { v: 'light', l: '☀️ Clair', desc: 'Fond clair' }].map(({ v, l, desc }) => (
+            {[{ v: 'dark', emoji: '🌙', label: t('profile.display.theme-dark', 'Sombre'), desc: t('profile.display.theme-dark-desc', 'Fond sombre') }, { v: 'light', emoji: '☀️', label: t('profile.display.theme-light', 'Clair'), desc: t('profile.display.theme-light-desc', 'Fond clair') }].map(({ v, emoji, label, desc }) => (
               <button key={v} onClick={() => onTheme(v)} style={{ flex: 1, background: theme === v ? 'var(--accent-bg)' : 'var(--a5)', border: theme === v ? '1px solid var(--border-accent)' : '1px solid var(--a10)', color: theme === v ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-lg)', padding: '14px 8px', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'center' }}>
-                <div style={{ fontSize: 22, marginBottom: 4 }}>{v === 'dark' ? '🌙' : '☀️'}</div>
-                <div>{l.split(' ')[1]}</div>
+                <div style={{ fontSize: 22, marginBottom: 4 }}>{emoji}</div>
+                <div>{label}</div>
                 <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{desc}</div>
               </button>
             ))}
           </div>
         </div>
         <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>Langue</div>
-          <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 12, lineHeight: 1.5 }}>L'interface est encore majoritairement en français. Les traductions sont en cours de déploiement progressif.</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>{t('profile.display.language', 'Langue')}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 12, lineHeight: 1.5 }}>{t('profile.display.language-hint', 'L\'interface est encore majoritairement en français. Les traductions sont en cours de déploiement progressif.')}</div>
           <div style={{ display: 'flex', gap: 8 }}>
             {SUPPORTED_LOCALES.map(({ id, label, flag }) => {
               const active = locale === id;
@@ -228,12 +228,12 @@ function MonProfilScreen({
       }}/>}
       {tab === 'password' && <PasswordTab profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp}/>}
       {tab === 'reco' && <div>
-        <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>Comment l'IA propose les recommandations.</div>
+        <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>{t('profile.reco.intro', 'Comment l\'IA propose les recommandations.')}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
           {[
-            { id: 'balanced', icon: '⚖️', label: 'Équilibré (défaut)', desc: 'Mélange fidélité au morceau original et versatilité du rig. Comportement actuel.' },
-            { id: 'faithful', icon: '🎯', label: 'Fidèle à l\'original', desc: 'L\'IA privilégie la guitare/ampli/effets exacts utilisés sur l\'enregistrement original. Reco proche du son du disque.' },
-            { id: 'interpretation', icon: '🎨', label: 'Interprétation libre', desc: 'L\'IA privilégie les guitares versatiles (ES-335, SG, Strat) qui couvrent bien le style, même si ce n\'est pas l\'instrument original. Pratique si tu as un rig limité.' },
+            { id: 'balanced', icon: '⚖️', label: t('profile.reco.balanced-label', 'Équilibré (défaut)'), desc: t('profile.reco.balanced-desc', 'Mélange fidélité au morceau original et versatilité du rig. Comportement actuel.') },
+            { id: 'faithful', icon: '🎯', label: t('profile.reco.faithful-label', 'Fidèle à l\'original'), desc: t('profile.reco.faithful-desc', 'L\'IA privilégie la guitare/ampli/effets exacts utilisés sur l\'enregistrement original. Reco proche du son du disque.') },
+            { id: 'interpretation', icon: '🎨', label: t('profile.reco.interpretation-label', 'Interprétation libre'), desc: t('profile.reco.interpretation-desc', 'L\'IA privilégie les guitares versatiles (ES-335, SG, Strat) qui couvrent bien le style, même si ce n\'est pas l\'instrument original. Pratique si tu as un rig limité.') },
           ].map(({ id, icon, label, desc }) => {
             const active = (profile.recoMode || 'balanced') === id;
             return <button

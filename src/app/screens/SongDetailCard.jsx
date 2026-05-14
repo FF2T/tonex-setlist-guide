@@ -1,4 +1,4 @@
-// src/app/screens/SongDetailCard.jsx — Phase 7.14 (découpage main.jsx).
+// src/app/screens/SongDetailCard.jsx — Phase 7.37 (wrapping i18n).
 //
 // Card de détail morceau dépliée. Affiche 4 sections :
 // 1. Infos morceau (year/album/key/bpm éditables + desc + ref guitariste/guitar/amp).
@@ -12,8 +12,11 @@
 // (SCORING_VERSION mismatch), et auto-select ideal_guitar si gId="".
 //
 // Toutes les mutations remontent via onSongDb / onGuitarChange callbacks.
+//
+// Phase 7.37 : strings UI wrappées via t('song-detail.*', 'FR fallback').
 
 import React, { useState, useEffect } from 'react';
+import { t, tFormat, getLocale } from '../../i18n/index.js';
 import { GUITARS } from '../../core/guitars.js';
 import { SCORING_VERSION } from '../../core/scoring/index.js';
 import {
@@ -148,12 +151,12 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
 
       {/* SECTION 1 : Infos morceau */}
       <div style={sectionStyle}>
-        {sectionTitle('📖', 'Infos morceau')}
+        {sectionTitle('📖', t('song-detail.info-section', 'Infos morceau'))}
         {(songInfo.year || songInfo.album || songInfo.key || songInfo.bpm) && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{songInfo.year}{songInfo.album ? ' · ' + songInfo.album : ''}{songInfo.key ? ' · ' + songInfo.key : ''}{songInfo.bpm ? ' · ' + songInfo.bpm + ' BPM' : ''}</div>}
         {onSongDb && (
           <div data-testid="song-bpm-key-editor" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: 10, color: 'var(--text-sec)' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ color: 'var(--text-muted)' }}>BPM</span>
+              <span style={{ color: 'var(--text-muted)' }}>{t('song-detail.bpm', 'BPM')}</span>
               <input type="number" min={30} max={300} defaultValue={song.bpm ?? ''} key={`bpm-${song.id}-${song.bpm ?? ''}`}
                 onBlur={(e) => {
                   const raw = e.target.value.trim();
@@ -161,18 +164,18 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   const n = Math.max(30, Math.min(300, parseInt(raw, 10)));
                   if (Number.isFinite(n)) onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, bpm: n } : x));
                 }}
-                placeholder={songInfo.bpm ? String(songInfo.bpm) : '—'} aria-label="BPM"
+                placeholder={songInfo.bpm ? String(songInfo.bpm) : '—'} aria-label={t('song-detail.bpm', 'BPM')}
                 style={{ width: 55, background: 'var(--a5)', border: '1px solid var(--a8)', borderRadius: 'var(--r-sm)', padding: '2px 4px', color: 'var(--text)', fontSize: 10 }}/>
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ color: 'var(--text-muted)' }}>Tonalité</span>
+              <span style={{ color: 'var(--text-muted)' }}>{t('song-detail.key', 'Tonalité')}</span>
               <input type="text" maxLength={12} defaultValue={song.key ?? ''} key={`key-${song.id}-${song.key ?? ''}`} list="tonex-key-suggestions"
                 onBlur={(e) => {
                   const raw = e.target.value.trim();
                   if (raw === '') { onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, key: undefined } : x)); return; }
                   onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, key: raw } : x));
                 }}
-                placeholder={songInfo.key || '—'} aria-label="Tonalité"
+                placeholder={songInfo.key || '—'} aria-label={t('song-detail.key', 'Tonalité')}
                 style={{ width: 80, background: 'var(--a5)', border: '1px solid var(--a8)', borderRadius: 'var(--r-sm)', padding: '2px 4px', color: 'var(--text)', fontSize: 10 }}/>
             </label>
             <datalist id="tonex-key-suggestions">
@@ -183,7 +186,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         {songInfo.desc && <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.5, marginBottom: 6 }}>{songInfo.desc}</div>}
         {aiC && (aiC.ref_guitarist || aiC.ref_guitar || aiC.ref_amp) && (
           <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.6 }}>
-            <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 10 }}>{aiC.ref_guitarist || 'Référence'}</span><br/>
+            <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 10 }}>{aiC.ref_guitarist || t('song-detail.ref-default', 'Référence')}</span><br/>
             {aiC.ref_guitar && <>🎸 {aiC.ref_guitar} · </>}
             {aiC.ref_amp && <>🔊 {aiC.ref_amp}</>}
             {aiC.ref_effects && aiC.ref_effects !== 'Aucun effet' && <> · 🎚 {aiC.ref_effects}</>}
@@ -201,7 +204,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
       {reloading && (
         <div style={{ textAlign: 'center', padding: '16px 0' }}>
           <div style={{ fontSize: 28, marginBottom: 6, animation: 'spin 1.5s linear infinite', display: 'inline-block' }}>&#9203;</div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Analyse en cours pour {g?.short || 'cette guitare'}...</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{tFormat('song-detail.analyzing', { guitar: g?.short || t('song-detail.this-guitar', 'cette guitare') }, 'Analyse en cours pour {guitar}...')}</div>
         </div>
       )}
 
@@ -211,16 +214,16 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           {(aiC.cot_step1 || aiC.cot_step2_guitars || aiC.cot_step3_amp) && (
             <div style={sectionStyle}>
               <div onClick={() => setShowCot((p) => !p)} style={{ cursor: 'pointer', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', display: 'flex', alignItems: 'center', gap: 5, userSelect: 'none' }}>
-                🧠 Raisonnement IA <span style={{ fontSize: 10, marginLeft: 'auto', fontWeight: 400 }}>{showCot ? '▲' : '▼'}</span>
+                {t('song-detail.reasoning', '🧠 Raisonnement IA')} <span style={{ fontSize: 10, marginLeft: 'auto', fontWeight: 400 }}>{showCot ? '▲' : '▼'}</span>
               </div>
               {showCot && (
                 <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {aiC.cot_step1 && <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>Profil tonal</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-tonal', 'Profil tonal')}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{aiC.cot_step1}</div>
                   </div>}
                   {aiC.cot_step2_guitars?.length > 0 && <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>Scoring guitares</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-guitars', 'Scoring guitares')}</div>
                     {aiC.cot_step2_guitars.map((gt, i) => <div key={i} style={{ fontSize: 11, color: 'var(--text-sec)', marginBottom: i < aiC.cot_step2_guitars.length - 1 ? 4 : 0, display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 600, color: 'var(--text-bright)', flexShrink: 0 }}>{gt.name}</span>
                       <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: scoreColor(gt.score), flexShrink: 0 }}>{gt.score}%</span>
@@ -228,7 +231,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                     </div>)}
                   </div>}
                   {aiC.cot_step3_amp && <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>Profil ampli</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-amp', 'Profil ampli')}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{aiC.cot_step3_amp}</div>
                   </div>}
                 </div>
@@ -238,12 +241,12 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
 
           {/* SECTION 3 : Recommandations idéales */}
           <div style={sectionStyle}>
-            {sectionTitle(<StatusDot score={100} ideal={true} size={10}/>, 'Recommandation ideale')}
+            {sectionTitle(<StatusDot score={100} ideal={true} size={10}/>, t('song-detail.reco-ideal', 'Recommandation ideale'))}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {displayIdealGuitarName && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
                   <StatusDot score={idealGuitarScore} ideal={true}/>
-                  <div style={{ flex: 1 }}>Guitare <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{displayIdealGuitarName}</span></div>
+                  <div style={{ flex: 1 }}>{t('song-detail.guitar-label', 'Guitare ')}<span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{displayIdealGuitarName}</span></div>
                   {idealGuitarScore && <b style={{ color: scoreColor(idealGuitarScore), flexShrink: 0 }}>{idealGuitarScore}%</b>}
                 </div>
               )}
@@ -270,22 +273,22 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   const banks = device === 'ann' ? banksAnn : banksPlug;
                   const bk = installBank[device];
                   const sl = installSlot[device];
-                  const currentPreset = bk !== '' && banks[Number(bk)] ? banks[Number(bk)][sl] || '(vide)' : '';
+                  const currentPreset = bk !== '' && banks[Number(bk)] ? banks[Number(bk)][sl] || t('song-detail.empty', '(vide)') : '';
                   const dev = getActiveDevicesForRender(profile).find((d) => d.deviceKey === device);
                   const deviceLabel = dev ? `${dev.icon} ${dev.label}` : (device === 'ann' ? '📦 Pedale' : '🔌 Plug');
                   return (
                     <div style={{ marginBottom: 6 }}>
                       <div style={{ fontSize: 10, color: 'var(--text-sec)', marginBottom: 4, fontWeight: 600 }}>{deviceLabel}</div>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Banque</span>
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t('song-detail.bank', 'Banque')}</span>
                         <input type="number" inputMode="numeric" min={device === 'ann' ? 0 : 1} max={maxBanks} value={bk} onChange={(e) => setInstallBank((p) => ({ ...p, [device]: e.target.value }))} style={{ width: 50, fontSize: 11, background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '4px 6px', textAlign: 'center' }} placeholder={device === 'ann' ? '0-49' : '1-10'}/>
-                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Slot</span>
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t('song-detail.slot', 'Slot')}</span>
                         <select value={sl} onChange={(e) => setInstallSlot((p) => ({ ...p, [device]: e.target.value }))} style={{ fontSize: 11, background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '4px 6px' }}>
-                          <option value="A">A (Clean)</option><option value="B">B (Drive)</option><option value="C">C (Lead)</option>
+                          <option value="A">{t('song-detail.slot-a', 'A (Clean)')}</option><option value="B">{t('song-detail.slot-b', 'B (Drive)')}</option><option value="C">{t('song-detail.slot-c', 'C (Lead)')}</option>
                         </select>
-                        <button onClick={() => doInstall(device)} disabled={bk === ''} style={{ fontSize: 10, background: bk !== '' ? 'var(--accent)' : 'var(--bg-disabled)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '4px 10px', cursor: bk !== '' ? 'pointer' : 'not-allowed', fontWeight: 700 }}>OK</button>
+                        <button onClick={() => doInstall(device)} disabled={bk === ''} style={{ fontSize: 10, background: bk !== '' ? 'var(--accent)' : 'var(--bg-disabled)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '4px 10px', cursor: bk !== '' ? 'pointer' : 'not-allowed', fontWeight: 700 }}>{t('song-detail.ok', 'OK')}</button>
                       </div>
-                      {bk !== '' && currentPreset && <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 2 }}>Remplace : {currentPreset}</div>}
+                      {bk !== '' && currentPreset && <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 2 }}>{tFormat('song-detail.replaces', { preset: currentPreset }, 'Remplace : {preset}')}</div>}
                     </div>
                   );
                 };
@@ -293,14 +296,14 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
                       <StatusDot score={idealScore} ideal={true}/>
-                      <div style={{ flex: 1 }}>Preset <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{displayPresetName}</span></div>
+                      <div style={{ flex: 1 }}>{t('song-detail.preset-label', 'Preset')} <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{displayPresetName}</span></div>
                       {idealScore > 0 && <b style={{ color: scoreColor(idealScore), flexShrink: 0 }}>{idealScore}%</b>}
                     </div>
                     <div style={{ fontSize: 9, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      {loc ? <span style={{ color: 'var(--green)' }}>✓ Installe — Banque {loc.bank}{loc.slot}</span>
-                        : <span style={{ color: 'var(--yellow)' }}>⬇ Non installe</span>}
+                      {loc ? <span style={{ color: 'var(--green)' }}>{tFormat('song-detail.installed-bank', { bank: loc.bank, slot: loc.slot }, '✓ Installe — Banque {bank}{slot}')}</span>
+                        : <span style={{ color: 'var(--yellow)' }}>{t('song-detail.not-installed', '⬇ Non installe')}</span>}
                       {(() => { const si = getSourceInfo(entry); return si ? <span style={{ color: loc ? 'var(--text-tertiary)' : 'var(--text-sec)' }}>· {si.icon} {si.label}</span> : null; })()}
-                      {!loc && !installTarget && (canInstallAnn || canInstallPlug) && <button onClick={() => setInstallTarget({ preset: displayPresetName })} style={{ fontSize: 9, background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-sm)', padding: '2px 8px', cursor: 'pointer', fontWeight: 600, marginLeft: 'auto' }}>Installer</button>}
+                      {!loc && !installTarget && (canInstallAnn || canInstallPlug) && <button onClick={() => setInstallTarget({ preset: displayPresetName })} style={{ fontSize: 9, background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-sm)', padding: '2px 8px', cursor: 'pointer', fontWeight: 600, marginLeft: 'auto' }}>{t('song-detail.install', 'Installer')}</button>}
                     </div>
                     {installTarget?.preset === displayPresetName && (() => {
                       const activeEnabled = getActiveDevicesForRender(profile);
@@ -309,10 +312,10 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                       if (!canPedal && !canPlug) return null;
                       return (
                         <div style={{ marginTop: 6, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: 10 }}>
-                          <div style={{ fontSize: 10, color: 'var(--text-sec)', marginBottom: 8, fontWeight: 600 }}>Installer "{displayPresetName}" sur :</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-sec)', marginBottom: 8, fontWeight: 600 }}>{tFormat('song-detail.install-target', { preset: displayPresetName }, 'Installer "{preset}" sur :')}</div>
                           {canPedal && bankInput('ann', 49)}
                           {canPlug && bankInput('plug', 10)}
-                          <button onClick={() => setInstallTarget(null)} style={{ fontSize: 9, background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}>Annuler</button>
+                          <button onClick={() => setInstallTarget(null)} style={{ fontSize: 9, background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}>{t('song-detail.cancel', 'Annuler')}</button>
                         </div>
                       );
                     })()}
@@ -327,7 +330,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 if (filteredTop3.length <= 1) return null;
                 return (
                   <div style={{ marginTop: 6 }}>
-                    <div style={{ fontSize: 9, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', color: 'var(--text-tertiary)', marginBottom: 4 }}>Alternatives catalogue</div>
+                    <div style={{ fontSize: 9, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', color: 'var(--text-tertiary)', marginBottom: 4 }}>{t('song-detail.alternatives', 'Alternatives catalogue')}</div>
                     {filteredTop3.slice(1).map((p, i) => {
                       const loc = findInBanks(p.name, banksAnn) || findInBanks(p.name, banksPlug);
                       const entry = findCatalogEntry(p.name);
@@ -340,8 +343,8 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                             <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: scoreColor(p.score), flexShrink: 0 }}>{p.score}%</span>
                           </div>
                           <div style={{ fontSize: 9, marginLeft: 14, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-                            {loc ? <span style={{ color: 'var(--green)' }}>✓ Installe — Banque {loc.bank}{loc.slot}</span>
-                              : <span style={{ color: 'var(--yellow)' }}>⬇ Non installe</span>}
+                            {loc ? <span style={{ color: 'var(--green)' }}>{tFormat('song-detail.installed-bank', { bank: loc.bank, slot: loc.slot }, '✓ Installe — Banque {bank}{slot}')}</span>
+                              : <span style={{ color: 'var(--yellow)' }}>{t('song-detail.not-installed', '⬇ Non installe')}</span>}
                             {si && <span style={{ color: loc ? 'var(--text-tertiary)' : 'var(--text-sec)' }}>· {si.icon} {si.label}</span>}
                           </div>
                         </div>
@@ -352,8 +355,8 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
               })()}
               {(aiC.settings_preset || aiC.settings_guitar) && (
                 <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  {aiC.settings_preset && <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)' }}><b style={{ color: 'var(--text-muted)' }}>Preset :</b> {aiC.settings_preset}</div>}
-                  {aiC.settings_guitar && <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)' }}><b style={{ color: 'var(--text-muted)' }}>Guitare :</b> {aiC.settings_guitar}</div>}
+                  {aiC.settings_preset && <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)' }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.preset-settings', 'Preset :')}</b> {aiC.settings_preset}</div>}
+                  {aiC.settings_guitar && <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)' }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.guitar-settings', 'Guitare :')}</b> {aiC.settings_guitar}</div>}
                 </div>
               )}
             </div>
@@ -363,25 +366,25 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
 
       {/* SECTION 4 : Paramétrage */}
       <div style={customSectionStyle}>
-        {sectionTitle('🎛', 'Parametrage — mon choix')}
+        {sectionTitle('🎛', t('song-detail.params-title', 'Parametrage — mon choix'))}
         <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>Guitare choisie</div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{t('song-detail.guitar-chosen', 'Guitare choisie')}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <StatusDot score={chosenGuitarScore} ideal={g && ig.includes(gId)} size={10}/>
             <div style={{ flex: 1 }}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/></div>
           </div>
-          {g && chosenGuitarScore && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 3, marginLeft: 24 }}>Compatibilite : <b style={{ color: scoreColor(chosenGuitarScore) }}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated && <span style={{ marginLeft: 6, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>(estime)</span>}</div>}
+          {g && chosenGuitarScore && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 3, marginLeft: 24 }}>{t('song-detail.compat', 'Compatibilite :')} <b style={{ color: scoreColor(chosenGuitarScore) }}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated && <span style={{ marginLeft: 6, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>{t('song-detail.estimated', '(estime)')}</span>}</div>}
           {g && aiC && (() => { const fb = guitarChoiceFeedback(g, aiC, chosenGuitarCot); return fb ? <div style={{ fontSize: 10, color: 'var(--text-sec)', marginTop: 3, marginLeft: 24, lineHeight: 1.4 }}>{fb}</div> : null; })()}
-          {g && aiC && (() => { const s = localGuitarSettings(g, aiC); return s ? <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)', marginTop: 5, marginLeft: 24 }}><b style={{ color: 'var(--text-muted)' }}>Reglages :</b> {s}</div> : null; })()}
+          {g && aiC && (() => { const s = localGuitarSettings(g, aiC); return s ? <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)', marginTop: 5, marginLeft: 24 }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.settings', 'Reglages :')}</b> {s}</div> : null; })()}
         </div>
         <div style={{ marginBottom: 12, marginLeft: 24 }}>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>Mode IA pour ce morceau {song.recoMode ? <span style={{ color: 'var(--accent)' }}>· override</span> : <span style={{ color: 'var(--text-dim)' }}>· profil ({profile?.recoMode || 'balanced'})</span>}</div>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{t('song-detail.mode-label', 'Mode IA pour ce morceau')} {song.recoMode ? <span style={{ color: 'var(--accent)' }}>{t('song-detail.mode-override', '· override')}</span> : <span style={{ color: 'var(--text-dim)' }}>{tFormat('song-detail.mode-inherited', { mode: profile?.recoMode || 'balanced' }, '· profil ({mode})')}</span>}</div>
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
             {[
-              { id: '', icon: '↻', label: 'Profil' },
-              { id: 'balanced', icon: '⚖️', label: 'Équilibré' },
-              { id: 'faithful', icon: '🎯', label: 'Fidèle' },
-              { id: 'interpretation', icon: '🎨', label: 'Interprétation' },
+              { id: '', icon: '↻', label: t('song-detail.mode-profile', 'Profil') },
+              { id: 'balanced', icon: '⚖️', label: t('song-detail.mode-balanced', 'Équilibré') },
+              { id: 'faithful', icon: '🎯', label: t('song-detail.mode-faithful', 'Fidèle') },
+              { id: 'interpretation', icon: '🎨', label: t('song-detail.mode-interpretation', 'Interprétation') },
             ].map(({ id, icon, label }) => {
               const active = (song.recoMode || '') === id;
               return (
@@ -391,15 +394,15 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                     onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, recoMode: id || undefined, aiCache: null } : x));
                     setLocalAiResult(null);
                   }}
-                  title={id ? `Override : ${label}` : 'Hérite du mode profil. Cliquer invalide le cache IA pour re-fetcher avec le nouveau mode.'}
+                  title={id ? tFormat('song-detail.mode-tooltip-override', { label }, 'Override : {label}') : t('song-detail.mode-tooltip-profile', 'Hérite du mode profil. Cliquer invalide le cache IA pour re-fetcher avec le nouveau mode.')}
                   style={{ fontSize: 10, fontWeight: active ? 700 : 500, background: active ? 'var(--accent-bg)' : 'var(--a3)', border: active ? '1px solid var(--accent-border)' : '1px solid var(--a8)', color: active ? 'var(--accent)' : 'var(--text-muted)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer' }}
                 >{icon} {label}</button>
               );
             })}
           </div>
-          <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 3, fontStyle: 'italic' }}>Changer le mode invalide le cache → re-analyse au prochain ouverture du morceau.</div>
+          <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 3, fontStyle: 'italic' }}>{t('song-detail.mode-hint', 'Changer le mode invalide le cache → re-analyse au prochain ouverture du morceau.')}</div>
         </div>
-        {aiC && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>Meilleurs presets installes pour {g?.short || 'cette guitare'}</div>}
+        {aiC && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{tFormat('song-detail.best-installed-for', { guitar: g?.short || t('song-detail.this-guitar', 'cette guitare') }, 'Meilleurs presets installes pour {guitar}')}</div>}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {getActiveDevicesForRender(profile).map((d) => {
             if (typeof d.RecommendBlock === 'function') {
@@ -430,14 +433,14 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           const bestScore = Math.max(aiC.preset_ann?.score || 0, aiC.preset_plug?.score || 0, aiC.ideal_preset_score || 0);
           if (bestScore >= 90) return null;
           const bestBreakdown = aiC.preset_ann?.breakdown || aiC.preset_plug?.breakdown;
-          const refAmp = aiC.ref_amp || "l'ampli original";
+          const refAmp = aiC.ref_amp || t('song-detail.original-amp', "l'ampli original");
           let weakest = null; let weakLabel = ''; let weakScore = 100;
           if (bestBreakdown) {
             const dims = [
-              { key: 'refAmp', label: 'Ampli', score: bestBreakdown.refAmp?.raw },
-              { key: 'gainMatch', label: 'Gain', score: bestBreakdown.gainMatch?.raw },
-              { key: 'styleMatch', label: 'Style', score: bestBreakdown.styleMatch?.raw },
-              { key: 'pickup', label: 'Micro', score: bestBreakdown.pickup?.raw },
+              { key: 'refAmp', label: t('song-detail.dim-amp', 'Ampli'), score: bestBreakdown.refAmp?.raw },
+              { key: 'gainMatch', label: t('song-detail.dim-gain', 'Gain'), score: bestBreakdown.gainMatch?.raw },
+              { key: 'styleMatch', label: t('song-detail.dim-style', 'Style'), score: bestBreakdown.styleMatch?.raw },
+              { key: 'pickup', label: t('song-detail.dim-pickup', 'Micro'), score: bestBreakdown.pickup?.raw },
             ];
             dims.forEach((d) => { if (d.score != null && d.score < weakScore) { weakScore = d.score; weakest = d.key; weakLabel = d.label; } });
           }
@@ -488,35 +491,35 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             }
           }
           let suggestion = '';
-          if (weakest === 'refAmp') suggestion = 'Aucun preset installe ne simule ' + refAmp + '.';
-          else if (weakest === 'gainMatch') suggestion = 'Le gain des presets disponibles ne correspond pas au son original.';
-          else if (weakest === 'styleMatch') suggestion = 'Le style des presets disponibles ne matche pas bien.';
-          else if (weakest === 'pickup') suggestion = 'Les presets ne sont pas optimises pour votre type de micro (' + type + ').';
-          else suggestion = "Le meilleur preset installe n'atteint pas 90%.";
+          if (weakest === 'refAmp') suggestion = tFormat('song-detail.weak-amp', { ref: refAmp }, 'Aucun preset installe ne simule {ref}.');
+          else if (weakest === 'gainMatch') suggestion = t('song-detail.weak-gain', 'Le gain des presets disponibles ne correspond pas au son original.');
+          else if (weakest === 'styleMatch') suggestion = t('song-detail.weak-style', 'Le style des presets disponibles ne matche pas bien.');
+          else if (weakest === 'pickup') suggestion = tFormat('song-detail.weak-pickup', { type }, 'Les presets ne sont pas optimises pour votre type de micro ({type}).');
+          else suggestion = t('song-detail.weak-generic', "Le meilleur preset installe n'atteint pas 90%.");
           return (
             <div style={{ marginTop: 8, background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 8, padding: '10px 12px' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--yellow)', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 4 }}>Ameliorable — {bestScore}% max</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--yellow)', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 4 }}>{tFormat('song-detail.improvable', { score: bestScore }, 'Ameliorable — {score}% max')}</div>
               <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.5, marginBottom: 6 }}>
-                {weakest && <span>Point faible : <b>{weakLabel}</b> ({weakScore}%). </span>}
+                {weakest && <span>{tFormat('song-detail.weak-point', { label: weakLabel, score: weakScore }, 'Point faible : ')}<b>{weakLabel}</b> ({weakScore}%). </span>}
                 {suggestion}
               </div>
               {extMatches.length > 0 && (
                 <div style={{ marginBottom: 6 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>Packs recommandes a l'achat :</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>{t('song-detail.recommended-packs', 'Packs recommandes a l\'achat :')}</div>
                   {extMatches.map((e, i) => (
                     <div key={i} style={{ fontSize: 10, color: 'var(--text-sec)', marginBottom: 3, display: 'flex', alignItems: 'baseline', gap: 4 }}>
                       <StatusDot score={e.family ? 65 : 85} size={6}/>
                       <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{e.pack}</span>
                       <span style={{ color: 'var(--text-dim)' }}>{e.creator}</span>
-                      {e.family && <span style={{ fontSize: 9, color: 'var(--text-dim)' }}>[famille similaire]</span>}
+                      {e.family && <span style={{ fontSize: 9, color: 'var(--text-dim)' }}>{t('song-detail.family-similar', '[famille similaire]')}</span>}
                     </div>
                   ))}
                 </div>
               )}
-              {extMatches.length === 0 && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 6 }}>Aucun pack connu pour "{refAmp}" dans notre base.</div>}
+              {extMatches.length === 0 && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 6 }}>{tFormat('song-detail.no-pack', { ref: refAmp }, 'Aucun pack connu pour "{ref}" dans notre base.')}</div>}
               <div style={{ marginTop: 6, background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 6, padding: '8px 10px' }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-sec)', marginBottom: 3 }}>Recherche ToneNET</div>
-                <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>Recherchez <b style={{ color: 'var(--text-bright)' }}>{refAmp}</b> dans le moteur de recherche ToneNET</div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-sec)', marginBottom: 3 }}>{t('song-detail.tonenet-search', 'Recherche ToneNET')}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>{tFormat('song-detail.tonenet-instructions', { ref: refAmp }, 'Recherchez {ref} dans le moteur de recherche ToneNET').split(refAmp).map((part, i, arr) => i < arr.length - 1 ? <React.Fragment key={i}>{part}<b style={{ color: 'var(--text-bright)' }}>{refAmp}</b></React.Fragment> : part)}</div>
                 <a href="https://tone.net" target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: 'var(--accent)', textDecoration: 'underline' }}>tone.net</a>
               </div>
             </div>
@@ -524,11 +527,11 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         })()}
       </div>
 
-      {!reloading && !aiC && !localAiErr && <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: '10px 0' }}>Aucune analyse IA en cache. Selectionne une guitare pour lancer l'analyse.</div>}
+      {!reloading && !aiC && !localAiErr && <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: '10px 0' }}>{t('song-detail.no-cache', 'Aucune analyse IA en cache. Selectionne une guitare pour lancer l\'analyse.')}</div>}
       {localAiErr && !reloading && (
         <div data-testid="song-ai-error" style={{ fontSize: 12, color: 'var(--red)', background: 'var(--red-bg)', border: '1px solid var(--red-border)', borderRadius: 'var(--r-md)', padding: '8px 10px', margin: '6px 0', lineHeight: 1.4 }}>
-          ⚠️ Analyse IA échouée : <b>{localAiErr}</b>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Vérifie ta clé API dans ⚙️ Paramètres puis re-sélectionne la guitare pour relancer.</div>
+          {t('song-detail.ai-error-prefix', '⚠️ Analyse IA échouée :')} <b>{localAiErr}</b>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>{t('song-detail.ai-error-hint', 'Vérifie ta clé API dans ⚙️ Paramètres puis re-sélectionne la guitare pour relancer.')}</div>
         </div>
       )}
 
@@ -541,30 +544,30 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             return (
               <div style={{ background: 'var(--a3)', border: '1px solid var(--a7)', borderRadius: 'var(--r-md)', padding: '6px 10px', marginBottom: 6 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <div style={{ fontSize: 9, color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, flex: 1 }}>💬 Tes feedbacks précédents ({all.length})</div>
+                  <div style={{ fontSize: 9, color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, flex: 1 }}>{tFormat('song-detail.feedback-history', { count: all.length }, '💬 Tes feedbacks précédents ({count})')}</div>
                   {all.length > 1 && <button
                     data-testid="song-feedback-clear-all"
                     onClick={() => {
-                      if (!window.confirm(`Effacer tous les ${all.length} feedbacks pour "${song.title}" ?\n\nL'analyse IA va être recalculée sans tes corrections passées (~8s).`)) return;
+                      if (!window.confirm(tFormat('song-detail.feedback-clear-confirm', { count: all.length, title: song.title }, 'Effacer tous les {count} feedbacks pour "{title}" ?\n\nL\'analyse IA va être recalculée sans tes corrections passées (~8s).'))) return;
                       onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, feedback: [], aiCache: null } : x));
                       setLocalAiResult(null);
                     }}
                     style={{ fontSize: 9, background: 'none', border: '1px solid var(--a10)', color: 'var(--text-dim)', borderRadius: 'var(--r-sm)', padding: '1px 6px', cursor: 'pointer' }}
-                    title="Effacer tous les feedbacks pour ce morceau"
-                  >Tout effacer</button>}
+                    title={t('song-detail.feedback-clear-tooltip', 'Effacer tous les feedbacks pour ce morceau')}
+                  >{t('song-detail.feedback-clear-all', 'Tout effacer')}</button>}
                 </div>
                 {all.map((fb, i) => {
                   if (i < showFromIdx) return null;
                   return (
                     <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 10, color: 'var(--text-sec)', lineHeight: 1.4, marginBottom: 2 }}>
-                      <span style={{ flex: 1 }}>· <span style={{ color: 'var(--text-dim)', fontStyle: 'italic' }}>{fb.ts ? new Date(fb.ts).toLocaleDateString('fr') : ''}</span> — {fb.text}</span>
+                      <span style={{ flex: 1 }}>· <span style={{ color: 'var(--text-dim)', fontStyle: 'italic' }}>{fb.ts ? new Date(fb.ts).toLocaleDateString(getLocale()) : ''}</span> — {fb.text}</span>
                       <button
                         data-testid={`song-feedback-delete-${i}`}
                         onClick={() => {
                           onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, feedback: (x.feedback || []).filter((_, j) => j !== i), aiCache: null } : x));
                           setLocalAiResult(null);
                         }}
-                        title="Supprimer ce feedback + recalculer la reco IA sans lui"
+                        title={t('song-detail.feedback-delete-tooltip', 'Supprimer ce feedback + recalculer la reco IA sans lui')}
                         style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 11, cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}
                       >✕</button>
                     </div>
@@ -574,7 +577,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             );
           })()}
           {!showFeedback
-            ? <button data-testid="song-feedback-open" onClick={() => setShowFeedback(true)} style={{ fontSize: 11, background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-md)', padding: '6px 12px', cursor: 'pointer', fontWeight: 600 }}>💬 Donner un feedback à l'IA</button>
+            ? <button data-testid="song-feedback-open" onClick={() => setShowFeedback(true)} style={{ fontSize: 11, background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-md)', padding: '6px 12px', cursor: 'pointer', fontWeight: 600 }}>{t('song-detail.give-feedback', '💬 Donner un feedback à l\'IA')}</button>
             : <FeedbackPanel
                 onSubmit={(fb) => {
                   setShowFeedback(false); setReloading(true);
@@ -598,7 +601,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           }
         </div>
       )}
-      <button onClick={onClose} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, marginTop: 4 }}>Fermer ↑</button>
+      <button onClick={onClose} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, marginTop: 4 }}>{t('song-detail.close', 'Fermer ↑')}</button>
     </div>
   );
 }

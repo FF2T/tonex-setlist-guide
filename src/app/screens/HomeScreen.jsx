@@ -1,21 +1,16 @@
-// src/app/screens/HomeScreen.jsx — Phase 7.14 (découpage main.jsx).
+// src/app/screens/HomeScreen.jsx — Phase 7.37 (wrapping i18n).
 //
 // Écran d'accueil : barre de recherche morceau (SongSearchBar), splash
 // + onboarding popups, et carte de résultat IA inline quand un morceau
 // est confirmé. SongSearchBar, SplashPopup et OnboardingWizard sont
 // co-localisés dans ce fichier car ils ne servent qu'ici.
 //
-// Le flow type :
-// 1. Splash popup au premier lancement (sessionStorage gate).
-// 2. SongSearchBar : input free text → IA correction → localSuggestions
-//    en autocomplete.
-// 3. onConfirm(title, artist) → si song déjà en base avec aiCache, on
-//    réutilise ; sinon fetchAI(...) et stockage dans songDb.
-// 4. Résultat affiché en card avec mêmes sections que SongDetailCard :
-//    Infos morceau / Raisonnement IA / Recommandation idéale /
-//    Paramétrage. Bouton "🔄 Affiner" pour relancer avec feedback.
+// Phase 7.37 : strings UI wrappées via t('home.*', 'FR fallback'). Le
+// prompt IA L84-87 reste FR (changement Phase D — option trilingue).
+// Les valeurs comparées à des outputs IA ('Aucun effet') restent FR.
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { t, tFormat } from '../../i18n/index.js';
 import { APP_NAME, APP_TAGLINE } from '../../core/branding.js';
 import { getSongInfo } from '../../core/songs.js';
 import {
@@ -38,7 +33,16 @@ import { scoreColor } from '../components/score-utils.js';
 import StatusDot from '../components/StatusDot.jsx';
 import BacklineIcon from '../components/BacklineIcon.jsx';
 
-const FEEDBACK_TAGS = ['Son trop saturé', 'Son trop clean', 'Mauvais style d\'ampli', 'Je veux un son Fender', 'Je veux un son Marshall', 'Preset pas adapté au morceau'];
+// Tags feedback localisés (rebuild à chaque render pour réagir au switch
+// de langue). Pas un const top-level car FEEDBACK_TAGS doit suivre la locale.
+const getFeedbackTags = () => [
+  t('home.fb.tag.too-saturated', 'Son trop saturé'),
+  t('home.fb.tag.too-clean', 'Son trop clean'),
+  t('home.fb.tag.wrong-amp', 'Mauvais style d\'ampli'),
+  t('home.fb.tag.fender', 'Je veux un son Fender'),
+  t('home.fb.tag.marshall', 'Je veux un son Marshall'),
+  t('home.fb.tag.bad-preset', 'Preset pas adapté au morceau'),
+];
 
 // ─── SongSearchBar ───────────────────────────────────────────────────
 function SongSearchBar({ onConfirm, aiProvider, aiKeys, songDb }) {
@@ -78,7 +82,7 @@ function SongSearchBar({ onConfirm, aiProvider, aiKeys, songDb }) {
     if (!input.trim()) return;
     const key = aiKeys?.gemini || aiKeys?.anthropic || getSharedGeminiKey();
     const provider = (aiKeys?.gemini || getSharedGeminiKey()) ? 'gemini' : 'anthropic';
-    if (!key) { setErr('Clé API manquante — configure-la dans les paramètres.'); return; }
+    if (!key) { setErr(t('home.search.api-key-missing', 'Clé API manquante — configure-la dans les paramètres.')); return; }
     setShowSuggest(false);
     setLoading(true); setErr(null); setSuggestion(null);
     const prompt = `L'utilisateur veut jouer un morceau de guitare. Il a tapé : "${input.trim()}"
@@ -101,7 +105,7 @@ Réponds UNIQUEMENT en JSON (sans markdown) : {"title":"Titre exact","artist":"A
     <div style={{ position: 'relative' }}>
       <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
         <input
-          placeholder="Titre, artiste..."
+          placeholder={t('home.search.placeholder', 'Titre, artiste...')}
           value={input}
           onChange={(e) => { setInput(e.target.value); setSuggestion(null); setShowSuggest(true); setHighlight(0); }}
           onFocus={() => setShowSuggest(true)}
@@ -117,7 +121,7 @@ Réponds UNIQUEMENT en JSON (sans markdown) : {"title":"Titre exact","artist":"A
           }}
           style={{ ...inp, flex: 1 }}
         />
-        <button onClick={search} disabled={!input.trim() || loading} style={{ background: !input.trim() || loading ? 'var(--bg-elev-3)' : 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-lg)', padding: '0 22px', fontSize: 17, fontWeight: 700, cursor: !input.trim() || loading ? 'not-allowed' : 'pointer', flexShrink: 0, boxShadow: 'var(--shadow-sm)', fontFamily: 'var(--font-ui)' }}>{loading ? '...' : 'OK'}</button>
+        <button onClick={search} disabled={!input.trim() || loading} style={{ background: !input.trim() || loading ? 'var(--bg-elev-3)' : 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-lg)', padding: '0 22px', fontSize: 17, fontWeight: 700, cursor: !input.trim() || loading ? 'not-allowed' : 'pointer', flexShrink: 0, boxShadow: 'var(--shadow-sm)', fontFamily: 'var(--font-ui)' }}>{loading ? '...' : t('home.search.ok', 'OK')}</button>
       </div>
       {showSuggest && localSuggestions.length > 0 && !suggestion && !loading && (
         <div style={{ position: 'absolute', top: '54px', left: 0, right: 0, background: 'var(--bg-elev-1)', border: '1px solid var(--border-strong)', borderRadius: 'var(--r-lg)', boxShadow: 'var(--shadow-md)', zIndex: 50, maxHeight: 240, overflowY: 'auto' }}>
@@ -136,11 +140,11 @@ Réponds UNIQUEMENT en JSON (sans markdown) : {"title":"Titre exact","artist":"A
       {err && <div style={{ fontSize: 12, color: 'var(--red)', marginBottom: 8 }}>{err}</div>}
       {suggestion && isUnknown && (
         <div style={{ background: 'var(--yellow-bg,rgba(251,191,36,0.12))', border: '1px solid var(--yellow-border,rgba(251,191,36,0.4))', borderRadius: 'var(--r-lg)', padding: 14, marginBottom: 8 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--yellow,#f59e0b)', marginBottom: 4 }}>⚠️ Morceau non reconnu</div>
-          <div style={{ fontSize: 12, color: 'var(--text-sec)', marginBottom: 10 }}>Vérifie l'orthographe ou ajoute des précisions (artiste, album).</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--yellow,#f59e0b)', marginBottom: 4 }}>{t('home.search.unknown-title', '⚠️ Morceau non reconnu')}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-sec)', marginBottom: 10 }}>{t('home.search.unknown-hint', 'Vérifie l\'orthographe ou ajoute des précisions (artiste, album).')}</div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => { setSuggestion(null); }} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse,var(--bg))', borderRadius: 'var(--r-md)', padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Corriger</button>
-            <button onClick={() => { onConfirm(suggestion.title, suggestion.artist); setSuggestion(null); setInput(''); }} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}>Forcer quand même</button>
+            <button onClick={() => { setSuggestion(null); }} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse,var(--bg))', borderRadius: 'var(--r-md)', padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{t('home.search.correct', 'Corriger')}</button>
+            <button onClick={() => { onConfirm(suggestion.title, suggestion.artist); setSuggestion(null); setInput(''); }} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}>{t('home.search.force', 'Forcer quand même')}</button>
           </div>
         </div>
       )}
@@ -149,8 +153,8 @@ Réponds UNIQUEMENT en JSON (sans markdown) : {"title":"Titre exact","artist":"A
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 2 }}>{suggestion.title}</div>
           <div style={{ fontSize: 12, color: 'var(--text-sec)', marginBottom: 10 }}>{suggestion.artist}</div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => { onConfirm(suggestion.title, suggestion.artist); setSuggestion(null); setInput(''); }} style={{ background: 'var(--green)', border: 'none', color: 'var(--bg)', borderRadius: 'var(--r-md)', padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>C'est bon !</button>
-            <button onClick={() => setSuggestion(null)} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}>Non, corriger</button>
+            <button onClick={() => { onConfirm(suggestion.title, suggestion.artist); setSuggestion(null); setInput(''); }} style={{ background: 'var(--green)', border: 'none', color: 'var(--bg)', borderRadius: 'var(--r-md)', padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{t('home.search.confirm', 'C\'est bon !')}</button>
+            <button onClick={() => setSuggestion(null)} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}>{t('home.search.refuse', 'Non, corriger')}</button>
           </div>
         </div>
       )}
@@ -167,20 +171,20 @@ function SplashPopup({ onClose }) {
         <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>{APP_NAME}</div>
         <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16 }}>{APP_TAGLINE}</div>
         <div style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600, fontStyle: 'italic', marginBottom: 16, padding: '12px 16px', background: 'var(--accent-bg)', borderRadius: 'var(--r-lg)', border: '1px solid var(--accent-border)' }}>
-          "Quel preset charger pour ce morceau, avec cette guitare ?"
+          {t('home.splash.quote', '"Quel preset charger pour ce morceau, avec cette guitare ?"')}
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16, lineHeight: 1.6 }}>
-          Tu scrolles, tu testes, tu perds du temps.<br/>Et tu finis par toujours utiliser les 3 memes presets.
+          {t('home.splash.pain1', 'Tu scrolles, tu testes, tu perds du temps.')}<br/>{t('home.splash.pain2', 'Et tu finis par toujours utiliser les 3 memes presets.')}
         </div>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 14 }}>
-          L'IA analyse le morceau, raisonne sur le son et recommande le meilleur couple guitare + preset.
+          {t('home.splash.promise', 'L\'IA analyse le morceau, raisonne sur le son et recommande le meilleur couple guitare + preset.')}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, textAlign: 'left', marginBottom: 20 }}>
           {[
-            { n: '1', emoji: '🔍', text: 'Tape un morceau — l\'IA analyse le profil tonal et l\'ampli original' },
-            { n: '2', emoji: '🧠', text: 'L\'IA raisonne : guitare ideale, ampli cible, preset recommande' },
-            { n: '3', emoji: '🎸', text: 'Choisis ta guitare — les presets s\'adaptent automatiquement' },
-            { n: '4', emoji: '🤘', text: 'Rock\'n\'roll !' },
+            { n: '1', emoji: '🔍', text: t('home.splash.step1', 'Tape un morceau — l\'IA analyse le profil tonal et l\'ampli original') },
+            { n: '2', emoji: '🧠', text: t('home.splash.step2', 'L\'IA raisonne : guitare ideale, ampli cible, preset recommande') },
+            { n: '3', emoji: '🎸', text: t('home.splash.step3', 'Choisis ta guitare — les presets s\'adaptent automatiquement') },
+            { n: '4', emoji: '🤘', text: t('home.splash.step4', 'Rock\'n\'roll !') },
           ].map(({ n, emoji, text }) => (
             <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--a3)', borderRadius: 'var(--r-lg)' }}>
               <span style={{ fontSize: 20, flexShrink: 0 }}>{emoji}</span>
@@ -188,7 +192,7 @@ function SplashPopup({ onClose }) {
             </div>
           ))}
         </div>
-        <button onClick={onClose} style={{ background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-lg)', padding: '12px 32px', fontSize: 15, fontWeight: 700, cursor: 'pointer', width: '100%', boxShadow: 'var(--shadow-sm)', fontFamily: 'var(--font-ui)' }}>C'est parti !</button>
+        <button onClick={onClose} style={{ background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-lg)', padding: '12px 32px', fontSize: 15, fontWeight: 700, cursor: 'pointer', width: '100%', boxShadow: 'var(--shadow-sm)', fontFamily: 'var(--font-ui)' }}>{t('home.splash.cta', 'C\'est parti !')}</button>
       </div>
     </div>
   );
@@ -202,29 +206,29 @@ function OnboardingWizard({ onClose, onProfile }) {
       <div style={{ textAlign: 'center' }}>
         <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center' }}><BacklineIcon size={64} color="var(--brass-300)"/></div>
         <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-2xl)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 10 }}>{APP_NAME}</div>
-        <div style={{ fontSize: 15, color: 'var(--text-sec)', lineHeight: 1.6, marginBottom: 24 }}>{APP_TAGLINE} — quel preset charger pour chaque morceau, avec ta guitare.</div>
+        <div style={{ fontSize: 15, color: 'var(--text-sec)', lineHeight: 1.6, marginBottom: 24 }}>{APP_TAGLINE} {t('home.onboarding.tagline-extra', '— quel preset charger pour chaque morceau, avec ta guitare.')}</div>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 2, textAlign: 'left', padding: '18px 20px', background: 'var(--a3)', borderRadius: 'var(--r-xl)' }}>
-          <div style={{ fontWeight: 700, marginBottom: 6, color: 'var(--text-sec)', fontSize: 14 }}>En 3 minutes tu pourras :</div>
-          <div>🔍 Chercher un morceau et obtenir le preset ideal</div>
-          <div>🧠 Voir le raisonnement IA (profil tonal, guitare, ampli)</div>
-          <div>🎵 Preparer une setlist avec les bons presets</div>
-          <div>🎛️ Explorer les presets par profil sonore</div>
+          <div style={{ fontWeight: 700, marginBottom: 6, color: 'var(--text-sec)', fontSize: 14 }}>{t('home.onboarding.in-3min', 'En 3 minutes tu pourras :')}</div>
+          <div>{t('home.onboarding.feat-search', '🔍 Chercher un morceau et obtenir le preset ideal')}</div>
+          <div>{t('home.onboarding.feat-reason', '🧠 Voir le raisonnement IA (profil tonal, guitare, ampli)')}</div>
+          <div>{t('home.onboarding.feat-setlist', '🎵 Preparer une setlist avec les bons presets')}</div>
+          <div>{t('home.onboarding.feat-explore', '🎛️ Explorer les presets par profil sonore')}</div>
         </div>
       </div>
     ),
     () => (
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 48, marginBottom: 12 }}>🎵</div>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8 }}>Fonctionnalites</div>
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8 }}>{t('home.onboarding.features-title', 'Fonctionnalites')}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left', padding: '4px 0' }}>
           {[
-            { emoji: '🔍', title: 'Recherche intelligente', desc: 'Tape un morceau — l\'IA analyse le profil tonal, identifie l\'ampli et la guitare d\'origine, et recommande le meilleur couple guitare + preset.' },
-            { emoji: '🧠', title: 'Raisonnement IA', desc: 'L\'IA explique son raisonnement en 3 etapes : profil tonal du morceau, scoring des guitares, profil ampli ideal.' },
-            { emoji: '🎵', title: 'Setlists de session', desc: 'Cree des setlists par contexte (cours, repetition, scene). Chaque morceau a sa fiche avec recommandation ideale et parametrage.' },
-            { emoji: '🎲', title: 'Jammer', desc: 'Choisis une guitare et un style — top 3 des presets installes et meilleurs du catalogue, avec fiches depliables.' },
-            { emoji: '🎛️', title: 'Explorateur de presets', desc: 'Explore par profil sonore (Clean cristallin, Blues vintage, Crunch 70s, Metal...). Chaque preset a sa fiche avec description, morceaux mythiques et guitares adaptees.' },
-            { emoji: '📦', title: 'Installation directe', desc: 'Installe le preset recommande directement sur ta pedale ou ton plug en choisissant la banque et le slot.' },
-            { emoji: '👥', title: 'Multi-profils & Sync', desc: 'Chaque guitariste a son profil. Sync temps reel telephone - PC via Firestore.' },
+            { emoji: '🔍', title: t('home.onboarding.f1-title', 'Recherche intelligente'), desc: t('home.onboarding.f1-desc', 'Tape un morceau — l\'IA analyse le profil tonal, identifie l\'ampli et la guitare d\'origine, et recommande le meilleur couple guitare + preset.') },
+            { emoji: '🧠', title: t('home.onboarding.f2-title', 'Raisonnement IA'), desc: t('home.onboarding.f2-desc', 'L\'IA explique son raisonnement en 3 etapes : profil tonal du morceau, scoring des guitares, profil ampli ideal.') },
+            { emoji: '🎵', title: t('home.onboarding.f3-title', 'Setlists de session'), desc: t('home.onboarding.f3-desc', 'Cree des setlists par contexte (cours, repetition, scene). Chaque morceau a sa fiche avec recommandation ideale et parametrage.') },
+            { emoji: '🎲', title: t('home.onboarding.f4-title', 'Jammer'), desc: t('home.onboarding.f4-desc', 'Choisis une guitare et un style — top 3 des presets installes et meilleurs du catalogue, avec fiches depliables.') },
+            { emoji: '🎛️', title: t('home.onboarding.f5-title', 'Explorateur de presets'), desc: t('home.onboarding.f5-desc', 'Explore par profil sonore (Clean cristallin, Blues vintage, Crunch 70s, Metal...). Chaque preset a sa fiche avec description, morceaux mythiques et guitares adaptees.') },
+            { emoji: '📦', title: t('home.onboarding.f6-title', 'Installation directe'), desc: t('home.onboarding.f6-desc', 'Installe le preset recommande directement sur ta pedale ou ton plug en choisissant la banque et le slot.') },
+            { emoji: '👥', title: t('home.onboarding.f7-title', 'Multi-profils & Sync'), desc: t('home.onboarding.f7-desc', 'Chaque guitariste a son profil. Sync temps reel telephone - PC via Firestore.') },
           ].map(({ emoji, title, desc }) => (
             <div key={title} style={{ display: 'flex', gap: 10, padding: '10px 12px', background: 'var(--a3)', borderRadius: 'var(--r-lg)' }}>
               <span style={{ fontSize: 18, flexShrink: 0 }}>{emoji}</span>
@@ -237,12 +241,12 @@ function OnboardingWizard({ onClose, onProfile }) {
     () => (
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 48, marginBottom: 12 }}>⚙️</div>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8 }}>Configure ton profil</div>
-        <div style={{ fontSize: 13, color: 'var(--text-sec)', lineHeight: 1.6, marginBottom: 20 }}>Pour des recommandations precises, l'app a besoin de connaitre :</div>
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8 }}>{t('home.onboarding.config-title', 'Configure ton profil')}</div>
+        <div style={{ fontSize: 13, color: 'var(--text-sec)', lineHeight: 1.6, marginBottom: 20 }}>{t('home.onboarding.config-intro', 'Pour des recommandations precises, l\'app a besoin de connaitre :')}</div>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 2.2, textAlign: 'left', padding: '18px 20px', background: 'var(--a3)', borderRadius: 'var(--r-xl)' }}>
-          <div><b style={{ color: 'var(--text-sec)' }}>🎸 Tes guitares</b> — pour adapter les recommandations par modele et type de micro</div>
-          <div><b style={{ color: 'var(--text-sec)' }}>📱 Ton materiel</b> — pedale ToneX Anniversary et/ou ToneX Plug</div>
-          <div><b style={{ color: 'var(--text-sec)' }}>📦 Tes sources</b> — quels packs de presets tu possedes (TSR, ML, Factory...)</div>
+          <div><b style={{ color: 'var(--text-sec)' }}>🎸 {t('home.onboarding.config-guitars-label', 'Tes guitares')}</b> {t('home.onboarding.config-guitars-desc', '— pour adapter les recommandations par modele et type de micro')}</div>
+          <div><b style={{ color: 'var(--text-sec)' }}>📱 {t('home.onboarding.config-hardware-label', 'Ton materiel')}</b> {t('home.onboarding.config-hardware-desc', '— pedale ToneX Anniversary et/ou ToneX Plug')}</div>
+          <div><b style={{ color: 'var(--text-sec)' }}>📦 {t('home.onboarding.config-sources-label', 'Tes sources')}</b> {t('home.onboarding.config-sources-desc', '— quels packs de presets tu possedes (TSR, ML, Factory...)')}</div>
         </div>
       </div>
     ),
@@ -260,14 +264,14 @@ function OnboardingWizard({ onClose, onProfile }) {
         {steps[step]()}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, gap: 8 }}>
           {isFirst
-            ? <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer' }}>Fermer</button>
-            : <button onClick={() => setStep((s) => s - 1)} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '8px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>← Retour</button>}
+            ? <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer' }}>{t('home.onboarding.close', 'Fermer')}</button>
+            : <button onClick={() => setStep((s) => s - 1)} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '8px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{t('home.onboarding.back', '← Retour')}</button>}
           {isLast
             ? <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={onClose} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-lg)', padding: '12px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Fermer</button>
-                <button onClick={() => { onClose(); onProfile(); }} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-lg)', padding: '12px 24px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Configurer mon profil →</button>
+                <button onClick={onClose} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-lg)', padding: '12px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{t('home.onboarding.close', 'Fermer')}</button>
+                <button onClick={() => { onClose(); onProfile(); }} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-lg)', padding: '12px 24px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{t('home.onboarding.go-profile', 'Configurer mon profil →')}</button>
               </div>
-            : <button onClick={() => setStep((s) => s + 1)} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Suivant →</button>}
+            : <button onClick={() => setStep((s) => s + 1)} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{t('home.onboarding.next', 'Suivant →')}</button>}
         </div>
       </div>
     </div>
@@ -299,7 +303,7 @@ function HomeScreen({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const profileName = (profiles[activeProfileId] || {}).name || 'Profil';
+  const profileName = (profiles[activeProfileId] || {}).name || t('home.profile-default', 'Profil');
   const profile = profiles[activeProfileId] || {};
   const [splashOpen, setSplashOpen] = useState(() => { if (sessionStorage.getItem('tonex_splash')) return false; sessionStorage.setItem('tonex_splash', '1'); return true; });
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -338,14 +342,14 @@ function HomeScreen({
         {songLoading ? (
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
             <div style={{ fontSize: 48, marginBottom: 16, animation: 'spin 1.5s linear infinite' }}>&#9203;</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>Analyse en cours...</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>{t('home.loading', 'Analyse en cours...')}</div>
             {confirmedSong && <div style={{ fontSize: 14, color: 'var(--text-sec)', marginTop: 8 }}>{confirmedSong.title} — {confirmedSong.artist}</div>}
             <style>{'@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}'}</style>
           </div>
         ) : (
           <div>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-2xl)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 6, textAlign: 'center' }}>{APP_NAME}</div>
-            <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 16, textAlign: 'center' }}>Quel morceau veux-tu jouer ?</div>
+            <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 16, textAlign: 'center' }}>{t('home.title-question', 'Quel morceau veux-tu jouer ?')}</div>
 
             {typeof onLive === 'function' && (() => {
               const liveSl = (setlists || []).find((s) => s.songIds && s.songIds.length > 0)
@@ -353,7 +357,7 @@ function HomeScreen({
               if (!liveSl) return null;
               return (
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
-                  <button data-testid="home-screen-live" onClick={() => onLive(liveSl.id)} title={`Mode scène plein écran sur "${liveSl.name}"`} style={{ background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-lg)', padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)', fontFamily: 'var(--font-ui)' }}>🎤 Mode scène — {liveSl.name}</button>
+                  <button data-testid="home-screen-live" onClick={() => onLive(liveSl.id)} title={tFormat('home.live-title', { name: liveSl.name }, 'Mode scène plein écran sur "{name}"')} style={{ background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-lg)', padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)', fontFamily: 'var(--font-ui)' }}>{tFormat('home.live-button', { name: liveSl.name }, '🎤 Mode scène — {name}')}</button>
                 </div>
               );
             })()}
@@ -424,11 +428,11 @@ function HomeScreen({
 
                     {/* Section Infos */}
                     <div style={sectionStyle}>
-                      {sectionTitle('📖', 'Infos morceau')}
+                      {sectionTitle('📖', t('home.song.info-section', 'Infos morceau'))}
                       {info.desc && <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.5, marginBottom: 6 }}>{info.desc}</div>}
                       {(songResult.ref_guitarist || songResult.ref_guitar || songResult.ref_amp) && (
                         <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.6 }}>
-                          <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 10 }}>{songResult.ref_guitarist || 'Référence'}</span><br/>
+                          <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 10 }}>{songResult.ref_guitarist || t('home.song.ref-default', 'Référence')}</span><br/>
                           {songResult.ref_guitar && <>🎸 {songResult.ref_guitar} · </>}
                           {songResult.ref_amp && <>🔊 {songResult.ref_amp}</>}
                           {songResult.ref_effects && songResult.ref_effects !== 'Aucun effet' && <> · 🎚 {songResult.ref_effects}</>}
@@ -440,16 +444,16 @@ function HomeScreen({
                     {(songResult.cot_step1 || songResult.cot_step2_guitars || songResult.cot_step3_amp) && (
                       <div style={sectionStyle}>
                         <div onClick={() => setShowCotSearch((p) => !p)} style={{ cursor: 'pointer', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', display: 'flex', alignItems: 'center', gap: 5, userSelect: 'none' }}>
-                          🧠 Raisonnement IA <span style={{ fontSize: 10, marginLeft: 'auto', fontWeight: 400 }}>{showCotSearch ? '▲' : '▼'}</span>
+                          {t('home.song.reasoning', '🧠 Raisonnement IA')} <span style={{ fontSize: 10, marginLeft: 'auto', fontWeight: 400 }}>{showCotSearch ? '▲' : '▼'}</span>
                         </div>
                         {showCotSearch && (
                           <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
                             {songResult.cot_step1 && <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>Profil tonal</div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('home.song.cot-tonal', 'Profil tonal')}</div>
                               <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{songResult.cot_step1}</div>
                             </div>}
                             {songResult.cot_step2_guitars?.length > 0 && <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>Scoring guitares</div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('home.song.cot-guitars', 'Scoring guitares')}</div>
                               {songResult.cot_step2_guitars.map((gt, i) => <div key={i} style={{ fontSize: 11, color: 'var(--text-sec)', marginBottom: i < songResult.cot_step2_guitars.length - 1 ? 4 : 0, display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
                                 <span style={{ fontWeight: 600, color: 'var(--text-bright)', flexShrink: 0 }}>{gt.name}</span>
                                 <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: scoreColor(gt.score), flexShrink: 0 }}>{gt.score}%</span>
@@ -457,7 +461,7 @@ function HomeScreen({
                               </div>)}
                             </div>}
                             {songResult.cot_step3_amp && <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>Profil ampli</div>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('home.song.cot-amp', 'Profil ampli')}</div>
                               <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{songResult.cot_step3_amp}</div>
                             </div>}
                           </div>
@@ -467,12 +471,12 @@ function HomeScreen({
 
                     {/* Section Recommandation idéale */}
                     <div style={sectionStyle}>
-                      {sectionTitle(<StatusDot score={100} ideal={true} size={10}/>, 'Recommandation ideale')}
+                      {sectionTitle(<StatusDot score={100} ideal={true} size={10}/>, t('home.song.reco-ideal', 'Recommandation ideale'))}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {songResult.ideal_guitar && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
                             <StatusDot score={idealGuitarScore} ideal={true}/>
-                            <div style={{ flex: 1 }}>Guitare <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{songResult.ideal_guitar}</span></div>
+                            <div style={{ flex: 1 }}>{t('home.song.guitar-label', 'Guitare ')}<span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{songResult.ideal_guitar}</span></div>
                             {idealGuitarScore && <b style={{ color: scoreColor(idealGuitarScore), flexShrink: 0 }}>{idealGuitarScore}%</b>}
                           </div>
                         )}
@@ -486,13 +490,13 @@ function HomeScreen({
                           return (
                             <div>
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 11 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><StatusDot score={idealScore} ideal={true}/><span style={{ color: 'var(--text-muted)', fontSize: 10 }}>Preset</span> <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{songResult.ideal_preset}</span></div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><StatusDot score={idealScore} ideal={true}/><span style={{ color: 'var(--text-muted)', fontSize: 10 }}>{t('home.song.preset-label', 'Preset')}</span> <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{songResult.ideal_preset}</span></div>
                                 {idealScore > 0 && <b style={{ color: scoreColor(idealScore), flexShrink: 0 }}>{idealScore}%</b>}
                               </div>
                               <div style={{ fontSize: 9, marginTop: 2, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                                 {loc
-                                  ? <span style={{ color: 'var(--green)' }}>✓ Installé · Banque {loc.bank}{loc.slot}</span>
-                                  : <span style={{ color: 'var(--yellow)' }}>⬇ Non installé</span>}
+                                  ? <span style={{ color: 'var(--green)' }}>{tFormat('home.song.installed-bank', { bank: loc.bank, slot: loc.slot }, '✓ Installé · Banque {bank}{slot}')}</span>
+                                  : <span style={{ color: 'var(--yellow)' }}>{t('home.song.not-installed', '⬇ Non installé')}</span>}
                                 {srcInfo && <span style={{ color: loc ? 'var(--text-tertiary)' : 'var(--text-sec)' }}>· {srcInfo.icon} {srcInfo.label}</span>}
                               </div>
                             </div>
@@ -500,8 +504,8 @@ function HomeScreen({
                         })()}
                         {(songResult.settings_preset || songResult.settings_guitar) && (
                           <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                            {songResult.settings_preset && <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)' }}><b style={{ color: 'var(--text-muted)' }}>Preset :</b> {songResult.settings_preset}</div>}
-                            {songResult.settings_guitar && <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)' }}><b style={{ color: 'var(--text-muted)' }}>Guitare :</b> {songResult.settings_guitar}</div>}
+                            {songResult.settings_preset && <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)' }}><b style={{ color: 'var(--text-muted)' }}>{t('home.song.preset-settings', 'Preset :')}</b> {songResult.settings_preset}</div>}
+                            {songResult.settings_guitar && <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)' }}><b style={{ color: 'var(--text-muted)' }}>{t('home.song.guitar-settings', 'Guitare :')}</b> {songResult.settings_guitar}</div>}
                           </div>
                         )}
                       </div>
@@ -509,15 +513,15 @@ function HomeScreen({
 
                     {/* Section Paramétrage */}
                     <div style={customSectionStyle}>
-                      {sectionTitle('🎛', 'Parametrage — mon choix')}
+                      {sectionTitle('🎛', t('home.song.params-title', 'Parametrage — mon choix'))}
                       <div style={{ marginBottom: 8 }}>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>Guitare choisie</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{t('home.song.guitar-chosen', 'Guitare choisie')}</div>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 4 }}>
                           {(selectedGuitar || songResult.ideal_guitar) && <span style={{ fontSize: 11, background: 'var(--a5)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '4px 10px', color: 'var(--text-bright)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}><StatusDot score={chosenGuitarScore} ideal={!selectedGuitar || matchGuitarName(songResult.cot_step2_guitars?.[0]?.name, selectedGuitar)}/>{selectedGuitar ? `${selectedGuitar.name} (${selectedGuitar.type})` : songResult.ideal_guitar}</span>}
-                          <button onClick={() => setShowGuitarPick((p) => !p)} style={{ fontSize: 10, background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '3px 8px', cursor: 'pointer' }}>Changer</button>
+                          <button onClick={() => setShowGuitarPick((p) => !p)} style={{ fontSize: 10, background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '3px 8px', cursor: 'pointer' }}>{t('home.song.change', 'Changer')}</button>
                         </div>
-                        {selectedGuitar && chosenGuitarScore && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>Compatibilite : <b style={{ color: scoreColor(chosenGuitarScore) }}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated && <span style={{ marginLeft: 6, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>(estime)</span>}</div>}
-                        {selectedGuitar && (() => { const s = localGuitarSettings(selectedGuitar, songResult); return s ? <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)', marginBottom: 4 }}><b style={{ color: 'var(--text-muted)' }}>Reglages :</b> {s}</div> : null; })()}
+                        {selectedGuitar && chosenGuitarScore && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>{t('home.song.compat', 'Compatibilite :')} <b style={{ color: scoreColor(chosenGuitarScore) }}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated && <span style={{ marginLeft: 6, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>{t('home.song.estimated', '(estime)')}</span>}</div>}
+                        {selectedGuitar && (() => { const s = localGuitarSettings(selectedGuitar, songResult); return s ? <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)', marginBottom: 4 }}><b style={{ color: 'var(--text-muted)' }}>{t('home.song.settings', 'Reglages :')}</b> {s}</div> : null; })()}
                         {showGuitarPick && (
                           <div style={{ marginBottom: 8, background: 'var(--a4)', borderRadius: 'var(--r-md)', padding: 10 }}>
                             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
@@ -530,7 +534,7 @@ function HomeScreen({
                           </div>
                         )}
                       </div>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>Meilleurs presets installes</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{t('home.song.best-installed', 'Meilleurs presets installes')}</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {getActiveDevicesForRender(profile).map((d) => {
                           const presetData = songResult[d.presetResultKey];
@@ -541,7 +545,7 @@ function HomeScreen({
                               <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, flexShrink: 0 }}>{d.icon} {d.label}</span>
                               <span style={{ fontSize: 11, color: 'var(--text)', fontWeight: 600, flex: 1 }}>{presetData.label}</span>
                               {presetData.score && <span style={{ fontSize: 10, fontWeight: 700, color: scoreColor(presetData.score) }}>{presetData.score}%</span>}
-                              {presetData.bank != null && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Banque {presetData.bank}{presetData.col}</span>}
+                              {presetData.bank != null && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{tFormat('home.song.bank', { bank: presetData.bank, slot: presetData.col }, 'Banque {bank}{slot}')}</span>}
                             </div>
                           );
                         })}
@@ -550,17 +554,17 @@ function HomeScreen({
 
                     {/* Affiner */}
                     {!showFeedback
-                      ? <button onClick={() => setShowFeedback(true)} style={{ fontSize: 10, background: 'none', border: '1px solid var(--a10)', color: 'var(--text-dim)', borderRadius: 'var(--r-md)', padding: '3px 8px', cursor: 'pointer' }}>🔄 Affiner l'analyse</button>
+                      ? <button onClick={() => setShowFeedback(true)} style={{ fontSize: 10, background: 'none', border: '1px solid var(--a10)', color: 'var(--text-dim)', borderRadius: 'var(--r-md)', padding: '3px 8px', cursor: 'pointer' }}>{t('home.song.refine', '🔄 Affiner l\'analyse')}</button>
                       : (
                         <div style={{ marginTop: 4, background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: 10 }}>
-                          <div style={{ fontSize: 11, color: 'var(--text-sec)', marginBottom: 6 }}>Qu'est-ce qui ne va pas ?</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-sec)', marginBottom: 6 }}>{t('home.song.fb-question', 'Qu\'est-ce qui ne va pas ?')}</div>
                           <div style={{ display: 'flex', gap: 4, marginBottom: 6, flexWrap: 'wrap' }}>
-                            {FEEDBACK_TAGS.map((s) => <button key={s} onClick={() => setFeedback((p) => p ? p + ', ' + s : s)} style={{ fontSize: 9, background: feedback.includes(s) ? 'var(--accent)' : 'var(--a6)', color: feedback.includes(s) ? 'var(--text-inverse)' : 'var(--text-sec)', border: '1px solid var(--a10)', borderRadius: 'var(--r-sm)', padding: '3px 7px', cursor: 'pointer' }}>{s}</button>)}
+                            {getFeedbackTags().map((s) => <button key={s} onClick={() => setFeedback((p) => p ? p + ', ' + s : s)} style={{ fontSize: 9, background: feedback.includes(s) ? 'var(--accent)' : 'var(--a6)', color: feedback.includes(s) ? 'var(--text-inverse)' : 'var(--text-sec)', border: '1px solid var(--a10)', borderRadius: 'var(--r-sm)', padding: '3px 7px', cursor: 'pointer' }}>{s}</button>)}
                           </div>
-                          <input placeholder="Ou précise ici..." value={feedback} onChange={(e) => setFeedback(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && feedback.trim() && rerunWithFeedback()} style={{ width: '100%', background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '8px 10px', fontSize: 12, boxSizing: 'border-box', marginBottom: 6 }}/>
+                          <input placeholder={t('home.song.fb-input', 'Ou précise ici...')} value={feedback} onChange={(e) => setFeedback(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && feedback.trim() && rerunWithFeedback()} style={{ width: '100%', background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '8px 10px', fontSize: 12, boxSizing: 'border-box', marginBottom: 6 }}/>
                           <div style={{ display: 'flex', gap: 6 }}>
-                            <button onClick={() => { if (feedback.trim()) rerunWithFeedback(); }} disabled={!feedback.trim() || songLoading} style={{ background: feedback.trim() ? 'var(--accent)' : 'var(--bg-disabled)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: feedback.trim() ? 'pointer' : 'not-allowed' }}>{songLoading ? '⏳ Analyse...' : '🔄 Relancer'}</button>
-                            <button onClick={() => { setShowFeedback(false); setFeedback(''); }} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '6px 10px', fontSize: 11, cursor: 'pointer' }}>Annuler</button>
+                            <button onClick={() => { if (feedback.trim()) rerunWithFeedback(); }} disabled={!feedback.trim() || songLoading} style={{ background: feedback.trim() ? 'var(--accent)' : 'var(--bg-disabled)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: feedback.trim() ? 'pointer' : 'not-allowed' }}>{songLoading ? t('home.song.loading-short', '⏳ Analyse...') : t('home.song.rerun', '🔄 Relancer')}</button>
+                            <button onClick={() => { setShowFeedback(false); setFeedback(''); }} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '6px 10px', fontSize: 11, cursor: 'pointer' }}>{t('home.song.cancel', 'Annuler')}</button>
                           </div>
                         </div>
                       )}
@@ -571,7 +575,7 @@ function HomeScreen({
                       if (!song) return null;
                       return (
                         <div style={{ marginTop: 8 }}>
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 6 }}>Ajouter à une setlist</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 6 }}>{t('home.song.add-to-setlist', 'Ajouter à une setlist')}</div>
                           <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                             {setlists.map((sl) => {
                               const inSl = sl.songIds.includes(song.id);
@@ -582,7 +586,7 @@ function HomeScreen({
                       );
                     })()}
 
-                    <button onClick={() => { setConfirmedSong(null); setSongResult(null); setSongBaseAI(null); setShowFeedback(false); setFeedback(''); }} style={{ width: '100%', marginTop: 8, background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '8px', fontSize: 12, cursor: 'pointer' }}>← Retour à l'accueil</button>
+                    <button onClick={() => { setConfirmedSong(null); setSongResult(null); setSongBaseAI(null); setShowFeedback(false); setFeedback(''); }} style={{ width: '100%', marginTop: 8, background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '8px', fontSize: 12, cursor: 'pointer' }}>{t('home.song.back-home', '← Retour à l\'accueil')}</button>
                   </div>
                 </div>
               );

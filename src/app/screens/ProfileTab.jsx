@@ -14,6 +14,7 @@
 // ProfilesAdmin). ADMIN_PIN local n'a plus de raison d'exister.
 
 import React, { useState } from 'react';
+import { t } from '../../i18n/index.js';
 import { GUITARS, GUITAR_BRANDS } from '../../core/guitars.js';
 import { SOURCE_LABELS, SOURCE_DESCRIPTIONS, SOURCE_INFO } from '../../core/sources.js';
 import GuitarSearchAdd from '../components/GuitarSearchAdd.jsx';
@@ -64,7 +65,7 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
       const dataUrl = await resizeImageToDataUrl(file, 240, 0.85);
       setEditGImage(dataUrl);
     } catch (e) {
-      setImgErr(e.message || 'Erreur lors du chargement');
+      setImgErr(e.message || t('profile-tab.image-error', 'Erreur lors du chargement'));
     }
   };
   const saveEditGuitar = () => {
@@ -96,8 +97,8 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
   return (
     <div>
       {s === 'guitars' && <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Mes guitares</div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>Coche les guitares que tu possèdes.</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{t('profile-tab.my-guitars', 'Mes guitares')}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>{t('profile-tab.my-guitars-hint', 'Coche les guitares que tu possèdes.')}</div>
         {(() => {
           const customs = customGuitars || [];
           const allBrands = [...GUITAR_BRANDS];
@@ -125,20 +126,20 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                     return <div key={g.id}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: sel ? 'var(--accent-soft)' : 'var(--a3)', border: sel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '8px 12px', cursor: 'pointer' }} onClick={() => toggleGuitar(g.id)}>
                         <div style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: sel ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: sel ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{sel && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
-                        <div style={{ flex: 1 }}><span style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{display.short}</span><span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 6 }}>{display.name}</span>{isEdited && <span style={{ fontSize: 9, color: 'var(--copper-400)', marginLeft: 4 }}>modifié</span>}</div>
+                        <div style={{ flex: 1 }}><span style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{display.short}</span><span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 6 }}>{display.name}</span>{isEdited && <span style={{ fontSize: 9, color: 'var(--copper-400)', marginLeft: 4 }}>{t('profile-tab.modified', 'modifié')}</span>}</div>
                         <span style={{ fontSize: 10, color: 'var(--text-dim)', marginRight: 4 }}>{display.type}</span>
                         {sel && <button onClick={(e) => { e.stopPropagation(); startEditGuitar(display, false); }} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '3px 7px', fontSize: 10, cursor: 'pointer' }}>✏️</button>}
                       </div>
                       {isEditing && <div style={{ background: 'var(--a5)', borderRadius: '0 0 8px 8px', padding: '10px 12px', marginTop: -1, border: '1px solid var(--a8)', borderTop: 'none' }} onClick={(e) => e.stopPropagation()}>
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
-                          <input placeholder="Nom" value={editGName} onChange={(e) => setEditGName(e.target.value)} style={{ ...inp, flex: '1 1 140px', fontSize: 11, padding: '5px 8px' }}/>
-                          <input placeholder="Abrégé" value={editGShort} onChange={(e) => setEditGShort(e.target.value)} style={{ ...inp, flex: '0 1 80px', fontSize: 11, padding: '5px 8px' }}/>
+                          <input placeholder={t('profile-tab.edit-name', 'Nom')} value={editGName} onChange={(e) => setEditGName(e.target.value)} style={{ ...inp, flex: '1 1 140px', fontSize: 11, padding: '5px 8px' }}/>
+                          <input placeholder={t('profile-tab.edit-short', 'Abrégé')} value={editGShort} onChange={(e) => setEditGShort(e.target.value)} style={{ ...inp, flex: '0 1 80px', fontSize: 11, padding: '5px 8px' }}/>
                           <select value={editGType} onChange={(e) => setEditGType(e.target.value)} style={{ ...inp, flex: '0 0 55px', fontSize: 11, padding: '5px 4px' }}><option value="HB">HB</option><option value="SC">SC</option><option value="P90">P90</option></select>
                         </div>
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button onClick={saveEditGuitar} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Sauver</button>
-                          {isEdited && <button onClick={() => resetGuitar(g.id)} style={{ background: 'var(--yellow-bg)', border: '1px solid var(--yellow-border)', color: 'var(--yellow)', borderRadius: 'var(--r-md)', padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>Réinitialiser</button>}
-                          <button onClick={() => setEditingGuitarId(null)} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>Annuler</button>
+                          <button onClick={saveEditGuitar} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('profile-tab.save', 'Sauver')}</button>
+                          {isEdited && <button onClick={() => resetGuitar(g.id)} style={{ background: 'var(--yellow-bg)', border: '1px solid var(--yellow-border)', color: 'var(--yellow)', borderRadius: 'var(--r-md)', padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>{t('profile-tab.reset', 'Réinitialiser')}</button>}
+                          <button onClick={() => setEditingGuitarId(null)} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>{t('profile-tab.cancel', 'Annuler')}</button>
                         </div>
                       </div>}
                     </div>;
@@ -156,12 +157,12 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                       </div>
                       {isEditing && <div style={{ background: 'var(--a5)', borderRadius: '0 0 8px 8px', padding: '10px 12px', marginTop: -1, border: '1px solid var(--a8)', borderTop: 'none' }}>
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
-                          <input placeholder="Nom" value={editGName} onChange={(e) => setEditGName(e.target.value)} style={{ ...inp, flex: '1 1 140px', fontSize: 11, padding: '5px 8px' }}/>
-                          <input placeholder="Abrégé" value={editGShort} onChange={(e) => setEditGShort(e.target.value)} style={{ ...inp, flex: '0 1 80px', fontSize: 11, padding: '5px 8px' }}/>
+                          <input placeholder={t('profile-tab.edit-name', 'Nom')} value={editGName} onChange={(e) => setEditGName(e.target.value)} style={{ ...inp, flex: '1 1 140px', fontSize: 11, padding: '5px 8px' }}/>
+                          <input placeholder={t('profile-tab.edit-short', 'Abrégé')} value={editGShort} onChange={(e) => setEditGShort(e.target.value)} style={{ ...inp, flex: '0 1 80px', fontSize: 11, padding: '5px 8px' }}/>
                           <select value={editGType} onChange={(e) => setEditGType(e.target.value)} style={{ ...inp, flex: '0 0 55px', fontSize: 11, padding: '5px 4px' }}><option value="HB">HB</option><option value="SC">SC</option><option value="P90">P90</option></select>
                         </div>
                         <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
-                          <span style={{ fontSize: 11, color: 'var(--text-sec)' }}>Marque :</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-sec)' }}>{t('profile-tab.brand', 'Marque :')}</span>
                           <select value={editGBrand} onChange={(e) => setEditGBrand(e.target.value)} style={{ ...inp, flex: 1, fontSize: 11, padding: '5px 8px' }}>
                             {[...BRAND_KEYWORDS, 'Mes guitares'].filter((b, i, a) => a.indexOf(b) === i).map((b) => <option key={b} value={b}>{b}</option>)}
                           </select>
@@ -169,15 +170,15 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                           <img src={editGImage || defaultGuitarSvg} alt="" style={{ width: 48, height: 36, objectFit: 'contain', border: '1px solid var(--a8)', borderRadius: 'var(--r-sm)', background: 'var(--a3)', padding: 2, opacity: editGImage ? 1 : 0.5, color: 'var(--text-muted)' }}/>
                           <label style={{ background: 'var(--a7)', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>
-                            📷 {editGImage ? "Changer l'image" : 'Ajouter une image'}
+                            📷 {editGImage ? t('profile-tab.change-image', "Changer l'image") : t('profile-tab.add-image', 'Ajouter une image')}
                             <input type="file" accept="image/*" onChange={(e) => onImageUpload(e.target.files?.[0])} style={{ display: 'none' }}/>
                           </label>
-                          {editGImage && <button onClick={() => setEditGImage(null)} style={{ background: 'var(--a5)', border: 'none', color: 'var(--text-muted)', borderRadius: 'var(--r-sm)', padding: '5px 8px', fontSize: 10, cursor: 'pointer' }}>Retirer</button>}
+                          {editGImage && <button onClick={() => setEditGImage(null)} style={{ background: 'var(--a5)', border: 'none', color: 'var(--text-muted)', borderRadius: 'var(--r-sm)', padding: '5px 8px', fontSize: 10, cursor: 'pointer' }}>{t('profile-tab.remove-image', 'Retirer')}</button>}
                         </div>
                         {imgErr && <div style={{ fontSize: 10, color: 'var(--red)', marginBottom: 6 }}>{imgErr}</div>}
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button onClick={saveEditGuitar} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Sauver</button>
-                          <button onClick={() => setEditingGuitarId(null)} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>Annuler</button>
+                          <button onClick={saveEditGuitar} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('profile-tab.save', 'Sauver')}</button>
+                          <button onClick={() => setEditingGuitarId(null)} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>{t('profile-tab.cancel', 'Annuler')}</button>
                         </div>
                       </div>}
                     </div>;
@@ -193,8 +194,8 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
       </div>}
 
       {s === 'sources' && <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Mes sources de presets</div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>Coche uniquement les packs et matériels ToneX que tu possèdes réellement. Les recommandations seront filtrées en conséquence.</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{t('profile-tab.my-sources', 'Mes sources de presets')}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>{t('profile-tab.my-sources-hint', 'Coche uniquement les packs et matériels ToneX que tu possèdes réellement. Les recommandations seront filtrées en conséquence.')}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {Object.entries(SOURCE_LABELS).map(([key, label]) => {
             const enabled = new Set(profile.enabledDevices || []);
@@ -210,7 +211,7 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                 <div style={{ fontSize: 12, color: on ? 'var(--text)' : 'var(--text-muted)', fontWeight: on ? 700 : 500, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   <span>{icon}</span>
                   <span>{label}</span>
-                  {locked && <span style={{ fontSize: 9, color: 'var(--text-dim)', background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 600 }}>verrouillé (matériel coché)</span>}
+                  {locked && <span style={{ fontSize: 9, color: 'var(--text-dim)', background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 600 }}>{t('profile-tab.locked', 'verrouillé (matériel coché)')}</span>}
                 </div>
                 {desc && <div style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.4 }}>{desc}</div>}
               </div>
