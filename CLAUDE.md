@@ -669,7 +669,156 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-15, Phase 7.51.6 close — Export snapshot avec sélecteur profil)
+## État actuel (2026-05-15, Phase 7.52 close — Catalog Anniversary Premium 150 captures curées)
+
+**Backline v8.14.62 / SW backline-v162 / STATE_VERSION 9 / 960 tests verts.**
+Phase 7.52 livre le catalog complet des 150 captures premium pré-installées
+sur la ToneX Pedal Anniversary Edition, signées par 5 créateurs externes
+(Amalgam Audio, Jason Sadites, Tone Junkie TV, The Studio Rats Anniversary,
+Worship Tutorials). Chaque entrée a été curée individuellement (gain,
+style, scores HB/SC/P90, usages artiste/morceau) sur la base du PDF
+officiel `tone_models/TONEX_Pedal_Anniversary_Edition_Premium_Tone_Models.pdf`
+daté 2024/10/29.
+
+### Architecture livrée Phase 7.52
+
+```
+src/main.jsx                                       APP_VERSION 8.14.61 → 8.14.62
+public/sw.js                                       CACHE backline-v161 → backline-v162
+src/data/anniversary-premium-catalog.js            NOUVEAU — 150 entrées curées
+                                                   (30 par pack × 5 packs).
+src/data/anniversary-premium-catalog.test.js       NOUVEAU — 157 tests Vitest :
+                                                   - 150 par-entrée (structure
+                                                     valide : packName,
+                                                     character, gain, style,
+                                                     scores, usages).
+                                                   - 7 globaux : 150 total,
+                                                     30/pack × 5, distribution
+                                                     gain/style, pas de collision
+                                                     avec FACTORY_CATALOG,
+                                                     régression findCatalogEntry
+                                                     pour AA MRSH JT50 (Schaffer
+                                                     + AC/DC).
+src/core/catalog.js                                +import ANNIVERSARY_PREMIUM_CATALOG ;
+                                                   spread APRÈS ANNIVERSARY_CATALOG
+                                                   dans PRESET_CATALOG_MERGED →
+                                                   override les 150 entrées
+                                                   legacy (mêmes clés).
+```
+
+### Distribution
+
+Chacun des 5 packs : 30 captures.
+- **Amalgam Audio (AA, 1-30)** : Marshall Plexi/JTM50/JCM800/SuperBass + Schaffer,
+  Fender Tweed Deluxe/Bassman/Twin/Deluxe Reverb, Vox AC30 TB, Soldano SLO,
+  Matchless Chieftain, Mesa Mark IIC+, Hiwatt CUT100, Friedman BE-100, Orange
+  OR120/GR100, Peavey 5150, Two-Rock OD100, Fender Brown Deluxe.
+- **Jason Sadites (JS, 31-60)** : Marshall Studio JTM ST20H, Silver Jubilee 2555x,
+  Fuchs ODS Classic, Friedman Pink Taco, Fender '59 Bassman LTD, Suhr Hombre,
+  Matchless Chieftain, Dr. Z Z Wreck Jr., Marshall 1974x, Two Rock Studio Signature.
+- **Tone Junkie TV (TJ, 61-90)** : Fender 5E3 Tweed Deluxe, 5E7 Tweed Bandmaster,
+  62 Pro Amp, 68 Twin Reverb, 74 Purple Plexi JMP, DMBL ODS 124, Matchless
+  Brave, Vox Cambridge, Vox AC44, 60s GA5 Skylark, Tyler 18 Watt Custom.
+- **The Studio Rats Anniversary (TSR, 91-120)** : Marshall Anniversary 6100
+  (3 modes), JCM800 2210, Plexi 1959 (Cn1/Cn2/Jumped/Cranked), Silver Jubilee
+  2555 (Rhythm/Lead/Clean), Mesa Mark V (Cn1/Cn2/Cn3), Mesa Dual Rectifier
+  (Vintage/Modern), Fender Twin/Deluxe Reverb, Vox AC30 TB, EVH 5150 III.
+- **Worship Tutorials (WT, 121-150)** : Vox AC30 TB 1964, Orange OR120 1977,
+  Matchless C-30 1994, Bad Cat Cub II R, Benson Chimera, Tone King Imperial,
+  Matchless Laurel Canyon, Carr Telstar, Mesa Lonestar 100, Marshall Super 100 JH,
+  Fender Deluxe Tweed, Two-Rock Studio Pro 22, Milkman Dover, Marshall JCM900 SLX.
+
+### Usages artiste/morceau (32 entrées avec `usages`)
+
+Les captures dont le triplet amp + cab + stomp pointe sur un artiste précis
+ont un champ `usages: [{artist, songs?}]` exploité par le prompt IA
+Phase 7.34 (anti cross-contamination + priorité capture-artiste). Exemples :
+
+- **AA MRSH JT50 I Drive BAL SCH CAB** → AC/DC (Highway to Hell, Back in
+  Black, TNT, You Shook Me, Hells Bells, Whole Lotta Rosie) — capture
+  Schaffer Replica + JTM-50 = rig Angus Young 1979.
+- **AA MRSH SL100 JU Dimed** → Jimi Hendrix (Voodoo Child, Purple Haze)
+  + Led Zeppelin (Whole Lotta Love, Black Dog).
+- **AA MRSH SB100 I Edge** → Cream (White Room, Sunshine of Your Love).
+- **AA MES MKIICP LD** → Dream Theater (Pull Me Under), Metallica
+  (Master of Puppets).
+- **AA HWTT CUT100** → The Who (Won't Get Fooled Again, Baba O'Riley),
+  Pink Floyd.
+- **AA SLDN SL100 OD** → Eric Johnson (Cliffs of Dover).
+- **AA ORNG 120 Dimed** → Black Sabbath (Paranoid, Iron Man, War Pigs).
+- **TJ DMBL ODS 124 LEAD 1** → Robben Ford (Help the Poor).
+- **TJ AC44 B 3+** → The Edge (U2), Beatles.
+- **TJ 65 Cambridge** → Brian May (Queen).
+- **TSR Mars Plexi Cn2 Cranked** → Jimmy Page (Whole Lotta Love).
+- **TSR Mars Plexi Jumped** → Eric Clapton, Bluesbreakers.
+- **TSR Mars JCM800 Cn2 HG 2/3** → Slash / Guns N' Roses, Iron Maiden.
+- **TSR Mars Jubilee Lead** → Slash, Joe Bonamassa.
+- **TSR Mesa Mark V Cn3 LD 1/2** → Metallica (Master of Puppets), Dream Theater.
+- **TSR Mesa Rect Cn3 Mdrn 1** → Tool, System of a Down.
+- **TSR Vox AC30 TB CH2 OD** → Brian May (Queen), The Edge (U2).
+- **TSR EVH 5150 III Blue** → Van Halen, EVH.
+- **WT VOX AC30 TB Push** → Hillsong, Bethel Music (worship).
+- **WT MRSH Super 100 JH OD** → Jimi Hendrix (Voodoo Child).
+- **WT TR Studio Pro 22 Cln** → Lincoln Brewster (worship modern).
+- **JS Brit Silver Dbl Crm OD** → Slash (Sweet Child O'Mine).
+- **JS Mars 74x Ult Push 1** → Slash, Guns N' Roses.
+- **JS D-Classic Cream OD** → Robben Ford, John Mayer.
+- **JS Sir Ombre Ult Push 1** → Stevie Ray Vaughan.
+- **JS Twd B-Man Push 2** → Stevie Ray Vaughan.
+- **JS Wrecked Z Push 1** → Joe Walsh, Brad Paisley.
+
+### Effet sur le scoring et l'IA
+
+- **`findCatalogEntry("AA MRSH JT50 I Drive BAL SCH CAB")`** retourne désormais
+  la metadata curée (HB:96/SC:78/P90:86 + usages AC/DC) au lieu du legacy
+  (HB:82/SC:74/P90:82, pas d'usages). Le scoring V9 local préfère ce capture
+  pour les morceaux AC/DC sur SG/LP HB.
+- **Le prompt IA Phase 7.34** reçoit désormais `buildInstalledSlotsSection`
+  enrichi avec les usages → moins de cross-contamination, plus de précision
+  sur les recos pour les morceaux vintage.
+- **SCORING_VERSION inchangé** (reste à 9). C'est uniquement le catalog
+  d'entrée qui s'enrichit, pas la math du scoring.
+
+### Bundle
+
+1890.27 KB (Phase 7.50) → 2122.24 KB (Phase 7.52) = +232 KB.
+Acceptable pour 150 entrées riches (metadata complète + usages structurés
++ tests test.each qui pèsent ~70 KB en source).
+
+### Action post-déploiement recommandée
+
+Pour que les aiCache existants bénéficient du nouveau catalog, l'admin
+peut :
+1. Mon Profil → 🎯 Préférences IA → "🗑 Invalider tous les caches IA" (admin).
+2. Setlists → "🤖 Analyser/MAJ N" pour batch re-analyse de toutes les
+   setlists.
+3. Vérifier sur Highway to Hell que la reco pointe désormais sur
+   AA MRSH JT50 (Schaffer) au lieu de TSR Mars 800SL ou Factory HG 800.
+
+### Dette résiduelle Phase 7.52
+
+- **Mapping bank → slot par défaut** : Phase 7.52 ne concerne que le catalog
+  metadata. Le PDF source liste les 150 captures numérotées 1 à 150 mais
+  ne précise pas leur position bank A/B/C dans le firmware Anniversary.
+  Si l'utilisateur reset ses banks Anniversary aux defaults firmware, il
+  faut compléter `INIT_BANKS_ANN` (data_catalogs.js). Phase 7.53+ si besoin.
+- **Coexistence ANNIVERSARY_CATALOG legacy** : l'entrée legacy dans
+  `data_catalogs.js` (150 entrées avec metadata grossière) reste présente
+  mais override par le spread Phase 7.52. Cleanup possible Phase 8+
+  (suppression définitive de l'ANNIVERSARY_CATALOG legacy), pas urgent.
+- **Tests E2E** : tests Vitest valident la structure et le merge. Une
+  validation manuelle sur un morceau AC/DC + SG (Sébastien) ou un morceau
+  Metallica + Schecter (Bruno) après déploiement confirmera l'amélioration
+  des recos en pratique.
+- **Pack creators contactés** : Paul (TSR) déjà notifié et favorable
+  (Phase 7.45). Pas encore de contact avec Amalgam Audio / Jason Sadites /
+  Tone Junkie TV / Worship Tutorials. Si feedback positif, étendre la
+  curation aux packs standalone de ces créateurs (TSR 64 déjà fait,
+  Amalgam standalone à investiguer).
+
+---
+
+## État précédent (2026-05-15, Phase 7.51.6 close — Export snapshot avec sélecteur profil)
 
 **Backline v8.14.58 / SW backline-v158 / STATE_VERSION 9 / 803 tests verts.**
 Phase 7.51.6 ajoute un **dropdown sélecteur de profil** dans l'outil
@@ -4882,324 +5031,6 @@ ou niveau 2 (Firestore queue) ? MVP recommandé niveau 1.
 7.44 hypothétique, à activer si signal de demande publique post J+10
 case study Reddit (cf. BETA_TESTING.md local pour la stratégie).
 
-### Phase 7.52 (planifiée) — Catalog Anniversary Premium Tone Models (150 captures)
-
-**Contexte** : la ToneX Pedal Anniversary Edition embarque 150 captures
-premium signées par 5 créateurs externes, mappées sur 50 banks A/B/C
-par défaut au firmware. Le PDF source officiel est
-`tone_models/TONEX_Pedal_Anniversary_Edition_Premium_Tone_Models.pdf`
-daté 2024/10/29. Répartition :
-
-- **Amalgam Audio (AA)** — captures 1 à 30 (vintage + Stomp Schaffer /
-  Klon / Tube Screamer ; couvre Marshall Plexi, JTM-50, JCM800,
-  Fender Tweed/Twin/Deluxe, Vox AC30, Soldano SLO-100, Friedman
-  BE-100, Mesa Mark IIC+, Peavey 5150, etc.)
-- **Jason Sadites (JS)** — captures 31 à 60 (Marshall Studio JTM ST20H,
-  2555x Silver Jubilee, Fuchs ODS Classic, Friedman Pink Taco, Fender
-  '59 Bassman LTD, Suhr Hombre, Matchless Chieftain, Dr. Z Wreck Jr.,
-  Marshall 1974x, etc.)
-- **Tone Junkie TV (TJ)** — captures 61 à 90 (Fender Deluxe Tweed,
-  '68 Twin Reverb, '74 Purple Plexi JMP, DMBL ODS 124, Matchless
-  Brave, Vox Cambridge, '58 Tweed Bandmaster, AC44, 60s GA5 Skylark,
-  etc.)
-- **The Studio Rats (TSR Anniversary, distinct du pack 64 standalone)**
-  — captures 91 à 120 (Amplified Nation OverDrive Rever, Divided By
-  13 CJ11, Friedman Phil X, Matchless Independence 35, MEZZABARBA
-  SKILL, Mesa Boogie Dual Rectifier, Cornell TSR20, DrZ Z Wreck,
-  Gryphin Talon 50, Soldano SLO, etc.)
-- **Worship Tutorials (WT)** — captures 121 à 150 (Vox AC30 Top Boost
-  1964, Orange OR120 1977, Matchless C-30 1994, Bad Cat Cub II R,
-  Benson Chimera, Tone King Imperial, Matchless Laurel Canyon, Carr
-  Telstar, Mesa Boogie Lonestar 100W, Marshall Super 100 JH, etc.)
-
-Aujourd'hui ces 150 captures sont **invisibles au moteur de reco** :
-
-- Aucune entrée dans `PRESET_CATALOG_MERGED`, `FACTORY_CATALOG`, ni
-  équivalent Anniversary (qui n'existe pas dans le code).
-- `findCatalogEntry(name)` retourne `null` → `guessPresetInfo` produit
-  une metadata grossière (amp deviné depuis l'abréviation, scores
-  guessés {HB:75, SC:75, P90:75}, style/gain heuristiques).
-- Le prompt IA Phase 7.31 `buildInstalledSlotsSection` ne reçoit
-  qu'une ligne par slot avec amp deviné — sans le contexte Stomp/Cab
-  qui ferait pencher l'IA sur le bon match historique.
-- Le scoring V9 local perd contre les TSR (pack 64 standalone) et ML
-  curés (scores 95/95/95) → recos systématiquement biaisées vers les
-  packs builtin connus.
-
-**Cas concret bloqué** (motif de cette phase) : sur Highway to Hell
-(ref_amp = "Marshall 1959 Super Lead Plexi"), la capture #15
-*"AA MRSH JT50 I Drive BAL SCH CAB"* (Marshall JTM-50 1967 + Schaffer
-Replica + 4×12 G12M75 Pulsonic) — l'exact rig d'Angus Young sur
-l'album de 1979 — n'est jamais recommandée. À la place, l'IA et V9
-proposent *TSR Mars 800SL Chnl 1 Drive* (capture JCM800 1981, qui est
-historiquement anachronique pour HTH). Idem pour les autres titres
-AC/DC vintage (Back in Black, TNT, You Shook Me All Night Long) où
-le JT50 + Schaffer devrait dominer mais reste invisible.
-
-Étendu, le problème touche TOUTES les captures Anniversary
-pré-installées que l'utilisateur garde dans ses banks (cas le plus
-commun chez les nouveaux possesseurs Anniversary qui n'ont pas encore
-acheté de TSR/ML standalone). Tous ces gold standards de packs créateurs
-externes ne participent ni au scoring V9 ni au prompt IA.
-
-**Scope retenu — Option A : curation manuelle complète des 150**
-
-L'utilisateur a validé l'Option A le 2026-05-15. Pas d'Option B
-(génération heuristique + revue rapide) ni Option C (quick fix sur les
-8-10 captures critiques). Toutes les 150 entrées passent par une revue
-ligne par ligne avec l'utilisateur avant écriture finale.
-
-**Livrables**
-
-1. **Nouveau fichier `src/data/anniversary-premium-catalog.js`**
-   exportant `ANNIVERSARY_PREMIUM_CATALOG` : objet `{ [captureName]:
-   {...} }` pour les 150 entrées. Schéma de chaque entrée :
-
-   ```js
-   {
-     name: "AA MRSH JT50 I Drive BAL SCH CAB",  // nom EXACT visible
-                                                 // en bank, clé du dict
-     toneModelName: "MRSH JT50 I Drive BAL SCH CAB",  // sans préfixe
-                                                       // pack (Tone Model
-                                                       // Name du PDF)
-     packName: "Amalgam Audio",                  // 1 des 5 créateurs
-     character: "Drive",                         // Clean | Drive | Hi-Gain
-                                                 // (champ Character du PDF)
-     stomp: "Schaffer Replica",                  // ou "" si pas de stomp
-     amp: "Marshall JTM-50 1967",                // amp historique du PDF
-     cab: "Marshall 4x12 G12M75Hz Pulsonic",     // cab historique du PDF
-     gain: "mid",                                // low | mid | high
-                                                 // (déduit du character +
-                                                 // amp, à curer)
-     style: "hard_rock",                         // blues | rock | hard_rock
-                                                 // | jazz | metal | pop
-                                                 // (curé manuellement)
-     scores: { HB: 96, SC: 78, P90: 86 },        // pickup affinity 0-100
-                                                 // (curé manuellement)
-     src: "Anniversary",                         // tag de filtrage
-                                                 // per-device, identique
-                                                 // à Phase 2 / Phase 7.47
-     usages: [                                   // optionnel — artist +
-       { artist: "AC/DC",                        // songs cibles. Permet
-         songs: ["Highway to Hell",              // au prompt IA Phase
-                 "Back in Black",                // 7.34 d'éviter cross-
-                 "TNT"] }                        // contamination et de
-     ]                                           // prioriser sur match.
-                                                 // À remplir uniquement
-                                                 // quand le triplet
-                                                 // amp+cab+stomp pointe
-                                                 // sur un artiste précis.
-   }
-   ```
-
-2. **Merge dans `PRESET_CATALOG_MERGED`** au mount App() (`src/main.jsx`)
-   via un `useMemo` symétrique à Phase 7.31 (customPacks → catalog).
-   Pattern :
-
-   ```js
-   useMemo(() => {
-     // Drop entries with src === "Anniversary" then re-inject
-     for (const k of Object.keys(PRESET_CATALOG_MERGED)) {
-       if (PRESET_CATALOG_MERGED[k].src === "Anniversary") {
-         delete PRESET_CATALOG_MERGED[k];
-       }
-     }
-     for (const [k, v] of Object.entries(ANNIVERSARY_PREMIUM_CATALOG)) {
-       PRESET_CATALOG_MERGED[k] = v;
-     }
-   }, []);
-   ```
-
-3. **Tests Vitest** dans
-   `src/data/anniversary-premium-catalog.test.js` :
-   - Catalog contient exactement 150 entrées.
-   - Distribution : 30 entrées par packName, 5 packs distincts.
-   - Chaque entrée valide : name non-vide, character ∈ {Clean, Drive,
-     Hi-Gain}, gain ∈ {low, mid, high}, style ∈ liste autorisée,
-     scores HB/SC/P90 dans [0, 100], packName ∈ liste des 5 créateurs,
-     src === "Anniversary".
-   - Régression critique :
-     `findCatalogEntry("AA MRSH JT50 I Drive BAL SCH CAB")` retourne
-     bien l'entrée Schaffer + JTM-50 (et non `null`).
-   - Régression critique : sur Highway to Hell + SG pickup HB,
-     `computeBestPresets` préfère bien AA MRSH JT50 (score ≥ 95) à
-     TSR Mars 800SL (score ~93).
-
-4. **Pas de bump SCORING_VERSION** (V9 inchangé, c'est le catalog
-   d'entrée qui s'enrichit, pas la math du scoring).
-
-5. **Bump APP_VERSION + SW CACHE** au commit final (8.14.5X →
-   8.14.5(X+1) et backline-v15X → v15(X+1)).
-
-6. **Action post-merge** : invalider tous les caches IA via Mon Profil
-   → Préférences IA → "🗑 Invalider tous les caches IA" puis batch
-   "🤖 Analyser/MAJ N" sur toutes les setlists Sébastien pour que les
-   recos pointent enfin sur les bons captures Anniversary. Documenter
-   ce step dans le commit final.
-
-**Workflow de curation (point critique de la phase — c'est 70% du
-travail)**
-
-Le PDF a 150 lignes. Pour chaque entrée, à curer :
-
-- **`gain`** : déduit en partie du `character` du PDF :
-  - Clean → `"low"` par défaut (rare exception : un Bassman cranked
-    qui pourrait être low-mid).
-  - Drive → `"mid"` par défaut (la grande majorité des cas).
-  - Hi-Gain → `"high"` par défaut.
-  À valider au cas par cas si l'amp + stomp suggère un comportement
-  différent (ex. Fender Twin + Klon = Clean character du PDF mais
-  effectivement "edge of breakup", donc plutôt `"low"` borderline
-  `"mid"`).
-
-- **`style`** : déduit du couple amp + character + stomp. Quelques
-  patterns standards :
-  - Marshall JTM/JCM/Plexi/SuperLead + Drive → `"hard_rock"`
-  - Fender Tweed/Deluxe/Twin + Clean → `"blues"` (ou `"pop"` selon
-    voicing)
-  - Mesa Mark IIC+ / Boogie Rectifier / EVH 5150 / Soldano SLO +
-    Hi-Gain → `"metal"`
-  - Vox AC30 / Matchless / Bad Cat + Drive → `"rock"`
-  - DMBL ODS / Two Rock / Suhr Hombre + Drive → `"blues"` (Texan blues)
-  - Friedman BE-100 / 2555 Silver Jubilee + Drive → `"hard_rock"`
-    (modern)
-  Curation manuelle nécessaire pour les cas ambigus (Vox AC30 Drive
-  pourrait être `"rock"` ou `"hard_rock"` selon l'écoute ; les
-  captures Worship Tutorials sont souvent "praise & worship" qui
-  tombe entre blues/pop/rock selon le voicing).
-
-- **`scores HB/SC/P90`** : pickup affinity. Heuristique de départ
-  (à raffiner cas par cas) :
-  - **Marshall JTM/JCM/Plexi + Drive (HB-friendly)** : HB ~95,
-    SC ~75, P90 ~80
-  - **Fender Tweed/Deluxe + Clean (SC + P90 friendly)** : HB ~75,
-    SC ~95, P90 ~90
-  - **Mesa/EVH/Soldano + Hi-Gain (HB exclusif)** : HB ~95-100,
-    SC ~55-65, P90 ~70
-  - **Vox AC30 + Drive (équilibré, légèrement HB)** : HB ~85,
-    SC ~88, P90 ~82
-  - **DMBL ODS + Drive (HB + SC mais pas P90)** : HB ~92, SC ~88,
-    P90 ~75
-  - **Hiwatt CUT100 + Clean (équilibré, légèrement SC)** : HB ~80,
-    SC ~92, P90 ~85
-  - **Boogie Mark IIC+ + Hi-Gain (HB Petrucci-style)** : HB ~95,
-    SC ~60, P90 ~75
-  - **Friedman BE-100 + Drive (modern HB)** : HB ~95, SC ~70,
-    P90 ~78
-  Toujours valider à l'oreille / contexte historique pour cas pointus.
-
-- **`usages`** : optionnel, à remplir uniquement quand le triplet
-  amp + cab + stomp pointe sur un artiste / album / morceau précis.
-  Cas à viser :
-  - **AA MRSH JT50 + Schaffer Replica** → AC/DC (Highway to Hell, Back
-    in Black, TNT, You Shook Me All Night Long, Hells Bells, Whole
-    Lotta Rosie)
-  - **AA MRSH SL100 JU Dimed** → Hendrix (Voodoo Child, Purple Haze)
-    + Led Zep (Whole Lotta Love, Black Dog)
-  - **AA MRSH SB100** → Cream (White Room, Sunshine of Your Love)
-  - **AA PV 5050** → Petrucci / Dream Theater
-  - **AA SLDN SL100 + OD** → Eric Johnson (Cliffs of Dover)
-  - **AA FMAN B100D BE** → modern hard rock (Periphery, Mateus Asato)
-  - **AA ORNG 120** → Stoner / Sabbath
-  - **JS Mars 74x Ult** → Slash / GN'R
-  - **JS Brit Silver Dbl** → Modern Marshall (Tool, Foo Fighters)
-  - **TJ DMBL ODS 124** → Robben Ford / John Mayer
-  - **TJ 65 Cambridge / 64 AC30** → Brian May / Edge / Beatles
-  - **TSR (Anniversary) Mesa Rectified** → Metallica (post-Black Album)
-  Pour les captures plus génériques (jazz amps, clean tones polyvalents,
-  worship voicings), laisser `usages` vide ou absent.
-
-**Workflow proposé pour la session Claude Code (étapes ordonnées)**
-
-1. Lire `tone_models/TONEX_Pedal_Anniversary_Edition_Premium_Tone_Models.pdf`
-   en 5 batches (1 par pack créateur, ~30 entrées par batch).
-2. Pour chaque pack, produire un bloc de 30 entrées avec metadata curée
-   selon les heuristiques ci-dessus.
-3. **Soumettre chaque pack à Sébastien pour revue avant le suivant**.
-   30 entrées à la fois = format gérable. Sébastien valide ou corrige
-   gain/style/scores/usages par entrée.
-4. Une fois les 30 d'un pack validées, écrire la portion du fichier
-   correspondante.
-5. Répéter pour les 4 autres packs.
-6. Une fois les 150 validées et écrites, ajouter les tests Vitest,
-   le merge dans main.jsx, et bumper APP_VERSION + SW CACHE.
-7. Smoke test : reload local sur le profil Sébastien, ouvrir Highway
-   to Hell, vérifier que AA MRSH JT50 + Schaffer remonte en top
-   recommendation (banque 5C ou 15A). Idem pour Back in Black, TNT.
-
-**Risques et points d'attention**
-
-- **Pas de mapping bank → slot par défaut dans le PDF** : le PDF
-  liste les 150 captures numérotées 1 à 150 mais ne précise pas leur
-  position bank A/B/C dans le firmware Anniversary. Phase 7.52 ne se
-  préoccupe que du catalog metadata (key = nom de capture). Le
-  mapping des banks par défaut est un autre chantier (Phase 7.53+ si
-  besoin), non bloquant pour le scoring.
-
-- **Caractères spéciaux et casse** : les noms du PDF utilisent des
-  abréviations style "AA MRSH SB100 I Edge WRM CAB" avec espaces
-  multiples possibles, slashes, apostrophes. Vérifier l'encodage
-  exact lors de la copie depuis le PDF. Un test unitaire de
-  cohérence avec un sample des 10 noms les plus utilisés dans tes
-  banks (`MRSH JT50 I Drive BAL SCH CAB`, `MRSH SL100 JU Dimed BAL
-  CAB`, `MRSH SB100 I Edge WRM CAB`, `FNDR BLBM NR Clean BAL CAB`,
-  etc.) suffit à valider l'absence de drift.
-
-- **Cohabitation avec FACTORY_CATALOG Phase 7.47** : le catalog
-  Anniversary Premium est SÉPARÉ du `FACTORY_CATALOG` Pedal v2 / v1.
-  Pas de collision de keys attendue (les noms Pedal v2 sont du genre
-  "DR PLEXI", "VOWELS", "HG 800", "MAXO 8O8" — courts et sans
-  préfixe pack ; les Anniversary Premium ont tous un préfixe pack
-  "AA " / "JS " / "TJ " / "TSR " / "WT "). Ajouter un test CI qui
-  vérifie l'absence de collision entre les keys des deux catalogs.
-
-- **Coexistence avec le pack TSR 64 standalone** : ATTENTION — il
-  existe DEUX "TSR" dans le catalog après Phase 7.52 :
-  (a) Les 30 captures **TSR Anniversary** (numéros 91-120 du PDF
-      Premium, intégrés Phase 7.52) avec préfixe `"TSR "` parfois ou
-      noms du genre "TSR AmpNation ODR Clean 1", "TSR D13 Best Tweed
-      Ever Drive".
-  (b) Les **64 packs TSR standalone** (achetables à part chez The
-      Studio Rats, déjà présents dans `src/data/preset_catalog_full.js`)
-      avec noms du genre "TSR - Mars 800SL Chnl 1 Drive", "TSR Sons
-      Amp Hi G Plexi".
-  Vérifier en CI que les keys ne collisionnent pas (les Anniversary
-  ont des noms d'amps plus boutique comme "AmpNation ODR", "D13
-  Tweed", "Cornell TSR20" alors que les standalone TSR couvrent
-  Marshall 800SL, Plexi, Sons Amp Hi G, etc.). Si collision, préfixer
-  le pack Anniversary autrement (ex. `"TSR-Ann "`) pour différencier.
-
-- **Effet sur la sync Firestore** : aucun. Le catalog est en dur dans
-  le bundle JS, pas dans le state utilisateur. STATE_VERSION inchangé
-  (reste à 8 ou 9 selon Phase 7.51). Les `aiCache` existants ne
-  doivent pas être migrés mais devront être invalidés post-déploiement
-  pour bénéficier du nouveau catalog (cf. livrable #6).
-
-- **Effet sur la taille du bundle** : 150 entrées × ~250 octets JSON
-  moyennes ≈ 37 KB ajoutés au bundle single-file. Acceptable
-  (build actuel ~1.89 MB → ~1.93 MB ≈ +2%).
-
-- **Si IK Multimedia met à jour le firmware Anniversary** avec de
-  nouvelles captures ou remplace certaines existantes, refaire cette
-  phase avec le nouveau PDF source. Documenter la date du PDF source
-  dans le header du fichier `anniversary-premium-catalog.js` pour
-  traçabilité.
-
-**Source de vérité**
-
-`tone_models/TONEX_Pedal_Anniversary_Edition_Premium_Tone_Models.pdf`
-daté 2024/10/29 (présent dans le repo).
-
-**Dépendances et ordre**
-
-Phase 7.52 dépend que la Phase 7.51 (mode démo) soit close (pour ne
-pas mélanger des chantiers structurellement indépendants dans la même
-branche). Une fois 7.52 close, on pourra envisager Phase 7.53 si
-besoin de mapping bank → slot par défaut.
-
-**Décision actuelle** : **planifiée Phase 7.52**, Option A retenue
-(curation manuelle complète des 150). À démarrer dès que Phase 7.51
-(mode démo) sera close.
 
 ### Phase 9 (proposée) — Output IA enrichi (inspiration Gear Assistant Ok_Ask2411)
 

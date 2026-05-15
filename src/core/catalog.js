@@ -12,9 +12,13 @@ import {
   ANNIVERSARY_CATALOG,
 } from '../data/data_catalogs.js';
 import { PRESET_CATALOG_FULL } from '../data/preset_catalog_full.js';
+import { ANNIVERSARY_PREMIUM_CATALOG } from '../data/anniversary-premium-catalog.js';
 
-// Cherche un preset dans le catalogue par nom exact puis fuzzy
-const PRESET_CATALOG_MERGED = {...PRESET_CATALOG_FULL, ...TSR_PACK_CATALOG, ...ANNIVERSARY_CATALOG, ...FACTORY_CATALOG, ...PLUG_FACTORY_CATALOG, ...PRESET_CATALOG};
+// Cherche un preset dans le catalogue par nom exact puis fuzzy.
+// Phase 7.52 : ANNIVERSARY_PREMIUM_CATALOG est spread APRÈS ANNIVERSARY_CATALOG
+// pour override les 150 entrées legacy (mêmes clés, metadata curées :
+// packName, character, stomp, scores curés un à un, usages artiste/morceau).
+const PRESET_CATALOG_MERGED = {...PRESET_CATALOG_FULL, ...TSR_PACK_CATALOG, ...ANNIVERSARY_CATALOG, ...ANNIVERSARY_PREMIUM_CATALOG, ...FACTORY_CATALOG, ...PLUG_FACTORY_CATALOG, ...PRESET_CATALOG};
 function findCatalogEntry(name){
   if(!name) return null;
   if(PRESET_CATALOG_MERGED[name]) return PRESET_CATALOG_MERGED[name];
