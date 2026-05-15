@@ -145,3 +145,12 @@ body::before {
 
 /* Focus ring — always visible for keyboard users */
 *:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+/* Phase 7.50 — hide native WebKit search clear icon : on a un ✕ custom
+   à droite des inputs search (cf. PresetBrowser Phase 7.21), pas besoin
+   du doublon natif Safari/Chrome. */
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}

@@ -230,7 +230,7 @@ function PresetList({ filtered, selected, setSelected, banksAnn, banksPlug, full
         const chipStyle = (on) => ({ fontSize: 10, fontWeight: on ? 700 : 500, color: on ? 'var(--accent)' : 'var(--text-sec)', background: on ? 'var(--accent-bg)' : 'var(--a3)', border: on ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '4px 8px', cursor: 'pointer' });
         return (
           <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 6 }}>Modele d'ampli</div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 6 }}>Modèle d'ampli</div>
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               <button onClick={() => setFilterPacks([])} style={chipStyle(filterPacks.length === 0)}>Tous ({filtered.length})</button>
               {subPacks.slice(0, 20).map(([amp, count]) => { const on = filterPacks.includes(amp); return <button key={amp} onClick={() => togglePack(amp)} style={chipStyle(on)}>{amp} ({count})</button>; })}
@@ -390,7 +390,7 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
     hard_rock: { label: t('sound.hard-rock-label', 'Hard rock classique'), desc: t('sound.hard-rock-desc', 'AC/DC, GN\'R, Van Halen'), filter: (i) => i.style === 'hard_rock' && ['mid', 'high'].includes(i.gain) },
     metal: { label: t('sound.metal-label', 'Metal moderne'), desc: t('sound.metal-desc', 'Metallica, Tool, Petrucci'), filter: (i) => i.style === 'metal' || (i.gain === 'high' && i.style === 'hard_rock') },
     high_gain_lead: { label: t('sound.high-gain-label', 'High gain lead'), desc: t('sound.high-gain-desc', 'Solos, shred, sustain'), filter: (i) => i.gain === 'high' },
-    pedales: { label: t('sound.pedals-label', 'Pedales de drive'), desc: t('sound.pedals-desc', 'Captures pedales seules'), filter: (i) => (i.amp || '').includes('drive') || (i.amp || '').includes('Pedal') || (i.amp || '').toLowerCase().includes('pédale') },
+    pedales: { label: t('sound.pedals-label', 'Pédales de drive'), desc: t('sound.pedals-desc', 'Captures pédales seules'), filter: (i) => (i.amp || '').includes('drive') || (i.amp || '').includes('Pedal') || (i.amp || '').toLowerCase().includes('pédale') },
   };
 
   const ampBrands = useMemo(() => {
@@ -493,7 +493,7 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
         const PROFILE_GROUPS = [
           { title: t('preset-browser.group-clean', 'Sons cleans'), profiles: ['clean_cristallin', 'blues_vintage', 'jazz_warm', 'funk_soul'] },
           { title: t('preset-browser.group-crunch', 'Sons crunch / drive'), profiles: ['crunch_70s', 'british', 'blues_rock'] },
-          { title: t('preset-browser.group-saturated', 'Sons satures'), profiles: ['hard_rock', 'metal', 'high_gain_lead'] },
+          { title: t('preset-browser.group-saturated', 'Sons saturés'), profiles: ['hard_rock', 'metal', 'high_gain_lead'] },
           { title: t('preset-browser.group-other', 'Autre'), profiles: ['pedales'] },
         ];
         return (
@@ -530,7 +530,7 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
                   {filterModel && <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{filterModel}</span>}
                   <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{tPlural('preset-browser.presets-count', filtered.length, {}, { one: '1 preset', other: '{count} presets' })}</span>
                 </div>
-                <button onClick={() => { setSoundProfile('all'); setFilterBrand(''); setFilterModel(''); setFilterPacks([]); setSearch(''); }} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>{t('preset-browser.reset', 'Reinitialiser')}</button>
+                <button onClick={() => { setSoundProfile('all'); setFilterBrand(''); setFilterModel(''); setFilterPacks([]); setSearch(''); }} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>{t('preset-browser.reset', 'Réinitialiser')}</button>
               </div>
             )}
           </div>

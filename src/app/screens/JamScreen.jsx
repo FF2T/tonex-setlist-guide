@@ -119,6 +119,11 @@ function JamScreen({ banksAnn, banksPlug, allGuitars, availableSources, profile 
   const enabledDevices = getActiveDevicesForRender(profile);
   const hasPedalDevice = enabledDevices.some((d) => d.deviceKey === 'ann');
   const hasPlugDevice = enabledDevices.some((d) => d.deviceKey === 'plug');
+  // Phase 7.50 (B-UX-02) : label dynamique selon device pedal coché.
+  const enabledSet = new Set(profile?.enabledDevices || []);
+  const annTop3Label = enabledSet.has('tonex-anniversary')
+    ? t('jam.top3-anniversary', '🏭 Top 3 — Anniversary')
+    : (enabledSet.has('tonex-pedal') ? t('jam.top3-pedal', '📦 Top 3 — ToneX Pedal') : t('jam.top3-pedale', '📦 Top 3 — Pédale'));
   const guitars = allGuitars || GUITARS;
   const [step, setStep] = useState('guitar');
   const [guitarId, setGuitarId] = useState(null);
@@ -148,7 +153,7 @@ function JamScreen({ banksAnn, banksPlug, allGuitars, availableSources, profile 
 
         {hasPedalDevice && (
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 8 }}>{t('jam.top3-pedale', '📦 Top 3 — Pedale')} <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400, textTransform: 'none' }}>{t('jam.installed-hint', '(presets installés)')}</span></div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 8 }}>{annTop3Label} <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400, textTransform: 'none' }}>{t('jam.installed-hint', '(presets installés)')}</span></div>
             {recs.annTop3.length > 0
               ? recs.annTop3.map((p, i) => <JamPresetItem key={p.name} p={p} rank={i} isSelected={selectedJam === p.name} onSelect={() => setSelectedJam(selectedJam === p.name ? null : p.name)} banksAnn={banksAnn} banksPlug={banksPlug} guitars={guitars}/>)
               : <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: '12px', background: 'var(--a3)', borderRadius: 'var(--r-md)', textAlign: 'center' }}>{tFormat('jam.no-preset-pedale', { style: styleInfo?.label || '' }, 'Aucun preset {style} installé sur la Pédale pour ce type de guitare.')}</div>}

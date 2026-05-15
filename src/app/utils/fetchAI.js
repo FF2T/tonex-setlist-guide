@@ -170,6 +170,14 @@ Le champ "settings_preset" regroupe des conseils de **personnalisation du preset
 
 Idem pour "settings_guitar" : ce sont des conseils de jeu et d'utilisation des contrôles guitare (volume, tone, micros, attaque, palm muting…), pas des corrections de la guitare elle-même.
 
+CONSIGNE DE REGISTRE (Phase 7.50) — IMPÉRATIVE :
+Tutoie systématiquement l'utilisateur dans TOUS les champs texte (cot_step1, cot_step3_amp, song_desc, guitar_reason, settings_preset, settings_guitar, cot_step2_guitars[].reason, cot_step4_score.*.reason).
+- FR : utilise "tu", "ta", "ton", "tes", "te". JAMAIS "vous", "votre", "vos". Verbes à la 2e personne du singulier informel (ex : "essaie", "pousse", "garde", "mets"). PAS "essayez", "poussez", "gardez", "mettez".
+- EN : utilise "you", "your" en registre informel (le tutoiement informel anglais étant identique au formel grammaticalement, garde un ton conversationnel et direct, pas trop formel).
+- ES : utilise "tú", "tu", "tus", "te" (tuteo informal). JAMAIS "usted", "su", "sus". Verbes en 2e personne du singulier : "prueba", "empuja", "mantén", "pon". PAS "pruebe", "empuje", "mantenga", "ponga".
+
+À ÉVITER ABSOLUMENT : tout mélange tu/vous dans une même phrase (ex : "Tu peux pousser les mids ; réglez le volume à 5" est interdit — doit être "Tu peux pousser les mids ; règle le volume à 5").
+
 OUTPUT TRILINGUE — Format des champs texte :
 Les champs marqués "TEXTE TRILINGUE" ci-dessous DOIVENT être un objet à 3 clés {"fr":"...","en":"...","es":"..."} avec la même information traduite dans chaque langue. Garde le sens et le niveau de détail constant entre les 3 versions. Les NOMS PROPRES (noms d'artistes, modèles d'amplis "Marshall JCM800", noms de guitares "Stratocaster '62", titres de morceaux) restent identiques dans les 3 langues. Les autres champs (noms, scores numériques, énums) restent des valeurs scalaires.
 

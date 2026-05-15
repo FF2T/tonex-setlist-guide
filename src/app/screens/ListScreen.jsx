@@ -559,7 +559,7 @@ function ListScreen({
               return (
                 <span key={gId} style={{ fontSize: 11, fontWeight: i === 0 ? 700 : 600, color: `rgb(${rgb})`, background: `rgba(${rgb},${i === 0 ? 0.15 : 0.08})`, border: `1px solid rgba(${rgb},${i === 0 ? 0.4 : 0.2})`, borderRadius: 'var(--r-md)', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                   {i === 0 && '🏆 '}{g.short || g.name}
-                  <span style={{ fontSize: 9, color: 'var(--text-dim)' }}>{count} morceau{count > 1 ? 'x' : ''}</span>
+                  <span style={{ fontSize: 9, color: 'var(--text-dim)' }}>{tPlural('list.songs-count', count, {}, { one: '1 morceau', other: '{count} morceaux' })}</span>
                 </span>
               );
             })}
@@ -608,9 +608,9 @@ function ListScreen({
                 {loc
                   ? <span title={tFormat('list.bank-tooltip', { bank: loc.bank, slot: loc.slot, label: CL[loc.slot] }, 'Banque {bank}, slot {slot} — {label}')} style={{ fontSize: 10, background: `${badgeColor}18`, color: badgeColor, border: `1px solid ${badgeColor}40`, borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700 }}>{loc.bank}{loc.slot}</span>
                   : <span style={{ fontSize: 10, background: 'var(--yellow-bg)', color: 'var(--yellow)', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700 }}>⬇</span>}
-                {label && <span style={{ fontSize: 10, color: scColorV || 'var(--text-sec)', background: scBgV || 'transparent', border: scColorV ? `1px solid ${scColorV}30` : 'none', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                  <span>{label}</span>
-                  {ampName && <span style={{ opacity: 0.6, fontWeight: 500, fontSize: 9 }}>· {ampName.replace(/^Marshall /, '').replace(/^Fender /, '').replace(/^Mesa Boogie /, 'Mesa ')}</span>}
+                {label && <span title={ampName ? `${label} · ${ampName}` : label} style={{ fontSize: 10, color: scColorV || 'var(--text-sec)', background: scBgV || 'transparent', border: scColorV ? `1px solid ${scColorV}30` : 'none', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220, display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{label}</span>
+                  {ampName && <span style={{ opacity: 0.6, fontWeight: 500, fontSize: 9, flexShrink: 0 }}>· {ampName.replace(/^Marshall /, '').replace(/^Fender /, '').replace(/^Mesa Boogie /, 'Mesa ')}</span>}
                 </span>}
                 {sc != null && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 800, color: scColorV, background: scBgV, borderRadius: 'var(--r-sm)', padding: '1px 6px', border: `1px solid ${scColorV}30` }} title={scoreLabel(sc).tip}>{sc}%</span>}
               </div>

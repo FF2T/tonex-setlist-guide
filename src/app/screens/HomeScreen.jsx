@@ -175,7 +175,7 @@ function SplashPopup({ onClose }) {
           {t('home.splash.quote', '"Quel preset charger pour ce morceau, avec cette guitare ?"')}
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16, lineHeight: 1.6 }}>
-          {t('home.splash.pain1', 'Tu scrolles, tu testes, tu perds du temps.')}<br/>{t('home.splash.pain2', 'Et tu finis par toujours utiliser les 3 memes presets.')}
+          {t('home.splash.pain1', 'Tu scrolles, tu testes, tu perds du temps.')}<br/>{t('home.splash.pain2', 'Et tu finis par toujours utiliser les 3 mêmes presets.')}
         </div>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 14 }}>
           {t('home.splash.promise', 'L\'IA analyse le morceau, raisonne sur le son et recommande le meilleur couple guitare + preset.')}
@@ -183,7 +183,7 @@ function SplashPopup({ onClose }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, textAlign: 'left', marginBottom: 20 }}>
           {[
             { n: '1', emoji: '🔍', text: t('home.splash.step1', 'Tape un morceau — l\'IA analyse le profil tonal et l\'ampli original') },
-            { n: '2', emoji: '🧠', text: t('home.splash.step2', 'L\'IA raisonne : guitare ideale, ampli cible, preset recommande') },
+            { n: '2', emoji: '🧠', text: t('home.splash.step2', 'L\'IA raisonne : guitare idéale, ampli cible, preset recommandé') },
             { n: '3', emoji: '🎸', text: t('home.splash.step3', 'Choisis ta guitare — les presets s\'adaptent automatiquement') },
             { n: '4', emoji: '🤘', text: t('home.splash.step4', 'Rock\'n\'roll !') },
           ].map(({ n, emoji, text }) => (
@@ -210,9 +210,9 @@ function OnboardingWizard({ onClose, onProfile }) {
         <div style={{ fontSize: 15, color: 'var(--text-sec)', lineHeight: 1.6, marginBottom: 24 }}>{APP_TAGLINE} {t('home.onboarding.tagline-extra', '— quel preset charger pour chaque morceau, avec ta guitare.')}</div>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 2, textAlign: 'left', padding: '18px 20px', background: 'var(--a3)', borderRadius: 'var(--r-xl)' }}>
           <div style={{ fontWeight: 700, marginBottom: 6, color: 'var(--text-sec)', fontSize: 14 }}>{t('home.onboarding.in-3min', 'En 3 minutes tu pourras :')}</div>
-          <div>{t('home.onboarding.feat-search', '🔍 Chercher un morceau et obtenir le preset ideal')}</div>
+          <div>{t('home.onboarding.feat-search', '🔍 Chercher un morceau et obtenir le preset idéal')}</div>
           <div>{t('home.onboarding.feat-reason', '🧠 Voir le raisonnement IA (profil tonal, guitare, ampli)')}</div>
-          <div>{t('home.onboarding.feat-setlist', '🎵 Preparer une setlist avec les bons presets')}</div>
+          <div>{t('home.onboarding.feat-setlist', '🎵 Préparer une setlist avec les bons presets')}</div>
           <div>{t('home.onboarding.feat-explore', '🎛️ Explorer les presets par profil sonore')}</div>
         </div>
       </div>
@@ -220,16 +220,16 @@ function OnboardingWizard({ onClose, onProfile }) {
     () => (
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 48, marginBottom: 12 }}>🎵</div>
-        <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8 }}>{t('home.onboarding.features-title', 'Fonctionnalites')}</div>
+        <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8 }}>{t('home.onboarding.features-title', 'Fonctionnalités')}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left', padding: '4px 0' }}>
           {[
             { emoji: '🔍', title: t('home.onboarding.f1-title', 'Recherche intelligente'), desc: t('home.onboarding.f1-desc', 'Tape un morceau — l\'IA analyse le profil tonal, identifie l\'ampli et la guitare d\'origine, et recommande le meilleur couple guitare + preset.') },
-            { emoji: '🧠', title: t('home.onboarding.f2-title', 'Raisonnement IA'), desc: t('home.onboarding.f2-desc', 'L\'IA explique son raisonnement en 3 etapes : profil tonal du morceau, scoring des guitares, profil ampli ideal.') },
-            { emoji: '🎵', title: t('home.onboarding.f3-title', 'Setlists de session'), desc: t('home.onboarding.f3-desc', 'Cree des setlists par contexte (cours, repetition, scene). Chaque morceau a sa fiche avec recommandation ideale et parametrage.') },
-            { emoji: '🎲', title: t('home.onboarding.f4-title', 'Jammer'), desc: t('home.onboarding.f4-desc', 'Choisis une guitare et un style — top 3 des presets installes et meilleurs du catalogue, avec fiches depliables.') },
-            { emoji: '🎛️', title: t('home.onboarding.f5-title', 'Explorateur de presets'), desc: t('home.onboarding.f5-desc', 'Explore par profil sonore (Clean cristallin, Blues vintage, Crunch 70s, Metal...). Chaque preset a sa fiche avec description, morceaux mythiques et guitares adaptees.') },
-            { emoji: '📦', title: t('home.onboarding.f6-title', 'Installation directe'), desc: t('home.onboarding.f6-desc', 'Installe le preset recommande directement sur ta pedale ou ton plug en choisissant la banque et le slot.') },
-            { emoji: '👥', title: t('home.onboarding.f7-title', 'Multi-profils & Sync'), desc: t('home.onboarding.f7-desc', 'Chaque guitariste a son profil. Sync temps reel telephone - PC via Firestore.') },
+            { emoji: '🧠', title: t('home.onboarding.f2-title', 'Raisonnement IA'), desc: t('home.onboarding.f2-desc', 'L\'IA explique son raisonnement en 3 étapes : profil tonal du morceau, scoring des guitares, profil ampli idéal.') },
+            { emoji: '🎵', title: t('home.onboarding.f3-title', 'Setlists de session'), desc: t('home.onboarding.f3-desc', 'Crée des setlists par contexte (cours, répétition, scène). Chaque morceau a sa fiche avec recommandation idéale et paramétrage.') },
+            { emoji: '🎲', title: t('home.onboarding.f4-title', 'Jammer'), desc: t('home.onboarding.f4-desc', 'Choisis une guitare et un style — top 3 des presets installés et meilleurs du catalogue, avec fiches dépliables.') },
+            { emoji: '🎛️', title: t('home.onboarding.f5-title', 'Explorateur de presets'), desc: t('home.onboarding.f5-desc', 'Explore par profil sonore (Clean cristallin, Blues vintage, Crunch 70s, Metal...). Chaque preset a sa fiche avec description, morceaux mythiques et guitares adaptées.') },
+            { emoji: '📦', title: t('home.onboarding.f6-title', 'Installation directe'), desc: t('home.onboarding.f6-desc', 'Installe le preset recommandé directement sur ta pédale ou ton plug en choisissant la banque et le slot.') },
+            { emoji: '👥', title: t('home.onboarding.f7-title', 'Multi-profils & Sync'), desc: t('home.onboarding.f7-desc', 'Chaque guitariste a son profil. Sync temps réel téléphone - PC via Firestore.') },
           ].map(({ emoji, title, desc }) => (
             <div key={title} style={{ display: 'flex', gap: 10, padding: '10px 12px', background: 'var(--a3)', borderRadius: 'var(--r-lg)' }}>
               <span style={{ fontSize: 18, flexShrink: 0 }}>{emoji}</span>
@@ -245,7 +245,7 @@ function OnboardingWizard({ onClose, onProfile }) {
         <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8 }}>{t('home.onboarding.config-title', 'Configure ton profil')}</div>
         <div style={{ fontSize: 13, color: 'var(--text-sec)', lineHeight: 1.6, marginBottom: 20 }}>{t('home.onboarding.config-intro', 'Pour des recommandations precises, l\'app a besoin de connaitre :')}</div>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 2.2, textAlign: 'left', padding: '18px 20px', background: 'var(--a3)', borderRadius: 'var(--r-xl)' }}>
-          <div><b style={{ color: 'var(--text-sec)' }}>🎸 {t('home.onboarding.config-guitars-label', 'Tes guitares')}</b> {t('home.onboarding.config-guitars-desc', '— pour adapter les recommandations par modele et type de micro')}</div>
+          <div><b style={{ color: 'var(--text-sec)' }}>🎸 {t('home.onboarding.config-guitars-label', 'Tes guitares')}</b> {t('home.onboarding.config-guitars-desc', '— pour adapter les recommandations par modèle et type de micro')}</div>
           <div><b style={{ color: 'var(--text-sec)' }}>📱 {t('home.onboarding.config-hardware-label', 'Ton materiel')}</b> {t('home.onboarding.config-hardware-desc', '— pedale ToneX Anniversary et/ou ToneX Plug')}</div>
           <div><b style={{ color: 'var(--text-sec)' }}>📦 {t('home.onboarding.config-sources-label', 'Tes sources')}</b> {t('home.onboarding.config-sources-desc', '— quels packs de presets tu possedes (TSR, ML, Factory...)')}</div>
         </div>
@@ -473,7 +473,7 @@ function HomeScreen({
 
                     {/* Section Recommandation idéale */}
                     <div style={sectionStyle}>
-                      {sectionTitle(<StatusDot score={100} ideal={true} size={10}/>, t('home.song.reco-ideal', 'Recommandation ideale'))}
+                      {sectionTitle(<StatusDot score={100} ideal={true} size={10}/>, t('home.song.reco-ideal', 'Recommandation idéale'))}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {songResult.ideal_guitar && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
@@ -515,15 +515,15 @@ function HomeScreen({
 
                     {/* Section Paramétrage */}
                     <div style={customSectionStyle}>
-                      {sectionTitle('🎛', t('home.song.params-title', 'Parametrage — mon choix'))}
+                      {sectionTitle('🎛', t('home.song.params-title', 'Paramétrage — mon choix'))}
                       <div style={{ marginBottom: 8 }}>
                         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{t('home.song.guitar-chosen', 'Guitare choisie')}</div>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 4 }}>
                           {(selectedGuitar || songResult.ideal_guitar) && <span style={{ fontSize: 11, background: 'var(--a5)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '4px 10px', color: 'var(--text-bright)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}><StatusDot score={chosenGuitarScore} ideal={!selectedGuitar || matchGuitarName(songResult.cot_step2_guitars?.[0]?.name, selectedGuitar)}/>{selectedGuitar ? `${selectedGuitar.name} (${selectedGuitar.type})` : songResult.ideal_guitar}</span>}
                           <button onClick={() => setShowGuitarPick((p) => !p)} style={{ fontSize: 10, background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '3px 8px', cursor: 'pointer' }}>{t('home.song.change', 'Changer')}</button>
                         </div>
-                        {selectedGuitar && chosenGuitarScore && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>{t('home.song.compat', 'Compatibilite :')} <b style={{ color: scoreColor(chosenGuitarScore) }}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated && <span style={{ marginLeft: 6, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>{t('home.song.estimated', '(estime)')}</span>}</div>}
-                        {selectedGuitar && (() => { const s = localGuitarSettings(selectedGuitar, songResult); return s ? <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)', marginBottom: 4 }}><b style={{ color: 'var(--text-muted)' }}>{t('home.song.settings', 'Reglages :')}</b> {s}</div> : null; })()}
+                        {selectedGuitar && chosenGuitarScore && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>{t('home.song.compat', 'Compatibilité :')} <b style={{ color: scoreColor(chosenGuitarScore) }}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated && <span style={{ marginLeft: 6, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>{t('home.song.estimated', '(estimé)')}</span>}</div>}
+                        {selectedGuitar && (() => { const s = localGuitarSettings(selectedGuitar, songResult); return s ? <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)', marginBottom: 4 }}><b style={{ color: 'var(--text-muted)' }}>{t('home.song.settings', 'Réglages :')}</b> {s}</div> : null; })()}
                         {showGuitarPick && (
                           <div style={{ marginBottom: 8, background: 'var(--a4)', borderRadius: 'var(--r-md)', padding: 10 }}>
                             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
@@ -536,7 +536,7 @@ function HomeScreen({
                           </div>
                         )}
                       </div>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{t('home.song.best-installed', 'Meilleurs presets installes')}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{t('home.song.best-installed', 'Meilleurs presets installés')}</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {getActiveDevicesForRender(profile).map((d) => {
                           const presetData = songResult[d.presetResultKey];

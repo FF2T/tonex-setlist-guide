@@ -669,7 +669,165 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-15, Phase 7.49 close — i18n per-profile + T9 vocabulaire)
+## État actuel (2026-05-15, Phase 7.50 close — 8 fixes rapport beta v8.14.48)
+
+**Backline v8.14.51 / SW backline-v151 / STATE_VERSION 8 / 775 tests verts.**
+Phase 7.50 traite les bugs du rapport de test fonctionnel sur v8.14.48
+(15 mai 2026) : Vague 1 (cosmétique + i18n) et Vague 2 (UX + sources)
+groupées. 8 tickets sur 12 closes (4 reportés P3 ou pending dump).
+
+### Tickets clôturés Phase 7.50
+
+#### Vague 1 — Cosmétique / i18n
+
+- **B-COSM-01** — Accents FR : ~22 corrections diacritiques dans les
+  fallbacks inline `t('key', 'FR-sans-accents')` :
+  - HomeScreen.jsx : memes→mêmes, ideale→idéale, recommande→recommandé,
+    Cree→Crée, repetition→répétition, scene→scène, parametrage→paramétrage,
+    installes→installés, depliables→dépliables, etapes→étapes,
+    pedale→pédale, modele→modèle, adaptees→adaptées, temps reel→temps réel,
+    telephone→téléphone, Compatibilite→Compatibilité, (estime)→(estimé),
+    Reglages→Réglages, Fonctionnalites→Fonctionnalités,
+    Preparer→Préparer, ideal→idéal.
+  - SongDetailCard.jsx : Recommandation idéale, Non installé,
+    Paramétrage, Installé — Banque, Compatibilité, (estimé), Réglages,
+    "Packs recommandés à l'achat", "Aucun preset installé", "Le meilleur
+    preset installé".
+  - MonProfilScreen.jsx : Clé API (tab), clé API (sous-titre),
+    Modèle actif, Mise à jour, Se déconnecter.
+  - PresetBrowser.jsx : Pédales de drive, Captures pédales seules,
+    Modèle d'ampli, Sons saturés, Réinitialiser.
+- **B-COSM-02** — Double ✕ Explorer : CSS
+  `input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none }`
+  ajouté à `src/styles/tokens.css`. Cache l'icône native Safari/Chrome
+  superposée au bouton ✕ custom Phase 7.21.
+- **B-I18N-01** — Strings FR résiduelles wrappées i18n :
+  - ListScreen.jsx:562 (badge guitare recap "{count} morceau(x)") →
+    `tPlural('list.songs-count', ...)`.
+  - GuitarSelect.jsx:43 ("✓ Choix optimal") → `t('guitar-select.ideal', ...)`.
+  - Aussi placeholder dropdown et message warn (Idéalement: ...).
+  - 3 nouvelles clés EN/ES (`guitar-select.placeholder`, `.ideal`, `.warn`).
+- **B-COSM-04** — Emoji collé au texte : **No-op**. Audit fait : tous
+  les emojis dans le source ont bien un espace après. L'effet visuel
+  "🎤Mode" rapporté est un rendu navigateur (fonte emoji couleur tasse
+  visuellement par rapport au texte). Pas un bug code.
+
+#### Vague 2 — UX / Logique
+
+- **B-UX-01** — Sources orphelines : ProfileTab.jsx tab Sources gère
+  désormais l'état "indisponible" pour `FactoryV1` (si
+  `FACTORY_BANKS_PEDALE_V1` vide) et `custom` (si `customPacks` vide).
+  Toggle disabled + opacity 0.5 + cursor not-allowed + badge "liste à
+  fournir" / "aucun pack custom". Évite que Sébastien voie un toggle
+  coché par défaut pour des sources qui n'ont pas de contenu disponible.
+  3 nouvelles clés i18n.
+- **B-UX-02** — Label dynamique Pédale vs Anniversary :
+  `BankOptimizerScreen.jsx` + `JamScreen.jsx` retirent le hardcode
+  "📦 Pédale". Label calculé selon `enabledDevices` :
+  - `tonex-anniversary` activé → "🏭 Anniversary".
+  - `tonex-pedal` activé → "📦 ToneX Pedal".
+  - Aucun → "📦 Pédale" (fallback).
+  9 nouvelles clés i18n (`optimizer.anniversary-*`, `optimizer.pedal-*`,
+  `jam.top3-pedal`, `jam.top3-anniversary`).
+- **B-COSM-03** — Overflow badge amp ListScreen :
+  - `maxWidth` 180 → 220 (donne plus d'espace).
+  - `title` attribut sur le span externe avec `"<preset> · <amp>"`
+    complet → hover desktop / tap mobile montre la valeur entière.
+  - Le span amp inner devient `flexShrink: 0` (ne tronque plus) ; c'est
+    le span preset label qui tronque en priorité (ellipsis).
+- **B-UX-04** — Avatar discoverable : `ProfileSelector.jsx` ajoute un
+  chevron `▾` à droite de l'initiale + `title` + `aria-label`.
+  Layout passe en flex avec chevron 9px opacity 0.7. Le user comprend
+  immédiatement que l'élément est un dropdown.
+- **B-UX-05** — Tu/vous IA : nouvelle section "CONSIGNE DE REGISTRE"
+  dans `fetchAI.js` prompt entre "settings_guitar" et "OUTPUT TRILINGUE".
+  Demande explicitement le tutoiement informel dans les 3 langues :
+  FR (tu/ta/ton/tes, verbes 2e personne singulier), EN (you/your
+  conversationnel), ES (tú/tu/tus, tuteo, verbes "prueba/empuja/mantén"
+  pas "pruebe/empuje/mantenga"). Liste explicitement les champs
+  concernés et interdit le mélange tu+vous dans une même phrase.
+
+### Tickets reportés Phase 7.50 → 7.51+
+
+- **B-UX-03** (preset 93% non-installé vs installé) : nécessite
+  investigation runtime sur un cas concret. Phase 7.32 fix utilise stable
+  sort (V8 TimSort ES2019), donc le preset_ann (1er du tableau source)
+  gagne sur ideal_preset à score égal exact. Si user voit un cas où
+  ideal_preset gagne malgré un installed à même score affiché, c'est
+  probablement un float arrondi (ex. installed=92.4, ideal=92.8, tous
+  deux affichés 93). À investiguer avec dump aiCache du morceau concerné.
+- **B-UX-06** (faux positif filtrage Phase 7.29.5) : confirmé comme
+  attendu, pas un bug.
+- **B-TECH-01** (cycles pull/push Firestore au reload) : investigation
+  reportée Phase 7.51 — pourquoi "Batch rescore 2 morceaux" à chaque
+  reload alors que SCORING_VERSION stable.
+- **B-TECH-02** (localStorage 3.5 MB) : MAX_BACKUPS=1 décidé reporté
+  Phase 7.51 — touche à la robustesse, à appliquer avec test plan.
+- **B-TECH-03** (raw 1.7 MB Firestore) : surveillance, pas d'action
+  Phase 7.50.
+- **B-I18N-02** (ES non testé) : extrapolation, pas d'action sans
+  test concret.
+- **B-I18N-03** (footer Phase 7.44 EN/ES) : audit côté code confirme
+  que `AppFooter.jsx` a bien `useLocale()` + `t('common.footer-disclaimer',...)`.
+  Probablement un cache SW stale pendant le test sur v8.14.48. À
+  reconfirmer après reload sur v8.14.51.
+- Améliorations (A-UX-*, A-FEAT-*) : reportées Phase 8+.
+
+### Conséquences
+
+- Pas de bump STATE_VERSION (changements purement UI + prompt IA).
+- Pas de migration localStorage.
+- Bundle 1886.54 → 1890.27 KB (+3.7 KB : 22 corrections accents inline
+  + 15 nouvelles clés i18n × 2 langues + 2 nouvelles consignes prompt
+  + dropdown chevron + classes CSS).
+- 775/775 tests verts (aucun nouveau test, aucune régression).
+- aiCache existants : phrasing tu/vous mixte conservé jusqu'à
+  ré-analyse. Pour basculer sur le nouveau registre 100% tutoiement,
+  invalider via "🔄 Réinitialiser mes analyses" Mon Profil → Préférences IA.
+
+### Architecture livrée à fin Phase 7.50
+
+```
+src/main.jsx                            APP_VERSION 8.14.50 → 8.14.51
+public/sw.js                            CACHE backline-v150 → backline-v151
+src/styles/tokens.css                   [7.50 B-COSM-02] hide webkit search clear
+src/app/screens/HomeScreen.jsx          [7.50 B-COSM-01] ~16 accents FR
+src/app/screens/SongDetailCard.jsx      [7.50 B-COSM-01] ~10 accents FR
+src/app/screens/MonProfilScreen.jsx     [7.50 B-COSM-01] 5 accents FR
+src/app/screens/PresetBrowser.jsx       [7.50 B-COSM-01] 5 accents FR
+src/app/screens/ListScreen.jsx          [7.50 B-I18N-01] tPlural sur badge guitare
+                                        [7.50 B-COSM-03] title + maxWidth + minWidth 0
+src/app/components/GuitarSelect.jsx     [7.50 B-I18N-01] useLocale + 3 t() wraps
+src/app/screens/ProfileTab.jsx          [7.50 B-UX-01] disabled toggle FactoryV1/custom
+src/app/screens/BankOptimizerScreen.jsx [7.50 B-UX-02] label dynamique annLabel*
+src/app/screens/JamScreen.jsx           [7.50 B-UX-02] annTop3Label dynamique
+src/app/components/ProfileSelector.jsx  [7.50 B-UX-04] chevron ▾ + title + aria
+src/app/utils/fetchAI.js                [7.50 B-UX-05] CONSIGNE DE REGISTRE tutoiement
+src/i18n/en.js                          +15 clés (guitar-select, profile-tab.empty-*,
+                                        optimizer.anniversary-*, .pedal-*, jam.top3-*)
+src/i18n/es.js                          idem ES
+```
+
+### Dette résiduelle Phase 7.50
+
+- Investigation B-UX-03 nécessite dump aiCache (cf T6 Paranoid
+  pending pour le même besoin).
+- B-TECH-01 (cycles sync) à analyser : possiblement un bug Phase
+  6.1.3 où le rescore mute aiCache.sv et déclenche un push même
+  après stabilisation. À monitorer en console après déploiement
+  v8.14.51.
+- Tutoiement IA dépend du respect du prompt par Gemini Flash. Si
+  l'IA continue à utiliser "vous" malgré la consigne, fallback :
+  post-processing JS qui détecte/réécrit les motifs ("réglez" →
+  "règle", "essayez" → "essaie", etc.).
+- Labels dynamiques B-UX-02 : si l'utilisateur active SIMULTANÉMENT
+  `tonex-anniversary` ET `tonex-pedal`, le label affiche "Anniversary"
+  (priorité). C'est OK car les deux devices partagent `banksAnn`,
+  mais à reconsidérer si Phase 8+ splitte les banks par device.
+
+---
+
+## État précédent (2026-05-15, Phase 7.49 close — i18n per-profile + T9 vocabulaire)
 
 **Backline v8.14.50 / SW backline-v150 / STATE_VERSION 8 / 775 tests verts.**
 Phase 7.49 introduit la migration `STATE_VERSION 7 → 8` pour ajouter le

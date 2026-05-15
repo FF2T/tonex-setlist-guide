@@ -13,8 +13,10 @@
 
 import React from 'react';
 import { GUITARS } from '../../core/guitars.js';
+import { t, tFormat, useLocale } from '../../i18n/index.js';
 
 function GuitarSelect({ value, onChange, ig = [], guitars = GUITARS }) {
+  useLocale();
   const g = guitars.find((x) => x.id === value);
   const ideal = value && ig.includes(value);
   const warn = value && ig.length > 0 && !ideal;
@@ -35,15 +37,15 @@ function GuitarSelect({ value, onChange, ig = [], guitars = GUITARS }) {
           marginBottom: 4,
         }}
       >
-        <option value="">— Choisir une guitare —</option>
+        <option value="">{t('guitar-select.placeholder', '— Choisir une guitare —')}</option>
         {guitars.map((x) => (
           <option key={x.id} value={x.id}>{ig.includes(x.id) ? '★ ' : ''}{x.name} ({x.type})</option>
         ))}
       </select>
-      {ideal && <div style={{ fontSize: 11, color: 'var(--green)' }}>✓ Choix optimal</div>}
+      {ideal && <div style={{ fontSize: 11, color: 'var(--green)' }}>{t('guitar-select.ideal', '✓ Choix optimal')}</div>}
       {warn && g && (
         <div style={{ fontSize: 11, color: 'var(--yellow)' }}>
-          ⚠️ Idéalement : {ig.map((i) => guitars.find((x) => x.id === i)?.short || GUITARS.find((x) => x.id === i)?.short).filter(Boolean).join(', ')}
+          {tFormat('guitar-select.warn', { list: ig.map((i) => guitars.find((x) => x.id === i)?.short || GUITARS.find((x) => x.id === i)?.short).filter(Boolean).join(', ') }, '⚠️ Idéalement : {list}')}
         </div>
       )}
     </div>

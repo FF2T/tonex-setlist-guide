@@ -112,6 +112,11 @@ const en = {
   'guitar-add.short-name': 'Short',
   'guitar-add.title': '+ Add a guitar',
 
+  // guitar-select
+  'guitar-select.placeholder': '— Pick a guitar —',
+  'guitar-select.ideal': '✓ Optimal choice',
+  'guitar-select.warn': '⚠️ Ideally: {list}',
+
   // home
   'home.add-song': 'Add a song',
   'home.fb.tag.bad-preset': 'Preset doesn\'t fit the song',
@@ -222,6 +227,8 @@ const en = {
   'jam.pick-guitar': 'Pick your guitar for this jam:',
   'jam.top3-catalog': '🌐 Top 3 — Full catalog',
   'jam.top3-pedale': '📦 Top 3 — Pedal',
+  'jam.top3-pedal': '📦 Top 3 — ToneX Pedal',
+  'jam.top3-anniversary': '🏭 Top 3 — Anniversary',
   'jam.top3-plug': '🔌 Top 3 — ToneX Plug',
   'jam.page-title': '🎲 Jam',
   'jam.what-style': 'What style are you playing?',
@@ -340,6 +347,8 @@ const en = {
   'maintenance.backup-content': '{songs} · {profiles}',
 
   // optimizer
+  'optimizer.anniversary-label': '🏭 Anniversary',
+  'optimizer.anniversary-short': '🏭 Anniversary',
   'optimizer.apply-all': '⚡ Apply all {device} ({count})',
   'optimizer.apply-confirm': 'Apply the {count} {device} actions?\nEstimated gain: {cur}% → {proj}% (+{delta}%)',
   'optimizer.apply-this-bank': 'Apply this bank',
@@ -350,6 +359,10 @@ const en = {
   'optimizer.improvement-tip': 'To improve: change the assigned guitar, enable an unchecked pack in Profile → Sources, or create a custom preset.',
   'optimizer.install': 'Install',
   'optimizer.install-preset': 'Install "{name}"',
+  'optimizer.pedal-label': '📦 ToneX Pedal',
+  'optimizer.pedal-short': '📦 Pedal',
+  'optimizer.pedal-fallback': '📦 Pedal',
+  'optimizer.pedal-tiny-fallback': '📦 Pedal',
   'optimizer.not-used': 'Not used',
   'optimizer.nothing-to-optimize': '✓ Nothing to optimize on this device',
   'optimizer.no-better-preset': 'No better preset available for {songs} (already at the ceiling of the compatible catalog):',
@@ -466,6 +479,8 @@ const en = {
   'profile-tab.edit-short': 'Short',
   'profile-tab.image-error': 'Error during upload',
   'profile-tab.locked': 'locked (hardware checked)',
+  'profile-tab.empty-list': 'list to provide',
+  'profile-tab.empty-custom': 'no custom pack',
   'profile-tab.modified': 'modified',
   'profile-tab.my-guitars': 'My guitars',
   'profile-tab.my-guitars-hint': 'Check the guitars you own.',

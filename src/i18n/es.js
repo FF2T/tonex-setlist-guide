@@ -110,6 +110,11 @@ const es = {
   'guitar-add.short-name': 'Corto',
   'guitar-add.title': '+ Añadir una guitarra',
 
+  // guitar-select
+  'guitar-select.placeholder': '— Elige una guitarra —',
+  'guitar-select.ideal': '✓ Elección óptima',
+  'guitar-select.warn': '⚠️ Idealmente: {list}',
+
   // home
   'home.add-song': 'Añadir una canción',
   'home.fb.tag.bad-preset': 'Preset no encaja con la canción',
@@ -220,6 +225,8 @@ const es = {
   'jam.pick-guitar': 'Elige tu guitarra para este jam:',
   'jam.top3-catalog': '🌐 Top 3 — Catálogo completo',
   'jam.top3-pedale': '📦 Top 3 — Pedal',
+  'jam.top3-pedal': '📦 Top 3 — ToneX Pedal',
+  'jam.top3-anniversary': '🏭 Top 3 — Anniversary',
   'jam.top3-plug': '🔌 Top 3 — ToneX Plug',
   'jam.page-title': '🎲 Jam',
   'jam.what-style': '¿Qué estilo tocas?',
@@ -348,6 +355,12 @@ const es = {
   'optimizer.improvement-tip': 'Para mejorar: cambiar la guitarra asignada, activar un pack no marcado en Perfil → Fuentes, o crear un preset personalizado.',
   'optimizer.install': 'Instalar',
   'optimizer.install-preset': 'Instalar "{name}"',
+  'optimizer.anniversary-label': '🏭 Anniversary',
+  'optimizer.anniversary-short': '🏭 Anniversary',
+  'optimizer.pedal-label': '📦 ToneX Pedal',
+  'optimizer.pedal-short': '📦 Pedal',
+  'optimizer.pedal-fallback': '📦 Pedal',
+  'optimizer.pedal-tiny-fallback': '📦 Pedal',
   'optimizer.not-used': 'No usado',
   'optimizer.nothing-to-optimize': '✓ Nada que optimizar en este dispositivo',
   'optimizer.no-better-preset': 'Ningún preset mejor disponible para {songs} (ya en el tope del catálogo compatible):',
@@ -464,6 +477,8 @@ const es = {
   'profile-tab.edit-short': 'Corto',
   'profile-tab.image-error': 'Error durante la carga',
   'profile-tab.locked': 'bloqueado (equipo marcado)',
+  'profile-tab.empty-list': 'lista por proveer',
+  'profile-tab.empty-custom': 'sin pack personalizado',
   'profile-tab.modified': 'modificado',
   'profile-tab.my-guitars': 'Mis guitarras',
   'profile-tab.my-guitars-hint': 'Marca las guitarras que posees.',

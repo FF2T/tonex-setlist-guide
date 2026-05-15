@@ -116,7 +116,7 @@ function MonProfilScreen({
         {tabBtn('display', t('profile.tab.display', '🎨 Affichage'))}
         {tabBtn('reco', t('profile.tab.reco', '🎯 Préférences IA'))}
         {tabBtn('password', t('profile.tab.password', '🔐 Mot de passe'))}
-        {profile.isAdmin && tabBtn('ia', t('profile.tab.api-key', '🔑 Cle API'))}
+        {profile.isAdmin && tabBtn('ia', t('profile.tab.api-key', '🔑 Clé API'))}
         {profile.isAdmin && tabBtn('maintenance', t('profile.tab.maintenance', '🔧 Maintenance'))}
         {profile.isAdmin && tabBtn('export', t('profile.tab.export', '📋 Export / Import'))}
         {profile.isAdmin && tabBtn('admin_profiles', t('profile.tab.profiles', '👥 Profils'))}
@@ -367,9 +367,9 @@ function MonProfilScreen({
         </div>}
       </div>}
       {profile.isAdmin && tab === 'ia' && <div>
-        <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>Configuration de la cle API pour l'IA.</div>
+        <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>Configuration de la clé API pour l'IA.</div>
         <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 12px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontWeight: 700 }}>Modele actif :</span>
+          <span style={{ fontWeight: 700 }}>Modèle actif :</span>
           <span style={{ color: 'var(--green)', fontWeight: 600 }}>{aiProvider === 'gemini' ? 'gemini-3-flash-preview' : 'claude-haiku-4-5'}</span>
         </div>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>Cle Gemini</div>
@@ -402,8 +402,8 @@ function MonProfilScreen({
       {profile.isAdmin && tab === 'admin_profiles' && <ProfilesAdmin profiles={profiles} onProfiles={onProfiles}/>}
       <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--a8)', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <button onClick={() => { if (typeof window.setShowOnboarding === 'function') window.setShowOnboarding(true); else { const e = new CustomEvent('showOnboarding'); window.dispatchEvent(e); } }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>Aide</button>
-        <button onClick={() => { location.reload(true); }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>Mise a jour</button>
-        {onLogout && <button onClick={onLogout} style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '8px 16px', fontSize: 12, cursor: 'pointer', marginLeft: 'auto' }}>Se deconnecter</button>}
+        <button onClick={() => { location.reload(true); }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>Mise à jour</button>
+        {onLogout && <button onClick={onLogout} style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '8px 16px', fontSize: 12, cursor: 'pointer', marginLeft: 'auto' }}>Se déconnecter</button>}
       </div>
     </div>
   );

@@ -48,6 +48,14 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
   const enabledDevices = getActiveDevicesForRender(profile);
   const hasPedalDevice = enabledDevices.some((d) => d.deviceKey === 'ann');
   const hasPlugDevice = enabledDevices.some((d) => d.deviceKey === 'plug');
+  // Phase 7.50 (B-UX-02) : label dynamique selon le device pedal réellement coché.
+  const enabledSet = new Set(profile?.enabledDevices || []);
+  const annLabelShort = enabledSet.has('tonex-anniversary')
+    ? t('optimizer.anniversary-label', '🏭 Anniversary')
+    : (enabledSet.has('tonex-pedal') ? t('optimizer.pedal-label', '📦 ToneX Pedal') : t('optimizer.pedal-fallback', '📦 Pédale'));
+  const annLabelTiny = enabledSet.has('tonex-anniversary')
+    ? t('optimizer.anniversary-short', '🏭 Anniversary')
+    : (enabledSet.has('tonex-pedal') ? t('optimizer.pedal-short', '📦 Pedal') : t('optimizer.pedal-tiny-fallback', '📦 Pédale'));
   const [slId, setSlId] = useState(setlists[0]?.id || '');
   const [showReconfig, setShowReconfig] = useState(null);
   const sl = setlists.find((s) => s.id === slId);
@@ -454,7 +462,7 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
           <div style={sectionStyle}>
             {eyebrow('⚡', 'Actions prioritaires')}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s-2)' }}>
-              {hasPedalDevice && renderDeviceBlock('ann', '📦 Pédale', annMean, annProjected, annPriority, annAnalysis.songRows)}
+              {hasPedalDevice && renderDeviceBlock('ann', annLabelShort, annMean, annProjected, annPriority, annAnalysis.songRows)}
               {hasPlugDevice && renderDeviceBlock('plug', '🔌 Plug', plugMean, plugProjected, plugPriority, plugAnalysis.songRows)}
             </div>
           </div>
@@ -468,7 +476,7 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
           <>
             <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 'var(--s-3)' }}>🎸 {allGuitars.map((g) => g.short || g.name).join(', ')} · {songs.length} morceau{songs.length > 1 ? 'x' : ''}</div>
             <div style={{ display: 'grid', gridTemplateColumns: hasPedalDevice && hasPlugDevice ? '1fr 1fr' : '1fr', gap: 'var(--s-3)', marginBottom: 'var(--s-3)' }}>
-              {hasPedalDevice && <div>{renderStats(annAnalysis)}<div style={{ fontSize: 9, color: 'var(--text-tertiary)', textAlign: 'center' }}>📦 Pedale</div></div>}
+              {hasPedalDevice && <div>{renderStats(annAnalysis)}<div style={{ fontSize: 9, color: 'var(--text-tertiary)', textAlign: 'center' }}>{annLabelTiny}</div></div>}
               {hasPlugDevice && <div>{renderStats(plugAnalysis)}<div style={{ fontSize: 9, color: 'var(--text-tertiary)', textAlign: 'center' }}>🔌 Plug</div></div>}
             </div>
             {/* Carte visuelle compacte */}
@@ -511,7 +519,7 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
               const hasPlug = Object.keys(banksPlug || {}).length > 0;
               return (
                 <div>
-                  {hasAnn && hasPedalDevice && miniGrid(banksAnn, 50, 0, 'ann', '📦 Pedale')}
+                  {hasAnn && hasPedalDevice && miniGrid(banksAnn, 50, 0, 'ann', annLabelTiny)}
                   {hasPlug && hasPlugDevice && miniGrid(banksPlug, 10, 1, 'plug', '🔌 Plug')}
                   <div style={{ display: 'flex', gap: 'var(--s-3)', marginTop: 4, fontSize: 8, color: 'var(--text-tertiary)' }}>
                     <span><span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: 1, background: 'var(--green)', marginRight: 2, verticalAlign: 'middle' }}/>80%+</span>
@@ -628,7 +636,7 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
               <div style={sectionStyle}>
                 {eyebrow('🎯', 'Plan de reorganisation')}
                 <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 'var(--s-3)' }}>{t('optimizer.bank-grouping-hint', 'Banques regroupees pour le live. Standards (tes gouts) en premier, puis une banque par morceau. A=Clean, B=Drive, C=Lead.')}</div>
-                {hasAnn2 && hasPedalDevice && renderPlan(annPlan, '📦', 'Pedale', onBanksAnn)}
+                {hasAnn2 && hasPedalDevice && renderPlan(annPlan, enabledSet.has('tonex-anniversary') ? '🏭' : '📦', enabledSet.has('tonex-anniversary') ? 'Anniversary' : 'Pédale', onBanksAnn)}
                 {hasPlug2 && hasPlugDevice && renderPlan(plugPlan, '🔌', 'Plug', onBanksPlug)}
               </div>
             );
