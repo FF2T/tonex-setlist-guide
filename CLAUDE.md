@@ -138,6 +138,14 @@ public/
   6 styles × HB drive + 5 fallbacks + 11 guitares × 2 fonctions sur
   ledzep_stairway + 5 cas redistribution).
 
+## Doc Recos
+
+Le détail du pipeline de recommandation (scoring V9, prompt IA,
+override Phase 7.31, modes reco, biais, usages catalog, garde-fous
+Phase 7.34 anti cross-contamination, etc.) est documenté dans
+`docs/SCORING.md`. À lire quand on touche au scoring, au prompt
+`fetchAI`, ou à `enrichAIResult`.
+
 ## Style de code
 
 - Composants fonctionnels avec hooks. Pas de classes.
