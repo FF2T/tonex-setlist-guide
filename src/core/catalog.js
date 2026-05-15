@@ -23,15 +23,30 @@ function findCatalogEntry(name){
   if(!name) return null;
   if(PRESET_CATALOG_MERGED[name]) return PRESET_CATALOG_MERGED[name];
   // Chercher dans les presets ToneNET saisis par l'utilisateur
-  if(window._toneNetLookup){
+  // (Phase 7.52.4 — guard typeof pour SSR/Vitest sans window)
+  if(typeof window!=='undefined'&&window._toneNetLookup){
     var tnMatch=window._toneNetLookup[name];
     if(tnMatch) return tnMatch;
+  }
+  // Phase 7.52.4 — Match via toneModelName (Anniversary Premium Phase 7.52).
+  // Le firmware Anniversary affiche le "Tone Model Name" (col 2 du PDF) dans
+  // les banks, alors que mes keys catalog utilisent le "Preset Name" (col 1).
+  // Quand les deux divergent (ex: PDF preset "TSR D13 Clean" vs toneModel
+  // "TSR D13 Best Tweed Ever Clean"), l'utilisateur voit le toneModel dans
+  // sa pédale. Sans ce fallback, findCatalogEntry retombait sur guessPresetInfo.
+  for(const [k,v] of Object.entries(PRESET_CATALOG_MERGED)){
+    if(v?.toneModelName && v.toneModelName === name) return v;
   }
   if(PRESET_CATALOG_MERGED["AA "+name]) return PRESET_CATALOG_MERGED["AA "+name];
   if(name.startsWith("AA ")&&PRESET_CATALOG_MERGED[name.slice(3)]) return PRESET_CATALOG_MERGED[name.slice(3)];
   const norm=normalizePresetName(name);
   for(const [k,v] of Object.entries(PRESET_CATALOG_MERGED)){
     if(normalizePresetName(k)===norm) return v;
+  }
+  // Phase 7.52.4 — Match via toneModelName en mode fuzzy (cas typos PDF
+  // comme "Slylark" vs "Skylark", ou casse différente "LEAD" vs "Lead").
+  for(const [k,v] of Object.entries(PRESET_CATALOG_MERGED)){
+    if(v?.toneModelName && normalizePresetName(v.toneModelName)===norm) return v;
   }
   const normBase=norm.replace(/\s+\d+$/,"");
   if(normBase!==norm){

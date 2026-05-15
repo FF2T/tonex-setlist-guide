@@ -677,7 +677,113 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-15, Phase 7.52.3 close — Audit + correctif noms TSR/WT vs PDF)
+## État actuel (2026-05-15, Phase 7.52.4 close — findCatalogEntry fallback toneModelName)
+
+**Backline v8.14.66 / SW backline-v166 / STATE_VERSION 9 / 969 tests verts.**
+Phase 7.52.4 corrige le matching firmware vs catalog quand le **Tone Model
+Name** (col 2 du PDF) diverge du **Preset Name** (col 1).
+
+**Cas observé 2026-05-15** : Sébastien voit dans sa pédale physique
+Anniversary les noms `TSR D13 Best Tweed Ever Clean`, `TSR - TSR20 -
+Light Gain P`, `TSR Freeman X Clean??`, etc. (= Tone Model Name col 2
+du PDF). Mes keys Phase 7.52.3 utilisent le Preset Name (col 1 du
+PDF), donc `findCatalogEntry("TSR D13 Best Tweed Ever Clean")` ne
+matchait pas → fallback `guessPresetInfo` → metadata grossière → pas
+d'usages exploitables au prompt IA.
+
+### Fix Phase 7.52.4
+
+`src/core/catalog.js:findCatalogEntry` enrichi avec 2 fallbacks :
+- **Exact match toneModelName** : après lookup direct, boucle sur le
+  catalog merged et compare `v.toneModelName === name`. Couvre tous
+  les cas où le firmware utilise le Tone Model Name.
+- **Fuzzy match toneModelName** : après normalisation
+  (`normalizePresetName`), boucle sur `normalizePresetName(v.toneModelName)`.
+  Couvre les variations casse/espaces/typos PDF (ex: `Slylark` vs
+  `Skylark`, `LEAD` vs `Lead`).
+
+Aussi : guard `typeof window !== 'undefined'` autour du check
+`window._toneNetLookup` pour permettre l'exécution Vitest hors jsdom.
+
+### Captures Anniversary qui résolvent désormais correctement (~25)
+
+**Pack TSR** :
+- `TSR Amp Nation ODR Clean 1` (vs Preset `TSR AmpNation ODR Clean 1`)
+- `TSR - Rectified - Pushed`, `TSR - Rectified - Modern 1`,
+  `TSR - Rectified - Vintage 2` (vs `TSR Rectified - ...`)
+- `TSR - TSR20 - Light Gain P` (vs `TSR TSR20 + Light Gain`)
+- `TSR - TSR20 + Candyman II`, `TSR - TSR20 + SLOW`
+- `TSR D13 Best Tweed Ever Clean` (vs `TSR D13 Clean`)
+- `TSR Freeman X Clean??` (vs `TSR Freeman X Clean`)
+- `TSR Matchbox PeaceMaker` (vs `TSR Matchbox Peacemaker`, diff casse)
+- `TSR MEGABABA CLEAN 2` (vs `TSR MEGABABA Clean 2`, diff casse)
+- `TSR - Talon 50 - Clean`, `TSR - Talon 50 - Grit`, `TSR - Talon 50 - High Gain`
+
+**Pack WT** :
+- `WT TK IMPRL Lead 5` (vs `WT TK IMPRL LEAD 5`)
+- `WT MSA TEXSTAR CH2 5`, `WT MSA TEXSTAR CH1 3`, `WT MSA TEXSTAR CH2 3`
+  (vs `WT TEXSTAR Ch2 5`, etc.)
+- `WT Mars Super100 JMP 5` (vs `WT Mars Super1100 JMP 5`, typo PDF)
+
+**Pack TJ** :
+- `TJ 68 Twin 15 N CLN`, `TJ 68 Twin 15 V DRTY` (vs `... 15  N ...` double espace)
+- `TJ DMBL ODS 124 Lead 1`, `Lead 2` (vs `LEAD 1`, `LEAD 2`)
+- `65 Cambridge N 4` (sans préfixe TJ — étrange dans PDF mais OK)
+- `TJ 60s GA5 Skylark 2`, `TJ 60s GA5 Slylark 4 +` (typo `Slylark`)
+  (vs `TJ Skylark 2`, `TJ Skylark 4+`)
+
+### Architecture livrée Phase 7.52.4
+
+```
+src/main.jsx                            APP_VERSION 8.14.65 → 8.14.66
+public/sw.js                            CACHE backline-v165 → backline-v166
+src/core/catalog.js                     findCatalogEntry :
+                                        +exact match toneModelName
+                                        +fuzzy match toneModelName
+                                        +guard typeof window pour Vitest
+src/data/anniversary-premium-catalog.test.js
+                                        +5 tests Phase 7.52.4
+                                        (TSR D13, TSR20 Light Gain P,
+                                        Freeman X Clean??, MSA TEXSTAR,
+                                        unknown name → guessPresetInfo)
+```
+
+### Conséquences
+
+- **969/969 tests verts** (+5 nouveaux Phase 7.52.4).
+- **Bundle** 2122 KB → 2122 KB (stable).
+- Sébastien (banks majoritairement remplies de TSR Anniversary Premium
+  via Tone Model Names) bénéficie maintenant du pin direct via
+  PRIORITÉ 1 du prompt Phase 7.34 + 7.52.1.
+- **Pas de bump SCORING_VERSION** (V9 inchangé).
+- **Pas de migration**.
+
+### Action post-déploiement
+
+1. Reload PWA iPhone + Mac, vérifier `v8.14.66`.
+2. Mon Profil → 🎯 Préférences IA → "🗑 Invalider tous les caches IA"
+   (admin).
+3. Setlists → "🤖 Analyser/MAJ N" pour batch ré-analyse.
+4. Vérifier sur un morceau Phil X que `TSR Freeman X Drive 3` (Sébastien
+   bank 29B) remonte en top installé. Pareil pour Joe Walsh / Brad
+   Paisley + `TSR ZWREK Riverside LG` (34C).
+
+### Dette résiduelle Phase 7.52.4
+
+- **Perf** : la boucle `Object.entries` pour le fallback toneModelName
+  itère ~1700 entries du catalog merged à chaque miss. Si le profil
+  a beaucoup de slots inconnus, ça peut être noticeable. Optim
+  future possible : indexer un Map `toneModelName → entry` au load
+  du catalog. Non urgent vu que ça ne s'exécute qu'au mount
+  enrichAIResult (par morceau) et pas par render.
+- **Pas testé en intégration sur une analyse IA complète** : les
+  tests Vitest valident le helper isolé. Smoke-test manuel
+  post-déploiement obligatoire pour confirmer que l'IA pin
+  effectivement les bons slots.
+
+---
+
+## État précédent (2026-05-15, Phase 7.52.3 close — Audit + correctif noms TSR/WT vs PDF)
 
 **Backline v8.14.65 / SW backline-v165 / STATE_VERSION 9 / 964 tests verts.**
 Phase 7.52.3 corrige les 60 noms inventés des packs TSR (91-120) et WT

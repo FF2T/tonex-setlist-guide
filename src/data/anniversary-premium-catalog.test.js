@@ -100,6 +100,44 @@ describe('Phase 7.52 — merge dans PRESET_CATALOG_MERGED', () => {
   });
 });
 
+describe('Phase 7.52.4 — findCatalogEntry fallback toneModelName', () => {
+  it('résout via toneModelName quand le firmware affiche col 2 du PDF', () => {
+    // Sébastien voit "TSR D13 Best Tweed Ever Clean" (toneModelName) dans
+    // ses banks Anniversary, alors que ma key est "TSR D13 Clean" (Preset
+    // Name col 1 du PDF). findCatalogEntry doit retomber sur l'entry.
+    const entry = findCatalogEntry('TSR D13 Best Tweed Ever Clean');
+    expect(entry).toBeTruthy();
+    expect(entry.packName).toBe('The Studio Rats Anniversary');
+    expect(entry.amp).toBe('Divided By 13 CJ11');
+  });
+
+  it('résout "TSR - TSR20 - Light Gain P" sur Tone Model Name', () => {
+    const entry = findCatalogEntry('TSR - TSR20 - Light Gain P');
+    expect(entry).toBeTruthy();
+    expect(entry.amp).toBe('Cornell TSR20');
+    expect(entry.character).toBe('Clean');
+  });
+
+  it('résout "TSR Freeman X Clean??" (double ? du PDF)', () => {
+    const entry = findCatalogEntry('TSR Freeman X Clean??');
+    expect(entry).toBeTruthy();
+    expect(entry.amp).toBe('Friedman Phil X');
+  });
+
+  it('résout "WT MSA TEXSTAR CH2 5" (préfixe MSA absent du Preset Name)', () => {
+    const entry = findCatalogEntry('WT MSA TEXSTAR CH2 5');
+    expect(entry).toBeTruthy();
+    expect(entry.amp).toBe('Mesa Boogie Lonestar (100w)');
+    expect(entry.usages?.[0]?.artist).toBe('Lincoln Brewster');
+  });
+
+  it("retourne null/guessPresetInfo pour un nom inconnu", () => {
+    const entry = findCatalogEntry('Foo Bar Baz Inexistant');
+    // guessPresetInfo retourne un objet "guessed: true" avec amp Unknown.
+    expect(entry?.guessed).toBe(true);
+  });
+});
+
 describe('Phase 7.52 — pas de collision avec FACTORY_CATALOG', () => {
   it("aucune clé du catalog Anniversary Premium ne collisionne avec FACTORY_CATALOG", () => {
     const annKeys = new Set(Object.keys(ANNIVERSARY_PREMIUM_CATALOG));
