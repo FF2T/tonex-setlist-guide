@@ -669,7 +669,173 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-15, Phase 7.51.1 close — Mode démo foundations)
+## État actuel (2026-05-15, Phase 7.51.2 close — Mode démo guards runtime)
+
+**Backline v8.14.53 / SW backline-v153 / STATE_VERSION 9 / 796 tests verts.**
+Phase 7.51.2 implémente les blocages runtime du mode démo : les writes
+profile/setlists/songDb/deletedSetlistIds sont gated par
+`wrapDemoGuard`, les appels Firestore et fetchAI early-return, les
+tabs admin de Mon Profil sont cachés. Toast non-intrusif "Action
+désactivée en mode démo" sur chaque tentative bloquée. Le mode démo
+n'est PAS encore accessible (Phase 7.51.3 pose la carte ProfilePicker
++ URL `?demo=1` + DemoBanner).
+
+### Architecture des guards (Phase 7.51.2)
+
+**`wrapDemoGuard(fn, isDemo, onBlocked, label)`** (state.js, helper pur) :
+- `isDemo=false` → retourne `fn` tel quel (identité, zéro overhead).
+- `isDemo=true` → retourne un wrapper no-op qui notifie `onBlocked(label)`.
+- Callback try/catch'é pour ne pas casser le flow si le UI plante.
+
+**`stripDemoProfiles(state)`** (state.js, helper pur) :
+- Filtre les profils `isDemo: true` du state avant push Firestore.
+- Symétrique à `stripAiCacheForSync` (Phase 5.7.1).
+- Défense en profondeur : le profil démo (chargé in-memory) ne doit
+  JAMAIS être dans Firestore, mais protège contre les écritures
+  accidentelles (debug, import JSON, etc.).
+
+### Câblage App (main.jsx)
+
+- `_setSongDbRaw`, `_setDeletedSetlistIdsRaw`, `_setProfilesRaw` :
+  setters useState renommés (underscore-prefix pour signifier "interne").
+- `_setSetlistsComposed` : ancien wrapper composé (tombstones + stamp
+  lastModified) renommé.
+- `isDemo = useMemo(() => isDemoMode({ profiles }, activeProfileId), …)`.
+- `setSongDb`, `setSetlists`, `setDeletedSetlistIds`, `setProfiles` :
+  exposés via `useMemo(() => wrapDemoGuard(_setRaw, isDemo, showDemoToast, label))`.
+  Quand isDemo=false → identité (référence stable). Quand isDemo=true
+  → no-op + toast. Les ~33 sites d'appel downstream restent inchangés.
+- `useEffect(() => setFirestoreDemoMode(isDemo))` : signale au module
+  Firestore d'early-return tous les appels save/load/poll.
+- `bindActiveProfile(profile)` étendu : capture aussi `profile.isDemo`
+  → i18n module skip l'updater `profile.language` en mode démo.
+- `<ToastDemoBlocked message={demoToastMsg} onDismiss={...}/>` rendu
+  une fois au niveau App, après AppFooter et AppNavBottom.
+
+### Firestore (firestore.js)
+
+- `setFirestoreDemoMode(b)` + `_isDemoMode` module-level.
+- Nouvelle helper `isDemoOrNoSync()` étend `isNoSyncMode()`.
+- Early-return dans `saveToFirestore`, `loadFromFirestore`,
+  `pollRemoteSyncId`, `loadSharedKey`, `saveSharedKey`.
+- `saveToFirestore.prep()` applique `stripDemoProfiles` avant
+  `JSON.stringify` (défense en profondeur).
+
+### i18n (i18n/index.js)
+
+- `_activeProfileIsDemo` module-level posé par `bindActiveProfile`.
+- `setLocale(loc)` skip l'updater `_profileLanguageUpdater(loc)` si
+  `_activeProfileIsDemo` est true. Le `localStorage.backline_locale`
+  est toujours écrit (UI pref globale, OK même en mode démo).
+- Le visiteur démo peut donc changer la langue sans toucher au profil
+  bundlé (in-memory).
+
+### Composant ToastDemoBlocked
+
+`src/app/components/ToastDemoBlocked.jsx` (45 lignes) :
+- Position fixed bottom centered, z-index 99, auto-dismiss 2.5s.
+- `pointer-events: none` : le visiteur peut continuer à cliquer
+  derrière le toast.
+- `role="status"`, `aria-live="polite"` pour l'accessibilité.
+- Icône 🔒 + message i18n trilingue.
+
+### Gates fetchAI
+
+- `SongDetailCard.jsx:66` useEffect : `if (isDemo) return;` en tête,
+  avant les autres conditions. `isDemo` dans deps array.
+- `ListScreen.jsx:316` `analyzeMissingAll` : `if (isDemo) return;`.
+- `ListScreen.jsx:348` `improveAll` : idem.
+- `MaintenanceTab.jsx:92` `recalcAll` : `if (profile?.isDemo) return;`.
+
+Aucun appel `fetchAI` ne peut être déclenché en mode démo. Zéro
+quota Gemini consommé pour le visiteur.
+
+### MonProfilScreen tabs cachés
+
+En mode démo, seul le tab `display` (theme + locale) est exposé.
+Tous les autres (guitars, devices, sources, tonenet, pedale, ann,
+plug, tmp, reco, password, ia, maintenance, export, admin_profiles)
+sont conditionnés par `!isDemo &&`. Le visiteur peut configurer son
+thème et sa langue mais rien d'autre.
+
+### Tests Phase 7.51.2 (+10 nouveaux)
+
+`state.test.js` section "Phase 7.51.2 — Demo guard runtime (helpers purs)" :
+- `wrapDemoGuard` × 6 : identité quand !isDemo, no-op quand isDemo,
+  label par défaut "write", onBlocked optionnel, swallow callback
+  qui throw.
+- `stripDemoProfiles` × 4 : filtre isDemo:true, préserve normaux,
+  state null/undefined safe, immutabilité (new object).
+
+Total : 786 → 796 tests verts.
+
+### Comportement utilisateur attendu (Phase 7.51.2)
+
+- **Profil normal** (Sébastien, Bruno, etc.) : aucun changement.
+  Toutes les actions fonctionnent comme avant. wrapDemoGuard
+  retourne l'identité, zéro overhead.
+- **Profil démo** (à activer Phase 7.51.3) : tout click "Ajouter
+  guitare", "Toggle device", "Modifier banks", "Donner feedback",
+  "Forcer recalcul IA", "Maintenance" → toast 🔒 "Action désactivée
+  en mode démo" + écran inchangé. Aucun appel Firestore. Aucun
+  appel Gemini. Locale et theme changeables (UI pref globale).
+
+### Architecture livrée à fin Phase 7.51.2
+
+```
+src/main.jsx                            APP_VERSION 8.14.52 → 8.14.53
+                                        +import isDemoMode, isDemoProfile,
+                                          loadDemoSnapshot, wrapDemoGuard,
+                                          setFirestoreDemoMode, ToastDemoBlocked
+                                        useState setters → _setRaw (3 sites)
+                                        _setSetlistsComposed (renommage)
+                                        +bloc démo (isDemo, toast, wrappers)
+                                        +useEffect setFirestoreDemoMode
+                                        bindActiveProfile deps +profile.isDemo
+                                        +<ToastDemoBlocked> au root JSX
+public/sw.js                            CACHE backline-v152 → backline-v153
+src/core/state.js                       +wrapDemoGuard, +stripDemoProfiles
+                                        +exports
+src/core/state.test.js                  +10 tests Phase 7.51.2
+src/app/components/ToastDemoBlocked.jsx NOUVEAU — toast 45 lignes
+src/app/utils/firestore.js              +setFirestoreDemoMode, isDemoOrNoSync,
+                                        stripDemoProfiles import
+                                        early-returns 5 fonctions
+                                        prep() applique stripDemoProfiles
+src/i18n/index.js                       +_activeProfileIsDemo
+                                        bindActiveProfile détecte isDemo
+                                        setLocale skip updater si demo
+src/i18n/en.js, es.js                   +demo.blocked
+src/app/screens/SongDetailCard.jsx      useEffect gate isDemo
+src/app/screens/ListScreen.jsx          analyzeMissingAll + improveAll gates
+src/app/screens/MaintenanceTab.jsx      recalcAll gate
+src/app/screens/MonProfilScreen.jsx     tabs hidden si isDemo (sauf display)
+```
+
+### Dette résiduelle Phase 7.51.2 → 7.51.3-4
+
+- **Phase 7.51.3** (accès & banner) : carte "Mode démo · Découvrir
+  Backline" toujours visible sur ProfilePickerScreen. URL `?demo=1`
+  auto-load + nettoyage URL via history.replaceState. Composant
+  `DemoBanner.jsx` sticky top trilingue avec mailto pré-rempli vers
+  sebastien.chemin@gmail.com. Visible partout sauf LiveScreen.
+  Skip trusted device addition.
+- **Phase 7.51.4** (outil de curation admin) : bouton "📦 Exporter
+  snapshot démo" dans MaintenanceTab admin. Helper pur
+  `buildDemoSnapshot(profile, allSetlists, allSongs)`. Workflow doc
+  dans CLAUDE.md : curer un profil dédié → exporter → remplacer
+  src/data/demo-profile.json → commit → push → bump version.
+- **Sites de write non-couverts** : `recordLogin` (loginHistory)
+  passe encore par `_setProfilesRaw` directement dans le code
+  ProfilePicker (à vérifier Phase 7.51.3). En mode démo activé
+  Phase 7.51.3, le visiteur ne se loggue jamais via password donc
+  pas de risque, mais à valider.
+- **Pas de tests E2E** sur les gates UI (juste les helpers purs).
+  À automatiser plus tard.
+
+---
+
+## État précédent (2026-05-15, Phase 7.51.1 close — Mode démo foundations)
 
 **Backline v8.14.52 / SW backline-v152 / STATE_VERSION 9 / 786 tests verts.**
 Phase 7.51.1 pose les fondations du mode démo public : migration

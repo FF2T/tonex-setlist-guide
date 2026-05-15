@@ -98,28 +98,32 @@ function MonProfilScreen({
     onSongDb((p) => p.filter((x) => x.id !== id)); onSetlists((p) => p.map((sl) => ({ ...sl, songIds: sl.songIds.filter((x) => x !== id) })));
   };
 
+  // Phase 7.51.2 — Mode démo : seul le tab "Affichage" (theme + locale)
+  // est exposé. Les autres tabs sont des writes et sont cachés.
+  const isDemo = profile?.isDemo === true;
+
   return (
     <div>
       <Breadcrumb crumbs={[{ label: t('common.home', 'Accueil'), screen: 'list' }, { label: t('profile.title-short', 'Mon profil') }]} onNavigate={onNavigate}/>
       <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 16 }}>{t('profile.title', '👤 Mon profil')}</div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        {tabBtn('profile', t('profile.tab.guitars', '🎸 Guitares'))}
-        {tabBtn('devices', t('profile.tab.devices', '📱 Mes appareils'))}
-        {tabBtn('sources', t('profile.tab.sources', '📦 Sources'))}
-        {profile.isAdmin && tabBtn('tonenet', t('profile.tab.tonenet', '🌐 ToneNET'))}
-        {(() => { const en = new Set(profile.enabledDevices || []); return <>
+        {!isDemo && tabBtn('profile', t('profile.tab.guitars', '🎸 Guitares'))}
+        {!isDemo && tabBtn('devices', t('profile.tab.devices', '📱 Mes appareils'))}
+        {!isDemo && tabBtn('sources', t('profile.tab.sources', '📦 Sources'))}
+        {!isDemo && profile.isAdmin && tabBtn('tonenet', t('profile.tab.tonenet', '🌐 ToneNET'))}
+        {!isDemo && (() => { const en = new Set(profile.enabledDevices || []); return <>
           {en.has('tonex-pedal') && tabBtn('pedale', t('profile.tab.pedal', '🎛 Pedale ToneX'))}
           {en.has('tonex-anniversary') && tabBtn('ann', t('profile.tab.ann', '🎛 ToneX Ann.'))}
           {en.has('tonex-plug') && tabBtn('plug', t('profile.tab.plug', '🔌 ToneX Plug'))}
           {en.has('tonemaster-pro') && tabBtn('tmp', t('profile.tab.tmp', '🎚️ Patches TMP'))}
         </>; })()}
         {tabBtn('display', t('profile.tab.display', '🎨 Affichage'))}
-        {tabBtn('reco', t('profile.tab.reco', '🎯 Préférences IA'))}
-        {tabBtn('password', t('profile.tab.password', '🔐 Mot de passe'))}
-        {profile.isAdmin && tabBtn('ia', t('profile.tab.api-key', '🔑 Clé API'))}
-        {profile.isAdmin && tabBtn('maintenance', t('profile.tab.maintenance', '🔧 Maintenance'))}
-        {profile.isAdmin && tabBtn('export', t('profile.tab.export', '📋 Export / Import'))}
-        {profile.isAdmin && tabBtn('admin_profiles', t('profile.tab.profiles', '👥 Profils'))}
+        {!isDemo && tabBtn('reco', t('profile.tab.reco', '🎯 Préférences IA'))}
+        {!isDemo && tabBtn('password', t('profile.tab.password', '🔐 Mot de passe'))}
+        {!isDemo && profile.isAdmin && tabBtn('ia', t('profile.tab.api-key', '🔑 Clé API'))}
+        {!isDemo && profile.isAdmin && tabBtn('maintenance', t('profile.tab.maintenance', '🔧 Maintenance'))}
+        {!isDemo && profile.isAdmin && tabBtn('export', t('profile.tab.export', '📋 Export / Import'))}
+        {!isDemo && profile.isAdmin && tabBtn('admin_profiles', t('profile.tab.profiles', '👥 Profils'))}
       </div>
       {tab === 'profile' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="guitars" aiKeys={aiKeys} customGuitars={customGuitars} onCustomGuitars={onCustomGuitars}/>}
       {tab === 'devices' && <MesAppareilsTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId}/>}

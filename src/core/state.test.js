@@ -10,6 +10,7 @@ import {
   ensureProfileV8, ensureProfilesV8,
   ensureProfileV9, ensureProfilesV9,
   isDemoProfile, isDemoMode, loadDemoSnapshot,
+  wrapDemoGuard, stripDemoProfiles,
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
@@ -1701,6 +1702,93 @@ describe('loadDemoSnapshot (Phase 7.51.1)', () => {
     expect(snap.profile.isAdmin).toBe(false);
     expect(Array.isArray(snap.setlists)).toBe(true);
     expect(Array.isArray(snap.songs)).toBe(true);
+  });
+});
+
+// ─── Phase 7.51.2 — Demo guard runtime (helpers purs) ────────────────
+
+describe('wrapDemoGuard (Phase 7.51.2)', () => {
+  test('isDemo=false → retourne fn (identité)', () => {
+    const fn = () => 'called';
+    const wrapped = wrapDemoGuard(fn, false);
+    expect(wrapped).toBe(fn);
+    expect(wrapped()).toBe('called');
+  });
+
+  test('isDemo=true → retourne wrapper qui ne call pas fn', () => {
+    let fnCalled = false;
+    const fn = () => { fnCalled = true; return 'should-not-return'; };
+    const wrapped = wrapDemoGuard(fn, true);
+    const result = wrapped();
+    expect(fnCalled).toBe(false);
+    expect(result).toBeUndefined();
+  });
+
+  test('isDemo=true → appelle onBlocked avec label', () => {
+    let receivedLabel = null;
+    const onBlocked = (lbl) => { receivedLabel = lbl; };
+    const wrapped = wrapDemoGuard(() => 'x', true, onBlocked, 'mylabel');
+    wrapped();
+    expect(receivedLabel).toBe('mylabel');
+  });
+
+  test('isDemo=true sans label → onBlocked reçoit "write" par défaut', () => {
+    let receivedLabel = null;
+    wrapDemoGuard(() => null, true, (lbl) => { receivedLabel = lbl; })();
+    expect(receivedLabel).toBe('write');
+  });
+
+  test('isDemo=true sans onBlocked → ne crash pas', () => {
+    const wrapped = wrapDemoGuard(() => null, true);
+    expect(() => wrapped()).not.toThrow();
+    expect(wrapped()).toBeUndefined();
+  });
+
+  test('onBlocked qui throw → swallow silencieusement', () => {
+    const wrapped = wrapDemoGuard(() => null, true, () => { throw new Error('boom'); }, 'lbl');
+    expect(() => wrapped()).not.toThrow();
+  });
+});
+
+describe('stripDemoProfiles (Phase 7.51.2)', () => {
+  test('filtre les profils isDemo: true', () => {
+    const state = {
+      profiles: {
+        sebastien: { id: 'sebastien', isDemo: false, name: 'Seb' },
+        demo: { id: 'demo', isDemo: true, name: 'Démo' },
+        arthur: { id: 'arthur', isDemo: false, name: 'Arthur' },
+      },
+    };
+    const out = stripDemoProfiles(state);
+    expect(out.profiles.sebastien).toBeDefined();
+    expect(out.profiles.arthur).toBeDefined();
+    expect(out.profiles.demo).toBeUndefined();
+  });
+
+  test('préserve tous les profils si aucun n\'est démo', () => {
+    const state = {
+      profiles: {
+        a: { id: 'a', isDemo: false },
+        b: { id: 'b' }, // pas de flag explicite — considéré non-démo
+      },
+    };
+    const out = stripDemoProfiles(state);
+    expect(Object.keys(out.profiles).length).toBe(2);
+  });
+
+  test('state null/undefined safe', () => {
+    expect(stripDemoProfiles(null)).toBe(null);
+    expect(stripDemoProfiles(undefined)).toBe(undefined);
+    expect(stripDemoProfiles({})).toEqual({});
+    expect(stripDemoProfiles({ profiles: null })).toEqual({ profiles: null });
+  });
+
+  test('immutabilité — retourne un nouvel objet', () => {
+    const state = { profiles: { a: { isDemo: false } }, other: 'preserved' };
+    const out = stripDemoProfiles(state);
+    expect(out).not.toBe(state);
+    expect(out.profiles).not.toBe(state.profiles);
+    expect(out.other).toBe('preserved');
   });
 });
 

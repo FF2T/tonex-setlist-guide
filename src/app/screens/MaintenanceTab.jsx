@@ -90,6 +90,7 @@ function MaintenanceTab({ songDb, onSongDb, setlists, onSetlists, onDeletedSetli
   };
 
   const recalcAll = async () => {
+    if (profile?.isDemo) return; // Phase 7.51.2 — pas de fetchAI en mode démo
     setRecalculating(true); setDone(false);
     const total = songDb.length;
     setProgress({ done: 0, total, current: '' });

@@ -40,6 +40,7 @@ const es = {
 
   // common
   'common.home': 'Inicio',
+  'demo.blocked': 'Acción desactivada en modo demo',
   'common.footer-disclaimer': 'Herramienta independiente — ToneX™ es una marca de IK Multimedia SpA. Las demás marcas mencionadas pertenecen a sus respectivos propietarios.',
 
   // devices

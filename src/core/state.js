@@ -980,6 +980,43 @@ function loadDemoSnapshot() {
   return demoSnapshot;
 }
 
+// Phase 7.51.2 — wrapDemoGuard : helper pur composant le runtime guard.
+//
+// Si `isDemo` est false, retourne `fn` tel quel (identité, zéro overhead).
+// Si `isDemo` est true, retourne une fonction no-op qui notifie `onBlocked`
+// avec le `label` du write tenté (utile pour le toast côté UI).
+//
+// Usage typique côté App :
+//   const setProfilesGuarded = wrapDemoGuard(setProfiles, isDemo, showToast, 'profile');
+//
+// Le callback `onBlocked` est try/catch'é pour qu'une erreur dans le UI
+// ne casse pas le flow d'appel (le no-op doit toujours retourner undefined
+// sans crash).
+function wrapDemoGuard(fn, isDemo, onBlocked, label) {
+  if (!isDemo) return fn;
+  return function blockedFn() {
+    if (typeof onBlocked === 'function') {
+      try { onBlocked(label || 'write'); } catch (e) { /* swallow */ }
+    }
+    return undefined;
+  };
+}
+
+// Phase 7.51.2 — stripDemoProfiles : filtre les profils isDemo:true avant
+// push Firestore. Symétrique à stripAiCacheForSync (Phase 5.7.1). Défense
+// en profondeur : le profil démo (chargé in-memory) ne devrait JAMAIS être
+// dans `state.profiles` d'un admin réel, mais si pour une raison X
+// (réécriture in-memory, debug, import JSON), un profil isDemo:true s'y
+// retrouve, on s'assure qu'il ne fuite pas dans Firestore.
+function stripDemoProfiles(state) {
+  if (!state || !state.profiles) return state;
+  const out = { ...state, profiles: {} };
+  for (const [id, p] of Object.entries(state.profiles)) {
+    if (!isDemoProfile(p)) out.profiles[id] = p;
+  }
+  return out;
+}
+
 // ─── loadState / saveState ───────────────────────────────────────────
 //
 // Tous les paths passent par la chaîne complète v1→...→v7. Toutes les
@@ -1363,6 +1400,7 @@ export {
   ensureProfileV8, ensureProfilesV8, migrateV7toV8,
   ensureProfileV9, ensureProfilesV9, migrateV8toV9,
   isDemoProfile, isDemoMode, loadDemoSnapshot,
+  wrapDemoGuard, stripDemoProfiles,
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,

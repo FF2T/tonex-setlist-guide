@@ -44,11 +44,17 @@ let _cachedLocale = null;
 // localStorage global. setLocale() écrit dans profile.language via un
 // updater callback enregistré par l'App + persiste localStorage en
 // fallback (utilisé par ProfilePicker avant le pick).
+//
+// Phase 7.51.2 — En mode démo, setLocale n'écrit PAS dans profile.language
+// (le profil démo est in-memory only). Le visiteur peut quand même
+// changer la langue via le localStorage global (UI pref, pas liée au profil).
 let _activeProfileLanguage = null;
+let _activeProfileIsDemo = false;
 let _profileLanguageUpdater = null;
 
 export function bindActiveProfile(profile) {
   const next = (profile && SUPPORTED_IDS.has(profile.language)) ? profile.language : null;
+  _activeProfileIsDemo = profile?.isDemo === true;
   if (next === _activeProfileLanguage) return;
   _activeProfileLanguage = next;
   if (next) {
@@ -89,7 +95,8 @@ export function setLocale(loc) {
   _activeProfileLanguage = loc;
   _tCache.clear(); // Phase 7.41 — invalider le memo t() au changement de langue.
   // Phase 7.49 — écrit aussi dans profile.language via updater.
-  if (_profileLanguageUpdater) {
+  // Phase 7.51.2 — En mode démo, skip l'updater (profil démo read-only).
+  if (_profileLanguageUpdater && !_activeProfileIsDemo) {
     try { _profileLanguageUpdater(loc); } catch (e) {}
   }
   try { localStorage.setItem(LOCALE_KEY, loc); } catch (e) {}

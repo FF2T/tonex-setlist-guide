@@ -62,8 +62,11 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   // updateAiCache lors d'un fetchAI réussi (Phase 5.10.2).
   const currentRigSnapshot = computeRigSnapshot(allRigsGuitars || guitars || GUITARS);
   const rigStale = song.aiCache?.rigSnapshot && song.aiCache.rigSnapshot !== currentRigSnapshot;
+  // Phase 7.51.2 — mode démo : jamais d'appel fetchAI (cache uniquement).
+  const isDemo = profile?.isDemo === true;
 
   useEffect(() => {
+    if (isDemo) return; // Phase 7.51.2 — pas de fetchAI en mode démo.
     if (localAiResult && !needsRescore && !rigStale) return;
     if (song.aiCache?.result?.cot_step1 && gId && !rigStale) {
       const gType = (guitars || GUITARS).find((x) => x.id === gId)?.type || 'HB';
@@ -99,7 +102,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
       .catch((e) => { setLocalAiErr(e?.message || String(e)); })
       .finally(() => setReloading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [song.id, gId, needsRescore, rigStale]);
+  }, [song.id, gId, needsRescore, rigStale, isDemo]);
 
   const handleGuitarChange = (v) => {
     setGId(v);

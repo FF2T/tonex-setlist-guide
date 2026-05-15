@@ -78,6 +78,7 @@ import {
   getAllRigsGuitars, computeGuitarBiasFromFeedback, mergeGuitarBias,
   dedupSetlists, dedupSetlistsWithTombstones, findSetlistDuplicatesByName,
   applySecrets,
+  isDemoMode, isDemoProfile, loadDemoSnapshot, wrapDemoGuard,
 } from './core/state.js';
 import {
   SOURCE_LABELS, SOURCE_DESCRIPTIONS, SOURCE_BADGES, SOURCE_INFO,
@@ -121,7 +122,9 @@ import {
   loadSharedKey, saveSharedKey,
   getLastSavedSyncId, getLastRemoteSyncId,
   setNoSyncMode,
+  setFirestoreDemoMode,
 } from './app/utils/firestore.js';
+import ToastDemoBlocked from './app/components/ToastDemoBlocked.jsx';
 
 // Phase 7.25 — Auto-activation du mode beta via URL param `?beta=1`.
 // L'utilisateur reçoit un lien `https://ff2t.github.io/...?beta=1` →
@@ -209,7 +212,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.52";
+const APP_VERSION = "8.14.53";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -354,14 +357,14 @@ function App() {
   const initialMigrationToast = initDefault.shared?._migrationToast || null;
 
   // Shared state
-  const [songDb,  setSongDb]  = useState(initDefault.shared.songDb);
+  const [songDb,  _setSongDbRaw]  = useState(initDefault.shared.songDb);
   const [theme,   setTheme]   = useState(initDefault.shared.theme);
   const [setlists, setSetlistsRaw] = useState(initDefault.shared?.setlists || [{id:"sl_main",name:"Ma Setlist",songIds:INIT_SONG_DB_META.map(s=>s.id),profileIds:[initDefault.activeProfileId],lastModified:Date.now()}]);
   // Tombstones v7 : map {[setlistId]: timestamp}. Synchronisés via
   // Firestore pour que le poll/merge ne ressuscite pas une setlist
   // supprimée. Conversion défensive si la valeur initiale est encore
   // un array legacy (cas remote v6 stale).
-  const [deletedSetlistIds, setDeletedSetlistIds] = useState(()=>{
+  const [deletedSetlistIds, _setDeletedSetlistIdsRaw] = useState(()=>{
     const cur = initDefault.shared?.deletedSetlistIds;
     if (Array.isArray(cur)) {
       const ts = Date.now() - 1000;
@@ -375,7 +378,10 @@ function App() {
   // tombstone {[id]: now} ; (2) stamp `lastModified = now` sur chaque
   // setlist modifiée (diff shallow length+name+profileIds+songIds).
   // Tous les écrans utilisent setSetlists comme avant.
-  const setSetlists = (updater) => {
+  // Phase 7.51.2 — wrapper composé en fonction inline. Le wrapper démo
+  // démo en aval (setSetlists via useMemo) inclut _setSetlistsComposed
+  // dans ses dépendances pour rester synchronisé.
+  const _setSetlistsComposed = (updater) => {
     setSetlistsRaw(prev => {
       const next = typeof updater === "function" ? updater(prev) : updater;
       if (!Array.isArray(next)) return next;
@@ -452,16 +458,43 @@ function App() {
     }
     return applySecrets(p);
   },[]);
-  const [profiles, setProfiles] = useState(mergedProfiles);
+  const [profiles, _setProfilesRaw] = useState(mergedProfiles);
   const [activeProfileId, setActiveProfileId] = useState(initDefault.activeProfileId);
 
   // Current profile (derived)
   const profile = profiles[activeProfileId] || Object.values(profiles)[0];
 
+  // Phase 7.51.2 — Demo guard runtime.
+  // isDemo dérivé du profil actif. Quand true, tous les setters wrappés
+  // ci-dessous deviennent no-op + déclenchent un toast non-intrusif.
+  // Le ref isDemoRef sert au passage du flag dans des contextes qui
+  // n'ont pas accès au state React (ex : i18n module).
+  const isDemo = useMemo(() => isDemoMode({ profiles }, activeProfileId), [profiles, activeProfileId]);
+  const [demoToastMsg, setDemoToastMsg] = useState(null);
+  const showDemoToast = useCallback(() => {
+    setDemoToastMsg(t('demo.blocked', 'Action désactivée en mode démo'));
+  }, []);
+
+  // Wrappers démo : si isDemo=false, retournent le setter Raw identité.
+  // Si isDemo=true, retournent un no-op qui appelle showDemoToast.
+  // Les useMemo recapturent _setSetlistsComposed à chaque render (il est
+  // recréé inline) pour garder le wrapper synchronisé. Pour les setters
+  // useState bruts (stables), pas besoin en deps.
+  const setSongDb = useMemo(() => wrapDemoGuard(_setSongDbRaw, isDemo, showDemoToast, 'songDb'), [isDemo, showDemoToast]); // eslint-disable-line react-hooks/exhaustive-deps
+  const setDeletedSetlistIds = useMemo(() => wrapDemoGuard(_setDeletedSetlistIdsRaw, isDemo, showDemoToast, 'deletedSetlistIds'), [isDemo, showDemoToast]); // eslint-disable-line react-hooks/exhaustive-deps
+  const setProfiles = useMemo(() => wrapDemoGuard(_setProfilesRaw, isDemo, showDemoToast, 'profile'), [isDemo, showDemoToast]); // eslint-disable-line react-hooks/exhaustive-deps
+  const setSetlists = useMemo(() => wrapDemoGuard(_setSetlistsComposed, isDemo, showDemoToast, 'setlists'), [isDemo, showDemoToast, _setSetlistsComposed]);
+
+  // Phase 7.51.2 — Bind module Firestore au flag démo (early-return des
+  // appels save/load/poll/sharedKey). Symétrique à isNoSyncMode Phase 7.24.
+  useEffect(() => { setFirestoreDemoMode(isDemo); }, [isDemo]);
+
   // Phase 7.49 — i18n per-profile : binder le profil actif et l'updater
   // de langue à chaque switch. setLocale() écrira directement dans
   // profile.language (via l'updater) au lieu du localStorage global seul.
-  useEffect(() => { bindActiveProfile(profile); }, [profile?.id, profile?.language]);
+  // Phase 7.51.2 — bindActiveProfile détecte aussi isDemo pour skip
+  // l'updater profile.language en mode démo (cf. i18n/index.js).
+  useEffect(() => { bindActiveProfile(profile); }, [profile?.id, profile?.language, profile?.isDemo]);
   useEffect(() => {
     setProfileLanguageUpdater((loc) => {
       setProfiles((p) => {
@@ -1048,6 +1081,7 @@ function App() {
     <AppFooter/>
     {showNav&&<AppNavBottom screen={screen} onNavigate={setScreen} isAdmin={isAdmin}/>}
     {migrationToast&&<div style={{position:"fixed",bottom:80,left:"50%",transform:"translateX(-50%)",background:"var(--brass)",color:"var(--ink)",padding:"10px 18px",borderRadius:"var(--r-md)",fontSize:13,fontWeight:600,zIndex:9999,boxShadow:"var(--shadow-md)",maxWidth:"90vw",textAlign:"center"}}>{migrationToast}</div>}
+    <ToastDemoBlocked message={demoToastMsg} onDismiss={()=>setDemoToastMsg(null)}/>
   </div>;
 }
 
