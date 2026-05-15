@@ -18,4 +18,9 @@ registerDevice({
 });
 
 export { TONEX_PEDAL_CATALOG, isPresetSourceCompatible, LiveBlock };
-export { INIT_BANKS_ANN, FACTORY_BANKS_PEDALE } from './catalog.js';
+export {
+  INIT_BANKS_ANN,
+  FACTORY_BANKS_PEDALE,
+  FACTORY_BANKS_PEDALE_V1,
+  FACTORY_BANKS_PEDALE_V2,
+} from './catalog.js';

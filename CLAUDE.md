@@ -669,7 +669,155 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-14, Phase 7.46 close)
+## État actuel (2026-05-15, Phase 7.47 close)
+
+**Backline v8.14.48 / SW backline-v148 / STATE_VERSION 7 / 765 tests verts.**
+Phase 7.47 corrige le mapping `FACTORY_BANKS_PEDALE` (cassé depuis l'origine
+du repo) et introduit la distinction de sources `Factory` (firmware v2,
+presets PDF 2025/04/03) vs `FactoryV1` (firmware historique, liste à
+fournir). Le hardware ToneX Pedal est identique — seule la liste des
+presets factory pré-installés diffère.
+
+### Bug corrigé : mapping bank → slot décalé
+
+`FACTORY_BANKS_PEDALE` dans `src/data/data_catalogs.js` était décalé dès
+la bank 4 vs le PDF officiel `tone_models/TONEX_Pedal_Pre-loaded_Factory_Presets.pdf`
+v2 (2025/04/03). 5 presets manquaient (`DR OR120`, `HG OR120`, `HG 5051`,
+`LD 5051`, `BOULEVAR`) → toute la suite était shiftée d'un slot. Le code
+s'arrêtait à la bank 48 au lieu de 49 (BS XULTR/BS DOC/BS MUFF perdus).
+
+Aussi corrigé : typos d'orthographe (PDF utilise `HIWTT`, `3NITY`,
+`8O8` avec lettre O — pas `HWTT`, `3NTY`, `808`). Les 4 clés Factory
+correspondantes (`CL/DR/HG HIWTT`, `CL/DR/HG 3NITY`, `MAXO 8O8`,
+`TS8O8 A/B`, `CL HIWTT (Amp)`) ont été renommées dans `FACTORY_CATALOG`
+pour matcher le PDF.
+
+### Split FACTORY_BANKS_PEDALE V1/V2
+
+- `FACTORY_BANKS_PEDALE_V2` : 50 banks × 3 slots = 150 presets conformes
+  au PDF v2.
+- `FACTORY_BANKS_PEDALE_V1` : objet vide (`{}`). Liste à fournir par
+  Sébastien (firmware v1 historique).
+- `FACTORY_BANKS_PEDALE` : alias rétro-compat → pointe sur V2.
+
+### Ajout source FactoryV1 (additif, pas de migration)
+
+`src/core/sources.js` étendu :
+- `SOURCE_IDS` : `[...existing, 'FactoryV1', ...]` (8 sources désormais).
+- `Factory` label clarifié → "Pédale classique v2 — Captures pré-installées".
+- `FactoryV1` ajouté → "Pédale classique v1 — Captures pré-installées".
+- Badges courts : `Factory → 'Fact v2'`, `FactoryV1 → 'Fact v1'`
+  (≤ 8 chars contrainte UI).
+- Descriptions tunées pour distinguer firmware v1 vs v2.
+
+**Pas de migration localStorage** : `profile.availableSources.Factory`
+reste valide et continue à représenter le firmware v2. Les utilisateurs
+verront simplement un nouveau toggle "Pédale classique v1" inactif par
+défaut (aucun preset n'a `src: "FactoryV1"` tant que la liste n'est
+pas fournie).
+
+### BankEditor : dropdown firmware
+
+`src/app/components/BankEditor.jsx` étendu avec une nouvelle prop
+optionnelle `factoryBanksByVersion` (array d'options `{id, label, banks}`)
++ `defaultFactoryVersion`. Quand fournie, un dropdown firmware
+("v2 (2025)" / "v1 (historique)") apparaît au-dessus du bouton "Réinitialiser".
+L'option dont la liste est vide est `disabled` dans le dropdown +
+le bouton est désactivé avec hint "Liste à fournir pour cette version".
+
+`MonProfilScreen` tab `pedale` câblé avec les deux versions. Tabs
+`ann` et `plug` continuent à utiliser la prop `factoryBanks` legacy
+(rétro-compat, aucune migration UI).
+
+### Profil Sébastien (Anniversary) non impacté
+
+Sébastien tourne sur `tonex-anniversary` (`banksAnn` partagé, presets
+issus de la curation TSR/ML, pas de FactoryV2 dans son catalogue
+installé). Le fix touche uniquement le bouton "Réinitialiser banks
+factory" du tab `pedale` (`tonex-pedal`), qui n'est visible que si
+ce device est dans `enabledDevices`. Arthur (futur, ToneX Pedal) est
+le profil cible directement concerné.
+
+### Test conformité PDF v2
+
+`src/devices/tonex-pedal/factory-banks.test.js` (nouveau) hardcode les
+150 slots attendus du PDF v2 et vérifie l'égalité avec
+`FACTORY_BANKS_PEDALE_V2`. 55 tests :
+- 50 tests `test.each` (un par bank, vérifie A/B/C exacts).
+- 1 test `50 banks total`.
+- 1 test `chaque nom existe dans FACTORY_CATALOG`.
+- 1 test `150 presets total`.
+- 1 test `FACTORY_BANKS_PEDALE alias = V2`.
+- 1 test `FACTORY_BANKS_PEDALE_V1 est un objet vide`.
+
+`src/core/sources.test.js` updated : SOURCE_IDS attend désormais 8
+sources (vs 7).
+
+### Conséquences
+
+- Pas de bump STATE_VERSION (changement purement additif).
+- Pas de migration localStorage.
+- Bundle 1882.22 KB → 1884.23 KB (+2 KB pour le nouveau dropdown
+  BankEditor + 5 presets corrects + 6 nouvelles clés i18n).
+- 710 → 765 tests verts (+55 nouveaux).
+- aiCache existants : les caches citant `CL HWTT` / `CL 3NTY` /
+  `MAXO 808` / `TS808 A/B` (typos anciennes) ne matcheront plus
+  `findCatalogEntry` directement → fallback `guessPresetInfo` au
+  prochain render, puis régénération propre au prochain `fetchAI`
+  naturel. Pas critique.
+
+### Architecture livrée à fin Phase 7.47
+
+```
+src/main.jsx                            APP_VERSION 8.14.47 → 8.14.48
+public/sw.js                            CACHE backline-v147 → backline-v148
+src/data/data_catalogs.js               [7.47] FACTORY_CATALOG keys renamed
+                                        (HWTT→HIWTT, 3NTY→3NITY, 808→8O8) ;
+                                        FACTORY_BANKS_PEDALE_V2 réécrit
+                                        conforme PDF v2 (150 presets, 50
+                                        banks) ; FACTORY_BANKS_PEDALE_V1
+                                        placeholder vide ; alias
+                                        FACTORY_BANKS_PEDALE → V2.
+src/core/sources.js                     [7.47] +SOURCE_IDS 'FactoryV1' ;
+                                        Factory label/badge/info clarifiés
+                                        firmware v2.
+src/core/sources.test.js                [7.47] SOURCE_IDS attend 8 ids.
+src/devices/tonex-pedal/catalog.js      [7.47] re-export V1 + V2.
+src/devices/tonex-pedal/index.js        [7.47] re-export V1 + V2.
+src/devices/tonex-pedal/factory-banks.test.js   [7.47] NOUVEAU — 55 tests
+                                        conformité PDF v2.
+src/app/components/BankEditor.jsx       [7.47] +prop factoryBanksByVersion,
+                                        defaultFactoryVersion ; dropdown
+                                        firmware + bouton disabled si liste
+                                        vide.
+src/app/screens/MonProfilScreen.jsx     [7.47] tab pedale câblé sur les
+                                        deux firmwares.
+src/i18n/en.js                          [7.47] +bank-editor.firmware*,
+                                        reset-empty-hint.
+src/i18n/es.js                          [7.47] +bank-editor.firmware*,
+                                        reset-empty-hint.
+```
+
+### Dette résiduelle Phase 7.47
+
+- **Liste presets factory v1** : `FACTORY_BANKS_PEDALE_V1` reste vide
+  tant que Sébastien n'a pas trouvé la liste historique. Quand fournie,
+  ajouter les entries correspondantes au `FACTORY_CATALOG` (avec
+  `src: "FactoryV1"`) et remplir `FACTORY_BANKS_PEDALE_V1` dans
+  `data_catalogs.js`. Le dropdown et le bouton du BankEditor
+  s'activeront automatiquement.
+- **Coexistence Factory v1 + Factory v2 côté Profil → Sources** : un
+  utilisateur ne devrait probablement cocher qu'**un seul** des deux
+  firmwares (le sien). Pas de garde-fou UI pour empêcher de cocher
+  les deux ; à voir si besoin de l'ajouter plus tard.
+- **Renommage final Factory → FactoryV2** : non fait Phase 7.47
+  (additif). Si la nomenclature interne doit être homogénéisée (toutes
+  les entries `src: "Factory"` deviennent `src: "FactoryV2"`),
+  c'est un changement Phase 8+ avec STATE_VERSION 7→8.
+
+---
+
+## État précédent (2026-05-14, Phase 7.46 close)
 
 **Backline v8.14.47 / SW backline-v147 / STATE_VERSION 7 / 710 tests verts.**
 Phase 7.46 corrige un bug majeur de sync Firestore : les éditions de

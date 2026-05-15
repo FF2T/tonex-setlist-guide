@@ -7,9 +7,9 @@ import {
 } from './sources.js';
 
 describe('SOURCE_IDS — liste canonique', () => {
-  test('contient les 7 sources connues', () => {
+  test('contient les 8 sources connues (Phase 7.47 : FactoryV1 ajouté)', () => {
     expect(SOURCE_IDS).toEqual([
-      'TSR', 'ML', 'Anniversary', 'Factory', 'PlugFactory', 'ToneNET', 'custom',
+      'TSR', 'ML', 'Anniversary', 'Factory', 'FactoryV1', 'PlugFactory', 'ToneNET', 'custom',
     ]);
   });
 });

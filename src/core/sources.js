@@ -1,11 +1,12 @@
-// src/core/sources.js — Phase 5 (Item F).
+// src/core/sources.js — Phase 5 (Item F), étendu Phase 7.47.
 // Centralisation des constantes liées au champ `src` des entrées
 // catalog (PRESET_CATALOG_MERGED). Le champ src identifie l'origine
 // d'une capture preset :
 //   TSR          → pack 64 Studio Rats (zip ToneNET)
 //   ML           → AmpliTube ML Sound Lab Essentials
 //   Anniversary  → captures factory ToneX Anniversary
-//   Factory      → captures factory ToneX Pedal (non-Anniversary)
+//   Factory      → captures factory ToneX Pedal — firmware v2 (PDF 2025/04/03)
+//   FactoryV1    → captures factory ToneX Pedal — firmware v1 (à fournir)
 //   PlugFactory  → captures factory ToneX Plug
 //   ToneNET      → preset partagé ToneNET
 //   custom       → capture user-uploadée
@@ -14,8 +15,13 @@
 // confondre avec le device-id 'tonex-anniversary' du registry. La
 // conflation a longtemps existé en code legacy ; centraliser ici les
 // labels permet de remplacer les hardcodes par des imports.
+//
+// Phase 7.47 — ajout de FactoryV1 (additif, pas de migration). Factory
+// continue de pointer sur les presets factory v2 actuels. Le hardware
+// ToneX Pedal est identique entre v1 et v2 — seul change le firmware
+// pré-installé (et donc la liste des presets factory).
 
-const SOURCE_IDS = ['TSR', 'ML', 'Anniversary', 'Factory', 'PlugFactory', 'ToneNET', 'custom'];
+const SOURCE_IDS = ['TSR', 'ML', 'Anniversary', 'Factory', 'FactoryV1', 'PlugFactory', 'ToneNET', 'custom'];
 
 // Label long pour les UI principales (filtres profil, ProfileTab,
 // ViewProfileScreen, ExportImportScreen…).
@@ -25,7 +31,8 @@ const SOURCE_LABELS = {
   TSR: 'TSR — 64 Studio Rats Packs',
   ML: 'ML — ML Sound Lab Essentials',
   Anniversary: 'Anniversary — Captures pré-installées',
-  Factory: 'Pédale classique — Captures pré-installées',
+  Factory: 'Pédale classique v2 — Captures pré-installées',
+  FactoryV1: 'Pédale classique v1 — Captures pré-installées',
   PlugFactory: 'Plug — Captures pré-installées',
   ToneNET: 'ToneNET — Presets téléchargés',
   custom: 'Mes presets personnels',
@@ -37,7 +44,8 @@ const SOURCE_DESCRIPTIONS = {
   TSR: 'Si tu as acheté un ou plusieurs des 64 packs The Studio Rats.',
   ML: 'Si tu as acheté le pack ML Sound Lab Essentials.',
   Anniversary: 'Si tu possèdes une ToneX Pédale Anniversary (rouge).',
-  Factory: 'Si tu possèdes une ToneX Pédale classique (la non-Anniversary).',
+  Factory: 'Si ta ToneX Pédale classique tourne sur le firmware v2 (presets 2025/04/03).',
+  FactoryV1: 'Si ta ToneX Pédale classique tourne sur le firmware v1 (presets historiques).',
   PlugFactory: 'Si tu possèdes une ToneX Plug (la petite).',
   ToneNET: 'Presets gratuits téléchargés depuis tonenet.com.',
   custom: 'Presets que tu as créés ou modifiés toi-même.',
@@ -52,7 +60,8 @@ const SOURCE_BADGES = {
   TSR: 'TSR',
   ML: 'ML',
   Anniversary: 'Pédale',
-  Factory: 'Factory',
+  Factory: 'Fact v2',
+  FactoryV1: 'Fact v1',
   PlugFactory: 'Plug',
   ToneNET: 'ToneNET',
   custom: 'Custom',
@@ -66,7 +75,8 @@ const SOURCE_INFO = {
   ML: { icon: '🎚', label: 'ML Sound Lab Essentials' },
   ToneNET: { icon: '🌐', label: 'ToneNET (preset partagé)' },
   Anniversary: { icon: '🏭', label: 'ToneX Anniversary Factory' },
-  Factory: { icon: '🏭', label: 'ToneX Factory' },
+  Factory: { icon: '🏭', label: 'ToneX Pedal Factory (firmware v2)' },
+  FactoryV1: { icon: '🏭', label: 'ToneX Pedal Factory (firmware v1)' },
   PlugFactory: { icon: '🔌', label: 'ToneX Plug Factory' },
   custom: { icon: '✨', label: 'Preset custom' },
 };

@@ -29,8 +29,12 @@ const es = {
   'bank-editor.close': 'Cerrar',
   'bank-editor.custom-name': 'Nombre del preset personalizado',
   'bank-editor.edit': 'Editar',
+  'bank-editor.firmware': 'Firmware de fábrica:',
+  'bank-editor.firmware-v1': 'Firmware v1 (histórico)',
+  'bank-editor.firmware-v2': 'Firmware v2 (2025/04/03)',
   'bank-editor.ok': 'OK',
   'bank-editor.reset-confirm': 'Sí, reiniciar',
+  'bank-editor.reset-empty-hint': 'Lista de presets de fábrica a proveer para esta versión',
   'bank-editor.reset-factory': 'Reiniciar (config de fábrica)',
   'bank-editor.reset-warning': '¿Volver a la configuración de fábrica? Todas tus modificaciones se perderán.',
 

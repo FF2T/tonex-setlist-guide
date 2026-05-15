@@ -25,7 +25,7 @@ import PacksTab from './PacksTab.jsx';
 import ExportImportScreen from './ExportImportScreen.jsx';
 import { InlineRenameInput } from './ListScreen.jsx';
 import TmpBrowser from '../../devices/tonemaster-pro/Browser.jsx';
-import { FACTORY_BANKS_PEDALE } from '../../devices/tonex-pedal/index.js';
+import { FACTORY_BANKS_PEDALE_V1, FACTORY_BANKS_PEDALE_V2 } from '../../devices/tonex-pedal/index.js';
 import { FACTORY_BANKS_ANNIVERSARY } from '../../devices/tonex-anniversary/index.js';
 import { FACTORY_BANKS_PLUG } from '../../devices/tonex-plug/index.js';
 
@@ -216,7 +216,12 @@ function MonProfilScreen({
           </div>
         </div>
       </div>}
-      {tab === 'pedale' && <BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} factoryBanks={FACTORY_BANKS_PEDALE} toneNetPresets={toneNetPresets}/>}
+      {tab === 'pedale' && <BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} toneNetPresets={toneNetPresets}
+        factoryBanksByVersion={[
+          { id: 'v2', label: t('bank-editor.firmware-v2', 'Firmware v2 (2025/04/03)'), banks: FACTORY_BANKS_PEDALE_V2 },
+          { id: 'v1', label: t('bank-editor.firmware-v1', 'Firmware v1 (historique)'), banks: FACTORY_BANKS_PEDALE_V1 },
+        ]}
+        defaultFactoryVersion="v2"/>}
       {tab === 'ann' && <BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} factoryBanks={FACTORY_BANKS_ANNIVERSARY} toneNetPresets={toneNetPresets}/>}
       {tab === 'plug' && <BankEditor banks={banksPlug} onBanks={onBanksPlug} color="var(--accent)" maxBanks={10} startBank={1} factoryBanks={FACTORY_BANKS_PLUG} toneNetPresets={toneNetPresets}/>}
       {tab === 'tmp' && <TmpBrowser profile={profile} onUpdateCustoms={(customs) => {

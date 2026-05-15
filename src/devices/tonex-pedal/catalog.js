@@ -6,7 +6,12 @@
 // Filtre source : rejette PlugFactory ET Anniversary. Les captures
 // Anniversary sont exclusives au device tonex-anniversary.
 
-import { INIT_BANKS_ANN, FACTORY_BANKS_PEDALE } from '../../data/data_catalogs.js';
+import {
+  INIT_BANKS_ANN,
+  FACTORY_BANKS_PEDALE,
+  FACTORY_BANKS_PEDALE_V1,
+  FACTORY_BANKS_PEDALE_V2,
+} from '../../data/data_catalogs.js';
 
 const TONEX_PEDAL_CATALOG = {
   id: 'tonex-pedal',
@@ -32,6 +37,7 @@ function isPresetSourceCompatible(src) {
 }
 
 export {
-  INIT_BANKS_ANN, FACTORY_BANKS_PEDALE,
+  INIT_BANKS_ANN,
+  FACTORY_BANKS_PEDALE, FACTORY_BANKS_PEDALE_V1, FACTORY_BANKS_PEDALE_V2,
   TONEX_PEDAL_CATALOG, isPresetSourceCompatible,
 };

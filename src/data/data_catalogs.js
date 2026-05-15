@@ -86,9 +86,9 @@ const FACTORY_CATALOG = {
   "DR DZL": {src:"Factory",amp:"Diezel",gain:"mid",style:"metal",scores:{HB:90,SC:55,P90:68}},
   "HG DZL": {src:"Factory",amp:"Diezel",gain:"high",style:"metal",scores:{HB:94,SC:50,P90:65}},
   "LD DZL": {src:"Factory",amp:"Diezel",gain:"high",style:"metal",scores:{HB:94,SC:50,P90:65}},
-  "CL HWTT": {src:"Factory",amp:"Hiwatt DR103",gain:"low",style:"rock",scores:{HB:78,SC:78,P90:84}},
-  "DR HWTT": {src:"Factory",amp:"Hiwatt DR103",gain:"mid",style:"rock",scores:{HB:82,SC:74,P90:82}},
-  "HG HWTT": {src:"Factory",amp:"Hiwatt DR103",gain:"high",style:"rock",scores:{HB:86,SC:68,P90:79}},
+  "CL HIWTT": {src:"Factory",amp:"Hiwatt DR103",gain:"low",style:"rock",scores:{HB:78,SC:78,P90:84}},
+  "DR HIWTT": {src:"Factory",amp:"Hiwatt DR103",gain:"mid",style:"rock",scores:{HB:82,SC:74,P90:82}},
+  "HG HIWTT": {src:"Factory",amp:"Hiwatt DR103",gain:"high",style:"rock",scores:{HB:86,SC:68,P90:79}},
   "DR MZER": {src:"Factory",amp:"Mezzabarba MZero",gain:"mid",style:"rock",scores:{HB:82,SC:74,P90:82}},
   "HG MZER": {src:"Factory",amp:"Mezzabarba MZero",gain:"high",style:"rock",scores:{HB:86,SC:68,P90:79}},
   "LD MZER": {src:"Factory",amp:"Mezzabarba MZero",gain:"high",style:"rock",scores:{HB:86,SC:68,P90:79}},
@@ -131,9 +131,9 @@ const FACTORY_CATALOG = {
   "CL RMAN": {src:"Factory",amp:"Rockman Sustainor",gain:"low",style:"rock",scores:{HB:78,SC:78,P90:84}},
   "DR RMAN": {src:"Factory",amp:"Rockman Sustainor",gain:"mid",style:"rock",scores:{HB:82,SC:74,P90:82}},
   "LD RMAN": {src:"Factory",amp:"Rockman Sustainor",gain:"high",style:"rock",scores:{HB:86,SC:68,P90:79}},
-  "CL 3NTY": {src:"Factory",amp:"Mezzabarba Trinity",gain:"low",style:"rock",scores:{HB:78,SC:78,P90:84}},
-  "DR 3NTY": {src:"Factory",amp:"Mezzabarba Trinity",gain:"mid",style:"rock",scores:{HB:82,SC:74,P90:82}},
-  "HG 3NTY": {src:"Factory",amp:"Mezzabarba Trinity",gain:"high",style:"rock",scores:{HB:86,SC:68,P90:79}},
+  "CL 3NITY": {src:"Factory",amp:"Mezzabarba Trinity",gain:"low",style:"rock",scores:{HB:78,SC:78,P90:84}},
+  "DR 3NITY": {src:"Factory",amp:"Mezzabarba Trinity",gain:"mid",style:"rock",scores:{HB:82,SC:74,P90:82}},
+  "HG 3NITY": {src:"Factory",amp:"Mezzabarba Trinity",gain:"high",style:"rock",scores:{HB:86,SC:68,P90:79}},
   "CL 900": {src:"Factory",amp:"Marshall JCM900",gain:"low",style:"hard_rock",scores:{HB:84,SC:66,P90:78}},
   "HG 900": {src:"Factory",amp:"Marshall JCM900",gain:"mid",style:"hard_rock",scores:{HB:88,SC:62,P90:76}},
   "LD 900": {src:"Factory",amp:"Marshall JCM900",gain:"high",style:"hard_rock",scores:{HB:92,SC:56,P90:73}},
@@ -164,7 +164,7 @@ const FACTORY_CATALOG = {
   "CL DMBL (Amp)": {src:"Factory",amp:"Dumble ODS",gain:"low",style:"blues",scores:{HB:76,SC:94,P90:89}},
   "DR FRIED (Amp)": {src:"Factory",amp:"Friedman BE-100",gain:"mid",style:"hard_rock",scores:{HB:88,SC:62,P90:76}},
   "HG DUAL (Amp)": {src:"Factory",amp:"Mesa Rectifier",gain:"high",style:"metal",scores:{HB:94,SC:50,P90:65}},
-  "CL HWTT (Amp)": {src:"Factory",amp:"Hiwatt DR103",gain:"low",style:"rock",scores:{HB:78,SC:78,P90:84}},
+  "CL HIWTT (Amp)": {src:"Factory",amp:"Hiwatt DR103",gain:"low",style:"rock",scores:{HB:78,SC:78,P90:84}},
   "DR BOGN (Amp)": {src:"Factory",amp:"Bogner Ecstasy",gain:"mid",style:"hard_rock",scores:{HB:88,SC:62,P90:76}},
   "HG FIRE (Amp)": {src:"Factory",amp:"ENGL",gain:"high",style:"metal",scores:{HB:94,SC:50,P90:65}},
   "BOX-SD1": {src:"Factory",amp:"Stomp - Overdrive",gain:"mid",style:"rock",scores:{HB:82,SC:74,P90:82}},
@@ -173,9 +173,9 @@ const FACTORY_CATALOG = {
   "DRVMASTR": {src:"Factory",amp:"Stomp - Overdrive",gain:"mid",style:"rock",scores:{HB:82,SC:74,P90:82}},
   "FULDRV 2": {src:"Factory",amp:"Stomp - Overdrive",gain:"mid",style:"rock",scores:{HB:82,SC:74,P90:82}},
   "FULL DOC": {src:"Factory",amp:"Stomp - Overdrive",gain:"mid",style:"rock",scores:{HB:82,SC:74,P90:82}},
-  "MAXO 808": {src:"Factory",amp:"Stomp - Overdrive",gain:"mid",style:"rock",scores:{HB:82,SC:74,P90:82}},
-  "TS808 A": {src:"Factory",amp:"Stomp - Overdrive",gain:"mid",style:"rock",scores:{HB:82,SC:74,P90:82}},
-  "TS808 B": {src:"Factory",amp:"Stomp - Overdrive",gain:"mid",style:"rock",scores:{HB:82,SC:74,P90:82}},
+  "MAXO 8O8": {src:"Factory",amp:"Stomp - Overdrive",gain:"mid",style:"rock",scores:{HB:82,SC:74,P90:82}},
+  "TS8O8 A": {src:"Factory",amp:"Stomp - Overdrive",gain:"mid",style:"rock",scores:{HB:82,SC:74,P90:82}},
+  "TS8O8 B": {src:"Factory",amp:"Stomp - Overdrive",gain:"mid",style:"rock",scores:{HB:82,SC:74,P90:82}},
   "SUNSET": {src:"Factory",amp:"Stomp - Overdrive",gain:"mid",style:"rock",scores:{HB:82,SC:74,P90:82}},
   "BOX-DS1": {src:"Factory",amp:"Stomp - Distortion",gain:"mid",style:"rock",scores:{HB:82,SC:74,P90:82}},
   "MOUSE": {src:"Factory",amp:"Stomp - Distortion",gain:"mid",style:"rock",scores:{HB:82,SC:74,P90:82}},
@@ -1206,10 +1206,76 @@ const INIT_BANKS_PLUG = {
 };
 
 
-// FACTORY_BANKS_PEDALE
-const FACTORY_BANKS_PEDALE = {
-  0:{cat:"",A:"CL DMBL",B:"DR1 DMBL",C:"DR2 DMBL"},1:{cat:"",A:"DR PLEXI",B:"HG PLEXI",C:"LD PLEXI"},2:{cat:"",A:"CL 515S",B:"HG 515S",C:"LD 515S"},3:{cat:"",A:"CL TWIN",B:"DR1 TWIN",C:"DR2 TWIN"},4:{cat:"",A:"CL OR120",B:"DR DUAL",C:"HG DUAL"},5:{cat:"",A:"LD DUAL",B:"CL VX30",C:"DR VX30"},6:{cat:"",A:"HG VX30",B:"CL WRECK",C:"DR WRECK"},7:{cat:"",A:"HG WRECK",B:"DR FRIED",C:"HG FRIED"},8:{cat:"",A:"LD FRIED",B:"DR SOLD",C:"HG SOLD"},9:{cat:"",A:"LD SOLD",B:"CL MARK3",C:"HG MARK3"},10:{cat:"",A:"LD MARK3",B:"DR 800",C:"HG 800"},11:{cat:"",A:"LD 800",B:"DR DZL",C:"HG DZL"},12:{cat:"",A:"LD DZL",B:"CL HWTT",C:"DR HWTT"},13:{cat:"",A:"HG HWTT",B:"DR MZER",C:"HG MZER"},14:{cat:"",A:"LD MZER",B:"DR 5051",C:"DR1 PRIN"},15:{cat:"",A:"DR2 PRIN",B:"HG PRIN",C:"CL MRK5"},16:{cat:"",A:"DR1 MRK5",B:"DR2 MRK5",C:"DR FIRE"},17:{cat:"",A:"HG FIRE",B:"LD FIRE",C:"CL JAZZ"},18:{cat:"",A:"DR1 JAZZ",B:"DR2 JAZZ",C:"DR THUND"},19:{cat:"",A:"HG THUND",B:"LD THUND",C:"CL BOGN"},20:{cat:"",A:"HG BOGN",B:"LD BOGN",C:"CL DLX"},21:{cat:"",A:"DR1 DLX",B:"DR2 DLX",C:"CL GUNS"},22:{cat:"",A:"HG GUNS",B:"LD GUNS",C:"CL MAVER"},23:{cat:"",A:"DR MAVER",B:"LD MAVER",C:"CL ARCH"},24:{cat:"",A:"HG ARCH",B:"LD ARCH",C:"CL BMAN"},25:{cat:"",A:"DR1 BMAN",B:"DR2 BMAN",C:"CL RMAN"},26:{cat:"",A:"DR RMAN",B:"LD RMAN",C:"CL 3NTY"},27:{cat:"",A:"DR 3NTY",B:"HG 3NTY",C:"CL 900"},28:{cat:"",A:"HG 900",B:"LD 900",C:"BRIGHTON"},29:{cat:"",A:"AMBIENT",B:"PINKDLY",C:"AINTALK"},30:{cat:"",A:"STERPAN",B:"SPRING4",C:"MYBABY"},31:{cat:"",A:"BLKHOLE",B:"1CHAIN",C:"VOWELS"},32:{cat:"",A:"SLAPBACK",B:"PHASEY",C:"LUSH"},33:{cat:"",A:"INFINITE",B:"CL VX30 (Amp)",C:"DR PLEXI (Amp)"},34:{cat:"",A:"HG DZL (Amp)",B:"CL JAZZ (Amp)",C:"DR OR120 (Amp)"},35:{cat:"",A:"HG SOLD (Amp)",B:"CL TWIN (Amp)",C:"DR MARK3 (Amp)"},36:{cat:"",A:"HG 5051 (Amp)",B:"CL DMBL (Amp)",C:"DR FRIED (Amp)"},37:{cat:"",A:"HG DUAL (Amp)",B:"CL HWTT (Amp)",C:"DR BOGN (Amp)"},38:{cat:"",A:"HG FIRE (Amp)",B:"BOX-SD1",C:"CLONE 1"},39:{cat:"",A:"CLONE 2",B:"DRVMASTR",C:"FULDRV 2"},40:{cat:"",A:"FULL DOC",B:"MAXO 808",C:"TS808 A"},41:{cat:"",A:"TS808 B",B:"SUNSET",C:"BOX-DS1"},42:{cat:"",A:"MOUSE",B:"XOTBOOST",C:"FUZZONE"},43:{cat:"",A:"MAYFUZZ",B:"BS B15",C:"BS DB750"},44:{cat:"",A:"BS SVX 2",B:"BS 800",C:"BS 800RB"},45:{cat:"",A:"BS ORNG",B:"BS SVX VR",C:"BS IRON"},46:{cat:"",A:"BS SANS",B:"BS BK7",C:"BS DUG"},47:{cat:"",A:"BS LEE",B:"BS XULTR",C:"BS DOC"},48:{cat:"",A:"BS MUFF",B:"",C:""},
+// FACTORY_BANKS_PEDALE_V2 (firmware v2)
+// Conforme à tone_models/TONEX_Pedal_Pre-loaded_Factory_Presets.pdf v2
+// (2025/04/03). 50 banks (0-49) × 3 slots (A/B/C) = 150 presets.
+// Phase 7.47 : split V1/V2 (hardware identique, firmware diffère).
+const FACTORY_BANKS_PEDALE_V2 = {
+  0:{cat:"",A:"CL DMBL",B:"DR1 DMBL",C:"DR2 DMBL"},
+  1:{cat:"",A:"DR PLEXI",B:"HG PLEXI",C:"LD PLEXI"},
+  2:{cat:"",A:"CL 515S",B:"HG 515S",C:"LD 515S"},
+  3:{cat:"",A:"CL TWIN",B:"DR1 TWIN",C:"DR2 TWIN"},
+  4:{cat:"",A:"CL OR120",B:"DR OR120",C:"HG OR120"},
+  5:{cat:"",A:"DR DUAL",B:"HG DUAL",C:"LD DUAL"},
+  6:{cat:"",A:"CL VX30",B:"DR VX30",C:"HG VX30"},
+  7:{cat:"",A:"CL WRECK",B:"DR WRECK",C:"HG WRECK"},
+  8:{cat:"",A:"DR FRIED",B:"HG FRIED",C:"LD FRIED"},
+  9:{cat:"",A:"DR SOLD",B:"HG SOLD",C:"LD SOLD"},
+  10:{cat:"",A:"CL MARK3",B:"HG MARK3",C:"LD MARK3"},
+  11:{cat:"",A:"DR 800",B:"HG 800",C:"LD 800"},
+  12:{cat:"",A:"DR DZL",B:"HG DZL",C:"LD DZL"},
+  13:{cat:"",A:"CL HIWTT",B:"DR HIWTT",C:"HG HIWTT"},
+  14:{cat:"",A:"DR MZER",B:"HG MZER",C:"LD MZER"},
+  15:{cat:"",A:"DR 5051",B:"HG 5051",C:"LD 5051"},
+  16:{cat:"",A:"DR1 PRIN",B:"DR2 PRIN",C:"HG PRIN"},
+  17:{cat:"",A:"CL MRK5",B:"DR1 MRK5",C:"DR2 MRK5"},
+  18:{cat:"",A:"DR FIRE",B:"HG FIRE",C:"LD FIRE"},
+  19:{cat:"",A:"CL JAZZ",B:"DR1 JAZZ",C:"DR2 JAZZ"},
+  20:{cat:"",A:"DR THUND",B:"HG THUND",C:"LD THUND"},
+  21:{cat:"",A:"CL BOGN",B:"HG BOGN",C:"LD BOGN"},
+  22:{cat:"",A:"CL DLX",B:"DR1 DLX",C:"DR2 DLX"},
+  23:{cat:"",A:"CL GUNS",B:"HG GUNS",C:"LD GUNS"},
+  24:{cat:"",A:"CL MAVER",B:"DR MAVER",C:"LD MAVER"},
+  25:{cat:"",A:"CL ARCH",B:"HG ARCH",C:"LD ARCH"},
+  26:{cat:"",A:"CL BMAN",B:"DR1 BMAN",C:"DR2 BMAN"},
+  27:{cat:"",A:"CL RMAN",B:"DR RMAN",C:"LD RMAN"},
+  28:{cat:"",A:"CL 3NITY",B:"DR 3NITY",C:"HG 3NITY"},
+  29:{cat:"",A:"CL 900",B:"HG 900",C:"LD 900"},
+  30:{cat:"",A:"BRIGHTON",B:"AMBIENT",C:"PINKDLY"},
+  31:{cat:"",A:"AINTALK",B:"BOULEVAR",C:"STERPAN"},
+  32:{cat:"",A:"SPRING4",B:"MYBABY",C:"BLKHOLE"},
+  33:{cat:"",A:"1CHAIN",B:"VOWELS",C:"SLAPBACK"},
+  34:{cat:"",A:"PHASEY",B:"LUSH",C:"INFINITE"},
+  35:{cat:"",A:"CL VX30 (Amp)",B:"DR PLEXI (Amp)",C:"HG DZL (Amp)"},
+  36:{cat:"",A:"CL JAZZ (Amp)",B:"DR OR120 (Amp)",C:"HG SOLD (Amp)"},
+  37:{cat:"",A:"CL TWIN (Amp)",B:"DR MARK3 (Amp)",C:"HG 5051 (Amp)"},
+  38:{cat:"",A:"CL DMBL (Amp)",B:"DR FRIED (Amp)",C:"HG DUAL (Amp)"},
+  39:{cat:"",A:"CL HIWTT (Amp)",B:"DR BOGN (Amp)",C:"HG FIRE (Amp)"},
+  40:{cat:"",A:"BOX-SD1",B:"CLONE 1",C:"CLONE 2"},
+  41:{cat:"",A:"DRVMASTR",B:"FULDRV 2",C:"FULL DOC"},
+  42:{cat:"",A:"MAXO 8O8",B:"TS8O8 A",C:"TS8O8 B"},
+  43:{cat:"",A:"SUNSET",B:"BOX-DS1",C:"MOUSE"},
+  44:{cat:"",A:"XOTBOOST",B:"FUZZONE",C:"MAYFUZZ"},
+  45:{cat:"",A:"BS B15",B:"BS DB750",C:"BS SVX 2"},
+  46:{cat:"",A:"BS 800",B:"BS 800RB",C:"BS ORNG"},
+  47:{cat:"",A:"BS SVX VR",B:"BS IRON",C:"BS SANS"},
+  48:{cat:"",A:"BS BK7",B:"BS DUG",C:"BS LEE"},
+  49:{cat:"",A:"BS XULTR",B:"BS DOC",C:"BS MUFF"},
 };
+
+
+// FACTORY_BANKS_PEDALE_V1 (firmware v1)
+// Phase 7.47 : structure réservée pour la liste historique des presets
+// factory pré-firmware-v2. Liste à fournir par l'utilisateur. Tant que
+// vide, le bouton "Reset factory v1" du BankEditor reste désactivé.
+const FACTORY_BANKS_PEDALE_V1 = {};
+
+
+// Alias rétro-compat : FACTORY_BANKS_PEDALE pointe sur V2 (firmware
+// actuel). Les call sites legacy (Phase 7.46 et antérieures) continuent
+// à fonctionner sans modification. Nouveaux call sites doivent référencer
+// explicitement V1 ou V2 via le sélecteur de firmware.
+const FACTORY_BANKS_PEDALE = FACTORY_BANKS_PEDALE_V2;
 
 
 // FACTORY_BANKS_PLUG
@@ -1221,5 +1287,6 @@ const FACTORY_BANKS_PLUG = {
 export {
   PRESET_CATALOG, FACTORY_CATALOG, PLUG_FACTORY_CATALOG, TSR_PACK_CATALOG,
   ANNIVERSARY_CATALOG, INIT_BANKS_ANN, INIT_BANKS_PLUG,
-  FACTORY_BANKS_PEDALE, FACTORY_BANKS_PLUG,
+  FACTORY_BANKS_PEDALE, FACTORY_BANKS_PEDALE_V1, FACTORY_BANKS_PEDALE_V2,
+  FACTORY_BANKS_PLUG,
 };

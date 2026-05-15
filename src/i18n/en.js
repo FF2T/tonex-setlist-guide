@@ -31,8 +31,12 @@ const en = {
   'bank-editor.close': 'Close',
   'bank-editor.custom-name': 'Custom preset name',
   'bank-editor.edit': 'Edit',
+  'bank-editor.firmware': 'Factory firmware:',
+  'bank-editor.firmware-v1': 'Firmware v1 (legacy)',
+  'bank-editor.firmware-v2': 'Firmware v2 (2025/04/03)',
   'bank-editor.ok': 'OK',
   'bank-editor.reset-confirm': 'Yes, reset',
+  'bank-editor.reset-empty-hint': 'Factory preset list to be supplied for this version',
   'bank-editor.reset-factory': 'Reset to factory',
   'bank-editor.reset-warning': 'Reset to factory configuration? All your edits will be lost.',
 
