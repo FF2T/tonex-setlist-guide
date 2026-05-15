@@ -1015,7 +1015,7 @@ aux champs JSON internes (`preset_ann_name`, `settings_preset`).
 
 ---
 
-## État actuel (2026-05-15, Phase 7.48 close — 6 tickets beta)
+## État précédent (2026-05-15, Phase 7.48 close — 6 tickets beta)
 
 **Backline v8.14.49 / SW backline-v149 / STATE_VERSION 7 / 765 tests verts.**
 Phase 7.48 traite 6 tickets remontés ce week-end par les beta-testeurs
