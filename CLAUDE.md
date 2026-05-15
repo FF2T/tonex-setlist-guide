@@ -2129,6 +2129,41 @@ beta-testeurs, un refactor ciblé sur les ~10 sites visibles
 (badges, titres de cards) pourra être fait Phase 7.50+ — sans toucher
 aux champs JSON internes (`preset_ann_name`, `settings_preset`).
 
+### PDF Anniversary — Preset Name vs Tone Model Name (Phase 7.52.4)
+
+Le PDF officiel `tone_models/TONEX_Pedal_Anniversary_Edition_Premium_Tone_Models.pdf`
+liste chaque capture avec **2 colonnes distinctes** :
+
+- **Preset Name** (col 1) : nom court, version "marketing" parfois.
+  Ex: `"TSR D13 Clean"`, `"TSR TSR20 + Light Gain"`, `"WT TEXSTAR Ch2 5"`.
+- **Tone Model Name** (col 2) : nom complet du modèle ML.
+  Ex: `"TSR D13 Best Tweed Ever Clean"`, `"TSR - TSR20 - Light Gain P"`,
+  `"WT MSA TEXSTAR CH2 5"`.
+
+**Décision firmware Anniversary** (confirmée 2026-05-15 par Sébastien
+en observant la pédale physique) : **le firmware affiche le Tone Model
+Name** (col 2), pas le Preset Name. Donc les utilisateurs voient les
+noms longs dans leurs banks visualisables côté pédale ET côté Backline.
+
+**Conséquence pour le catalog Phase 7.52** (`src/data/anniversary-premium-catalog.js`) :
+les keys utilisent le Preset Name (col 1) par défaut (Phase 7.52.3),
+mais chaque entry a un champ `toneModelName: "<col 2>"`. Le helper
+`findCatalogEntry` (`src/core/catalog.js`) a un fallback Phase 7.52.4
+qui matche `v.toneModelName === name` en plus du match direct sur la
+key. Cela couvre les ~25 cas où col 1 ≠ col 2.
+
+Pour les futures additions de captures Anniversary : **toujours
+renseigner les deux** :
+- `name: "<Preset Name col 1>"` (key dict + display fallback)
+- `toneModelName: "<Tone Model Name col 2>"` (firmware-visible name)
+
+Si col 1 = col 2 (cas majoritaire AA, JS, certaines TJ et WT), pas de
+préoccupation supplémentaire — le match direct fonctionne pour les
+deux variantes.
+
+Source : confirmation utilisateur 2026-05-15 + diff visuel banks
+Sébastien vs PDF source (`tone_models/`).
+
 ---
 
 ## État précédent (2026-05-15, Phase 7.48 close — 6 tickets beta)
