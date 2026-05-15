@@ -677,7 +677,108 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-15, Phase 7.52.2 close — Fix sync iPhone via persistState retry-on-quota)
+## État actuel (2026-05-15, Phase 7.52.3 close — Audit + correctif noms TSR/WT vs PDF)
+
+**Backline v8.14.65 / SW backline-v165 / STATE_VERSION 9 / 964 tests verts.**
+Phase 7.52.3 corrige les 60 noms inventés des packs TSR (91-120) et WT
+(121-150) du catalog Anniversary Premium Phase 7.52, en se basant sur
+le PDF officiel `tone_models/TONEX_Pedal_Anniversary_Edition_Premium_Tone_Models.pdf`
+pages 4-6 (2024/10/29).
+
+**Bug Phase 7.52** : mes 30 entrées TSR (`"TSR Mars Anniv1 Cn1 Crunch"`,
+`"TSR Mars JCM800"`, `"TSR EVH 5150 III Blue"`…) et 30 entrées WT
+(`"WT VOX AC30 1964 TB CL"`, `"WT BAD Cub II R Clean"`…) étaient des
+noms **inventés**, sans correspondance avec le PDF officiel IK Multimedia
+ni avec les vrais slots dans les banks Anniversary du firmware. Diff
+contre le legacy `ANNIVERSARY_CATALOG` (data_catalogs.js) avait révélé :
+les packs AA/JS/TJ étaient corrects à 100% (mêmes keys que le PDF), mais
+**TSR + WT divergeaient complètement** (60/60 keys hors-sujet).
+
+**Conséquence Phase 7.52 + 7.52.1** : mon override Premium ne touchait
+JAMAIS les vrais slots TSR/WT des banks du user. Les usages artist
+(Phil X, Hendrix, Lincoln Brewster, etc.) sur ces entrées étaient
+invisibles au prompt IA car aucun slot installé ne matchait ces noms
+fantômes. Les vrais slots TSR/WT remontaient avec le legacy metadata
+(grossier, sans usages).
+
+### Fix Phase 7.52.3
+
+- **30 entrées TSR réécrites** avec les vrais noms PDF :
+  AmpNation ODR Clean 1, D13 Best Tweed Ever Drive, Freeman X Drive 3
+  (Phil X), Matchbox Inde Klone Boost, MEGABABA DRIVE1, Rectified
+  Pushed/Modern, Socks DC30 Wax-On, TSR20 + Light Gain/Candyman II/SLOW,
+  ZWREK Crunch/Clean/Riverside LG, Talon 50 Clean/Grit/High Gain, etc.
+- **30 entrées WT réécrites** avec les vrais noms PDF :
+  64 AC30 Nm/Br 3-4, 77 ORNG OR120 3-5, 94 MATCH C30 AX/JMP/EF,
+  BadKat C2R Focus/Spectrum, BNSN CHMR, TK IMPRL RHY/LEAD, MATCH CANYON,
+  CarStar 53/58, TEXSTAR Ch1/Ch2, Mars Super100/Super1100 (PDF typo
+  préservée), etc.
+- **2 micro-corrections TJ** : `"TJ 68 Twin 15  N CLN"` et
+  `"TJ 68 Twin 15  V DRTY"` (double espace réel du PDF, mes Phase 7.52
+  avait single).
+- **Usages préservés et migrés** :
+  - WT Mars Super100 Br 5 → Hendrix
+  - WT Mars Super1100 JMP 5 → Hendrix (Voodoo Child)
+  - WT TEXSTAR Ch2 5 → Lincoln Brewster (Mesa Lonestar = signature)
+  - WT 64 AC30 Br 4 → Brian May, The Edge
+  - TSR Freeman X Drive 1/3 → Phil X
+  - TSR ZWREK Crunch → Joe Walsh, Brad Paisley
+  - TSR Rectified - Modern 1 → Tool, Metallica
+  - TSR TSR20 + SLOW → Eric Johnson
+
+### Architecture livrée Phase 7.52.3
+
+```
+src/main.jsx                                APP_VERSION 8.14.64 → 8.14.65
+public/sw.js                                CACHE backline-v164 → backline-v165
+src/data/anniversary-premium-catalog.js     Pack TSR (lignes 981-1300+) :
+                                            30 entrées réécrites
+                                            Pack WT (lignes ~1300-1600+) :
+                                            30 entrées réécrites
+                                            2 corrections TJ double espace
+```
+
+### Conséquences
+
+- **964/964 tests verts** (aucune régression structurelle — schéma
+  identique, même nb d'entrées par pack, même src=Anniversary).
+- **Bundle** 2123 KB → 2122 KB (~stable).
+- Les recos AC/DC restent stables (basées sur les entrées AA déjà OK
+  Phase 7.52).
+- Les recos Hendrix peuvent désormais préférer `WT Mars Super100 JH OD`
+  (qui existe et a usages explicit Voodoo Child) au lieu de la 1ère
+  capture Plexi générique.
+- Les utilisateurs Worship avec setup Mesa Lonestar (Lincoln Brewster
+  style) bénéficient maintenant du pin direct via PRIORITÉ 1.
+
+### Dette résiduelle Phase 7.52.3
+
+- **PDF typo `Super1100`** : la ligne 148 du PDF affiche
+  `WT Mars Super1100 JMP 5` (preset name) et `WT Mars Super100 JMP 5`
+  (tone model name). Je respecte la typo PDF comme key (visible dans
+  les banks user) mais la metadata `amp` reste `"Marshall Super 100 JH"`
+  cohérente. Si le firmware réel corrige la typo, ajuster.
+- **Cab metadata sommaire** pour les TSR boutiques (Socks DC30,
+  Cornell TSR20, Gryphin Talon 50, DrZ Z Wreck) : le PDF liste juste
+  "TSR" ou "The Studio Rats" comme cab, sans détail. La metadata
+  reflète cette imprécision. Si l'utilisateur veut plus de précision,
+  ajuster cab à l'avenir (Phase 8+).
+- **Pas de tests Vitest dédiés au matching slot-réel** : la suite
+  vérifie la structure mais pas que les noms matchent ceux du firmware.
+  Smoke-test manuel post-déploiement : Sébastien doit voir ses slots
+  TSR/WT remonter avec usages corrects sur ses morceaux Hendrix,
+  Lincoln Brewster, Phil X, etc.
+- **Le legacy `ANNIVERSARY_CATALOG` dans data_catalogs.js peut maintenant
+  être supprimé** : les 150 keys Phase 7.52.3 matchent désormais le PDF
+  et donc les firmware factory banks. Le `buildFactoryBanksAnniversary`
+  (devices/tonex-anniversary/catalog.js) pourrait pointer sur
+  `ANNIVERSARY_PREMIUM_CATALOG` à la place. **Cleanup reporté Phase
+  7.52.4** (vérifier que l'ordre Object.keys() du nouveau catalog matche
+  l'ordre legacy pour ne pas casser le mapping bank-par-défaut).
+
+---
+
+## État précédent (2026-05-15, Phase 7.52.2 close — Fix sync iPhone via persistState retry-on-quota)
 
 **Backline v8.14.64 / SW backline-v164 / STATE_VERSION 9 / 964 tests verts.**
 Phase 7.52.2 fix B-TECH-02 (sync iPhone) découvert ce soir :
