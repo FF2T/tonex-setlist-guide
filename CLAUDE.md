@@ -669,7 +669,61 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-15, Phase 7.52 close — Catalog Anniversary Premium 150 captures curées)
+## État actuel (2026-05-15, Phase 7.52.1 close — Usages catalog injectés au prompt IA)
+
+**Backline v8.14.63 / SW backline-v163 / STATE_VERSION 9 / 960 tests verts.**
+Phase 7.52.1 hotfix Phase 7.52 : le helper `buildInstalledSlotsSection`
+(`src/app/utils/fetchAI.js`) sérialise désormais les `usages` du catalog
+dans le prompt IA, format ` — usages: [AC/DC (Highway to Hell, Back in
+Black, TNT); Led Zeppelin]`. Avant : les 32 entrées Anniversary Premium
+avec usages artist/songs (Phase 7.52) étaient invisibles à Gemini — le
+prompt ne listait que `(slot, name, amp, gain, style, src)`. Résultat
+observé en prod après Phase 7.52 : sur Highway to Hell, l'IA choisissait
+22C `TJ 74 Purple Plexi` (90%) au lieu de 9C `MRSH JT50 I Drive BAL SCH
+CAB` (90%) qui a pourtant `AC/DC, Highway to Hell` dans ses usages. Pour
+Back in Black, l'IA hallucinait `AA FMAN B100D BE` (Friedman BE-100) au
+lieu d'`AA MRSH JT50` (rig Angus Young 1979).
+
+L'instruction finale de la section "INSTRUCTION CAPTURES" a aussi été
+durcie en 4 priorités explicites : (1) usages contenant artiste OU
+titre, (2) nom mentionnant artiste/morceau (Blink-182, Kirk & James),
+(3) capture custom/specialty matching ampli, (4) Factory matching
+ampli. Rappel Phase 7.34 : capture avec `usages: [X]` est RÉSERVÉE à
+X (rejette cross-contamination Hendrix Plexi → AC/DC).
+
+**Pas de bump SCORING_VERSION** (V9 inchangé), **pas de migration**.
+Pour bénéficier du fix sur les aiCache existants : "🗑 Invalider tous
+les caches IA" (admin) + batch "🤖 Analyser/MAJ N".
+
+### Architecture livrée Phase 7.52.1
+
+```
+src/main.jsx                    APP_VERSION 8.14.62 → 8.14.63
+public/sw.js                    CACHE backline-v162 → backline-v163
+src/app/utils/fetchAI.js        +formatUsages(usages) helper pur
+                                fmt() append usagesPart à chaque ligne
+                                INSTRUCTION CAPTURES durcie 4 priorités
+                                + rappel Phase 7.34 anti cross-contamination
+```
+
+### Dette résiduelle Phase 7.52.1
+
+- Pas de tests Vitest dédiés sur `formatUsages` ni
+  `buildInstalledSlotsSection` (helpers internes pas exportés). À
+  exporter pour tester en isolation si régression observée.
+- Le respect du prompt dépend toujours de Gemini Flash. Si malgré
+  les 4 priorités l'IA continue à proposer du Purple Plexi sur
+  Highway to Hell, fallback : post-processing JS qui force
+  `preset_ann_name` au slot avec usages-match. Acceptable car
+  non-déterministe LLM = trade-off intrinsèque.
+- Le `usages` sérialisé est tronqué à 4 morceaux par artiste pour
+  éviter prompt overflow. Si une capture a 10 morceaux ciblés, les
+  6 derniers sont absents du prompt mais restent dans le catalog
+  (utilisés par le scoring V9 local).
+
+---
+
+## État précédent (2026-05-15, Phase 7.52 close — Catalog Anniversary Premium 150 captures curées)
 
 **Backline v8.14.62 / SW backline-v162 / STATE_VERSION 9 / 960 tests verts.**
 Phase 7.52 livre le catalog complet des 150 captures premium pré-installées

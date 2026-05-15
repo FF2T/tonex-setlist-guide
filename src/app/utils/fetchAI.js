@@ -30,6 +30,25 @@ import { getSharedGeminiKey } from './shared-key.js';
 // l'IA ignore les captures user spécifiques (Blink-182 Mesa Boggie, Kirk &
 // James Gasoline, etc.) et hallucine un ref_amp générique Marshall/JCM800
 // → le résolveur V9 mappe alors sur un mauvais slot.
+//
+// Phase 7.52.1 — Append `usages` (artiste + morceaux ciblés) à chaque ligne
+// quand le catalog entry les fournit (typiquement les 32 entrées AA/JS/TJ/TSR/WT
+// Anniversary Premium qui ont des usages explicit). Sans ça, l'IA n'a aucun
+// signal pour distinguer une capture générique d'une capture artist-specific
+// alors que l'Étape 6 du prompt repose sur cette info.
+function formatUsages(usages) {
+  if (!Array.isArray(usages) || usages.length === 0) return '';
+  const parts = usages.map((u) => {
+    if (!u || !u.artist) return null;
+    if (Array.isArray(u.songs) && u.songs.length > 0) {
+      return `${u.artist} (${u.songs.slice(0, 4).join(', ')})`;
+    }
+    return u.artist;
+  }).filter(Boolean);
+  if (!parts.length) return '';
+  return ` — usages: [${parts.join('; ')}]`;
+}
+
 function buildInstalledSlotsSection(banksAnn, banksPlug) {
   const lines = [];
   const fmt = (bank, col, name) => {
@@ -39,7 +58,8 @@ function buildInstalledSlotsSection(banksAnn, banksPlug) {
     const style = info.style || '?';
     const gain = info.gain || '?';
     const src = info.src || '?';
-    return `- ${bank}${col} "${name}" — ${amp} — ${style} ${gain} gain — src:${src}`;
+    const usagesPart = formatUsages(info.usages);
+    return `- ${bank}${col} "${name}" — ${amp} — ${style} ${gain} gain — src:${src}${usagesPart}`;
   };
   const annLines = [];
   for (const [k, v] of Object.entries(banksAnn || {})) {
@@ -60,7 +80,7 @@ function buildInstalledSlotsSection(banksAnn, banksPlug) {
   if (plugLines.length) {
     lines.push(`\nCAPTURES INSTALLÉES DANS LES BANKS PLUG (10 banks × 3 slots A/B/C) :\n${plugLines.join('\n')}`);
   }
-  lines.push(`\nINSTRUCTION CAPTURES : Si une de ces captures matche le morceau (par nom d'artiste/morceau dans le preset, par ampli historique, ou par style/gain), retourne son nom EXACT dans preset_ann_name (pour Pedale/Anniversary) et preset_plug_name (pour Plug). Priorise les captures contenant le nom d'artiste/morceau (ex: "Blink-182 Mesa Boggie" pour un morceau Blink-182). Sinon retourne null pour ces champs et laisse le scoring fallback choisir.`);
+  lines.push(`\nINSTRUCTION CAPTURES : Si une de ces captures matche le morceau, retourne son nom EXACT dans preset_ann_name (pour Pedale/Anniversary) et preset_plug_name (pour Plug). PRIORITÉ ABSOLUE 1 : capture dont les "usages: [...]" contiennent l'artiste OU le titre du morceau analysé. Ex: pour "Highway to Hell" de AC/DC, choisis le slot dont usages contient "AC/DC" OU "Highway to Hell". PRIORITÉ 2 : capture dont le NOM mentionne explicitement l'artiste/morceau (ex: "Blink-182 Mesa Boggie" pour un morceau Blink-182). PRIORITÉ 3 : capture custom/specialty (src: TSR, ML, custom, ToneNET, Anniversary) dont l'ampli matche l'ampli historique. PRIORITÉ 4 : Factory matching l'ampli. Sinon retourne null pour ces champs et laisse le scoring fallback choisir. RAPPEL Phase 7.34 : une capture avec "usages: [X]" est RÉSERVÉE à l'artiste X — n'utilise PAS "AA MRSH SL100 JU Dimed" (usages Hendrix/Led Zep) pour un morceau qui n'est ni Hendrix ni Led Zep.`);
   return lines.join('\n');
 }
 
