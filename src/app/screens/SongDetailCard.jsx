@@ -56,10 +56,16 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   const [installSlot, setInstallSlot] = useState({ ann: 'A', plug: 'A' });
 
   const needsRescore = song.aiCache?.sv !== SCORING_VERSION;
+  // Phase 7.49 — Ticket 10 : si l'analyse cachée a été faite avec un rig
+  // différent (autre profil ou rig évolué depuis), on force un fetchAI
+  // complet plutôt que le rescore local. Le rigSnapshot est posé par
+  // updateAiCache lors d'un fetchAI réussi (Phase 5.10.2).
+  const currentRigSnapshot = computeRigSnapshot(allRigsGuitars || guitars || GUITARS);
+  const rigStale = song.aiCache?.rigSnapshot && song.aiCache.rigSnapshot !== currentRigSnapshot;
 
   useEffect(() => {
-    if (localAiResult && !needsRescore) return;
-    if (song.aiCache?.result?.cot_step1 && gId) {
+    if (localAiResult && !needsRescore && !rigStale) return;
+    if (song.aiCache?.result?.cot_step1 && gId && !rigStale) {
       const gType = (guitars || GUITARS).find((x) => x.id === gId)?.type || 'HB';
       const cleaned2 = { ...song.aiCache.result, preset_ann: null, preset_plug: null, ideal_preset: null, ideal_preset_score: 0, ideal_top3: null };
       const recalc = enrichAIResult(cleaned2, gType, gId, banksAnn, banksPlug);
@@ -93,7 +99,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
       .catch((e) => { setLocalAiErr(e?.message || String(e)); })
       .finally(() => setReloading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [song.id, gId, needsRescore]);
+  }, [song.id, gId, needsRescore, rigStale]);
 
   const handleGuitarChange = (v) => {
     setGId(v);
@@ -205,7 +211,11 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
       {reloading && (
         <div style={{ textAlign: 'center', padding: '16px 0' }}>
           <div style={{ fontSize: 28, marginBottom: 6, animation: 'spin 1.5s linear infinite', display: 'inline-block' }}>&#9203;</div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{tFormat('song-detail.analyzing', { guitar: g?.short || t('song-detail.this-guitar', 'cette guitare') }, 'Analyse en cours pour {guitar}...')}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            {rigStale
+              ? t('song-detail.rig-stale-analyzing', 'Analyse précédente faite avec un autre rig — recalcul pour ton matériel…')
+              : tFormat('song-detail.analyzing', { guitar: g?.short || t('song-detail.this-guitar', 'cette guitare') }, 'Analyse en cours pour {guitar}...')}
+          </div>
         </div>
       )}
 

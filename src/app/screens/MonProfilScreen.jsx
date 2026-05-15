@@ -454,7 +454,7 @@ function PasswordTab({ profile, onProfiles, activeProfileId, inp }) {
 
   return <div>
     <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>Change le mot de passe de TON profil ({profile.name}). Il te sera redemandé au prochain login sur un nouvel appareil.</div>
-    <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, maxWidth: 480 }}>
+    <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, maxWidth: 480, width: '100%', boxSizing: 'border-box' }}>
       {hasPassword && <>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>Mot de passe actuel</div>
         <input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder="Mot de passe actuel" autoComplete="current-password" style={{ ...inp, width: '100%', marginBottom: 12 }}/>

@@ -669,7 +669,110 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-15, Phase 7.47 close)
+## État actuel (2026-05-15, Phase 7.48 close — 6 tickets beta)
+
+**Backline v8.14.49 / SW backline-v149 / STATE_VERSION 7 / 765 tests verts.**
+Phase 7.48 traite 6 tickets remontés ce week-end par les beta-testeurs
+(Bruno, Francisco) et observations Mac/iPhone. Vague 1+2 sur le plan
+en 4 vagues : quick wins responsive + logique IA/profil ciblée.
+
+### Tickets clôturés Phase 7.48
+
+- **T11** — `Sire` ajoutée à `GUITAR_BRANDS` via 2 modèles (Larry Carlton T7
+  Telecaster + T3 semi-hollow). Single coils, type SC. Le profil de scoring
+  est inféré via les heuristiques `inferGuitarProfile` existantes (les
+  noms incluent "Telecaster" / "semi-hollow" pour matcher les regex).
+- **T1** — Bouton 🗑️ ListScreen responsive : `padding '0 6px'` (au lieu de
+  '0 12px') + `minWidth: 32` pour garantir une cible touch acceptable.
+  Libère ~8px sur la row morceau (cf testing iPhone 390px).
+- **T5** — PasswordTab overflow iPhone : wrapper `MonProfilScreen.jsx:457`
+  passe à `width: '100%' + boxSizing: 'border-box'` (en plus de
+  `maxWidth: 480`). Évite que les 32px de padding débordent du parent
+  390px.
+- **T4** — `historicalFeedback` désormais passé à `fetchAI` dans les
+  batches : `ListScreen.analyzeMissingAll` (l.331), `ListScreen.improveAll`
+  (l.368), `MaintenanceTab.recalcAll` (l.100). 3 sites alignés sur le
+  pattern de `SongDetailCard.jsx:78` (concat de `song.feedback[].text`
+  via `.join('. ')`). Le recalcul tient maintenant compte de l'historique
+  feedback du user — alignement avec Phase 7.6.
+- **T8 court terme** — `makeDefaultProfile` (`core/state.js:565`) split en
+  deux branches : `isAdmin=true` garde les defaults Sébastien (rétrocompat,
+  rarement appelé), `isAdmin=false` retourne désormais un profil
+  **vierge** : `myGuitars=[]`, `enabledDevices=[]`, `banksAnn/Plug={}`,
+  `availableSources={ TSR:false, ML:false, Anniversary:false, Factory:false,
+  FactoryV1:false, PlugFactory:false, ToneNET:false, custom:false }`,
+  `customPacks/customGuitars/editedGuitars` déjà vides. Un nouveau
+  beta-testeur démarre sans présupposé sur son rig. Wizard onboarding
+  3 étapes reporté à Phase 7.50+ (cf dette résiduelle).
+- **T10** — Détection `rigStale` (= `song.aiCache.rigSnapshot !==
+  computeRigSnapshot(rig actif)`) ajoutée dans le `useEffect` de
+  `SongDetailCard.jsx:60`. Quand stale, le rescore local via
+  `enrichAIResult` est bypassé et un `fetchAI` complet est forcé.
+  Message UI dédié : *"Analyse précédente faite avec un autre rig —
+  recalcul pour ton matériel…"* (3 langues). Resout le trade-off
+  Phase 7.29.5 (aiCache partagé entre profils via dedup songDb par id) :
+  un nouveau user qui ajoute un morceau déjà en base déclenche
+  automatiquement un re-fetch à l'ouverture, sans attendre qu'il
+  clique manuellement.
+
+### Conséquences
+
+- Pas de bump STATE_VERSION (changements additifs côté GUITARS +
+  logique d'effets côté UI).
+- Pas de migration localStorage.
+- Bundle 1884.47 → 1885.47 KB (+1 KB pour 2 nouvelles guitares Sire,
+  2 traductions EN/ES, message UI rigStale).
+- 765/765 tests verts (test `makeDefaultProfile` mis à jour pour
+  expecter le profil vierge non-admin).
+- aiCache existants restent valides ; les caches avec rigSnapshot
+  divergent du rig actif déclenchent désormais un re-fetch auto à
+  l'ouverture du morceau (au lieu d'attendre clic batch).
+
+### Architecture livrée à fin Phase 7.48
+
+```
+src/main.jsx                            APP_VERSION 8.14.48 → 8.14.49
+public/sw.js                            CACHE backline-v148 → backline-v149
+src/core/guitars.js                     [7.48 T11] +Sire (Larry Carlton T7, T3)
+src/core/state.js                       [7.48 T8] makeDefaultProfile split
+                                        admin/non-admin, non-admin vierge.
+src/core/state.test.js                  [7.48 T8] test 'user' updated → []
+src/app/screens/ListScreen.jsx          [7.48 T1] bouton 🗑️ padding réduit
+                                        [7.48 T4] historicalFeedback × 2
+src/app/screens/MaintenanceTab.jsx      [7.48 T4] historicalFeedback recalcAll
+src/app/screens/MonProfilScreen.jsx     [7.48 T5] PasswordTab wrapper width/box-sizing
+src/app/screens/SongDetailCard.jsx      [7.48 T10] rigStale détection + force fetchAI
+src/i18n/en.js                          [7.48 T10] +song-detail.rig-stale-analyzing
+src/i18n/es.js                          [7.48 T10] +song-detail.rig-stale-analyzing
+```
+
+### Vagues 3-4 reportées (tickets 6, 9, 7, 2, 3)
+
+- **T6** (Paranoid reco) : nécessite dump aiCache iPhone pour identifier
+  si l'IA hallucine `ref_amp=Orange` ou si la résolution rate Laney.
+  Investigation à mener avec Sébastien au prochain test.
+- **T9** (audit vocabulaire preset/capture) : refactor cohérent
+  prompt + UI + i18n. Gros chantier scope-bound à part.
+- **T7** (langue per-profile) : STATE_VERSION 7→8. Phase 7.51 dédiée
+  (cluster avec autres migrations potentielles si possible).
+- **T2** (LWW symétrique aiCache) : touche `mergeSongDbPreservingLocalAiCache`.
+  Risque régression sync — Phase 7.52 avec test plan dédié.
+- **T3** (SW background fetch iPhone) : Service Worker background sync.
+  Architecture lourde — Phase 7.53+.
+
+### Dette résiduelle Phase 7.48
+
+- Wizard onboarding 3 étapes (T8 moyen terme) : à la première
+  connexion d'un profil non-admin sans devices ni guitares, afficher
+  "Matériel ? / Guitares ? / Setlist ?". Reporté Phase 7.50+ quand
+  on aura du recul sur le profil vierge.
+- Test Vitest sur `rigStale` flow dans SongDetailCard : non ajouté
+  Phase 7.48 (utiliserait Vitest + jsdom + mock fetchAI). À ajouter
+  si régression observée.
+
+---
+
+## État précédent (2026-05-15, Phase 7.47 close)
 
 **Backline v8.14.48 / SW backline-v148 / STATE_VERSION 7 / 765 tests verts.**
 Phase 7.47 corrige le mapping `FACTORY_BANKS_PEDALE` (cassé depuis l'origine

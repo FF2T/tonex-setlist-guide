@@ -97,7 +97,10 @@ function MaintenanceTab({ songDb, onSongDb, setlists, onSetlists, onDeletedSetli
       const s = songDb[i];
       setProgress({ done: i, total, current: s.title });
       try {
-        const r = await fetchAI(s, '', banksAnn, banksPlug, aiProvider, aiKeys, GUITARS, null, null, profile?.recoMode || 'balanced', guitarBias);
+        const historicalFeedback = Array.isArray(s.feedback) && s.feedback.length > 0
+          ? s.feedback.map((f) => f.text).filter(Boolean).join('. ')
+          : null;
+        const r = await fetchAI(s, '', banksAnn, banksPlug, aiProvider, aiKeys, GUITARS, historicalFeedback, null, profile?.recoMode || 'balanced', guitarBias);
         onSongDb((p) => p.map((x) => x.id === s.id ? { ...x, aiCache: updateAiCache(x.aiCache, '', r) } : x));
       } catch (e) { console.warn('Recalc failed for', s.title, e); }
       if (i < songDb.length - 1) await new Promise((r) => setTimeout(r, 2000));

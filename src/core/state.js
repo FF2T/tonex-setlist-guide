@@ -560,38 +560,53 @@ function mergeSongDbPreservingLocalAiCache(local, remote) {
 //
 // Phase 5 (Item E) — le champ legacy `devices` (pedale, anniversary,
 // plug) n'est plus créé. Le state v6 utilise uniquement
-// `enabledDevices` comme source de vérité. Les profils v5 et antérieurs
-// sont migrés via migrateV5toV6 qui drop le champ.
+// `enabledDevices` comme source de vérité.
+//
+// Phase 7.48 — un nouveau profil non-admin démarre vierge (myGuitars=[],
+// enabledDevices=[], availableSources tous false, banks vides). Le user
+// configure son rig depuis Mon Profil. Wizard onboarding reporté à 7.50+.
+// Le profil admin conserve les defaults Sébastien (rare, créé via
+// migration historique uniquement).
 function makeDefaultProfile(id, name, isAdmin = false, password = '') {
-  // Defaults v3 : admin = Anniversary + Plug (Sébastien) ; standard
-  // utilisateur = Pedal + Plug (defaultEnabled du registry).
-  const enabledDevices = isAdmin
-    ? ['tonex-anniversary', 'tonex-plug']
-    : ['tonex-pedal', 'tonex-plug'];
+  if (isAdmin) {
+    return {
+      id, name, isAdmin, password,
+      myGuitars: GUITARS.map((g) => g.id),
+      customGuitars: [],
+      editedGuitars: {},
+      enabledDevices: ['tonex-anniversary', 'tonex-plug'],
+      availableSources: { TSR: true, ML: true, Anniversary: true, Factory: true, ToneNET: true },
+      customPacks: [],
+      banksAnn: { ...INIT_BANKS_ANN },
+      banksPlug: { ...INIT_BANKS_PLUG },
+      tmpPatches: { custom: [], factoryOverrides: {} },
+      aiProvider: 'gemini',
+      aiKeys: { anthropic: '', gemini: '' },
+      loginHistory: [],
+      lastModified: Date.now(),
+      recoMode: 'balanced',
+      guitarBias: {},
+    };
+  }
   return {
     id, name, isAdmin, password,
-    myGuitars: GUITARS.map((g) => g.id),
+    myGuitars: [],
     customGuitars: [],
     editedGuitars: {},
-    enabledDevices,
-    availableSources: { TSR: true, ML: true, Anniversary: true, Factory: true, ToneNET: true },
+    enabledDevices: [],
+    availableSources: {
+      TSR: false, ML: false, Anniversary: false,
+      Factory: false, FactoryV1: false, PlugFactory: false,
+      ToneNET: false, custom: false,
+    },
     customPacks: [],
-    banksAnn: isAdmin ? { ...INIT_BANKS_ANN } : { ...FACTORY_BANKS_PEDALE },
-    banksPlug: isAdmin ? { ...INIT_BANKS_PLUG } : { ...FACTORY_BANKS_PLUG },
-    // Phase 3 (v4) : Tone Master Pro patches custom + overrides factory.
+    banksAnn: {},
+    banksPlug: {},
     tmpPatches: { custom: [], factoryOverrides: {} },
     aiProvider: 'gemini',
     aiKeys: { anthropic: '', gemini: '' },
     loginHistory: [],
-    // Phase 5.7 — last-write-wins per-profile.
     lastModified: Date.now(),
-    // Phase 7.1 — Préférences pour les recos IA.
-    // recoMode : 'balanced' (défaut, comportement actuel),
-    //   'faithful' (l'IA privilégie la guitare/ampli originaux),
-    //   'interpretation' (privilégie versatilité, ES-335/SG/Strat).
-    // guitarBias : map { styleId: guitarId } pour préférences explicites.
-    //   Ex: { blues: 'es335', hard_rock: 'sg61' } biaise le scoring vers
-    //   ces guitares quand on tombe sur ces styles de morceau.
     recoMode: 'balanced',
     guitarBias: {},
   };

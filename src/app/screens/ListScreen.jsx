@@ -328,7 +328,10 @@ function ListScreen({
       const s = missing[i];
       setAnalyzeAllStatus({ current: i + 1, total: missing.length, songTitle: s.title });
       try {
-        const r = await fetchAI(s, '', banksAnn, banksPlug, aiProvider, aiKeys, allRigsGuitars || guitars, null, null, profile?.recoMode || 'balanced', guitarBias);
+        const historicalFeedback = Array.isArray(s.feedback) && s.feedback.length > 0
+          ? s.feedback.map((f) => f.text).filter(Boolean).join('. ')
+          : null;
+        const r = await fetchAI(s, '', banksAnn, banksPlug, aiProvider, aiKeys, allRigsGuitars || guitars, historicalFeedback, null, profile?.recoMode || 'balanced', guitarBias);
         if (analyzeCancelRef.current) break;
         const rigSnapshot = computeRigSnapshot(allRigsGuitars || guitars);
         onSongDb((p) => p.map((x) => x.id === s.id ? { ...x, aiCache: { ...updateAiCache(x.aiCache, '', r, { rigSnapshot }), sv: SCORING_VERSION } } : x));
@@ -365,7 +368,10 @@ function ListScreen({
         const gId = savedGId || ig?.[0] || '';
         setImproveStatus({ current: i + 1, total: toImprove.length, round, songTitle: s.title });
         try {
-          const r = await waitOrCancel(fetchAI(s, gId, banksAnn, banksPlug, aiProvider, aiKeys, allRigsGuitars || guitars, null, null, profile?.recoMode || 'balanced', guitarBias));
+          const historicalFeedback = Array.isArray(s.feedback) && s.feedback.length > 0
+            ? s.feedback.map((f) => f.text).filter(Boolean).join('. ')
+            : null;
+          const r = await waitOrCancel(fetchAI(s, gId, banksAnn, banksPlug, aiProvider, aiKeys, allRigsGuitars || guitars, historicalFeedback, null, profile?.recoMode || 'balanced', guitarBias));
           if (improveCancelRef.current) break;
           onSongDb((p) => p.map((x) => x.id === s.id ? { ...x, aiCache: updateAiCache(x.aiCache, gId, r) } : x));
         } catch (e) { if (improveCancelRef.current) break; /* skip */ }
@@ -681,8 +687,8 @@ function ListScreen({
                       border: isC ? '1px solid var(--green-border)' : '1px solid var(--a7)',
                       borderLeft: 'none',
                       borderRadius: isExpanded ? '0 10px 0 0' : '0 10px 10px 0',
-                      padding: '0 12px', cursor: 'pointer', color: 'var(--text-dim)',
-                      fontSize: 14, flexShrink: 0, transition: 'color 0.15s ease',
+                      padding: '0 6px', cursor: 'pointer', color: 'var(--text-dim)',
+                      fontSize: 14, minWidth: 32, flexShrink: 0, transition: 'color 0.15s ease',
                     }}
                     onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--red)'; }}
                     onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-dim)'; }}

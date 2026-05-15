@@ -542,6 +542,7 @@ const en = {
   'song-detail.ai-error-prefix': '⚠️ AI analysis failed:',
   'song-detail.alternatives': 'Catalog alternatives',
   'song-detail.analyzing': 'Analyzing for {guitar}...',
+  'song-detail.rig-stale-analyzing': 'Previous analysis ran with a different rig — recomputing for your gear…',
   'song-detail.bank': 'Bank',
   'song-detail.best-installed-for': 'Best installed presets for {guitar}',
   'song-detail.bpm': 'BPM',

@@ -438,10 +438,18 @@ describe('makeDefaultProfile · enabledDevices conforme au flag isAdmin', () => 
     expect(p.devices).toBeUndefined();
   });
 
-  test('utilisateur standard → Pedal + Plug', () => {
+  test('utilisateur standard (Phase 7.48) → profil vierge', () => {
     const p = makeDefaultProfile('user', 'User', false);
-    expect(p.enabledDevices).toEqual(['tonex-pedal', 'tonex-plug']);
+    expect(p.enabledDevices).toEqual([]);
     expect(p.devices).toBeUndefined();
+    expect(p.myGuitars).toEqual([]);
+    expect(p.banksAnn).toEqual({});
+    expect(p.banksPlug).toEqual({});
+    expect(p.availableSources).toEqual({
+      TSR: false, ML: false, Anniversary: false,
+      Factory: false, FactoryV1: false, PlugFactory: false,
+      ToneNET: false, custom: false,
+    });
   });
 });
 

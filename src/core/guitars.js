@@ -17,6 +17,8 @@ const GUITARS = [
   {id:"tele63",name:"Telecaster AM Vintage II 63",short:"Tele 63",type:"SC",brand:"Fender"},
   {id:"tele_ultra",name:"Telecaster Ultra",short:"Tele Ultra",type:"SC",brand:"Fender"},
   {id:"jazzmaster",name:"Jazzmaster",short:"Jazzmaster",type:"SC",brand:"Fender"},
+  {id:"sire_t7",name:"Sire Larry Carlton T7 (Telecaster)",short:"Sire T7",type:"SC",brand:"Sire"},
+  {id:"sire_t3",name:"Sire Larry Carlton T3 (semi-hollow)",short:"Sire T3",type:"SC",brand:"Sire"},
 ];
 
 const GUITAR_BRANDS = [...new Set(GUITARS.map(g=>g.brand))];

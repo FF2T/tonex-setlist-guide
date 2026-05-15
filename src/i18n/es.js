@@ -540,6 +540,7 @@ const es = {
   'song-detail.ai-error-prefix': '⚠️ Análisis IA fallido:',
   'song-detail.alternatives': 'Alternativas catálogo',
   'song-detail.analyzing': 'Analizando para {guitar}...',
+  'song-detail.rig-stale-analyzing': 'Análisis anterior con otro equipo — recalculando para tu material…',
   'song-detail.bank': 'Banco',
   'song-detail.best-installed-for': 'Mejores presets instalados para {guitar}',
   'song-detail.bpm': 'BPM',
