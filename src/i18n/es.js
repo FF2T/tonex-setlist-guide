@@ -41,6 +41,11 @@ const es = {
   // common
   'common.home': 'Inicio',
   'demo.blocked': 'Acción desactivada en modo demo',
+  'demo.card-title': 'Modo demo · Descubre Backline',
+  'demo.card-badge': 'Sin cuenta',
+  'demo.card-subtitle': 'Prueba la app con un perfil de demostración. Nada se guarda.',
+  'demo.banner-text': 'Estás probando Backline en modo demo.',
+  'demo.banner-link': 'Para obtener tu propio perfil con tu equipo, solicita acceso',
   'common.footer-disclaimer': 'Herramienta independiente — ToneX™ es una marca de IK Multimedia SpA. Las demás marcas mencionadas pertenecen a sus respectivos propietarios.',
 
   // devices

@@ -125,24 +125,36 @@ import {
   setFirestoreDemoMode,
 } from './app/utils/firestore.js';
 import ToastDemoBlocked from './app/components/ToastDemoBlocked.jsx';
+import DemoBanner from './app/components/DemoBanner.jsx';
 
 // Phase 7.25 — Auto-activation du mode beta via URL param `?beta=1`.
 // L'utilisateur reçoit un lien `https://ff2t.github.io/...?beta=1` →
 // le mode local est activé AVANT toute initialisation Firestore (avant
 // le mount de App), donc aucune donnée Sébastien/Arthur/Franck n'est
 // pull. L'URL est nettoyée du param pour éviter la confusion.
+//
+// Phase 7.51.3 — Auto-activation du mode démo via URL param `?demo=1`.
+// Le snapshot bundlé (loadDemoSnapshot) est injecté in-memory dans le
+// state initial de App (cf. useEffect mount). L'URL est nettoyée.
+let _demoModeRequested = false;
 if (typeof window !== 'undefined' && window.location && window.location.search) {
   try {
     const params = new URLSearchParams(window.location.search);
     if (params.get('beta') === '1') {
       setNoSyncMode(true);
       params.delete('beta');
-      const newSearch = params.toString();
-      const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '') + window.location.hash;
-      window.history.replaceState({}, '', newUrl);
-      console.log('[beta] Auto-activated no-sync mode via URL param. Local-only.');
     }
-  } catch (e) { console.warn('[beta] URL param check failed:', e); }
+    if (params.get('demo') === '1' || params.get('demo') === 'true') {
+      _demoModeRequested = true;
+      params.delete('demo');
+      console.log('[demo] Auto-activated demo mode via URL param.');
+    }
+    const newSearch = params.toString();
+    const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '') + window.location.hash;
+    if (newUrl !== window.location.pathname + window.location.search + window.location.hash) {
+      window.history.replaceState({}, '', newUrl);
+    }
+  } catch (e) { console.warn('[url] Param check failed:', e); }
 }
 
 // ─── Code applicatif (verbatim depuis <script type="text/babel">) ───
@@ -212,7 +224,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.53";
+const APP_VERSION = "8.14.54";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -488,6 +500,31 @@ function App() {
   // Phase 7.51.2 — Bind module Firestore au flag démo (early-return des
   // appels save/load/poll/sharedKey). Symétrique à isNoSyncMode Phase 7.24.
   useEffect(() => { setFirestoreDemoMode(isDemo); }, [isDemo]);
+
+  // Phase 7.51.3 — enterDemoMode : entre dans le mode démo via la carte
+  // ProfilePicker ou l'URL ?demo=1. Ajoute le profil démo aux profils
+  // existants (non-destructif) + injecte ses setlists et songs + bascule
+  // sur activeProfileId='demo'. Le useEffect persist Phase 7.51.3 skip
+  // localStorage tant qu'isDemo est true → aucune trace au reload.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const enterDemoMode = useCallback(() => {
+    const snap = loadDemoSnapshot();
+    if (!snap || !snap.profile) { console.warn('[demo] Snapshot invalide'); return; }
+    _setProfilesRaw(prev => ({ ...prev, [snap.profile.id]: snap.profile }));
+    setSetlistsRaw(prev => {
+      const existingIds = new Set((prev || []).map(s => s.id));
+      const newOnes = (snap.setlists || []).filter(s => !existingIds.has(s.id));
+      return [...(prev || []), ...newOnes];
+    });
+    _setSongDbRaw(prev => {
+      const existingIds = new Set((prev || []).map(s => s.id));
+      const newOnes = (snap.songs || []).filter(s => !existingIds.has(s.id));
+      return [...(prev || []), ...newOnes];
+    });
+    setActiveProfileId(snap.profile.id);
+    setScreen('list');
+    console.log('[demo] Entered demo mode with snapshot', { setlists: snap.setlists?.length || 0, songs: snap.songs?.length || 0 });
+  }, []);
 
   // Phase 7.49 — i18n per-profile : binder le profil actif et l'updater
   // de langue à chaque switch. setLocale() écrira directement dans
@@ -786,6 +823,11 @@ function App() {
       shared:{songDb,theme,setlists,customGuitars,toneNetPresets,deletedSetlistIds,lastModified:lastSharedModRef.current},
       profiles,
     };
+    // Phase 7.51.3 — mode démo : ne JAMAIS persister le snapshot in-memory
+    // dans localStorage (sinon le snapshot démo pollue le profil normal
+    // de l'utilisateur trusted sur cet appareil). Le visiteur démo a
+    // tout in-memory ; reload → on relit le snapshot frais bundlé.
+    if(isDemo) return;
     autoBackup();
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){}
     if(!hasMounted.current){hasMounted.current=true;return;}
@@ -948,6 +990,15 @@ function App() {
   const loginRecorded=useRef(false);
   useEffect(()=>{
     if(!firestoreLoaded||screen!=="loading") return;
+    // Phase 7.51.3 — URL ?demo=1 court-circuite l'auto-login : on entre
+    // direct dans le profil démo, aucun trusted device n'est consulté
+    // ni ajouté.
+    if(_demoModeRequested){
+      _demoModeRequested = false; // consommé
+      enterDemoMode();
+      loginRecorded.current=true;
+      return;
+    }
     const allProfiles=firestoreProfiles||profiles;
     const profileCount=Object.keys(allProfiles).length;
     // Check if a session was active before reload
@@ -1029,7 +1080,7 @@ function App() {
   var showNav=mainScreens.includes(screen);
 
   if(screen==="loading") return <div className="page-root"><div style={{textAlign:"center",padding:"60px 20px"}}><div style={{marginBottom:16,display:"flex",justifyContent:"center"}}><BacklineIcon size={56} color="var(--brass-300)"/></div><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)"}}>{APP_NAME}</div><div style={{fontSize:13,color:"var(--text-muted)",marginTop:8}}>{t("loading","Chargement...")}</div></div></div>;
-  if(screen==="pick") return <div className="page-root"><ProfilePickerScreen profiles={profiles} onPick={pickProfile} appVersion={APP_VERSION} onUpgradePassword={(id,newHash)=>setProfiles(p=>({...p,[id]:{...p[id],password:newHash,lastModified:Date.now()}}))}/></div>;
+  if(screen==="pick") return <div className="page-root"><ProfilePickerScreen profiles={profiles} onPick={pickProfile} appVersion={APP_VERSION} onUpgradePassword={(id,newHash)=>setProfiles(p=>({...p,[id]:{...p[id],password:newHash,lastModified:Date.now()}}))} onDemoEnter={enterDemoMode}/></div>;
 
   // Phase 4 — mode scène plein écran. Le LiveScreen gère lui-même son
   // layout (pas d'AppHeader/AppNavBottom).
@@ -1076,6 +1127,7 @@ function App() {
   else screenContent=<HomeScreen songDb={songDb} onSongDb={setSongDb} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} mySongIds={mySongIds} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} onOptimizer={()=>setScreen("optimizer")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
 
   return <div className="page-root">
+    {isDemo && screen!=="live" && <DemoBanner/>}
     <AppHeader {...headerProps}/>
     {screenContent}
     <AppFooter/>

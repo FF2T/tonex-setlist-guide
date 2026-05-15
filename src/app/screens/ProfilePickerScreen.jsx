@@ -13,7 +13,7 @@ import { APP_NAME } from '../../core/branding.js';
 import { profileColor } from '../components/profile-color.js';
 import { verifyPassword, hashPassword, isPasswordLegacy } from '../../core/crypto-utils.js';
 
-function ProfilePickerScreen({ profiles, onPick, appVersion, onUpgradePassword }) {
+function ProfilePickerScreen({ profiles, onPick, appVersion, onUpgradePassword, onDemoEnter }) {
   const trustedProfiles = Object.values(profiles).filter((p) => isTrusted(p.id) || !p.password);
   const [selectedId, setSelectedId] = useState(null);
   const [pwd, setPwd] = useState('');
@@ -68,6 +68,33 @@ function ProfilePickerScreen({ profiles, onPick, appVersion, onUpgradePassword }
       <div style={{ fontSize: 32, marginBottom: 8 }}>🎸</div>
       <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>{APP_NAME}</div>
       <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 32 }}>{trustedProfiles.length > 0 ? t('picker.who-plays', "Qui joue aujourd'hui ?") : t('picker.login', 'Connexion')}</div>
+      {typeof onDemoEnter === 'function' && <button
+        data-testid="profile-picker-demo-card"
+        onClick={onDemoEnter}
+        style={{
+          width: '100%', maxWidth: 400, marginBottom: 20,
+          background: 'linear-gradient(135deg, var(--brass-200) 0%, var(--copper-400) 100%)',
+          border: '2px solid var(--brass-400)',
+          borderRadius: 'var(--r-xl)',
+          padding: '18px 16px',
+          cursor: 'pointer',
+          textAlign: 'left',
+          boxShadow: 'var(--shadow-md)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 14,
+        }}
+      >
+        <div style={{ fontSize: 28, flexShrink: 0 }}>🎸</div>
+        <div style={{ flex: 1, color: 'var(--tolex-900)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+            <span style={{ fontSize: 14, fontWeight: 800 }}>{t('demo.card-title', 'Mode démo · Découvrir Backline')}</span>
+            <span style={{ fontSize: 9, fontWeight: 700, background: 'var(--tolex-900)', color: 'var(--brass-100)', padding: '2px 6px', borderRadius: 'var(--r-sm)' }}>{t('demo.card-badge', 'Sans compte')}</span>
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 500, opacity: 0.85 }}>{t('demo.card-subtitle', 'Teste l\'app avec un profil de démonstration. Aucune donnée sauvegardée.')}</div>
+        </div>
+        <div style={{ fontSize: 18, color: 'var(--tolex-900)', opacity: 0.7 }}>→</div>
+      </button>}
       {trustedProfiles.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 12, width: '100%', maxWidth: 400, marginBottom: 16 }}>
         {trustedProfiles.sort((a, b) => a.name.localeCompare(b.name)).map((p) => {
           const c = profileColor(p.id);
