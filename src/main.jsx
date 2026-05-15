@@ -71,7 +71,7 @@ import {
   computeNewzikCreateNames, computeNewzikMergeNames,
   toggleSetlistProfile,
   getDevicesForRender,
-  loadState, saveState,
+  loadState, saveState, persistState,
   autoBackup, listBackups, restoreBackup, clearBackups,
   loadSecrets, saveSecrets,
   loadTrusted, isTrusted, setTrusted,
@@ -224,7 +224,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.63";
+const APP_VERSION = "8.14.64";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -829,7 +829,12 @@ function App() {
     // tout in-memory ; reload → on relit le snapshot frais bundlé.
     if(isDemo) return;
     autoBackup();
-    try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch(e){}
+    // Phase 7.52.2 (B-TECH-02) — persistState avec retry-on-quota.
+    // Si quota saturé, purge les backups et re-tente. Si échec final,
+    // console.error LOUD : indique que les modifs locales ne sont pas
+    // persistées localement (mais peuvent quand même être pushées à
+    // Firestore via le bloc suivant si firestoreLoaded).
+    persistState(state);
     if(!hasMounted.current){hasMounted.current=true;return;}
     if(!firestoreLoaded) return;
     // Phase 6.1.3 — si on vient juste de pull (justPulledRef=true), la

@@ -71,9 +71,14 @@ const LS_TRUSTED_KEY = 'tonex_trusted_devices';
 const LS_BACKUP_KEY = 'tonex_guide_backups';
 // Phase 6.2 — réduit à 2 pour tenir dans le quota localStorage Safari
 // iOS (~2 MB total). Le state lui-même peut peser 1.3 MB avec aiCache,
-// donc 5 backups complets dépassent largement le quota. 2 suffit pour
-// rollback en cas de bug.
-const MAX_BACKUPS = 2;
+// donc 5 backups complets dépassent largement le quota.
+// Phase 7.52.2 (B-TECH-02) — réduit à 1 : Phase 7.52 (catalog Anniversary
+// Premium) a fait grossir le bundle de 232 KB, et avec aiCache stripped
+// du sync Firestore (Phase 5.7.1) mais conservé localement, le state
+// local atteint régulièrement 1.5+ MB sur les profils avec 100+ songs.
+// 2 backups = 3+ MB, hors quota Safari iOS. 1 backup = ~1.5 MB + state
+// actif → marge confortable.
+const MAX_BACKUPS = 1;
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 function mergeBanks(saved, init) {
@@ -1103,6 +1108,54 @@ function saveState(state) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
 }
 
+// Phase 7.52.2 (B-TECH-02) — persistState avec retry-on-quota.
+//
+// Bug reproduit iPhone 2026-05-15 : modifs Mac (setlists + guitares) ne
+// remontaient pas sur iPhone, malgré ☁️ vert. Cause : Phase 6.2 (MAX_BACKUPS=2)
+// + Phase 7.52 (catalog Anniversary +232 KB) ont fait gonfler le state local
+// au-delà du quota Safari iOS (~2 MB). autoBackup remplissait 2 × 1.5 MB →
+// localStorage saturé → le setItem du state principal qui suit throw
+// QuotaExceededError, **silently swallowed** par le `catch(e){}` historique
+// (main.jsx:832). Au reload, iPhone récupère l'ancien state non muté.
+//
+// Fix : si quota au setItem state → purge agressive des backups + retry.
+// Si toujours quota après purge → console.error LOUD (le caller peut afficher
+// un toast). Retourne true si persist OK, false sinon.
+function persistState(state) {
+  let payload;
+  try { payload = JSON.stringify(state); } catch (e) {
+    console.error('persistState: JSON.stringify failed', e);
+    return false;
+  }
+  try {
+    localStorage.setItem(LS_KEY, payload);
+    return true;
+  } catch (e) {
+    if (!isQuotaError(e)) {
+      console.warn('persistState failed (non-quota):', e);
+      return false;
+    }
+    // Quota saturé. Tentative de récupération : purge des backups (le state
+    // principal est la priorité — un backup perdu est récupérable via
+    // Firestore au prochain pull, alors qu'un state principal non persisté
+    // signifie perte de modifications utilisateur).
+    try { localStorage.removeItem(LS_BACKUP_KEY); } catch { /* ignore */ }
+    try {
+      localStorage.setItem(LS_KEY, payload);
+      console.warn('persistState: recovered after purging backups (quota).');
+      return true;
+    } catch (e2) {
+      // State principal lui-même plus gros que le quota disponible.
+      // Rien à faire côté code — l'utilisateur doit nettoyer manuellement.
+      console.error(
+        'CRITICAL: persistState failed even after purging backups.',
+        'State size:', payload.length, 'bytes.', e2,
+      );
+      return false;
+    }
+  }
+}
+
 // ─── Backups (rotation des 5 derniers, throttle 5 min) ───────────────
 //
 // FIX 4.1 C — robustesse au quota localStorage :
@@ -1455,7 +1508,7 @@ export {
   makeDefaultProfile,
   migrateV1toV2, migrateV2toV3, migrateV3toV4, migrateV4toV5, migrateV5toV6, migrateV6toV7,
   dedupSetlists, dedupSetlistsWithTombstones, setlistDedupKey, findSetlistDuplicatesByName,
-  loadState, saveState,
+  loadState, saveState, persistState,
   autoBackup, listBackups, restoreBackup, clearBackups, isQuotaError,
   loadSecrets, saveSecrets,
   loadTrusted, isTrusted, setTrusted,

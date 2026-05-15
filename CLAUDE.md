@@ -677,7 +677,84 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-15, Phase 7.52.1 close — Usages catalog injectés au prompt IA)
+## État actuel (2026-05-15, Phase 7.52.2 close — Fix sync iPhone via persistState retry-on-quota)
+
+**Backline v8.14.64 / SW backline-v164 / STATE_VERSION 9 / 964 tests verts.**
+Phase 7.52.2 fix B-TECH-02 (sync iPhone) découvert ce soir :
+
+**Bug rapporté** : modifs Mac (setlists + guitares) ne remontaient pas
+sur iPhone malgré ☁️ vert affiché. Direction Mac → iPhone bloquée.
+
+**Cause** : Phase 6.2 (MAX_BACKUPS=2) + Phase 7.52 (catalog Anniversary
++232 KB) ont fait gonfler le state local au-delà du quota Safari iOS
+(~2 MB). `autoBackup()` remplissait 2 × 1.5 MB de backups → localStorage
+saturé → le `setItem(LS_KEY, state)` qui suit (main.jsx:832) throw
+`QuotaExceededError` **silently swallowed** par le `catch(e){}`
+historique. Au reload iPhone, l'ancien state non-muté est rechargé →
+semble "désynchronisé".
+
+**Fix 2-niveaux** :
+
+1. **MAX_BACKUPS 2 → 1** (`src/core/state.js`) : réduit le volume des
+   backups de moitié (1 × 1.5 MB au lieu de 2 × 1.5 MB).
+2. **`persistState(state)` helper avec retry-on-quota** : nouveau
+   helper dans `state.js`, remplace l'inline `setItem(LS_KEY, ...)`
+   de main.jsx. Si quota au 1er setItem → **purge agressive des
+   backups** (`localStorage.removeItem(LS_BACKUP_KEY)`) + retry. Si
+   toujours quota → `console.error` LOUD avec taille du payload.
+   Retourne `true`/`false` (le caller peut afficher un toast si
+   échec final — pas encore câblé Phase 7.52.2).
+
+### Architecture livrée Phase 7.52.2
+
+```
+src/main.jsx                    APP_VERSION 8.14.63 → 8.14.64
+                                +import persistState
+                                setItem(LS_KEY, ...) → persistState(state)
+public/sw.js                    CACHE backline-v163 → backline-v164
+src/core/state.js               MAX_BACKUPS 2 → 1
+                                +persistState helper (retry-on-quota
+                                avec purge backups)
+                                +export persistState
+src/core/state.test.js          +4 tests persistState (OK direct,
+                                quota+retry succeed, quota persistant
+                                fail-soft, non-quota error)
+                                test autoBackup retry-on-quota adapté
+                                (MAX_BACKUPS=1 → early return)
+```
+
+### Action post-déploiement iPhone
+
+1. Reload PWA iPhone **2 fois** (1ère = active SW v164, 2ème = boot
+   sur v8.14.64).
+2. Vérifier header affiche `v8.14.64`.
+3. Mac → toggle une guitare ou ajouter un morceau setlist → 5s
+   plus tard, recharger iPhone → modification doit apparaître.
+4. Si **toujours désynchronisé** : ouvrir DevTools console iPhone
+   (via Safari Mac → Develop → iPhone) → chercher
+   `"CRITICAL: persistState failed"` → si présent, le state global
+   est plus gros que le quota disponible → solution :
+   "🗑 Vider les sauvegardes" + "Réinitialiser mes analyses" dans
+   Mon Profil → Préférences IA pour réduire l'aiCache local.
+
+### Dette résiduelle Phase 7.52.2
+
+- **Toast utilisateur en cas d'échec persist** : `persistState`
+  retourne `false` mais le caller (main.jsx useEffect persist) ignore
+  le retour. À câbler Phase 7.52.3 : afficher un toast "⚠ Mémoire
+  locale saturée — purge les sauvegardes ou les caches IA" qui
+  pointe vers MaintenanceTab.
+- **Auto-purge backups au boot si overflow détecté** : actuellement
+  le passage à MAX_BACKUPS=1 ne purge pas les 2 backups existants
+  d'un user déjà en v8.14.63 ; ils seront tronqués au prochain
+  autoBackup. Acceptable car éphémère.
+- **Audit autre call sites localStorage.setItem** : `saveState`
+  (state.js:1108) garde encore `try { ... } catch (e) { /* ignore */ }`.
+  Utilisé uniquement par tests ; pas urgent.
+
+---
+
+## État précédent (2026-05-15, Phase 7.52.1 close — Usages catalog injectés au prompt IA)
 
 **Backline v8.14.63 / SW backline-v163 / STATE_VERSION 9 / 960 tests verts.**
 Phase 7.52.1 hotfix Phase 7.52 : le helper `buildInstalledSlotsSection`
@@ -5093,6 +5170,84 @@ ou niveau 2 (Firestore queue) ? MVP recommandé niveau 1.
 7.44 hypothétique, à activer si signal de demande publique post J+10
 case study Reddit (cf. BETA_TESTING.md local pour la stratégie).
 
+### Phase 7.53 (proposée) — Édition usages artiste/morceau sur presets ToneNET
+
+**Contexte** : Phase 7.52 a curé 150 captures Anniversary Premium avec
+un champ `usages: [{artist, songs?}]` exploité par le prompt IA Phase
+7.34 + 7.52.1 (PRIORITÉ 1 : capture dont les usages contiennent
+l'artiste ou le titre du morceau analysé). Cette curation est **statique**
+côté code — l'utilisateur ne peut pas tagger ses propres presets
+ToneNET avec des usages.
+
+Cas d'usage concret (rapporté 2026-05-15 sur le morceau "Paranoid" de
+Black Sabbath) : Sébastien a un preset Laney dans ses ToneNET presets.
+Historiquement, Tony Iommi a utilisé du **Laney Supergroup**
+(LA100BL) sur le premier album Black Sabbath (1970-72), donc le Laney
+ToneNET devrait remonter en top pour Paranoid/Iron Man/N.I.B. Mais
+sans `usages` côté ToneNET, le prompt IA ne sait pas que ce Laney est
+"pour Sabbath" — il fait son scoring V9 standard et l'AA ORNG 120
+Dimed (qui a usages Sabbath dans le catalog Anniversary Premium)
+gagne, alors qu'historiquement c'est moins juste pour les premiers
+albums.
+
+**Workarounds existants** :
+
+- **Option A** (zéro code) : renommer le preset ToneNET pour qu'il
+  contienne le nom de l'artiste/morceau, ex. `"Laney Supergroup Sabbath
+  Iommi"`. La règle PRIORITÉ 2 du prompt Phase 7.52.1 ("capture dont
+  le NOM mentionne explicitement l'artiste/morceau") le pinne. Simple
+  mais cassant pour la lisibilité du nom dans les banks et le browser.
+
+- **Option B** (correctif catalog) : ajuster les `usages` des entrées
+  Anniversary Premium pour qu'ils reflètent mieux l'histoire (ex.
+  AA ORNG 120 Dimed → retirer Paranoid/Iron Man/War Pigs, assigner
+  à la période Vol.4+ uniquement). Maintenance continue à chaque
+  désaccord historique perçu. Moins flexible que Option C.
+
+**Option C — feature à implémenter Phase 7.53** :
+
+- Ajout d'un champ `usages?: [{ artist, songs? }]` sur le modèle
+  ToneNET preset (déjà présent dans le schéma catalog Anniversary
+  Phase 7.52).
+- UI : Mon Profil → 🌐 ToneNET → édition d'un preset → nouvelle
+  section "Usages (optionnel)" avec :
+  - Liste éditable d'entrées `{artist, songs?}`
+  - Bouton "+ Ajouter un usage" → input artiste (text)
+  - Bouton "+ Ajouter un morceau" sous chaque artiste (datalist depuis
+    songDb pour autocomplete)
+  - Bouton ✕ pour retirer un usage ou un morceau
+- Persistence : ajoutée à `profile.toneNetPresets[i].usages` (LWW
+  Firestore via stamp `lastModified` profil, Phase 5.7).
+- Lookup : le useMemo main.jsx (Phase 2.x) qui injecte ToneNET dans
+  `PRESET_CATALOG_MERGED` recopie le champ `usages` tel quel →
+  `findCatalogEntry(name)` retourne déjà les usages user-définis →
+  `buildInstalledSlotsSection` Phase 7.52.1 les sérialise au prompt
+  sans modification.
+
+**Effort estimé** : ~2-3h dev (UI éditeur + persist + propagation
+catalog) + 1h tests Vitest (helpers purs add/remove usage + integration
+fetchAI).
+
+**Pas de bump SCORING_VERSION** (V9 inchangé, c'est purement
+prompt-side). **Pas de migration** (champ additif optionnel sur le
+modèle existant).
+
+**Cas-cible Phase 7.53** : après implémentation, Sébastien peut
+éditer son preset Laney ToneNET et lui ajouter `usages: [{artist:
+"Black Sabbath", songs: ["Paranoid", "Iron Man", "N.I.B.", "War Pigs"]},
+{artist: "Tony Iommi"}]`. La prochaine analyse IA de "Paranoid"
+verra le Laney avec ces usages au prompt → PRIORITÉ 1 → pin direct.
+
+**Quand activer** : à coupler avec un audit / correctif historique
+des usages Anniversary Premium catalog Phase 7.52 (ex. retirer
+Sabbath des Orange première période). Le user peut compenser via les
+ToneNET, et progressivement on raffine le catalog statique en
+parallèle. À démarrer après Phase 7.52.1 si Sébastien rapporte
+plusieurs cas similaires (Laney pour Sabbath, autres captures
+spécifiques pour artistes pas couverts par Anniversary Premium).
+
+**Décision actuelle** : **proposée Phase 7.53**, pas d'implémentation
+immédiate.
 
 ### Phase 9 (proposée) — Output IA enrichi (inspiration Gear Assistant Ok_Ask2411)
 

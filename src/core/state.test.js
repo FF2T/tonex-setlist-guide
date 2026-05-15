@@ -22,7 +22,7 @@ import {
   mergeGuitarBias,
   dedupSetlists, dedupSetlistsWithTombstones, setlistDedupKey,
   dedupSongDb,
-  autoBackup, listBackups, clearBackups, isQuotaError,
+  autoBackup, listBackups, clearBackups, isQuotaError, persistState,
 } from './state.js';
 
 describe('STATE_VERSION', () => {
@@ -851,7 +851,7 @@ describe('autoBackup — Phase 4.1 FIX C : retry-on-quota', () => {
   });
   afterEach(() => { vi.unstubAllGlobals(); });
 
-  test('quota exceeded → pop oldest et réussit au 2e essai', () => {
+  test('Phase 7.52.2 — quota exceeded avec MAX_BACKUPS=1 → early return, pas de crash', () => {
     // Remplit la rotation avec 5 backups anciens (12 min, > throttle 5 min).
     const old = Array.from({ length: 5 }, (_, i) => ({
       time: Date.now() - 12 * 60 * 1000 - i * 60000,
@@ -862,20 +862,18 @@ describe('autoBackup — Phase 4.1 FIX C : retry-on-quota', () => {
     localStorage.setItem.mockImplementation((k, v) => {
       if (k === 'tonex_guide_backups') {
         calls += 1;
-        if (calls === 1) {
-          const e = new Error('quota');
-          e.name = 'QuotaExceededError';
-          throw e;
-        }
+        const e = new Error('quota');
+        e.name = 'QuotaExceededError';
+        throw e;
       }
       store[k] = v;
     });
-    autoBackup();
-    expect(calls).toBe(2);
-    const final = JSON.parse(store.tonex_guide_backups);
-    // Avant retry : 5 backups + 1 nouveau = 6 → tronqué à MAX_BACKUPS (2 Phase 6.2).
-    // Quota throw → on pop le plus ancien → 1. Set réussit.
-    expect(final.length).toBe(1);
+    // Avec MAX_BACKUPS=1 (Phase 7.52.2) : la troncature laisse 1 entry.
+    // Le retry-on-quota check `backups.length <= 1` → early return sans
+    // re-tenter. C'est attendu : avec 1 seul backup, on n'a rien à pop.
+    // Le test garantit l'absence de crash et de boucle infinie.
+    expect(() => autoBackup()).not.toThrow();
+    expect(calls).toBe(1);
   });
 
   test('quota persistant 3x → abandon silencieux, pas de crash', () => {
@@ -903,6 +901,69 @@ describe('autoBackup — Phase 4.1 FIX C : retry-on-quota', () => {
     expect(localStorage.setItem).not.toHaveBeenCalledWith(
       'tonex_guide_backups', expect.any(String),
     );
+  });
+});
+
+describe('persistState — Phase 7.52.2 (B-TECH-02) retry-on-quota state principal', () => {
+  let store;
+  beforeEach(() => {
+    store = {};
+    vi.stubGlobal('localStorage', {
+      getItem: vi.fn((k) => (k in store ? store[k] : null)),
+      setItem: vi.fn((k, v) => { store[k] = v; }),
+      removeItem: vi.fn((k) => { delete store[k]; }),
+    });
+  });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  test('persist OK direct → retourne true, state écrit', () => {
+    const state = { version: 9, foo: 'bar' };
+    expect(persistState(state)).toBe(true);
+    expect(JSON.parse(store.tonex_guide_v2)).toEqual(state);
+  });
+
+  test('quota au 1er setItem → purge backups + retry → succeed', () => {
+    store.tonex_guide_backups = JSON.stringify([{ time: 1, data: 'x' }]);
+    let calls = 0;
+    localStorage.setItem.mockImplementation((k, v) => {
+      if (k === 'tonex_guide_v2') {
+        calls += 1;
+        if (calls === 1) {
+          const e = new Error('quota');
+          e.name = 'QuotaExceededError';
+          throw e;
+        }
+      }
+      store[k] = v;
+    });
+    const state = { version: 9, foo: 'bar' };
+    expect(persistState(state)).toBe(true);
+    expect(calls).toBe(2);
+    expect(localStorage.removeItem).toHaveBeenCalledWith('tonex_guide_backups');
+    expect(JSON.parse(store.tonex_guide_v2)).toEqual(state);
+  });
+
+  test('quota persistant après purge → retourne false, ne crash pas', () => {
+    let calls = 0;
+    localStorage.setItem.mockImplementation((k) => {
+      if (k === 'tonex_guide_v2') {
+        calls += 1;
+        const e = new Error('quota');
+        e.name = 'QuotaExceededError';
+        throw e;
+      }
+    });
+    expect(persistState({ version: 9 })).toBe(false);
+    expect(calls).toBe(2); // 1 tentative initiale + 1 retry après purge
+    expect(localStorage.removeItem).toHaveBeenCalledWith('tonex_guide_backups');
+  });
+
+  test('erreur non-quota → retourne false sans tenter de purge', () => {
+    localStorage.setItem.mockImplementation((k) => {
+      if (k === 'tonex_guide_v2') throw new Error('disk error');
+    });
+    expect(persistState({ version: 9 })).toBe(false);
+    expect(localStorage.removeItem).not.toHaveBeenCalled();
   });
 });
 
