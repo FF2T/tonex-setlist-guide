@@ -669,7 +669,139 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-15, Phase 7.50 close — 8 fixes rapport beta v8.14.48)
+## État actuel (2026-05-15, Phase 7.51.1 close — Mode démo foundations)
+
+**Backline v8.14.52 / SW backline-v152 / STATE_VERSION 9 / 786 tests verts.**
+Phase 7.51.1 pose les fondations du mode démo public : migration
+STATE_VERSION 8→9 avec `profile.isDemo: boolean`, helpers purs
+(`isDemoProfile`, `isDemoMode`, `loadDemoSnapshot`), placeholder
+`src/data/demo-profile.json` (à remplacer par le snapshot curé via
+l'outil d'export Phase 7.51.4). Phase 7.51.1 = backend uniquement
+— les guards runtime (7.51.2), l'accès UI + banner (7.51.3) et
+l'outil d'export admin (7.51.4) suivront dans les sous-phases
+ultérieures.
+
+### Objectif Phase 7.51 (rappel)
+
+Aujourd'hui mybackline.app est invitation-only (ProfilePicker exige
+un profil existant + password). Un visiteur (Reddit, DM, créateur
+TSR/ML) n'a pas moyen d'essayer l'app sans setup manuel admin.
+Objectif : vitrine publique read-only via `?demo=1` ou carte
+"Mode démo" sur ProfilePicker. Snapshot bundlé avec analyses IA
+pré-cachées, banks remplies, recos qui marchent. Tous les writes
+bloqués. Aucun appel `fetchAI` ni Firestore en mode démo.
+
+### Schéma v9 (additif vs v8)
+
+```
+profile {
+  ...,                  // v8 inchangé
+  isDemo: boolean       // NOUVEAU v9 — flag profil démo public
+}
+```
+
+### Migration v8 → v9 (Phase 7.51.1)
+
+`migrateV8toV9(state)` ajoute `isDemo: false` à chaque profil
+existant. Idempotent, purement additif. Cohabitation v8↔v9 safe :
+- Un client v9 reçoit un push v8 (sans isDemo) → `ensureProfileV9`
+  pose le flag false au pull (mergeProfilesLWW).
+- Un client v8 reçoit un push v9 (avec isDemo: false) → ignore le
+  champ inconnu, comportement legacy normal.
+- Le profil démo (id `demo`, `isDemo: true`) n'est JAMAIS dans
+  Firestore (chargé in-memory uniquement depuis le snapshot
+  bundlé). `stripDemoProfiles` à ajouter Phase 7.51.2.
+
+### Helpers purs Phase 7.51.1
+
+```js
+// True uniquement si profile.isDemo === true strict (rejette 'true', 1).
+isDemoProfile(profile)
+
+// True quand activeProfileId pointe un profil démo dans state.profiles.
+isDemoMode(state, activeProfileId)
+
+// Retourne le snapshot bundlé { version: 9, profile, setlists, songs }.
+loadDemoSnapshot()
+```
+
+`makeDefaultProfile` (admin + non-admin) pose désormais
+`isDemo: false` explicite.
+
+### Tests Phase 7.51.1 (+11 nouveaux)
+
+`state.test.js` section "Phase 7.51.1 — Demo profile foundations" :
+- `migrateV8toV9` × 4 : pose false, préserve true, idempotent, null safe.
+- `ensureProfileV9 / ensureProfilesV9` × 3 : chaîne v8 + pose isDemo,
+  préserve flags explicites, map sur tous profils.
+- `isDemoProfile` × 1 : strict boolean true uniquement.
+- `isDemoMode` × 2 : true sur profil démo actif, false sinon, defensive.
+- `loadDemoSnapshot` × 1 : structure valide (version 9, profile.id='demo',
+  isDemo:true, setlists Array, songs Array).
+
+Mise à jour test `STATE_VERSION` (attend 9, plus 8).
+
+### Placeholder demo-profile.json (Phase 7.51.1)
+
+`src/data/demo-profile.json` contient un placeholder minimal :
+- profil démo (id='demo', name='Démo', isDemo:true, isAdmin:false),
+  rig 2 guitares (lp60, strat61), Anniversary + Plug activés,
+  sources TSR/ML/Anniversary/PlugFactory/ToneNET activées.
+- 1 setlist "Demo Setlist" avec 5 morceaux mock (`demo_s1` à `demo_s5`),
+  aiCache: null partout.
+
+Le contenu réel curé (rig 11 guitares, banks complètes, setlist 11
+morceaux avec aiCache trilingue) sera produit par l'outil d'export
+admin Phase 7.51.4 à partir du profil `demo_1778839429588` déjà
+existant sur le compte de production.
+
+### Architecture livrée à fin Phase 7.51.1
+
+```
+src/main.jsx                APP_VERSION 8.14.51 → 8.14.52
+public/sw.js                CACHE backline-v151 → backline-v152
+src/core/state.js           STATE_VERSION 8 → 9
+                            +import demoSnapshot from '../data/demo-profile.json'
+                            +ensureProfileV9 / ensureProfilesV9
+                            +migrateV8toV9
+                            _runFullChain chaîne v9
+                            loadState accepte v8 → migrate
+                            mergeProfilesLWW utilise ensureProfileV9
+                            makeDefaultProfile pose isDemo: false
+                            +isDemoProfile, isDemoMode, loadDemoSnapshot
+                            +exports
+src/core/state.test.js      +11 tests Phase 7.51.1, STATE_VERSION attend 9
+src/data/demo-profile.json  NOUVEAU — placeholder 5 morceaux mock
+```
+
+### Dette résiduelle Phase 7.51.1 → 7.51.2-4
+
+- **Phase 7.51.2** (guard runtime) : wrapper `wrapDemoGuard(fn, label)` +
+  toast "Action désactivée en mode démo" appliqué sur setProfileField,
+  setSetlists, setSongDb, setDeletedSetlistIds, recordLogin. Block
+  `fetchAI` à la racine. Block Firestore (saveToFirestore,
+  loadFromFirestore, pollRemoteSyncId, load/saveSharedKey) early-return
+  si isDemoMode(state). Cacher tabs admin (Profils, ToneNET,
+  Maintenance, Mot de passe, Clé API, Export/Import). Locale switch
+  écrit localStorage backline_locale + state in-memory mais pas
+  profile.language. `stripDemoProfiles(state)` symétrique à
+  stripAiCacheForSync (Phase 5.7.1) pour les pushes Firestore.
+- **Phase 7.51.3** (accès & banner) : carte "Mode démo · Découvrir
+  Backline" toujours visible sur ProfilePickerScreen. URL `?demo=1`
+  auto-load + nettoyage URL via history.replaceState. Composant
+  `DemoBanner.jsx` sticky top trilingue avec mailto pré-rempli vers
+  sebastien.chemin@gmail.com. Visible partout sauf LiveScreen.
+  Skip trusted device addition.
+- **Phase 7.51.4** (outil de curation admin) : bouton "📦 Exporter
+  snapshot démo" dans MaintenanceTab admin. Helper pur
+  `buildDemoSnapshot(profile, allSetlists, allSongs)` qui produit le
+  JSON à downloader. Workflow doc dans CLAUDE.md : curer un profil
+  dédié → exporter → remplacer src/data/demo-profile.json → commit
+  → push → bump version.
+
+---
+
+## État précédent (2026-05-15, Phase 7.50 close — 8 fixes rapport beta v8.14.48)
 
 **Backline v8.14.51 / SW backline-v151 / STATE_VERSION 8 / 775 tests verts.**
 Phase 7.50 traite les bugs du rapport de test fonctionnel sur v8.14.48
@@ -4260,6 +4392,134 @@ ou niveau 2 (Firestore queue) ? MVP recommandé niveau 1.
 **Décision actuelle** : pas implémenté. Idée enregistrée pour Phase
 7.44 hypothétique, à activer si signal de demande publique post J+10
 case study Reddit (cf. BETA_TESTING.md local pour la stratégie).
+
+### Phase 9 (proposée) — Output IA enrichi (inspiration Gear Assistant Ok_Ask2411)
+
+**Contexte** : un peer-builder Reddit (Ok_Ask2411, 2026-05-15) a
+partagé l'output complet de son "Gear Assistant" appliqué à
+*"Panama strat shawbucker"* (Van Halen). Format remarquablement
+structuré qui dépasse Backline sur 4 dimensions concrètes. Détails
+dans `BETA_TESTING.md` section 2 (entrée Ok_Ask2411 mise à jour
+2026-05-15).
+
+**4 features à reprendre**, indépendantes les unes des autres
+(peuvent être livrées en sous-phases 9.1 / 9.2 / 9.3 / 9.4) :
+
+#### 9.1 — Knob settings en table chiffrée
+
+Aujourd'hui : champ `settings_preset` (objet trilingue `{fr, en, es}`)
+en prose. Exemple : *"Pousse les médiums vers 6-7, garde les
+basses à 4 pour le côté scooped."* Lecture humaine OK mais pas
+machine-friendly et pas chiffré.
+
+Cible : ajouter au prompt IA une demande de table JSON structurée :
+
+```json
+"settings_knobs": {
+  "gain":     { "value": 6.2, "scale": "0-10", "why": "..." },
+  "bass":     { "value": 4.5, "scale": "0-10", "why": "..." },
+  "mid":      { "value": 7.0, "scale": "0-10", "why": "..." },
+  "treble":   { "value": 5.3, "scale": "0-10", "why": "..." },
+  "presence": { "value": 4.7, "scale": "0-10", "why": "..." },
+  "volume":   { "value": 6.0, "scale": "0-10", "why": "..." }
+}
+```
+
+UI : nouvelle sous-section "🎛️ Réglages knobs" sous le preset reco,
+table 6 lignes (parameter / value / why). Conserver `settings_preset`
+prose en parallèle ou le remplacer (à trancher selon retour UX).
+
+**Coût** : +20 lignes prompt, +1 sous-composant UI, +1 champ aiCache
+schéma. Pas de bump STATE_VERSION (additif optionnel).
+
+#### 9.2 — Built-in FX params générés par l'IA
+
+Aujourd'hui : Backline ne génère aucun setting de Noise Gate, Reverb,
+Delay côté ToneX (que des recos preset). L'utilisateur configure ces
+FX à la main.
+
+Cible : ajouter au prompt :
+
+```json
+"fx_settings": {
+  "noise_gate": { "threshold": -48, "release": 140, "depth": -75, "enabled": true },
+  "reverb":     { "type": "Plate", "time": 1.8, "predelay": 18, "color": 52, "mix": 16 },
+  "delay":      { "type": "Analog", "time": 320, "feedback": 20, "mix": 14 }
+}
+```
+
+UI : 3 nouvelles sous-sections compactes sous le bloc preset. Les
+params suivent la convention ToneX hardware (dB, ms, %).
+
+**Coût** : +30 lignes prompt, +3 sous-composants UI. Risque
+hallucination IA modérée (les unités ToneX réelles doivent être
+listées explicitement dans le prompt).
+
+#### 9.3 — Section "ONE TWEAK TO FIX IT" conditionnelle
+
+Aujourd'hui : aucun ajustement empirique post-écoute n'est suggéré.
+
+Cible : ajouter un champ aiCache :
+
+```json
+"tweaks": [
+  { "if": "too_bright",        "do": "Presence -0.5 to -1.0" },
+  { "if": "too_dark",          "do": "Treble +0.5" },
+  { "if": "too_boomy",         "do": "Bass -0.5" },
+  { "if": "buried_in_mix",     "do": "Mid +0.5" },
+  { "if": "too_fizzy",         "do": "Presence -0.5 + Gain -0.3" },
+  { "if": "not_tight_enough",  "do": "Gain -0.5 + Gate threshold up" }
+]
+```
+
+UI : section pliée par défaut "🔧 Si ça ne sonne pas tout à fait
+juste...", expand → 6 lignes "Si X → Fais Y". Réutilisable en
+répétition / sur scène.
+
+**Coût** : +15 lignes prompt, +1 sous-composant UI. Trivial à
+implémenter, gros impact perçu.
+
+#### 9.4 — Pickup choice + Playing technique
+
+Aujourd'hui : Backline propose `ideal_guitar` mais ne précise pas
+quel pickup utiliser (manche/centre/chevalet, tap coil, etc.) ni
+quel style de picking convient au morceau.
+
+Cible : ajouter au prompt :
+
+```json
+"playing_hints": {
+  "pickup":  "Bridge humbucker",
+  "guitar_volume": "8.5-10",
+  "picking_style": "Aggressive right hand, palm-muted",
+  "tone_pot": "10 (open)",
+  "stereo": true
+}
+```
+
+UI : sous-section "🎸 Conseils de jeu" sous le `ideal_guitar`,
+4-5 lignes max. Compatible avec le `playingTipsBySong` Phase 3.8
+TMP — fusionner si overlap.
+
+**Coût** : +15 lignes prompt, +1 sous-composant UI. Risque
+hallucination IA sur la position du pickup en fonction de la
+guitare réelle (ex. Strat Shawbucker = HSS, donc bridge=HB ;
+mais pour Tele simple = bridge=SC).
+
+**Timing recommandé** : pas avant J+30 post-déploiement. Attendre
+le feedback de Bruno (J+3-5) + Francisco (J+5-10) + Paul (J+10+)
+pour savoir si l'output actuel suffit ou si la demande pour plus
+de détail est explicite. Phase 9 = enrichissement, pas critique.
+
+**Décision actuelle** : pas implémenté. Idée enregistrée pour
+Phase 9 hypothétique, à activer si :
+1. Au moins 2 beta-testeurs demandent explicitement "plus de
+   détails sur les réglages", OU
+2. Ok_Ask2411 partage son stack et un échange peer-to-peer
+   confirme la valeur du format enrichi.
+
+(cf. BETA_TESTING.md section 2 Ok_Ask2411 pour les détails du
+format observé et la comparaison Backline ↔ Gear Assistant.)
 
 ## Hors scope (pour rappel, à NE PAS faire sans demande explicite)
 

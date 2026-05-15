@@ -5,9 +5,11 @@ import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   STATE_VERSION, TOMBSTONE_MAX_AGE_MS,
   migrateV1toV2, migrateV2toV3, migrateV4toV5, migrateV5toV6, migrateV6toV7,
-  migrateV7toV8,
+  migrateV7toV8, migrateV8toV9,
   ensureSharedV7, ensureProfileV7, ensureProfilesV7,
   ensureProfileV8, ensureProfilesV8,
+  ensureProfileV9, ensureProfilesV9,
+  isDemoProfile, isDemoMode, loadDemoSnapshot,
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
@@ -23,8 +25,8 @@ import {
 } from './state.js';
 
 describe('STATE_VERSION', () => {
-  test('vaut 8 en Phase 7.49 (i18n per-profile, profile.language)', () => {
-    expect(STATE_VERSION).toBe(8);
+  test('vaut 9 en Phase 7.51.1 (mode démo, profile.isDemo)', () => {
+    expect(STATE_VERSION).toBe(9);
   });
 });
 
@@ -1583,6 +1585,122 @@ describe('ensureProfileV8 / ensureProfilesV8 (Phase 7.49)', () => {
     });
     expect(out.a.language).toBe('fr');
     expect(out.b.language).toBe('en');
+  });
+});
+
+// ─── Phase 7.51.1 — Demo profile foundations ────────────────────────
+
+describe('migrateV8toV9 — Phase 7.51.1 mode démo', () => {
+  test('pose isDemo: false sur profil sans flag', () => {
+    const before = {
+      version: 8,
+      profiles: {
+        a: { id: 'a', name: 'A', language: 'fr', enabledDevices: [], lastModified: 1 },
+        b: { id: 'b', name: 'B', language: 'en', enabledDevices: [], lastModified: 2 },
+      },
+    };
+    const out = migrateV8toV9(before);
+    expect(out.version).toBe(9);
+    expect(out.profiles.a.isDemo).toBe(false);
+    expect(out.profiles.b.isDemo).toBe(false);
+  });
+
+  test('préserve isDemo: true existant (idempotence forte)', () => {
+    const before = {
+      version: 8,
+      profiles: {
+        demo: { id: 'demo', isDemo: true, language: 'fr', enabledDevices: [], lastModified: 1 },
+        normal: { id: 'normal', isDemo: false, language: 'fr', enabledDevices: [], lastModified: 2 },
+      },
+    };
+    const out = migrateV8toV9(before);
+    expect(out.profiles.demo.isDemo).toBe(true);
+    expect(out.profiles.normal.isDemo).toBe(false);
+  });
+
+  test('idempotent sur state déjà v9', () => {
+    const before = {
+      version: 8,
+      profiles: { a: { id: 'a', isDemo: false, language: 'fr', enabledDevices: [], lastModified: 1 } },
+    };
+    const v9 = migrateV8toV9(before);
+    const v9again = migrateV8toV9(v9);
+    expect(v9again.version).toBe(9);
+    expect(v9again.profiles.a.isDemo).toBe(false);
+  });
+
+  test('null/undefined input retourné tel quel', () => {
+    expect(migrateV8toV9(null)).toBe(null);
+    expect(migrateV8toV9(undefined)).toBe(undefined);
+  });
+});
+
+describe('ensureProfileV9 / ensureProfilesV9 (Phase 7.51.1)', () => {
+  test('ensureProfileV9 chaîne ensureProfileV8 (language + isDemo posés)', () => {
+    const p = ensureProfileV9({ id: 'a', enabledDevices: [] });
+    expect(p.language).toBe('fr');
+    expect(p.isDemo).toBe(false);
+    expect(typeof p.lastModified).toBe('number');
+  });
+
+  test('ensureProfileV9 préserve isDemo valide (false explicite et true)', () => {
+    expect(ensureProfileV9({ id: 'a', isDemo: false, enabledDevices: [] }).isDemo).toBe(false);
+    expect(ensureProfileV9({ id: 'demo', isDemo: true, enabledDevices: [] }).isDemo).toBe(true);
+  });
+
+  test('ensureProfilesV9 map sur tous les profils', () => {
+    const out = ensureProfilesV9({
+      a: { id: 'a', enabledDevices: [] },
+      demo: { id: 'demo', isDemo: true, enabledDevices: [] },
+    });
+    expect(out.a.isDemo).toBe(false);
+    expect(out.demo.isDemo).toBe(true);
+  });
+});
+
+describe('isDemoProfile (Phase 7.51.1) — strict boolean true', () => {
+  test('true uniquement si isDemo === true (boolean strict)', () => {
+    expect(isDemoProfile({ id: 'demo', isDemo: true })).toBe(true);
+    expect(isDemoProfile({ id: 'a', isDemo: false })).toBe(false);
+    expect(isDemoProfile({ id: 'a' })).toBe(false);
+    expect(isDemoProfile({ id: 'a', isDemo: 'true' })).toBe(false);
+    expect(isDemoProfile({ id: 'a', isDemo: 1 })).toBe(false);
+    expect(isDemoProfile(null)).toBe(false);
+    expect(isDemoProfile(undefined)).toBe(false);
+  });
+});
+
+describe('isDemoMode (Phase 7.51.1)', () => {
+  test('true quand activeProfileId pointe un profil démo, false sinon', () => {
+    const state = {
+      profiles: {
+        demo: { id: 'demo', isDemo: true },
+        normal: { id: 'normal', isDemo: false },
+      },
+    };
+    expect(isDemoMode(state, 'demo')).toBe(true);
+    expect(isDemoMode(state, 'normal')).toBe(false);
+    expect(isDemoMode(state, 'inexistant')).toBe(false);
+  });
+
+  test('false sur state null/incomplet (defensive)', () => {
+    expect(isDemoMode(null, 'demo')).toBe(false);
+    expect(isDemoMode({}, 'demo')).toBe(false);
+    expect(isDemoMode({ profiles: null }, 'demo')).toBe(false);
+  });
+});
+
+describe('loadDemoSnapshot (Phase 7.51.1)', () => {
+  test('retourne un objet structuré { version, profile, setlists, songs }', () => {
+    const snap = loadDemoSnapshot();
+    expect(snap).toBeDefined();
+    expect(snap.version).toBe(9);
+    expect(snap.profile).toBeDefined();
+    expect(snap.profile.id).toBe('demo');
+    expect(snap.profile.isDemo).toBe(true);
+    expect(snap.profile.isAdmin).toBe(false);
+    expect(Array.isArray(snap.setlists)).toBe(true);
+    expect(Array.isArray(snap.songs)).toBe(true);
   });
 });
 

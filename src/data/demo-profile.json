@@ -1,0 +1,83 @@
+{
+  "version": 9,
+  "_note": "Phase 7.51.1 placeholder — sera remplacé par le snapshot curé via l'outil d'export admin Phase 7.51.4. Le profil démo réel curé sur le compte de production est demo_1778839429588 (rig 11 guitares, banks complètes, setlist 11 morceaux avec aiCache trilingue).",
+  "profile": {
+    "id": "demo",
+    "name": "Démo",
+    "isDemo": true,
+    "isAdmin": false,
+    "password": null,
+    "myGuitars": ["lp60", "strat61"],
+    "customGuitars": [],
+    "editedGuitars": {},
+    "enabledDevices": ["tonex-anniversary", "tonex-plug"],
+    "availableSources": {
+      "TSR": true,
+      "ML": true,
+      "Anniversary": true,
+      "Factory": false,
+      "FactoryV1": false,
+      "PlugFactory": true,
+      "ToneNET": true,
+      "custom": false
+    },
+    "customPacks": [],
+    "banksAnn": {},
+    "banksPlug": {},
+    "tmpPatches": { "custom": [], "factoryOverrides": {} },
+    "aiProvider": "gemini",
+    "aiKeys": { "anthropic": "", "gemini": "" },
+    "loginHistory": [],
+    "lastModified": 0,
+    "recoMode": "balanced",
+    "guitarBias": {},
+    "language": "fr"
+  },
+  "setlists": [
+    {
+      "id": "demo_sl_1",
+      "name": "Demo Setlist",
+      "profileIds": ["demo"],
+      "songIds": ["demo_s1", "demo_s2", "demo_s3", "demo_s4", "demo_s5"],
+      "guitars": {},
+      "lastModified": 0
+    }
+  ],
+  "songs": [
+    {
+      "id": "demo_s1",
+      "title": "Demo Song 1",
+      "artist": "Demo Artist",
+      "ig": ["lp60"],
+      "aiCache": null
+    },
+    {
+      "id": "demo_s2",
+      "title": "Demo Song 2",
+      "artist": "Demo Artist",
+      "ig": ["strat61"],
+      "aiCache": null
+    },
+    {
+      "id": "demo_s3",
+      "title": "Demo Song 3",
+      "artist": "Demo Artist",
+      "ig": ["lp60"],
+      "aiCache": null
+    },
+    {
+      "id": "demo_s4",
+      "title": "Demo Song 4",
+      "artist": "Demo Artist",
+      "ig": ["strat61"],
+      "aiCache": null
+    },
+    {
+      "id": "demo_s5",
+      "title": "Demo Song 5",
+      "artist": "Demo Artist",
+      "ig": ["lp60"],
+      "aiCache": null
+    }
+  ]
+}

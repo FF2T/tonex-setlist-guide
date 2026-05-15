@@ -56,9 +56,12 @@ import {
   INIT_BANKS_ANN, FACTORY_BANKS_PEDALE,
   INIT_BANKS_PLUG, FACTORY_BANKS_PLUG,
 } from '../data/data_catalogs.js';
+// Phase 7.51.1 — snapshot bundlé du profil démo public (id 'demo').
+// Curé manuellement par l'admin via "Exporter snapshot démo" (Phase 7.51.4).
+import demoSnapshot from '../data/demo-profile.json';
 
 // ─── Versioning + clés localStorage ──────────────────────────────────
-const STATE_VERSION = 8;
+const STATE_VERSION = 9;
 const LOCALE_KEY = 'backline_locale'; // Phase 7.49 — fallback pour migrateV7toV8
 const TOMBSTONE_MAX_AGE_MS = 30 * 24 * 3600 * 1000;
 const LS_KEY = 'tonex_guide_v2';        // nom historique stable
@@ -305,6 +308,27 @@ function ensureProfilesV8(profiles, fallbackLocale) {
   return out;
 }
 
+// Phase 7.51.1 v8 → v9 : ajoute `profile.isDemo` (boolean, défaut false).
+// Le profil démo public (`isDemo: true`) est read-only ; tous les writes
+// (setProfileField, setSetlists, setSongDb, fetchAI, saveToFirestore…)
+// sont bloqués par un guard runtime (cf. Phase 7.51.2). Le profil démo
+// n'existe jamais dans Firestore (stripDemoProfiles à l'export Phase 7.51.2).
+// Migration purement additive, idempotente.
+function ensureProfileV9(profile) {
+  if (!profile) return profile;
+  const v8 = ensureProfileV8(profile);
+  if (typeof v8.isDemo === 'boolean') return v8;
+  return { ...v8, isDemo: false };
+}
+function ensureProfilesV9(profiles) {
+  if (!profiles) return profiles;
+  const out = {};
+  for (const [id, p] of Object.entries(profiles)) {
+    out[id] = ensureProfileV9(p);
+  }
+  return out;
+}
+
 // Garbage-collection des tombstones plus anciens que `maxAgeMs`
 // (default 30 jours). Pure ; retourne un nouveau map. Au-delà de cette
 // fenêtre, on considère que tous les devices ont propagé la suppression.
@@ -412,6 +436,22 @@ function migrateV7toV8(v7) {
   };
 }
 
+// Phase 7.51.1 v8 → v9 : injection `profile.isDemo: false` per-profile.
+// Le profil démo public (id 'demo', isDemo: true) est chargé in-memory
+// uniquement depuis demo-profile.json bundlé ; il n'est jamais migré
+// depuis localStorage. Pour les profils existants, ce flag false signale
+// explicitement "ce profil n'est pas en mode démo". Le runtime guard
+// (Phase 7.51.2) check ce flag pour bloquer/autoriser les writes.
+// Migration purement additive, idempotente.
+function migrateV8toV9(v8) {
+  if (!v8) return v8;
+  return {
+    ...v8,
+    version: 9,
+    profiles: ensureProfilesV9(v8.profiles),
+  };
+}
+
 // ─── Merge helpers LWW (utilisés par main.jsx applyRemoteData) ────────
 
 // Union de deux maps de tombstones ; pour chaque id présent des deux
@@ -493,15 +533,15 @@ function mergeProfilesLWW(localProfiles, remoteProfiles, options = {}) {
       const rts = typeof rp.lastModified === 'number' ? rp.lastModified : 0;
       if (rts > lts) {
         const adopted = applySecrets ? applySecrets({ [id]: rp })[id] : rp;
-        out[id] = ensureProfileV8(adopted);
+        out[id] = ensureProfileV9(adopted);
       } else {
-        out[id] = ensureProfileV8(lp);
+        out[id] = ensureProfileV9(lp);
       }
     } else if (lp) {
-      out[id] = ensureProfileV8(lp);
+      out[id] = ensureProfileV9(lp);
     } else if (rp) {
       const adopted = applySecrets ? applySecrets({ [id]: rp })[id] : rp;
-      out[id] = ensureProfileV8(adopted);
+      out[id] = ensureProfileV9(adopted);
     }
   }
   return out;
@@ -632,6 +672,7 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
       recoMode: 'balanced',
       guitarBias: {},
       language: fallbackLang,
+      isDemo: false,
     };
   }
   return {
@@ -656,6 +697,7 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
     recoMode: 'balanced',
     guitarBias: {},
     language: fallbackLang,
+    isDemo: false,
   };
 }
 
@@ -911,6 +953,33 @@ function findSetlistDuplicatesByName(setlists) {
   return groups;
 }
 
+// ─── Phase 7.51.1 — Mode démo : helpers purs ───────────────────────────
+//
+// Le mode démo est un profil read-only public (id 'demo') chargé in-memory
+// depuis un snapshot JSON bundlé. Tous les writes sont bloqués par un guard
+// runtime (Phase 7.51.2). Le profil démo n'existe jamais dans localStorage
+// ni dans Firestore.
+
+// Retourne true si le profil est en mode démo (flag explicite uniquement,
+// pas de truthy coercion : "true"/1 retournent false).
+function isDemoProfile(profile) {
+  return profile?.isDemo === true;
+}
+
+// Retourne true si le profil actuellement actif est en mode démo.
+// `state` est le store global { profiles, activeProfileId, ... }.
+function isDemoMode(state, activeProfileId) {
+  if (!state || !state.profiles) return false;
+  return isDemoProfile(state.profiles[activeProfileId]);
+}
+
+// Retourne le snapshot bundlé { version, profile, setlists, songs }.
+// Le contenu est figé au build time ; l'app reload à chaque session
+// visiteur recharge le même snapshot frais (pas de persistance).
+function loadDemoSnapshot() {
+  return demoSnapshot;
+}
+
 // ─── loadState / saveState ───────────────────────────────────────────
 //
 // Tous les paths passent par la chaîne complète v1→...→v7. Toutes les
@@ -919,11 +988,11 @@ function findSetlistDuplicatesByName(setlists) {
 // incomplets (Firestore stale, import JSON, …). Phase 5.7 ajoute une
 // passe `gcTombstones` finale (purge >30j) défensive.
 function _runFullChain(d) {
-  const v8 = migrateV7toV8(migrateV6toV7(migrateV5toV6(migrateV4toV5(migrateV3toV4(d)))));
-  if (v8 && v8.shared && v8.shared.deletedSetlistIds) {
-    v8.shared = { ...v8.shared, deletedSetlistIds: gcTombstones(v8.shared.deletedSetlistIds) };
+  const v9 = migrateV8toV9(migrateV7toV8(migrateV6toV7(migrateV5toV6(migrateV4toV5(migrateV3toV4(d))))));
+  if (v9 && v9.shared && v9.shared.deletedSetlistIds) {
+    v9.shared = { ...v9.shared, deletedSetlistIds: gcTombstones(v9.shared.deletedSetlistIds) };
   }
-  return v8;
+  return v9;
 }
 
 function loadState() {
@@ -932,6 +1001,7 @@ function loadState() {
     if (raw) {
       const d = JSON.parse(raw);
       if (d.version === STATE_VERSION) return _runFullChain(d);
+      if (d.version === 8) return _runFullChain(d);
       if (d.version === 7) return _runFullChain(d);
       if (d.version === 6) return _runFullChain(d);
       if (d.version === 5) return _runFullChain(d);
@@ -1291,6 +1361,8 @@ export {
   ensureProfileV6, ensureProfilesV6,
   ensureSharedV7, ensureProfileV7, ensureProfilesV7,
   ensureProfileV8, ensureProfilesV8, migrateV7toV8,
+  ensureProfileV9, ensureProfilesV9, migrateV8toV9,
+  isDemoProfile, isDemoMode, loadDemoSnapshot,
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
