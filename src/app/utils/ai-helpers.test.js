@@ -7,7 +7,7 @@
 // - inputs falsy/edge cases
 
 import { describe, it, expect } from 'vitest';
-import { getLocalizedText } from './ai-helpers.js';
+import { getLocalizedText, findSlotByUsageMatch } from './ai-helpers.js';
 
 describe('getLocalizedText', () => {
   describe('legacy string format', () => {
@@ -99,5 +99,69 @@ describe('getLocalizedText', () => {
       const seedDesc = 'Morceau emblématique du blues rock 70s.';
       expect(getLocalizedText(seedDesc, 'es')).toBe('Morceau emblématique du blues rock 70s.');
     });
+  });
+});
+
+describe('findSlotByUsageMatch — Phase 7.52.5', () => {
+  // Banks de test : slot 8A contient AA MRSH SB100 (usages Cream:
+  // White Room, Sunshine of Your Love), slot 4C contient AA MRSH JT50
+  // (usages AC/DC: HtH, BiB, TNT, You Shook Me, Hells Bells, Whole
+  // Lotta Rosie). Les entrées sont dans le catalog Phase 7.52 statique,
+  // donc findCatalogEntry les résout.
+  const banks = {
+    4: { A: '', B: '', C: 'AA MRSH JT50 I Drive BAL SCH CAB' },
+    8: { A: 'AA MRSH SB100 I Edge WRM CAB', B: '', C: '' },
+    20: { A: '', B: '', C: 'Foo Inconnu' }, // catalog null → ignoré
+  };
+
+  it('match parfait titre + artiste → score 100', () => {
+    const m = findSlotByUsageMatch(banks, 'Cream', 'White Room');
+    expect(m).toBeTruthy();
+    expect(m.bank).toBe(8);
+    expect(m.col).toBe('A');
+    expect(m.label).toBe('AA MRSH SB100 I Edge WRM CAB');
+    expect(m.score).toBe(100);
+  });
+
+  it('match titre Sunshine of Your Love → SB100 toujours', () => {
+    const m = findSlotByUsageMatch(banks, 'Cream', 'Sunshine of Your Love');
+    expect(m?.label).toBe('AA MRSH SB100 I Edge WRM CAB');
+    expect(m?.score).toBe(100);
+  });
+
+  it("match artiste seul (titre absent des songs) → score 50", () => {
+    // AA MRSH JT50 a usages AC/DC + ces 6 songs. Pour un AC/DC inconnu
+    // dans la liste, score artist match = 50.
+    const m = findSlotByUsageMatch(banks, 'AC/DC', 'Some Unknown AC/DC Song');
+    expect(m?.label).toBe('AA MRSH JT50 I Drive BAL SCH CAB');
+    expect(m?.score).toBe(50);
+  });
+
+  it("match titre Highway to Hell → score 100 (titre dans la liste)", () => {
+    const m = findSlotByUsageMatch(banks, 'AC/DC', 'Highway to Hell');
+    expect(m?.label).toBe('AA MRSH JT50 I Drive BAL SCH CAB');
+    expect(m?.score).toBe(100);
+  });
+
+  it('artiste pas dans usages → null', () => {
+    const m = findSlotByUsageMatch(banks, 'Pink Floyd', 'Shine On You Crazy Diamond');
+    expect(m).toBeNull();
+  });
+
+  it('banks vides → null', () => {
+    expect(findSlotByUsageMatch({}, 'Cream', 'White Room')).toBeNull();
+    expect(findSlotByUsageMatch(null, 'Cream', 'White Room')).toBeNull();
+  });
+
+  it('case-insensitive sur artiste et titre', () => {
+    const m1 = findSlotByUsageMatch(banks, 'cream', 'WHITE ROOM');
+    expect(m1?.score).toBe(100);
+    const m2 = findSlotByUsageMatch(banks, 'AC/dc', 'highway to hell');
+    expect(m2?.score).toBe(100);
+  });
+
+  it('artiste ET titre vides → null', () => {
+    expect(findSlotByUsageMatch(banks, '', '')).toBeNull();
+    expect(findSlotByUsageMatch(banks, null, null)).toBeNull();
   });
 });

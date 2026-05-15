@@ -382,7 +382,7 @@ function HomeScreen({
                   const cachedGId = existing.aiCache.gId || '';
                   const cachedG = allGuitars.find((x) => x.id === cachedGId);
                   const gType = cachedG?.type || 'HB';
-                  const r = enrichAIResult({ ...existing.aiCache.result }, gType, cachedGId, banksAnn, banksPlug);
+                  const r = enrichAIResult({ ...existing.aiCache.result }, gType, cachedGId, banksAnn, banksPlug, undefined, existing);
                   setSongResult(r); setSongBaseAI(r);
                   if (cachedG) setSelectedGuitar(cachedG);
                   else if (r.ideal_guitar) {

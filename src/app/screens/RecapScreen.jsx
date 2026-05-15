@@ -127,7 +127,7 @@ function RecapScreen({
     let presetAnn = null; let presetPlug = null;
     if (aiCraw) {
       const cleaned = { ...aiCraw, preset_ann: null, preset_plug: null, ideal_preset: null, ideal_preset_score: 0, ideal_top3: null };
-      const enriched = enrichAIResult(cleaned, gType, gId, banksAnn, banksPlug);
+      const enriched = enrichAIResult(cleaned, gType, gId, banksAnn, banksPlug, undefined, s);
       presetAnn = enriched.preset_ann || null;
       presetPlug = enriched.preset_plug || null;
     }

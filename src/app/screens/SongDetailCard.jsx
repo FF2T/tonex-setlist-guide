@@ -71,7 +71,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
     if (song.aiCache?.result?.cot_step1 && gId && !rigStale) {
       const gType = (guitars || GUITARS).find((x) => x.id === gId)?.type || 'HB';
       const cleaned2 = { ...song.aiCache.result, preset_ann: null, preset_plug: null, ideal_preset: null, ideal_preset_score: 0, ideal_top3: null };
-      const recalc = enrichAIResult(cleaned2, gType, gId, banksAnn, banksPlug);
+      const recalc = enrichAIResult(cleaned2, gType, gId, banksAnn, banksPlug, undefined, song);
       setLocalAiResult(recalc);
       setLocalAiErr(null);
       setTimeout(() => onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, aiCache: { ...updateAiCache(x.aiCache, gId, recalc), sv: SCORING_VERSION } } : x)), 0);
@@ -115,7 +115,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   const hist = getSongHist(song);
   const aiCraw = localAiResult || (getBestResult(song, gId, song.aiCache?.result) || null);
   const needRescore = !localAiResult && aiCraw && gId && song.aiCache?.gId !== gId;
-  const aiC = needRescore ? enrichAIResult({ ...aiCraw, preset_ann: null, preset_plug: null, ideal_preset: null, ideal_preset_score: 0, ideal_top3: null }, type, gId, banksAnn, banksPlug) : aiCraw;
+  const aiC = needRescore ? enrichAIResult({ ...aiCraw, preset_ann: null, preset_plug: null, ideal_preset: null, ideal_preset_score: 0, ideal_top3: null }, type, gId, banksAnn, banksPlug, undefined, song) : aiCraw;
   const songInfo = getSongInfo(song);
   // Phase 7.32 — Restreindre ideal_guitar aux guitares POSSÉDÉES par le
   // profil actif. L'aiCache est partagé via Phase 3.6 (union all-rigs), donc

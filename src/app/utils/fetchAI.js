@@ -259,7 +259,7 @@ Contraintes :
           if (d.error) throw new Error(d.error.message || d.error.type);
           return parse(d.content?.map((i) => i.text || '').join('') || '');
         });
-    return req.then((r) => enrichAIResult(r, gType, gId, banksAnn, banksPlug, availableSources));
+    return req.then((r) => enrichAIResult(r, gType, gId, banksAnn, banksPlug, availableSources, song));
   };
   // Retry intelligent : si le meilleur score < 85%, relancer l'IA (max 2 retries).
   const RETRY_THRESHOLD = 85;

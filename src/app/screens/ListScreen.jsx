@@ -149,7 +149,7 @@ function ListScreen({
         if (!aiCraw) continue;
         const gType = rd.g?.type || 'HB';
         const cleaned = { ...aiCraw, preset_ann: null, preset_plug: null, ideal_preset: null, ideal_preset_score: 0, ideal_top3: null };
-        newEntries.push([s.id, enrichAIResult(cleaned, gType, rd.gId, banksAnn, banksPlug, availableSources)]);
+        newEntries.push([s.id, enrichAIResult(cleaned, gType, rd.gId, banksAnn, banksPlug, availableSources, s)]);
         totalEnriched += 1;
       }
       if (newEntries.length && !cancelled) {
@@ -591,7 +591,7 @@ function ListScreen({
           // recomputées pour le profil actif (collapsedAiCBySongId).
           // Pour la vue dépliée, SongDetailCard fait son propre rescore.
           const aiC = needRescore
-            ? enrichAIResult({ ...aiCraw }, gType, gId, banksAnn, banksPlug)
+            ? enrichAIResult({ ...aiCraw }, gType, gId, banksAnn, banksPlug, undefined, s)
             : (collapsedAiCBySongId.get(s.id) || aiCraw);
           const aiPA = aiC?.preset_ann || null;
           const aiPP = aiC?.preset_plug || null;

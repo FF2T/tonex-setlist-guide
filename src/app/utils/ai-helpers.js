@@ -249,7 +249,45 @@ function findSlotByName(banks, name) {
   return null;
 }
 
-function enrichAIResult(aiResult, gType, gId, banksAnn, banksPlug, availableSources) {
+// Phase 7.52.5 — Cherche le meilleur slot avec usages-match (artiste +
+// titre du morceau analysé). Retourne {bank, col, label, score} où :
+//  - score 100 : usages.artist === song.artist ET usages.songs contient
+//    song.title (match parfait)
+//  - score 50  : usages.artist === song.artist seul (match artiste, titre
+//    absent ou pas dans liste)
+// Permet à enrichAIResult de FORCER la PRIORITÉ 1 du prompt Phase 7.34 +
+// 7.52.1 même quand Gemini Flash ne la respecte pas (cas observé sur
+// Cream White Room / Sunshine of Your Love → AA MRSH SB100 ignoré au
+// profit de Vox AC30 / Friedman BE-100 alors que SB100 a usages explicit
+// Cream + ces deux titres).
+function findSlotByUsageMatch(banks, songArtist, songTitle) {
+  if (!banks || (!songArtist && !songTitle)) return null;
+  const artistLc = String(songArtist || '').toLowerCase();
+  const titleLc = String(songTitle || '').toLowerCase();
+  let bestMatch = null;
+  for (const [k, v] of Object.entries(banks)) {
+    for (const c of ['A', 'B', 'C']) {
+      if (!v?.[c]) continue;
+      const info = findCatalogEntry(v[c]);
+      if (!info?.usages || !Array.isArray(info.usages)) continue;
+      for (const u of info.usages) {
+        if (!u?.artist) continue;
+        const matchArtist = u.artist.toLowerCase() === artistLc;
+        const matchTitle = Array.isArray(u.songs)
+          && u.songs.some((s) => String(s).toLowerCase() === titleLc);
+        let score = 0;
+        if (matchArtist && matchTitle) score = 100;
+        else if (matchArtist) score = 50;
+        if (score > 0 && (!bestMatch || score > bestMatch.score)) {
+          bestMatch = { bank: Number(k), col: c, label: v[c], score };
+        }
+      }
+    }
+  }
+  return bestMatch;
+}
+
+function enrichAIResult(aiResult, gType, gId, banksAnn, banksPlug, availableSources, song) {
   if (availableSources === undefined && typeof window !== 'undefined') availableSources = window.__activeSources;
   const style = aiResult.song_style || 'rock';
   const targetGain = typeof aiResult.target_gain === 'number' ? aiResult.target_gain : null;
@@ -318,6 +356,26 @@ function enrichAIResult(aiResult, gType, gId, banksAnn, banksPlug, availableSour
         scoreObj = { score: Math.max(90, v9Score), breakdown };
       }
       aiResult.preset_plug = { bank: slot.bank, col: slot.col, label: slot.label, score: scoreObj?.score || 90, breakdown: scoreObj?.breakdown || null };
+      plugPinnedByAI = true;
+    }
+  }
+  // Phase 7.52.5 — Override usage-match TITRE EXACT (PRIORITÉ 1 prompt).
+  // Si un slot des banks a usages.artist === song.artist ET usages.songs
+  // contient song.title, il gagne TOUJOURS sur le pin IA (Gemini ne
+  // respecte pas systématiquement la PRIORITÉ 1 du prompt Phase 7.34 +
+  // 7.52.1). Match TITRE EXACT seulement — un match artiste seul (score
+  // 50) ne sert que de fallback si l'IA n'a pas pin (annPinnedByAI = false).
+  const songArtist = song?.artist || aiResult.ref_artist || aiResult.song_artist;
+  const songTitle = song?.title || aiResult.song_title;
+  if (songArtist || songTitle) {
+    const annUsage = findSlotByUsageMatch(banksAnn, songArtist, songTitle);
+    if (annUsage && (annUsage.score === 100 || !annPinnedByAI)) {
+      aiResult.preset_ann = { bank: annUsage.bank, col: annUsage.col, label: annUsage.label, score: 92, breakdown: null };
+      annPinnedByAI = true;
+    }
+    const plugUsage = findSlotByUsageMatch(banksPlug, songArtist, songTitle);
+    if (plugUsage && (plugUsage.score === 100 || !plugPinnedByAI)) {
+      aiResult.preset_plug = { bank: plugUsage.bank, col: plugUsage.col, label: plugUsage.label, score: 92, breakdown: null };
       plugPinnedByAI = true;
     }
   }
@@ -476,6 +534,8 @@ export {
   resolveRefAmp,
   computeBestPresets,
   enrichAIResult,
+  findSlotByName,
+  findSlotByUsageMatch,
   mergeBestResults,
   bestScoreOf,
   preserveHistorical,

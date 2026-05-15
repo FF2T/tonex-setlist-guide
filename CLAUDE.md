@@ -677,7 +677,156 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-15, Phase 7.52.4 close — findCatalogEntry fallback toneModelName)
+## État actuel (2026-05-16, Phase 7.52.5 close — Post-processing pin usages-match)
+
+**Backline v8.14.67 / SW backline-v167 / STATE_VERSION 9 / 977 tests verts.**
+Phase 7.52.5 garantit la PRIORITÉ 1 du prompt Phase 7.34 + 7.52.1
+("capture dont les `usages` contiennent l'artiste OU le titre du
+morceau analysé") via un **post-processing JS** dans `enrichAIResult`,
+même quand Gemini Flash ne respecte pas l'instruction.
+
+**Cas observé 2026-05-16** : sur le snapshot démo re-généré post-Phase
+7.52.4, les recos Cream étaient :
+- White Room → `AA VX TB30 BR Edge BAL CAB` (Vox AC30) au lieu de
+  `AA MRSH SB100 I Edge WRM CAB` (Marshall Super Bass Plexi 1968,
+  usages explicit `Cream: [White Room, Sunshine of Your Love]`).
+- Sunshine of Your Love → `AA FMAN B100D BE Drive` (Friedman BE-100,
+  amp moderne 2009+) au lieu de SB100.
+
+Le slot SB100 ÉTAIT dans les banks démo (bank 8A) avec usages catalog
+correctement set. Le prompt Phase 7.52.1 sérialisait `usages: [Cream
+(White Room, Sunshine of Your Love)]` dans la section INSTALLED SLOTS.
+**Mais Gemini Flash a pinné autre chose** — fail de l'instruction
+prompt "PRIORITÉ ABSOLUE 1".
+
+### Fix Phase 7.52.5
+
+`src/app/utils/ai-helpers.js` étendu avec :
+
+- **`findSlotByUsageMatch(banks, songArtist, songTitle)`** : scan
+  banks, retourne le slot dont `catalog.usages` match :
+  - **Score 100** : `usages.artist === song.artist` ET
+    `usages.songs.contains(song.title)` (match parfait).
+  - **Score 50** : `usages.artist === song.artist` seul (artiste
+    match, titre absent ou pas dans liste).
+- **Override dans `enrichAIResult`** (avant le never-regress) : si
+  score 100 trouvé → **force le pin** sur ce slot avec score 92,
+  override le pin IA précédent (Phase 7.31). Score 50 → fallback
+  uniquement si l'IA n'a pas déjà pin un slot.
+- **Param `song` ajouté** (7e position) à `enrichAIResult` pour
+  passer `song.artist` + `song.title`. Optionnel → si absent, pas de
+  post-processing usages-match (comportement Phase 7.52.4 inchangé).
+
+### Call sites mis à jour (passent `song`)
+
+```
+src/app/utils/fetchAI.js                ligne 262 ✓
+src/app/screens/SongDetailCard.jsx      lignes 74, 118 ✓
+src/app/screens/ListScreen.jsx          lignes 152, 594 ✓
+src/app/screens/RecapScreen.jsx         ligne 130 ✓
+src/app/screens/HomeScreen.jsx          ligne 385 ✓ (autocomplete)
+                                        ligne 540 — non touché (sound
+                                                    preview, song au
+                                                    scope difficile)
+src/main.jsx                            ligne 695 — non touché (recalc
+                                                    batch admin, song
+                                                    au scope diff)
+```
+
+### Architecture livrée Phase 7.52.5
+
+```
+src/main.jsx                            APP_VERSION 8.14.66 → 8.14.67
+public/sw.js                            CACHE backline-v166 → backline-v167
+src/app/utils/ai-helpers.js             +findSlotByUsageMatch helper pur
+                                        enrichAIResult +param song
+                                        override post-processing
+                                        +export findSlotByUsageMatch,
+                                          findSlotByName
+src/app/utils/ai-helpers.test.js        +8 tests findSlotByUsageMatch
+                                        (titre exact 100, artiste seul 50,
+                                        case-insensitive, banks vides,
+                                        artiste/titre inconnus, falsy)
++5 call sites mis à jour pour passer song
+```
+
+### Conséquences
+
+- **977/977 tests verts** (+8 nouveaux Phase 7.52.5).
+- **Bundle** 2122 → 2124 KB (+2 KB pour le helper + override).
+- **Pas de bump SCORING_VERSION** (V9 inchangé, c'est un override
+  d'affichage post-scoring).
+- **Effet sur les recos existantes** : à la prochaine ouverture d'un
+  morceau, `enrichAIResult` recompute → si le morceau a un slot
+  usage-match titre dans les banks, il est pinné automatiquement.
+  Pas besoin d'invalider les caches IA — le post-processing est
+  appliqué à chaque render. Mais une ré-analyse complète garantit
+  que les autres champs (cot_step1, settings_preset, etc.) soient
+  cohérents avec le nouveau choix.
+
+### Captures Anniversary Premium avec usages match-titre exact (32 entries)
+
+Toutes les entries Phase 7.52 + 7.52.3 avec `usages: [{artist, songs}]`
+explicit bénéficieront du pin automatique pour les morceaux concernés :
+
+- **AC/DC** : 6 chansons (HtH, BiB, TNT, You Shook Me, Hells Bells,
+  Whole Lotta Rosie) → AA MRSH JT50 I Drive BAL SCH CAB
+- **Cream** : 2 chansons (White Room, Sunshine of Your Love) →
+  AA MRSH SB100 I Edge WRM CAB
+- **Jimi Hendrix** : 2 chansons (Voodoo Child, Purple Haze) →
+  AA MRSH SL100 JU Dimed BAL CAB
+- **Led Zeppelin** : 2 chansons (Whole Lotta Love, Black Dog) →
+  AA MRSH SL100 JU Dimed BAL CAB
+- **Black Sabbath** : 3 chansons (Paranoid, Iron Man, War Pigs) →
+  AA ORNG 120 Dimed BAL CAB (à noter : décision Phase 7.52, mais
+  historiquement débattable — cf section Idées en attente Phase 7.53)
+- **Metallica** : 1 chanson (Master of Puppets) → AA MES MKIICP LD
+- **Dream Theater** : 1 chanson (Pull Me Under) → AA MES MKIICP LD
+- **The Who** : 2 chansons (Won't Get Fooled Again, Baba O'Riley) →
+  AA HWTT CUT100 NR Clean
+- **Eric Johnson** : 1 chanson (Cliffs of Dover) → AA SLDN SL100 OD ou
+  TSR TSR20 + SLOW
+- **Robben Ford** : 1 chanson (Help the Poor) → TJ DMBL ODS 124 LEAD 1
+- **Jimmy Page** : 1 chanson (Whole Lotta Love) → TSR Mars Plexi Cn2 Cranked
+- **Slash** : 1 chanson (Sweet Child O'Mine) → JS Brit Silver Dbl Crm OD
+- **Hendrix WT** : 1 chanson (Voodoo Child) → WT Mars Super100 JMP 5
+- **Metallica TSR** : 1 chanson (Master of Puppets) → TSR Mesa Mark V Cn3 LD 1
+
+### Action post-déploiement
+
+1. Reload PWA 2x, vérifier `v8.14.67`.
+2. Mon Profil → 🎯 Préférences IA → "🗑 Invalider tous les caches IA"
+   (admin) — déclenche ré-analyse au prochain mount des morceaux.
+3. OU passer juste sur les morceaux concernés : l'override usages-match
+   s'applique au render, donc juste ouvrir + refermer fait remonter
+   le bon slot.
+4. **Re-export snapshot démo** depuis profil curateur pour bénéficier
+   des recos Cream → AA MRSH SB100 (slot 8A) + autres titres-match.
+
+### Dette résiduelle Phase 7.52.5
+
+- **Override "agressif"** : le score 100 (titre + artiste) force le
+  pin même si l'IA avait pin un autre slot. Si l'utilisateur voulait
+  garder le choix IA (cas dégénéré : l'IA a choisi un slot plus
+  approprié à son rig / style préféré), un feedback "❌ pas ce slot"
+  ne suffira pas à dépin. **Workaround** : retirer la capture
+  usage-match de la bank, ou éditer le catalog pour retirer le titre
+  des usages.
+- **Sites non-passants song** : 2 call sites n'ont pas `song` au
+  scope (main.jsx l. 695 recalc batch admin, HomeScreen l. 540 sound
+  preview après changement guitare). Le post-processing ne s'applique
+  pas dans ces cas (acceptable, ce sont des cas marginaux).
+- **Smoke on the Water (Deep Purple)** : Phase 7.52.5 ne fix pas ce
+  cas car aucune capture du catalog n'a `usages: Deep Purple` ou
+  `Smoke on the Water`. L'IA continuera à choisir un fallback
+  arbitraire (vu Phase 7.52.3 : AA MRSH JT50 = AC/DC sur Deep
+  Purple, cross-contamination). Pour fixer : ajouter une capture
+  Marshall Plexi avec usages Deep Purple, ou retirer Deep Purple des
+  usages AA MRSH JT50.
+
+---
+
+## État précédent (2026-05-15, Phase 7.52.4 close — findCatalogEntry fallback toneModelName)
 
 **Backline v8.14.66 / SW backline-v166 / STATE_VERSION 9 / 969 tests verts.**
 Phase 7.52.4 corrige le matching firmware vs catalog quand le **Tone Model
