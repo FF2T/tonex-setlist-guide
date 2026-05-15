@@ -39,7 +39,31 @@ function detectBrowserLocale() {
 // lectures localStorage par render) devenait perceptiblement lent.
 let _cachedLocale = null;
 
+// Phase 7.49 — i18n per-profile. L'App appelle bindActiveProfile(profile)
+// au switch de profil ; getLocale() priorise profile.language sur le
+// localStorage global. setLocale() écrit dans profile.language via un
+// updater callback enregistré par l'App + persiste localStorage en
+// fallback (utilisé par ProfilePicker avant le pick).
+let _activeProfileLanguage = null;
+let _profileLanguageUpdater = null;
+
+export function bindActiveProfile(profile) {
+  const next = (profile && SUPPORTED_IDS.has(profile.language)) ? profile.language : null;
+  if (next === _activeProfileLanguage) return;
+  _activeProfileLanguage = next;
+  if (next) {
+    _cachedLocale = next;
+    _tCache.clear();
+    listeners.forEach((cb) => { try { cb(next); } catch (e) {} });
+  }
+}
+
+export function setProfileLanguageUpdater(updater) {
+  _profileLanguageUpdater = typeof updater === 'function' ? updater : null;
+}
+
 export function getLocale() {
+  if (_activeProfileLanguage) return _activeProfileLanguage;
   if (_cachedLocale !== null) return _cachedLocale;
   try {
     const stored = localStorage.getItem(LOCALE_KEY);
@@ -62,7 +86,12 @@ const listeners = new Set();
 export function setLocale(loc) {
   if (!SUPPORTED_IDS.has(loc)) return;
   _cachedLocale = loc;
+  _activeProfileLanguage = loc;
   _tCache.clear(); // Phase 7.41 — invalider le memo t() au changement de langue.
+  // Phase 7.49 — écrit aussi dans profile.language via updater.
+  if (_profileLanguageUpdater) {
+    try { _profileLanguageUpdater(loc); } catch (e) {}
+  }
   try { localStorage.setItem(LOCALE_KEY, loc); } catch (e) {}
   listeners.forEach((cb) => { try { cb(loc); } catch (e) {} });
 }

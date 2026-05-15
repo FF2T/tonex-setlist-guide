@@ -58,7 +58,8 @@ import {
 } from '../data/data_catalogs.js';
 
 // ─── Versioning + clés localStorage ──────────────────────────────────
-const STATE_VERSION = 7;
+const STATE_VERSION = 8;
+const LOCALE_KEY = 'backline_locale'; // Phase 7.49 — fallback pour migrateV7toV8
 const TOMBSTONE_MAX_AGE_MS = 30 * 24 * 3600 * 1000;
 const LS_KEY = 'tonex_guide_v2';        // nom historique stable
 const LS_KEY_V1 = 'tonex_guide_v1';
@@ -276,6 +277,34 @@ function ensureProfilesV7(profiles) {
   return out;
 }
 
+// Phase 7.49 v7 → v8 : ajoute `profile.language` (locale per-profile).
+// Chaque profil existant hérite de la locale globale au moment de la
+// migration (localStorage backline_locale), ou 'fr' par défaut.
+// Migration purement additive, idempotente.
+function _readGlobalLocale() {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    const stored = localStorage.getItem(LOCALE_KEY);
+    if (stored === 'fr' || stored === 'en' || stored === 'es') return stored;
+  } catch (e) {}
+  return null;
+}
+function ensureProfileV8(profile, fallbackLocale) {
+  if (!profile) return profile;
+  const v7 = ensureProfileV7(profile);
+  if (v7.language === 'fr' || v7.language === 'en' || v7.language === 'es') return v7;
+  return { ...v7, language: fallbackLocale || 'fr' };
+}
+function ensureProfilesV8(profiles, fallbackLocale) {
+  if (!profiles) return profiles;
+  const fb = fallbackLocale || _readGlobalLocale() || 'fr';
+  const out = {};
+  for (const [id, p] of Object.entries(profiles)) {
+    out[id] = ensureProfileV8(p, fb);
+  }
+  return out;
+}
+
 // Garbage-collection des tombstones plus anciens que `maxAgeMs`
 // (default 30 jours). Pure ; retourne un nouveau map. Au-delà de cette
 // fenêtre, on considère que tous les devices ont propagé la suppression.
@@ -368,6 +397,21 @@ function migrateV6toV7(v6) {
   return next;
 }
 
+// Phase 7.49 v7 → v8 : injection `profile.language` per-profile.
+// Lit le `backline_locale` localStorage (présent depuis Phase 7.36) et
+// l'applique uniformément à chaque profil. Une fois posé, chaque user
+// pourra changer sa langue indépendamment via Mon Profil → Affichage.
+// Idempotent : un état déjà v8 avec profile.language posé → no-op.
+function migrateV7toV8(v7) {
+  if (!v7) return v7;
+  const fb = _readGlobalLocale() || 'fr';
+  return {
+    ...v7,
+    version: 8,
+    profiles: ensureProfilesV8(v7.profiles, fb),
+  };
+}
+
 // ─── Merge helpers LWW (utilisés par main.jsx applyRemoteData) ────────
 
 // Union de deux maps de tombstones ; pour chaque id présent des deux
@@ -449,15 +493,15 @@ function mergeProfilesLWW(localProfiles, remoteProfiles, options = {}) {
       const rts = typeof rp.lastModified === 'number' ? rp.lastModified : 0;
       if (rts > lts) {
         const adopted = applySecrets ? applySecrets({ [id]: rp })[id] : rp;
-        out[id] = ensureProfileV7(adopted);
+        out[id] = ensureProfileV8(adopted);
       } else {
-        out[id] = ensureProfileV7(lp);
+        out[id] = ensureProfileV8(lp);
       }
     } else if (lp) {
-      out[id] = ensureProfileV7(lp);
+      out[id] = ensureProfileV8(lp);
     } else if (rp) {
       const adopted = applySecrets ? applySecrets({ [id]: rp })[id] : rp;
-      out[id] = ensureProfileV7(adopted);
+      out[id] = ensureProfileV8(adopted);
     }
   }
   return out;
@@ -568,6 +612,7 @@ function mergeSongDbPreservingLocalAiCache(local, remote) {
 // Le profil admin conserve les defaults Sébastien (rare, créé via
 // migration historique uniquement).
 function makeDefaultProfile(id, name, isAdmin = false, password = '') {
+  const fallbackLang = _readGlobalLocale() || 'fr';
   if (isAdmin) {
     return {
       id, name, isAdmin, password,
@@ -586,6 +631,7 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
       lastModified: Date.now(),
       recoMode: 'balanced',
       guitarBias: {},
+      language: fallbackLang,
     };
   }
   return {
@@ -609,6 +655,7 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
     lastModified: Date.now(),
     recoMode: 'balanced',
     guitarBias: {},
+    language: fallbackLang,
   };
 }
 
@@ -872,11 +919,11 @@ function findSetlistDuplicatesByName(setlists) {
 // incomplets (Firestore stale, import JSON, …). Phase 5.7 ajoute une
 // passe `gcTombstones` finale (purge >30j) défensive.
 function _runFullChain(d) {
-  const v7 = migrateV6toV7(migrateV5toV6(migrateV4toV5(migrateV3toV4(d))));
-  if (v7 && v7.shared && v7.shared.deletedSetlistIds) {
-    v7.shared = { ...v7.shared, deletedSetlistIds: gcTombstones(v7.shared.deletedSetlistIds) };
+  const v8 = migrateV7toV8(migrateV6toV7(migrateV5toV6(migrateV4toV5(migrateV3toV4(d)))));
+  if (v8 && v8.shared && v8.shared.deletedSetlistIds) {
+    v8.shared = { ...v8.shared, deletedSetlistIds: gcTombstones(v8.shared.deletedSetlistIds) };
   }
-  return v7;
+  return v8;
 }
 
 function loadState() {
@@ -885,6 +932,7 @@ function loadState() {
     if (raw) {
       const d = JSON.parse(raw);
       if (d.version === STATE_VERSION) return _runFullChain(d);
+      if (d.version === 7) return _runFullChain(d);
       if (d.version === 6) return _runFullChain(d);
       if (d.version === 5) return _runFullChain(d);
       if (d.version === 4) return _runFullChain(d);
@@ -1242,6 +1290,7 @@ export {
   ensureProfileV4, ensureProfilesV4,
   ensureProfileV6, ensureProfilesV6,
   ensureSharedV7, ensureProfileV7, ensureProfilesV7,
+  ensureProfileV8, ensureProfilesV8, migrateV7toV8,
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,

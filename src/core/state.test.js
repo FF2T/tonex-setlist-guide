@@ -5,7 +5,9 @@ import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   STATE_VERSION, TOMBSTONE_MAX_AGE_MS,
   migrateV1toV2, migrateV2toV3, migrateV4toV5, migrateV5toV6, migrateV6toV7,
+  migrateV7toV8,
   ensureSharedV7, ensureProfileV7, ensureProfilesV7,
+  ensureProfileV8, ensureProfilesV8,
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
@@ -21,8 +23,8 @@ import {
 } from './state.js';
 
 describe('STATE_VERSION', () => {
-  test('vaut 7 en Phase 5.7 (LWW + tombstones {[id]:ts})', () => {
-    expect(STATE_VERSION).toBe(7);
+  test('vaut 8 en Phase 7.49 (i18n per-profile, profile.language)', () => {
+    expect(STATE_VERSION).toBe(8);
   });
 });
 
@@ -1488,6 +1490,99 @@ describe('migrateV6toV7 — Phase 5.7', () => {
 describe('TOMBSTONE_MAX_AGE_MS', () => {
   test('vaut 30 jours en ms', () => {
     expect(TOMBSTONE_MAX_AGE_MS).toBe(30 * 24 * 3600 * 1000);
+  });
+});
+
+describe('migrateV7toV8 — Phase 7.49 i18n per-profile', () => {
+  test('ajoute profile.language fallback fr quand backline_locale absent', () => {
+    const before = {
+      version: 7,
+      profiles: {
+        a: { id: 'a', name: 'A', enabledDevices: [], lastModified: 1 },
+        b: { id: 'b', name: 'B', enabledDevices: [], lastModified: 2 },
+      },
+    };
+    const out = migrateV7toV8(before);
+    expect(out.version).toBe(8);
+    expect(out.profiles.a.language).toBe('fr');
+    expect(out.profiles.b.language).toBe('fr');
+  });
+
+  test('hérite de backline_locale localStorage si défini', () => {
+    // Mock localStorage (env node n'en a pas par défaut).
+    const store = { backline_locale: 'es' };
+    vi.stubGlobal('localStorage', { getItem: (k) => store[k] || null });
+    const before = {
+      version: 7,
+      profiles: { a: { id: 'a', enabledDevices: [], lastModified: 1 } },
+    };
+    const out = migrateV7toV8(before);
+    expect(out.profiles.a.language).toBe('es');
+    vi.unstubAllGlobals();
+  });
+
+  test('préserve language explicite déjà posé sur le profil', () => {
+    const before = {
+      version: 7,
+      profiles: {
+        fr_user: { id: 'fr_user', language: 'fr', enabledDevices: [], lastModified: 1 },
+        en_user: { id: 'en_user', language: 'en', enabledDevices: [], lastModified: 2 },
+      },
+    };
+    const out = migrateV7toV8(before);
+    expect(out.profiles.fr_user.language).toBe('fr');
+    expect(out.profiles.en_user.language).toBe('en');
+  });
+
+  test('idempotent sur un state déjà v8', () => {
+    const before = {
+      version: 7,
+      profiles: { a: { id: 'a', language: 'en', enabledDevices: [], lastModified: 1 } },
+    };
+    const v8 = migrateV7toV8(before);
+    const v8again = migrateV7toV8(v8);
+    expect(v8again.version).toBe(8);
+    expect(v8again.profiles.a.language).toBe('en');
+  });
+
+  test('language invalide → écrasé par fallback', () => {
+    const before = {
+      version: 7,
+      profiles: { a: { id: 'a', language: 'de', enabledDevices: [], lastModified: 1 } },
+    };
+    const out = migrateV7toV8(before);
+    expect(out.profiles.a.language).toBe('fr'); // de pas dans SUPPORTED → fr default
+  });
+
+  test('null/undefined input retourné tel quel', () => {
+    expect(migrateV7toV8(null)).toBe(null);
+    expect(migrateV7toV8(undefined)).toBe(undefined);
+  });
+});
+
+describe('ensureProfileV8 / ensureProfilesV8 (Phase 7.49)', () => {
+  test('ensureProfileV8 pose language fallback fr si absent', () => {
+    const p = ensureProfileV8({ id: 'a', enabledDevices: [] });
+    expect(p.language).toBe('fr');
+  });
+
+  test('ensureProfileV8 préserve language valide', () => {
+    const p = ensureProfileV8({ id: 'a', language: 'es', enabledDevices: [] });
+    expect(p.language).toBe('es');
+  });
+
+  test('ensureProfileV8 délègue ensureProfileV7 (lastModified stamp)', () => {
+    const p = ensureProfileV8({ id: 'a', enabledDevices: [] });
+    expect(typeof p.lastModified).toBe('number');
+  });
+
+  test('ensureProfilesV8 map sur tous les profils', () => {
+    const out = ensureProfilesV8({
+      a: { id: 'a', enabledDevices: [] },
+      b: { id: 'b', language: 'en', enabledDevices: [] },
+    });
+    expect(out.a.language).toBe('fr');
+    expect(out.b.language).toBe('en');
   });
 });
 

@@ -39,7 +39,7 @@ import LiveScreen from './app/screens/LiveScreen.jsx';
 import { exportSetlistPdf } from './app/screens/SetlistPdfExport.js';
 import { APP_NAME, APP_TAGLINE } from './core/branding.js';
 import BacklineIcon from './app/components/BacklineIcon.jsx';
-import { useLocale, t } from './i18n/index.js';
+import { useLocale, t, bindActiveProfile, setProfileLanguageUpdater } from './i18n/index.js';
 import { INIT_SETLISTS } from './core/setlists.js';
 import {
   PRESET_CATALOG_MERGED, findCatalogEntry, guessPresetInfo, normalizePresetName,
@@ -209,7 +209,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.49";
+const APP_VERSION = "8.14.50";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -457,6 +457,21 @@ function App() {
 
   // Current profile (derived)
   const profile = profiles[activeProfileId] || Object.values(profiles)[0];
+
+  // Phase 7.49 — i18n per-profile : binder le profil actif et l'updater
+  // de langue à chaque switch. setLocale() écrira directement dans
+  // profile.language (via l'updater) au lieu du localStorage global seul.
+  useEffect(() => { bindActiveProfile(profile); }, [profile?.id, profile?.language]);
+  useEffect(() => {
+    setProfileLanguageUpdater((loc) => {
+      setProfiles((p) => {
+        const cur = p[activeProfileId]; if (!cur) return p;
+        if (cur.language === loc) return p;
+        return { ...p, [activeProfileId]: { ...cur, language: loc, lastModified: Date.now() } };
+      });
+    });
+    return () => setProfileLanguageUpdater(null);
+  }, [activeProfileId]);
 
   // Publie availableSources du profil actif vers window pour que le scoring
   // (computeBestPresets / enrichAIResult) le lise sans qu'on doive le threader
@@ -716,6 +731,7 @@ function App() {
       +":"+JSON.stringify(p.tmpPatches||{})
       +":"+(p.recoMode||'')
       +":"+JSON.stringify(p.guitarBias||{})
+      +":"+(p.language||'')                      // Phase 7.49 — i18n per-profile
     ).join('|');
     const syncHash=[
       (songDb||[]).map(s=>s.id+":"+(s.aiCache?.sv||0)+":"+(s.aiCache?.rigSnapshot||'')+":"+(s.aiCache?.gId||'')).join(','),

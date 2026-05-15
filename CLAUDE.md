@@ -669,6 +669,194 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
+## État actuel (2026-05-15, Phase 7.49 close — i18n per-profile + T9 vocabulaire)
+
+**Backline v8.14.50 / SW backline-v150 / STATE_VERSION 8 / 775 tests verts.**
+Phase 7.49 introduit la migration `STATE_VERSION 7 → 8` pour ajouter le
+champ `profile.language` per-profile (T7) et documente la dichotomie
+capture vs preset (T9, décision sans refactor wholesale).
+
+### Schéma v8 (additif vs v7)
+
+```
+profile {
+  ...,                            // v7 inchangé
+  language: 'fr' | 'en' | 'es'    // NOUVEAU v8 — locale per-profile
+}
+```
+
+### Migration v7 → v8 (Phase 7.49 — T7)
+
+`migrateV7toV8(state)` lit `localStorage.backline_locale` (présent
+depuis Phase 7.36) et applique uniformément cette locale à chaque
+profil existant. Fallback `'fr'` si rien dans localStorage.
+
+- **Profil existant sans `language`** : hérite de la locale globale au
+  moment du premier load post-7.49.
+- **Profil existant avec `language` valide** (`'fr'/'en'/'es'`) :
+  préservé.
+- **Profil existant avec `language` invalide** (ex. `'de'`) : écrasé
+  par fallback.
+- **Profil new via `makeDefaultProfile`** : `language` = locale globale
+  actuelle (`_readGlobalLocale()`), fallback `'fr'`.
+- **Idempotence** : appliquer migrateV7toV8 sur un state déjà v8 → no-op.
+- **`mergeProfilesLWW` Firestore** : tous les profils sortants passent
+  désormais par `ensureProfileV8` (qui appelle `ensureProfileV7` + pose
+  `language` si absent).
+
+### Architecture i18n per-profile (Phase 7.49 — T7)
+
+`src/i18n/index.js` étendu avec deux nouvelles API :
+
+- `bindActiveProfile(profile)` : appelée par l'App au switch de profil
+  ou au changement de `profile.language`. Met à jour la locale module
+  niveau (`_activeProfileLanguage`) et notifie les listeners.
+- `setProfileLanguageUpdater(updater)` : enregistre un callback
+  `(loc) => void` que `setLocale()` invoque pour persister le changement
+  dans `profile.language` (en plus du localStorage global, conservé en
+  fallback pour le ProfilePicker pré-login).
+
+`getLocale()` priorité : `_activeProfileLanguage` > `localStorage.backline_locale`
+> détection nav. Le hook `useLocale()` continue à fonctionner sans
+modification (re-render via `subscribeLocale`).
+
+**App (main.jsx)** ajoute deux `useEffect` après la résolution du
+profil actif :
+
+```js
+useEffect(() => { bindActiveProfile(profile); }, [profile?.id, profile?.language]);
+useEffect(() => {
+  setProfileLanguageUpdater((loc) => {
+    setProfiles((p) => {
+      const cur = p[activeProfileId]; if (!cur) return p;
+      if (cur.language === loc) return p;
+      return { ...p, [activeProfileId]: { ...cur, language: loc, lastModified: Date.now() } };
+    });
+  });
+  return () => setProfileLanguageUpdater(null);
+}, [activeProfileId]);
+```
+
+Le `profile.language` est inclus dans le `profileHash` syncHash
+(Phase 7.46) → propagation Firestore.
+
+### Comportement utilisateur (Phase 7.49)
+
+- **Premier load post-déploiement** : chaque profil existant hérite de
+  la locale globale au moment de la migration. Sébastien (FR) →
+  `language: 'fr'`, Bruno (auto-détecté EN si nav.language=en) →
+  `language: 'en'`.
+- **Switch de profil** : la langue de l'app suit `profile.language` du
+  nouveau profil actif. Si Sébastien (FR) switch vers Francisco (ES),
+  l'UI passe en ES instantanément.
+- **Changement de langue** : Mon Profil → 🎨 Affichage → drapeau →
+  écriture dans `profile.language` du profil actif + sync Firestore.
+  Les autres profils gardent leur langue.
+- **ProfilePicker (avant pick)** : utilise localStorage `backline_locale`
+  global comme fallback. Sébastien qui pose `language: 'es'` sur son
+  profil voit son picker rester en FR jusqu'à ce qu'il le change
+  explicitement (Mon Profil → Affichage écrit aussi le localStorage
+  global pour cohérence).
+
+### Tests Phase 7.49
+
+10 nouveaux tests Vitest ajoutés (`state.test.js`) :
+- `migrateV7toV8` (6) : fallback fr, héritage localStorage (mocké via
+  `vi.stubGlobal`), préservation language explicite, idempotence,
+  language invalide écrasé, null/undefined safe.
+- `ensureProfileV8 / ensureProfilesV8` (4) : fallback fr, préservation
+  valide, délégation V7 (stamp lastModified), map sur tous profils.
+
+Le test `STATE_VERSION` mis à jour pour expecter `8` (vs `7` Phase 7.46).
+
+### T9 — Vocabulaire capture vs preset (décision documentée, refactor reporté)
+
+Voir section **Vocabulaire ToneX** ci-dessous.
+
+### Conséquences
+
+- Bump STATE_VERSION 7 → 8 (migration additive idempotente).
+- Bundle 1885.47 KB → 1886.54 KB (+1 KB pour la migration + bindings i18n).
+- 775/775 tests verts (vs 765 Phase 7.48, +10 nouveaux migrateV7toV8 +
+  ensureProfileV8).
+- Cohabitation v7/v8 sur Firestore : les clients v7 reçoivent un push
+  v8 (profile.language présent) → ignoré silencieusement par leur
+  schéma v7 (champ non interprété). Les clients v8 reçoivent un v7
+  push (sans language) → `ensureProfileV8` au pull comble. Pas de
+  perte de données.
+
+### Architecture livrée à fin Phase 7.49
+
+```
+src/main.jsx                    APP_VERSION 8.14.49 → 8.14.50
+                                +useEffect bindActiveProfile + updater
+                                +profileHash includes p.language
+public/sw.js                    CACHE backline-v149 → backline-v150
+src/core/state.js               STATE_VERSION 7 → 8
+                                +LOCALE_KEY, _readGlobalLocale
+                                +ensureProfileV8 / ensureProfilesV8
+                                +migrateV7toV8
+                                _runFullChain chaîne v8
+                                loadState accepte v7 → migrate
+                                mergeProfilesLWW utilise ensureProfileV8
+                                makeDefaultProfile pose language
+src/core/state.test.js          +10 tests migrateV7toV8 + ensureProfileV8
+                                STATE_VERSION attend 8
+src/i18n/index.js               +bindActiveProfile / setProfileLanguageUpdater
+                                getLocale priorité _activeProfileLanguage
+                                setLocale invoke updater + localStorage
+```
+
+### Dette résiduelle Phase 7.49
+
+- Cohabitation v7/v8 sur Firestore : un device pré-7.49 peut pousser un
+  state sans `profile.language`. Le device post-7.49 le heal au pull
+  via `ensureProfileV8` mais le push retour porte language → le pré-7.49
+  ne le voit pas. Fenêtre courte (max le temps de déploiement sur tous
+  les devices).
+- **ProfilePicker** : ne suit pas encore `profile.language` (le pick
+  est PRÉ-login). Utilise localStorage global. Acceptable car la
+  langue choisie au pick reflète la dernière langue d'usage sur
+  l'appareil — sera mise à jour après pick.
+- **Test E2E sync per-profile** : non couvert par Vitest. Smoke-test
+  manuel à faire post-déploiement (Sébastien FR sur Mac, Bruno EN sur
+  iPhone, vérifier que chacun garde sa langue après sync).
+
+---
+
+## Vocabulaire ToneX (Phase 7.49 — décision documentée pour T9)
+
+Terminologie officielle IK Multimedia × usage interne Backline :
+
+- **Capture (Tone Model)** : Le ML model entraîné depuis un ampli/cab
+  physique. C'est l'unité atomique du ToneX. Une capture a un nom (ex.
+  "TSR Mars 800SL Cn1&2 HG"), un voicing fixe (amp + cab + mic dans la
+  capture), et un `src` (`Factory`, `FactoryV1`, `Anniversary`,
+  `PlugFactory`, `TSR`, `ML`, `ToneNET`, `custom`).
+- **Preset** : Un slot configuré dans le hardware. Sur ToneX Pedal
+  classique (50 slots × A/B/C) et ToneX Plug (10 × A/B/C), un preset =
+  une capture chargée dans le slot + Stomp + EQ + Reverb intégrés au
+  firmware. La distinction capture/preset est mince ici car un slot
+  contient essentiellement une capture (les FX intégrés sont minimes).
+- **Patch (TMP)** : Sur le Tone Master Pro, un patch = chaîne complète
+  de 9 blocs (noise_gate, comp, eq, drive, amp+cab issus de captures,
+  mod, delay, reverb) + Scenes + footswitch map. Plus complexe que
+  l'unité capture seule.
+
+**Décision Phase 7.49** : Le vocabulaire i18n actuel mixe "preset"
+(usage hardware end-user) et "capture" (terme technique). La
+distinction est faible sur Pedal/Anniversary/Plug — refactor wholesale
+non justifié (87 strings i18n × 3 langues = risque énorme). Pour
+TMP, "patch" est déjà utilisé dans l'UI quand on parle de la chaîne
+complète, ce qui est correct.
+
+Si la confusion utilisateur est rapportée explicitement par les
+beta-testeurs, un refactor ciblé sur les ~10 sites visibles
+(badges, titres de cards) pourra être fait Phase 7.50+ — sans toucher
+aux champs JSON internes (`preset_ann_name`, `settings_preset`).
+
+---
+
 ## État actuel (2026-05-15, Phase 7.48 close — 6 tickets beta)
 
 **Backline v8.14.49 / SW backline-v149 / STATE_VERSION 7 / 765 tests verts.**
