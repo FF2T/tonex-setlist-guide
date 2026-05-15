@@ -42,6 +42,12 @@ const en = {
 
   // common
   'common.home': 'Home',
+  'demo.blocked': 'Action disabled in demo mode',
+  'demo.card-title': 'Demo mode · Discover Backline',
+  'demo.card-badge': 'No account',
+  'demo.card-subtitle': 'Try the app with a demo profile. Nothing is saved.',
+  'demo.banner-text': 'You\'re testing Backline in demo mode.',
+  'demo.banner-link': 'To get your own profile with your rig, request access',
   'common.footer-disclaimer': 'Independent tool — ToneX™ is a trademark of IK Multimedia SpA. Other mentioned trademarks belong to their respective owners.',
 
   // devices
@@ -333,6 +339,11 @@ const en = {
   'maintenance.reset-hint': 'Resets the app: profiles, banks, songs. Default presets and initial profile will be restored.',
   'maintenance.reset-title': 'Reset all data',
   'maintenance.reset-warning': 'All data will be deleted. This action is irreversible.',
+  'maintenance.demo-export-title': '📦 Export demo snapshot (admin)',
+  'maintenance.demo-export-hint': 'Generates a JSON from the active profile (setlists + songs + aiCache) to replace src/data/demo-profile.json. The exported profile is forced id=demo, isDemo=true, isAdmin=false, password=null. aiKeys + loginHistory are cleared.',
+  'maintenance.demo-export-button': '📦 Export demo snapshot',
+  'maintenance.demo-export-error': 'Failed to build snapshot.',
+  'maintenance.demo-export-workflow': 'Workflow: curate a dedicated profile → switch to it → click this button → replace src/data/demo-profile.json with the downloaded file → commit + push + version bump.',
   'maintenance.restore': 'Restore',
   'maintenance.restore-confirm': 'Restore this backup? Current data will be replaced.',
   'maintenance.setlists': { one: '1 setlist', other: '{count} setlists' },

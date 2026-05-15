@@ -46,7 +46,7 @@ const getFeedbackTags = () => [
 ];
 
 // ─── SongSearchBar ───────────────────────────────────────────────────
-function SongSearchBar({ onConfirm, aiProvider, aiKeys, songDb }) {
+function SongSearchBar({ onConfirm, aiProvider, aiKeys, songDb, isDemo }) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [suggestion, setSuggestion] = useState(null);
@@ -102,12 +102,17 @@ Réponds UNIQUEMENT en JSON (sans markdown) : {"title":"Titre exact","artist":"A
   const pickLocal = (s) => { onConfirm(s.title, s.artist); setShowSuggest(false); setInput(''); setSuggestion(null); };
 
   const inp = { background: 'var(--bg-elev-1)', color: 'var(--text-primary)', border: '2px solid var(--border-strong)', borderRadius: 'var(--r-lg)', padding: '16px 18px', fontSize: 17, width: '100%', boxSizing: 'border-box', fontFamily: 'var(--font-ui)' };
+  // Phase 7.51.3.1 — Mode démo : input + bouton disabled visuellement,
+  // pour décourager la saisie. Sinon le visiteur tape, clique OK et
+  // reçoit un toast 🔒 sans signal préalable.
+  const demoTitle = isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : undefined;
   return (
     <div style={{ position: 'relative' }}>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }} title={demoTitle}>
         <input
           placeholder={t('home.search.placeholder', 'Titre, artiste...')}
           value={input}
+          disabled={isDemo}
           onChange={(e) => { setInput(e.target.value); setSuggestion(null); setShowSuggest(true); setHighlight(0); }}
           onFocus={() => setShowSuggest(true)}
           onBlur={() => setTimeout(() => setShowSuggest(false), 150)}
@@ -120,9 +125,9 @@ Réponds UNIQUEMENT en JSON (sans markdown) : {"title":"Titre exact","artist":"A
             }
             if (e.key === 'Enter') search();
           }}
-          style={{ ...inp, flex: 1 }}
+          style={{ ...inp, flex: 1, opacity: isDemo ? 0.5 : 1, cursor: isDemo ? 'not-allowed' : 'text' }}
         />
-        <button onClick={search} disabled={!input.trim() || loading} style={{ background: !input.trim() || loading ? 'var(--bg-elev-3)' : 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-lg)', padding: '0 22px', fontSize: 17, fontWeight: 700, cursor: !input.trim() || loading ? 'not-allowed' : 'pointer', flexShrink: 0, boxShadow: 'var(--shadow-sm)', fontFamily: 'var(--font-ui)' }}>{loading ? '...' : t('home.search.ok', 'OK')}</button>
+        <button onClick={search} disabled={isDemo || !input.trim() || loading} style={{ background: isDemo || !input.trim() || loading ? 'var(--bg-elev-3)' : 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-lg)', padding: '0 22px', fontSize: 17, fontWeight: 700, cursor: isDemo || !input.trim() || loading ? 'not-allowed' : 'pointer', flexShrink: 0, boxShadow: 'var(--shadow-sm)', fontFamily: 'var(--font-ui)', opacity: isDemo ? 0.5 : 1 }}>{loading ? '...' : t('home.search.ok', 'OK')}</button>
       </div>
       {showSuggest && localSuggestions.length > 0 && !suggestion && !loading && (
         <div style={{ position: 'absolute', top: '54px', left: 0, right: 0, background: 'var(--bg-elev-1)', border: '1px solid var(--border-strong)', borderRadius: 'var(--r-lg)', boxShadow: 'var(--shadow-md)', zIndex: 50, maxHeight: 240, overflowY: 'auto' }}>
@@ -291,6 +296,8 @@ function HomeScreen({
     () => (mySongIds ? songDb.filter((s) => mySongIds.has(s.id)) : songDb),
     [songDb, mySongIds]
   );
+  // Phase 7.51.3.1 — Mode démo : dérive depuis le profil actif.
+  const isDemo = profiles?.[activeProfileId]?.isDemo === true;
   // Phase 5.13.8 — perf instrumentation, même pattern que ListScreen.
   if (typeof window !== 'undefined' && window.__TONEX_PERF) {
     if (!window.__homeRenderStart) window.__homeRenderStart = performance.now();
@@ -365,7 +372,7 @@ function HomeScreen({
             })()}
 
             <div style={{ width: '100%' }}>
-              <SongSearchBar songDb={visibleSongDb} aiProvider={aiProvider} aiKeys={aiKeys} onConfirm={(title, artist) => {
+              <SongSearchBar songDb={visibleSongDb} aiProvider={aiProvider} aiKeys={aiKeys} isDemo={isDemo} onConfirm={(title, artist) => {
                 const existing = findDuplicateSong(songDb, title, artist) || songDb.find((s) => normalizePresetName(s.title) === normalizePresetName(title));
                 const canonTitle = existing ? existing.title : title;
                 const canonArtist = existing ? existing.artist : artist;

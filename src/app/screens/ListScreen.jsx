@@ -313,7 +313,9 @@ function ListScreen({
   }).length, [activeSongs, currentRigSnapshot]);
   const [analyzeAllStatus, setAnalyzeAllStatus] = useState(null);
   const analyzeCancelRef = useRef(false);
+  const isDemo = profile?.isDemo === true;
   const analyzeMissingAll = async () => {
+    if (isDemo) return; // Phase 7.51.2 — pas de fetchAI en mode démo
     analyzeCancelRef.current = false;
     const missing = (activeSongs || []).filter((s) => {
       if (!s.aiCache) return true;
@@ -344,6 +346,7 @@ function ListScreen({
     analyzeCancelRef.current = false;
   };
   const improveAll = async () => {
+    if (isDemo) return; // Phase 7.51.2 — pas de fetchAI en mode démo
     improveCancelRef.current = false;
     setCancelRequested(false);
     setImproving(true);

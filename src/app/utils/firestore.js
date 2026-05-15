@@ -10,7 +10,7 @@
 // tient. Phase 6.1 : compression lz-string en fallback avant strip.
 
 import LZString from 'lz-string';
-import { stripAiCacheForSync } from '../../core/state.js';
+import { stripAiCacheForSync, stripDemoProfiles } from '../../core/state.js';
 import { setSharedGeminiKey } from './shared-key.js';
 import { authedFetch as anonAuthedFetch } from './firebase-auth.js';
 
@@ -37,6 +37,15 @@ export function setNoSyncMode(enabled) {
   } catch (e) {}
 }
 
+// Phase 7.51.2 — Mode démo : bloque tous les appels Firestore en runtime.
+// Géré in-memory (pas de localStorage car le visiteur démo ne doit pas
+// laisser de trace). L'App appelle setFirestoreDemoMode(true) au switch
+// vers le profil démo, et false au retour.
+let _isDemoMode = false;
+export function setFirestoreDemoMode(b) { _isDemoMode = !!b; }
+export function isFirestoreDemoMode() { return _isDemoMode; }
+function isDemoOrNoSync() { return _isDemoMode || isNoSyncMode(); }
+
 // IDs partagés avec le reste de main.jsx via les helpers
 // getLastSavedSyncId() / getLastRemoteSyncId() pour les checks anti-echo.
 let _lastSavedSyncId = null;
@@ -47,13 +56,18 @@ export function getLastRemoteSyncId() { return _lastRemoteSyncId; }
 export function setLastRemoteSyncId(sid) { _lastRemoteSyncId = sid; }
 
 export function saveToFirestore(s) {
-  if (isNoSyncMode()) return Promise.resolve({ skipped: 'no-sync' });
+  if (isDemoOrNoSync()) return Promise.resolve({ skipped: _isDemoMode ? 'demo' : 'no-sync' });
   const SAFE_LIMIT = 800 * 1024;
   const ts = (s && s.shared && typeof s.shared.lastModified === 'number') ? s.shared.lastModified : Date.now();
   const sid = Date.now().toString(36) + Math.random().toString(36).slice(2);
   _lastSavedSyncId = sid;
   const prep = (stateIn) => {
-    const c = JSON.parse(JSON.stringify(stateIn));
+    // Phase 7.51.2 — défense en profondeur : strip les profils démo
+    // (isDemo: true) avant push. Ne devrait jamais arriver en pratique
+    // (le profil démo est in-memory uniquement), mais protège contre
+    // les écritures accidentelles.
+    const stripped = stripDemoProfiles(stateIn);
+    const c = JSON.parse(JSON.stringify(stripped));
     c.syncId = sid;
     if (c.profiles) { for (const pid in c.profiles) { if (c.profiles[pid].aiKeys) c.profiles[pid].aiKeys = { anthropic: '', gemini: '' }; } }
     return c;
@@ -110,7 +124,7 @@ export function saveToFirestore(s) {
 }
 
 export function loadFromFirestore() {
-  if (isNoSyncMode()) return Promise.resolve(null);
+  if (isDemoOrNoSync()) return Promise.resolve(null);
   return authedFetch(FS_BASE + '/sync/state?key=' + FS_KEY)
     .then((r) => { if (!r.ok) return null; return r.json(); })
     .then((doc) => {
@@ -161,7 +175,7 @@ export function fsVal(v) {
 }
 
 export function pollRemoteSyncId() {
-  if (isNoSyncMode()) return Promise.resolve(null);
+  if (isDemoOrNoSync()) return Promise.resolve(null);
   return authedFetch(FS_BASE + '/sync/state?key=' + FS_KEY + '&mask.fieldPaths=syncId&mask.fieldPaths=ts')
     .then((r) => { if (!r.ok) return null; return r.json(); })
     .then((doc) => {
@@ -172,7 +186,7 @@ export function pollRemoteSyncId() {
 }
 
 export function loadSharedKey() {
-  if (isNoSyncMode()) return Promise.resolve();
+  if (isDemoOrNoSync()) return Promise.resolve();
   return authedFetch(FS_BASE + '/config/apikeys?key=' + FS_KEY)
     .then((r) => { if (!r.ok) return; return r.json(); })
     .then((doc) => { if (doc && doc.fields && doc.fields.gemini) setSharedGeminiKey(doc.fields.gemini.stringValue); })
@@ -180,7 +194,7 @@ export function loadSharedKey() {
 }
 
 export function saveSharedKey(key) {
-  if (isNoSyncMode()) return Promise.resolve();
+  if (isDemoOrNoSync()) return Promise.resolve();
   const body = { fields: { gemini: { stringValue: key } } };
   return authedFetch(FS_BASE + '/config/apikeys?key=' + FS_KEY, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
 }

@@ -5,9 +5,12 @@ import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   STATE_VERSION, TOMBSTONE_MAX_AGE_MS,
   migrateV1toV2, migrateV2toV3, migrateV4toV5, migrateV5toV6, migrateV6toV7,
-  migrateV7toV8,
+  migrateV7toV8, migrateV8toV9,
   ensureSharedV7, ensureProfileV7, ensureProfilesV7,
   ensureProfileV8, ensureProfilesV8,
+  ensureProfileV9, ensureProfilesV9,
+  isDemoProfile, isDemoMode, loadDemoSnapshot, buildDemoSnapshot,
+  wrapDemoGuard, stripDemoProfiles,
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
@@ -23,8 +26,8 @@ import {
 } from './state.js';
 
 describe('STATE_VERSION', () => {
-  test('vaut 8 en Phase 7.49 (i18n per-profile, profile.language)', () => {
-    expect(STATE_VERSION).toBe(8);
+  test('vaut 9 en Phase 7.51.1 (mode démo, profile.isDemo)', () => {
+    expect(STATE_VERSION).toBe(9);
   });
 });
 
@@ -1583,6 +1586,288 @@ describe('ensureProfileV8 / ensureProfilesV8 (Phase 7.49)', () => {
     });
     expect(out.a.language).toBe('fr');
     expect(out.b.language).toBe('en');
+  });
+});
+
+// ─── Phase 7.51.1 — Demo profile foundations ────────────────────────
+
+describe('migrateV8toV9 — Phase 7.51.1 mode démo', () => {
+  test('pose isDemo: false sur profil sans flag', () => {
+    const before = {
+      version: 8,
+      profiles: {
+        a: { id: 'a', name: 'A', language: 'fr', enabledDevices: [], lastModified: 1 },
+        b: { id: 'b', name: 'B', language: 'en', enabledDevices: [], lastModified: 2 },
+      },
+    };
+    const out = migrateV8toV9(before);
+    expect(out.version).toBe(9);
+    expect(out.profiles.a.isDemo).toBe(false);
+    expect(out.profiles.b.isDemo).toBe(false);
+  });
+
+  test('préserve isDemo: true existant (idempotence forte)', () => {
+    const before = {
+      version: 8,
+      profiles: {
+        demo: { id: 'demo', isDemo: true, language: 'fr', enabledDevices: [], lastModified: 1 },
+        normal: { id: 'normal', isDemo: false, language: 'fr', enabledDevices: [], lastModified: 2 },
+      },
+    };
+    const out = migrateV8toV9(before);
+    expect(out.profiles.demo.isDemo).toBe(true);
+    expect(out.profiles.normal.isDemo).toBe(false);
+  });
+
+  test('idempotent sur state déjà v9', () => {
+    const before = {
+      version: 8,
+      profiles: { a: { id: 'a', isDemo: false, language: 'fr', enabledDevices: [], lastModified: 1 } },
+    };
+    const v9 = migrateV8toV9(before);
+    const v9again = migrateV8toV9(v9);
+    expect(v9again.version).toBe(9);
+    expect(v9again.profiles.a.isDemo).toBe(false);
+  });
+
+  test('null/undefined input retourné tel quel', () => {
+    expect(migrateV8toV9(null)).toBe(null);
+    expect(migrateV8toV9(undefined)).toBe(undefined);
+  });
+});
+
+describe('ensureProfileV9 / ensureProfilesV9 (Phase 7.51.1)', () => {
+  test('ensureProfileV9 chaîne ensureProfileV8 (language + isDemo posés)', () => {
+    const p = ensureProfileV9({ id: 'a', enabledDevices: [] });
+    expect(p.language).toBe('fr');
+    expect(p.isDemo).toBe(false);
+    expect(typeof p.lastModified).toBe('number');
+  });
+
+  test('ensureProfileV9 préserve isDemo valide (false explicite et true)', () => {
+    expect(ensureProfileV9({ id: 'a', isDemo: false, enabledDevices: [] }).isDemo).toBe(false);
+    expect(ensureProfileV9({ id: 'demo', isDemo: true, enabledDevices: [] }).isDemo).toBe(true);
+  });
+
+  test('ensureProfilesV9 map sur tous les profils', () => {
+    const out = ensureProfilesV9({
+      a: { id: 'a', enabledDevices: [] },
+      demo: { id: 'demo', isDemo: true, enabledDevices: [] },
+    });
+    expect(out.a.isDemo).toBe(false);
+    expect(out.demo.isDemo).toBe(true);
+  });
+});
+
+describe('isDemoProfile (Phase 7.51.1) — strict boolean true', () => {
+  test('true uniquement si isDemo === true (boolean strict)', () => {
+    expect(isDemoProfile({ id: 'demo', isDemo: true })).toBe(true);
+    expect(isDemoProfile({ id: 'a', isDemo: false })).toBe(false);
+    expect(isDemoProfile({ id: 'a' })).toBe(false);
+    expect(isDemoProfile({ id: 'a', isDemo: 'true' })).toBe(false);
+    expect(isDemoProfile({ id: 'a', isDemo: 1 })).toBe(false);
+    expect(isDemoProfile(null)).toBe(false);
+    expect(isDemoProfile(undefined)).toBe(false);
+  });
+});
+
+describe('isDemoMode (Phase 7.51.1)', () => {
+  test('true quand activeProfileId pointe un profil démo, false sinon', () => {
+    const state = {
+      profiles: {
+        demo: { id: 'demo', isDemo: true },
+        normal: { id: 'normal', isDemo: false },
+      },
+    };
+    expect(isDemoMode(state, 'demo')).toBe(true);
+    expect(isDemoMode(state, 'normal')).toBe(false);
+    expect(isDemoMode(state, 'inexistant')).toBe(false);
+  });
+
+  test('false sur state null/incomplet (defensive)', () => {
+    expect(isDemoMode(null, 'demo')).toBe(false);
+    expect(isDemoMode({}, 'demo')).toBe(false);
+    expect(isDemoMode({ profiles: null }, 'demo')).toBe(false);
+  });
+});
+
+describe('loadDemoSnapshot (Phase 7.51.1)', () => {
+  test('retourne un objet structuré { version, profile, setlists, songs }', () => {
+    const snap = loadDemoSnapshot();
+    expect(snap).toBeDefined();
+    expect(snap.version).toBe(9);
+    expect(snap.profile).toBeDefined();
+    expect(snap.profile.id).toBe('demo');
+    expect(snap.profile.isDemo).toBe(true);
+    expect(snap.profile.isAdmin).toBe(false);
+    expect(Array.isArray(snap.setlists)).toBe(true);
+    expect(Array.isArray(snap.songs)).toBe(true);
+  });
+});
+
+// ─── Phase 7.51.2 — Demo guard runtime (helpers purs) ────────────────
+
+describe('wrapDemoGuard (Phase 7.51.2)', () => {
+  test('isDemo=false → retourne fn (identité)', () => {
+    const fn = () => 'called';
+    const wrapped = wrapDemoGuard(fn, false);
+    expect(wrapped).toBe(fn);
+    expect(wrapped()).toBe('called');
+  });
+
+  test('isDemo=true → retourne wrapper qui ne call pas fn', () => {
+    let fnCalled = false;
+    const fn = () => { fnCalled = true; return 'should-not-return'; };
+    const wrapped = wrapDemoGuard(fn, true);
+    const result = wrapped();
+    expect(fnCalled).toBe(false);
+    expect(result).toBeUndefined();
+  });
+
+  test('isDemo=true → appelle onBlocked avec label', () => {
+    let receivedLabel = null;
+    const onBlocked = (lbl) => { receivedLabel = lbl; };
+    const wrapped = wrapDemoGuard(() => 'x', true, onBlocked, 'mylabel');
+    wrapped();
+    expect(receivedLabel).toBe('mylabel');
+  });
+
+  test('isDemo=true sans label → onBlocked reçoit "write" par défaut', () => {
+    let receivedLabel = null;
+    wrapDemoGuard(() => null, true, (lbl) => { receivedLabel = lbl; })();
+    expect(receivedLabel).toBe('write');
+  });
+
+  test('isDemo=true sans onBlocked → ne crash pas', () => {
+    const wrapped = wrapDemoGuard(() => null, true);
+    expect(() => wrapped()).not.toThrow();
+    expect(wrapped()).toBeUndefined();
+  });
+
+  test('onBlocked qui throw → swallow silencieusement', () => {
+    const wrapped = wrapDemoGuard(() => null, true, () => { throw new Error('boom'); }, 'lbl');
+    expect(() => wrapped()).not.toThrow();
+  });
+});
+
+describe('stripDemoProfiles (Phase 7.51.2)', () => {
+  test('filtre les profils isDemo: true', () => {
+    const state = {
+      profiles: {
+        sebastien: { id: 'sebastien', isDemo: false, name: 'Seb' },
+        demo: { id: 'demo', isDemo: true, name: 'Démo' },
+        arthur: { id: 'arthur', isDemo: false, name: 'Arthur' },
+      },
+    };
+    const out = stripDemoProfiles(state);
+    expect(out.profiles.sebastien).toBeDefined();
+    expect(out.profiles.arthur).toBeDefined();
+    expect(out.profiles.demo).toBeUndefined();
+  });
+
+  test('préserve tous les profils si aucun n\'est démo', () => {
+    const state = {
+      profiles: {
+        a: { id: 'a', isDemo: false },
+        b: { id: 'b' }, // pas de flag explicite — considéré non-démo
+      },
+    };
+    const out = stripDemoProfiles(state);
+    expect(Object.keys(out.profiles).length).toBe(2);
+  });
+
+  test('state null/undefined safe', () => {
+    expect(stripDemoProfiles(null)).toBe(null);
+    expect(stripDemoProfiles(undefined)).toBe(undefined);
+    expect(stripDemoProfiles({})).toEqual({});
+    expect(stripDemoProfiles({ profiles: null })).toEqual({ profiles: null });
+  });
+
+  test('immutabilité — retourne un nouvel objet', () => {
+    const state = { profiles: { a: { isDemo: false } }, other: 'preserved' };
+    const out = stripDemoProfiles(state);
+    expect(out).not.toBe(state);
+    expect(out.profiles).not.toBe(state.profiles);
+    expect(out.other).toBe('preserved');
+  });
+});
+
+// ─── Phase 7.51.4 — buildDemoSnapshot (outil export admin) ──────────
+
+describe('buildDemoSnapshot (Phase 7.51.4)', () => {
+  const sampleProfile = {
+    id: 'demo_curator_1778839429588',
+    name: 'Demo Curator',
+    isAdmin: true,
+    password: 'h1:abc:def',
+    isDemo: false,
+    aiKeys: { anthropic: 'sk-ant-xxx', gemini: 'AIzaXXX' },
+    loginHistory: [{ ts: 1, device: 'mac' }, { ts: 2, device: 'iphone' }],
+    myGuitars: ['lp60', 'strat61'],
+    enabledDevices: ['tonex-anniversary', 'tonex-plug'],
+    banksAnn: { 0: { A: 'X', B: 'Y', C: '' } },
+    language: 'fr',
+  };
+  const sampleSetlists = [
+    { id: 'sl_curator', name: 'Demo Setlist', profileIds: ['demo_curator_1778839429588'], songIds: ['s1', 's2'] },
+    { id: 'sl_other', name: 'Autre', profileIds: ['someone_else'], songIds: ['s3'] },
+  ];
+  const sampleSongs = [
+    { id: 's1', title: 'Song 1', artist: 'A', aiCache: { sv: 9, result: { cot_step1: { fr: 'fr', en: 'en', es: 'es' } } } },
+    { id: 's2', title: 'Song 2', artist: 'B', aiCache: { sv: 9, result: { cot_step1: { fr: 'fr2', en: 'en2', es: 'es2' } } } },
+    { id: 's3', title: 'Other song', artist: 'C', aiCache: { sv: 9 } },
+  ];
+
+  test('force profile.id=demo, isDemo:true, isAdmin:false, password:null', () => {
+    const snap = buildDemoSnapshot(sampleProfile, sampleSetlists, sampleSongs);
+    expect(snap.profile.id).toBe('demo');
+    expect(snap.profile.name).toBe('Démo');
+    expect(snap.profile.isDemo).toBe(true);
+    expect(snap.profile.isAdmin).toBe(false);
+    expect(snap.profile.password).toBeNull();
+  });
+
+  test('strip aiKeys + loginHistory', () => {
+    const snap = buildDemoSnapshot(sampleProfile, sampleSetlists, sampleSongs);
+    expect(snap.profile.aiKeys).toEqual({ anthropic: '', gemini: '' });
+    expect(snap.profile.loginHistory).toEqual([]);
+  });
+
+  test('extrait uniquement les songs référencées par les setlists du profil', () => {
+    const snap = buildDemoSnapshot(sampleProfile, sampleSetlists, sampleSongs);
+    expect(snap.songs.length).toBe(2);
+    expect(snap.songs.map((s) => s.id).sort()).toEqual(['s1', 's2']);
+    // s3 (référencé uniquement par sl_other appartenant à someone_else) doit être absent.
+    expect(snap.songs.find((s) => s.id === 's3')).toBeUndefined();
+  });
+
+  test('préserve aiCache trilingue complet sur les songs extraites', () => {
+    const snap = buildDemoSnapshot(sampleProfile, sampleSetlists, sampleSongs);
+    const s1 = snap.songs.find((s) => s.id === 's1');
+    expect(s1.aiCache).toBeDefined();
+    expect(s1.aiCache.sv).toBe(9);
+    expect(s1.aiCache.result.cot_step1.fr).toBe('fr');
+    expect(s1.aiCache.result.cot_step1.en).toBe('en');
+    expect(s1.aiCache.result.cot_step1.es).toBe('es');
+  });
+
+  test('setlists sortantes ont profileIds=[demo] (remappage)', () => {
+    const snap = buildDemoSnapshot(sampleProfile, sampleSetlists, sampleSongs);
+    expect(snap.setlists.length).toBe(1);
+    expect(snap.setlists[0].profileIds).toEqual(['demo']);
+    expect(snap.setlists[0].songIds).toEqual(['s1', 's2']);
+  });
+
+  test('format compatible loadDemoSnapshot (version + 4 clés)', () => {
+    const snap = buildDemoSnapshot(sampleProfile, sampleSetlists, sampleSongs);
+    expect(snap.version).toBe(9);
+    expect(snap).toHaveProperty('profile');
+    expect(snap).toHaveProperty('setlists');
+    expect(snap).toHaveProperty('songs');
+  });
+
+  test('null profile retourne null (defensive)', () => {
+    expect(buildDemoSnapshot(null, sampleSetlists, sampleSongs)).toBeNull();
   });
 });
 

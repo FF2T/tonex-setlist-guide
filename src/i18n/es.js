@@ -40,6 +40,12 @@ const es = {
 
   // common
   'common.home': 'Inicio',
+  'demo.blocked': 'Acción desactivada en modo demo',
+  'demo.card-title': 'Modo demo · Descubre Backline',
+  'demo.card-badge': 'Sin cuenta',
+  'demo.card-subtitle': 'Prueba la app con un perfil de demostración. Nada se guarda.',
+  'demo.banner-text': 'Estás probando Backline en modo demo.',
+  'demo.banner-link': 'Para obtener tu propio perfil con tu equipo, solicita acceso',
   'common.footer-disclaimer': 'Herramienta independiente — ToneX™ es una marca de IK Multimedia SpA. Las demás marcas mencionadas pertenecen a sus respectivos propietarios.',
 
   // devices
@@ -331,6 +337,11 @@ const es = {
   'maintenance.reset-hint': 'Restablece la app: perfiles, bancos, canciones. Los presets por defecto y el perfil inicial se restaurarán.',
   'maintenance.reset-title': 'Reiniciar todos los datos',
   'maintenance.reset-warning': 'Todos los datos serán eliminados. Esta acción es irreversible.',
+  'maintenance.demo-export-title': '📦 Exportar snapshot demo (admin)',
+  'maintenance.demo-export-hint': 'Genera un JSON desde el perfil activo (setlists + canciones + aiCache) para reemplazar src/data/demo-profile.json. El perfil exportado se fuerza id=demo, isDemo=true, isAdmin=false, password=null. aiKeys + loginHistory se vacían.',
+  'maintenance.demo-export-button': '📦 Exportar snapshot demo',
+  'maintenance.demo-export-error': 'Error al construir el snapshot.',
+  'maintenance.demo-export-workflow': 'Flujo: cura un perfil dedicado → cambia a él → haz clic en este botón → reemplaza src/data/demo-profile.json con el archivo descargado → commit + push + bump de versión.',
   'maintenance.restore': 'Restaurar',
   'maintenance.restore-confirm': '¿Restaurar esta copia? Los datos actuales serán reemplazados.',
   'maintenance.setlists': { one: '1 setlist', other: '{count} setlists' },

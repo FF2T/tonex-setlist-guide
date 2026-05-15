@@ -669,7 +669,566 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-15, Phase 7.50 close — 8 fixes rapport beta v8.14.48)
+## État actuel (2026-05-15, Phase 7.51.4 close — Phase 7.51 complète)
+
+**Backline v8.14.56 / SW backline-v156 / STATE_VERSION 9 / 803 tests verts.**
+Phase 7.51.4 ajoute l'outil admin "📦 Exporter snapshot démo" dans
+MaintenanceTab. Sébastien peut maintenant cure un profil dédié, switcher
+dessus, cliquer le bouton, et obtenir un JSON downloadable à utiliser
+pour remplacer `src/data/demo-profile.json`. **Phase 7.51 est désormais
+complète** (4 sous-phases livrées + 1 hotfix UX). Le mode démo est
+accessible via ProfilePicker + URL `?demo=1`, avec banner trilingue,
+guards runtime, UX search grisée, et outil de curation admin.
+
+### Helper buildDemoSnapshot (Phase 7.51.4)
+
+`buildDemoSnapshot(profile, allSetlists, allSongs)` retourne :
+```
+{
+  version: 9,
+  profile: {
+    ...origProfile,
+    id: 'demo',                     // forcé
+    name: 'Démo',                   // forcé
+    isDemo: true,                   // forcé
+    isAdmin: false,                 // forcé
+    password: null,                 // forcé
+    aiKeys: { anthropic: '', gemini: '' },  // vidé
+    loginHistory: [],               // vidé
+  },
+  setlists: [<filtrées par profileIds=[origId], remappées profileIds=['demo']>],
+  songs: [<filtrées par songIds des setlists ci-dessus, aiCache préservé>],
+}
+```
+
+Helper pur testable (7 nouveaux tests Vitest). Préserve l'intégralité
+de `aiCache` y compris champs trilingues (cot_step1.fr/en/es, etc.).
+
+### Bouton MaintenanceTab
+
+Section "📦 Exporter snapshot démo (admin)" en bas du tab Maintenance
+(admin-only via gating MonProfilScreen). Au click :
+1. Appelle `buildDemoSnapshot(profile, setlists, songDb)`.
+2. JSON.stringify pretty (indent 2).
+3. Crée un Blob `application/json` + URL.createObjectURL.
+4. Trigger download `demo-profile.json` via `<a download>` programmatique.
+5. revokeObjectURL pour libérer.
+
+Texte d'aide explicatif sur le workflow.
+
+### Workflow curation (Phase 7.51.4 + suite)
+
+1. Admin Sébastien crée/édite un profil curateur dédié (ex.
+   `demo_1778839429588` déjà existant sur le compte de prod).
+2. Switch vers ce profil dans l'app.
+3. Mon Profil → 🔧 Maintenance → bas de la page → "📦 Exporter
+   snapshot démo".
+4. Le fichier `demo-profile.json` est téléchargé.
+5. Côté repo : remplacer `src/data/demo-profile.json` par le fichier
+   téléchargé.
+6. `git add src/data/demo-profile.json && git commit && git push`.
+7. Bump `APP_VERSION` + SW `CACHE` (cf. workflow déploiement
+   habituel).
+8. Le mode démo charge le snapshot frais au prochain reload.
+
+### Architecture livrée à fin Phase 7.51.4
+
+```
+src/main.jsx                            APP_VERSION 8.14.55 → 8.14.56
+public/sw.js                            CACHE backline-v155 → backline-v156
+src/core/state.js                       +buildDemoSnapshot helper pur
+                                        +export
+src/core/state.test.js                  +7 tests Phase 7.51.4
+src/app/screens/MaintenanceTab.jsx      +section "Exporter snapshot démo"
+                                        avec bouton download blob JSON
+src/i18n/en.js, es.js                   +maintenance.demo-export-*
+                                        (5 clés × 2 langues)
+```
+
+### Récap Phase 7.51 (4 sous-phases + 1 hotfix)
+
+| Sous-phase | Version | Sujet |
+|---|---|---|
+| 7.51.1 | 8.14.52 | Foundations : STATE_VERSION 9, `profile.isDemo`, helpers, placeholder JSON |
+| 7.51.2 | 8.14.53 | Guards runtime : wrapDemoGuard, Firestore, fetchAI, tabs cachés, toast |
+| 7.51.3 | 8.14.54 | Accès UI : carte ProfilePicker, URL `?demo=1`, DemoBanner trilingue |
+| 7.51.3.1 | 8.14.55 | Hotfix UX : SongSearchBar grisée en mode démo |
+| 7.51.4 | 8.14.56 | Outil admin : buildDemoSnapshot + bouton MaintenanceTab |
+
+**Phase 7.51 close**. Tag `phase-7.51-done`. Mode démo public
+fonctionnel de bout en bout. Reste à faire :
+1. Curer un profil de démonstration via l'outil.
+2. Remplacer `src/data/demo-profile.json` placeholder par le snapshot
+   curé.
+3. Bumper version, commit, déployer sur main.
+4. Annoncer le mode démo aux beta-testeurs (Paul TSR, etc.) via URL
+   `https://mybackline.app/?demo=1`.
+
+### Dette résiduelle Phase 7.51 → 7.52+
+
+- **Audit complet UX grisé** : Phase 7.51.3.1 a grisé SongSearchBar.
+  D'autres inputs en mode démo restent fonctionnels (rename setlist,
+  create setlist, custom guitar add). Si feedback utilisateur, Phase
+  7.51.3.2 grisera ces points.
+- **Formulaire de demande d'accès** vs mailto : Phase 7.51 garde le
+  mailto simple. Idée Phase 7.44 listée dans "Idées en attente" pour
+  un formulaire Formspree/Web3Forms si le volume justifie.
+- **Tests E2E mode démo** : non couvert par Vitest. Smoke test
+  manuel à automatiser plus tard (Playwright/Cypress).
+- **B-TECH-01** (cycles sync Firestore) et **B-TECH-02** (taille
+  localStorage MAX_BACKUPS=1) : reportés Phase 7.52 comme prévu.
+
+---
+
+## État précédent (2026-05-15, Phase 7.51.3.1 close — UX recherche grisée mode démo)
+
+**Backline v8.14.55 / SW backline-v155 / STATE_VERSION 9 / 796 tests verts.**
+Phase 7.51.3.1 hotfix : la barre de recherche `SongSearchBar` (HomeScreen
++ Setlists → onglet Morceaux) et son bouton "OK" sont désormais
+**disabled + grisés visuellement** en mode démo. Sinon le visiteur tapait
+un morceau, cliquait OK et recevait un toast 🔒 sans signal préalable —
+mauvaise UX. Désormais l'input et le bouton signalent immédiatement
+qu'ils sont indisponibles (opacity 0.5, cursor not-allowed, title
+"Action désactivée en mode démo").
+
+Cf. section "Phase 7.51.3 close" ci-dessous pour le scope principal du
+mode démo.
+
+### Architecture livrée Phase 7.51.3.1
+
+```
+src/main.jsx                            APP_VERSION 8.14.54 → 8.14.55
+public/sw.js                            CACHE backline-v154 → backline-v155
+src/app/screens/HomeScreen.jsx          SongSearchBar +prop isDemo →
+                                        input + bouton disabled,
+                                        opacity 0.5, cursor not-allowed,
+                                        title 'Action désactivée en mode démo'
+                                        HomeScreen dérive isDemo depuis
+                                        profiles[activeProfileId]?.isDemo
+src/app/screens/SetlistsScreen.jsx      passe isDemo à SongSearchBar
+```
+
+### Dette résiduelle 7.51.3.1 → 7.51.3.2 / 7.51.4
+
+- Si l'utilisateur teste et trouve d'autres inputs/boutons non-grisés
+  en mode démo (rename setlist, créer setlist, ajouter custom guitar,
+  etc.), Phase 7.51.3.2 grisera ces points. Audit complet reporté.
+- Bug `?demo=1` URL non-fonctionnel rapporté : à diagnostiquer
+  avec dump console DevTools de l'utilisateur. Suspecté : cache
+  SW localhost ou test sur prod (où 7.51 n'est pas déployée).
+
+---
+
+## État précédent (2026-05-15, Phase 7.51.3 close — Mode démo accès UI + banner)
+
+**Backline v8.14.54 / SW backline-v154 / STATE_VERSION 9 / 796 tests verts.**
+Phase 7.51.3 expose le mode démo aux visiteurs : carte "Mode démo ·
+Découvrir Backline" sur ProfilePickerScreen, URL `?demo=1` auto-load,
+bandeau DemoBanner persistant trilingue avec lien mailto pré-rempli.
+Le mode démo est maintenant **accessible et fonctionnel**. Phase 7.51.4
+ajoutera l'outil admin "Exporter snapshot démo" pour remplacer le
+placeholder par le contenu curé.
+
+### Comportement attendu
+
+**Visiteur via URL `?demo=1`** :
+- Charge `https://mybackline.app/?demo=1`.
+- Au mount App, `_demoModeRequested` flag est lu → `enterDemoMode()`
+  est appelé → snapshot bundlé chargé in-memory → activeProfileId='demo'.
+- L'URL est nettoyée en `https://mybackline.app/` via
+  `history.replaceState`.
+- Le visiteur arrive direct sur HomeScreen avec le profil démo,
+  DemoBanner en haut.
+
+**Visiteur via ProfilePicker** :
+- Charge `https://mybackline.app/`.
+- ProfilePicker affiche en tête une carte "Mode démo · Découvrir
+  Backline" + badge "Sans compte" (toujours visible, même avec 0
+  profil trusted sur l'appareil).
+- Click sur la carte → `enterDemoMode()` → bascule directe.
+- Les profils trusted normaux sont affichés en-dessous, comportement
+  inchangé.
+
+**DemoBanner** :
+- Sticky top sous AppHeader, z-index 50.
+- Background gradient brass/copper, fontSize 12, textAlign center.
+- Message trilingue : "Tu testes Backline en mode démo." + lien
+  "demande un accès" (mailto pré-rempli avec template guitares /
+  ToneX hardware / 5-10 morceaux).
+- Non dismissible — le visiteur garde en permanence le contexte.
+- Visible partout SAUF `screen === 'live'` (LiveScreen plein écran).
+
+**Persistance localStorage** :
+- En mode démo, le `useEffect` persist early-return AVANT
+  `localStorage.setItem(LS_KEY, ...)`. Le snapshot in-memory ne pollue
+  donc JAMAIS le profil normal de l'utilisateur trusted sur cet appareil.
+- Au reload : localStorage chargé normalement → state restauré sans
+  trace du démo.
+
+### Architecture enterDemoMode
+
+`useCallback(() => {...}, [])` stable (deps vide). Le helper :
+1. Charge `loadDemoSnapshot()` (Phase 7.51.1 import statique du JSON).
+2. **Non-destructif** : `_setProfilesRaw(prev => ({...prev, demo: snap.profile}))`
+   ajoute le profil démo sans écraser les profils existants.
+3. Merge des `setlists` et `songDb` (dedup par id) — le filtrage
+   Phase 7.29.5 (mySetlists via profileIds) masque les autres setlists
+   au visiteur démo, qui ne voit que celles du profil 'demo'.
+4. `setActiveProfileId('demo')` → next render isDemo devient true.
+5. `setScreen('list')` → navigation vers HomeScreen.
+
+### Détection URL `?demo=1`
+
+Au module-load (avant le mount App), même bloc que `?beta=1`
+(Phase 7.25) :
+- `URLSearchParams` lit `window.location.search`.
+- Si `demo === '1'` ou `demo === 'true'` → `_demoModeRequested = true`.
+- Params nettoyés via `history.replaceState`.
+- Le flag est consommé dans le useEffect auto-login : s'il est true,
+  `enterDemoMode()` est appelé directement, court-circuitant le check
+  sessionStorage / trusted devices.
+
+### Carte démo ProfilePickerScreen
+
+Nouvelle carte styled brass→copper gradient, full-width 400px max,
+au-dessus du grid des profils trusted. Toujours rendue si la prop
+`onDemoEnter` est passée. Click handler = `onDemoEnter` (= `enterDemoMode`
+dans App).
+
+### Architecture livrée à fin Phase 7.51.3
+
+```
+src/main.jsx                                 APP_VERSION 8.14.53 → 8.14.54
+                                             +import DemoBanner, loadDemoSnapshot
+                                             +_demoModeRequested flag URL
+                                             +useCallback enterDemoMode
+                                             useEffect auto-login : court-circuit
+                                               si _demoModeRequested
+                                             useEffect persist : skip localStorage
+                                               si isDemo
+                                             +<DemoBanner> root JSX (gated live)
+                                             ProfilePickerScreen +onDemoEnter prop
+public/sw.js                                 CACHE backline-v153 → backline-v154
+src/app/components/DemoBanner.jsx            NOUVEAU — bandeau trilingue + mailto
+src/app/screens/ProfilePickerScreen.jsx      +onDemoEnter prop, +carte démo
+src/i18n/en.js, es.js                        +demo.card-title, card-badge,
+                                              card-subtitle, banner-text, banner-link
+```
+
+### Dette résiduelle Phase 7.51.3 → 7.51.4
+
+- **Phase 7.51.4** (outil de curation admin) : bouton "📦 Exporter
+  snapshot démo" dans MaintenanceTab admin. Helper pur
+  `buildDemoSnapshot(profile, allSetlists, allSongs)` qui force
+  `isDemo=true`, `isAdmin=false`, `password=null` et extrait
+  setlists+songs+aiCache pour produire le JSON downloadable.
+- **Tests E2E mode démo** : non couvert par Vitest. Smoke test
+  manuel post-déploiement : ouvrir `?demo=1` → vérifier que tout
+  marche, tenter chaque write → toast 🔒.
+- **Limite session** : si le visiteur démo recharge sans `?demo=1`,
+  il sort du mode démo (localStorage normal restauré). Acceptable.
+
+---
+
+## État précédent (2026-05-15, Phase 7.51.2 close — Mode démo guards runtime)
+
+**Backline v8.14.53 / SW backline-v153 / STATE_VERSION 9 / 796 tests verts.**
+Phase 7.51.2 implémente les blocages runtime du mode démo : les writes
+profile/setlists/songDb/deletedSetlistIds sont gated par
+`wrapDemoGuard`, les appels Firestore et fetchAI early-return, les
+tabs admin de Mon Profil sont cachés. Toast non-intrusif "Action
+désactivée en mode démo" sur chaque tentative bloquée. Le mode démo
+n'est PAS encore accessible (Phase 7.51.3 pose la carte ProfilePicker
++ URL `?demo=1` + DemoBanner).
+
+### Architecture des guards (Phase 7.51.2)
+
+**`wrapDemoGuard(fn, isDemo, onBlocked, label)`** (state.js, helper pur) :
+- `isDemo=false` → retourne `fn` tel quel (identité, zéro overhead).
+- `isDemo=true` → retourne un wrapper no-op qui notifie `onBlocked(label)`.
+- Callback try/catch'é pour ne pas casser le flow si le UI plante.
+
+**`stripDemoProfiles(state)`** (state.js, helper pur) :
+- Filtre les profils `isDemo: true` du state avant push Firestore.
+- Symétrique à `stripAiCacheForSync` (Phase 5.7.1).
+- Défense en profondeur : le profil démo (chargé in-memory) ne doit
+  JAMAIS être dans Firestore, mais protège contre les écritures
+  accidentelles (debug, import JSON, etc.).
+
+### Câblage App (main.jsx)
+
+- `_setSongDbRaw`, `_setDeletedSetlistIdsRaw`, `_setProfilesRaw` :
+  setters useState renommés (underscore-prefix pour signifier "interne").
+- `_setSetlistsComposed` : ancien wrapper composé (tombstones + stamp
+  lastModified) renommé.
+- `isDemo = useMemo(() => isDemoMode({ profiles }, activeProfileId), …)`.
+- `setSongDb`, `setSetlists`, `setDeletedSetlistIds`, `setProfiles` :
+  exposés via `useMemo(() => wrapDemoGuard(_setRaw, isDemo, showDemoToast, label))`.
+  Quand isDemo=false → identité (référence stable). Quand isDemo=true
+  → no-op + toast. Les ~33 sites d'appel downstream restent inchangés.
+- `useEffect(() => setFirestoreDemoMode(isDemo))` : signale au module
+  Firestore d'early-return tous les appels save/load/poll.
+- `bindActiveProfile(profile)` étendu : capture aussi `profile.isDemo`
+  → i18n module skip l'updater `profile.language` en mode démo.
+- `<ToastDemoBlocked message={demoToastMsg} onDismiss={...}/>` rendu
+  une fois au niveau App, après AppFooter et AppNavBottom.
+
+### Firestore (firestore.js)
+
+- `setFirestoreDemoMode(b)` + `_isDemoMode` module-level.
+- Nouvelle helper `isDemoOrNoSync()` étend `isNoSyncMode()`.
+- Early-return dans `saveToFirestore`, `loadFromFirestore`,
+  `pollRemoteSyncId`, `loadSharedKey`, `saveSharedKey`.
+- `saveToFirestore.prep()` applique `stripDemoProfiles` avant
+  `JSON.stringify` (défense en profondeur).
+
+### i18n (i18n/index.js)
+
+- `_activeProfileIsDemo` module-level posé par `bindActiveProfile`.
+- `setLocale(loc)` skip l'updater `_profileLanguageUpdater(loc)` si
+  `_activeProfileIsDemo` est true. Le `localStorage.backline_locale`
+  est toujours écrit (UI pref globale, OK même en mode démo).
+- Le visiteur démo peut donc changer la langue sans toucher au profil
+  bundlé (in-memory).
+
+### Composant ToastDemoBlocked
+
+`src/app/components/ToastDemoBlocked.jsx` (45 lignes) :
+- Position fixed bottom centered, z-index 99, auto-dismiss 2.5s.
+- `pointer-events: none` : le visiteur peut continuer à cliquer
+  derrière le toast.
+- `role="status"`, `aria-live="polite"` pour l'accessibilité.
+- Icône 🔒 + message i18n trilingue.
+
+### Gates fetchAI
+
+- `SongDetailCard.jsx:66` useEffect : `if (isDemo) return;` en tête,
+  avant les autres conditions. `isDemo` dans deps array.
+- `ListScreen.jsx:316` `analyzeMissingAll` : `if (isDemo) return;`.
+- `ListScreen.jsx:348` `improveAll` : idem.
+- `MaintenanceTab.jsx:92` `recalcAll` : `if (profile?.isDemo) return;`.
+
+Aucun appel `fetchAI` ne peut être déclenché en mode démo. Zéro
+quota Gemini consommé pour le visiteur.
+
+### MonProfilScreen tabs cachés
+
+En mode démo, seul le tab `display` (theme + locale) est exposé.
+Tous les autres (guitars, devices, sources, tonenet, pedale, ann,
+plug, tmp, reco, password, ia, maintenance, export, admin_profiles)
+sont conditionnés par `!isDemo &&`. Le visiteur peut configurer son
+thème et sa langue mais rien d'autre.
+
+### Tests Phase 7.51.2 (+10 nouveaux)
+
+`state.test.js` section "Phase 7.51.2 — Demo guard runtime (helpers purs)" :
+- `wrapDemoGuard` × 6 : identité quand !isDemo, no-op quand isDemo,
+  label par défaut "write", onBlocked optionnel, swallow callback
+  qui throw.
+- `stripDemoProfiles` × 4 : filtre isDemo:true, préserve normaux,
+  state null/undefined safe, immutabilité (new object).
+
+Total : 786 → 796 tests verts.
+
+### Comportement utilisateur attendu (Phase 7.51.2)
+
+- **Profil normal** (Sébastien, Bruno, etc.) : aucun changement.
+  Toutes les actions fonctionnent comme avant. wrapDemoGuard
+  retourne l'identité, zéro overhead.
+- **Profil démo** (à activer Phase 7.51.3) : tout click "Ajouter
+  guitare", "Toggle device", "Modifier banks", "Donner feedback",
+  "Forcer recalcul IA", "Maintenance" → toast 🔒 "Action désactivée
+  en mode démo" + écran inchangé. Aucun appel Firestore. Aucun
+  appel Gemini. Locale et theme changeables (UI pref globale).
+
+### Architecture livrée à fin Phase 7.51.2
+
+```
+src/main.jsx                            APP_VERSION 8.14.52 → 8.14.53
+                                        +import isDemoMode, isDemoProfile,
+                                          loadDemoSnapshot, wrapDemoGuard,
+                                          setFirestoreDemoMode, ToastDemoBlocked
+                                        useState setters → _setRaw (3 sites)
+                                        _setSetlistsComposed (renommage)
+                                        +bloc démo (isDemo, toast, wrappers)
+                                        +useEffect setFirestoreDemoMode
+                                        bindActiveProfile deps +profile.isDemo
+                                        +<ToastDemoBlocked> au root JSX
+public/sw.js                            CACHE backline-v152 → backline-v153
+src/core/state.js                       +wrapDemoGuard, +stripDemoProfiles
+                                        +exports
+src/core/state.test.js                  +10 tests Phase 7.51.2
+src/app/components/ToastDemoBlocked.jsx NOUVEAU — toast 45 lignes
+src/app/utils/firestore.js              +setFirestoreDemoMode, isDemoOrNoSync,
+                                        stripDemoProfiles import
+                                        early-returns 5 fonctions
+                                        prep() applique stripDemoProfiles
+src/i18n/index.js                       +_activeProfileIsDemo
+                                        bindActiveProfile détecte isDemo
+                                        setLocale skip updater si demo
+src/i18n/en.js, es.js                   +demo.blocked
+src/app/screens/SongDetailCard.jsx      useEffect gate isDemo
+src/app/screens/ListScreen.jsx          analyzeMissingAll + improveAll gates
+src/app/screens/MaintenanceTab.jsx      recalcAll gate
+src/app/screens/MonProfilScreen.jsx     tabs hidden si isDemo (sauf display)
+```
+
+### Dette résiduelle Phase 7.51.2 → 7.51.3-4
+
+- **Phase 7.51.3** (accès & banner) : carte "Mode démo · Découvrir
+  Backline" toujours visible sur ProfilePickerScreen. URL `?demo=1`
+  auto-load + nettoyage URL via history.replaceState. Composant
+  `DemoBanner.jsx` sticky top trilingue avec mailto pré-rempli vers
+  sebastien.chemin@gmail.com. Visible partout sauf LiveScreen.
+  Skip trusted device addition.
+- **Phase 7.51.4** (outil de curation admin) : bouton "📦 Exporter
+  snapshot démo" dans MaintenanceTab admin. Helper pur
+  `buildDemoSnapshot(profile, allSetlists, allSongs)`. Workflow doc
+  dans CLAUDE.md : curer un profil dédié → exporter → remplacer
+  src/data/demo-profile.json → commit → push → bump version.
+- **Sites de write non-couverts** : `recordLogin` (loginHistory)
+  passe encore par `_setProfilesRaw` directement dans le code
+  ProfilePicker (à vérifier Phase 7.51.3). En mode démo activé
+  Phase 7.51.3, le visiteur ne se loggue jamais via password donc
+  pas de risque, mais à valider.
+- **Pas de tests E2E** sur les gates UI (juste les helpers purs).
+  À automatiser plus tard.
+
+---
+
+## État précédent (2026-05-15, Phase 7.51.1 close — Mode démo foundations)
+
+**Backline v8.14.52 / SW backline-v152 / STATE_VERSION 9 / 786 tests verts.**
+Phase 7.51.1 pose les fondations du mode démo public : migration
+STATE_VERSION 8→9 avec `profile.isDemo: boolean`, helpers purs
+(`isDemoProfile`, `isDemoMode`, `loadDemoSnapshot`), placeholder
+`src/data/demo-profile.json` (à remplacer par le snapshot curé via
+l'outil d'export Phase 7.51.4). Phase 7.51.1 = backend uniquement
+— les guards runtime (7.51.2), l'accès UI + banner (7.51.3) et
+l'outil d'export admin (7.51.4) suivront dans les sous-phases
+ultérieures.
+
+### Objectif Phase 7.51 (rappel)
+
+Aujourd'hui mybackline.app est invitation-only (ProfilePicker exige
+un profil existant + password). Un visiteur (Reddit, DM, créateur
+TSR/ML) n'a pas moyen d'essayer l'app sans setup manuel admin.
+Objectif : vitrine publique read-only via `?demo=1` ou carte
+"Mode démo" sur ProfilePicker. Snapshot bundlé avec analyses IA
+pré-cachées, banks remplies, recos qui marchent. Tous les writes
+bloqués. Aucun appel `fetchAI` ni Firestore en mode démo.
+
+### Schéma v9 (additif vs v8)
+
+```
+profile {
+  ...,                  // v8 inchangé
+  isDemo: boolean       // NOUVEAU v9 — flag profil démo public
+}
+```
+
+### Migration v8 → v9 (Phase 7.51.1)
+
+`migrateV8toV9(state)` ajoute `isDemo: false` à chaque profil
+existant. Idempotent, purement additif. Cohabitation v8↔v9 safe :
+- Un client v9 reçoit un push v8 (sans isDemo) → `ensureProfileV9`
+  pose le flag false au pull (mergeProfilesLWW).
+- Un client v8 reçoit un push v9 (avec isDemo: false) → ignore le
+  champ inconnu, comportement legacy normal.
+- Le profil démo (id `demo`, `isDemo: true`) n'est JAMAIS dans
+  Firestore (chargé in-memory uniquement depuis le snapshot
+  bundlé). `stripDemoProfiles` à ajouter Phase 7.51.2.
+
+### Helpers purs Phase 7.51.1
+
+```js
+// True uniquement si profile.isDemo === true strict (rejette 'true', 1).
+isDemoProfile(profile)
+
+// True quand activeProfileId pointe un profil démo dans state.profiles.
+isDemoMode(state, activeProfileId)
+
+// Retourne le snapshot bundlé { version: 9, profile, setlists, songs }.
+loadDemoSnapshot()
+```
+
+`makeDefaultProfile` (admin + non-admin) pose désormais
+`isDemo: false` explicite.
+
+### Tests Phase 7.51.1 (+11 nouveaux)
+
+`state.test.js` section "Phase 7.51.1 — Demo profile foundations" :
+- `migrateV8toV9` × 4 : pose false, préserve true, idempotent, null safe.
+- `ensureProfileV9 / ensureProfilesV9` × 3 : chaîne v8 + pose isDemo,
+  préserve flags explicites, map sur tous profils.
+- `isDemoProfile` × 1 : strict boolean true uniquement.
+- `isDemoMode` × 2 : true sur profil démo actif, false sinon, defensive.
+- `loadDemoSnapshot` × 1 : structure valide (version 9, profile.id='demo',
+  isDemo:true, setlists Array, songs Array).
+
+Mise à jour test `STATE_VERSION` (attend 9, plus 8).
+
+### Placeholder demo-profile.json (Phase 7.51.1)
+
+`src/data/demo-profile.json` contient un placeholder minimal :
+- profil démo (id='demo', name='Démo', isDemo:true, isAdmin:false),
+  rig 2 guitares (lp60, strat61), Anniversary + Plug activés,
+  sources TSR/ML/Anniversary/PlugFactory/ToneNET activées.
+- 1 setlist "Demo Setlist" avec 5 morceaux mock (`demo_s1` à `demo_s5`),
+  aiCache: null partout.
+
+Le contenu réel curé (rig 11 guitares, banks complètes, setlist 11
+morceaux avec aiCache trilingue) sera produit par l'outil d'export
+admin Phase 7.51.4 à partir du profil `demo_1778839429588` déjà
+existant sur le compte de production.
+
+### Architecture livrée à fin Phase 7.51.1
+
+```
+src/main.jsx                APP_VERSION 8.14.51 → 8.14.52
+public/sw.js                CACHE backline-v151 → backline-v152
+src/core/state.js           STATE_VERSION 8 → 9
+                            +import demoSnapshot from '../data/demo-profile.json'
+                            +ensureProfileV9 / ensureProfilesV9
+                            +migrateV8toV9
+                            _runFullChain chaîne v9
+                            loadState accepte v8 → migrate
+                            mergeProfilesLWW utilise ensureProfileV9
+                            makeDefaultProfile pose isDemo: false
+                            +isDemoProfile, isDemoMode, loadDemoSnapshot
+                            +exports
+src/core/state.test.js      +11 tests Phase 7.51.1, STATE_VERSION attend 9
+src/data/demo-profile.json  NOUVEAU — placeholder 5 morceaux mock
+```
+
+### Dette résiduelle Phase 7.51.1 → 7.51.2-4
+
+- **Phase 7.51.2** (guard runtime) : wrapper `wrapDemoGuard(fn, label)` +
+  toast "Action désactivée en mode démo" appliqué sur setProfileField,
+  setSetlists, setSongDb, setDeletedSetlistIds, recordLogin. Block
+  `fetchAI` à la racine. Block Firestore (saveToFirestore,
+  loadFromFirestore, pollRemoteSyncId, load/saveSharedKey) early-return
+  si isDemoMode(state). Cacher tabs admin (Profils, ToneNET,
+  Maintenance, Mot de passe, Clé API, Export/Import). Locale switch
+  écrit localStorage backline_locale + state in-memory mais pas
+  profile.language. `stripDemoProfiles(state)` symétrique à
+  stripAiCacheForSync (Phase 5.7.1) pour les pushes Firestore.
+- **Phase 7.51.3** (accès & banner) : carte "Mode démo · Découvrir
+  Backline" toujours visible sur ProfilePickerScreen. URL `?demo=1`
+  auto-load + nettoyage URL via history.replaceState. Composant
+  `DemoBanner.jsx` sticky top trilingue avec mailto pré-rempli vers
+  sebastien.chemin@gmail.com. Visible partout sauf LiveScreen.
+  Skip trusted device addition.
+- **Phase 7.51.4** (outil de curation admin) : bouton "📦 Exporter
+  snapshot démo" dans MaintenanceTab admin. Helper pur
+  `buildDemoSnapshot(profile, allSetlists, allSongs)` qui produit le
+  JSON à downloader. Workflow doc dans CLAUDE.md : curer un profil
+  dédié → exporter → remplacer src/data/demo-profile.json → commit
+  → push → bump version.
+
+---
+
+## État précédent (2026-05-15, Phase 7.50 close — 8 fixes rapport beta v8.14.48)
 
 **Backline v8.14.51 / SW backline-v151 / STATE_VERSION 8 / 775 tests verts.**
 Phase 7.50 traite les bugs du rapport de test fonctionnel sur v8.14.48
@@ -4260,6 +4819,453 @@ ou niveau 2 (Firestore queue) ? MVP recommandé niveau 1.
 **Décision actuelle** : pas implémenté. Idée enregistrée pour Phase
 7.44 hypothétique, à activer si signal de demande publique post J+10
 case study Reddit (cf. BETA_TESTING.md local pour la stratégie).
+
+### Phase 7.52 (planifiée) — Catalog Anniversary Premium Tone Models (150 captures)
+
+**Contexte** : la ToneX Pedal Anniversary Edition embarque 150 captures
+premium signées par 5 créateurs externes, mappées sur 50 banks A/B/C
+par défaut au firmware. Le PDF source officiel est
+`tone_models/TONEX_Pedal_Anniversary_Edition_Premium_Tone_Models.pdf`
+daté 2024/10/29. Répartition :
+
+- **Amalgam Audio (AA)** — captures 1 à 30 (vintage + Stomp Schaffer /
+  Klon / Tube Screamer ; couvre Marshall Plexi, JTM-50, JCM800,
+  Fender Tweed/Twin/Deluxe, Vox AC30, Soldano SLO-100, Friedman
+  BE-100, Mesa Mark IIC+, Peavey 5150, etc.)
+- **Jason Sadites (JS)** — captures 31 à 60 (Marshall Studio JTM ST20H,
+  2555x Silver Jubilee, Fuchs ODS Classic, Friedman Pink Taco, Fender
+  '59 Bassman LTD, Suhr Hombre, Matchless Chieftain, Dr. Z Wreck Jr.,
+  Marshall 1974x, etc.)
+- **Tone Junkie TV (TJ)** — captures 61 à 90 (Fender Deluxe Tweed,
+  '68 Twin Reverb, '74 Purple Plexi JMP, DMBL ODS 124, Matchless
+  Brave, Vox Cambridge, '58 Tweed Bandmaster, AC44, 60s GA5 Skylark,
+  etc.)
+- **The Studio Rats (TSR Anniversary, distinct du pack 64 standalone)**
+  — captures 91 à 120 (Amplified Nation OverDrive Rever, Divided By
+  13 CJ11, Friedman Phil X, Matchless Independence 35, MEZZABARBA
+  SKILL, Mesa Boogie Dual Rectifier, Cornell TSR20, DrZ Z Wreck,
+  Gryphin Talon 50, Soldano SLO, etc.)
+- **Worship Tutorials (WT)** — captures 121 à 150 (Vox AC30 Top Boost
+  1964, Orange OR120 1977, Matchless C-30 1994, Bad Cat Cub II R,
+  Benson Chimera, Tone King Imperial, Matchless Laurel Canyon, Carr
+  Telstar, Mesa Boogie Lonestar 100W, Marshall Super 100 JH, etc.)
+
+Aujourd'hui ces 150 captures sont **invisibles au moteur de reco** :
+
+- Aucune entrée dans `PRESET_CATALOG_MERGED`, `FACTORY_CATALOG`, ni
+  équivalent Anniversary (qui n'existe pas dans le code).
+- `findCatalogEntry(name)` retourne `null` → `guessPresetInfo` produit
+  une metadata grossière (amp deviné depuis l'abréviation, scores
+  guessés {HB:75, SC:75, P90:75}, style/gain heuristiques).
+- Le prompt IA Phase 7.31 `buildInstalledSlotsSection` ne reçoit
+  qu'une ligne par slot avec amp deviné — sans le contexte Stomp/Cab
+  qui ferait pencher l'IA sur le bon match historique.
+- Le scoring V9 local perd contre les TSR (pack 64 standalone) et ML
+  curés (scores 95/95/95) → recos systématiquement biaisées vers les
+  packs builtin connus.
+
+**Cas concret bloqué** (motif de cette phase) : sur Highway to Hell
+(ref_amp = "Marshall 1959 Super Lead Plexi"), la capture #15
+*"AA MRSH JT50 I Drive BAL SCH CAB"* (Marshall JTM-50 1967 + Schaffer
+Replica + 4×12 G12M75 Pulsonic) — l'exact rig d'Angus Young sur
+l'album de 1979 — n'est jamais recommandée. À la place, l'IA et V9
+proposent *TSR Mars 800SL Chnl 1 Drive* (capture JCM800 1981, qui est
+historiquement anachronique pour HTH). Idem pour les autres titres
+AC/DC vintage (Back in Black, TNT, You Shook Me All Night Long) où
+le JT50 + Schaffer devrait dominer mais reste invisible.
+
+Étendu, le problème touche TOUTES les captures Anniversary
+pré-installées que l'utilisateur garde dans ses banks (cas le plus
+commun chez les nouveaux possesseurs Anniversary qui n'ont pas encore
+acheté de TSR/ML standalone). Tous ces gold standards de packs créateurs
+externes ne participent ni au scoring V9 ni au prompt IA.
+
+**Scope retenu — Option A : curation manuelle complète des 150**
+
+L'utilisateur a validé l'Option A le 2026-05-15. Pas d'Option B
+(génération heuristique + revue rapide) ni Option C (quick fix sur les
+8-10 captures critiques). Toutes les 150 entrées passent par une revue
+ligne par ligne avec l'utilisateur avant écriture finale.
+
+**Livrables**
+
+1. **Nouveau fichier `src/data/anniversary-premium-catalog.js`**
+   exportant `ANNIVERSARY_PREMIUM_CATALOG` : objet `{ [captureName]:
+   {...} }` pour les 150 entrées. Schéma de chaque entrée :
+
+   ```js
+   {
+     name: "AA MRSH JT50 I Drive BAL SCH CAB",  // nom EXACT visible
+                                                 // en bank, clé du dict
+     toneModelName: "MRSH JT50 I Drive BAL SCH CAB",  // sans préfixe
+                                                       // pack (Tone Model
+                                                       // Name du PDF)
+     packName: "Amalgam Audio",                  // 1 des 5 créateurs
+     character: "Drive",                         // Clean | Drive | Hi-Gain
+                                                 // (champ Character du PDF)
+     stomp: "Schaffer Replica",                  // ou "" si pas de stomp
+     amp: "Marshall JTM-50 1967",                // amp historique du PDF
+     cab: "Marshall 4x12 G12M75Hz Pulsonic",     // cab historique du PDF
+     gain: "mid",                                // low | mid | high
+                                                 // (déduit du character +
+                                                 // amp, à curer)
+     style: "hard_rock",                         // blues | rock | hard_rock
+                                                 // | jazz | metal | pop
+                                                 // (curé manuellement)
+     scores: { HB: 96, SC: 78, P90: 86 },        // pickup affinity 0-100
+                                                 // (curé manuellement)
+     src: "Anniversary",                         // tag de filtrage
+                                                 // per-device, identique
+                                                 // à Phase 2 / Phase 7.47
+     usages: [                                   // optionnel — artist +
+       { artist: "AC/DC",                        // songs cibles. Permet
+         songs: ["Highway to Hell",              // au prompt IA Phase
+                 "Back in Black",                // 7.34 d'éviter cross-
+                 "TNT"] }                        // contamination et de
+     ]                                           // prioriser sur match.
+                                                 // À remplir uniquement
+                                                 // quand le triplet
+                                                 // amp+cab+stomp pointe
+                                                 // sur un artiste précis.
+   }
+   ```
+
+2. **Merge dans `PRESET_CATALOG_MERGED`** au mount App() (`src/main.jsx`)
+   via un `useMemo` symétrique à Phase 7.31 (customPacks → catalog).
+   Pattern :
+
+   ```js
+   useMemo(() => {
+     // Drop entries with src === "Anniversary" then re-inject
+     for (const k of Object.keys(PRESET_CATALOG_MERGED)) {
+       if (PRESET_CATALOG_MERGED[k].src === "Anniversary") {
+         delete PRESET_CATALOG_MERGED[k];
+       }
+     }
+     for (const [k, v] of Object.entries(ANNIVERSARY_PREMIUM_CATALOG)) {
+       PRESET_CATALOG_MERGED[k] = v;
+     }
+   }, []);
+   ```
+
+3. **Tests Vitest** dans
+   `src/data/anniversary-premium-catalog.test.js` :
+   - Catalog contient exactement 150 entrées.
+   - Distribution : 30 entrées par packName, 5 packs distincts.
+   - Chaque entrée valide : name non-vide, character ∈ {Clean, Drive,
+     Hi-Gain}, gain ∈ {low, mid, high}, style ∈ liste autorisée,
+     scores HB/SC/P90 dans [0, 100], packName ∈ liste des 5 créateurs,
+     src === "Anniversary".
+   - Régression critique :
+     `findCatalogEntry("AA MRSH JT50 I Drive BAL SCH CAB")` retourne
+     bien l'entrée Schaffer + JTM-50 (et non `null`).
+   - Régression critique : sur Highway to Hell + SG pickup HB,
+     `computeBestPresets` préfère bien AA MRSH JT50 (score ≥ 95) à
+     TSR Mars 800SL (score ~93).
+
+4. **Pas de bump SCORING_VERSION** (V9 inchangé, c'est le catalog
+   d'entrée qui s'enrichit, pas la math du scoring).
+
+5. **Bump APP_VERSION + SW CACHE** au commit final (8.14.5X →
+   8.14.5(X+1) et backline-v15X → v15(X+1)).
+
+6. **Action post-merge** : invalider tous les caches IA via Mon Profil
+   → Préférences IA → "🗑 Invalider tous les caches IA" puis batch
+   "🤖 Analyser/MAJ N" sur toutes les setlists Sébastien pour que les
+   recos pointent enfin sur les bons captures Anniversary. Documenter
+   ce step dans le commit final.
+
+**Workflow de curation (point critique de la phase — c'est 70% du
+travail)**
+
+Le PDF a 150 lignes. Pour chaque entrée, à curer :
+
+- **`gain`** : déduit en partie du `character` du PDF :
+  - Clean → `"low"` par défaut (rare exception : un Bassman cranked
+    qui pourrait être low-mid).
+  - Drive → `"mid"` par défaut (la grande majorité des cas).
+  - Hi-Gain → `"high"` par défaut.
+  À valider au cas par cas si l'amp + stomp suggère un comportement
+  différent (ex. Fender Twin + Klon = Clean character du PDF mais
+  effectivement "edge of breakup", donc plutôt `"low"` borderline
+  `"mid"`).
+
+- **`style`** : déduit du couple amp + character + stomp. Quelques
+  patterns standards :
+  - Marshall JTM/JCM/Plexi/SuperLead + Drive → `"hard_rock"`
+  - Fender Tweed/Deluxe/Twin + Clean → `"blues"` (ou `"pop"` selon
+    voicing)
+  - Mesa Mark IIC+ / Boogie Rectifier / EVH 5150 / Soldano SLO +
+    Hi-Gain → `"metal"`
+  - Vox AC30 / Matchless / Bad Cat + Drive → `"rock"`
+  - DMBL ODS / Two Rock / Suhr Hombre + Drive → `"blues"` (Texan blues)
+  - Friedman BE-100 / 2555 Silver Jubilee + Drive → `"hard_rock"`
+    (modern)
+  Curation manuelle nécessaire pour les cas ambigus (Vox AC30 Drive
+  pourrait être `"rock"` ou `"hard_rock"` selon l'écoute ; les
+  captures Worship Tutorials sont souvent "praise & worship" qui
+  tombe entre blues/pop/rock selon le voicing).
+
+- **`scores HB/SC/P90`** : pickup affinity. Heuristique de départ
+  (à raffiner cas par cas) :
+  - **Marshall JTM/JCM/Plexi + Drive (HB-friendly)** : HB ~95,
+    SC ~75, P90 ~80
+  - **Fender Tweed/Deluxe + Clean (SC + P90 friendly)** : HB ~75,
+    SC ~95, P90 ~90
+  - **Mesa/EVH/Soldano + Hi-Gain (HB exclusif)** : HB ~95-100,
+    SC ~55-65, P90 ~70
+  - **Vox AC30 + Drive (équilibré, légèrement HB)** : HB ~85,
+    SC ~88, P90 ~82
+  - **DMBL ODS + Drive (HB + SC mais pas P90)** : HB ~92, SC ~88,
+    P90 ~75
+  - **Hiwatt CUT100 + Clean (équilibré, légèrement SC)** : HB ~80,
+    SC ~92, P90 ~85
+  - **Boogie Mark IIC+ + Hi-Gain (HB Petrucci-style)** : HB ~95,
+    SC ~60, P90 ~75
+  - **Friedman BE-100 + Drive (modern HB)** : HB ~95, SC ~70,
+    P90 ~78
+  Toujours valider à l'oreille / contexte historique pour cas pointus.
+
+- **`usages`** : optionnel, à remplir uniquement quand le triplet
+  amp + cab + stomp pointe sur un artiste / album / morceau précis.
+  Cas à viser :
+  - **AA MRSH JT50 + Schaffer Replica** → AC/DC (Highway to Hell, Back
+    in Black, TNT, You Shook Me All Night Long, Hells Bells, Whole
+    Lotta Rosie)
+  - **AA MRSH SL100 JU Dimed** → Hendrix (Voodoo Child, Purple Haze)
+    + Led Zep (Whole Lotta Love, Black Dog)
+  - **AA MRSH SB100** → Cream (White Room, Sunshine of Your Love)
+  - **AA PV 5050** → Petrucci / Dream Theater
+  - **AA SLDN SL100 + OD** → Eric Johnson (Cliffs of Dover)
+  - **AA FMAN B100D BE** → modern hard rock (Periphery, Mateus Asato)
+  - **AA ORNG 120** → Stoner / Sabbath
+  - **JS Mars 74x Ult** → Slash / GN'R
+  - **JS Brit Silver Dbl** → Modern Marshall (Tool, Foo Fighters)
+  - **TJ DMBL ODS 124** → Robben Ford / John Mayer
+  - **TJ 65 Cambridge / 64 AC30** → Brian May / Edge / Beatles
+  - **TSR (Anniversary) Mesa Rectified** → Metallica (post-Black Album)
+  Pour les captures plus génériques (jazz amps, clean tones polyvalents,
+  worship voicings), laisser `usages` vide ou absent.
+
+**Workflow proposé pour la session Claude Code (étapes ordonnées)**
+
+1. Lire `tone_models/TONEX_Pedal_Anniversary_Edition_Premium_Tone_Models.pdf`
+   en 5 batches (1 par pack créateur, ~30 entrées par batch).
+2. Pour chaque pack, produire un bloc de 30 entrées avec metadata curée
+   selon les heuristiques ci-dessus.
+3. **Soumettre chaque pack à Sébastien pour revue avant le suivant**.
+   30 entrées à la fois = format gérable. Sébastien valide ou corrige
+   gain/style/scores/usages par entrée.
+4. Une fois les 30 d'un pack validées, écrire la portion du fichier
+   correspondante.
+5. Répéter pour les 4 autres packs.
+6. Une fois les 150 validées et écrites, ajouter les tests Vitest,
+   le merge dans main.jsx, et bumper APP_VERSION + SW CACHE.
+7. Smoke test : reload local sur le profil Sébastien, ouvrir Highway
+   to Hell, vérifier que AA MRSH JT50 + Schaffer remonte en top
+   recommendation (banque 5C ou 15A). Idem pour Back in Black, TNT.
+
+**Risques et points d'attention**
+
+- **Pas de mapping bank → slot par défaut dans le PDF** : le PDF
+  liste les 150 captures numérotées 1 à 150 mais ne précise pas leur
+  position bank A/B/C dans le firmware Anniversary. Phase 7.52 ne se
+  préoccupe que du catalog metadata (key = nom de capture). Le
+  mapping des banks par défaut est un autre chantier (Phase 7.53+ si
+  besoin), non bloquant pour le scoring.
+
+- **Caractères spéciaux et casse** : les noms du PDF utilisent des
+  abréviations style "AA MRSH SB100 I Edge WRM CAB" avec espaces
+  multiples possibles, slashes, apostrophes. Vérifier l'encodage
+  exact lors de la copie depuis le PDF. Un test unitaire de
+  cohérence avec un sample des 10 noms les plus utilisés dans tes
+  banks (`MRSH JT50 I Drive BAL SCH CAB`, `MRSH SL100 JU Dimed BAL
+  CAB`, `MRSH SB100 I Edge WRM CAB`, `FNDR BLBM NR Clean BAL CAB`,
+  etc.) suffit à valider l'absence de drift.
+
+- **Cohabitation avec FACTORY_CATALOG Phase 7.47** : le catalog
+  Anniversary Premium est SÉPARÉ du `FACTORY_CATALOG` Pedal v2 / v1.
+  Pas de collision de keys attendue (les noms Pedal v2 sont du genre
+  "DR PLEXI", "VOWELS", "HG 800", "MAXO 8O8" — courts et sans
+  préfixe pack ; les Anniversary Premium ont tous un préfixe pack
+  "AA " / "JS " / "TJ " / "TSR " / "WT "). Ajouter un test CI qui
+  vérifie l'absence de collision entre les keys des deux catalogs.
+
+- **Coexistence avec le pack TSR 64 standalone** : ATTENTION — il
+  existe DEUX "TSR" dans le catalog après Phase 7.52 :
+  (a) Les 30 captures **TSR Anniversary** (numéros 91-120 du PDF
+      Premium, intégrés Phase 7.52) avec préfixe `"TSR "` parfois ou
+      noms du genre "TSR AmpNation ODR Clean 1", "TSR D13 Best Tweed
+      Ever Drive".
+  (b) Les **64 packs TSR standalone** (achetables à part chez The
+      Studio Rats, déjà présents dans `src/data/preset_catalog_full.js`)
+      avec noms du genre "TSR - Mars 800SL Chnl 1 Drive", "TSR Sons
+      Amp Hi G Plexi".
+  Vérifier en CI que les keys ne collisionnent pas (les Anniversary
+  ont des noms d'amps plus boutique comme "AmpNation ODR", "D13
+  Tweed", "Cornell TSR20" alors que les standalone TSR couvrent
+  Marshall 800SL, Plexi, Sons Amp Hi G, etc.). Si collision, préfixer
+  le pack Anniversary autrement (ex. `"TSR-Ann "`) pour différencier.
+
+- **Effet sur la sync Firestore** : aucun. Le catalog est en dur dans
+  le bundle JS, pas dans le state utilisateur. STATE_VERSION inchangé
+  (reste à 8 ou 9 selon Phase 7.51). Les `aiCache` existants ne
+  doivent pas être migrés mais devront être invalidés post-déploiement
+  pour bénéficier du nouveau catalog (cf. livrable #6).
+
+- **Effet sur la taille du bundle** : 150 entrées × ~250 octets JSON
+  moyennes ≈ 37 KB ajoutés au bundle single-file. Acceptable
+  (build actuel ~1.89 MB → ~1.93 MB ≈ +2%).
+
+- **Si IK Multimedia met à jour le firmware Anniversary** avec de
+  nouvelles captures ou remplace certaines existantes, refaire cette
+  phase avec le nouveau PDF source. Documenter la date du PDF source
+  dans le header du fichier `anniversary-premium-catalog.js` pour
+  traçabilité.
+
+**Source de vérité**
+
+`tone_models/TONEX_Pedal_Anniversary_Edition_Premium_Tone_Models.pdf`
+daté 2024/10/29 (présent dans le repo).
+
+**Dépendances et ordre**
+
+Phase 7.52 dépend que la Phase 7.51 (mode démo) soit close (pour ne
+pas mélanger des chantiers structurellement indépendants dans la même
+branche). Une fois 7.52 close, on pourra envisager Phase 7.53 si
+besoin de mapping bank → slot par défaut.
+
+**Décision actuelle** : **planifiée Phase 7.52**, Option A retenue
+(curation manuelle complète des 150). À démarrer dès que Phase 7.51
+(mode démo) sera close.
+
+### Phase 9 (proposée) — Output IA enrichi (inspiration Gear Assistant Ok_Ask2411)
+
+**Contexte** : un peer-builder Reddit (Ok_Ask2411, 2026-05-15) a
+partagé l'output complet de son "Gear Assistant" appliqué à
+*"Panama strat shawbucker"* (Van Halen). Format remarquablement
+structuré qui dépasse Backline sur 4 dimensions concrètes. Détails
+dans `BETA_TESTING.md` section 2 (entrée Ok_Ask2411 mise à jour
+2026-05-15).
+
+**4 features à reprendre**, indépendantes les unes des autres
+(peuvent être livrées en sous-phases 9.1 / 9.2 / 9.3 / 9.4) :
+
+#### 9.1 — Knob settings en table chiffrée
+
+Aujourd'hui : champ `settings_preset` (objet trilingue `{fr, en, es}`)
+en prose. Exemple : *"Pousse les médiums vers 6-7, garde les
+basses à 4 pour le côté scooped."* Lecture humaine OK mais pas
+machine-friendly et pas chiffré.
+
+Cible : ajouter au prompt IA une demande de table JSON structurée :
+
+```json
+"settings_knobs": {
+  "gain":     { "value": 6.2, "scale": "0-10", "why": "..." },
+  "bass":     { "value": 4.5, "scale": "0-10", "why": "..." },
+  "mid":      { "value": 7.0, "scale": "0-10", "why": "..." },
+  "treble":   { "value": 5.3, "scale": "0-10", "why": "..." },
+  "presence": { "value": 4.7, "scale": "0-10", "why": "..." },
+  "volume":   { "value": 6.0, "scale": "0-10", "why": "..." }
+}
+```
+
+UI : nouvelle sous-section "🎛️ Réglages knobs" sous le preset reco,
+table 6 lignes (parameter / value / why). Conserver `settings_preset`
+prose en parallèle ou le remplacer (à trancher selon retour UX).
+
+**Coût** : +20 lignes prompt, +1 sous-composant UI, +1 champ aiCache
+schéma. Pas de bump STATE_VERSION (additif optionnel).
+
+#### 9.2 — Built-in FX params générés par l'IA
+
+Aujourd'hui : Backline ne génère aucun setting de Noise Gate, Reverb,
+Delay côté ToneX (que des recos preset). L'utilisateur configure ces
+FX à la main.
+
+Cible : ajouter au prompt :
+
+```json
+"fx_settings": {
+  "noise_gate": { "threshold": -48, "release": 140, "depth": -75, "enabled": true },
+  "reverb":     { "type": "Plate", "time": 1.8, "predelay": 18, "color": 52, "mix": 16 },
+  "delay":      { "type": "Analog", "time": 320, "feedback": 20, "mix": 14 }
+}
+```
+
+UI : 3 nouvelles sous-sections compactes sous le bloc preset. Les
+params suivent la convention ToneX hardware (dB, ms, %).
+
+**Coût** : +30 lignes prompt, +3 sous-composants UI. Risque
+hallucination IA modérée (les unités ToneX réelles doivent être
+listées explicitement dans le prompt).
+
+#### 9.3 — Section "ONE TWEAK TO FIX IT" conditionnelle
+
+Aujourd'hui : aucun ajustement empirique post-écoute n'est suggéré.
+
+Cible : ajouter un champ aiCache :
+
+```json
+"tweaks": [
+  { "if": "too_bright",        "do": "Presence -0.5 to -1.0" },
+  { "if": "too_dark",          "do": "Treble +0.5" },
+  { "if": "too_boomy",         "do": "Bass -0.5" },
+  { "if": "buried_in_mix",     "do": "Mid +0.5" },
+  { "if": "too_fizzy",         "do": "Presence -0.5 + Gain -0.3" },
+  { "if": "not_tight_enough",  "do": "Gain -0.5 + Gate threshold up" }
+]
+```
+
+UI : section pliée par défaut "🔧 Si ça ne sonne pas tout à fait
+juste...", expand → 6 lignes "Si X → Fais Y". Réutilisable en
+répétition / sur scène.
+
+**Coût** : +15 lignes prompt, +1 sous-composant UI. Trivial à
+implémenter, gros impact perçu.
+
+#### 9.4 — Pickup choice + Playing technique
+
+Aujourd'hui : Backline propose `ideal_guitar` mais ne précise pas
+quel pickup utiliser (manche/centre/chevalet, tap coil, etc.) ni
+quel style de picking convient au morceau.
+
+Cible : ajouter au prompt :
+
+```json
+"playing_hints": {
+  "pickup":  "Bridge humbucker",
+  "guitar_volume": "8.5-10",
+  "picking_style": "Aggressive right hand, palm-muted",
+  "tone_pot": "10 (open)",
+  "stereo": true
+}
+```
+
+UI : sous-section "🎸 Conseils de jeu" sous le `ideal_guitar`,
+4-5 lignes max. Compatible avec le `playingTipsBySong` Phase 3.8
+TMP — fusionner si overlap.
+
+**Coût** : +15 lignes prompt, +1 sous-composant UI. Risque
+hallucination IA sur la position du pickup en fonction de la
+guitare réelle (ex. Strat Shawbucker = HSS, donc bridge=HB ;
+mais pour Tele simple = bridge=SC).
+
+**Timing recommandé** : pas avant J+30 post-déploiement. Attendre
+le feedback de Bruno (J+3-5) + Francisco (J+5-10) + Paul (J+10+)
+pour savoir si l'output actuel suffit ou si la demande pour plus
+de détail est explicite. Phase 9 = enrichissement, pas critique.
+
+**Décision actuelle** : pas implémenté. Idée enregistrée pour
+Phase 9 hypothétique, à activer si :
+1. Au moins 2 beta-testeurs demandent explicitement "plus de
+   détails sur les réglages", OU
+2. Ok_Ask2411 partage son stack et un échange peer-to-peer
+   confirme la valeur du format enrichi.
+
+(cf. BETA_TESTING.md section 2 Ok_Ask2411 pour les détails du
+format observé et la comparaison Backline ↔ Gear Assistant.)
 
 ## Hors scope (pour rappel, à NE PAS faire sans demande explicite)
 
