@@ -24,11 +24,15 @@ import { enrichAIResult, updateAiCache } from '../utils/ai-helpers.js';
 import { fetchAI } from '../utils/fetchAI.js';
 import { isNoSyncMode, setNoSyncMode } from '../utils/firestore.js';
 
-function MaintenanceTab({ songDb, onSongDb, setlists, onSetlists, onDeletedSetlistIds, banksAnn, banksPlug, aiProvider, aiKeys, profile, guitarBias, onFullReset }) {
+function MaintenanceTab({ songDb, onSongDb, setlists, onSetlists, onDeletedSetlistIds, banksAnn, banksPlug, aiProvider, aiKeys, profile, profiles, guitarBias, onFullReset }) {
   const [recalculating, setRecalculating] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0, current: '' });
   const [done, setDone] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
+  // Phase 7.51.6 — sélecteur de profil pour l'export snapshot démo.
+  // Default = profil actif. L'admin peut sélectionner n'importe quel profil
+  // (curateur dédié, par exemple) sans avoir à switcher dessus.
+  const [exportProfileId, setExportProfileId] = useState(profile?.id);
   const cachedCount = songDb.filter((s) => s.aiCache).length;
 
   const duplicateGroups = useMemo(() => {
@@ -342,16 +346,31 @@ function MaintenanceTab({ songDb, onSongDb, setlists, onSetlists, onDeletedSetli
         }
       </div>
 
-      {/* Phase 7.51.4 — Exporter snapshot démo (admin) */}
+      {/* Phase 7.51.4 + 7.51.6 — Exporter snapshot démo (admin) */}
       <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginTop: 20 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{t('maintenance.demo-export-title', '📦 Exporter snapshot démo (admin)')}</div>
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>
-          {t('maintenance.demo-export-hint', 'Génère un JSON à partir du profil actif (ses setlists + songs + aiCache) à utiliser pour remplacer src/data/demo-profile.json. Le profil exporté est forcé id=demo, isDemo=true, isAdmin=false, password=null. Les aiKeys + loginHistory sont vidés.')}
+          {t('maintenance.demo-export-hint', 'Génère un JSON à partir d\'un profil choisi (ses setlists + songs + aiCache) à utiliser pour remplacer src/data/demo-profile.json. Le profil exporté est forcé id=demo, isDemo=true, isAdmin=false, password=null. Les aiKeys + loginHistory sont vidés.')}
+        </div>
+        {/* Phase 7.51.6 — sélecteur de profil à exporter */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <label style={{ fontSize: 11, color: 'var(--text-sec)', fontWeight: 600 }}>{t('maintenance.demo-export-profile-label', 'Profil à exporter :')}</label>
+          <select
+            data-testid="maintenance-export-profile-select"
+            value={exportProfileId}
+            onChange={(e) => setExportProfileId(e.target.value)}
+            style={{ background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '4px 8px', fontSize: 12 }}
+          >
+            {Object.values(profiles || { [profile?.id]: profile }).filter(Boolean).sort((a, b) => (a.name || '').localeCompare(b.name || '')).map((p) => (
+              <option key={p.id} value={p.id}>{p.name} ({p.id})</option>
+            ))}
+          </select>
         </div>
         <button
           data-testid="maintenance-export-demo-snapshot"
           onClick={() => {
-            const snap = buildDemoSnapshot(profile, setlists, songDb);
+            const target = (profiles && profiles[exportProfileId]) || profile;
+            const snap = buildDemoSnapshot(target, setlists, songDb);
             if (!snap) { window.alert(t('maintenance.demo-export-error', 'Échec de la construction du snapshot.')); return; }
             const json = JSON.stringify(snap, null, 2);
             const blob = new Blob([json], { type: 'application/json' });
@@ -367,7 +386,7 @@ function MaintenanceTab({ songDb, onSongDb, setlists, onSetlists, onDeletedSetli
           style={{ background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}
         >{t('maintenance.demo-export-button', '📦 Exporter snapshot démo')}</button>
         <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 8, fontFamily: 'var(--font-mono)', lineHeight: 1.5 }}>
-          {t('maintenance.demo-export-workflow', 'Workflow : cure un profil dédié → switche dessus → clique ce bouton → remplace src/data/demo-profile.json par le téléchargé → commit + push + bump version.')}
+          {t('maintenance.demo-export-workflow', 'Workflow : cure un profil dédié → choisis-le dans la liste → clique ce bouton → remplace src/data/demo-profile.json par le téléchargé → commit + push + bump version.')}
         </div>
       </div>
     </div>

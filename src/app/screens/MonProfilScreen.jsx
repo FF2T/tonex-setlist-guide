@@ -401,7 +401,7 @@ function MonProfilScreen({
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>Cle Anthropic (fallback)</div>
         <input type="password" placeholder="sk-ant-..." value={aiKeys.anthropic} onChange={(e) => onAiKeys((p) => ({ ...p, anthropic: e.target.value }))} style={{ ...inp, width: '100%', fontFamily: 'monospace' }}/>
       </div>}
-      {profile.isAdmin && tab === 'maintenance' && MaintenanceTabComponent && <MaintenanceTabComponent songDb={songDb} onSongDb={onSongDb} setlists={allSetlists} onSetlists={onSetlists} onDeletedSetlistIds={onDeletedSetlistIds} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} profile={profile} guitarBias={guitarBias}/>}
+      {profile.isAdmin && tab === 'maintenance' && MaintenanceTabComponent && <MaintenanceTabComponent songDb={songDb} onSongDb={onSongDb} setlists={allSetlists} onSetlists={onSetlists} onDeletedSetlistIds={onDeletedSetlistIds} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} profile={profile} profiles={profiles} guitarBias={guitarBias}/>}
       {profile.isAdmin && tab === 'export' && <ExportImportScreen banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} onBack={() => setTab('profile')} onNavigate={onNavigate} fullState={fullState} onImportState={onImportState} inline={true}/>}
       {profile.isAdmin && tab === 'admin_profiles' && <ProfilesAdmin profiles={profiles} onProfiles={onProfiles}/>}
       <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--a8)', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>

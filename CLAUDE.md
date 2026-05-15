@@ -669,7 +669,69 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-15, Phase 7.51.4 close — Phase 7.51 complète)
+## État actuel (2026-05-15, Phase 7.51.6 close — Export snapshot avec sélecteur profil)
+
+**Backline v8.14.58 / SW backline-v158 / STATE_VERSION 9 / 803 tests verts.**
+Phase 7.51.6 ajoute un **dropdown sélecteur de profil** dans l'outil
+"📦 Exporter snapshot démo" du MaintenanceTab. Auparavant l'outil
+n'exportait que le profil ACTIF, ce qui obligeait l'admin à switcher
+vers le profil curateur (et le profil curateur devait être admin pour
+accéder au tab Maintenance). Désormais Sébastien admin peut sélectionner
+n'importe quel profil dans la liste (y compris des profils non-admin
+comme `demo_1778839429588`) et exporter directement.
+
+### Comportement attendu
+
+1. Sébastien admin → Mon Profil → 🔧 Maintenance.
+2. Tout en bas, section "📦 Exporter snapshot démo (admin)".
+3. **Nouveau dropdown** "Profil à exporter :" avec la liste de tous les
+   profils (triés par nom alpha), affichage `Nom (id)`.
+4. Default = profil actif (Sébastien). L'admin peut sélectionner un
+   autre profil (curateur démo, etc.).
+5. Click "📦 Exporter snapshot démo" → `buildDemoSnapshot(profiles[selectedId], setlists, songDb)`
+   → download `demo-profile.json`.
+
+### Workflow simplifié
+
+Avant Phase 7.51.6 :
+1. Sébastien crée un profil curateur.
+2. Sébastien switche dessus (déconnexion + reconnexion via ProfilePicker).
+3. Si profil curateur non-admin → impossible d'accéder au Maintenance.
+4. Devait toggler ★ Admin sur le curateur avant.
+5. Switch + curer + exporter.
+
+Après Phase 7.51.6 :
+1. Sébastien curé un profil dédié (par exemple `demo_1778839429588`).
+2. Reste connecté admin Sébastien.
+3. Va dans Maintenance → dropdown → sélectionne le profil curateur.
+4. Click Export.
+
+### Architecture livrée Phase 7.51.6
+
+```
+src/main.jsx                            APP_VERSION 8.14.57 → 8.14.58
+public/sw.js                            CACHE backline-v157 → backline-v158
+src/app/screens/MaintenanceTab.jsx      +prop profiles
+                                        +useState exportProfileId (default profile.id)
+                                        +dropdown <select> liste tous profils
+                                        export utilise profiles[exportProfileId]
+src/app/screens/MonProfilScreen.jsx     passe profiles={profiles} à MaintenanceTabComponent
+src/i18n/en.js, es.js                   +maintenance.demo-export-profile-label
+                                        message hint + workflow updated
+```
+
+### Dette résiduelle
+
+- Si l'utilisateur veut exporter un profil dont les setlists ont des
+  noms trop personnels (ex. "Cours Franck B"), il faut quand même les
+  renommer manuellement sur le profil avant export. Phase 7.51.6 ne
+  fait que faciliter le bouton — la curation des noms reste manuelle.
+- Tests Vitest non ajoutés (helper buildDemoSnapshot déjà testé Phase
+  7.51.4, l'ajout est purement UI dropdown).
+
+---
+
+## État précédent (2026-05-15, Phase 7.51.4 close — Phase 7.51 complète)
 
 **Backline v8.14.56 / SW backline-v156 / STATE_VERSION 9 / 803 tests verts.**
 Phase 7.51.4 ajoute l'outil admin "📦 Exporter snapshot démo" dans
