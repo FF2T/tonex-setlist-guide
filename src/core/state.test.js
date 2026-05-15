@@ -9,7 +9,7 @@ import {
   ensureSharedV7, ensureProfileV7, ensureProfilesV7,
   ensureProfileV8, ensureProfilesV8,
   ensureProfileV9, ensureProfilesV9,
-  isDemoProfile, isDemoMode, loadDemoSnapshot,
+  isDemoProfile, isDemoMode, loadDemoSnapshot, buildDemoSnapshot,
   wrapDemoGuard, stripDemoProfiles,
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
@@ -1789,6 +1789,85 @@ describe('stripDemoProfiles (Phase 7.51.2)', () => {
     expect(out).not.toBe(state);
     expect(out.profiles).not.toBe(state.profiles);
     expect(out.other).toBe('preserved');
+  });
+});
+
+// ─── Phase 7.51.4 — buildDemoSnapshot (outil export admin) ──────────
+
+describe('buildDemoSnapshot (Phase 7.51.4)', () => {
+  const sampleProfile = {
+    id: 'demo_curator_1778839429588',
+    name: 'Demo Curator',
+    isAdmin: true,
+    password: 'h1:abc:def',
+    isDemo: false,
+    aiKeys: { anthropic: 'sk-ant-xxx', gemini: 'AIzaXXX' },
+    loginHistory: [{ ts: 1, device: 'mac' }, { ts: 2, device: 'iphone' }],
+    myGuitars: ['lp60', 'strat61'],
+    enabledDevices: ['tonex-anniversary', 'tonex-plug'],
+    banksAnn: { 0: { A: 'X', B: 'Y', C: '' } },
+    language: 'fr',
+  };
+  const sampleSetlists = [
+    { id: 'sl_curator', name: 'Demo Setlist', profileIds: ['demo_curator_1778839429588'], songIds: ['s1', 's2'] },
+    { id: 'sl_other', name: 'Autre', profileIds: ['someone_else'], songIds: ['s3'] },
+  ];
+  const sampleSongs = [
+    { id: 's1', title: 'Song 1', artist: 'A', aiCache: { sv: 9, result: { cot_step1: { fr: 'fr', en: 'en', es: 'es' } } } },
+    { id: 's2', title: 'Song 2', artist: 'B', aiCache: { sv: 9, result: { cot_step1: { fr: 'fr2', en: 'en2', es: 'es2' } } } },
+    { id: 's3', title: 'Other song', artist: 'C', aiCache: { sv: 9 } },
+  ];
+
+  test('force profile.id=demo, isDemo:true, isAdmin:false, password:null', () => {
+    const snap = buildDemoSnapshot(sampleProfile, sampleSetlists, sampleSongs);
+    expect(snap.profile.id).toBe('demo');
+    expect(snap.profile.name).toBe('Démo');
+    expect(snap.profile.isDemo).toBe(true);
+    expect(snap.profile.isAdmin).toBe(false);
+    expect(snap.profile.password).toBeNull();
+  });
+
+  test('strip aiKeys + loginHistory', () => {
+    const snap = buildDemoSnapshot(sampleProfile, sampleSetlists, sampleSongs);
+    expect(snap.profile.aiKeys).toEqual({ anthropic: '', gemini: '' });
+    expect(snap.profile.loginHistory).toEqual([]);
+  });
+
+  test('extrait uniquement les songs référencées par les setlists du profil', () => {
+    const snap = buildDemoSnapshot(sampleProfile, sampleSetlists, sampleSongs);
+    expect(snap.songs.length).toBe(2);
+    expect(snap.songs.map((s) => s.id).sort()).toEqual(['s1', 's2']);
+    // s3 (référencé uniquement par sl_other appartenant à someone_else) doit être absent.
+    expect(snap.songs.find((s) => s.id === 's3')).toBeUndefined();
+  });
+
+  test('préserve aiCache trilingue complet sur les songs extraites', () => {
+    const snap = buildDemoSnapshot(sampleProfile, sampleSetlists, sampleSongs);
+    const s1 = snap.songs.find((s) => s.id === 's1');
+    expect(s1.aiCache).toBeDefined();
+    expect(s1.aiCache.sv).toBe(9);
+    expect(s1.aiCache.result.cot_step1.fr).toBe('fr');
+    expect(s1.aiCache.result.cot_step1.en).toBe('en');
+    expect(s1.aiCache.result.cot_step1.es).toBe('es');
+  });
+
+  test('setlists sortantes ont profileIds=[demo] (remappage)', () => {
+    const snap = buildDemoSnapshot(sampleProfile, sampleSetlists, sampleSongs);
+    expect(snap.setlists.length).toBe(1);
+    expect(snap.setlists[0].profileIds).toEqual(['demo']);
+    expect(snap.setlists[0].songIds).toEqual(['s1', 's2']);
+  });
+
+  test('format compatible loadDemoSnapshot (version + 4 clés)', () => {
+    const snap = buildDemoSnapshot(sampleProfile, sampleSetlists, sampleSongs);
+    expect(snap.version).toBe(9);
+    expect(snap).toHaveProperty('profile');
+    expect(snap).toHaveProperty('setlists');
+    expect(snap).toHaveProperty('songs');
+  });
+
+  test('null profile retourne null (defensive)', () => {
+    expect(buildDemoSnapshot(null, sampleSetlists, sampleSongs)).toBeNull();
   });
 });
 

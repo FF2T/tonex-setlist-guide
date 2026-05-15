@@ -669,7 +669,118 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-15, Phase 7.51.3.1 close — UX recherche grisée mode démo)
+## État actuel (2026-05-15, Phase 7.51.4 close — Phase 7.51 complète)
+
+**Backline v8.14.56 / SW backline-v156 / STATE_VERSION 9 / 803 tests verts.**
+Phase 7.51.4 ajoute l'outil admin "📦 Exporter snapshot démo" dans
+MaintenanceTab. Sébastien peut maintenant cure un profil dédié, switcher
+dessus, cliquer le bouton, et obtenir un JSON downloadable à utiliser
+pour remplacer `src/data/demo-profile.json`. **Phase 7.51 est désormais
+complète** (4 sous-phases livrées + 1 hotfix UX). Le mode démo est
+accessible via ProfilePicker + URL `?demo=1`, avec banner trilingue,
+guards runtime, UX search grisée, et outil de curation admin.
+
+### Helper buildDemoSnapshot (Phase 7.51.4)
+
+`buildDemoSnapshot(profile, allSetlists, allSongs)` retourne :
+```
+{
+  version: 9,
+  profile: {
+    ...origProfile,
+    id: 'demo',                     // forcé
+    name: 'Démo',                   // forcé
+    isDemo: true,                   // forcé
+    isAdmin: false,                 // forcé
+    password: null,                 // forcé
+    aiKeys: { anthropic: '', gemini: '' },  // vidé
+    loginHistory: [],               // vidé
+  },
+  setlists: [<filtrées par profileIds=[origId], remappées profileIds=['demo']>],
+  songs: [<filtrées par songIds des setlists ci-dessus, aiCache préservé>],
+}
+```
+
+Helper pur testable (7 nouveaux tests Vitest). Préserve l'intégralité
+de `aiCache` y compris champs trilingues (cot_step1.fr/en/es, etc.).
+
+### Bouton MaintenanceTab
+
+Section "📦 Exporter snapshot démo (admin)" en bas du tab Maintenance
+(admin-only via gating MonProfilScreen). Au click :
+1. Appelle `buildDemoSnapshot(profile, setlists, songDb)`.
+2. JSON.stringify pretty (indent 2).
+3. Crée un Blob `application/json` + URL.createObjectURL.
+4. Trigger download `demo-profile.json` via `<a download>` programmatique.
+5. revokeObjectURL pour libérer.
+
+Texte d'aide explicatif sur le workflow.
+
+### Workflow curation (Phase 7.51.4 + suite)
+
+1. Admin Sébastien crée/édite un profil curateur dédié (ex.
+   `demo_1778839429588` déjà existant sur le compte de prod).
+2. Switch vers ce profil dans l'app.
+3. Mon Profil → 🔧 Maintenance → bas de la page → "📦 Exporter
+   snapshot démo".
+4. Le fichier `demo-profile.json` est téléchargé.
+5. Côté repo : remplacer `src/data/demo-profile.json` par le fichier
+   téléchargé.
+6. `git add src/data/demo-profile.json && git commit && git push`.
+7. Bump `APP_VERSION` + SW `CACHE` (cf. workflow déploiement
+   habituel).
+8. Le mode démo charge le snapshot frais au prochain reload.
+
+### Architecture livrée à fin Phase 7.51.4
+
+```
+src/main.jsx                            APP_VERSION 8.14.55 → 8.14.56
+public/sw.js                            CACHE backline-v155 → backline-v156
+src/core/state.js                       +buildDemoSnapshot helper pur
+                                        +export
+src/core/state.test.js                  +7 tests Phase 7.51.4
+src/app/screens/MaintenanceTab.jsx      +section "Exporter snapshot démo"
+                                        avec bouton download blob JSON
+src/i18n/en.js, es.js                   +maintenance.demo-export-*
+                                        (5 clés × 2 langues)
+```
+
+### Récap Phase 7.51 (4 sous-phases + 1 hotfix)
+
+| Sous-phase | Version | Sujet |
+|---|---|---|
+| 7.51.1 | 8.14.52 | Foundations : STATE_VERSION 9, `profile.isDemo`, helpers, placeholder JSON |
+| 7.51.2 | 8.14.53 | Guards runtime : wrapDemoGuard, Firestore, fetchAI, tabs cachés, toast |
+| 7.51.3 | 8.14.54 | Accès UI : carte ProfilePicker, URL `?demo=1`, DemoBanner trilingue |
+| 7.51.3.1 | 8.14.55 | Hotfix UX : SongSearchBar grisée en mode démo |
+| 7.51.4 | 8.14.56 | Outil admin : buildDemoSnapshot + bouton MaintenanceTab |
+
+**Phase 7.51 close**. Tag `phase-7.51-done`. Mode démo public
+fonctionnel de bout en bout. Reste à faire :
+1. Curer un profil de démonstration via l'outil.
+2. Remplacer `src/data/demo-profile.json` placeholder par le snapshot
+   curé.
+3. Bumper version, commit, déployer sur main.
+4. Annoncer le mode démo aux beta-testeurs (Paul TSR, etc.) via URL
+   `https://mybackline.app/?demo=1`.
+
+### Dette résiduelle Phase 7.51 → 7.52+
+
+- **Audit complet UX grisé** : Phase 7.51.3.1 a grisé SongSearchBar.
+  D'autres inputs en mode démo restent fonctionnels (rename setlist,
+  create setlist, custom guitar add). Si feedback utilisateur, Phase
+  7.51.3.2 grisera ces points.
+- **Formulaire de demande d'accès** vs mailto : Phase 7.51 garde le
+  mailto simple. Idée Phase 7.44 listée dans "Idées en attente" pour
+  un formulaire Formspree/Web3Forms si le volume justifie.
+- **Tests E2E mode démo** : non couvert par Vitest. Smoke test
+  manuel à automatiser plus tard (Playwright/Cypress).
+- **B-TECH-01** (cycles sync Firestore) et **B-TECH-02** (taille
+  localStorage MAX_BACKUPS=1) : reportés Phase 7.52 comme prévu.
+
+---
+
+## État précédent (2026-05-15, Phase 7.51.3.1 close — UX recherche grisée mode démo)
 
 **Backline v8.14.55 / SW backline-v155 / STATE_VERSION 9 / 796 tests verts.**
 Phase 7.51.3.1 hotfix : la barre de recherche `SongSearchBar` (HomeScreen

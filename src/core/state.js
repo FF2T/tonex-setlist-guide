@@ -980,6 +980,52 @@ function loadDemoSnapshot() {
   return demoSnapshot;
 }
 
+// Phase 7.51.4 — buildDemoSnapshot : construit un snapshot exportable
+// depuis un profil curé. Utilisé par l'outil admin MaintenanceTab.
+//
+// Étapes :
+// 1. Filtre les setlists dont profileIds inclut profile.id (les setlists
+//    "appartenant" au profil curé).
+// 2. Collecte les songIds de ces setlists.
+// 3. Filtre allSongs pour ne garder que les songs référencées (préserve
+//    aiCache complet, y compris trilingue).
+// 4. Force le profil sortant : id='demo', name='Démo', isDemo:true,
+//    isAdmin:false, password:null, aiKeys vidés, loginHistory vide.
+// 5. Retourne { version: STATE_VERSION, profile, setlists, songs }.
+//
+// Note : le `profile.id` dans les setlists sortantes est aussi remappé
+// à 'demo' pour cohérence (sinon le filtrage Phase 7.29.5 mySetlists ne
+// trouverait pas les setlists du visiteur démo).
+function buildDemoSnapshot(profile, allSetlists, allSongs) {
+  if (!profile) return null;
+  const origId = profile.id;
+  const mySetlists = (allSetlists || []).filter((sl) => Array.isArray(sl.profileIds) && sl.profileIds.includes(origId));
+  const songIds = new Set();
+  mySetlists.forEach((sl) => (sl.songIds || []).forEach((id) => songIds.add(id)));
+  const songs = (allSongs || []).filter((s) => s && songIds.has(s.id));
+  // Remappe profileIds vers 'demo' dans les setlists sortantes.
+  const setlists = mySetlists.map((sl) => ({
+    ...sl,
+    profileIds: ['demo'],
+  }));
+  const cleanProfile = {
+    ...profile,
+    id: 'demo',
+    name: 'Démo',
+    isDemo: true,
+    isAdmin: false,
+    password: null,
+    aiKeys: { anthropic: '', gemini: '' },
+    loginHistory: [],
+  };
+  return {
+    version: STATE_VERSION,
+    profile: cleanProfile,
+    setlists,
+    songs,
+  };
+}
+
 // Phase 7.51.2 — wrapDemoGuard : helper pur composant le runtime guard.
 //
 // Si `isDemo` est false, retourne `fn` tel quel (identité, zéro overhead).
@@ -1399,7 +1445,7 @@ export {
   ensureSharedV7, ensureProfileV7, ensureProfilesV7,
   ensureProfileV8, ensureProfilesV8, migrateV7toV8,
   ensureProfileV9, ensureProfilesV9, migrateV8toV9,
-  isDemoProfile, isDemoMode, loadDemoSnapshot,
+  isDemoProfile, isDemoMode, loadDemoSnapshot, buildDemoSnapshot,
   wrapDemoGuard, stripDemoProfiles,
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
