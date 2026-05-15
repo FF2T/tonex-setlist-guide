@@ -16,10 +16,10 @@
 import React from 'react';
 import { t, useLocale } from '../../i18n/index.js';
 
-const MAILTO_URL = 'mailto:sebastien.chemin@gmail.com'
+const MAILTO_URL = 'mailto:contact@backline.app'
   + '?subject=' + encodeURIComponent('Demande de profil Backline')
   + '&body=' + encodeURIComponent(
-    "Hi Sébastien,\n\n"
+    "Hi,\n\n"
     + "I'd like a Backline profile with my own rig. Here's my setup:\n\n"
     + "- Main guitars : [...]\n"
     + "- ToneX hardware : [...]\n"
