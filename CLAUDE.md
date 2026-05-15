@@ -677,9 +677,30 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-16, Phase 7.52.5 close — Post-processing pin usages-match)
+## État actuel (2026-05-16, Phase 7.52.5 close + snapshot démo regénéré)
 
-**Backline v8.14.67 / SW backline-v167 / STATE_VERSION 9 / 977 tests verts.**
+**Backline v8.14.68 / SW backline-v168 / STATE_VERSION 9 / 977 tests verts.**
+
+Phase 7.52.5 livrée + **snapshot démo regénéré** depuis le profil
+curateur avec le catalog Phase 7.52.4 + post-processing Phase 7.52.5
+actifs. Les 11 morceaux de la setlist démo affichent désormais les
+recos optimales :
+
+| Morceau | Reco pin |
+|---------|----------|
+| Highway to Hell, Back in Black, TNT, You Shook Me | `AA MRSH JT50 I Drive BAL SCH CAB` (Schaffer + JTM-50) |
+| White Room, Sunshine of Your Love | `AA MRSH SB100 I Edge WRM CAB` (Super Bass Plexi 1968) |
+| The Thrill Is Gone | `AA FNDR BFTWN NR Clean BAL CAB` (Twin Reverb) |
+| Stairway to Heaven | `AA MRSH SL100 JU Dimed BAL CAB` (Super Lead 1969) |
+| Wish You Were Here | `AA HWTT CUT100 JU Crunch BRI CAB` (Hiwatt) |
+| Smoke on the Water | `AA FMAN B100D BE Drive BAL CAB` (Friedman, fallback) |
+| Hotel California | `AA VX TB30 BR Edge BAL CAB` (Vox AC30, fallback) |
+
+9/11 recos parfaites, 2 fallback acceptable (Smoke on the Water +
+Hotel California — cf Phase 7.52.6 proposée pour fixer Hotel California
+via match ref_guitarist).
+
+
 Phase 7.52.5 garantit la PRIORITÉ 1 du prompt Phase 7.34 + 7.52.1
 ("capture dont les `usages` contiennent l'artiste OU le titre du
 morceau analysé") via un **post-processing JS** dans `enrichAIResult`,
@@ -5560,6 +5581,55 @@ ou niveau 2 (Firestore queue) ? MVP recommandé niveau 1.
 **Décision actuelle** : pas implémenté. Idée enregistrée pour Phase
 7.44 hypothétique, à activer si signal de demande publique post J+10
 case study Reddit (cf. BETA_TESTING.md local pour la stratégie).
+
+### Phase 7.52.6 (proposée) — Match usages via ref_guitarist (cas groupe vs guitariste)
+
+**Contexte** : Phase 7.52.5 a livré `findSlotByUsageMatch(banks,
+songArtist, songTitle)` qui force le pin sur slot avec
+`catalog.usages` match titre/artiste. Limitation observée 2026-05-16 :
+le match utilise `song.artist` (champ stocké = nom du groupe, ex.
+"Eagles") alors que certains `usages` du catalog sont par guitariste
+individuel (ex. `JS Wrecked Z Push 1` → `usages: [Joe Walsh, Brad
+Paisley]`).
+
+**Cas Hotel California** : `song.artist = "Eagles"` mais
+`usage.artist = "Joe Walsh"` → pas de match → pin Phase 7.52.5 ne se
+déclenche pas → l'IA fallback sur `AA VX TB30 BR Edge` (Vox AC30,
+incohérent pour Eagles).
+
+**Fix proposé Phase 7.52.6** : enrichir `findSlotByUsageMatch` pour
+matcher aussi sur **`ref_guitarist`** retourné par l'IA dans
+`aiResult.ref_guitarist` (ex. "Don Felder / Joe Walsh" pour Hotel
+California, "Eric Clapton" pour Cream, "Angus Young" pour AC/DC).
+
+Logique étendue :
+- `matchArtist` (Phase 7.52.5) reste : `u.artist === song.artist`.
+- **Nouveau** `matchGuitarist` : si `aiResult.ref_guitarist` contient
+  `u.artist` (case-insensitive substring), match true.
+- Score :
+  - 100 si `(matchArtist OU matchGuitarist) ET matchTitle` (titre dans
+    `u.songs`).
+  - 50 si `(matchArtist OU matchGuitarist)` seul.
+
+**Signature changée** : `findSlotByUsageMatch(banks, songArtist,
+songTitle, refGuitarist)`. `enrichAIResult` passe
+`aiResult.ref_guitarist` en 4e arg.
+
+**Effort** : ~15 min (helper + tests + call sites
+`enrichAIResult` qui peuvent passer ref_guitarist via aiResult).
+
+**Effet attendu** :
+- Hotel California (Eagles) → pin `JS Wrecked Z Push 1` (Joe Walsh
+  match via ref_guitarist).
+- White Room (Cream) → pin reste `AA MRSH SB100` mais aussi
+  matcherait si usage était par "Eric Clapton" (futur).
+- Régression possible : si l'IA retourne un `ref_guitarist` trop
+  vague (ex. "various"), risque de faux match. Garde-fou : require
+  `u.artist.length >= 4` pour éviter de matcher des termes courts.
+
+**Décision actuelle** : pas implémenté immédiatement. Phase 7.52.6
+sera ajoutée quand un cas concret bloque (Eagles est mineur, le user
+peut feedback "❌ pas ce slot" pour le déprendre).
 
 ### Phase 7.53 (proposée) — Édition usages artiste/morceau sur presets ToneNET
 
