@@ -669,7 +669,46 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-15, Phase 7.51.3 close — Mode démo accès UI + banner)
+## État actuel (2026-05-15, Phase 7.51.3.1 close — UX recherche grisée mode démo)
+
+**Backline v8.14.55 / SW backline-v155 / STATE_VERSION 9 / 796 tests verts.**
+Phase 7.51.3.1 hotfix : la barre de recherche `SongSearchBar` (HomeScreen
++ Setlists → onglet Morceaux) et son bouton "OK" sont désormais
+**disabled + grisés visuellement** en mode démo. Sinon le visiteur tapait
+un morceau, cliquait OK et recevait un toast 🔒 sans signal préalable —
+mauvaise UX. Désormais l'input et le bouton signalent immédiatement
+qu'ils sont indisponibles (opacity 0.5, cursor not-allowed, title
+"Action désactivée en mode démo").
+
+Cf. section "Phase 7.51.3 close" ci-dessous pour le scope principal du
+mode démo.
+
+### Architecture livrée Phase 7.51.3.1
+
+```
+src/main.jsx                            APP_VERSION 8.14.54 → 8.14.55
+public/sw.js                            CACHE backline-v154 → backline-v155
+src/app/screens/HomeScreen.jsx          SongSearchBar +prop isDemo →
+                                        input + bouton disabled,
+                                        opacity 0.5, cursor not-allowed,
+                                        title 'Action désactivée en mode démo'
+                                        HomeScreen dérive isDemo depuis
+                                        profiles[activeProfileId]?.isDemo
+src/app/screens/SetlistsScreen.jsx      passe isDemo à SongSearchBar
+```
+
+### Dette résiduelle 7.51.3.1 → 7.51.3.2 / 7.51.4
+
+- Si l'utilisateur teste et trouve d'autres inputs/boutons non-grisés
+  en mode démo (rename setlist, créer setlist, ajouter custom guitar,
+  etc.), Phase 7.51.3.2 grisera ces points. Audit complet reporté.
+- Bug `?demo=1` URL non-fonctionnel rapporté : à diagnostiquer
+  avec dump console DevTools de l'utilisateur. Suspecté : cache
+  SW localhost ou test sur prod (où 7.51 n'est pas déployée).
+
+---
+
+## État précédent (2026-05-15, Phase 7.51.3 close — Mode démo accès UI + banner)
 
 **Backline v8.14.54 / SW backline-v154 / STATE_VERSION 9 / 796 tests verts.**
 Phase 7.51.3 expose le mode démo aux visiteurs : carte "Mode démo ·

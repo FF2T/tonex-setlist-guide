@@ -155,7 +155,7 @@ function SetlistsScreen({
             )}
             {/* Phase 7.14 — même flow que HomeScreen : recherche IA + correction
                 avant ajout. Le user a déjà coché les setlists cibles ci-dessus. */}
-            <SongSearchBar songDb={songDb} aiProvider={aiProvider} aiKeys={aiKeys} onConfirm={handleSongSearchConfirm}/>
+            <SongSearchBar songDb={songDb} aiProvider={aiProvider} aiKeys={aiKeys} isDemo={profile?.isDemo === true} onConfirm={handleSongSearchConfirm}/>
           </div>
         </div>
       )}
