@@ -10,7 +10,7 @@
 // tient. Phase 6.1 : compression lz-string en fallback avant strip.
 
 import LZString from 'lz-string';
-import { stripAiCacheForSync, stripDemoProfiles } from '../../core/state.js';
+import { stripAiCacheForSync, stripDemoProfiles, stripDemoFromSetlists } from '../../core/state.js';
 import { setSharedGeminiKey } from './shared-key.js';
 import { authedFetch as anonAuthedFetch } from './firebase-auth.js';
 
@@ -66,7 +66,11 @@ export function saveToFirestore(s) {
     // (isDemo: true) avant push. Ne devrait jamais arriver en pratique
     // (le profil démo est in-memory uniquement), mais protège contre
     // les écritures accidentelles.
-    const stripped = stripDemoProfiles(stateIn);
+    // Phase 7.52.9 — strip 'demo' des profileIds des setlists non-démo
+    // avant push. Empêche la re-pollution Firestore si l'état local
+    // contient encore des setlists historiquement polluées (cf
+    // stripDemoFromSetlists docstring).
+    const stripped = stripDemoFromSetlists(stripDemoProfiles(stateIn));
     const c = JSON.parse(JSON.stringify(stripped));
     c.syncId = sid;
     if (c.profiles) { for (const pid in c.profiles) { if (c.profiles[pid].aiKeys) c.profiles[pid].aiKeys = { anthropic: '', gemini: '' }; } }

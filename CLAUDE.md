@@ -677,9 +677,95 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-16, Phase 7.52.7 close — Filtre strict mySetlists en mode démo)
+## État actuel (2026-05-16, Phases 7.52.7 + 7.52.8 + 7.52.9 close)
 
-**Backline v8.14.69 / SW backline-v169 / STATE_VERSION 9 / 977 tests verts.**
+**Backline v8.14.71 / SW backline-v171 / STATE_VERSION 9 / 983 tests verts.**
+
+3 fixes ce matin (2026-05-16) suite tests utilisateur :
+
+### Phase 7.52.9 — Strip 'demo' des profileIds polluées (fix bug démo iPhone)
+
+**Bug observé** : sur iPhone, en mode démo, Sébastien voyait "Cours
+Franck B (46)" + "Tous les morceaux (46)" mais pas "Demo Setlist (11)".
+Sur Mac OK. La setlist "Cours Franck B" avait `profileIds: ['sebastien',
+'arthur_*', 'demo']` → passait le filtre strict Phase 7.52.7
+(`profileIds.includes('demo')` est true). La Demo Setlist était bien
+là aussi mais l'utilisateur n'a vu que la 1ère.
+
+**Cause vraisemblable** : avant Phase 7.51.4 (qui renomme le profil
+curateur en `demo_<timestamp>`), Sébastien avait un profil curateur
+nommé exactement `'demo'`. Il a fait des actions (Phase 5.8 toggle
+partage de setlist) qui ont ajouté `'demo'` aux profileIds de
+plusieurs setlists existantes. La pollution a été syncée Firestore →
+tirée sur iPhone.
+
+**Fix Phase 7.52.9** : `stripDemoFromSetlists(state)` helper pur
+(`src/core/state.js`) qui retire `'demo'` du `profileIds` des setlists
+qui ne s'appellent pas "Demo Setlist". Appliqué :
+1. **Au boot via `_runFullChain`** : heal défensif au load localStorage,
+   chaque démarrage purge automatiquement les pollutions résiduelles.
+2. **Avant push Firestore** dans `saveToFirestore.prep()`
+   (`src/app/utils/firestore.js`) — empêche toute repollution Firestore
+   depuis Mac.
+
+Stamp `lastModified` sur les setlists modifiées → la sync LWW
+Phase 5.7 propage le clean.
+
+### Phase 7.52.8 — Scroll reset au changement d'écran
+
+**Bug rapporté Mac** : après connexion (ProfilePicker → list), il
+fallait scroller vers le haut pour voir le header. La page restait
+scrollée au milieu.
+
+**Fix** : `useEffect([screen])` qui appelle
+`window.scrollTo({top: 0, behavior: 'auto'})` à chaque changement
+d'écran. Effet : tu vois toujours header + nav + début du contenu
+sans rescroller.
+
+### Phase 7.52.7 — Filtre strict mySetlists en mode démo
+
+**Bug iPhone** : setlists Sébastien sans `profileIds` ou avec
+`profileIds: []` considérées "publiques" → visibles en mode démo.
+**Fix** : en mode démo (`profile.isDemo === true`), filtre **strict**
+— seulement les setlists dont `profileIds` est un Array et inclut
+explicitement `'demo'`. Mode normal inchangé.
+
+### Architecture livrée à fin Phase 7.52.9
+
+```
+src/main.jsx                    APP_VERSION 8.14.69 → 8.14.71
+                                ligne 665 : mySetlists filtre strict
+                                en mode démo (Phase 7.52.7)
+                                +useEffect scroll reset (Phase 7.52.8)
+public/sw.js                    CACHE backline-v169 → backline-v171
+src/core/state.js               +stripDemoFromSetlists helper pur
+                                _runFullChain applique au load
+                                +export stripDemoFromSetlists
+src/app/utils/firestore.js      saveToFirestore.prep() applique
+                                stripDemoFromSetlists avant strip profils
+src/core/state.test.js          +6 tests stripDemoFromSetlists
+```
+
+### Action post-déploiement utilisateur
+
+**iPhone** (déjà fait par Sébastien manuellement via console) :
+clean des setlists polluées via commande JS. **Demo Setlist visible**
+après re-click "Mode démo" sur ProfilePicker.
+
+**Mac** : reload PWA → v8.14.71 actif → au prochain push Firestore
+(modif Sébastien), les setlists polluées sont automatiquement
+strippées de 'demo' avant push → propagation propre vers tous les
+devices.
+
+### Dette résiduelle
+
+- **Bug sync iPhone (rapporté brièvement)** : pas encore investigué
+  séparément. Phase 7.52.9 + 7.52.7 peuvent aussi avoir un effet
+  positif (moins de pollutions de profileIds → merge LWW plus
+  prévisible). À re-vérifier après reload v8.14.71 sur les deux
+  devices.
+
+
 
 **Bug iPhone 2026-05-16** : Sébastien voyait "Cours Franck B" et autres
 setlists Sébastien dans le mode démo iPhone (sur Mac OK car cleanup

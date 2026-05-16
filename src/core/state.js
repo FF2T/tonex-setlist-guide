@@ -1068,6 +1068,32 @@ function stripDemoProfiles(state) {
   return out;
 }
 
+// Phase 7.52.9 — stripDemoFromSetlists : retire 'demo' du profileIds des
+// setlists qui ne s'appellent pas "Demo Setlist". Bug observé 2026-05-16
+// sur iPhone : la setlist "Cours Franck B" (Sébastien) avait
+// profileIds: ['sebastien', 'arthur_*', 'demo'] → visible en mode démo
+// car le filtre Phase 7.52.7 strict garde toutes setlists dont
+// profileIds inclut 'demo'.
+//
+// Cause vraisemblable : à un moment, Sébastien a switché vers un profil
+// curateur nommé 'demo' (avant Phase 7.51.4 qui renomme en
+// demo_<timestamp>) et a fait des actions qui ont ajouté 'demo' aux
+// profileIds via Phase 5.8 toggleSetlistProfile. La pollution a été
+// syncée à Firestore puis tirée sur iPhone.
+//
+// Helper appliqué :
+//  1) Au boot via loadState (heal localStorage existant)
+//  2) Avant push Firestore (saveToFirestore) — défense en profondeur
+function stripDemoFromSetlists(state) {
+  if (!state?.shared?.setlists) return state;
+  const next = state.shared.setlists.map((sl) => {
+    if (!sl || sl.name === 'Demo Setlist') return sl;
+    if (!Array.isArray(sl.profileIds) || !sl.profileIds.includes('demo')) return sl;
+    return { ...sl, profileIds: sl.profileIds.filter((p) => p !== 'demo'), lastModified: Date.now() };
+  });
+  return { ...state, shared: { ...state.shared, setlists: next } };
+}
+
 // ─── loadState / saveState ───────────────────────────────────────────
 //
 // Tous les paths passent par la chaîne complète v1→...→v7. Toutes les
@@ -1080,7 +1106,10 @@ function _runFullChain(d) {
   if (v9 && v9.shared && v9.shared.deletedSetlistIds) {
     v9.shared = { ...v9.shared, deletedSetlistIds: gcTombstones(v9.shared.deletedSetlistIds) };
   }
-  return v9;
+  // Phase 7.52.9 — Heal défensif au load : retire 'demo' des profileIds
+  // des setlists non-démo (pollution Firestore historique, cf
+  // stripDemoFromSetlists docstring).
+  return stripDemoFromSetlists(v9);
 }
 
 function loadState() {
@@ -1499,7 +1528,7 @@ export {
   ensureProfileV8, ensureProfilesV8, migrateV7toV8,
   ensureProfileV9, ensureProfilesV9, migrateV8toV9,
   isDemoProfile, isDemoMode, loadDemoSnapshot, buildDemoSnapshot,
-  wrapDemoGuard, stripDemoProfiles,
+  wrapDemoGuard, stripDemoProfiles, stripDemoFromSetlists,
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,

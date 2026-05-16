@@ -10,7 +10,7 @@ import {
   ensureProfileV8, ensureProfilesV8,
   ensureProfileV9, ensureProfilesV9,
   isDemoProfile, isDemoMode, loadDemoSnapshot, buildDemoSnapshot,
-  wrapDemoGuard, stripDemoProfiles,
+  wrapDemoGuard, stripDemoProfiles, stripDemoFromSetlists,
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
@@ -1850,6 +1850,76 @@ describe('stripDemoProfiles (Phase 7.51.2)', () => {
     expect(out).not.toBe(state);
     expect(out.profiles).not.toBe(state.profiles);
     expect(out.other).toBe('preserved');
+  });
+});
+
+describe('stripDemoFromSetlists (Phase 7.52.9)', () => {
+  test("retire 'demo' des profileIds des setlists non-démo", () => {
+    const state = {
+      shared: {
+        setlists: [
+          { id: 'a', name: 'Cours Franck B', profileIds: ['sebastien', 'arthur', 'demo'] },
+          { id: 'b', name: 'Arthur & Seb', profileIds: ['sebastien', 'demo'] },
+          { id: 'c', name: 'Demo Setlist', profileIds: ['demo'] },
+          { id: 'd', name: 'Bruno', profileIds: ['bruno'] },
+        ],
+      },
+    };
+    const out = stripDemoFromSetlists(state);
+    expect(out.shared.setlists[0].profileIds).toEqual(['sebastien', 'arthur']);
+    expect(out.shared.setlists[1].profileIds).toEqual(['sebastien']);
+    expect(out.shared.setlists[2].profileIds).toEqual(['demo']); // Demo Setlist préservée
+    expect(out.shared.setlists[3].profileIds).toEqual(['bruno']); // pas touchée
+  });
+
+  test('stamp lastModified sur les setlists modifiées seulement', () => {
+    const t0 = Date.now() - 10000;
+    const state = {
+      shared: {
+        setlists: [
+          { id: 'a', name: 'Polluée', profileIds: ['x', 'demo'], lastModified: t0 },
+          { id: 'b', name: 'Clean', profileIds: ['y'], lastModified: t0 },
+        ],
+      },
+    };
+    const out = stripDemoFromSetlists(state);
+    expect(out.shared.setlists[0].lastModified).toBeGreaterThan(t0);
+    expect(out.shared.setlists[1].lastModified).toBe(t0); // pas re-stampée
+  });
+
+  test('immutabilité — pas de mutation du state input', () => {
+    const setlist = { id: 'a', name: 'X', profileIds: ['sebastien', 'demo'] };
+    const state = { shared: { setlists: [setlist] } };
+    const out = stripDemoFromSetlists(state);
+    expect(setlist.profileIds).toEqual(['sebastien', 'demo']); // intact
+    expect(out.shared.setlists[0].profileIds).toEqual(['sebastien']); // copié + filtré
+    expect(out).not.toBe(state);
+    expect(out.shared).not.toBe(state.shared);
+  });
+
+  test('no-op si pas de setlists ou state falsy', () => {
+    expect(stripDemoFromSetlists(null)).toBe(null);
+    expect(stripDemoFromSetlists({})).toEqual({});
+    expect(stripDemoFromSetlists({ shared: {} })).toEqual({ shared: {} });
+    expect(stripDemoFromSetlists({ shared: { setlists: [] } })).toEqual({ shared: { setlists: [] } });
+  });
+
+  test("setlist sans profileIds → préservée sans toucher", () => {
+    const state = {
+      shared: { setlists: [{ id: 'a', name: 'No profileIds' }] },
+    };
+    const out = stripDemoFromSetlists(state);
+    expect(out.shared.setlists[0]).toEqual({ id: 'a', name: 'No profileIds' });
+  });
+
+  test('Demo Setlist avec profileIds: [\"demo\", \"other\"] → demo préservé', () => {
+    // Edge case : si quelqu'un a ajouté 'other' à profileIds de Demo Setlist,
+    // l'helper ne touche pas (filtre sur le name).
+    const state = {
+      shared: { setlists: [{ id: 'a', name: 'Demo Setlist', profileIds: ['demo', 'other'] }] },
+    };
+    const out = stripDemoFromSetlists(state);
+    expect(out.shared.setlists[0].profileIds).toEqual(['demo', 'other']);
   });
 });
 
