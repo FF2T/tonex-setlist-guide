@@ -601,6 +601,68 @@ Usages : Téléphone "Flipper"
 6. **Style blues** → comp + EQ shaping, amp Fender clean, cab 2x12 Twin (Ribbon mic), reverb spring discrète.
 7. **Style rock** (genre Téléphone) → '59 Bassman cranked + 4x10 Bassman + Spring Reverb, sans drive ni FX (chaîne minimaliste).
 
+### Catalog des presets TSR — deux sources de vérité (Phase 7.14+)
+
+Le projet maintient **deux listes parallèles** liées aux 64 packs The
+Studio Rats. Elles ont des rôles distincts et **dérivent volontairement**
+l'une de l'autre dans le temps.
+
+| Fichier | Rôle | Taille | Mis à jour comment |
+|---|---|---|---|
+| `src/data/tsr-packs.js` (`TSR_PACK_ZIPS` + `TSR_PACK_GROUPS`) | UI : mapping nom de pack → slug URL de la fiche d'achat TSR. Utilisé par `SongDetailCard` pour le bouton « Acheter ce pack » quand le `ref_amp` d'un morceau ne matche aucun preset installé. | 64 entrées | Édition manuelle à chaque nouvel achat. Pas de scoring touché |
+| `src/data/preset_catalog_full.js` (`PRESET_CATALOG_FULL`) | Scoring + IA : metadata par capture (amp, gain bucket, style, scores HB/SC/P90). Alimente `PRESET_CATALOG_MERGED`, le moteur V9 et la sérialisation au prompt IA | ~636 entrées dont **609 TSR**, 27 ML | Régénéré par `gen_catalog.js` |
+
+**`gen_catalog.js`** (à la racine du repo) est un script Node qui scanne
+le Google Drive local de Sébastien et reconstruit
+`preset_catalog_full.js` à partir des fichiers `.txp` ToneX réellement
+présents :
+
+```
+BASE = /Users/sebastien/Library/CloudStorage/GoogleDrive-.../Musique/Guitare/TONEX/AMP/
+TSR_DIR = $BASE/TSR TONE MODELS
+ML_DIR  = $BASE/ML-Sound-Lab-Capture-Pack-ESSENTIALS/ToneX
+```
+
+Les règles d'extraction (amp / gain / style depuis le nom de fichier
+`.txp`) sont hardcodées dans `AMP_RULES` du script. À relancer après
+chaque ajout de pack pour que le catalog reflète la nouvelle réalité.
+
+#### Dérive constatée (audit 2026-05-16)
+
+Au moment de cet audit, le catalog couvre **56 / 64 packs**. Les 8 packs
+absents se classent en 4 cas distincts — pas tous des bugs :
+
+| Pack absent du catalog | Cas | Action recommandée |
+|---|---|---|
+| Mega Barba Skill, Friedman Phil X, Amplifonics & Gain | **Catalog stale** : packs achetés / sortis après la dernière exécution de `gen_catalog.js` (figé depuis Phase 1, 9 mai 2026) | Relancer `gen_catalog.js` après avoir décompressé les ZIPs dans le Google Drive |
+| **D13 Best Tweed** | **Faux manquant** : son `TSR_PACK_ZIPS` pointe sur `TSR-D13-Pack`, le même slug que le pack `'D13'`. C'est une réédition / variante commerciale du pack D13 standard. Les 28 presets `TSR D13*` du catalog couvrent les deux | Rien à faire. Documenter dans `TSR_PACK_GROUPS` si la confusion gêne |
+| Drive Pedal Pack 3, Jivey Drives, Jivey Drives 2 | **Hors modèle amp-centric** : ces packs capturent des PÉDALES seules (sans ampli en aval). Le scoring V9 exige `entry.amp: string` et applique `computeRefAmpScore` (30 % du score). Une capture de pédale standalone fitte mal le modèle | À trancher : soit on ajoute un champ `entry.kind: 'pedal'` qui shunte refAmpScore (Phase 8+), soit on les exclut formellement de la pipeline scoring. En attendant : ne PAS regenerate ces .txp, ou les filtrer dans `gen_catalog.js` |
+| Bass Elliot | **Hors modèle bass** : pas de basses dans `GUITARS` / pas de scoring bass-vs-pickup défini. Cohérent avec dette CLAUDE.md « TSR_PACK_GROUPS.Bass existe mais aucune basse dans GUITARS » | Lever quand Phase 8 (basse) démarre : ajouter Jazz Bass Player Plus + type 'Bass' dans GUITARS, étendre scoring, regenerate |
+
+#### Workflow recommandé pour ajouter un nouveau pack TSR
+
+1. Acheter le pack sur thestudiorats.com, dézipper dans
+   `$BASE/TSR TONE MODELS/`.
+2. Ajouter une entrée dans `src/data/tsr-packs.js` (`TSR_PACK_ZIPS` +
+   `TSR_PACK_GROUPS` si applicable) avec le slug URL de la page d'achat.
+3. Relancer `node gen_catalog.js` pour mettre à jour
+   `src/data/preset_catalog_full.js` avec les nouvelles captures.
+4. Vérifier `npm test` (snapshots V9 verts) + smoke test sur un morceau
+   dont le `ref_amp` matche le nouveau pack.
+
+Étape 3 oubliée = la dérive reprend. À l'inverse, jamais besoin de
+toucher `tsr-packs.js` si le pack ajouté est uniquement pour un usage
+scoring interne (mais alors le bouton « Acheter ce pack » ne pourra pas
+pointer dessus dans l'UI).
+
+#### Idée Phase ultérieure : sync auto
+
+Le gap actuel pourrait être résorbé en faisant lire au `gen_catalog.js`
+la liste `TSR_PACK_ZIPS` et émettre un `console.warn` pour chaque pack
+listé sans .txp trouvés dans le Google Drive. Ou symétriquement, faire
+émettre un warn pour chaque .txp scanné dont le préfixe ne matche aucun
+pack connu. Phase 8+ si la dette devient gênante.
+
 ## Scripts disponibles
 
 ```
@@ -684,7 +746,81 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-16, Phase 7.52.6 close — match ref_guitarist, fin Phase 7.52)
+## État actuel (2026-05-16, Phase 7.52.15 close — snapshot démo préserve curateur)
+
+**Backline v8.14.78 / SW backline-v178 / STATE_VERSION 9 / 992 tests verts.**
+
+Phase 7.52.15 corrige un bug d'écrasement de la "Demo Setlist" sur le
+profil de curation Sébastien. Symptôme observé après plusieurs entrées
+en mode démo : la "Demo Setlist" disparaissait du profil curateur
+`demo_1778839429588` alors qu'elle existait toujours en localStorage.
+
+### Cause
+
+Le snapshot bundlé `src/data/demo-profile.json` avait
+`profileIds: ["demo"]` uniquement (généré par `buildDemoSnapshot`
+Phase 7.51.4 qui force ce profileIds au profit du profil démo bundlé).
+
+Chaîne d'écrasement :
+1. Sébastien curé la "Demo Setlist" sur son profil `demo_1778839429588`
+   → `profileIds: ["demo_1778839429588"]` en local.
+2. Export snapshot via Phase 7.51.4 → JSON bundle avec `profileIds:
+   ["demo"]` (sans curateur).
+3. Sébastien entre en mode démo via `?demo=1` ou carte ProfilePicker
+   → `enterDemoMode` Phase 7.52.14 `force override par id` : la
+   setlist locale est ÉCRASÉE par la version snapshot (même id
+   `sl_1778840079421`) qui n'a que `["demo"]`.
+4. Sébastien sort du mode démo → une action sur le curateur déclenche
+   le persist localStorage → état pollué sauvegardé.
+5. Résultat : `mySetlists` du curateur (filtre
+   `profileIds.includes('demo_1778839429588')`) ne retourne plus la
+   setlist.
+
+### Fix Phase 7.52.15
+
+`src/data/demo-profile.json` : `profileIds: ["demo",
+"demo_1778839429588"]` — préserve l'id du curateur dans le snapshot
+bundle. À chaque `enterDemoMode`, le `force override par id` injecte
+désormais la setlist avec les deux profileIds, donc :
+- Le profil démo bundlé (`'demo'`, isDemo:true) la voit en mode démo
+  (filtre Phase 7.52.7 strict OK : profileIds inclut 'demo').
+- Le profil curateur (`demo_1778839429588`) la voit en mode normal
+  (filtre `mySetlists` OK : profileIds inclut son id).
+
+### Léger compromis
+
+L'id du curateur `demo_1778839429588` est désormais visible dans le
+bundle prod (`dist/index.html`). C'est un id timestamp sans valeur
+sensible, mais sache que si tu changes de profil curateur un jour,
+il faudra mettre à jour ce JSON manuellement OU re-modifier
+`buildDemoSnapshot` Phase 7.51.4 pour qu'il conserve le profileIds
+source au lieu de forcer `['demo']`.
+
+### Architecture livrée
+
+```
+src/data/demo-profile.json     Demo Setlist profileIds:
+                                ["demo"] → ["demo", "demo_1778839429588"]
+src/main.jsx                    APP_VERSION 8.14.77 → 8.14.78
+public/sw.js                    CACHE backline-v177 → backline-v178
+```
+
+### Action post-déploiement
+
+Sur les devices déjà polluées (Mac Sébastien) :
+1. Reload PWA 2 fois pour activer v8.14.78.
+2. Sur le profil curateur `demo_1778839429588`, lancer le patch
+   console (cf historique chat) pour réajouter `demo_1778839429588`
+   aux profileIds de la setlist locale.
+3. OU plus simple : entrer dans le mode démo via `?demo=1`, ce qui
+   re-déclenchera l'override par id avec le nouveau snapshot bundlé
+   v8.14.78 (qui a maintenant le curateur dans profileIds). Sortir
+   du mode démo → la "Demo Setlist" sera de nouveau visible côté
+   curateur.
+
+---
+
+## État précédent (2026-05-16, Phase 7.52.6 close — match ref_guitarist, fin Phase 7.52)
 
 **Backline v8.14.77 / SW backline-v177 / STATE_VERSION 9 / 992 tests verts.**
 
@@ -5954,6 +6090,79 @@ ou niveau 2 (Firestore queue) ? MVP recommandé niveau 1.
 **Décision actuelle** : pas implémenté. Idée enregistrée pour Phase
 7.44 hypothétique, à activer si signal de demande publique post J+10
 case study Reddit (cf. BETA_TESTING.md local pour la stratégie).
+
+### Phase 7.52.16 (proposée) — enterDemoMode merge profileIds au lieu de remplacer
+
+**Contexte** : Phase 7.52.15 a livré un fix court terme en éditant
+manuellement le snapshot bundlé `src/data/demo-profile.json` pour
+ajouter `demo_1778839429588` aux `profileIds` de la "Demo Setlist".
+Solution simple mais fragile : si Sébastien change un jour de profil
+curateur, il devra mettre à jour le JSON manuellement.
+
+**Cause structurelle** : `enterDemoMode` (`src/main.jsx` Phase 7.52.14)
+fait un **force override par id** des setlists du snapshot —
+remplace le tableau `profileIds` local par celui du snapshot. Donc
+la setlist locale du curateur perd son ownership à chaque entrée en
+mode démo.
+
+**Fix proposé Phase 7.52.16** : dans `enterDemoMode`, au lieu de
+remplacer la setlist du snapshot, **merger les profileIds** :
+
+```js
+// AVANT (Phase 7.52.14) :
+setSetlistsRaw(prev => {
+  const snapIds = new Set((snap.setlists || []).map(s => s.id));
+  const kept = (prev || []).filter(s => !snapIds.has(s.id));
+  return [...kept, ...(snap.setlists || [])];
+});
+
+// APRÈS (Phase 7.52.16) :
+setSetlistsRaw(prev => {
+  const snapById = new Map((snap.setlists || []).map(s => [s.id, s]));
+  const prevById = new Map((prev || []).map(s => [s.id, s]));
+  const result = [];
+  // Setlists existantes : merge profileIds si présent dans snapshot
+  for (const local of (prev || [])) {
+    const snapVer = snapById.get(local.id);
+    if (snapVer) {
+      const mergedIds = Array.from(new Set([
+        ...(snapVer.profileIds || []),
+        ...(local.profileIds || []),
+      ]));
+      result.push({ ...snapVer, profileIds: mergedIds });
+    } else {
+      result.push(local);
+    }
+  }
+  // Setlists du snapshot pas encore en local
+  for (const snapSl of (snap.setlists || [])) {
+    if (!prevById.has(snapSl.id)) result.push(snapSl);
+  }
+  return result;
+});
+```
+
+**Avantages** :
+- Le curateur garde TOUJOURS son ownership de la "Demo Setlist"
+  (et de toute setlist incluse dans le snapshot) — pas besoin
+  d'éditer le JSON manuellement.
+- Le profil démo bundlé (`'demo'`) garde son accès via
+  `profileIds.includes('demo')`.
+- Tout autre profil pré-listé dans le snapshot reste préservé.
+- Rétro-compatible : si le snapshot a uniquement `['demo']`, le
+  merge produit `['demo', curatorId]` automatiquement. Si le
+  curateur n'a pas la setlist en local, on prend telle quelle.
+
+**Inconvénient mineur** : un peu plus de code dans `enterDemoMode`
+(8 lignes vs 4) + 1-2 tests Vitest à ajouter pour couvrir le merge.
+
+**Effort estimé** : ~30 min (refacto + tests + commit).
+
+**Décision actuelle** : proposée Phase 7.52.16. À activer si
+Sébastien décide de re-curer le snapshot avec un autre profil
+curateur (changement d'id) et trouve la maintenance manuelle du
+JSON pénible. En attendant, Phase 7.52.15 suffit pour
+`demo_1778839429588` (id stable).
 
 ### Phase 7.53 (proposée) — Édition usages artiste/morceau sur presets ToneNET
 
