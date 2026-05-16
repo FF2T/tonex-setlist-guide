@@ -45,6 +45,10 @@ function ToneNetTab({ toneNetPresets, onToneNetPresets, inp, songDb }) {
   // (prompt IA Phase 7.52.1) et findSlotByUsageMatch (Phase 7.52.5/.6).
   const [usages, setUsages] = useState([]);
   const [showUsages, setShowUsages] = useState(false);
+  // Phase 7.53 fix 2 — Drafts des inputs songs uncontrolled. Stocke
+  // la valeur en cours par index d'usage. Flush automatique au save
+  // pour éviter de perdre le texte tapé non-confirmé par Enter.
+  const [songDrafts, setSongDrafts] = useState({});
   const [editId, setEditId] = useState(null);
   const [autoFilled, setAutoFilled] = useState(false);
 
@@ -67,7 +71,16 @@ function ToneNetTab({ toneNetPresets, onToneNetPresets, inp, songDb }) {
     const suggested = suggestStyleFromAmp(val);
     if (suggested) setStyle(suggested);
   };
-  const resetForm = () => { setName(''); setAmp(''); setGain('mid'); setStyle('rock'); setChannel(''); setCab(''); setComment(''); setUsages([]); setShowUsages(false); setEditId(null); setAutoFilled(false); };
+  const resetForm = () => { setName(''); setAmp(''); setGain('mid'); setStyle('rock'); setChannel(''); setCab(''); setComment(''); setUsages([]); setSongDrafts({}); setShowUsages(false); setEditId(null); setAutoFilled(false); };
+
+  // Phase 7.53 fix 2 — Flush des drafts songs dans usages avant
+  // sérialisation au save. Retourne la nouvelle valeur SANS muter
+  // le state (le caller doit setUsages + setSongDrafts({}) après).
+  const flushSongDrafts = () => usages.map((u, idx) => {
+    const draft = (songDrafts[idx] || '').trim();
+    if (!draft) return u;
+    return { ...u, songs: Array.from(new Set([...(u.songs || []), draft])) };
+  });
   const onNameChange = (val) => {
     setName(val);
     if (editId) return;
@@ -85,17 +98,20 @@ function ToneNetTab({ toneNetPresets, onToneNetPresets, inp, songDb }) {
     if (!name.trim()) return;
     // Phase 7.53.1 — stamp lastModified pour merge LWW per-item Firestore.
     const p = { id: `tn_${Date.now()}`, name: name.trim(), amp: amp.trim() || 'ToneNET', gain, style, channel: channel.trim(), cab: cab.trim(), comment: comment.trim(), scores: { HB: 75, SC: 75, P90: 75 }, lastModified: Date.now() };
-    const usagesClean = cleanUsages(usages);
+    // Phase 7.53 fix 2 — flush des drafts songs avant clean (sinon les
+    // titres tapés mais pas validés par Enter sont perdus au save).
+    const usagesClean = cleanUsages(flushSongDrafts());
     if (usagesClean) p.usages = usagesClean;
     onToneNetPresets((prev) => [...prev, p]); resetForm();
   };
   const saveEdit = () => {
     if (!name.trim() || !editId) return;
+    const flushed = flushSongDrafts();
     onToneNetPresets((prev) => prev.map((p) => {
       if (p.id !== editId) return p;
       // Phase 7.53.1 — stamp lastModified pour LWW
       const next = { ...p, name: name.trim(), amp: amp.trim() || 'ToneNET', gain, style, channel: channel.trim(), cab: cab.trim(), comment: comment.trim(), lastModified: Date.now() };
-      const usagesClean = cleanUsages(usages);
+      const usagesClean = cleanUsages(flushed);
       if (usagesClean) next.usages = usagesClean;
       else delete next.usages;
       return next;
@@ -171,7 +187,10 @@ function ToneNetTab({ toneNetPresets, onToneNetPresets, inp, songDb }) {
                     />
                     <button
                       type="button"
-                      onClick={() => setUsages((prev) => prev.filter((_, i) => i !== idx))}
+                      onClick={() => {
+                        setUsages((prev) => prev.filter((_, i) => i !== idx));
+                        setSongDrafts({}); // clear pour éviter index-shift
+                      }}
                       style={{ background: 'var(--red-bg)', border: 'none', borderRadius: 'var(--r-sm)', padding: '4px 8px', fontSize: 10, color: 'var(--danger)', cursor: 'pointer' }}
                       title={t('tonenet.usage-remove', 'Retirer cet artiste')}
                     >✕</button>
@@ -188,15 +207,17 @@ function ToneNetTab({ toneNetPresets, onToneNetPresets, inp, songDb }) {
                       </span>
                     ))}
                     <input
-                      placeholder={t('tonenet.usage-song-add', '+ Morceau (Enter pour ajouter)')}
+                      placeholder={t('tonenet.usage-song-add', '+ Morceau (Enter ou Sauver pour ajouter)')}
                       list="tonenet-song-list"
+                      value={songDrafts[idx] || ''}
+                      onChange={(e) => setSongDrafts((prev) => ({ ...prev, [idx]: e.target.value }))}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
-                          const v = e.currentTarget.value.trim();
+                          const v = (songDrafts[idx] || '').trim();
                           if (!v) return;
                           setUsages((prev) => prev.map((x, i) => i === idx ? { ...x, songs: Array.from(new Set([...(x.songs || []), v])) } : x));
-                          e.currentTarget.value = '';
+                          setSongDrafts((prev) => ({ ...prev, [idx]: '' }));
                         }
                       }}
                       style={{ ...inp, flex: 1, minWidth: 120, fontSize: 11 }}
