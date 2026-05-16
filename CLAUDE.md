@@ -746,7 +746,105 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-16, Phase 7.52.15 close — snapshot démo préserve curateur)
+## État actuel (2026-05-16, Phase 7.52.16 close — buildDemoSnapshot préserve curateur + re-export snapshot)
+
+**Backline v8.14.79 / SW backline-v179 / STATE_VERSION 9 / 993 tests verts.**
+
+Phase 7.52.16 livre le fix pérenne de Phase 7.52.15 côté code +
+re-export du snapshot démo depuis le profil curateur
+`demo_1778839429588` (qui contient désormais le patch
+`ref_guitarist` pour Hotel California, fix manuel via console).
+
+### Fix Phase 7.52.16
+
+`buildDemoSnapshot` (`src/core/state.js`) écrit désormais
+`profileIds: ['demo', origId]` au lieu de `['demo']` seul. Donc à
+chaque nouvel export :
+- Le profil démo bundlé (`'demo'`) garde l'accès via filtre Phase
+  7.52.7 strict (`profileIds.includes('demo')`).
+- Le profil curateur source garde son ownership (
+  `profileIds.includes(origId)` côté `mySetlists`).
+- Plus besoin d'éditer manuellement le JSON après export (Phase
+  7.52.15 manuel obsolète).
+
+### Snapshot re-exporté avec Hotel California fix
+
+Le snapshot bundlé `src/data/demo-profile.json` est régénéré
+depuis le profil curateur après avoir patché manuellement
+`aiCache.result.ref_guitarist = "Don Felder / Joe Walsh"` sur la
+song Hotel California (`c_1778428303601_rk4y`). Conséquence pour
+tous les clients démo (Bruno, Francisco, futurs) au prochain reload :
+
+- À l'ouverture de la fiche Hotel California, le post-processing
+  Phase 7.52.6 trouve `JS Wrecked Z Push 1` (slot 19A) via
+  substring match "Joe Walsh" dans `ref_guitarist` → score 50 →
+  override `preset_ann` cached. Aucun re-fetch IA nécessaire (le
+  post-processing s'applique au render).
+
+### Pourquoi Hotel California a fallu être patché manuellement
+
+L'aiCache historique de Hotel California sur le curateur avait
+`ref_guitarist: undefined` (fetché avant la version actuelle du
+prompt qui demande systématiquement ce champ). Le useEffect fetchAI
+de SongDetailCard ne se re-déclenchait pas après invalidation
+(sync Firestore rétablissait l'aiCache depuis un autre device,
+plus rapidement que l'utilisateur ne pouvait réagir).
+
+Solution pragmatique : injection directe du champ
+`ref_guitarist: "Don Felder / Joe Walsh"` dans l'aiCache via
+console DevTools, puis re-export du snapshot avec ce patch inclus.
+
+### Architecture livrée
+
+```
+src/core/state.js              buildDemoSnapshot : profileIds=['demo']
+                                → profileIds=['demo', origId] (Phase 7.52.16)
+src/core/state.test.js         test setlists profileIds : assert
+                                ['demo', curatorId] + nouveau test
+                                pour curateur id non-démo
+src/data/demo-profile.json     Re-exporté depuis demo_1778839429588
+                                avec ref_guitarist patché sur Hotel
+                                California ; profileIds patché à
+                                ['demo', 'demo_1778839429588'] manuellement
+                                (export pré-Phase 7.52.16, patch
+                                équivalent appliqué)
+src/main.jsx                   APP_VERSION 8.14.78 → 8.14.79
+public/sw.js                   CACHE backline-v178 → backline-v179
+```
+
+### Conséquences
+
+- **993/993 tests verts** (+1 nouveau Phase 7.52.16 : préservation
+  curateur id non-démo ; +1 mise à jour test existant).
+- **Bundle** 2138.88 → 2154.34 KB (+15.5 KB pour le snapshot
+  re-exporté avec aiCache complet du curateur, vs ancien snapshot
+  potentiellement partiel).
+- **Pas de bump SCORING_VERSION** (V9 inchangé).
+- **Pas de migration** (additif sur le snapshot, schéma identique).
+
+### Action post-déploiement utilisateur
+
+- **Sébastien Mac/iPhone** : reload PWA 2× pour v8.14.79.
+- **Bruno, Francisco** : reload PWA 2× au prochain accès. À
+  l'ouverture de Hotel California (s'ils l'ouvrent), reco bascule
+  sur JS Wrecked Z Push 1 (19A). Pas d'action requise de leur part.
+- **Profil curateur** sur Sébastien Mac : "Demo Setlist" reste
+  visible (profileIds inclut son id).
+
+### Entrée roadmap Phase 7.52.16 obsolète
+
+L'entrée "Phase 7.52.16 (proposée) — enterDemoMode merge profileIds"
+dans la section "Idées en attente" reste valide en théorie mais
+plus prioritaire à implémenter : avec Phase 7.52.16 sur
+buildDemoSnapshot, tout nouvel export sort déjà avec profileIds
+préservé → l'override par id Phase 7.52.14 préserve naturellement
+le curateur. Le merge dans enterDemoMode resterait utile pour des
+cas exotiques (snapshot manuel sans curateur, etc.) mais
+non-urgent.
+
+---
+
+## État précédent (2026-05-16, Phase 7.52.15 close — snapshot démo préserve curateur)
 
 **Backline v8.14.78 / SW backline-v178 / STATE_VERSION 9 / 992 tests verts.**
 

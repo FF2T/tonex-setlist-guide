@@ -1996,11 +1996,25 @@ describe('buildDemoSnapshot (Phase 7.51.4)', () => {
     expect(s1.aiCache.result.cot_step1.es).toBe('es');
   });
 
-  test('setlists sortantes ont profileIds=[demo] (remappage)', () => {
+  test('setlists sortantes ont profileIds=[demo, curatorId] (Phase 7.52.16)', () => {
+    // Phase 7.52.16 : préserve l'id du curateur source en plus de 'demo'
+    // pour que le curateur garde son ownership de la setlist après que
+    // enterDemoMode (Phase 7.52.14) force override par id la version locale.
     const snap = buildDemoSnapshot(sampleProfile, sampleSetlists, sampleSongs);
     expect(snap.setlists.length).toBe(1);
-    expect(snap.setlists[0].profileIds).toEqual(['demo']);
+    expect(snap.setlists[0].profileIds).toEqual(['demo', 'demo_curator_1778839429588']);
     expect(snap.setlists[0].songIds).toEqual(['s1', 's2']);
+  });
+
+  test('profileIds curateur préservé même si curateur a un id non-démo', () => {
+    // Validation Phase 7.52.16 : marche pour n'importe quel id curateur
+    // (pas seulement les ids commençant par 'demo_').
+    const otherCurator = { ...sampleProfile, id: 'sebastien_admin' };
+    const setlists = [
+      { id: 'sl_a', name: 'Demo Setlist', profileIds: ['sebastien_admin'], songIds: ['s1'] },
+    ];
+    const snap = buildDemoSnapshot(otherCurator, setlists, sampleSongs);
+    expect(snap.setlists[0].profileIds).toEqual(['demo', 'sebastien_admin']);
   });
 
   test('format compatible loadDemoSnapshot (version + 4 clés)', () => {

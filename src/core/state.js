@@ -1008,10 +1008,18 @@ function buildDemoSnapshot(profile, allSetlists, allSongs) {
   const songIds = new Set();
   mySetlists.forEach((sl) => (sl.songIds || []).forEach((id) => songIds.add(id)));
   const songs = (allSongs || []).filter((s) => s && songIds.has(s.id));
-  // Remappe profileIds vers 'demo' dans les setlists sortantes.
+  // Phase 7.52.16 — Préserve l'id du curateur source dans profileIds en
+  // plus de 'demo'. Sans ça (Phase 7.51.4 original), le snapshot écrit
+  // profileIds=['demo'] uniquement. Quand le curateur ré-entre en mode
+  // démo (enterDemoMode force override par id, Phase 7.52.14), la
+  // setlist locale du curateur est écrasée par la version snapshot →
+  // perd l'ownership curateur → invisible côté curateur après sortie
+  // du mode démo. Solution : exporter avec les deux profileIds → le
+  // curateur garde l'ownership, le profil démo bundlé garde l'accès
+  // via 'demo' (filtre Phase 7.52.7 strict).
   const setlists = mySetlists.map((sl) => ({
     ...sl,
-    profileIds: ['demo'],
+    profileIds: ['demo', origId],
   }));
   const cleanProfile = {
     ...profile,
