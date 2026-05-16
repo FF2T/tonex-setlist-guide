@@ -5,7 +5,7 @@
 // communauté). Pré-remplissage auto via inferPresetInfo (amp/gain/
 // style inférés depuis le nom).
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { t, tFormat, tPlural } from '../../i18n/index.js';
 import { inferPresetInfo } from '../utils/infer-preset.js';
 
@@ -30,7 +30,7 @@ function suggestStyleFromAmp(ampName) {
   return null;
 }
 
-function ToneNetTab({ toneNetPresets, onToneNetPresets, inp }) {
+function ToneNetTab({ toneNetPresets, onToneNetPresets, inp, songDb }) {
   const [name, setName] = useState('');
   const [amp, setAmp] = useState('');
   const [gain, setGain] = useState('mid');
@@ -38,15 +38,36 @@ function ToneNetTab({ toneNetPresets, onToneNetPresets, inp }) {
   const [channel, setChannel] = useState('');
   const [cab, setCab] = useState('');
   const [comment, setComment] = useState('');
+  // Phase 7.53 — Usages artiste/morceau (édition par l'utilisateur).
+  // Format : [{artist: string, songs: string[]}]. Songs optionnel.
+  // Persisté tel quel sur le preset, recopié dans PRESET_CATALOG_MERGED
+  // via useMemo main.jsx → exploité par buildInstalledSlotsSection
+  // (prompt IA Phase 7.52.1) et findSlotByUsageMatch (Phase 7.52.5/.6).
+  const [usages, setUsages] = useState([]);
+  const [showUsages, setShowUsages] = useState(false);
   const [editId, setEditId] = useState(null);
   const [autoFilled, setAutoFilled] = useState(false);
+
+  // Liste unique de titres pour datalist (autocomplete songs)
+  const songTitles = useMemo(() => {
+    const set = new Set();
+    (songDb || []).forEach((s) => { if (s.title) set.add(s.title); });
+    return Array.from(set).sort();
+  }, [songDb]);
+
+  // Liste unique d'artistes pour datalist
+  const artistList = useMemo(() => {
+    const set = new Set();
+    (songDb || []).forEach((s) => { if (s.artist) set.add(s.artist); });
+    return Array.from(set).sort();
+  }, [songDb]);
 
   const onAmpChange = (val) => {
     setAmp(val);
     const suggested = suggestStyleFromAmp(val);
     if (suggested) setStyle(suggested);
   };
-  const resetForm = () => { setName(''); setAmp(''); setGain('mid'); setStyle('rock'); setChannel(''); setCab(''); setComment(''); setEditId(null); setAutoFilled(false); };
+  const resetForm = () => { setName(''); setAmp(''); setGain('mid'); setStyle('rock'); setChannel(''); setCab(''); setComment(''); setUsages([]); setShowUsages(false); setEditId(null); setAutoFilled(false); };
   const onNameChange = (val) => {
     setName(val);
     if (editId) return;
@@ -59,16 +80,34 @@ function ToneNetTab({ toneNetPresets, onToneNetPresets, inp }) {
       setAutoFilled(true);
     }
   };
+  // cf cleanUsages exporté plus bas (extrait pour testabilité Phase 7.53).
   const addPreset = () => {
     if (!name.trim()) return;
     const p = { id: `tn_${Date.now()}`, name: name.trim(), amp: amp.trim() || 'ToneNET', gain, style, channel: channel.trim(), cab: cab.trim(), comment: comment.trim(), scores: { HB: 75, SC: 75, P90: 75 } };
+    const usagesClean = cleanUsages(usages);
+    if (usagesClean) p.usages = usagesClean;
     onToneNetPresets((prev) => [...prev, p]); resetForm();
   };
   const saveEdit = () => {
     if (!name.trim() || !editId) return;
-    onToneNetPresets((prev) => prev.map((p) => p.id === editId ? { ...p, name: name.trim(), amp: amp.trim() || 'ToneNET', gain, style, channel: channel.trim(), cab: cab.trim(), comment: comment.trim() } : p)); resetForm();
+    onToneNetPresets((prev) => prev.map((p) => {
+      if (p.id !== editId) return p;
+      const next = { ...p, name: name.trim(), amp: amp.trim() || 'ToneNET', gain, style, channel: channel.trim(), cab: cab.trim(), comment: comment.trim() };
+      const usagesClean = cleanUsages(usages);
+      if (usagesClean) next.usages = usagesClean;
+      else delete next.usages;
+      return next;
+    })); resetForm();
   };
-  const startEdit = (p) => { setEditId(p.id); setName(p.name); setAmp(p.amp === 'ToneNET' ? '' : p.amp); setGain(p.gain); setStyle(p.style); setChannel(p.channel || ''); setCab(p.cab || ''); setComment(p.comment || ''); setAutoFilled(false); };
+  const startEdit = (p) => {
+    setEditId(p.id); setName(p.name); setAmp(p.amp === 'ToneNET' ? '' : p.amp);
+    setGain(p.gain); setStyle(p.style); setChannel(p.channel || '');
+    setCab(p.cab || ''); setComment(p.comment || '');
+    // Phase 7.53 — recharge les usages existants pour édition
+    setUsages(Array.isArray(p.usages) ? p.usages.map((u) => ({ artist: u.artist || '', songs: Array.isArray(u.songs) ? [...u.songs] : [] })) : []);
+    setShowUsages(Array.isArray(p.usages) && p.usages.length > 0);
+    setAutoFilled(false);
+  };
   const deletePreset = (id) => onToneNetPresets((prev) => prev.filter((p) => p.id !== id));
   return (
     <div>
@@ -95,6 +134,81 @@ function ToneNetTab({ toneNetPresets, onToneNetPresets, inp }) {
             <input placeholder={t('tonenet.cab', 'Cab (ex: 4x12 Greenback)')} value={cab} onChange={(e) => setCab(e.target.value)} style={{ ...inp, flex: 1, fontSize: 12 }}/>
           </div>
           <input placeholder={t('tonenet.notes', 'Notes (optionnel)')} value={comment} onChange={(e) => setComment(e.target.value)} style={{ ...inp, fontSize: 12 }}/>
+          {/* Phase 7.53 — Section Usages artiste/morceau (collapsable) */}
+          <datalist id="tonenet-artist-list">
+            {artistList.map((a) => <option key={a} value={a}/>)}
+          </datalist>
+          <datalist id="tonenet-song-list">
+            {songTitles.map((s) => <option key={s} value={s}/>)}
+          </datalist>
+          <button
+            type="button"
+            onClick={() => setShowUsages((v) => !v)}
+            style={{ background: 'transparent', border: '1px dashed var(--border-subtle)', color: 'var(--text-secondary)', borderRadius: 'var(--r-md)', padding: '6px 10px', fontSize: 11, cursor: 'pointer', textAlign: 'left' }}
+          >
+            {showUsages ? '▾' : '▸'} {t('tonenet.usages-toggle', 'Usages artiste / morceau (optionnel)')}
+            {usages.length > 0 && <span style={{ marginLeft: 6, color: 'var(--accent)', fontSize: 10 }}>{usages.length}</span>}
+          </button>
+          {showUsages && (
+            <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--r-md)', padding: 'var(--s-2)', display: 'flex', flexDirection: 'column', gap: 'var(--s-2)' }}>
+              <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>
+                {t('tonenet.usages-hint', 'Tagger ce preset pour des artistes/morceaux précis fait remonter ce slot en priorité dans la reco IA quand le morceau analysé match.')}
+              </div>
+              {usages.map((u, idx) => (
+                <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 4, background: 'var(--bg-elev-1)', borderRadius: 'var(--r-sm)', padding: 'var(--s-2)' }}>
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                    <input
+                      placeholder={t('tonenet.usage-artist', 'Artiste (ex: Black Sabbath)')}
+                      list="tonenet-artist-list"
+                      value={u.artist}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setUsages((prev) => prev.map((x, i) => i === idx ? { ...x, artist: v } : x));
+                      }}
+                      style={{ ...inp, flex: 1, fontSize: 12 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setUsages((prev) => prev.filter((_, i) => i !== idx))}
+                      style={{ background: 'var(--red-bg)', border: 'none', borderRadius: 'var(--r-sm)', padding: '4px 8px', fontSize: 10, color: 'var(--danger)', cursor: 'pointer' }}
+                      title={t('tonenet.usage-remove', 'Retirer cet artiste')}
+                    >✕</button>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+                    {(u.songs || []).map((song, si) => (
+                      <span key={si} style={{ background: 'var(--accent-soft)', color: 'var(--accent)', fontSize: 10, padding: '2px 6px', borderRadius: 'var(--r-sm)', display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+                        {song}
+                        <button
+                          type="button"
+                          onClick={() => setUsages((prev) => prev.map((x, i) => i === idx ? { ...x, songs: x.songs.filter((_, j) => j !== si) } : x))}
+                          style={{ background: 'transparent', border: 'none', color: 'var(--accent)', fontSize: 10, cursor: 'pointer', padding: 0 }}
+                        >×</button>
+                      </span>
+                    ))}
+                    <input
+                      placeholder={t('tonenet.usage-song-add', '+ Morceau (Enter pour ajouter)')}
+                      list="tonenet-song-list"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const v = e.currentTarget.value.trim();
+                          if (!v) return;
+                          setUsages((prev) => prev.map((x, i) => i === idx ? { ...x, songs: Array.from(new Set([...(x.songs || []), v])) } : x));
+                          e.currentTarget.value = '';
+                        }
+                      }}
+                      style={{ ...inp, flex: 1, minWidth: 120, fontSize: 11 }}
+                    />
+                  </div>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setUsages((prev) => [...prev, { artist: '', songs: [] }])}
+                style={{ background: 'transparent', border: '1px dashed var(--border-subtle)', color: 'var(--text-secondary)', borderRadius: 'var(--r-sm)', padding: '6px', fontSize: 11, cursor: 'pointer' }}
+              >+ {t('tonenet.usage-add', 'Ajouter un artiste')}</button>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 'var(--s-2)' }}>
             {editId ? <>
               <button onClick={saveEdit} disabled={!name.trim()} style={{ flex: 1, background: name.trim() ? 'var(--accent)' : 'var(--bg-elev-3)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px', fontSize: 12, fontWeight: 700, cursor: name.trim() ? 'pointer' : 'not-allowed' }}>{t('tonenet.save', 'Sauver')}</button>
@@ -112,6 +226,11 @@ function ToneNetTab({ toneNetPresets, onToneNetPresets, inp }) {
                 <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{p.amp && p.amp !== 'ToneNET' ? p.amp + ' · ' : ''}{p.channel ? p.channel + ' · ' : ''}{p.gain} gain · {STYLE_OPTS.find((s) => s.v === p.style)?.l || p.style}{p.cab ? ' · ' + p.cab : ''}</div>
                 {p.comment && <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontStyle: 'italic', marginTop: 1 }}>{p.comment}</div>}
+                {Array.isArray(p.usages) && p.usages.length > 0 && (
+                  <div style={{ fontSize: 10, color: 'var(--accent)', marginTop: 2 }}>
+                    🎯 {p.usages.map((u) => u.artist + (u.songs?.length ? ` (${u.songs.length})` : '')).join(' · ')}
+                  </div>
+                )}
               </div>
               <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                 <button onClick={() => startEdit(p)} style={{ background: 'var(--bg-elev-2)', border: 'none', borderRadius: 'var(--r-sm)', padding: '4px 8px', fontSize: 10, color: 'var(--text-secondary)', cursor: 'pointer' }}>✏️</button>
@@ -122,6 +241,20 @@ function ToneNetTab({ toneNetPresets, onToneNetPresets, inp }) {
         </div>}
     </div>
   );
+}
+
+// Phase 7.53 — Sanitize usages avant persist : strip artistes vides,
+// dedup songs, garde tableau compact. Si tous les usages sont vides,
+// retourne undefined pour ne pas polluer le preset avec usages: [].
+// Helper pur exporté pour testabilité Vitest.
+export function cleanUsages(raw) {
+  const out = (raw || [])
+    .map((u) => ({
+      artist: String(u?.artist || '').trim(),
+      songs: Array.from(new Set((u?.songs || []).map((s) => String(s || '').trim()).filter(Boolean))),
+    }))
+    .filter((u) => u.artist.length > 0);
+  return out.length > 0 ? out : undefined;
 }
 
 export default ToneNetTab;

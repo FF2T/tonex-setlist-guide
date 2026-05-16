@@ -224,7 +224,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.80";
+const APP_VERSION = "8.14.81";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -439,7 +439,11 @@ function App() {
   useEffect(()=>{
     var lookup={};
     (toneNetPresets||[]).forEach(function(p){
-      if(p.name) lookup[p.name]={src:"ToneNET",amp:p.amp||"ToneNET",gain:p.gain||"mid",style:p.style||"rock",scores:p.scores||{HB:75,SC:75,P90:75}};
+      if(!p.name) return;
+      const entry={src:"ToneNET",amp:p.amp||"ToneNET",gain:p.gain||"mid",style:p.style||"rock",scores:p.scores||{HB:75,SC:75,P90:75}};
+      // Phase 7.53 — propage usages user-défini dans le fallback lookup.
+      if(Array.isArray(p.usages)&&p.usages.length>0) entry.usages=p.usages;
+      lookup[p.name]=entry;
     });
     window._toneNetLookup=lookup;
   },[toneNetPresets]);
@@ -455,7 +459,12 @@ function App() {
         const info=inferPresetInfo(p.name);
         if(info){if(amp==="ToneNET"&&info.amp) amp=info.amp;if(style==="rock"&&info.style&&info.style!=="rock") style=info.style;}
       }
-      PRESET_CATALOG_MERGED[p.name]={src:"ToneNET",amp,gain:p.gain||"mid",style,channel:p.channel||"",cab:p.cab||"",comment:p.comment||"",scores:p.scores||{HB:75,SC:75,P90:75}};
+      // Phase 7.53 — Propage le champ `usages` user-défini dans le catalog
+      // merge. Exploité par buildInstalledSlotsSection (prompt IA Phase
+      // 7.52.1, PRIORITÉ 1) et findSlotByUsageMatch (Phase 7.52.5/.6).
+      const entry={src:"ToneNET",amp,gain:p.gain||"mid",style,channel:p.channel||"",cab:p.cab||"",comment:p.comment||"",scores:p.scores||{HB:75,SC:75,P90:75}};
+      if(Array.isArray(p.usages)&&p.usages.length>0) entry.usages=p.usages;
+      PRESET_CATALOG_MERGED[p.name]=entry;
     });
   },[toneNetPresets]);
 

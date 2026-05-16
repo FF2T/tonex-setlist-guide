@@ -746,7 +746,132 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-16, Phase 7.52.17 close — robustification auth Firebase)
+## État actuel (2026-05-16, Phase 7.53 close — édition usages ToneNET)
+
+**Backline v8.14.81 / SW backline-v181 / STATE_VERSION 9 / 1007 tests verts.**
+
+Phase 7.53 permet aux utilisateurs de tagger leurs propres presets
+ToneNET avec des `usages: [{artist, songs?}]` exploités par le prompt
+IA Phase 7.52.1 (PRIORITÉ 1) et le post-processing Phase 7.52.5/.6.
+
+### Le problème résolu
+
+Phase 7.52 avait curé 150 captures Anniversary Premium avec usages
+explicits (artiste + morceaux ciblés). Mais cette curation est
+**statique** côté code — l'utilisateur ne pouvait pas tagger ses
+propres presets ToneNET de la même façon. Conséquence : un preset
+téléchargé spécifique à un artiste (ex. Laney pour Black Sabbath
+première période) restait générique aux yeux du prompt IA.
+
+### Solution
+
+Champ optionnel `usages?: [{artist, songs?}]` ajouté au modèle preset
+ToneNET. UI dédiée dans **Mon Profil → 🌐 ToneNET** :
+- Section "Usages artiste / morceau (optionnel)" collapsable sous le
+  form d'édition de preset.
+- Liste d'entrées avec input artiste + tags songs.
+- Autocomplete via datalist (artistes + titres depuis songDb local).
+- Tags songs ajoutés via Enter, retirables individuellement (×).
+- Bouton "+ Ajouter un artiste".
+- Compteur visible sur le toggle si usages présents.
+- Badge `🎯` sur la card preset listant les artistes + nb songs.
+
+### Propagation au catalog
+
+Le useMemo dans `src/main.jsx` qui injecte ToneNET dans
+`PRESET_CATALOG_MERGED` (et son fallback `_toneNetLookup`) recopie
+désormais le champ `usages` user-défini → `findCatalogEntry(name)`
+retourne la metadata avec usages → `buildInstalledSlotsSection`
+Phase 7.52.1 les sérialise au prompt → PRIORITÉ 1 → pin direct.
+
+### Cas-cible Sébastien
+
+Edit ton preset Laney ToneNET :
+```
+usages:
+  - artist: "Black Sabbath"
+    songs: ["Paranoid", "Iron Man", "N.I.B.", "War Pigs"]
+  - artist: "Tony Iommi"
+```
+
+Prochaine analyse IA de "Paranoid" :
+- `findCatalogEntry("Laney ...")` retourne les usages user-définis
+- Prompt IA voit le slot Laney avec `usages: [Black Sabbath
+  (Paranoid, Iron Man, N.I.B., War Pigs); Tony Iommi]`
+- PRIORITÉ 1 → pin direct sur ton Laney ToneNET (au lieu de AA ORNG
+  120 Dimed qui était le pin par défaut Anniversary Premium)
+
+### Helper `cleanUsages` (testable)
+
+Extrait du composant et exporté pour testabilité :
+- Strip artistes vides + dedup songs + retourne `undefined` si tout
+  est vide (évite de polluer le preset avec `usages: []`).
+- 8 tests Vitest couvrent : liste vide, artiste vide, artiste seul,
+  trim + dedup, mix valides/invalides, songs string-y filtrées,
+  entrées null tolérées, coerce artist non-string.
+
+### Architecture livrée
+
+```
+src/app/screens/ToneNetTab.jsx
+  +state local usages + showUsages (collapsable)
+  +datalist artistes + titres (autocomplete depuis songDb)
+  +UI section éditable usages (artiste + tags songs)
+  +propagation usages dans addPreset/saveEdit/startEdit
+  +affichage 🎯 sur card preset si usages présents
+  +export helper cleanUsages
+src/app/screens/MonProfilScreen.jsx
+  prop songDb passée à ToneNetTab
+src/main.jsx
+  useMemo PRESET_CATALOG_MERGED ToneNET → recopie p.usages
+  useEffect _toneNetLookup → recopie p.usages
+src/app/screens/ToneNetTab.test.js  NOUVEAU — 8 tests cleanUsages
+src/i18n/  +6 clés (tonenet.usages-toggle, .usages-hint, .usage-artist,
+            .usage-remove, .usage-song-add, .usage-add)
+            (FR inline, EN/ES à compléter Phase 7.54+)
+src/main.jsx  APP_VERSION 8.14.80 → 8.14.81
+public/sw.js  CACHE backline-v180 → backline-v181
+```
+
+### Conséquences
+
+- **1007/1007 tests verts** (+8 nouveaux Phase 7.53).
+- **Bundle** 2154.95 → 2159.28 KB (+4 KB pour UI + helper).
+- **Pas de bump SCORING_VERSION** (V9 inchangé, purement prompt-side).
+- **Pas de migration** (champ additif optionnel sur modèle existant).
+- **Sync Firestore natif** : `toneNetPresets[i].usages` part en push
+  via `shared.toneNetPresets` (déjà sync depuis Phase 5.x).
+- **Effet immédiat** : à la prochaine analyse IA d'un morceau dont
+  un preset ToneNET est tagué, le pin bascule sans invalidation
+  cache (post-processing au render).
+
+### Limites connues
+
+- **Preset doit être installé dans les banks** (`banksAnn`/`banksPlug`)
+  pour que le post-processing trouve un slot. Si le preset ToneNET
+  est ajouté à la base mais pas chargé en bank, l'usage est inerte.
+- **Pas de validation cross-référence** : si tu tagues "Paranoid"
+  mais que le titre n'est dans aucune setlist, l'usage ne servira
+  qu'au moment où Paranoid sera ajouté à une setlist analysée.
+- **Surchage possible des recos Anniversary Premium** : si tu tagues
+  Laney pour 50 morceaux, tu écrases la curation statique. C'est ton
+  choix de power user.
+
+### Action post-déploiement Sébastien
+
+1. Reload PWA 2× pour activer v8.14.81 / SW v181.
+2. Mon Profil → 🌐 ToneNET → édite ton preset Laney → tag
+   "Black Sabbath" + songs Paranoid/Iron Man/N.I.B./War Pigs →
+   Sauver.
+3. Ouvre "Paranoid" dans ta setlist → reco bascule vers Laney
+   ToneNET (si le slot est dans tes banks).
+4. Si tu veux propager aux beta-testeurs via le snapshot démo,
+   re-export après tagging (`buildDemoSnapshot` Phase 7.52.16
+   préserve les usages — déjà testé).
+
+---
+
+## État précédent (2026-05-16, Phase 7.52.17 close — robustification auth Firebase)
 
 **Backline v8.14.80 / SW backline-v180 / STATE_VERSION 9 / 999 tests verts.**
 
@@ -6344,7 +6469,13 @@ curateur (changement d'id) et trouve la maintenance manuelle du
 JSON pénible. En attendant, Phase 7.52.15 suffit pour
 `demo_1778839429588` (id stable).
 
-### Phase 7.53 (proposée) — Édition usages artiste/morceau sur presets ToneNET
+### Phase 7.53 — ✅ LIVRÉE 2026-05-16 (cf section "État actuel" en haut de CLAUDE.md)
+
+Édition usages artiste/morceau sur presets ToneNET implémentée. Le
+texte ci-dessous est conservé comme contexte historique des décisions
+de design.
+
+### Phase 7.53 (contexte design — livrée)
 
 **Contexte** : Phase 7.52 a curé 150 captures Anniversary Premium avec
 un champ `usages: [{artist, songs?}]` exploité par le prompt IA Phase
