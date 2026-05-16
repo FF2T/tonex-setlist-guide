@@ -224,7 +224,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.72";
+const APP_VERSION = "8.14.73";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -784,6 +784,11 @@ function App() {
   // (mais perspective locale). On set ce flag à applyRemoteData, on le
   // reset 3s après. Le useEffect persist skip pendant cette fenêtre.
   const justPulledRef = useRef(false);
+  // Phase 7.52.11 — hash snapshot juste après adoption pull. Permet de
+  // distinguer "le useEffect se déclenche à cause de l'adoption Firestore"
+  // (skip push) vs "user a vraiment modifié après le pull" (push autorisé
+  // malgré justPulledRef true). Reset à null au prochain pull.
+  const lastPulledHashRef = useRef(null);
   useEffect(()=>{
     // Hash léger : structure des setlists, profiles, customGuitars. Pas crypto,
     // mais discrimine les vraies modifs des re-sets identiques.
@@ -853,9 +858,25 @@ function App() {
     // modif syncHash est due à l'adoption des données remote, pas à une
     // action user. Skip le push pour éviter d'écraser Firestore avec
     // notre perspective locale.
+    // Phase 7.52.11 — Mais si l'utilisateur a fait une VRAIE modif
+    // pendant cette fenêtre 3s (toggle guitare, ajout custom, etc.),
+    // le push doit quand même passer. On compare le syncHash actuel
+    // au snapshot du hash juste après adoption pull (lastPulledHashRef) :
+    // - hash inchangé depuis adoption → c'est l'adoption qui a triggered
+    //   ce useEffect, pas le user → skip
+    // - hash changé depuis adoption → user a modifié après le pull →
+    //   push autorisé malgré justPulledRef true
     if(justPulledRef.current){
-      setSyncStatus("synced");
-      return;
+      if(lastPulledHashRef.current===null){
+        lastPulledHashRef.current=syncHash;
+        setSyncStatus("synced");
+        return;
+      }
+      if(syncHash===lastPulledHashRef.current){
+        setSyncStatus("synced");
+        return;
+      }
+      // sinon : user a modifié post-pull → on continue (fall-through)
     }
     // Phase 6.1 fix — skip push si rien n'a réellement changé. shouldBump
     // est true seulement quand syncHash a changé (vraie modif locale).
@@ -885,7 +906,14 @@ function App() {
     // Phase 6.1.3 — flag justPulled pour 3s. Le useEffect persist détecte
     // ça et skip le push, évitant l'écho infini pull → push → pull.
     justPulledRef.current=true;
-    setTimeout(()=>{justPulledRef.current=false;},3000);
+    // Phase 7.52.11 — reset hash snapshot à chaque nouveau pull pour
+    // que le test "user a modifié après pull" se base sur le hash POST
+    // adoption de CE pull, pas du précédent.
+    lastPulledHashRef.current=null;
+    setTimeout(()=>{
+      justPulledRef.current=false;
+      lastPulledHashRef.current=null;
+    },3000);
     var pollRemap={};
     if(data.shared.songDb) setSongDb(prev=>{
       const m=mergeSongDb(prev,data.shared.songDb);
