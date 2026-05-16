@@ -5982,6 +5982,121 @@ spécifiques pour artistes pas couverts par Anniversary Premium).
 **Décision actuelle** : **proposée Phase 7.53**, pas d'implémentation
 immédiate.
 
+### Phase 7.54 (proposée) — aiCache per-profile (sync isolé par profil)
+
+**Contexte** : aujourd'hui le `aiCache` est stocké dans
+`shared.songDb[i].aiCache` (Phase 3.6 décision : "partagé entre
+profils via dedup songDb par id"). Conséquence : quand un profil B
+ouvre un morceau analysé par un profil A avec un rig différent,
+`rigStale` détecte le mismatch (Phase 7.48 T10) et force une
+ré-analyse fetchAI → **l'analyse de A est écrasée par celle de B**.
+
+Cas d'usage Sébastien (2026-05-16) : "je veux que chaque profil
+soit synchro entre tous ses devices c'est tout. Une fois qu'un
+calcul est fait pour un profil donné, il doit retrouver ses calculs
+sur tous les devices."
+
+État actuel par cas :
+- **Sébastien Mac ↔ Sébastien iPhone** : ✅ sync OK (même profil =
+  même rig = même rigSnapshot, pas de rigStale)
+- **Bruno Mac ↔ Bruno iPhone** : ✅ sync OK (même mécanisme)
+- **Bruno consulte un morceau analysé par Sébastien** : ❌ re-fetchAI
+  forcé → écrase l'analyse Sébastien dans `shared.songDb[i].aiCache`
+- **Sébastien re-consulte après Bruno** : ❌ re-fetchAI forcé à
+  nouveau (cycle), coût Gemini × 2 profils consultants
+
+**Architecture cible** : déplacer aiCache de
+`shared.songDb[i].aiCache` (partagé) vers `profile.aiCache[songId]`
+(per-profile). Chaque profil garde ses propres analyses, isolées.
+Sync via le state push existant (qui inclut `profiles` complet),
+zéro modif sync nécessaire.
+
+**Approche additive** (pas destructive) :
+- Nouveau champ `profile.aiCache: { [songId]: { result, sv,
+  rigSnapshot, gId, bestByGuitar, ts } }` initialisé `{}` au
+  migrate v9 → v10.
+- `shared.songDb[i].aiCache` **conservé** comme fallback (rétro-compat
+  + analyses historiques préservées).
+- Au render (SongDetailCard, HomeScreen, ListScreen) :
+  - 1) Lookup `profile.aiCache[songId]` → si présent ET
+    rigSnapshot match → cache hit.
+  - 2) Sinon fallback `shared.songDb[i].aiCache` → si rigStale
+    → fetchAI → écrit dans `profile.aiCache[songId]` (PAS dans
+    shared.songDb).
+  - 3) Sinon (pas de cache du tout) → fetchAI → écrit
+    `profile.aiCache[songId]`.
+
+**Effet par cas** :
+- Sébastien Mac analyse "Highway to Hell" → écrit
+  `profile.aiCache.acdc_hth` pour Sébastien → push → Sébastien
+  iPhone pull → cache hit instantané. ✅
+- Bruno consulte "Highway to Hell" → cache MISS dans son profile
+  → fallback shared (Sébastien analyse) → rigStale Bruno → fetchAI
+  Bruno → écrit dans **son** `profile.aiCache.acdc_hth`. **N'écrase
+  plus l'analyse Sébastien** dans shared.songDb. ✅
+- Sébastien re-consulte après Bruno → cache hit dans son profile
+  → pas de re-fetchAI. ✅
+
+**Migration STATE_VERSION 9 → 10** :
+- Additif : `profile.aiCache = {}` pour tous profils existants.
+- Aucune perte de données : `shared.songDb[i].aiCache` reste.
+- Idempotent.
+
+**Cleanup au boot** (optionnel) : pour les profils qui ont
+`profile.aiCache[songId]`, retirer le aiCache correspondant de
+`shared.songDb[i].aiCache` pour éviter duplication. Au pire, le
+payload Firestore reste stable (1.69 MB localStorage Sébastien
+inchangé).
+
+**Effort estimé** : ~4-5h dev + 1-2h tests + 30 min déploiement.
+
+**Architecture livraison Phase 7.54** :
+
+```
+src/core/state.js
+  STATE_VERSION 9 → 10
+  +migrateV9toV10 : profile.aiCache = {} pour chaque profile
+  +ensureProfileV10 : pose aiCache = {} si absent
+  +helpers : getProfileAiCache(profile, songId),
+            setProfileAiCache(profiles, profileId, songId, aiCache),
+            mergeProfileAiCache(prev, next) (LWW par sv)
+src/app/utils/ai-helpers.js
+  enrichAIResult :
+    1) read profile.aiCache[songId] d'abord
+    2) fallback shared.songDb[i].aiCache
+    3) updateAiCache écrit dans profile.aiCache[songId]
+                            (PAS shared.songDb)
+src/app/screens/SongDetailCard.jsx
+  rigStale check : compare avec profile.aiCache OU shared fallback
+src/app/screens/HomeScreen.jsx, ListScreen.jsx, RecapScreen.jsx
+  consume profile.aiCache via helper si présent
+src/main.jsx
+  push Firestore : profile.aiCache déjà inclus via profiles object
+  (pas de modif sync requise)
+src/core/state.test.js
+  +tests migrateV9toV10 (idempotent, additif)
+  +tests get/set/merge ProfileAiCache
+```
+
+**Risque sync** : aucun. `profile.aiCache` est déjà inclus dans le
+push Firestore existant (qui sync tout l'objet `profiles`).
+docs/SYNC.md à mettre à jour pour mentionner ce nouveau champ.
+
+**Risque payload Firestore** : potentiel +50% si plusieurs profils
+ont des analyses simultanées. Mitigation : `stripAiCacheForSync`
+Phase 5.7.1 fonctionne déjà sur l'aiCache au sens large. Adapter
+pour strip aussi `profile.aiCache` si payload > 800 KB.
+
+**Quand activer** : à coupler avec Phase 7.53 (édition usages
+ToneNET) qui donne aussi de l'autonomie per-profile. Si Sébastien
+ajoute des beta-testeurs avec leur rig propre, Phase 7.54 devient
+nécessaire pour ne pas écraser ses analyses.
+
+**Décision actuelle** : **proposée Phase 7.54**, pas
+d'implémentation immédiate. À activer quand un beta-testeur (Bruno,
+Arthur, futurs) commence à utiliser activement Backline et que
+Sébastien constate des analyses écrasées.
+
 ### Phase 9 (proposée) — Output IA enrichi (inspiration Gear Assistant Ok_Ask2411)
 
 **Contexte** : un peer-builder Reddit (Ok_Ask2411, 2026-05-15) a
