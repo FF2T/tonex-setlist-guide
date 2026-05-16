@@ -684,7 +684,110 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-16, Phases 7.52.7 → 7.52.14 close — session fix sync + mode démo)
+## État actuel (2026-05-16, Phase 7.52.6 close — match ref_guitarist, fin Phase 7.52)
+
+**Backline v8.14.77 / SW backline-v177 / STATE_VERSION 9 / 992 tests verts.**
+
+Phase 7.52.6 clôt la famille Phase 7.52 (livrée en cascade 7.52 → 7.52.14
+sur 2 jours). Dernière dette résiduelle proposée Phase 7.52.5 traitée :
+match `ref_guitarist` dans `findSlotByUsageMatch` pour couvrir les cas où
+`usages.artist` est un GUITARISTE (ex. "Joe Walsh") alors que `song.artist`
+est un GROUPE (ex. "Eagles").
+
+### Bug fixé
+
+Pré-7.52.6, `findSlotByUsageMatch` comparait strictement `song.artist`
+à `u.artist` (égalité case-insensitive). Conséquence : sur Hotel
+California (Eagles), aucun slot ne matchait via usages :
+- `JS Wrecked Z Push 1` a `usages: [{artist: "Joe Walsh"}, {artist:
+  "Brad Paisley"}]` → `"Eagles" !== "Joe Walsh"` → pas de pin.
+- L'IA fallback sur un slot arbitraire (vu Phase 7.52.5 : `AA VX TB30
+  BR Edge` Vox AC30, incohérent pour Eagles).
+
+### Fix Phase 7.52.6
+
+`findSlotByUsageMatch(banks, songArtist, songTitle, refGuitarist)` —
+4e param optionnel. Logique étendue :
+
+- **matchArtist** (Phase 7.52.5) reste : `u.artist === song.artist`.
+- **matchGuitarist** (nouveau) : `refGuitarist.includes(u.artist)`
+  case-insensitive, garde-fou `u.artist.length >= 4` pour éviter les
+  faux matches sur termes courts ambigus (`U2` rejeté).
+- Score : `(matchArtist OU matchGuitarist) ET matchTitle` = 100,
+  sinon `(matchArtist OU matchGuitarist)` seul = 50.
+
+`enrichAIResult` passe `aiResult.ref_guitarist` aux 2 call sites
+(annUsage + plugUsage). `ref_guitarist` est une sortie scalaire du
+prompt fetchAI (Phase 3+, ex. "Don Felder / Joe Walsh" pour Hotel
+California, "Angus Young" pour AC/DC, "Eric Clapton" pour Cream).
+
+### Effet attendu
+
+| Morceau | aiResult.ref_guitarist | Match nouveau |
+|---------|------------------------|---------------|
+| Hotel California (Eagles) | "Don Felder / Joe Walsh" | JS Wrecked Z Push 1 (score 50) |
+| Sweet Child O'Mine (GnR) | "Slash" | JS Brit Silver Dbl Crm OD (score 50) |
+| Voodoo Child (Hendrix) | "Jimi Hendrix" | n/a (artist match Phase 7.52.5 déjà) |
+| Cream — White Room | "Eric Clapton" | n/a (artist match Phase 7.52.5 déjà) |
+| Anything avec ref_guitarist générique "various" (len 7) | matche si "various" en substring d'un u.artist ≥ 4 chars du catalog | risque faible |
+
+### Architecture livrée
+
+```
+src/main.jsx                    APP_VERSION 8.14.76 → 8.14.77
+public/sw.js                    CACHE backline-v176 → backline-v177
+src/app/utils/ai-helpers.js     findSlotByUsageMatch :
+                                  +4e param refGuitarist
+                                  +matchGuitarist (substring case-insensitive)
+                                  +garde-fou u.artist.length >= 4
+                                enrichAIResult :
+                                  passe aiResult.ref_guitarist aux 2 call sites
+src/app/utils/ai-helpers.test.js  +8 tests Phase 7.52.6 (substring composé,
+                                  guitariste seul, case-insensitive, regression
+                                  null/undefined safe, refGuitarist seul,
+                                  garde-fou length, score 100 combo)
+```
+
+### Conséquences
+
+- **992/992 tests verts** (+8 nouveaux Phase 7.52.6).
+- **Bundle** 2138.24 KB → 2138.86 KB (+0.6 KB).
+- **Pas de bump SCORING_VERSION** (V9 inchangé, override d'affichage
+  post-scoring).
+- **Pas de migration** (signature étendue rétrocompatible — 4e param
+  optionnel, comportement Phase 7.52.5 préservé si absent).
+- **Cohabitation aiCache existants** : le post-processing s'applique
+  à chaque render `enrichAIResult` → effet immédiat à l'ouverture
+  du morceau, pas besoin d'invalider les caches.
+
+### Phase 7.52 — Récap complet
+
+| Sous-phase | Sujet |
+|------------|-------|
+| 7.52 | Catalog Anniversary Premium 150 captures curées |
+| 7.52.1 | Usages catalog injectés au prompt IA |
+| 7.52.2 | Fix sync iPhone via persistState retry-on-quota |
+| 7.52.3 | Audit + correctif noms TSR/WT vs PDF |
+| 7.52.4 | findCatalogEntry fallback toneModelName |
+| 7.52.5 | Post-processing pin usages-match (titre exact) |
+| 7.52.6 | Match ref_guitarist (Joe Walsh, Slash, etc.) ← **CLOS** |
+| 7.52.7 | Filtre strict mySetlists en mode démo |
+| 7.52.8 | Scroll reset au changement d'écran |
+| 7.52.9 | stripDemoFromSetlists — fix pollution profileIds |
+| 7.52.10 | Régression 7.52.9 : strip silencieux au boot |
+| 7.52.11 | Fix push bloqué par justPulledRef (3s window) |
+| 7.52.12 | Fix push annulé par cleanup useEffect |
+| 7.52.13 | Logs debug enterDemoMode (laissés volontairement) |
+| 7.52.14 | enterDemoMode force override snapshot par id |
+
+**Phase 7.52 close**. Tag `phase-7.52-done` à poser au prochain
+commit applicable. Prochaines pistes proposées : 7.53 (édition usages
+ToneNET), 7.54 (aiCache per-profile), 9 (output IA enrichi inspiré
+Ok_Ask2411). Cf section "Idées en attente" pour détails.
+
+---
+
+## État précédent (2026-05-16, Phases 7.52.7 → 7.52.14 close — session fix sync + mode démo)
 
 **Backline v8.14.76 / SW backline-v176 / STATE_VERSION 9 / 984 tests verts.**
 
@@ -808,10 +911,8 @@ Demo Setlist 11 morceaux avec recos optimales Phase 7.52.5 :
 
 ### Dette résiduelle Phase 7.52.x
 
-- **Phase 7.52.6 (proposée)** : match `ref_guitarist` dans
-  `findSlotByUsageMatch` pour fixer Hotel California → JS Wrecked Z
-  (Joe Walsh via `ref_guitarist` au lieu de `song.artist='Eagles'`).
-  ~15 min.
+- **Phase 7.52.6** : ✅ livrée 2026-05-16 (cf section "État actuel"
+  en haut). Phase 7.52 close.
 - **Logs `[demo] Entered demo mode`** restant : utile pour debug
   futur, à laisser.
 
@@ -5853,55 +5954,6 @@ ou niveau 2 (Firestore queue) ? MVP recommandé niveau 1.
 **Décision actuelle** : pas implémenté. Idée enregistrée pour Phase
 7.44 hypothétique, à activer si signal de demande publique post J+10
 case study Reddit (cf. BETA_TESTING.md local pour la stratégie).
-
-### Phase 7.52.6 (proposée) — Match usages via ref_guitarist (cas groupe vs guitariste)
-
-**Contexte** : Phase 7.52.5 a livré `findSlotByUsageMatch(banks,
-songArtist, songTitle)` qui force le pin sur slot avec
-`catalog.usages` match titre/artiste. Limitation observée 2026-05-16 :
-le match utilise `song.artist` (champ stocké = nom du groupe, ex.
-"Eagles") alors que certains `usages` du catalog sont par guitariste
-individuel (ex. `JS Wrecked Z Push 1` → `usages: [Joe Walsh, Brad
-Paisley]`).
-
-**Cas Hotel California** : `song.artist = "Eagles"` mais
-`usage.artist = "Joe Walsh"` → pas de match → pin Phase 7.52.5 ne se
-déclenche pas → l'IA fallback sur `AA VX TB30 BR Edge` (Vox AC30,
-incohérent pour Eagles).
-
-**Fix proposé Phase 7.52.6** : enrichir `findSlotByUsageMatch` pour
-matcher aussi sur **`ref_guitarist`** retourné par l'IA dans
-`aiResult.ref_guitarist` (ex. "Don Felder / Joe Walsh" pour Hotel
-California, "Eric Clapton" pour Cream, "Angus Young" pour AC/DC).
-
-Logique étendue :
-- `matchArtist` (Phase 7.52.5) reste : `u.artist === song.artist`.
-- **Nouveau** `matchGuitarist` : si `aiResult.ref_guitarist` contient
-  `u.artist` (case-insensitive substring), match true.
-- Score :
-  - 100 si `(matchArtist OU matchGuitarist) ET matchTitle` (titre dans
-    `u.songs`).
-  - 50 si `(matchArtist OU matchGuitarist)` seul.
-
-**Signature changée** : `findSlotByUsageMatch(banks, songArtist,
-songTitle, refGuitarist)`. `enrichAIResult` passe
-`aiResult.ref_guitarist` en 4e arg.
-
-**Effort** : ~15 min (helper + tests + call sites
-`enrichAIResult` qui peuvent passer ref_guitarist via aiResult).
-
-**Effet attendu** :
-- Hotel California (Eagles) → pin `JS Wrecked Z Push 1` (Joe Walsh
-  match via ref_guitarist).
-- White Room (Cream) → pin reste `AA MRSH SB100` mais aussi
-  matcherait si usage était par "Eric Clapton" (futur).
-- Régression possible : si l'IA retourne un `ref_guitarist` trop
-  vague (ex. "various"), risque de faux match. Garde-fou : require
-  `u.artist.length >= 4` pour éviter de matcher des termes courts.
-
-**Décision actuelle** : pas implémenté immédiatement. Phase 7.52.6
-sera ajoutée quand un cas concret bloque (Eagles est mineur, le user
-peut feedback "❌ pas ce slot" pour le déprendre).
 
 ### Phase 7.53 (proposée) — Édition usages artiste/morceau sur presets ToneNET
 

@@ -251,19 +251,25 @@ function findSlotByName(banks, name) {
 
 // Phase 7.52.5 — Cherche le meilleur slot avec usages-match (artiste +
 // titre du morceau analysé). Retourne {bank, col, label, score} où :
-//  - score 100 : usages.artist === song.artist ET usages.songs contient
+//  - score 100 : (matchArtist OU matchGuitarist) ET usages.songs contient
 //    song.title (match parfait)
-//  - score 50  : usages.artist === song.artist seul (match artiste, titre
-//    absent ou pas dans liste)
+//  - score 50  : (matchArtist OU matchGuitarist) seul (titre absent ou pas
+//    dans liste)
 // Permet à enrichAIResult de FORCER la PRIORITÉ 1 du prompt Phase 7.34 +
-// 7.52.1 même quand Gemini Flash ne la respecte pas (cas observé sur
-// Cream White Room / Sunshine of Your Love → AA MRSH SB100 ignoré au
-// profit de Vox AC30 / Friedman BE-100 alors que SB100 a usages explicit
-// Cream + ces deux titres).
-function findSlotByUsageMatch(banks, songArtist, songTitle) {
-  if (!banks || (!songArtist && !songTitle)) return null;
+// 7.52.1 même quand Gemini Flash ne la respecte pas.
+//
+// Phase 7.52.6 — Ajout du 4e param refGuitarist : permet de matcher
+// quand u.artist est un GUITARISTE individuel (ex. "Joe Walsh") et que
+// song.artist est un GROUPE (ex. "Eagles"). Le match guitariste est un
+// substring case-insensitive dans refGuitarist (qui peut être composé,
+// ex. "Don Felder / Joe Walsh"). Garde-fou length >= 4 sur u.artist
+// pour éviter les faux matches sur des noms courts ambigus ("U2" en
+// substring d'un autre groupe).
+function findSlotByUsageMatch(banks, songArtist, songTitle, refGuitarist) {
+  if (!banks || (!songArtist && !songTitle && !refGuitarist)) return null;
   const artistLc = String(songArtist || '').toLowerCase();
   const titleLc = String(songTitle || '').toLowerCase();
+  const guitaristLc = String(refGuitarist || '').toLowerCase();
   let bestMatch = null;
   for (const [k, v] of Object.entries(banks)) {
     for (const c of ['A', 'B', 'C']) {
@@ -272,12 +278,16 @@ function findSlotByUsageMatch(banks, songArtist, songTitle) {
       if (!info?.usages || !Array.isArray(info.usages)) continue;
       for (const u of info.usages) {
         if (!u?.artist) continue;
-        const matchArtist = u.artist.toLowerCase() === artistLc;
+        const uArtistLc = u.artist.toLowerCase();
+        const matchArtist = uArtistLc === artistLc;
+        const matchGuitarist = guitaristLc.length > 0
+          && u.artist.length >= 4
+          && guitaristLc.includes(uArtistLc);
         const matchTitle = Array.isArray(u.songs)
           && u.songs.some((s) => String(s).toLowerCase() === titleLc);
         let score = 0;
-        if (matchArtist && matchTitle) score = 100;
-        else if (matchArtist) score = 50;
+        if ((matchArtist || matchGuitarist) && matchTitle) score = 100;
+        else if (matchArtist || matchGuitarist) score = 50;
         if (score > 0 && (!bestMatch || score > bestMatch.score)) {
           bestMatch = { bank: Number(k), col: c, label: v[c], score };
         }
@@ -365,15 +375,22 @@ function enrichAIResult(aiResult, gType, gId, banksAnn, banksPlug, availableSour
   // respecte pas systématiquement la PRIORITÉ 1 du prompt Phase 7.34 +
   // 7.52.1). Match TITRE EXACT seulement — un match artiste seul (score
   // 50) ne sert que de fallback si l'IA n'a pas pin (annPinnedByAI = false).
+  //
+  // Phase 7.52.6 — Match étendu via ref_guitarist : couvre les cas où
+  // usages.artist est un GUITARISTE (ex. Joe Walsh) et song.artist est
+  // un GROUPE (ex. Eagles). ref_guitarist (sortie scalaire de fetchAI)
+  // contient typiquement "Don Felder / Joe Walsh" pour Hotel California
+  // → substring match sur "Joe Walsh".
   const songArtist = song?.artist || aiResult.ref_artist || aiResult.song_artist;
   const songTitle = song?.title || aiResult.song_title;
-  if (songArtist || songTitle) {
-    const annUsage = findSlotByUsageMatch(banksAnn, songArtist, songTitle);
+  const refGuitarist = aiResult.ref_guitarist;
+  if (songArtist || songTitle || refGuitarist) {
+    const annUsage = findSlotByUsageMatch(banksAnn, songArtist, songTitle, refGuitarist);
     if (annUsage && (annUsage.score === 100 || !annPinnedByAI)) {
       aiResult.preset_ann = { bank: annUsage.bank, col: annUsage.col, label: annUsage.label, score: 92, breakdown: null };
       annPinnedByAI = true;
     }
-    const plugUsage = findSlotByUsageMatch(banksPlug, songArtist, songTitle);
+    const plugUsage = findSlotByUsageMatch(banksPlug, songArtist, songTitle, refGuitarist);
     if (plugUsage && (plugUsage.score === 100 || !plugPinnedByAI)) {
       aiResult.preset_plug = { bank: plugUsage.bank, col: plugUsage.col, label: plugUsage.label, score: 92, breakdown: null };
       plugPinnedByAI = true;

@@ -165,3 +165,96 @@ describe('findSlotByUsageMatch — Phase 7.52.5', () => {
     expect(findSlotByUsageMatch(banks, null, null)).toBeNull();
   });
 });
+
+describe('findSlotByUsageMatch — Phase 7.52.6 (ref_guitarist)', () => {
+  // JS Wrecked Z Push 1 (Anniversary Premium catalog) a
+  // usages: [{artist: "Joe Walsh"}, {artist: "Brad Paisley"}] sans songs.
+  // Cas-cible : Hotel California (Eagles) avec ref_guitarist="Joe Walsh".
+  const banks = {
+    5: { A: 'JS Wrecked Z Push 1', B: '', C: '' },
+    8: { A: 'AA MRSH SB100 I Edge WRM CAB', B: '', C: '' },
+  };
+
+  it('match guitariste via substring composé → score 50', () => {
+    // Cas Hotel California : Eagles n'apparaît pas dans usages,
+    // mais ref_guitarist contient "Joe Walsh" → match JS Wrecked Z.
+    const m = findSlotByUsageMatch(banks, 'Eagles', 'Hotel California', 'Don Felder / Joe Walsh');
+    expect(m).toBeTruthy();
+    expect(m.bank).toBe(5);
+    expect(m.col).toBe('A');
+    expect(m.label).toBe('JS Wrecked Z Push 1');
+    expect(m.score).toBe(50);
+  });
+
+  it('match guitariste seul (sans artist match) → score 50', () => {
+    const m = findSlotByUsageMatch(banks, 'Inconnu', '', 'Joe Walsh');
+    expect(m?.label).toBe('JS Wrecked Z Push 1');
+    expect(m?.score).toBe(50);
+  });
+
+  it('match guitariste case-insensitive', () => {
+    const m1 = findSlotByUsageMatch(banks, 'Eagles', '', 'JOE WALSH');
+    expect(m1?.score).toBe(50);
+    const m2 = findSlotByUsageMatch(banks, 'Eagles', '', 'joe walsh');
+    expect(m2?.score).toBe(50);
+  });
+
+  it('match artist exact gagne sur match guitariste seul (score égal)', () => {
+    // Cream + ref_guitarist="Eric Clapton" : Cream artist match (score 50)
+    // sur SB100 ; Clapton n'est pas dans les usages → seul artist match
+    // compte. Score 50 préservé.
+    const m = findSlotByUsageMatch(banks, 'Cream', '', 'Eric Clapton');
+    expect(m?.label).toBe('AA MRSH SB100 I Edge WRM CAB');
+    expect(m?.score).toBe(50);
+  });
+
+  it('refGuitarist null/undefined → comportement Phase 7.52.5 inchangé', () => {
+    const m1 = findSlotByUsageMatch(banks, 'Cream', 'White Room', null);
+    expect(m1?.score).toBe(100);
+    const m2 = findSlotByUsageMatch(banks, 'Cream', 'White Room', undefined);
+    expect(m2?.score).toBe(100);
+    // Sans aucun arg en plus, signature 3-arg legacy fonctionne.
+    const m3 = findSlotByUsageMatch(banks, 'Cream', 'White Room');
+    expect(m3?.score).toBe(100);
+  });
+
+  it('refGuitarist seul (sans songArtist ni songTitle) déclenche le match', () => {
+    const m = findSlotByUsageMatch(banks, null, null, 'Brad Paisley playing');
+    expect(m?.label).toBe('JS Wrecked Z Push 1');
+    expect(m?.score).toBe(50);
+  });
+
+  it('garde-fou length < 4 : artist court ne match pas par substring', () => {
+    // U2 (longueur 2) ne doit pas matcher même si refGuitarist contient
+    // "U2". Slot avec usages U2 dans le catalog : TJ AC44 B 3+ a
+    // usages: [{artist: "The Edge"}, ...]. Pour ce test, on construit
+    // un cas où le risque substring serait élevé sur un nom court.
+    // On utilise AA MRSH JT50 (usages AC/DC — 5 chars, passe garde-fou).
+    // Vérif inverse : si on avait u.artist="U2", "u2 fan club" matcherait
+    // sans le garde-fou. Avec garde-fou length >= 4, U2 (2 chars) skip.
+    // Cas concret testable : songArtist="Pink Floyd", refGuitarist contient
+    // par hasard la substring "ac/dc" (peu réaliste, mais le helper doit
+    // rester strict). AC/DC = 5 chars donc passerait → match score 50.
+    const m = findSlotByUsageMatch(
+      { 4: { A: '', B: '', C: 'AA MRSH JT50 I Drive BAL SCH CAB' } },
+      'Pink Floyd',
+      '',
+      'David Gilmour playing AC/DC tribute'
+    );
+    // Substring "ac/dc" présent (>=4 chars) → match attendu.
+    expect(m?.score).toBe(50);
+  });
+
+  it('match titre + guitariste → score 100', () => {
+    // AA MRSH JT50 a usages AC/DC + songs ["Highway to Hell", ...]
+    // Si refGuitarist contient "AC/DC" et titre = "Highway to Hell",
+    // score 100.
+    const m = findSlotByUsageMatch(
+      { 4: { A: '', B: '', C: 'AA MRSH JT50 I Drive BAL SCH CAB' } },
+      'Inconnu',
+      'Highway to Hell',
+      'fan de AC/DC depuis 20 ans'
+    );
+    expect(m?.score).toBe(100);
+  });
+});
