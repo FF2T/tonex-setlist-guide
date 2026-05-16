@@ -138,13 +138,20 @@ public/
   6 styles × HB drive + 5 fallbacks + 11 guitares × 2 fonctions sur
   ledzep_stairway + 5 cas redistribution).
 
-## Doc Recos
+## Docs additionnelles
 
-Le détail du pipeline de recommandation (scoring V9, prompt IA,
-override Phase 7.31, modes reco, biais, usages catalog, garde-fous
-Phase 7.34 anti cross-contamination, etc.) est documenté dans
-`docs/SCORING.md`. À lire quand on touche au scoring, au prompt
-`fetchAI`, ou à `enrichAIResult`.
+- **`docs/SCORING.md`** — Pipeline de recommandation (scoring V9,
+  prompt IA, override Phase 7.31, modes reco, biais, usages catalog,
+  garde-fous Phase 7.34 anti cross-contamination). À lire quand on
+  touche au scoring, au prompt `fetchAI`, ou à `enrichAIResult`.
+
+- **`docs/SYNC.md`** ⚠️ — Sync Firestore : invariants + pièges. **À
+  lire OBLIGATOIREMENT avant de toucher au `useEffect` persist de
+  main.jsx, à `enterDemoMode`, à `saveToFirestore`, ou à
+  `applyRemoteData`.** Documente les 3 refs critiques
+  (`lastSyncHashRef`, `justPulledRef`, `lastPulledHashRef`), le
+  syncHash Phase 7.46, le merge LWW, et l'historique des 9
+  régressions vécues en prod (à ne pas reproduire).
 
 ## Style de code
 
