@@ -224,7 +224,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.74";
+const APP_VERSION = "8.14.75";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -514,12 +514,29 @@ function App() {
     setSetlistsRaw(prev => {
       const existingIds = new Set((prev || []).map(s => s.id));
       const newOnes = (snap.setlists || []).filter(s => !existingIds.has(s.id));
-      return [...(prev || []), ...newOnes];
+      const next = [...(prev || []), ...newOnes];
+      // Phase 7.52.13 — debug log temporaire
+      console.log('[demo-debug] setlists merge', {
+        prevCount: (prev || []).length,
+        snapCount: (snap.setlists || []).length,
+        newOnesCount: newOnes.length,
+        nextCount: next.length,
+        demoSetlistInNext: next.some(s => s.name === 'Demo Setlist'),
+        snapDemoSetlist: snap.setlists?.[0] ? { id: snap.setlists[0].id, name: snap.setlists[0].name, profileIds: snap.setlists[0].profileIds, songIdsLen: snap.setlists[0].songIds?.length } : null,
+      });
+      return next;
     });
     _setSongDbRaw(prev => {
       const existingIds = new Set((prev || []).map(s => s.id));
       const newOnes = (snap.songs || []).filter(s => !existingIds.has(s.id));
-      return [...(prev || []), ...newOnes];
+      const next = [...(prev || []), ...newOnes];
+      console.log('[demo-debug] songDb merge', {
+        prevCount: (prev || []).length,
+        snapCount: (snap.songs || []).length,
+        newOnesCount: newOnes.length,
+        nextCount: next.length,
+      });
+      return next;
     });
     setActiveProfileId(snap.profile.id);
     setScreen('list');
@@ -672,10 +689,26 @@ function App() {
   // publique → visible à 'demo'. Le filtre strict empêche toute setlist
   // legacy non-taggée 'demo' de polluer le mode démo public.
   const mySetlists = useMemo(() => {
+    let result;
     if (profile?.isDemo) {
-      return setlists.filter(sl => Array.isArray(sl.profileIds) && sl.profileIds.includes(activeProfileId));
+      result = setlists.filter(sl => Array.isArray(sl.profileIds) && sl.profileIds.includes(activeProfileId));
+    } else {
+      result = setlists.filter(sl => !sl.profileIds || sl.profileIds.length === 0 || sl.profileIds.includes(activeProfileId));
     }
-    return setlists.filter(sl => !sl.profileIds || sl.profileIds.length === 0 || sl.profileIds.includes(activeProfileId));
+    // Phase 7.52.13 — debug log temporaire (mode démo uniquement pour pas
+    // polluer la console en mode normal)
+    if (profile?.isDemo) {
+      console.log('[demo-debug] mySetlists filter', {
+        activeProfileId,
+        profileIsDemo: profile?.isDemo,
+        setlistsTotal: setlists.length,
+        setlistsWithDemoInPIds: setlists.filter(sl => Array.isArray(sl.profileIds) && sl.profileIds.includes('demo')).length,
+        resultLen: result.length,
+        resultNames: result.map(s => s.name),
+        firstThreeSetlists: setlists.slice(0, 3).map(s => ({ name: s.name, pIds: s.profileIds })),
+      });
+    }
+    return result;
   }, [setlists, activeProfileId, profile?.isDemo]);
   // Phase 7.29.5 — visibilité songDb : admin voit tout, non-admin voit
   // uniquement les morceaux présents dans au moins une de ses setlists.
