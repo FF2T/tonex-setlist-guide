@@ -6265,13 +6265,19 @@ ou niveau 2 (Firestore queue) ? MVP recommandé niveau 1.
 7.44 hypothétique, à activer si signal de demande publique post J+10
 case study Reddit (cf. BETA_TESTING.md local pour la stratégie).
 
-### Phase 7.52.16 (proposée) — enterDemoMode merge profileIds au lieu de remplacer
+### Phase 7.52.18 (proposée) — enterDemoMode merge profileIds au lieu de remplacer
+
+**Statut** : Phase 7.52.16 (buildDemoSnapshot livré 2026-05-16) couvre
+le cas le plus courant (futurs exports préservent automatiquement le
+curateur source dans profileIds). Cette entrée reste valide pour les
+cas exotiques (snapshot importé manuellement, snapshot ancien sans
+curateur, etc.).
 
 **Contexte** : Phase 7.52.15 a livré un fix court terme en éditant
 manuellement le snapshot bundlé `src/data/demo-profile.json` pour
 ajouter `demo_1778839429588` aux `profileIds` de la "Demo Setlist".
-Solution simple mais fragile : si Sébastien change un jour de profil
-curateur, il devra mettre à jour le JSON manuellement.
+Phase 7.52.16 a généralisé via `buildDemoSnapshot`. Cette Phase 7.52.18
+proposée serait la défense ultime côté `enterDemoMode`.
 
 **Cause structurelle** : `enterDemoMode` (`src/main.jsx` Phase 7.52.14)
 fait un **force override par id** des setlists du snapshot —
