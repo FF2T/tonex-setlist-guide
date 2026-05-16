@@ -224,7 +224,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.68";
+const APP_VERSION = "8.14.69";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -661,10 +661,22 @@ function App() {
   // pour CHAQUE morceau (chacun itère PRESET_CATALOG_MERGED ~700 entries).
   // Pour 100+ morceaux × ~10ms = ~1s par re-render → 5s cumulés sur
   // plusieurs renders du mount = écran lent + timeout navigateur.
-  const mySetlists = useMemo(
-    () => setlists.filter(sl => !sl.profileIds || sl.profileIds.length === 0 || sl.profileIds.includes(activeProfileId)),
-    [setlists, activeProfileId]
-  );
+  // Phase 7.52.7 — En mode démo, filtre STRICT : seulement les setlists
+  // dont profileIds inclut explicitement 'demo'. Sinon (mode normal),
+  // garde les setlists "publiques" (pas de profileIds ou vide) visibles
+  // à tous + celles qui matchent activeProfileId.
+  //
+  // Bug iPhone 2026-05-16 : Sébastien voyait "Cours Franck B" en mode
+  // démo car cette setlist n'avait pas profileIds en local sur iPhone
+  // (sync Firestore antérieure à Phase 5.7 stamping ?) → considérée
+  // publique → visible à 'demo'. Le filtre strict empêche toute setlist
+  // legacy non-taggée 'demo' de polluer le mode démo public.
+  const mySetlists = useMemo(() => {
+    if (profile?.isDemo) {
+      return setlists.filter(sl => Array.isArray(sl.profileIds) && sl.profileIds.includes(activeProfileId));
+    }
+    return setlists.filter(sl => !sl.profileIds || sl.profileIds.length === 0 || sl.profileIds.includes(activeProfileId));
+  }, [setlists, activeProfileId, profile?.isDemo]);
   // Phase 7.29.5 — visibilité songDb : admin voit tout, non-admin voit
   // uniquement les morceaux présents dans au moins une de ses setlists.
   // null = pas de filtre (admin), Set = filtre actif (non-admin).

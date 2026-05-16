@@ -677,9 +677,55 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-16, Phase 7.52.5 close + snapshot démo regénéré)
+## État actuel (2026-05-16, Phase 7.52.7 close — Filtre strict mySetlists en mode démo)
 
-**Backline v8.14.68 / SW backline-v168 / STATE_VERSION 9 / 977 tests verts.**
+**Backline v8.14.69 / SW backline-v169 / STATE_VERSION 9 / 977 tests verts.**
+
+**Bug iPhone 2026-05-16** : Sébastien voyait "Cours Franck B" et autres
+setlists Sébastien dans le mode démo iPhone (sur Mac OK car cleanup
+récent). Cause : le filtre `mySetlists` (`main.jsx:665`) considérait
+comme "publiques" les setlists sans `profileIds` ou avec `profileIds:
+[]` → visibles à TOUS les profils, y compris 'demo'. Sur iPhone, des
+setlists legacy non-stampées Phase 5.7 (`profileIds` absent ou null)
+persistaient en localStorage → polluaient le mode démo.
+
+**Fix Phase 7.52.7** : en mode démo (`profile.isDemo === true`), filtre
+**strict** — seulement les setlists dont `profileIds` est un Array et
+inclut explicitement `'demo'`. Le snapshot démo bundlé a bien
+`profileIds: ['demo']` sur sa Demo Setlist, donc le filtre la garde.
+Toute setlist legacy non-taggée ne polluera plus.
+
+Mode normal (profil non-démo) : comportement Phase 5.7 inchangé
+(les setlists "publiques" restent visibles à tous, ce qui est le
+comportement attendu pour Sébastien sur ses anciennes setlists
+historiques).
+
+### Architecture livrée Phase 7.52.7
+
+```
+src/main.jsx                    APP_VERSION 8.14.68 → 8.14.69
+                                ligne 665 : mySetlists useMemo
+                                +branche profile.isDemo : filtre strict
+public/sw.js                    CACHE backline-v168 → backline-v169
+```
+
+### Phase 7.52.5 livrée + snapshot démo regénéré (rappel)
+
+Snapshot démo curé depuis profil curateur avec catalog Phase 7.52.4 +
+post-processing Phase 7.52.5 actifs. 11 morceaux dont 9/11 recos
+parfaites :
+
+| Morceau | Reco pin |
+|---------|----------|
+| Highway to Hell, Back in Black, TNT, You Shook Me | `AA MRSH JT50 I Drive BAL SCH CAB` (Schaffer + JTM-50) |
+| White Room, Sunshine of Your Love | `AA MRSH SB100 I Edge WRM CAB` (Super Bass Plexi 1968) |
+| The Thrill Is Gone | `AA FNDR BFTWN NR Clean BAL CAB` (Twin Reverb) |
+| Stairway to Heaven | `AA MRSH SL100 JU Dimed BAL CAB` (Super Lead 1969) |
+| Wish You Were Here | `AA HWTT CUT100 JU Crunch BRI CAB` (Hiwatt) |
+| Smoke on the Water | `AA FMAN B100D BE Drive BAL CAB` (Friedman, fallback) |
+| Hotel California | `AA VX TB30 BR Edge BAL CAB` (Vox AC30, fallback) |
+
+
 
 Phase 7.52.5 livrée + **snapshot démo regénéré** depuis le profil
 curateur avec le catalog Phase 7.52.4 + post-processing Phase 7.52.5
