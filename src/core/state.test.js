@@ -1872,7 +1872,7 @@ describe('stripDemoFromSetlists (Phase 7.52.9)', () => {
     expect(out.shared.setlists[3].profileIds).toEqual(['bruno']); // pas touchée
   });
 
-  test('stamp lastModified sur les setlists modifiées seulement', () => {
+  test('stamp lastModified sur les setlists modifiées seulement (default stamp:true)', () => {
     const t0 = Date.now() - 10000;
     const state = {
       shared: {
@@ -1885,6 +1885,20 @@ describe('stripDemoFromSetlists (Phase 7.52.9)', () => {
     const out = stripDemoFromSetlists(state);
     expect(out.shared.setlists[0].lastModified).toBeGreaterThan(t0);
     expect(out.shared.setlists[1].lastModified).toBe(t0); // pas re-stampée
+  });
+
+  test("Phase 7.52.10 — option {stamp: false} : strip silencieux sans toucher lastModified", () => {
+    const t0 = Date.now() - 10000;
+    const state = {
+      shared: {
+        setlists: [
+          { id: 'a', name: 'Polluée', profileIds: ['x', 'demo'], lastModified: t0 },
+        ],
+      },
+    };
+    const out = stripDemoFromSetlists(state, { stamp: false });
+    expect(out.shared.setlists[0].profileIds).toEqual(['x']); // toujours strippée
+    expect(out.shared.setlists[0].lastModified).toBe(t0); // pas re-stampée
   });
 
   test('immutabilité — pas de mutation du state input', () => {

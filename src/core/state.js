@@ -1082,14 +1082,20 @@ function stripDemoProfiles(state) {
 // syncée à Firestore puis tirée sur iPhone.
 //
 // Helper appliqué :
-//  1) Au boot via loadState (heal localStorage existant)
-//  2) Avant push Firestore (saveToFirestore) — défense en profondeur
-function stripDemoFromSetlists(state) {
+//  1) Au boot via loadState (heal localStorage existant) AVEC {stamp:false}
+//     — Phase 7.52.10 fix : sans stamp au boot, sinon Mac+iPhone stampent
+//     chacun à chaque boot → loop LWW infinie → sync cassée.
+//  2) Avant push Firestore (saveToFirestore) AVEC {stamp:true} — défense
+//     en profondeur, stamp pour que le LWW propage le clean.
+function stripDemoFromSetlists(state, { stamp = true } = {}) {
   if (!state?.shared?.setlists) return state;
+  const now = Date.now();
   const next = state.shared.setlists.map((sl) => {
     if (!sl || sl.name === 'Demo Setlist') return sl;
     if (!Array.isArray(sl.profileIds) || !sl.profileIds.includes('demo')) return sl;
-    return { ...sl, profileIds: sl.profileIds.filter((p) => p !== 'demo'), lastModified: Date.now() };
+    const cleaned = { ...sl, profileIds: sl.profileIds.filter((p) => p !== 'demo') };
+    if (stamp) cleaned.lastModified = now;
+    return cleaned;
   });
   return { ...state, shared: { ...state.shared, setlists: next } };
 }
@@ -1109,7 +1115,11 @@ function _runFullChain(d) {
   // Phase 7.52.9 — Heal défensif au load : retire 'demo' des profileIds
   // des setlists non-démo (pollution Firestore historique, cf
   // stripDemoFromSetlists docstring).
-  return stripDemoFromSetlists(v9);
+  // Phase 7.52.10 fix : {stamp: false} → ne pas re-stamp lastModified
+  // au boot. Sinon Mac+iPhone stamperaient chacun au boot → loop LWW
+  // infinie → sync cassée. Le stamp se fait seulement au push Firestore
+  // (saveToFirestore.prep) pour propager le clean correctement.
+  return stripDemoFromSetlists(v9, { stamp: false });
 }
 
 function loadState() {
