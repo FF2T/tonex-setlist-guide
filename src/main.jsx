@@ -224,7 +224,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.69";
+const APP_VERSION = "8.14.70";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -1035,6 +1035,17 @@ function App() {
 
   // Reset on profile switch
   useEffect(()=>{if(screen!=="loading"){setChecked([]);setScreen("list");}},[activeProfileId]);
+
+  // Phase 7.52.8 — Scroll reset au changement d'écran (et au mount initial).
+  // Bug rapporté 2026-05-16 : après connexion Mac depuis ProfilePicker
+  // (screen pick → list), la page restait scrollée au milieu → header
+  // (AppHeader) invisible. Le browser restaure la dernière position
+  // scroll connue après l'unmount/remount du contenu. Fix : forcer
+  // window.scrollTo(0,0) à chaque changement de screen. `auto` (vs
+  // smooth) pour effet immédiat sans animation gênante.
+  useEffect(()=>{
+    if(typeof window!=="undefined") window.scrollTo({top:0,left:0,behavior:"auto"});
+  },[screen]);
 
   // Phase 5.7 — Toast post-migration (lit une fois depuis loadState,
   // affiche, oublie). Le champ shared._migrationToast n'est jamais
