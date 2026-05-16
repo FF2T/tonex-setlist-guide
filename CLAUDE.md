@@ -677,7 +677,140 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-16, Phases 7.52.7 + 7.52.8 + 7.52.9 close)
+## État actuel (2026-05-16, Phases 7.52.7 → 7.52.14 close — session fix sync + mode démo)
+
+**Backline v8.14.76 / SW backline-v176 / STATE_VERSION 9 / 984 tests verts.**
+
+Session matinale 2026-05-16 : 8 phases livrées en cascade pour fixer
+3 bugs interdépendants observés sur Mac + iPhone :
+1. Mode démo affichait setlists Sébastien polluées (Cours Franck B avec
+   'demo' dans profileIds)
+2. Sync Mac → iPhone cassée (push Firestore ne se déclenchait pas)
+3. Mode démo invisible après clean (Demo Setlist du snapshot pas appliquée)
+
+| Phase | Sujet |
+|-------|-------|
+| 7.52.7 | Filtre strict mySetlists en mode démo (profileIds.includes('demo')) |
+| 7.52.8 | Scroll reset au changement d'écran (header invisible login Mac) |
+| 7.52.9 | stripDemoFromSetlists : retire 'demo' polluant de profileIds setlists non-démo |
+| 7.52.10 | Régression 7.52.9 : strip silencieux au boot (option `{stamp:false}`) pour éviter loop LWW |
+| 7.52.11 | Fix push bloqué par justPulledRef (3s window) via lastPulledHashRef |
+| 7.52.12 | Push annulé par cleanup useEffect : move lastSyncHashRef après push success + retire cleanup clearTimeout |
+| 7.52.13 | Logs debug temporaires enterDemoMode + mySetlists |
+| 7.52.14 | enterDemoMode force override snapshot par id (fix Demo Setlist polluée localement) |
+
+### Détail des fixes
+
+**7.52.7 — Filtre strict mySetlists** : en mode démo (`profile.isDemo
+=== true`), `mySetlists` filtre uniquement les setlists dont
+`profileIds` inclut explicitement `'demo'`. Mode normal inchangé
+(setlists "publiques" sans profileIds visibles à tous).
+
+**7.52.8 — Scroll reset** : `useEffect([screen])` qui appelle
+`window.scrollTo({top:0, behavior:'auto'})` à chaque changement
+d'écran. Fix bug "header invisible après login Mac".
+
+**7.52.9 + 7.52.10 — stripDemoFromSetlists** : helper pur
+(`core/state.js`) qui retire `'demo'` du `profileIds` des setlists
+non-démo. Pollution historique : Sébastien a switché un jour vers un
+profil curateur nommé `'demo'` (avant Phase 7.51.4 rename) → toggle
+partage Phase 5.8 a ajouté `'demo'` aux profileIds des setlists →
+syncé Firestore → iPhone pulled.
+Appliqué :
+- Au boot via `_runFullChain` avec `{stamp: false}` — heal silencieux
+  sans toucher `lastModified` (sinon loop LWW : Mac stampe au boot,
+  push, iPhone stampe au boot, push, infini).
+- Avant push Firestore via `saveToFirestore.prep` avec `{stamp: true}`
+  — propage le clean via LWW.
+
+**7.52.11 — Push autorisé post-pull** : `justPulledRef` (Phase 6.1.3)
+bloquait tout push pendant 3s après pull, sans retry. Poll = 5s →
+60% du temps bloquant. Fix : `lastPulledHashRef` snapshot le hash
+juste après adoption pull. Si hash change ensuite (modif user), push
+autorisé malgré justPulledRef true.
+
+**7.52.12 — Push debounce préservé** : 2 bugs cumulés :
+1. `lastSyncHashRef` updaté DÈS shouldBump=true (avant push) → au
+   prochain useEffect re-run, shouldBump=false → push annulé.
+2. Cleanup function du useEffect appelait `clearTimeout` à chaque
+   re-render → annulait le `setTimeout(2s)` du debounce.
+Fix : move `lastSyncHashRef.current = pushedHash` dans `.then()` du
+saveToFirestore (post success). Retire le `return () => clearTimeout`
+de la cleanup function (jamais utile, App ne s'unmount pas en
+pratique).
+
+**7.52.14 — enterDemoMode force snapshot** : le merge `!existingIds.
+has(s.id)` original (Phase 7.51.3) skip l'ajout si la setlist existe
+déjà en local. Mais le state Mac avait une vieille "Demo Setlist"
+héritée du curateur historique avec `profileIds` polluée → snapshot
+frais ne s'appliquait jamais → filtre strict 7.52.7 rejetait. Fix :
+**override par id** — pour les ids présents dans `snap.setlists` ou
+`snap.songs`, retire la version locale et injecte la version
+snapshot fraîche. Idem pour songs (rig démo aiCache).
+
+### Architecture livrée
+
+```
+src/main.jsx                APP_VERSION 8.14.69 → 8.14.76
+                            ligne 477+ : profile derived (inchangé)
+                            ligne 510+ : enterDemoMode force override
+                                         par id (Phase 7.52.14)
+                            ligne 664+ : mySetlists filtre strict mode
+                                         démo (Phase 7.52.7)
+                            ligne 786+ : lastPulledHashRef (Phase 7.52.11)
+                            ligne 828+ : shouldBump SANS update
+                                         lastSyncHashRef ici (Phase 7.52.12)
+                            ligne 870+ : setTimeout(2s) avec update
+                                         lastSyncHashRef dans .then()
+                                         + no cleanup clearTimeout
+                            ligne 927+ : applyRemoteData reset
+                                         lastPulledHashRef au pull
+                            useEffect scroll reset au changement screen
+                            (Phase 7.52.8)
+public/sw.js                CACHE backline-v169 → backline-v176
+src/core/state.js           +stripDemoFromSetlists helper pur avec
+                            option {stamp: true|false} (Phase 7.52.9+10)
+                            _runFullChain applique {stamp: false} au load
+src/app/utils/firestore.js  saveToFirestore.prep applique
+                            stripDemoFromSetlists (avec stamp:true par
+                            défaut) avant strip profils
+src/core/state.test.js      +7 tests stripDemoFromSetlists + option
+                            {stamp: false}
+```
+
+### Résultats
+
+- ✅ **Sync Sébastien Mac ↔ iPhone bilatérale opérationnelle**
+- ✅ **Mode démo public** affiche Demo Setlist (11 morceaux) sur tous
+  les devices
+- ✅ **Header visible** sans scroll après login Mac
+- ✅ **Plus de loop LWW** infinie au boot
+- ✅ **Push debounce 2s** non annulé par les polls
+- ✅ **Pollution profileIds** nettoyée automatiquement au boot et au push
+- ✅ **984/984 tests verts** (+7 nouveaux helpers stripDemoFromSetlists)
+
+### Snapshot démo en prod
+
+Demo Setlist 11 morceaux avec recos optimales Phase 7.52.5 :
+- 4 AC/DC → AA MRSH JT50 I Drive BAL SCH CAB (Schaffer + JTM-50)
+- 2 Cream → AA MRSH SB100 I Edge WRM CAB (Super Bass Plexi 1968)
+- BB King The Thrill Is Gone → AA FNDR BFTWN NR Clean (Twin Reverb)
+- Stairway → AA MRSH SL100 JU Dimed (Super Lead 1969)
+- Wish You Were Here → AA HWTT CUT100 JU Crunch (Hiwatt)
+- Hotel California, Smoke on the Water → fallbacks acceptables
+
+### Dette résiduelle Phase 7.52.x
+
+- **Phase 7.52.6 (proposée)** : match `ref_guitarist` dans
+  `findSlotByUsageMatch` pour fixer Hotel California → JS Wrecked Z
+  (Joe Walsh via `ref_guitarist` au lieu de `song.artist='Eagles'`).
+  ~15 min.
+- **Logs `[demo] Entered demo mode`** restant : utile pour debug
+  futur, à laisser.
+
+---
+
+## État précédent (2026-05-16, Phases 7.52.7 + 7.52.8 + 7.52.9 close)
 
 **Backline v8.14.71 / SW backline-v171 / STATE_VERSION 9 / 983 tests verts.**
 
