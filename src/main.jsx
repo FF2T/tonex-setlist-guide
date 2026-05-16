@@ -224,7 +224,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.73";
+const APP_VERSION = "8.14.74";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -832,7 +832,12 @@ function App() {
     const shouldBump=syncHash!==lastSyncHashRef.current;
     if(shouldBump){
       lastSharedModRef.current=Date.now();
-      lastSyncHashRef.current=syncHash;
+      // Phase 7.52.12 — NE PAS update lastSyncHashRef ici. Si on le fait,
+      // un re-run du useEffect dans la fenêtre de 2s debounce (avant que
+      // saveToFirestore se déclenche) verra shouldBump=false → cleanup
+      // annule le setTimeout → push jamais fait → ☁️ flashe brièvement
+      // puis revient à synced sans rien pousser. lastSyncHashRef est
+      // updaté seulement après le push successful (cf .then() ligne ~893).
     }
     const state={
       version:STATE_VERSION,
@@ -888,10 +893,24 @@ function App() {
     }
     if(firestoreDebounceRef.current) clearTimeout(firestoreDebounceRef.current);
     setSyncStatus("syncing");
+    // Phase 7.52.12 — capture le syncHash dans la closure pour l'updater
+    // de lastSyncHashRef seulement après le push successful. Si l'état
+    // a évolué entre temps, shouldBump redeviendra true au prochain
+    // useEffect → re-push → OK.
+    const pushedHash=syncHash;
     firestoreDebounceRef.current = setTimeout(()=>{
-      saveToFirestore(state).then(()=>setSyncStatus("synced")).catch(()=>setSyncStatus("error"));
+      saveToFirestore(state).then(()=>{
+        setSyncStatus("synced");
+        lastSyncHashRef.current=pushedHash;
+      }).catch(()=>setSyncStatus("error"));
     }, 2000);
-    return ()=>{if(firestoreDebounceRef.current)clearTimeout(firestoreDebounceRef.current);};
+    // Phase 7.52.12 — NO cleanup clearTimeout. Le cleanup ne sert qu'au
+    // unmount App (jamais en pratique). Mais il était appelé à CHAQUE
+    // re-run du useEffect → annulait le push debounce si un poll Firestore
+    // ou autre re-render se produisait dans les 2s → push jamais fait.
+    // Le clearTimeout explicite ligne 888 (en début de branche
+    // shouldBump=true) suffit pour le debounce normal sur modifs
+    // consécutives.
   },[songDb,theme,setlists,customGuitars,toneNetPresets,deletedSetlistIds,profiles,activeProfileId,firestoreLoaded]);
 
   // Apply remote data into local state, using LWW per record (Phase 5.7).
