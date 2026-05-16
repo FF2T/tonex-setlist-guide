@@ -7,7 +7,7 @@
 // - inputs falsy/edge cases
 
 import { describe, it, expect } from 'vitest';
-import { getLocalizedText, findSlotByUsageMatch } from './ai-helpers.js';
+import { getLocalizedText, findSlotByUsageMatch, findCatalogEntryByUsages } from './ai-helpers.js';
 
 describe('getLocalizedText', () => {
   describe('legacy string format', () => {
@@ -256,5 +256,65 @@ describe('findSlotByUsageMatch — Phase 7.52.6 (ref_guitarist)', () => {
       'fan de AC/DC depuis 20 ans'
     );
     expect(m?.score).toBe(100);
+  });
+});
+
+describe('findCatalogEntryByUsages — Phase 7.55', () => {
+  // Test sur le catalog réel (Anniversary Premium Phase 7.52 contient
+  // AA MRSH SB100 avec usages Cream: White Room/Sunshine of Your Love,
+  // AA MRSH JT50 avec usages AC/DC: Highway to Hell..., AA ORNG 120
+  // avec usages Black Sabbath: Paranoid/Iron Man/War Pigs).
+
+  it('match titre + artiste sur catalog → score 100', () => {
+    const m = findCatalogEntryByUsages('Cream', 'White Room', null);
+    expect(m).toBeTruthy();
+    expect(m.name).toMatch(/MRSH SB100/);
+    expect(m.score).toBe(100);
+  });
+
+  it('match artiste seul (titre absent) → score 50', () => {
+    const m = findCatalogEntryByUsages('Cream', 'Track Inconnu', null);
+    expect(m?.score).toBe(50);
+  });
+
+  it('match via refGuitarist substring', () => {
+    // Plusieurs captures du catalog ont usages Joe Walsh (TSR ZWREK Crunch,
+    // JS Wrecked Z Push 1, ...). Le helper retourne le premier match
+    // qu'il trouve avec score 50. On vérifie juste qu'un match existe.
+    const m = findCatalogEntryByUsages('Eagles', '', 'Don Felder / Joe Walsh');
+    expect(m).toBeTruthy();
+    expect(m.score).toBe(50);
+  });
+
+  it('aucun match → null', () => {
+    const m = findCatalogEntryByUsages('Artiste Inexistant', 'Morceau Inexistant', null);
+    expect(m).toBeNull();
+  });
+
+  it('availableSources filter : source désactivée → skip', () => {
+    // AA MRSH SB100 a src=Anniversary. Si Anniversary désactivé,
+    // l'entry doit être skip.
+    const m = findCatalogEntryByUsages('Cream', 'White Room', null, { Anniversary: false });
+    expect(m).toBeNull();
+  });
+
+  it('availableSources activé → match OK', () => {
+    const m = findCatalogEntryByUsages('Cream', 'White Room', null, { Anniversary: true });
+    expect(m?.score).toBe(100);
+  });
+
+  it('inputs falsy → null', () => {
+    expect(findCatalogEntryByUsages('', '', '', null)).toBeNull();
+    expect(findCatalogEntryByUsages(null, null, null, null)).toBeNull();
+  });
+
+  it('Black Sabbath / Paranoid (cas-cible Phase 7.55)', () => {
+    // Le catalog Anniversary Premium a AA ORNG 120 Dimed avec usages
+    // [{artist: "Black Sabbath", songs: ["Paranoid", "Iron Man", "War Pigs"]}].
+    // Un preset ToneNET user-tagué ne serait pas dans ce test (catalog
+    // statique), mais ORNG match aussi → score 100.
+    const m = findCatalogEntryByUsages('Black Sabbath', 'Paranoid', null);
+    expect(m).toBeTruthy();
+    expect(m.score).toBe(100);
   });
 });

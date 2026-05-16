@@ -265,6 +265,50 @@ function findSlotByName(banks, name) {
 // ex. "Don Felder / Joe Walsh"). Garde-fou length >= 4 sur u.artist
 // pour éviter les faux matches sur des noms courts ambigus ("U2" en
 // substring d'un autre groupe).
+// Phase 7.55 — Cherche dans PRESET_CATALOG_MERGED (catalog complet,
+// incluant ToneNET) une entry dont les usages matchent l'artiste,
+// titre ou guitariste. Sert à promouvoir dans `ideal_preset` /
+// `ideal_top3` un preset bien tagué même s'il n'est pas chargé dans
+// une slot des banks (différent de findSlotByUsageMatch qui itère
+// uniquement sur les banks installées).
+//
+// Cas-cible : Sébastien tague son preset ToneNET "Supergroup..." avec
+// usages: [Black Sabbath: Paranoid]. Le preset n'est pas dans ses
+// banks Anniversary, donc findSlotByUsageMatch ne le trouve pas.
+// Mais l'utilisateur veut quand même le voir promu dans la section
+// "Recommandation idéale Preset" du catalog.
+//
+// Filtrage availableSources : skip les entries dont la source n'est
+// pas activée par le profil (Phase 5.6 / Phase 5.12).
+function findCatalogEntryByUsages(songArtist, songTitle, refGuitarist, availableSources) {
+  if (!songArtist && !songTitle && !refGuitarist) return null;
+  const artistLc = String(songArtist || '').toLowerCase();
+  const titleLc = String(songTitle || '').toLowerCase();
+  const guitaristLc = String(refGuitarist || '').toLowerCase();
+  let bestMatch = null;
+  for (const [name, entry] of Object.entries(PRESET_CATALOG_MERGED)) {
+    if (!entry?.usages || !Array.isArray(entry.usages)) continue;
+    if (availableSources && entry.src && availableSources[entry.src] === false) continue;
+    for (const u of entry.usages) {
+      if (!u?.artist) continue;
+      const uArtistLc = u.artist.toLowerCase();
+      const matchArtist = uArtistLc === artistLc;
+      const matchGuitarist = guitaristLc.length > 0
+        && u.artist.length >= 4
+        && guitaristLc.includes(uArtistLc);
+      const matchTitle = Array.isArray(u.songs)
+        && u.songs.some((s) => String(s).toLowerCase() === titleLc);
+      let score = 0;
+      if ((matchArtist || matchGuitarist) && matchTitle) score = 100;
+      else if (matchArtist || matchGuitarist) score = 50;
+      if (score > 0 && (!bestMatch || score > bestMatch.score)) {
+        bestMatch = { name, entry, score };
+      }
+    }
+  }
+  return bestMatch;
+}
+
 function findSlotByUsageMatch(banks, songArtist, songTitle, refGuitarist) {
   if (!banks || (!songArtist && !songTitle && !refGuitarist)) return null;
   const artistLc = String(songArtist || '').toLowerCase();
@@ -394,6 +438,33 @@ function enrichAIResult(aiResult, gType, gId, banksAnn, banksPlug, availableSour
     if (plugUsage && (plugUsage.score === 100 || !plugPinnedByAI)) {
       aiResult.preset_plug = { bank: plugUsage.bank, col: plugUsage.col, label: plugUsage.label, score: 92, breakdown: null };
       plugPinnedByAI = true;
+    }
+    // Phase 7.55 — Promouvoir un preset catalog (incluant ToneNET tagué
+    // par le user) avec usages-match dans ideal_preset + ideal_top3,
+    // même s'il n'est pas installé dans les banks. Sans ça, un preset
+    // ToneNET tagué Sabbath/Paranoid reste invisible dans la section
+    // "Recommandation idéale Preset" quand son scoring V9 amp générique
+    // est mauvais.
+    const catalogMatch = findCatalogEntryByUsages(songArtist, songTitle, refGuitarist, availableSources);
+    if (catalogMatch) {
+      const promotedScore = catalogMatch.score === 100 ? 92 : 80;
+      // Place en tête de ideal_top3 (dédup si même nom déjà présent)
+      const filteredTop3 = (aiResult.ideal_top3 || []).filter((p) => p?.name !== catalogMatch.name);
+      const promotedEntry = {
+        name: catalogMatch.name,
+        score: promotedScore,
+        amp: catalogMatch.entry.amp,
+        gain: catalogMatch.entry.gain,
+        style: catalogMatch.entry.style,
+        src: catalogMatch.entry.src,
+        breakdown: null,
+      };
+      aiResult.ideal_top3 = [promotedEntry, ...filteredTop3].slice(0, 3);
+      // Override ideal_preset si pas déjà set ou score plus bas
+      if (!aiResult.ideal_preset || (aiResult.ideal_preset_score || 0) < promotedScore) {
+        aiResult.ideal_preset = catalogMatch.name;
+        aiResult.ideal_preset_score = promotedScore;
+      }
     }
   }
   // Si l'IA a proposé un ideal_preset depuis un pack non possédé → reset.
@@ -553,6 +624,7 @@ export {
   enrichAIResult,
   findSlotByName,
   findSlotByUsageMatch,
+  findCatalogEntryByUsages,
   mergeBestResults,
   bestScoreOf,
   preserveHistorical,
