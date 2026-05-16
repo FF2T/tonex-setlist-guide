@@ -83,7 +83,8 @@ function ToneNetTab({ toneNetPresets, onToneNetPresets, inp, songDb }) {
   // cf cleanUsages exporté plus bas (extrait pour testabilité Phase 7.53).
   const addPreset = () => {
     if (!name.trim()) return;
-    const p = { id: `tn_${Date.now()}`, name: name.trim(), amp: amp.trim() || 'ToneNET', gain, style, channel: channel.trim(), cab: cab.trim(), comment: comment.trim(), scores: { HB: 75, SC: 75, P90: 75 } };
+    // Phase 7.53.1 — stamp lastModified pour merge LWW per-item Firestore.
+    const p = { id: `tn_${Date.now()}`, name: name.trim(), amp: amp.trim() || 'ToneNET', gain, style, channel: channel.trim(), cab: cab.trim(), comment: comment.trim(), scores: { HB: 75, SC: 75, P90: 75 }, lastModified: Date.now() };
     const usagesClean = cleanUsages(usages);
     if (usagesClean) p.usages = usagesClean;
     onToneNetPresets((prev) => [...prev, p]); resetForm();
@@ -92,7 +93,8 @@ function ToneNetTab({ toneNetPresets, onToneNetPresets, inp, songDb }) {
     if (!name.trim() || !editId) return;
     onToneNetPresets((prev) => prev.map((p) => {
       if (p.id !== editId) return p;
-      const next = { ...p, name: name.trim(), amp: amp.trim() || 'ToneNET', gain, style, channel: channel.trim(), cab: cab.trim(), comment: comment.trim() };
+      // Phase 7.53.1 — stamp lastModified pour LWW
+      const next = { ...p, name: name.trim(), amp: amp.trim() || 'ToneNET', gain, style, channel: channel.trim(), cab: cab.trim(), comment: comment.trim(), lastModified: Date.now() };
       const usagesClean = cleanUsages(usages);
       if (usagesClean) next.usages = usagesClean;
       else delete next.usages;

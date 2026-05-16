@@ -516,6 +516,60 @@ function mergeSetlistsLWW(localSetlists, remoteSetlists, mergedDeletedMap) {
   return out;
 }
 
+// Phase 7.53.1 — Merge LWW per-item pour shared.toneNetPresets.
+//
+// Bug observé 2026-05-16 (avant fix) : applyRemoteData remplaçait en
+// bloc setToneNetPresets(data.shared.toneNetPresets), donc un device
+// avec un tableau vide qui poussait écrasait définitivement la curation
+// d'un autre device. Sébastien Mac a perdu ses presets ToneNET ainsi.
+//
+// Logique : LWW per-item par `id` du preset. Pour chaque id dans union :
+//  - Présent des deux côtés → garde celui au plus grand `lastModified`
+//    (égalité = keep local pour stabilité).
+//  - Local-only → keep local (préserve une saisie locale non encore
+//    propagée à Firestore).
+//  - Remote-only → adopte remote (nouveau preset depuis autre device).
+//
+// Différence avec mergeSetlistsLWW : pas de tombstones. La suppression
+// d'un preset est délibérée user action, propagée via deletePreset →
+// next push absent → mais comment fait-on la diff avec "remote a un
+// preset que local n'a jamais vu" ? Solution v1 : pas de suppression
+// distribuée. Si user supprime un preset sur Mac et qu'iPhone n'a pas
+// encore pull, iPhone re-pushera ce preset → réapparaît sur Mac. C'est
+// acceptable car la délétion ToneNET est rare ; v2 pourrait ajouter
+// tombstones si besoin (cf Phase 5.7 pour le pattern complet).
+//
+// Migration : si un preset existant n'a pas de `lastModified`, on
+// considère ts=0 → un remote stampé gagne toujours. Inverse safe :
+// un remote sans stamp ne gagne jamais sur un local stampé. Convergence
+// éventuelle vers tous stampés à mesure que les saves se font.
+function mergeToneNetPresetsLWW(localPresets, remotePresets) {
+  const local = Array.isArray(localPresets) ? localPresets : [];
+  const remote = Array.isArray(remotePresets) ? remotePresets : [];
+  const remoteMap = new Map(remote.filter((p) => p && p.id).map((p) => [p.id, p]));
+  const seenIds = new Set();
+  const out = [];
+  for (const lp of local) {
+    if (!lp || !lp.id) continue;
+    seenIds.add(lp.id);
+    const rp = remoteMap.get(lp.id);
+    if (!rp) {
+      // Local-only → keep (preserve local saisie pas encore pushée)
+      out.push(lp);
+      continue;
+    }
+    const lts = typeof lp.lastModified === 'number' ? lp.lastModified : 0;
+    const rts = typeof rp.lastModified === 'number' ? rp.lastModified : 0;
+    out.push(rts > lts ? rp : lp);
+  }
+  // Remote-only
+  for (const rp of remote) {
+    if (!rp || !rp.id || seenIds.has(rp.id)) continue;
+    out.push(rp);
+  }
+  return out;
+}
+
 // Merge LWW per-profile. Pour chaque id dans union :
 //  - Présent des deux côtés → garde celui au plus grand lastModified
 //    (égalité = keep local).
@@ -1549,6 +1603,7 @@ export {
   wrapDemoGuard, stripDemoProfiles, stripDemoFromSetlists,
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
+  mergeToneNetPresetsLWW,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,
   toggleSetlistProfile,

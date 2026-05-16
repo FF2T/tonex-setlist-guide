@@ -13,6 +13,7 @@ import {
   wrapDemoGuard, stripDemoProfiles, stripDemoFromSetlists,
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
+  mergeToneNetPresetsLWW,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,
   toggleSetlistProfile,
@@ -1430,6 +1431,85 @@ describe('mergeSetlistsLWW — Phase 5.7 (le scénario du bug)', () => {
     const remote = { id: 'a', name: 'R', songIds: [] };
     const out = mergeSetlistsLWW([local], [remote], { a: 1 });
     expect(out).toHaveLength(0);
+  });
+});
+
+describe('mergeToneNetPresetsLWW — Phase 7.53.1', () => {
+  test('local-only preserved (pas écrasé par remote vide)', () => {
+    // Scénario du bug Phase 7.53.1 (Sébastien Mac 2026-05-16) :
+    // un autre device push toneNetPresets=[] → l'ancien remplacement
+    // en bloc écrasait définitivement les presets locaux.
+    // Avec LWW per-item, local-only est préservé.
+    const local = [{ id: 'tn_1', name: 'Laney Iommi', lastModified: 1000 }];
+    const out = mergeToneNetPresetsLWW(local, []);
+    expect(out).toEqual(local);
+  });
+
+  test('local-only preserved (remote présent sans cet id)', () => {
+    const local = [{ id: 'tn_1', name: 'A', lastModified: 1000 }];
+    const remote = [{ id: 'tn_2', name: 'B', lastModified: 2000 }];
+    const out = mergeToneNetPresetsLWW(local, remote);
+    expect(out).toHaveLength(2);
+    expect(out.find((p) => p.id === 'tn_1')).toEqual(local[0]);
+    expect(out.find((p) => p.id === 'tn_2')).toEqual(remote[0]);
+  });
+
+  test('présent des deux côtés : remote plus récent gagne', () => {
+    const local = [{ id: 'tn_1', name: 'Old name', lastModified: 1000 }];
+    const remote = [{ id: 'tn_1', name: 'New name', lastModified: 2000 }];
+    const out = mergeToneNetPresetsLWW(local, remote);
+    expect(out).toHaveLength(1);
+    expect(out[0].name).toBe('New name');
+  });
+
+  test('présent des deux côtés : local plus récent gagne', () => {
+    const local = [{ id: 'tn_1', name: 'Local name', lastModified: 2000 }];
+    const remote = [{ id: 'tn_1', name: 'Remote name', lastModified: 1000 }];
+    const out = mergeToneNetPresetsLWW(local, remote);
+    expect(out[0].name).toBe('Local name');
+  });
+
+  test('égalité ts → keep local pour stabilité', () => {
+    const local = [{ id: 'tn_1', name: 'Local', lastModified: 1000 }];
+    const remote = [{ id: 'tn_1', name: 'Remote', lastModified: 1000 }];
+    const out = mergeToneNetPresetsLWW(local, remote);
+    expect(out[0].name).toBe('Local');
+  });
+
+  test('legacy preset sans lastModified → ts=0, remote stampé gagne toujours', () => {
+    const local = [{ id: 'tn_1', name: 'Legacy local' }]; // pas de lastModified
+    const remote = [{ id: 'tn_1', name: 'Stamped remote', lastModified: 1 }];
+    const out = mergeToneNetPresetsLWW(local, remote);
+    expect(out[0].name).toBe('Stamped remote');
+  });
+
+  test('remote-only adopté', () => {
+    const out = mergeToneNetPresetsLWW([], [{ id: 'tn_1', name: 'R', lastModified: 1 }]);
+    expect(out).toHaveLength(1);
+    expect(out[0].name).toBe('R');
+  });
+
+  test('inputs falsy : tableaux vides', () => {
+    expect(mergeToneNetPresetsLWW(null, null)).toEqual([]);
+    expect(mergeToneNetPresetsLWW(undefined, [])).toEqual([]);
+    expect(mergeToneNetPresetsLWW([], null)).toEqual([]);
+  });
+
+  test('items sans id ignorés', () => {
+    const local = [{ name: 'no-id', lastModified: 1 }, { id: 'tn_1', name: 'A', lastModified: 1 }];
+    const remote = [{ id: 'tn_2', name: 'B', lastModified: 1 }];
+    const out = mergeToneNetPresetsLWW(local, remote);
+    expect(out).toHaveLength(2);
+    expect(out.map((p) => p.id).sort()).toEqual(['tn_1', 'tn_2']);
+  });
+
+  test('usages préservés au merge LWW', () => {
+    // Vérifie que le champ usages Phase 7.53 transite correctement
+    // au travers du merge.
+    const local = [{ id: 'tn_1', name: 'Laney', lastModified: 1000, usages: [{ artist: 'Black Sabbath', songs: ['Paranoid'] }] }];
+    const remote = [{ id: 'tn_1', name: 'Laney updated', lastModified: 2000, usages: [{ artist: 'Black Sabbath', songs: ['Paranoid', 'Iron Man'] }] }];
+    const out = mergeToneNetPresetsLWW(local, remote);
+    expect(out[0].usages[0].songs).toEqual(['Paranoid', 'Iron Man']);
   });
 });
 

@@ -746,7 +746,112 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-16, Phase 7.53 close — édition usages ToneNET)
+## État actuel (2026-05-16, Phase 7.53.1 close — LWW per-item toneNetPresets)
+
+**Backline v8.14.82 / SW backline-v182 / STATE_VERSION 9 / 1017 tests verts.**
+
+Phase 7.53.1 corrige un bug critique de sync découvert immédiatement
+après Phase 7.53 : les presets ToneNET de Sébastien Mac ont disparu
+(state local + Firestore tous deux à zéro).
+
+### Cause du bug
+
+`applyRemoteData` dans `src/main.jsx` faisait un **remplacement en
+bloc** de `shared.toneNetPresets` au pull Firestore :
+
+```js
+if (data.shared.toneNetPresets) setToneNetPresets(prev => {
+  if (JSON.stringify(data.shared.toneNetPresets) === JSON.stringify(prev)) return prev;
+  return data.shared.toneNetPresets; // ← écrasement intégral
+});
+```
+
+Scénario d'effacement vraisemblable :
+1. Un autre device (iPhone par exemple) avait localement
+   `toneNetPresets: []` (jamais saisi, ou state pré-Phase 5.x).
+2. Ce device push à Firestore → `toneNetPresets: []` propagé.
+3. Mac pull → `setToneNetPresets([])` → presets locaux Mac perdus.
+4. Mac push à son tour le `[]` (cycle) → confirmation Firestore.
+5. **Impossible de récupérer** : les backups locaux ont aussi été
+   purgés plus tôt dans la session pour libérer la marge localStorage.
+
+### Fix Phase 7.53.1
+
+`mergeToneNetPresetsLWW(localPresets, remotePresets)` dans
+`src/core/state.js` — merge per-item LWW par `id` du preset :
+
+- **Présent des deux côtés** → garde celui au plus grand
+  `lastModified` (égalité = keep local pour stabilité).
+- **Local-only** → keep local (préserve une saisie pas encore
+  propagée).
+- **Remote-only** → adopte remote (nouveau preset d'un autre device).
+
+`applyRemoteData` utilise désormais ce merge au lieu du remplacement
+en bloc. `addPreset` et `saveEdit` dans `ToneNetTab.jsx` stampent
+`lastModified = Date.now()` à chaque écriture pour le LWW.
+
+### Limite acceptée (pas de tombstones v1)
+
+Pas de mécanisme tombstone pour la suppression d'un preset ToneNET.
+Si Mac supprime un preset et qu'iPhone n'a pas encore pull :
+- iPhone garde le preset local (avec ancien `lastModified`)
+- iPhone push à un moment → le preset réapparaît côté Firestore
+- Mac pull → le preset réapparaît côté Mac
+
+Comportement assumé v1 : la suppression ToneNET est rare. Si besoin,
+v2 ajoutera `deletedToneNetPresetIds: {[id]: ts}` comme Phase 5.7 le
+fait pour les setlists.
+
+### Migration legacy
+
+Presets existants sans `lastModified` → `ts=0` → un remote stampé
+gagne toujours. Convergence éventuelle vers tous stampés à mesure
+que les saves se font. Pas de bump STATE_VERSION (additif optionnel).
+
+### Architecture livrée
+
+```
+src/core/state.js
+  +mergeToneNetPresetsLWW (helper pur)
+  +export
+src/main.jsx
+  +import mergeToneNetPresetsLWW
+  applyRemoteData : setToneNetPresets utilise merge LWW au lieu
+                    du replace en bloc
+src/app/screens/ToneNetTab.jsx
+  addPreset : stamp lastModified
+  saveEdit : stamp lastModified
+src/core/state.test.js  +10 tests Phase 7.53.1
+  - local-only preserved (scenario du bug : remote=[])
+  - local-only avec remote présent autre id
+  - LWW remote plus récent gagne
+  - LWW local plus récent gagne
+  - égalité ts → keep local
+  - legacy sans lastModified → ts=0 fallback
+  - remote-only adopté
+  - inputs falsy → []
+  - items sans id ignorés
+  - usages préservés au merge
+src/main.jsx  APP_VERSION 8.14.81 → 8.14.82
+public/sw.js  CACHE backline-v181 → backline-v182
+```
+
+### Conséquences
+
+- **1017/1017 tests verts** (+10 nouveaux Phase 7.53.1).
+- **Bundle** 2159.28 → 2159.76 KB (+0.5 KB).
+- **Plus de récidive du bug d'effacement bloc.**
+- **Pas de migration STATE_VERSION** (additif optionnel sur item).
+
+### Action utilisateur
+
+Sébastien doit ressaisir ses presets ToneNET perdus (la récup
+n'était plus possible — Firestore vide aussi). Une fois ressaisis,
+ils seront stampés `lastModified` et protégés par le LWW.
+
+---
+
+## État précédent (2026-05-16, Phase 7.53 close — édition usages ToneNET)
 
 **Backline v8.14.81 / SW backline-v181 / STATE_VERSION 9 / 1007 tests verts.**
 

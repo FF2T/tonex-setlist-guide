@@ -67,6 +67,7 @@ import {
   ensureSharedV7, ensureProfileV7, ensureProfilesV7,
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
+  mergeToneNetPresetsLWW,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,
   toggleSetlistProfile,
@@ -224,7 +225,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.81";
+const APP_VERSION = "8.14.82";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -976,9 +977,14 @@ function App() {
       if(JSON.stringify(data.shared.customGuitars)===JSON.stringify(prev))return prev;
       return data.shared.customGuitars;
     });
-    if(data.shared.toneNetPresets) setToneNetPresets(prev=>{
-      if(JSON.stringify(data.shared.toneNetPresets)===JSON.stringify(prev))return prev;
-      return data.shared.toneNetPresets;
+    // Phase 7.53.1 — Merge LWW per-item au lieu de remplacement en bloc.
+    // Évite qu'un device avec [] vide écrase la curation d'un autre device.
+    // Le remote.toneNetPresets peut être absent (pas d'écrasement local
+    // par []) ou présent (merge per-id par lastModified).
+    if(data.shared.toneNetPresets!==undefined) setToneNetPresets(prev=>{
+      const merged=mergeToneNetPresetsLWW(prev,data.shared.toneNetPresets);
+      if(JSON.stringify(merged)===JSON.stringify(prev))return prev;
+      return merged;
     });
     if(data.profiles) setProfiles(prev=>{
       // Phase 5.7 : LWW per-profile via profile.lastModified. Les
