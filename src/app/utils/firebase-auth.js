@@ -27,7 +27,7 @@ function clearAuthCache() {
   try { localStorage.removeItem(LS_AUTH_KEY); } catch (e) { /* ignore */ }
 }
 
-async function signUpAnonymously(apiKey) {
+async function signUpAnonymouslyOnce(apiKey) {
   const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -46,6 +46,27 @@ async function signUpAnonymously(apiKey) {
   };
   saveAuthCache(cache);
   return cache;
+}
+
+// Phase 7.52.17 — Retry exponentiel sur signUp.
+// Couvre les 5xx transitoires, timeouts réseau, throttling Firebase.
+// Backoff 500ms → 1s → 2s sur 3 tentatives totales.
+async function signUpAnonymously(apiKey) {
+  const delays = [500, 1000, 2000];
+  let lastErr = null;
+  for (let attempt = 0; attempt < delays.length + 1; attempt += 1) {
+    try {
+      return await signUpAnonymouslyOnce(apiKey);
+    } catch (e) {
+      lastErr = e;
+      if (attempt >= delays.length) break;
+      const wait = delays[attempt];
+      console.warn(`[firebase-auth] signUp attempt ${attempt + 1} failed (${e.message}), retrying in ${wait}ms`);
+      await new Promise((r) => setTimeout(r, wait));
+    }
+  }
+  console.error('[firebase-auth] signUp failed after retries:', lastErr?.message);
+  throw lastErr;
 }
 
 async function refreshIdToken(refreshToken, apiKey) {
@@ -96,15 +117,31 @@ export async function ensureAuthToken(apiKey) {
   return _authPromise;
 }
 
+// Phase 7.52.17 — Auto-recovery 401 dans authedFetch.
+//
+// Cas observé 2026-05-16 Sébastien Mac : le cache local contenait un
+// idToken expiré et un refreshToken devenu invalide. ensureAuthToken
+// utilisait le idToken cached (passant le check expiresAt), Firestore
+// répondait 401, aucune récupération automatique → l'app restait en
+// 401 perpétuel jusqu'à reload manuel + localStorage.removeItem.
+//
+// Fix : si la 1ère réponse fetch est 401/403, on présume token rejeté.
+// On clear le cache, force un nouveau signUpAnonymously via
+// ensureAuthToken, et retry une seule fois. Si la 2e réponse est OK,
+// transparent pour le caller. Si toujours 401/403, on propage tel quel.
 export async function authedFetch(apiKey, url, init = {}) {
   const token = await ensureAuthToken(apiKey);
-  return fetch(url, {
-    ...init,
-    headers: {
-      ...(init.headers || {}),
-      Authorization: 'Bearer ' + token,
-    },
+  const buildHeaders = (tok) => ({
+    ...(init.headers || {}),
+    Authorization: 'Bearer ' + tok,
   });
+  const res = await fetch(url, { ...init, headers: buildHeaders(token) });
+  if (res.status !== 401 && res.status !== 403) return res;
+  console.warn(`[firebase-auth] fetch ${res.status} on ${url.split('?')[0]} — clearing cache + retry`);
+  clearAuthCache();
+  _authPromise = null;
+  const freshToken = await ensureAuthToken(apiKey);
+  return fetch(url, { ...init, headers: buildHeaders(freshToken) });
 }
 
 export function clearAnonAuth() {

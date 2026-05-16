@@ -746,7 +746,83 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-16, Phase 7.52.16 close — buildDemoSnapshot préserve curateur + re-export snapshot)
+## État actuel (2026-05-16, Phase 7.52.17 close — robustification auth Firebase)
+
+**Backline v8.14.80 / SW backline-v180 / STATE_VERSION 9 / 999 tests verts.**
+
+Phase 7.52.17 robustifie l'auth Firebase (`firebase-auth.js` Phase 7.30)
+suite à un incident 2026-05-16 où Sébastien Mac s'est retrouvé en
+mode 401 perpétuel sur tous les appels Firestore. Push échouait
+silencieusement → modifs locales jamais propagées → autres devices
+pull stale → écrasement des modifs locales (symptôme reverts).
+
+### Cause de l'incident initial
+
+Cache local `backline_anon_auth` contenait un `idToken` expiré et un
+`refreshToken` devenu invalide. `ensureAuthToken` lisait le cache,
+le check `Date.now() < expiresAt - 60_000` passait (timestamp futur),
+retournait le token rejeté. Firestore répondait 401. Aucune
+récupération automatique → reload manuel + `localStorage.removeItem`
+nécessaires.
+
+### Fix Phase 7.52.17 — 2 mécanismes
+
+**1. Retry exponentiel sur `signUpAnonymously`** :
+- Backoff 500ms → 1s → 2s sur 4 tentatives totales (3 retries).
+- Couvre les 5xx transitoires, timeouts réseau, throttling Firebase.
+- `console.warn` à chaque retry, `console.error` si tout échoue puis
+  throw.
+
+**2. Auto-recovery 401/403 dans `authedFetch`** :
+- Si la 1ère réponse fetch est 401 ou 403, on présume token rejeté
+  par Firestore.
+- Clear `localStorage[backline_anon_auth]` + reset `_authPromise`
+  + `ensureAuthToken` (qui refait un signUpAnonymously fresh).
+- Retry une seule fois avec le nouveau token.
+- Si la 2e réponse est OK → transparent pour le caller.
+- Si toujours 401/403 → propage tel quel (pas de boucle infinie).
+
+### Architecture livrée
+
+```
+src/app/utils/firebase-auth.js
+  +signUpAnonymouslyOnce (helper interne, comportement précédent)
+  +signUpAnonymously (wrapper avec retry exponentiel)
+  authedFetch : auto-recovery 401/403 + retry une fois
+src/app/utils/firebase-auth.test.js  NOUVEAU — 6 tests Vitest
+  - signUp retry 3× avec backoff puis succès
+  - signUp échec persistant après retries → throw
+  - 401 → clear cache + retry token frais → OK
+  - 403 → même comportement que 401
+  - 200 direct → pas de retry signUp
+  - 2e 401 après retry → propage tel quel (pas de boucle)
+src/main.jsx              APP_VERSION 8.14.79 → 8.14.80
+public/sw.js              CACHE backline-v179 → backline-v180
+```
+
+### Conséquences
+
+- **999/999 tests verts** (+6 nouveaux Phase 7.52.17).
+- **Bundle** 2154.34 → 2154.95 KB (+0.6 KB).
+- **Pas de bump SCORING_VERSION** (V9 inchangé).
+- **Rétrocompatible** : signature et comportement happy-path
+  inchangés. Seuls les chemins d'erreur (5xx signUp, 401/403 Firestore)
+  sont enrichis.
+- **Sébastien iPhone + Bruno + Francisco + futurs** : au prochain
+  reload, si leur cache auth se corrompt comme sur Mac aujourd'hui,
+  la recovery automatique kick in sans intervention manuelle.
+
+### Limite
+
+Le retry consomme du quota Firebase Auth (jusqu'à 4 signUp anonyme
+par échec extrême + 1 par 401 dans `authedFetch`). Free tier = 50K
+DAU, marge confortable pour le volume actuel. Si l'app passe en
+production large, surveiller via Cloud Console → Authentication →
+Users.
+
+---
+
+## État précédent (2026-05-16, Phase 7.52.16 close — buildDemoSnapshot préserve curateur + re-export snapshot)
 
 **Backline v8.14.79 / SW backline-v179 / STATE_VERSION 9 / 993 tests verts.**
 
