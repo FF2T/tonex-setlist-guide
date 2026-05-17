@@ -856,6 +856,20 @@ public/sw.js                 CACHE backline-v199 → backline-v200
   `maxWidth: 220` hardcoded ligne 620 → tronque en desktop alors
   qu'il y a 800+px dispo. Fix simple Phase 7.61 :
   `maxWidth: 'clamp(200px, 35vw, 500px)'` responsive.
+- **Audit codes couleur badges vue repliée setlist** (rapporté
+  2026-05-17 par Sébastien) : plusieurs systèmes de couleur se
+  mélangent dans `SongCollapsedDeviceRows` / ListScreen vue repliée
+  : `StatusDot` (couleur basée sur score + ideal), badge bank+slot
+  (`badgeColor` dépendant du device), badge label preset (`scColorV`
+  dépendant de quoi ?), badge score (couleur basée sur seuil score).
+  Logique pas cohérente, sources de couleur hérités de phases
+  différentes sans audit global. Sébastien ne comprend pas la règle
+  → si le créateur ne pige pas, les visiteurs encore moins. Phase
+  7.61 : audit complet + définir 1 règle claire et homogène (par
+  exemple : tout le badge prend la même couleur basée sur
+  `scoreLabel(sc)` qui retourne déjà une couleur cohérente cf
+  Phase 7.50). Tester sur les 8 morceaux de la démo + sur une
+  setlist Bruno-style pour valider visuellement.
 
 ### Phase 7.60 — Landing publique first-time visitors (v8.14.99)
 
