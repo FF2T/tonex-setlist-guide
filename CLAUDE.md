@@ -746,17 +746,77 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-17, Phases 7.54.x + 7.56 close — sync + pin customs IA tolérant)
+## État actuel (2026-05-17, Phases 7.54.x + 7.55-quickwins + 7.55-A + 7.56 close)
 
-**Backline v8.14.88 / SW backline-v188 / STATE_VERSION 10 / 1047 tests verts.**
+**Backline v8.14.90 / SW backline-v190 / STATE_VERSION 10 / 1047 tests verts.**
+
+Session 2026-05-17 = 14 phases livrées en 17 deploys prod. Bilatérale
+sync Mac↔iPhone validée, pin customs IA fonctionnel via post-processing
+tolérant, mode démo durci pour conversion publique.
+
+### Sous-phases livrées en supplément (post-7.56)
+
+**Phase 7.55-quickwins (v8.14.89)** — 4 quick wins Batch 1 des
+"Améliorations mode démo" :
+- **F. Cap quota Gemini** sur mode démo : 7 sites fetchAI gated
+  `isDemo` (HomeScreen ×2 rerunWithFeedback + add song, SetlistsScreen
+  add song, MonProfilScreen add song, AddSongModal handleAdd, en plus
+  des 4 déjà existants : SongDetailCard, ListScreen ×2, MaintenanceTab).
+  Évite que wrapDemoGuard Phase 7.51.2 bloque setSongDb mais que
+  fetchAI parte en arrière-plan consommer la clé Gemini partagée.
+- **Phase 7.52.18** : `enterDemoMode` merge profileIds au lieu de
+  remplacement bloc. Défense ultime contre snapshot externe avec
+  profileIds=['demo'] seul (Phase 7.52.16 force déjà ['demo',
+  origId] à l'export mais imports manuels peuvent bypass).
+- **B. Bouton "✕ Quitter"** sur DemoBanner : sessionStorage clear +
+  history.replaceState (remove ?demo=1) + setScreen("pick") + drop
+  profil démo du state in-memory. Sortie explicite vs reload manuel.
+- **G. URL paramétrable** `?demo=1&song=X&guitar=Y` : params captés
+  dans `_demoPrefSongId` / `_demoPrefGuitarId` au boot + URL nettoyée.
+  **Auto-open de la fiche reporté** (nécessite wiring ListScreen
+  expandedId — Phase 7.55.2 future).
+
+**Phase 7.55-A (v8.14.90)** — Re-export snapshot démo après refetch
+sur curateur Mac v8.14.89 :
+- Snapshot bundlé `src/data/demo-profile.json` version 9 → **10**
+- `profile.aiCache` 11 entries (per-profile Phase 7.54)
+- `shared.aiCache` 11 entries (fallback legacy v9 préservé)
+- `profileIds: ['demo', 'demo_1778839429588']` (Phase 7.52.16)
+- **11/11 recos optimales** :
+  - AC/DC ×4 → AA MRSH JT50 Schaffer (usages explicit)
+  - B.B. King → AA FNDR BFTWN Twin Reverb (usages)
+  - Cream ×2 → AA MRSH SB100 Super Bass Plexi (usages)
+  - Deep Purple → TJ 74 Purple Plexi
+  - **Hotel California → JS Wrecked Z Push 1** (ref_guitarist
+    "Joe Walsh / Don Felder" + Phase 7.52.6 substring match)
+  - Led Zep → AA MRSH SL100 Super Lead 1969
+  - Pink Floyd → AA HWTT CUT100 Hiwatt
+- Bundle 2164.92 → 2334.13 KB (+169 KB pour profile.aiCache enrichi)
+
+**Phase 7.53.2 (v8.14.83 — documenté seulement via commit)** — Fix
+UX dans ToneNetTab édition usages : l'input "+ Morceau" était
+uncontrolled, le texte tapé n'était pas ajouté à `usages[idx].songs`
+tant que Enter pas pressé. Fix : input contrôlé via state
+`songDrafts` + helper `flushSongDrafts()` appelé par addPreset /
+saveEdit pour pousser drafts dans usages avant cleanUsages.
+Placeholder mis à jour : "+ Morceau (Enter ou Sauver pour ajouter)".
+
+**Phase 7.55-catalog (v8.14.84 — documenté seulement via commit)** —
+`findCatalogEntryByUsages` dans ai-helpers.js : promeut les captures
+catalog (incluant ToneNET tagué) dans `ideal_top3` + `ideal_preset`
+quand usages match artist/title/refGuitarist, même si pas installé
+dans les banks. Cas-cible : preset Laney ToneNET tagué Sabbath →
+remonte dans la section "Recommandation idéale Preset" sans être
+chargé dans une slot. Score 92 (titre exact) ou 80 (artiste seul).
+Filtre availableSources respecté. 8 nouveaux tests Vitest.
+
+### Phase 7.56 — `findSlotByName` tolère format prefixé
 
 Phase 7.56 ajoutée après pré-calcul d'analyses pour Bruno (beta-testeur).
 Bug observé : Gemini retournait `preset_ann_name = '48A "Kirk & James -
 Gasoline v2"'` (format avec position + quotes) au lieu du nom seul →
 `findSlotByName` Phase 7.31 ne matchait pas → fallback scoring V9 →
 custom Galtone ignoré au profit d'un Factory HG MARK3.
-
-### Phase 7.56 — `findSlotByName` tolère format prefixé
 
 ```js
 // AVANT : match exact case-insensitive
