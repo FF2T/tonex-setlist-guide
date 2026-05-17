@@ -173,36 +173,14 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
       <div style={sectionStyle}>
         {sectionTitle('📖', t('song-detail.info-section', 'Infos morceau'))}
         {(songInfo.year || songInfo.album || songInfo.key || songInfo.bpm) && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{songInfo.year}{songInfo.album ? ' · ' + songInfo.album : ''}{songInfo.key ? ' · ' + songInfo.key : ''}{songInfo.bpm ? ' · ' + songInfo.bpm + ' BPM' : ''}</div>}
-        {onSongDb && (
-          <div data-testid="song-bpm-key-editor" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: 10, color: 'var(--text-sec)' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ color: 'var(--text-muted)' }}>{t('song-detail.bpm', 'BPM')}</span>
-              <input type="number" min={30} max={300} defaultValue={song.bpm ?? ''} key={`bpm-${song.id}-${song.bpm ?? ''}`}
-                onBlur={(e) => {
-                  const raw = e.target.value.trim();
-                  if (raw === '') { onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, bpm: undefined } : x)); return; }
-                  const n = Math.max(30, Math.min(300, parseInt(raw, 10)));
-                  if (Number.isFinite(n)) onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, bpm: n } : x));
-                }}
-                placeholder={songInfo.bpm ? String(songInfo.bpm) : '—'} aria-label={t('song-detail.bpm', 'BPM')}
-                style={{ width: 55, background: 'var(--a5)', border: '1px solid var(--a8)', borderRadius: 'var(--r-sm)', padding: '2px 4px', color: 'var(--text)', fontSize: 10 }}/>
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ color: 'var(--text-muted)' }}>{t('song-detail.key', 'Tonalité')}</span>
-              <input type="text" maxLength={12} defaultValue={song.key ?? ''} key={`key-${song.id}-${song.key ?? ''}`} list="tonex-key-suggestions"
-                onBlur={(e) => {
-                  const raw = e.target.value.trim();
-                  if (raw === '') { onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, key: undefined } : x)); return; }
-                  onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, key: raw } : x));
-                }}
-                placeholder={songInfo.key || '—'} aria-label={t('song-detail.key', 'Tonalité')}
-                style={{ width: 80, background: 'var(--a5)', border: '1px solid var(--a8)', borderRadius: 'var(--r-sm)', padding: '2px 4px', color: 'var(--text)', fontSize: 10 }}/>
-            </label>
-            <datalist id="tonex-key-suggestions">
-              {['E', 'A', 'D', 'G', 'C', 'F', 'B', 'E minor', 'A minor', 'D minor', 'G minor', 'C minor', 'B minor', 'F# minor', 'C#', 'F#', 'Bb', 'Eb'].map((k) => <option key={k} value={k}/>)}
-            </datalist>
-          </div>
-        )}
+        {/* Phase 7.57 — Éditeur BPM/tonalité retiré.
+            L'IA Gemini retourne désormais `song_bpm` et `song_key` fiables
+            dans aiCache.result. Les valeurs sont affichées en read-only
+            ligne ci-dessus (songInfo.year/album/key/bpm via getSongInfo).
+            Les champs `song.bpm` et `song.key` restent dans le data model
+            (rétro-compat avec setlists existantes + LiveScreen Phase 4).
+            Si besoin d'éditer manuellement à l'avenir, réafficher ce bloc.
+        */}
         {songInfo.desc && <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.5, marginBottom: 6 }}>{getLocalizedText(songInfo.desc, locale)}</div>}
         {aiC && (aiC.ref_guitarist || aiC.ref_guitar || aiC.ref_amp) && (
           <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.6 }}>
