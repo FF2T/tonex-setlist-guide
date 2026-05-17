@@ -83,6 +83,7 @@ function MonProfilScreen({
       setNewSongTitle(''); setNewSongArtist(''); setNewSongSlIds([]);
       return;
     }
+    if (isDemo) return; // Phase 7.51.2 — pas de fetchAI ni add en mode démo
     const ns = { id: `c_${Date.now()}`, title, artist, isCustom: true, ig: [], aiCache: null };
     onSongDb((p) => [...p, ns]);
     if (newSongSlIds.length > 0) onSetlists((p) => p.map((sl) => newSongSlIds.includes(sl.id) ? { ...sl, songIds: [...sl.songIds, ns.id] } : sl));

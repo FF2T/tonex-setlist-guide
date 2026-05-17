@@ -65,6 +65,7 @@ function SetlistsScreen({
       setNewSongSlIds([]);
       return;
     }
+    if (profile?.isDemo) return; // Phase 7.51.2 — pas de fetchAI ni add en mode démo
     const ns = { id: `c_${Date.now()}`, title, artist: finalArtist, isCustom: true, ig: [], aiCache: null };
     onSongDb((p) => [...p, ns]);
     if (newSongSlIds.length > 0) onSetlists((p) => p.map((sl) => newSongSlIds.includes(sl.id) ? { ...sl, songIds: [...sl.songIds, ns.id] } : sl));

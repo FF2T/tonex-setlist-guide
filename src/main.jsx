@@ -138,6 +138,12 @@ import DemoBanner from './app/components/DemoBanner.jsx';
 // Le snapshot bundlé (loadDemoSnapshot) est injecté in-memory dans le
 // state initial de App (cf. useEffect mount). L'URL est nettoyée.
 let _demoModeRequested = false;
+// Phase 7.55-G — URL paramétrable `?demo=1&song=X&guitar=Y` pour
+// pré-ouvrir une fiche song (et optionnellement pré-sélectionner une
+// guitare). Permet à Sébastien de partager des liens cas studies
+// précis ("Regarde Hotel California en mode démo").
+let _demoPrefSongId = null;
+let _demoPrefGuitarId = null;
 if (typeof window !== 'undefined' && window.location && window.location.search) {
   try {
     const params = new URLSearchParams(window.location.search);
@@ -148,7 +154,14 @@ if (typeof window !== 'undefined' && window.location && window.location.search) 
     if (params.get('demo') === '1' || params.get('demo') === 'true') {
       _demoModeRequested = true;
       params.delete('demo');
-      console.log('[demo] Auto-activated demo mode via URL param.');
+      // Phase 7.55-G — capture les query params optionnels song/guitar
+      const sParam = params.get('song');
+      if (sParam) { _demoPrefSongId = sParam; params.delete('song'); }
+      const gParam = params.get('guitar');
+      if (gParam) { _demoPrefGuitarId = gParam; params.delete('guitar'); }
+      console.log('[demo] Auto-activated demo mode via URL param.',
+        _demoPrefSongId ? `song=${_demoPrefSongId}` : '',
+        _demoPrefGuitarId ? `guitar=${_demoPrefGuitarId}` : '');
     }
     const newSearch = params.toString();
     const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '') + window.location.hash;
@@ -225,7 +238,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.88";
+const APP_VERSION = "8.14.89";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -569,10 +582,38 @@ function App() {
     // l'ajout → le snapshot frais ne s'applique jamais → mode démo
     // affiche une Demo Setlist polluée (profileIds=['sebastien'] etc.)
     // au lieu de la version curée (profileIds=['demo']).
+    // Phase 7.52.18 — Merge profileIds au lieu de remplacement bloc.
+    // Si une setlist locale existe avec le même id, on adopte la version
+    // snapshot MAIS on conserve les profileIds locaux qui n'étaient pas
+    // dans le snapshot. Défense ultime contre un snapshot externe importé
+    // manuellement qui aurait profileIds=['demo'] seul et qui écraserait
+    // le curateur. Phase 7.52.16 force déjà profileIds=['demo', origId] à
+    // l'export, mais snapshots historiques ou imports manuels peuvent
+    // bypass.
     setSetlistsRaw(prev => {
-      const snapIds = new Set((snap.setlists || []).map(s => s.id));
-      const kept = (prev || []).filter(s => !snapIds.has(s.id));
-      return [...kept, ...(snap.setlists || [])];
+      const snapById = new Map((snap.setlists || []).map(s => [s.id, s]));
+      const result = [];
+      const seenSnapIds = new Set();
+      for (const local of (prev || [])) {
+        if (!local || !local.id) continue;
+        const snapVer = snapById.get(local.id);
+        if (snapVer) {
+          seenSnapIds.add(local.id);
+          // Union profileIds (snapshot + local, dédupliqué)
+          const mergedIds = Array.from(new Set([
+            ...(Array.isArray(snapVer.profileIds) ? snapVer.profileIds : []),
+            ...(Array.isArray(local.profileIds) ? local.profileIds : []),
+          ]));
+          result.push({ ...snapVer, profileIds: mergedIds });
+        } else {
+          result.push(local);
+        }
+      }
+      // Snapshot-only setlists (jamais existées en local)
+      for (const snapSl of (snap.setlists || [])) {
+        if (!seenSnapIds.has(snapSl.id)) result.push(snapSl);
+      }
+      return result;
     });
     _setSongDbRaw(prev => {
       const snapIds = new Set((snap.songs || []).map(s => s.id));
@@ -1273,7 +1314,21 @@ function App() {
   else screenContent=<HomeScreen songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} mySongIds={mySongIds} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} onOptimizer={()=>setScreen("optimizer")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
 
   return <div className="page-root">
-    {isDemo && screen!=="live" && <DemoBanner/>}
+    {isDemo && screen!=="live" && <DemoBanner onExit={()=>{
+      // Phase 7.55-B — Sortie explicite mode démo. Clean state in-memory
+      // (drop le profil démo) + reset session + reload propre.
+      try { sessionStorage.removeItem("tonex_active_profile"); } catch {}
+      _setProfilesRaw(prev => { const out = { ...prev }; delete out.demo; return out; });
+      // Reload sans le param ?demo=1 si présent
+      try {
+        const url = new URL(window.location.href);
+        if (url.searchParams.has('demo')) {
+          url.searchParams.delete('demo');
+          window.history.replaceState({}, '', url.toString());
+        }
+      } catch {}
+      setScreen("pick");
+    }}/>}
     <AppHeader {...headerProps}/>
     {screenContent}
     <AppFooter/>

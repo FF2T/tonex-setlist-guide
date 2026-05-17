@@ -11,7 +11,7 @@ import { t, tFormat } from '../../i18n/index.js';
 import { fetchAI } from '../utils/fetchAI.js';
 import { updateAiCache } from '../utils/ai-helpers.js';
 
-function AddSongModal({ songDb, onSongDb, onAiCacheUpdate, setlists, onSetlists, activeSlId, onClose, banksAnn, banksPlug, aiProvider, aiKeys, guitars, guitarBias }) {
+function AddSongModal({ songDb, onSongDb, onAiCacheUpdate, isDemo, setlists, onSetlists, activeSlId, onClose, banksAnn, banksPlug, aiProvider, aiKeys, guitars, guitarBias }) {
   const [mode, setMode] = useState('existing');
   const [search, setSearch] = useState('');
   const [selectedSongs, setSelectedSongs] = useState([]);
@@ -25,6 +25,7 @@ function AddSongModal({ songDb, onSongDb, onAiCacheUpdate, setlists, onSetlists,
   const toggleSl = (id) => setTargetSlIds((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
 
   const handleAdd = () => {
+    if (isDemo) { onClose(); return; } // Phase 7.51.2 — pas de fetchAI ni add en mode démo
     if (mode === 'existing') {
       if (selectedSongs.length === 0 || targetSlIds.length === 0) return;
       onSetlists((p) => p.map((sl) => targetSlIds.includes(sl.id) ? { ...sl, songIds: [...new Set([...sl.songIds, ...selectedSongs])] } : sl));

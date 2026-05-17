@@ -27,10 +27,27 @@ const MAILTO_URL = 'mailto:contact@mybackline.app'
     + "Thanks!"
   );
 
-function DemoBanner() {
+function DemoBanner({ onExit }) {
   useLocale(); // re-render au switch de langue
   const text = t('demo.banner-text', 'Tu testes Backline en mode démo.');
   const linkLabel = t('demo.banner-link', 'Pour avoir ton propre profil avec ta rig, demande un accès');
+  const exitLabel = t('demo.banner-exit', 'Quitter');
+
+  // Phase 7.55-B — Sortie explicite : reload sans ?demo=1 + (optionnel)
+  // clear sessionStorage du flag mode démo. Restaure ProfilePicker pour
+  // que le visiteur choisisse un autre profil ou s'en aille.
+  const handleExit = (e) => {
+    e.preventDefault();
+    if (typeof onExit === 'function') {
+      onExit();
+      return;
+    }
+    // Fallback : reload propre sans paramètres
+    try { sessionStorage.removeItem('tonex_active_profile'); } catch {}
+    const url = new URL(window.location.href);
+    url.searchParams.delete('demo');
+    window.location.href = url.toString();
+  };
 
   return (
     <div
@@ -48,11 +65,16 @@ function DemoBanner() {
         borderBottom: '1px solid var(--brass-400)',
         boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
         lineHeight: 1.4,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        flexWrap: 'wrap',
       }}
     >
-      <span aria-hidden="true" style={{ marginRight: 6 }}>🎸</span>
+      <span aria-hidden="true">🎸</span>
       <span>{text}</span>
-      <span style={{ margin: '0 6px', opacity: 0.6 }}>·</span>
+      <span style={{ opacity: 0.6 }}>·</span>
       <a
         href={MAILTO_URL}
         style={{
@@ -61,6 +83,22 @@ function DemoBanner() {
           fontWeight: 700,
         }}
       >{linkLabel}</a>
+      <button
+        type="button"
+        onClick={handleExit}
+        style={{
+          marginLeft: 'auto',
+          background: 'rgba(0,0,0,0.08)',
+          border: '1px solid var(--brass-400)',
+          color: 'var(--tolex-900)',
+          padding: '3px 10px',
+          borderRadius: 'var(--r-sm, 6px)',
+          fontSize: 11,
+          fontWeight: 700,
+          cursor: 'pointer',
+        }}
+        title={t('demo.banner-exit-title', 'Sortir du mode démo')}
+      >✕ {exitLabel}</button>
     </div>
   );
 }

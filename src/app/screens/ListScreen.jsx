@@ -740,7 +740,7 @@ function ListScreen({
         >{t('list.undo', '↩ Annuler')}</button>
       </div>}
 
-      {showAdd && <AddSongModal songDb={songDb} onSongDb={onSongDb} onAiCacheUpdate={onAiCacheUpdate} setlists={setlists} onSetlists={onSetlists} activeSlId={activeSlId} onClose={() => setShowAdd(false)} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} guitars={allGuitars} guitarBias={guitarBias}/>}
+      {showAdd && <AddSongModal songDb={songDb} onSongDb={onSongDb} onAiCacheUpdate={onAiCacheUpdate} isDemo={isDemo} setlists={setlists} onSetlists={onSetlists} activeSlId={activeSlId} onClose={() => setShowAdd(false)} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} guitars={allGuitars} guitarBias={guitarBias}/>}
     </div>
   );
 }

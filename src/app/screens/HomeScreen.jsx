@@ -329,6 +329,7 @@ function HomeScreen({
 
   const rerunWithFeedback = () => {
     if (!confirmedSong || !feedback.trim()) return;
+    if (isDemo) return; // Phase 7.51.2 — pas de fetchAI en mode démo (défense secondaire)
     setSongLoading(true); setShowFeedback(false);
     const prev = songResult;
     const gId = selectedGuitar?.id || '';
@@ -391,6 +392,7 @@ function HomeScreen({
                   }
                   return;
                 }
+                if (isDemo) return; // Phase 7.51.2 — pas de fetchAI en mode démo
                 setSongLoading(true);
                 const song = { id: `tmp_${Date.now()}`, title: canonTitle, artist: canonArtist };
                 fetchAI(song, '', banksAnn, banksPlug, aiProvider, aiKeys, allGuitars, null, null, profile?.recoMode || 'balanced', guitarBias)
