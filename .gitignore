@@ -5,5 +5,22 @@ dist/
 .DS_Store
 *.timestamp-*.mjs
 
-# Local-only files (credentials, never committed)
+# Local-only files (credentials + private strategy/journal, never committed)
 BETA_CREDENTIALS.md
+BETA_TESTING.md
+BUSINESS_PLAN.md
+FICHE_PRODUIT.md
+GUIDE_UTILISATION.md
+ToneX_Poweruser_*.docx
+gen_docs.py
+Lancer ToneX Guide.command
+prompt-claude-code-phase-*.md
+rapport-test-fonctionnel-*.md
+handoff/COMMUNITY_LAUNCH_PLAN.md
+
+# IK Multimedia copyrighted PDFs (reference only, never redistributed)
+tone_models/
+
+# Stray npm/build artifacts
+tonex-poweruser@*
+/vite
