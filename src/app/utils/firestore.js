@@ -57,7 +57,12 @@ export function setLastRemoteSyncId(sid) { _lastRemoteSyncId = sid; }
 
 export function saveToFirestore(s) {
   if (isDemoOrNoSync()) return Promise.resolve({ skipped: _isDemoMode ? 'demo' : 'no-sync' });
-  const SAFE_LIMIT = 800 * 1024;
+  // Phase 7.58.1 — Bump 800 → 980 KB. Firestore limite hard 1 MB
+  // (1,048,576 bytes). Le seuil 800 KB était trop conservatif pour
+  // les states v10 avec profile.aiCache trilingue (~870 KB compressed
+  // pour 50 entries Sébastien). À 980 KB on garde ~70 KB de marge
+  // pour metadata Firestore (syncId + ts) avec push WITH aiCache.
+  const SAFE_LIMIT = 980 * 1024;
   const ts = (s && s.shared && typeof s.shared.lastModified === 'number') ? s.shared.lastModified : Date.now();
   const sid = Date.now().toString(36) + Math.random().toString(36).slice(2);
   _lastSavedSyncId = sid;

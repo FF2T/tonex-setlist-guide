@@ -48,6 +48,14 @@ const en = {
   'demo.card-subtitle': 'Try the app with a demo profile. Nothing is saved.',
   'demo.banner-text': 'You\'re testing Backline in demo mode.',
   'demo.banner-link': 'To get your own profile with your rig, request access',
+  'demo.banner-exit': 'Exit',
+  'demo.banner-exit-title': 'Exit demo mode',
+  'tonenet.usages-toggle': 'Artist / song usages (optional)',
+  'tonenet.usages-hint': 'Tagging this preset for specific artists/songs makes this slot a priority in AI recommendations when the analyzed song matches.',
+  'tonenet.usage-artist': 'Artist (e.g. Black Sabbath)',
+  'tonenet.usage-remove': 'Remove this artist',
+  'tonenet.usage-song-add': '+ Song (Enter or Save to add)',
+  'tonenet.usage-add': 'Add an artist',
   'common.footer-disclaimer': 'Independent tool — ToneX™ is a trademark of IK Multimedia SpA. Other mentioned trademarks belong to their respective owners.',
 
   // devices
