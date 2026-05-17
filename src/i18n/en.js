@@ -60,6 +60,7 @@ const en = {
   'tonenet.usage-song-add': '+ Song (Enter or Save to add)',
   'tonenet.usage-add': 'Add an artist',
   'common.footer-disclaimer': 'Independent tool — ToneX™ is a trademark of IK Multimedia SpA. Other mentioned trademarks belong to their respective owners.',
+  'common.footer-pathtotone': 'PathToTone publishes Backline.',
 
   // devices
   'devices.hint': 'Check the devices you use. The Recap and Synthesis blocks will only display those. At least one device must remain checked.',

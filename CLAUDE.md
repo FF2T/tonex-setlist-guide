@@ -746,14 +746,61 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-17, Phases 7.54.x → 7.58.1 close — sync v10 stable + UX épurée)
+## État actuel (2026-05-17, Phases 7.54.x → 7.55.8-light close — UX démo + mode polish)
 
-**Backline v8.14.93 / SW backline-v193 / STATE_VERSION 10 / 1047 tests verts.**
+**Backline v8.14.96 / SW backline-v196 / STATE_VERSION 10 / 1047 tests verts.**
 
-Session 2026-05-17 = **17 phases livrées en 20 deploys prod**.
+Session 2026-05-17 = **24 phases livrées en 28 deploys prod**.
 Sync bilatérale Mac↔iPhone validée avec push WITH aiCache stable,
 pin customs IA fonctionnel via post-processing tolérant, mode démo
-durci, UI épurée (BPM/tonalité retirés).
+durci avec chips + auto-open URL + bouton Quitter, UI épurée
+(BPM/tonalité retirés, modale onboarding réduite à 3 étapes,
+footer PathToTone clarifié).
+
+### Phase 7.55.3 + G auto-open (v8.14.94-95) — Mode démo "aha moment"
+
+Phase 7.55.3 — chips suggérés + bouton random sur Accueil démo. Sous
+le champ recherche grisé en mode démo, affiche :
+- Label "Essaye :" + 4 chips morceaux (acdc_hth, bbking_thrill,
+  deeppurple_smoke, pinkfloyd_wywh)
+- Bouton "🎲 Au hasard" qui pioche parmi les 11 songs Demo Setlist
+
+Click chip → `handleSongConfirm(title, artist)` extrait en useCallback
+(réutilisé par SongSearchBar + chips + autoOpen). Charge la fiche
+depuis l'aiCache du snapshot bundlé (zéro fetchAI).
+
+Phase 7.55-G auto-open complété (v8.14.95). `useEffect` au mount
+HomeScreen lit `window._demoPrefSongId` (exposé sur window par main.jsx
+au boot via URL `?demo=1&song=X`) → trouve la song dans songDb → appelle
+handleSongConfirm pour ouvrir la fiche automatiquement. Flag
+`_demoSongAutoOpened.current` pour ne tourner qu'une fois.
+
+Validation : `https://mybackline.app/?demo=1&song=acdc_hth` ouvre direct
+la fiche Highway to Hell.
+
+### Phase 7.55.8-light (v8.14.96) — Polish modale + footer
+
+Cleanup cosmétique pour image pro avant retour Bruno/Francisco
+lundi-mardi.
+
+**Modale SplashPopup (Accueil mode démo)** : étape 4 "🤘 Rock'n'roll !"
+supprimée. C'était décoratif, alourdissait le pitch sans valeur ajoutée.
+La modale reste à 3 étapes : recherche / raisonnement IA / choix guitare.
+
+**Footer AppFooter** : ajout d'une ligne intermédiaire entre le
+copyright et le disclaimer marques :
+```
+© 2026 PathToTone · Made with 🎸 and ❤️
+PathToTone édite Backline.                    ← NOUVEAU
+Outil indépendant — ToneX™ est une marque...
+```
+Évite la confusion chez les visiteurs qui voyaient PathToTone sans
+comprendre que c'est la société éditrice du produit Backline.
+
+Traductions EN/ES :
+- `common.footer-pathtotone` "PathToTone publishes Backline." / "PathToTone publica Backline."
+
+### Sous-phases additionnelles post-7.55-A (continued)
 
 ### Sous-phases additionnelles post-7.55-A (continued)
 
@@ -823,7 +870,9 @@ Warning "approche limite 1 MB" purement préventif (marge ~150 KB).
 | 7.55-A | 8.14.90 | Snapshot démo enrichi v10 (11/11 recos parfaites) |
 | 7.57 | 8.14.91 | Retire éditeur BPM/tonalité |
 | 7.58 | 8.14.92 | Strip profile.aiCache non-actifs au push |
-| **7.58.1+i18n** | **8.14.93** | **Bump SAFE_LIMIT 980 KB + traductions EN/ES** |
+| 7.58.1+i18n | 8.14.93 | Bump SAFE_LIMIT 980 KB + traductions EN/ES |
+| 7.55.3 + G auto-open | 8.14.94-95 | Chips démo + bouton random + auto-open URL |
+| **7.55.8-light** | **8.14.96** | **Modale 4 étapes → 3 + footer PathToTone clarifié** |
 
 **5 bugs latents fixés** : 401 Firebase auth, effacement bloc
 toneNetPresets, hash partiel setlists, écrasement Hotel California,

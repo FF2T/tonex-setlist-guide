@@ -186,11 +186,12 @@ function SplashPopup({ onClose }) {
           {t('home.splash.promise', 'L\'IA analyse le morceau, raisonne sur le son et recommande le meilleur couple guitare + preset.')}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, textAlign: 'left', marginBottom: 20 }}>
+          {/* Phase 7.55.8 — Étape 4 "Rock'n'roll !" supprimée (décorative,
+              n'apportait pas de valeur — alourdissait le pitch). */}
           {[
             { n: '1', emoji: '🔍', text: t('home.splash.step1', 'Tape un morceau — l\'IA analyse le profil tonal et l\'ampli original') },
             { n: '2', emoji: '🧠', text: t('home.splash.step2', 'L\'IA raisonne : guitare idéale, ampli cible, preset recommandé') },
             { n: '3', emoji: '🎸', text: t('home.splash.step3', 'Choisis ta guitare — les presets s\'adaptent automatiquement') },
-            { n: '4', emoji: '🤘', text: t('home.splash.step4', 'Rock\'n\'roll !') },
           ].map(({ n, emoji, text }) => (
             <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--a3)', borderRadius: 'var(--r-lg)' }}>
               <span style={{ fontSize: 20, flexShrink: 0 }}>{emoji}</span>

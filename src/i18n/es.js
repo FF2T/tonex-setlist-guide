@@ -58,6 +58,7 @@ const es = {
   'tonenet.usage-song-add': '+ Canción (Enter o Guardar para añadir)',
   'tonenet.usage-add': 'Añadir un artista',
   'common.footer-disclaimer': 'Herramienta independiente — ToneX™ es una marca de IK Multimedia SpA. Las demás marcas mencionadas pertenecen a sus respectivos propietarios.',
+  'common.footer-pathtotone': 'PathToTone publica Backline.',
 
   // devices
   'devices.hint': 'Marca los dispositivos que utilizas. Los bloques Resumen y Síntesis solo mostrarán esos. Al menos un dispositivo debe permanecer marcado.',

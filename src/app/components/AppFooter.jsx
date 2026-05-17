@@ -19,6 +19,12 @@ function AppFooter() {
       <div style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.05em', marginBottom: 4 }}>
         © 2026 <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>PathToTone</span> · Made with 🎸 and ❤️
       </div>
+      {/* Phase 7.55.8 — Clarification PathToTone (société éditrice) vs
+          Backline (produit). Évite la confusion chez les visiteurs qui
+          voient PathToTone et se demandent ce que c'est. */}
+      <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'var(--font-mono, monospace)', opacity: 0.55, marginBottom: 4 }}>
+        {t('common.footer-pathtotone', 'PathToTone édite Backline.')}
+      </div>
       <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'var(--font-mono, monospace)', opacity: 0.7, lineHeight: 1.4, maxWidth: 520, margin: '0 auto', padding: '0 12px' }}>
         {t('common.footer-disclaimer', 'Outil indépendant — ToneX™ est une marque d\'IK Multimedia SpA. Autres marques citées appartiennent à leurs propriétaires respectifs.')}
       </div>
