@@ -871,7 +871,47 @@ public/sw.js                 CACHE backline-v199 → backline-v200
   Phase 7.50). Tester sur les 8 morceaux de la démo + sur une
   setlist Bruno-style pour valider visuellement.
 
-### Dette résiduelle Phase 7.62 — Sécurité admin-switch profil
+### Phase 7.62 — Fix critique sync activeProfileId (v8.14.102, LIVRÉ 2026-05-17)
+
+**Bug architectural latent** depuis Phase 5.x : `activeProfileId`
+était synced via Firestore alors qu'il devrait être **LOCAL-only par
+device**. Manifestation découverte 2026-05-17 le soir avec
+multi-device cross-user (Sébastien Mac + Francisco iPhone) :
+Sébastien Mac rebascule tout seul sur Francisco après pull
+Firestore quand Francisco est actif sur son device.
+
+**Cause précise** :
+- `main.jsx:1118` `applyRemoteData` faisait
+  `setActiveProfileId(data.activeProfileId)` au pull
+- `firestore.js` `saveToFirestore` push contenait `c.activeProfileId`
+  au top level
+- Cycle ping-pong cross-device : A push activeProfileId='X', B pull
+  → bascule sur X, B push activeProfileId='Y', A pull → bascule sur
+  Y... selon le dernier writer
+
+**Fix livré (3 changements défensifs)** :
+1. `firestore.js` `prep()` : `delete c.activeProfileId` avant push
+   (strippe pour TOUTES les call sites de saveToFirestore)
+2. `main.jsx:1118` : retire le `setActiveProfileId(data.activeProfileId)`
+   du pull (ignore la valeur remote, garde locale)
+3. `main.jsx:1152` : retire `activeProfileId` du push initial
+   (cosmétique, strippé en prep de toute façon)
+
+**Cohabitation** : un client pre-7.62 peut encore push activeProfileId,
+mais les clients post-7.62 ignorent au pull (no-op). Pas de bump
+STATE_VERSION (additif/retrait sync, pas schéma).
+
+**Effet attendu** : Sébastien Mac reste sur son profil Sébastien
+peu importe ce que Francisco / Bruno font sur leurs devices. Pareil
+inversement pour eux.
+
+**Limite résiduelle non bloquante** : `activeProfileId` reste pourtant
+visible dans le state Firestore historique tant qu'un client pre-7.62
+n'a pas fait de modif (qui purgerait le champ via le nouveau prep()).
+Sébastien peut forcer la purge en faisant 1 modif quelconque sur
+chaque device après reload v8.14.102.
+
+### Dette résiduelle Phase 7.63 — Sécurité admin-switch profil
 
 Rapporté 2026-05-17 par Sébastien (observation théorique, pas
 d'incident effectif). Quand l'admin clique sur un autre profil
@@ -889,7 +929,7 @@ au profil cible et part en push Firestore avec son `profileId`.
 - Switch accidentel : un click malheureux dans le dropdown peut
   faire changer de contexte sans avertissement
 
-**3 améliorations possibles Phase 7.62** (par ordre coût/impact) :
+**3 améliorations possibles Phase 7.63** (par ordre coût/impact) :
 
 1. **Banner persistant** *"🔍 Connecté en tant que Francisco
    (mode admin) — tes modifs s'appliquent à son profil"* en haut
@@ -904,7 +944,7 @@ au profil cible et part en push Firestore avec son `profileId`.
    ~2h. Respect vie privée max mais friction max aussi. Probably
    pas nécessaire — l'angle 1+2 suffit.
 
-**Reco** : implémenter 1+2 ensemble dans Phase 7.62 (1h total),
+**Reco** : implémenter 1+2 ensemble dans Phase 7.63 (1h total),
 les plus utiles. Reporter 3 et écarter 4.
 
 ### Phase 7.60 — Landing publique first-time visitors (v8.14.99)
