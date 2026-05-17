@@ -1514,6 +1514,96 @@ function clearBackups() {
   catch (e) { return false; }
 }
 
+// Phase 7.59-A — Snapshots manuels (séparés des backups auto rotatifs).
+//
+// Stocké dans une clé localStorage distincte `tonex_guide_snapshots_manual`
+// (vs `tonex_guide_backups` Phase 4.1 qui est rotation auto MAX_BACKUPS=1
+// throttlée 5 min). Pas de limite hard, mais l'utilisateur peut en
+// supprimer manuellement depuis MaintenanceTab.
+//
+// Cas d'usage : Sébastien fait une sauvegarde AVANT une opération risquée
+// (pré-calcul beta, switch profil, import CSV, etc.) pour pouvoir
+// restaurer en cas de pollution profil constatée (cas observé 2026-05-17
+// où profile.sebastien.myGuitars a hérité de sire_t7/t3 issus de
+// Francisco par un mécanisme inconnu, sans repro).
+//
+// Schéma stocké : array de { id, time, label, data }.
+//   id : `manual-${Date.now()}-${rand}`
+//   time : Date.now()
+//   label : string fournie par user (max 60 chars), affichée dans la
+//          liste pour identifier le snapshot
+//   data : JSON.stringify(state) au moment du snapshot
+const LS_MANUAL_SNAPSHOTS_KEY = 'tonex_guide_snapshots_manual';
+
+function listManualSnapshots() {
+  try { return JSON.parse(localStorage.getItem(LS_MANUAL_SNAPSHOTS_KEY) || '[]'); }
+  catch { return []; }
+}
+
+function createManualSnapshot(label) {
+  try {
+    const current = localStorage.getItem(LS_KEY);
+    if (!current) return { ok: false, error: 'no_state' };
+    const snaps = listManualSnapshots();
+    const id = `manual-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const safeLabel = String(label || 'snapshot').slice(0, 60).trim() || 'snapshot';
+    snaps.unshift({ id, time: Date.now(), label: safeLabel, data: current });
+    localStorage.setItem(LS_MANUAL_SNAPSHOTS_KEY, JSON.stringify(snaps));
+    return { ok: true, id };
+  } catch (e) {
+    if (isQuotaError(e)) return { ok: false, error: 'quota' };
+    return { ok: false, error: e?.message || 'unknown' };
+  }
+}
+
+function restoreManualSnapshot(id) {
+  const snaps = listManualSnapshots();
+  const snap = snaps.find((s) => s.id === id);
+  if (!snap) return false;
+  try { localStorage.setItem(LS_KEY, snap.data); return true; }
+  catch { return false; }
+}
+
+function deleteManualSnapshot(id) {
+  const snaps = listManualSnapshots();
+  const next = snaps.filter((s) => s.id !== id);
+  try { localStorage.setItem(LS_MANUAL_SNAPSHOTS_KEY, JSON.stringify(next)); return true; }
+  catch { return false; }
+}
+
+// Phase 7.59-B — Sanity check au boot : détecte les guitar ids
+// "orphelins" dans profile.myGuitars (ni dans GUITARS catalog, ni dans
+// shared.customGuitars). Indique une pollution profile (cas observé
+// 2026-05-17 : sire_t7/t3 dans profile.sebastien sans repro).
+//
+// Note : appelle avec le state + le catalog GUITARS importé du caller
+// (évite import circulaire dans state.js qui ne doit pas dépendre de
+// guitars.js metadata).
+//
+// Retourne array de warnings { profileId, profileName, orphanIds }.
+function validateProfileGuitars(state, guitarsCatalog) {
+  if (!state || !state.profiles) return [];
+  const sharedCustomIds = new Set((state.shared?.customGuitars || []).map((g) => g.id));
+  const catalogIds = new Set((guitarsCatalog || []).map((g) => g.id));
+  const warnings = [];
+  for (const [pid, p] of Object.entries(state.profiles)) {
+    if (!p || !Array.isArray(p.myGuitars)) continue;
+    // Profile customGuitars (legacy v3-)
+    const profileCustomIds = new Set((p.customGuitars || []).map((g) => g.id));
+    const orphans = [];
+    for (const gid of p.myGuitars) {
+      if (catalogIds.has(gid)) continue;
+      if (sharedCustomIds.has(gid)) continue;
+      if (profileCustomIds.has(gid)) continue;
+      orphans.push(gid);
+    }
+    if (orphans.length > 0) {
+      warnings.push({ profileId: pid, profileName: p.name || pid, orphanIds: orphans });
+    }
+  }
+  return warnings;
+}
+
 // ─── Secrets (clés API, jamais syncés) ───────────────────────────────
 function loadSecrets() {
   try { return JSON.parse(localStorage.getItem(LS_SECRETS_KEY)) || {}; } catch (e) { return {}; }
@@ -1791,6 +1881,8 @@ export {
   dedupSetlists, dedupSetlistsWithTombstones, setlistDedupKey, findSetlistDuplicatesByName,
   loadState, saveState, persistState,
   autoBackup, listBackups, restoreBackup, clearBackups, isQuotaError,
+  createManualSnapshot, listManualSnapshots, restoreManualSnapshot, deleteManualSnapshot,
+  validateProfileGuitars,
   loadSecrets, saveSecrets,
   loadTrusted, isTrusted, setTrusted,
   getAllRigsGuitars,

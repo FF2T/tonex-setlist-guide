@@ -80,6 +80,8 @@ import {
   dedupSetlists, dedupSetlistsWithTombstones, findSetlistDuplicatesByName,
   applySecrets,
   isDemoMode, isDemoProfile, loadDemoSnapshot, wrapDemoGuard,
+  createManualSnapshot, listManualSnapshots, restoreManualSnapshot, deleteManualSnapshot,
+  validateProfileGuitars,
 } from './core/state.js';
 import {
   SOURCE_LABELS, SOURCE_DESCRIPTIONS, SOURCE_BADGES, SOURCE_INFO,
@@ -248,7 +250,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.96";
+const APP_VERSION = "8.14.97";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -1238,6 +1240,23 @@ function App() {
       setDeletedSetlistIds(gced);
     }
   },[]);
+
+  // Phase 7.59-B — Sanity check au boot : log warning si un profil a
+  // des guitar ids "orphelins" dans myGuitars (ni dans GUITARS catalog,
+  // ni dans shared.customGuitars, ni dans profile.customGuitars legacy).
+  // Détecte les pollutions cross-profile (cas observé 2026-05-17 sur
+  // profile.sebastien.myGuitars contenant sire_t7/t3 issus de Francisco
+  // sans repro identifié).
+  // Tourne une seule fois au mount. Non bloquant — juste un log console
+  // explicite pour faciliter le diagnostic.
+  useEffect(() => {
+    const state = { profiles, shared: { customGuitars } };
+    const warnings = validateProfileGuitars(state, GUITARS);
+    if (warnings.length > 0) {
+      console.warn('[backline-sanity] Pollution profile détectée — guitar ids orphelins:', warnings);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Apply theme to document
   useEffect(()=>{

@@ -15,6 +15,7 @@ import { GUITARS, findGuitar } from '../../core/guitars.js';
 import { SCORING_VERSION } from '../../core/scoring/index.js';
 import {
   listBackups, restoreBackup, clearBackups,
+  createManualSnapshot, listManualSnapshots, restoreManualSnapshot, deleteManualSnapshot,
   dedupSetlistsWithTombstones, findSetlistDuplicatesByName,
   dedupSongDb,
   buildDemoSnapshot,
@@ -265,6 +266,72 @@ function MaintenanceTab({ songDb, onSongDb, onAiCacheUpdate, onProfiles, activeP
           }} style={{ background: 'var(--a5)', border: '1px solid var(--a8)', color: 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 11, cursor: 'pointer' }}>{t('maintenance.clear-backups', '🗑 Vider les sauvegardes')}</button>
         </div>
       </div>
+
+      {/* Phase 7.59-A — Snapshots manuels (séparés des backups auto).
+          Permet à l'admin de sauvegarder explicitement avant une opération
+          risquée (pré-calcul beta, switch profil, etc.). Pas de limite
+          MAX_BACKUPS, pas de throttle. Suppression manuelle uniquement. */}
+      {profile?.isAdmin && (
+        <div style={{ background: 'var(--a4)', border: '1px solid var(--brass-400)', borderLeftWidth: 3, borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{t('maintenance.manual-snapshots', '💾 Snapshots manuels')}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>{t('maintenance.manual-snapshots-hint', 'Sauvegarde explicite avant une opération risquée (pré-calcul beta, switch profil, import CSV). Pas de rotation auto — tu supprimes à la main.')}</div>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+            <button
+              data-testid="maint-create-manual-snapshot"
+              onClick={() => {
+                const label = window.prompt(t('maintenance.snapshot-prompt', 'Label du snapshot (ex: "avant pré-calcul Bruno") :'), '');
+                if (label === null) return;
+                const res = createManualSnapshot(label || 'snapshot');
+                if (res.ok) {
+                  window.alert(t('maintenance.snapshot-created', '✓ Snapshot créé.'));
+                  location.reload();
+                } else {
+                  window.alert(tFormat('maintenance.snapshot-error', { err: res.error }, 'Erreur : {err}'));
+                }
+              }}
+              style={{ background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+            >{t('maintenance.snapshot-create', '💾 Créer un snapshot')}</button>
+          </div>
+          {(() => {
+            const snaps = listManualSnapshots();
+            if (!snaps.length) return <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>{t('maintenance.no-snapshots', 'Aucun snapshot manuel.')}</div>;
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {snaps.map((s) => {
+                  const d = new Date(s.time);
+                  const locale = getLocale();
+                  return (
+                    <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--a3)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.label}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>{d.toLocaleDateString(locale)} {d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })} · {(s.data.length / 1024).toFixed(0)} KB</div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (window.confirm(tFormat('maintenance.snapshot-restore-confirm', { label: s.label }, 'Restaurer "{label}" ?\n\nL\'état actuel sera remplacé.'))) {
+                            if (restoreManualSnapshot(s.id)) location.reload();
+                            else window.alert(t('maintenance.snapshot-restore-error', 'Erreur de restauration.'));
+                          }
+                        }}
+                        style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '4px 10px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}
+                      >{t('maintenance.restore', 'Restaurer')}</button>
+                      <button
+                        onClick={() => {
+                          if (window.confirm(tFormat('maintenance.snapshot-delete-confirm', { label: s.label }, 'Supprimer "{label}" ?'))) {
+                            deleteManualSnapshot(s.id);
+                            location.reload();
+                          }
+                        }}
+                        style={{ background: 'var(--red-bg)', border: 'none', color: 'var(--danger)', borderRadius: 'var(--r-md)', padding: '4px 8px', fontSize: 10, cursor: 'pointer' }}
+                      >✕</button>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+      )}
 
       <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{t('maintenance.setlists-dup', 'Setlists — doublons')}</div>
