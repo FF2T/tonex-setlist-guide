@@ -225,7 +225,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.85";
+const APP_VERSION = "8.14.86";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -993,7 +993,8 @@ function App() {
     },3000);
     var pollRemap={};
     if(data.shared.songDb) setSongDb(prev=>{
-      const m=mergeSongDb(prev,data.shared.songDb);
+      // Phase 7.54.1 — isV10:true → skip remote.aiCache (legacy obsolète)
+      const m=mergeSongDb(prev,data.shared.songDb,{isV10:true});
       pollRemap=m._idRemap||{};
       if(m.length===prev.length&&m.every((s,i)=>s===prev[i]))return prev;
       return m;
@@ -1052,7 +1053,8 @@ function App() {
         var remoteSl=data.shared.setlists||[];
         var remoteDel=normalizeTombstones(data.shared.deletedSetlistIds);
         var mergedDel=mergeDeletedSetlistIds(deletedSetlistIds,remoteDel);
-        var mergedSongs=mergeSongDb(songDb||[],remoteSongs);
+        // Phase 7.54.1 — isV10:true → skip remote.aiCache (legacy obsolète)
+        var mergedSongs=mergeSongDb(songDb||[],remoteSongs,{isV10:true});
         var mergedSl=mergeSetlistsLWW(setlists||[],remoteSl,mergedDel);
         // Remap duplicated song IDs in setlists
         var remap=mergedSongs._idRemap||{};

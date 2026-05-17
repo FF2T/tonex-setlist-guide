@@ -512,34 +512,54 @@ function migrateV9toV10(state) {
   const out = { ...state, version: 10, profiles: ensureProfilesV10(state.profiles) };
   const activeId = state.activeProfileId;
   const profiles = out.profiles || {};
-  if (!activeId || !profiles[activeId]) return out;
-  const activeProfile = profiles[activeId];
-  // Songs dans les setlists du profil actif
+  // Songs dans les setlists du profil actif (pour copie ciblée)
   const mySongIds = new Set();
   const setlists = state.shared?.setlists || [];
-  for (const sl of setlists) {
-    if (!Array.isArray(sl.profileIds) || !sl.profileIds.includes(activeId)) continue;
-    for (const id of sl.songIds || []) mySongIds.add(id);
-  }
-  // Copier aiCache shared → profile.aiCache + drop shared
-  const newProfileCache = { ...(activeProfile.aiCache || {}) };
-  const newSongDb = (state.shared?.songDb || []).map((s) => {
-    if (!s || !s.id || !mySongIds.has(s.id)) return s;
-    if (!s.aiCache) return s;
-    // Si profile a déjà un aiCache plus récent (sv supérieur), on le
-    // garde et on drop juste le shared. Sinon, on copie.
-    const existing = newProfileCache[s.id];
-    const existingSv = existing && typeof existing.sv === 'number' ? existing.sv : -1;
-    const sharedSv = s.aiCache && typeof s.aiCache.sv === 'number' ? s.aiCache.sv : 0;
-    if (sharedSv > existingSv) {
-      newProfileCache[s.id] = s.aiCache;
+  if (activeId) {
+    for (const sl of setlists) {
+      if (!Array.isArray(sl.profileIds) || !sl.profileIds.includes(activeId)) continue;
+      for (const id of sl.songIds || []) mySongIds.add(id);
     }
+  }
+  // Phase 7.54.1 — DROP TOUS les shared.songDb.aiCache (pas seulement
+  // ceux du profil actif). Avant le fix, on gardait les caches des
+  // autres profils en shared, ce qui faisait gonfler le state Mac à
+  // 2.5 MB (98 caches Bruno/Francisco/démo/Arthur conservés en shared).
+  // Conséquence : push compressed > 800 KB → strip aiCache → modifs
+  // ne propagent plus.
+  //
+  // Solution radicale : drop ALL. Les autres profils retrouvent leurs
+  // caches via leur propre profile.aiCache au pull (sync per-profile
+  // via mergeProfilesLWW Phase 5.7) ET via leur propre migration v10
+  // sur leur device (qui copie leurs shared → leur profile).
+  //
+  // Trade-off accepté : si un autre profil se connecte sur ce device,
+  // ses analyses doivent re-fetcher (pas dispo localement avant sync).
+  // En pratique : rare. Compromise vs blocage permanent du sync.
+  const newProfileCache = activeId && profiles[activeId]
+    ? { ...(profiles[activeId].aiCache || {}) }
+    : {};
+  const newSongDb = (state.shared?.songDb || []).map((s) => {
+    if (!s || !s.id || !s.aiCache) return s;
+    // Copie vers profile.aiCache du profil actif si la song est dans
+    // ses setlists ET que profile n'a pas déjà un sv supérieur.
+    if (activeId && mySongIds.has(s.id)) {
+      const existing = newProfileCache[s.id];
+      const existingSv = existing && typeof existing.sv === 'number' ? existing.sv : -1;
+      const sharedSv = typeof s.aiCache.sv === 'number' ? s.aiCache.sv : 0;
+      if (sharedSv > existingSv) {
+        newProfileCache[s.id] = s.aiCache;
+      }
+    }
+    // Drop shared.aiCache pour toutes les songs (legacy obsolète en v10).
     return { ...s, aiCache: null };
   });
-  out.profiles = {
-    ...profiles,
-    [activeId]: { ...activeProfile, aiCache: newProfileCache, lastModified: Date.now() },
-  };
+  if (activeId && profiles[activeId]) {
+    out.profiles = {
+      ...profiles,
+      [activeId]: { ...profiles[activeId], aiCache: newProfileCache, lastModified: Date.now() },
+    };
+  }
   out.shared = { ...(state.shared || {}), songDb: newSongDb };
   return out;
 }
@@ -746,20 +766,35 @@ function stripAiCacheForSync(state) {
 // avec des ids distincts) ; renvoie un `_idRemap` non-énumérable sur le
 // tableau retour pour que les call sites puissent remapper les songIds
 // dans les setlists.
-function mergeSongDbPreservingLocalAiCache(local, remote) {
+function mergeSongDbPreservingLocalAiCache(local, remote, options = {}) {
   if (!remote) return local;
   if (!local) return remote;
+  // Phase 7.54.1 — en v10, l'aiCache vit dans profile.aiCache, pas
+  // dans shared.songDb. On NE doit JAMAIS adopter remote.aiCache car
+  // ça ré-injecterait du legacy obsolète qui ferait gonfler le state
+  // (et déclencher le strip Phase 5.7.1 au push).
+  const isV10 = options.isV10 === true;
   const map = new Map(local.map((s) => [s.id, s]));
   for (const rs of remote) {
     if (!rs || !rs.id) continue;
     const existing = map.get(rs.id);
     if (!existing) {
-      map.set(rs.id, rs); // remote-only
+      // Remote-only : en v10, drop son aiCache (obsolète shared)
+      if (isV10) {
+        map.set(rs.id, { ...rs, aiCache: null });
+      } else {
+        map.set(rs.id, rs);
+      }
       continue;
     }
     const rsv = rs.aiCache && typeof rs.aiCache.sv === 'number' ? rs.aiCache.sv : 0;
     const lsv = existing.aiCache && typeof existing.aiCache.sv === 'number' ? existing.aiCache.sv : 0;
-    if (rs.aiCache && (!existing.aiCache || rsv > lsv)) {
+    if (isV10) {
+      // En v10 : adopt remote.* (title, artist, bpm, etc.) mais TOUJOURS
+      // drop l'aiCache (vient de shared, obsolète — la source de vérité
+      // est profile.aiCache).
+      map.set(rs.id, { ...rs, aiCache: null });
+    } else if (rs.aiCache && (!existing.aiCache || rsv > lsv)) {
       // Remote a un aiCache strictement plus récent (cohabitation pré-5.7.1).
       map.set(rs.id, rs);
     } else {

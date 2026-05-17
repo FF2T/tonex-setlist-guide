@@ -2680,7 +2680,7 @@ describe('migrateV9toV10 — Phase 7.54', () => {
     expect(v10.profiles.bruno.aiCache).toEqual({});
   });
 
-  test('copie shared aiCache → profile.aiCache pour songs profil actif', () => {
+  test('copie shared aiCache → profile.aiCache pour songs profil actif + drop ALL shared (Phase 7.54.1)', () => {
     const v9 = {
       version: 9,
       activeProfileId: 'sebastien',
@@ -2700,12 +2700,13 @@ describe('migrateV9toV10 — Phase 7.54', () => {
     const v10 = migrateV9toV10(v9);
     expect(v10.profiles.sebastien.aiCache.s1).toBeDefined();
     expect(v10.profiles.sebastien.aiCache.s2).toBeDefined();
-    // s3 n'est PAS dans setlists Sébastien → reste dans shared
+    // s3 n'est PAS dans setlists Sébastien → pas copié dans profile.aiCache
     expect(v10.profiles.sebastien.aiCache.s3).toBeUndefined();
-    // shared.songDb : s1 et s2 ont aiCache=null (dropped), s3 intact
+    // Phase 7.54.1 — drop ALL shared.aiCache (legacy obsolète en v10).
+    // Bruno récupérera s3 via sa propre migration v10 sur son device.
     expect(v10.shared.songDb.find(s => s.id === 's1').aiCache).toBeNull();
     expect(v10.shared.songDb.find(s => s.id === 's2').aiCache).toBeNull();
-    expect(v10.shared.songDb.find(s => s.id === 's3').aiCache).toBeTruthy();
+    expect(v10.shared.songDb.find(s => s.id === 's3').aiCache).toBeNull();
   });
 
   test('idempotente : v10 → v10 ne mute pas profile.aiCache existant', () => {
@@ -2738,7 +2739,7 @@ describe('migrateV9toV10 — Phase 7.54', () => {
     expect(migrateV9toV10(null)).toBeNull();
   });
 
-  test('pas d activeProfileId → migrate sans copie shared', () => {
+  test('pas d activeProfileId → drop ALL shared.aiCache quand même (Phase 7.54.1)', () => {
     const v9 = {
       version: 9,
       activeProfileId: null,
@@ -2747,8 +2748,8 @@ describe('migrateV9toV10 — Phase 7.54', () => {
     };
     const v10 = migrateV9toV10(v9);
     expect(v10.profiles.sebastien.aiCache).toEqual({});
-    // shared.songDb intact
-    expect(v10.shared.songDb[0].aiCache).toBeTruthy();
+    // Phase 7.54.1 — shared.aiCache toujours droppé en v10
+    expect(v10.shared.songDb[0].aiCache).toBeNull();
   });
 });
 
