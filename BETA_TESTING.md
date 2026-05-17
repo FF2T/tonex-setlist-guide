@@ -39,10 +39,12 @@
 - **Mode reco** : `faithful` (privilégier l'authenticité historique).
 - **Status** : onboardé via DM Reddit le 2026-05-14. Profil pré-
   configuré par Sébastien avec analyses IA pré-mâchées (6 morceaux).
-  **Parti en week-end le 14, retour prévu lundi 18 mai (J+4).**
-  Aucun retour d'usage réel encore. **DM J+4 prêt à envoyer le 18 mai**
-  (3 questions courtes : ce qui marche / ce qui agace / recommanderait
-  à autre guitariste metal).
+  Parti en week-end le 14, rentré le 17 mai. **A prévenu qu'il
+  testera semaine prochaine (21-25 mai).** Aucun retour d'usage
+  réel encore. **Pas de DM J+4 prévu** — on attend qu'il revienne
+  organiquement avec ses retours après ses tests. Si silence
+  prolongé après J+12 (~26 mai), envisager un DM léger "comment ça
+  se passe ?".
 - **Phases déclenchées par son profil** (cf CLAUDE.md) :
   - 7.31 : banks/customPacks dans le prompt IA + slot pinning
   - 7.32 : ideal_guitar filtrée sur rig profil actif + meilleur
