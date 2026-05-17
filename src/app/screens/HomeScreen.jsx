@@ -9,7 +9,7 @@
 // prompt IA L84-87 reste FR (changement Phase D — option trilingue).
 // Les valeurs comparées à des outputs IA ('Aucun effet') restent FR.
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { t, tFormat, useLocale } from '../../i18n/index.js';
 import { APP_NAME, APP_TAGLINE } from '../../core/branding.js';
 import { getSongInfo } from '../../core/songs.js';
@@ -327,6 +327,84 @@ function HomeScreen({
   const [showCotSearch, setShowCotSearch] = useState(false);
   const [feedback, setFeedback] = useState('');
 
+  // Phase 7.55.3 — Pool de 4 morceaux suggérés en mode démo (chips).
+  // Choisis parmi les songs présentes dans le snapshot Demo Setlist
+  // (ids stables, jamais renommés). Si une song est absente du songDb
+  // actuel (cas dégénéré), elle est skip silencieusement.
+  const demoSuggestSongs = useMemo(() => {
+    if (!isDemo) return [];
+    const targetIds = ['acdc_hth', 'bbking_thrill', 'deeppurple_smoke', 'pinkfloyd_wywh'];
+    const found = [];
+    for (const id of targetIds) {
+      const s = songDb?.find?.((x) => x.id === id);
+      if (s) found.push({ id: s.id, title: s.title, artist: s.artist });
+    }
+    return found;
+  }, [isDemo, songDb]);
+
+  // Phase 7.55.3 — Handler centralisé pour onConfirm SongSearchBar +
+  // chips démo + auto-open URL Phase 7.55-G. Extrait de l'inline pour
+  // permettre la réutilisation depuis plusieurs sites.
+  const handleSongConfirm = useCallback((title, artist) => {
+    const existing = findDuplicateSong(songDb, title, artist) || songDb.find((s) => normalizePresetName(s.title) === normalizePresetName(title));
+    const canonTitle = existing ? existing.title : title;
+    const canonArtist = existing ? existing.artist : artist;
+    setConfirmedSong({ title: canonTitle, artist: canonArtist });
+    setSongResult(null); setSongBaseAI(null); setSongErr(null); setSelectedGuitar(null);
+    if (existing?.aiCache?.result?.cot_step1) {
+      const cachedGId = existing.aiCache.gId || '';
+      const cachedG = allGuitars.find((x) => x.id === cachedGId);
+      const gType = cachedG?.type || 'HB';
+      const r = enrichAIResult({ ...existing.aiCache.result }, gType, cachedGId, banksAnn, banksPlug, undefined, existing);
+      setSongResult(r); setSongBaseAI(r);
+      if (cachedG) setSelectedGuitar(cachedG);
+      else if (r.ideal_guitar) {
+        const m = findGuitarByAIName(r.ideal_guitar, allGuitars);
+        if (m) setSelectedGuitar(m);
+      }
+      return;
+    }
+    if (isDemo) return; // Phase 7.51.2 — pas de fetchAI en mode démo
+    setSongLoading(true);
+    const song = { id: `tmp_${Date.now()}`, title: canonTitle, artist: canonArtist };
+    fetchAI(song, '', banksAnn, banksPlug, aiProvider, aiKeys, allGuitars, null, null, profile?.recoMode || 'balanced', guitarBias)
+      .then((r) => {
+        setSongResult(r); setSongBaseAI(r);
+        if (r.ideal_guitar) {
+          const m = findGuitarByAIName(r.ideal_guitar, allGuitars);
+          if (m) setSelectedGuitar(m);
+        }
+        if (!existing) {
+          const newId = `c_${Date.now()}`;
+          const ns = { id: newId, title: canonTitle, artist: canonArtist, isCustom: true, ig: [], aiCache: null };
+          onSongDb((p) => [...p, ns]);
+          const initialCache = updateAiCache(null, '', r);
+          if (onAiCacheUpdate) onAiCacheUpdate(newId, initialCache);
+          else onSongDb((p) => p.map((x) => x.id === newId ? { ...x, aiCache: initialCache } : x));
+        }
+      })
+      .catch((e) => setSongErr(e.message))
+      .finally(() => setSongLoading(false));
+  }, [songDb, allGuitars, banksAnn, banksPlug, isDemo, aiProvider, aiKeys, profile, guitarBias, onSongDb, onAiCacheUpdate]);
+
+  // Phase 7.55-G — auto-open fiche song via URL ?demo=1&song=X.
+  // Consomme `window._demoPrefSongId` posé au boot par main.jsx. Le
+  // pre-open ne tourne qu'une fois (consumeFlag) pour ne pas re-ouvrir
+  // à chaque re-render.
+  const _demoSongAutoOpened = useRef(false);
+  useEffect(() => {
+    if (_demoSongAutoOpened.current) return;
+    if (!isDemo) return;
+    if (typeof window === 'undefined') return;
+    const prefId = window._demoPrefSongId;
+    if (!prefId) return;
+    const target = songDb?.find?.((s) => s.id === prefId);
+    if (!target) return;
+    _demoSongAutoOpened.current = true;
+    window._demoPrefSongId = null;
+    handleSongConfirm(target.title, target.artist);
+  }, [isDemo, songDb, handleSongConfirm]);
+
   const rerunWithFeedback = () => {
     if (!confirmedSong || !feedback.trim()) return;
     if (isDemo) return; // Phase 7.51.2 — pas de fetchAI en mode démo (défense secondaire)
@@ -373,52 +451,54 @@ function HomeScreen({
             })()}
 
             <div style={{ width: '100%' }}>
-              <SongSearchBar songDb={visibleSongDb} aiProvider={aiProvider} aiKeys={aiKeys} isDemo={isDemo} onConfirm={(title, artist) => {
-                const existing = findDuplicateSong(songDb, title, artist) || songDb.find((s) => normalizePresetName(s.title) === normalizePresetName(title));
-                const canonTitle = existing ? existing.title : title;
-                const canonArtist = existing ? existing.artist : artist;
-                setConfirmedSong({ title: canonTitle, artist: canonArtist });
-                setSongResult(null); setSongBaseAI(null); setSongErr(null); setSelectedGuitar(null);
-                if (existing?.aiCache?.result?.cot_step1) {
-                  const cachedGId = existing.aiCache.gId || '';
-                  const cachedG = allGuitars.find((x) => x.id === cachedGId);
-                  const gType = cachedG?.type || 'HB';
-                  const r = enrichAIResult({ ...existing.aiCache.result }, gType, cachedGId, banksAnn, banksPlug, undefined, existing);
-                  setSongResult(r); setSongBaseAI(r);
-                  if (cachedG) setSelectedGuitar(cachedG);
-                  else if (r.ideal_guitar) {
-                    const m = findGuitarByAIName(r.ideal_guitar, allGuitars);
-                    if (m) setSelectedGuitar(m);
-                  }
-                  return;
-                }
-                if (isDemo) return; // Phase 7.51.2 — pas de fetchAI en mode démo
-                setSongLoading(true);
-                const song = { id: `tmp_${Date.now()}`, title: canonTitle, artist: canonArtist };
-                fetchAI(song, '', banksAnn, banksPlug, aiProvider, aiKeys, allGuitars, null, null, profile?.recoMode || 'balanced', guitarBias)
-                  .then((r) => {
-                    setSongResult(r); setSongBaseAI(r);
-                    if (r.ideal_guitar) {
-                      const m = findGuitarByAIName(r.ideal_guitar, allGuitars);
-                      if (m) setSelectedGuitar(m);
-                    }
-                    if (!existing) {
-                      // Phase 7.54 — Crée la song dans shared.songDb sans aiCache,
-                      // puis pousse l'aiCache initial dans profile.aiCache via
-                      // onAiCacheUpdate.
-                      const newId = `c_${Date.now()}`;
-                      const ns = { id: newId, title: canonTitle, artist: canonArtist, isCustom: true, ig: [], aiCache: null };
-                      onSongDb((p) => [...p, ns]);
-                      const initialCache = updateAiCache(null, '', r);
-                      if (onAiCacheUpdate) onAiCacheUpdate(newId, initialCache);
-                      else onSongDb((p) => p.map((x) => x.id === newId ? { ...x, aiCache: initialCache } : x));
-                    }
-                  })
-                  .catch((e) => setSongErr(e.message))
-                  .finally(() => setSongLoading(false));
-              }}/>
+              <SongSearchBar songDb={visibleSongDb} aiProvider={aiProvider} aiKeys={aiKeys} isDemo={isDemo} onConfirm={handleSongConfirm}/>
             </div>
-
+            {/* Phase 7.55.3 — chips morceaux suggérés + bouton random
+                en mode démo, sous le champ recherche.
+                Permet au visiteur de découvrir la valeur en un click,
+                sans avoir à taper quoi que ce soit. */}
+            {isDemo && demoSuggestSongs.length > 0 && (
+              <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 2 }}>{t('demo.suggest-label', 'Essaye :')}</span>
+                {demoSuggestSongs.slice(0, 4).map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => handleSongConfirm(s.title, s.artist)}
+                    style={{
+                      background: 'var(--accent-soft)',
+                      border: '1px solid var(--border-accent)',
+                      color: 'var(--accent)',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      padding: '4px 10px',
+                      borderRadius: 999,
+                      cursor: 'pointer',
+                    }}
+                  >{s.title}</button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const pool = demoSuggestSongs;
+                    if (pool.length === 0) return;
+                    const pick = pool[Math.floor(Math.random() * pool.length)];
+                    handleSongConfirm(pick.title, pick.artist);
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: '1px dashed var(--border-subtle)',
+                    color: 'var(--text-secondary)',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: '4px 10px',
+                    borderRadius: 999,
+                    cursor: 'pointer',
+                  }}
+                  title={t('demo.random-title', 'Tirer un morceau au hasard')}
+                >{t('demo.random-button', '🎲 Au hasard')}</button>
+              </div>
+            )}
             {songErr && <div style={{ fontSize: 12, color: 'var(--red)', textAlign: 'center', padding: 10 }}>{songErr}</div>}
 
             {songResult && confirmedSong && (() => {
