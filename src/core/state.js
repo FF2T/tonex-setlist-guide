@@ -1595,6 +1595,16 @@ function validateProfileGuitars(state, guitarsCatalog) {
       if (catalogIds.has(gid)) continue;
       if (sharedCustomIds.has(gid)) continue;
       if (profileCustomIds.has(gid)) continue;
+      // Phase 7.59.1 — Skip les `cg_*` device-local non-migrés. Ces
+      // customGuitars créées sur un autre device peuvent légitimement
+      // vivre dans myGuitars sans être dans shared.customGuitars du
+      // device courant — la metadata (image, nom, marque) reste sur le
+      // device d'origine, et la propagation via sync ne couvre pas
+      // toujours customGuitars (notamment quand cg_* créé après une
+      // migration Phase 7.x qui consolide shared.customGuitars).
+      // Conséquence : ces ids sont des "soft orphans" légitimes, pas
+      // des pollutions. Skip pour éviter le bruit.
+      if (typeof gid === 'string' && gid.startsWith('cg_')) continue;
       orphans.push(gid);
     }
     if (orphans.length > 0) {
