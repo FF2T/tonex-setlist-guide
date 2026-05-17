@@ -746,13 +746,95 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-17, Phases 7.54.x + 7.55-quickwins + 7.55-A + 7.56 close)
+## État actuel (2026-05-17, Phases 7.54.x → 7.58.1 close — sync v10 stable + UX épurée)
 
-**Backline v8.14.90 / SW backline-v190 / STATE_VERSION 10 / 1047 tests verts.**
+**Backline v8.14.93 / SW backline-v193 / STATE_VERSION 10 / 1047 tests verts.**
 
-Session 2026-05-17 = 14 phases livrées en 17 deploys prod. Bilatérale
-sync Mac↔iPhone validée, pin customs IA fonctionnel via post-processing
-tolérant, mode démo durci pour conversion publique.
+Session 2026-05-17 = **17 phases livrées en 20 deploys prod**.
+Sync bilatérale Mac↔iPhone validée avec push WITH aiCache stable,
+pin customs IA fonctionnel via post-processing tolérant, mode démo
+durci, UI épurée (BPM/tonalité retirés).
+
+### Sous-phases additionnelles post-7.55-A (continued)
+
+**Phase 7.57 (v8.14.91)** — Retire éditeur BPM/tonalité de la fiche song
+- Inputs BPM (number) + tonalité (text) supprimés de SongDetailCard
+- L'IA Gemini retourne désormais `song_bpm` et `song_key` fiables dans
+  `aiCache.result` (rarement faux)
+- Affichage read-only ligne 175 (via `getSongInfo()`) suffit largement
+- Data model `song.bpm` + `song.key` préservés pour rétro-compat
+  setlists existantes + LiveScreen mode scène
+- UI épurée. Bloc commenté plutôt que supprimé si besoin de ré-activer.
+
+**Phase 7.58 (v8.14.92)** — Strip profile.aiCache des profils non-actifs au push
+- Bug post-7.55-A : Mac push abort "Payload 2315 KB ≥ 1 MB" car
+  profile.aiCache de plusieurs profils accumulés (Sébastien 50 + Bruno 6
+  + demo curateur 11 + autres) gonflait le state au-delà de 1 MB
+- Fix : `stripAiCacheForSync(state, options)` accepte
+  `options.activeId || state.activeProfileId`. Au strip (branche
+  compressed > seuil), en plus de strip `shared.songDb.aiCache`
+  (déjà 0 Phase 7.54.1), strip aussi `profile.aiCache` des profils
+  NON-ACTIFS. Le profil actif est préservé.
+- Trade-off : si un autre profil se connecte sur son propre device et
+  pull, il ne reçoit PAS les profile.aiCache calculés depuis le device
+  de Sébastien (cas pré-calcul beta-testeur). Il doit re-fetcher
+  localement. Pré-calculs admin restent disponibles via snapshot démo
+  bundlé (Phase 7.51.4 / 7.55-A) pour les visiteurs démo.
+- `stripAiCacheForSync` préserve l'identity du state si rien à strip
+  (garde test "shared.songDb absent → état inchangé" vert).
+
+**Phase 7.58.1 + i18n (v8.14.93)** — Bump SAFE_LIMIT + traductions EN/ES
+- `SAFE_LIMIT` 800 KB → **980 KB** dans `firestore.js`. Le seuil 800 KB
+  pour push WITH aiCache était trop conservatif pour les states v10
+  avec profile.aiCache trilingue (~870 KB compressed pour 50 entries
+  Sébastien). Firestore hard limit est 1024 KB. À 980 KB on garde
+  ~70 KB de marge pour metadata Firestore (syncId + ts).
+- Conséquence : Mac avec profile.aiCache à 872 KB compressed passe
+  désormais en push WITH aiCache (au lieu de strip + abort à 1835 KB raw).
+- i18n EN/ES complétées pour 8 strings manquantes (fallbacks FR inline
+  avant) : `demo.banner-exit` + `demo.banner-exit-title` (Phase 7.55-B)
+  + 6 clés ToneNET usages (`tonenet.usages-toggle`, `usages-hint`,
+  `usage-artist`, `usage-remove`, `usage-song-add`, `usage-add`,
+  Phase 7.53). Visiteurs anglophones/hispanophones voient désormais
+  les bons textes.
+
+### Validation finale (2026-05-17)
+
+Push Mac v8.14.93 :
+```
+Pull WITH aiCache (compressed → 2097 KB)
+Push WITH aiCache COMPRESSED (raw 2324 KB → compressed 872 KB)
+[warning] Payload 872 KB approche la limite 1 MB
+```
+
+✅ Plus de strip, plus d'abort, propagation Mac→iPhone opérationnelle.
+Warning "approche limite 1 MB" purement préventif (marge ~150 KB).
+
+### Récap session 2026-05-17 finale
+
+| Famille | Versions | Sujet |
+|---------|----------|-------|
+| 7.52.6 → 7.52.17 | 8.14.77-80 | Hotel California, snapshot curateur, auth Firebase |
+| 7.53.x | 8.14.81-83 | ToneNET usages + LWW + UX flush |
+| 7.55 catalog | 8.14.84 | findCatalogEntryByUsages ideal_top3 |
+| 7.54.x | 8.14.85-87 | aiCache per-profile + drop shared + hash setlist |
+| 7.56 | 8.14.88 | findSlotByName tolère format IA prefixé |
+| 7.55-quickwins | 8.14.89 | F+B+G+7.52.18 mode démo |
+| 7.55-A | 8.14.90 | Snapshot démo enrichi v10 (11/11 recos parfaites) |
+| 7.57 | 8.14.91 | Retire éditeur BPM/tonalité |
+| 7.58 | 8.14.92 | Strip profile.aiCache non-actifs au push |
+| **7.58.1+i18n** | **8.14.93** | **Bump SAFE_LIMIT 980 KB + traductions EN/ES** |
+
+**5 bugs latents fixés** : 401 Firebase auth, effacement bloc
+toneNetPresets, hash partiel setlists, écrasement Hotel California,
+scale state local 1.7 MB → 2.3 MB → propagation Mac↔iPhone bloquée.
+
+**Bilan** : Backline v8.14.93 stable, prêt pour Bruno + Francisco
+lundi-mardi avec mode démo professionnel + sync bilatérale.
+
+### Sous-phases additionnelles post-7.55-A — section originale
+
+(Détails techniques des phases conservés ci-dessous pour référence.)
 
 ### Sous-phases livrées en supplément (post-7.56)
 
@@ -6798,7 +6880,7 @@ morceaux Demo Setlist curés). Mais le snapshot date du 2026-05-16
 (Phase 7.52.16 re-export) AVANT les améliorations Phase 7.53 → 7.56.
 Quelques axes pour améliorer la qualité perçue du mode démo :
 
-#### A. Re-export snapshot avec améliorations récentes (effort ~30 min)
+#### A. Re-export snapshot avec améliorations récentes — ✅ LIVRÉE 2026-05-17 (Phase 7.55-A, v8.14.90)
 
 **Trigger** : à activer si tu veux que les recos du mode démo
 bénéficient des fixes des derniers jours.
@@ -6833,7 +6915,7 @@ marginale.
 7. Remplacer `src/data/demo-profile.json` par le fichier téléchargé
 8. Bump APP_VERSION + SW CACHE, build, deploy
 
-#### B. Bouton "Quitter le mode démo" explicite (effort ~30 min)
+#### B. Bouton "Quitter le mode démo" explicite — ✅ LIVRÉE 2026-05-17 (Phase 7.55-quickwins, v8.14.89)
 
 **Idée** : aujourd'hui, le visiteur démo doit reload sans `?demo=1`
 ou switcher manuellement via ProfileSelector pour quitter. Ajouter
@@ -6898,7 +6980,16 @@ visibilité.
 **Trigger** : à activer après le post case-study J+10 sur Reddit si
 le volume justifie. Avant ça, traffic trop faible pour analyser.
 
-#### F. Limitation visiteurs démo simultanés (non urgent)
+#### F. Limitation visiteurs démo simultanés — ✅ LIVRÉE 2026-05-17 (Phase 7.55-quickwins, v8.14.89)
+
+Cap quota Gemini sur fetchAI mode démo : 7 sites fetchAI gated `isDemo`
+via early-return (SongDetailCard, ListScreen ×2, MaintenanceTab existants
++ HomeScreen rerunWithFeedback + add song, SetlistsScreen add song,
+MonProfilScreen add song, AddSongModal handleAdd). Évite que
+`wrapDemoGuard` Phase 7.51.2 bloque setSongDb mais que fetchAI parte
+en arrière-plan consommer la clé Gemini partagée.
+
+#### F-historique. Limitation visiteurs démo simultanés (non urgent — design notes)
 
 **Idée** : un visiteur démo n'a pas son propre profil utilisateur
 côté Firestore (`isDemo: true` chargé in-memory). Tous les
@@ -6913,7 +7004,16 @@ en théorie via wrapDemoGuard).
 **Trigger** : à valider si Google Console montre des spikes de
 quota Gemini suspects.
 
-#### G. URL démo paramétrable (effort ~30 min)
+#### G. URL démo paramétrable — ⚠️ PARTIEL 2026-05-17 (Phase 7.55-quickwins, v8.14.89)
+
+Params `?demo=1&song=X&guitar=Y` désormais captés au boot dans
+`_demoPrefSongId` / `_demoPrefGuitarId` + URL nettoyée via
+`history.replaceState`. **Auto-open de la fiche correspondante
+REPORTÉ** (nécessite wiring ListScreen `setExpandedId` depuis main.jsx
+au moment du mount post-`enterDemoMode`). À compléter dans Phase
+7.55.2 (qui partage la même mécanique de pré-ouverture de fiche).
+
+#### G-historique. URL démo paramétrable (design notes)
 
 **Idée** : `?demo=1&song=acdc_hth&guitar=lp60` pour pré-ouvrir une
 fiche précise. Permet à Sébastien de partager un lien spécifique
@@ -7004,7 +7104,14 @@ ou niveau 2 (Firestore queue) ? MVP recommandé niveau 1.
 7.44 hypothétique, à activer si signal de demande publique post J+10
 case study Reddit (cf. BETA_TESTING.md local pour la stratégie).
 
-### Phase 7.52.18 (proposée) — enterDemoMode merge profileIds au lieu de remplacer
+### Phase 7.52.18 — ✅ LIVRÉE 2026-05-17 (Phase 7.55-quickwins, v8.14.89)
+
+`enterDemoMode` merge profileIds (union snapshot + local) au lieu de
+remplacement bloc. Défense ultime contre snapshot externe importé
+manuellement avec profileIds=['demo'] seul. Le texte ci-dessous reste
+en référence design.
+
+### Phase 7.52.18 (contexte design — livrée)
 
 **Statut** : Phase 7.52.16 (buildDemoSnapshot livré 2026-05-16) couvre
 le cas le plus courant (futurs exports préservent automatiquement le
