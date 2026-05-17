@@ -7,7 +7,7 @@
 // - inputs falsy/edge cases
 
 import { describe, it, expect } from 'vitest';
-import { getLocalizedText, findSlotByUsageMatch, findCatalogEntryByUsages } from './ai-helpers.js';
+import { getLocalizedText, findSlotByUsageMatch, findCatalogEntryByUsages, findSlotByName } from './ai-helpers.js';
 
 describe('getLocalizedText', () => {
   describe('legacy string format', () => {
@@ -316,5 +316,64 @@ describe('findCatalogEntryByUsages — Phase 7.55', () => {
     const m = findCatalogEntryByUsages('Black Sabbath', 'Paranoid', null);
     expect(m).toBeTruthy();
     expect(m.score).toBe(100);
+  });
+});
+
+describe('findSlotByName — Phase 7.56 (tolérance format IA)', () => {
+  const banks = {
+    48: { A: 'Kirk & James - Gasoline v2', B: 'Blink-182 Mesa Boggie', C: '' },
+    9: { A: '', B: '', C: 'AA MRSH JT50 I Drive BAL SCH CAB' },
+  };
+
+  it('match nom exact (legacy comportement)', () => {
+    const m = findSlotByName(banks, 'Kirk & James - Gasoline v2');
+    expect(m?.bank).toBe(48);
+    expect(m?.col).toBe('A');
+  });
+
+  it('match avec prefix position "48A name"', () => {
+    const m = findSlotByName(banks, '48A Kirk & James - Gasoline v2');
+    expect(m?.bank).toBe(48);
+    expect(m?.col).toBe('A');
+  });
+
+  it('match avec prefix position + quotes doubles (cas Bruno observé)', () => {
+    const m = findSlotByName(banks, '48A "Kirk & James - Gasoline v2"');
+    expect(m?.bank).toBe(48);
+    expect(m?.col).toBe('A');
+    expect(m?.label).toBe('Kirk & James - Gasoline v2');
+  });
+
+  it('match avec quotes seules', () => {
+    const m = findSlotByName(banks, '"Blink-182 Mesa Boggie"');
+    expect(m?.bank).toBe(48);
+    expect(m?.col).toBe('B');
+  });
+
+  it('match avec quotes simples', () => {
+    const m = findSlotByName(banks, "'Blink-182 Mesa Boggie'");
+    expect(m?.col).toBe('B');
+  });
+
+  it('match avec position simple chiffre "9C name"', () => {
+    const m = findSlotByName(banks, '9C AA MRSH JT50 I Drive BAL SCH CAB');
+    expect(m?.bank).toBe(9);
+    expect(m?.col).toBe('C');
+  });
+
+  it('case-insensitive', () => {
+    const m = findSlotByName(banks, '48a "KIRK & JAMES - gasoline V2"');
+    expect(m?.bank).toBe(48);
+  });
+
+  it('nom inconnu → null', () => {
+    expect(findSlotByName(banks, 'Inexistant')).toBeNull();
+    expect(findSlotByName(banks, '48A "Inexistant"')).toBeNull();
+  });
+
+  it('inputs falsy → null', () => {
+    expect(findSlotByName(null, 'foo')).toBeNull();
+    expect(findSlotByName(banks, null)).toBeNull();
+    expect(findSlotByName(banks, '')).toBeNull();
   });
 });

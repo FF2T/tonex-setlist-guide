@@ -236,9 +236,24 @@ function computeBestPresets(gType, style, banksAnn, banksPlug, guitarId, refAmp,
 // Phase 7.31 — Cherche un slot bank par nom exact (case-insensitive),
 // retourne {bank, col, label} ou null. Permet à enrichAIResult d'honorer
 // preset_ann_name / preset_plug_name retournés par l'IA.
+// Phase 7.56 — Tolérance au format retourné par l'IA. Gemini Flash
+// recopie parfois le format complet de la ligne buildInstalledSlotsSection
+// au lieu du nom seul, ex. '48A "Kirk & James - Gasoline v2"' au lieu
+// de 'Kirk & James - Gasoline v2'. On strip donc :
+// 1. Prefix position "BB[C]" (1-2 chiffres + lettre A/B/C) en début
+// 2. Quotes (simples ou doubles) en début/fin
+// 3. Whitespace
+// Avant Phase 7.56, ce match échouait → fallback scoring V9 →
+// Mac/iPhone pin Factory (HG MARK3) au lieu de la custom Galtone.
 function findSlotByName(banks, name) {
   if (!banks || !name) return null;
-  const target = String(name).trim().toLowerCase();
+  let target = String(name).trim();
+  // Strip prefix position "48A " ou "9C " (1-2 digits + letter A/B/C, case-insensitive)
+  target = target.replace(/^\s*\d{1,2}[ABC]\s+/i, '');
+  // Strip enclosing quotes (simple ou double)
+  target = target.replace(/^["']/, '').replace(/["']$/, '');
+  target = target.trim().toLowerCase();
+  if (!target) return null;
   for (const [k, v] of Object.entries(banks)) {
     for (const c of ['A', 'B', 'C']) {
       if (v?.[c] && String(v[c]).trim().toLowerCase() === target) {
