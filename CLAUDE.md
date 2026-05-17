@@ -746,11 +746,11 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-17, Phases 7.54.x → 7.60.1 close — sync stable + landing publique + snapshot démo balance pack creators)
+## État actuel (2026-05-17, Phases 7.54.x → 7.62 close — sync stable + landing publique + snapshot démo balance pack creators + fix critique sync activeProfileId)
 
-**Backline v8.14.100 / SW backline-v200 / STATE_VERSION 10 / 1047 tests verts.**
+**Backline v8.14.102 / SW backline-v202 / STATE_VERSION 10 / 1047 tests verts.**
 
-Session 2026-05-17 = **27 phases livrées en 32 deploys prod**.
+Session 2026-05-17 = **29 phases livrées en 34 deploys prod**.
 Sync bilatérale Mac↔iPhone validée avec push WITH aiCache stable,
 pin customs IA fonctionnel via post-processing tolérant, mode démo
 durci, UI épurée. **Protections défensives Phase 7.59** ajoutées
@@ -759,7 +759,18 @@ sort le premier morceau de la stratégie de conversion publique
 (landing pour first-time visitors + ThanksScreen post-Tally).
 **Phase 7.60.1** finalise le snapshot démo avec un balance 4 pack
 creators à parité, en vue d'envoi à Paul Drew (TSR) et autres
-peer-creators.
+peer-creators. **Phase 7.60.2** corrige le wording FR DemoBanner
+("ta rig" → "ton matériel"). **Phase 7.62** fixe un bug
+architectural critique : `activeProfileId` était synced via
+Firestore et causait des bascules involontaires cross-device entre
+beta-testeurs (manifesté Sébastien Mac ↔ Francisco iPhone le
+17 mai soir).
+
+**Premier feedback beta-tester Francisco reçu le 17 mai soir** :
+3 retours qualitatifs en 1h (bug Get Lucky family match → Phase
+7.64, knob settings chiffrés → Phase 9 promue validée 2 signaux
+indépendants, pédales → Phase 8 validée par 2e mention). Réponse
+combinée Sébastien envoyée, conversation positive et chaleureuse.
 
 ### Phase 7.60.1 — Snapshot démo balance 4 pack creators (v8.14.100)
 
@@ -870,6 +881,17 @@ public/sw.js                 CACHE backline-v199 → backline-v200
   `scoreLabel(sc)` qui retourne déjà une couleur cohérente cf
   Phase 7.50). Tester sur les 8 morceaux de la démo + sur une
   setlist Bruno-style pour valider visuellement.
+
+### Phase 7.60.2 — Wording fix FR DemoBanner (v8.14.101)
+
+Modif texte mineure sur `src/app/components/DemoBanner.jsx` :
+*"Pour avoir ton propre profil avec ta rig"* → *"...avec ton
+matériel"*. "Rig" est un anglicisme et "ta rig" est
+grammaticalement bancal en FR. EN garde "your rig" (terme guitar
+OK en anglais), ES inchangé ("tu equipo" déjà correct).
+
+1 ligne modifiée + bump APP_VERSION + SW CACHE. Pas de modif data,
+pas de bump STATE_VERSION.
 
 ### Phase 7.62 — Fix critique sync activeProfileId (v8.14.102, LIVRÉ 2026-05-17)
 
@@ -7336,6 +7358,53 @@ profile {
   passer en stale-while-revalidate sur le HTML.
 
 ## Idées en attente (proposées, pas encore validées)
+
+### Phase 8 (validée 2026-05-17 — 2 signaux indépendants Francisco) — Recommandation pédales modélisées
+
+**Status mis à jour 2026-05-17 soir** : promue de mention diffuse
+("Phase 8+") à **dette validée par 2 signaux user** :
+
+1. **Francisco commentaire Reddit initial** (2026-05-15) :
+   *"¿Le pediste también pedales para usar con la pedalera
+   AmpliTube?"* — 1ère mention.
+2. **Francisco message 17 mai soir** : *"Piensa en los pedales.*
+   *Se que tonex no trabaja con pedales excepto overdrive. Pero*
+   *para sacar el tono de una guitarra es algo muy importante."* —
+   2ème mention explicite, confirme l'importance perçue côté user.
+
+**Scope envisagé Phase 8** :
+- Recommander pédales modélisées (chorus, delay, reverb, phaser,
+  flanger, tremolo, vibrato, etc.) pour chaque morceau
+- Base de données pédales similaire à `PRESET_CATALOG_MERGED` mais
+  pour les FX classiques (Boss CE-2, EHX Memory Man, Strymon Big
+  Sky, etc.)
+- Mapping morceau → pédales historiquement utilisées via prompt IA
+  (et/ou catalog statique pour les cas iconiques)
+- Affichage dans la fiche song : section "Pédales recommandées"
+  séparée des recos preset capture
+- Compatible AmpliTube (suggestion Francisco) : si user a AmpliTube,
+  lister les noms équivalents AmpliTube de chaque pédale
+
+**Effort estimé** : chantier majeur, ~20-40h dev :
+- Construire base de données pédales (manual curation ou scraping)
+- Étendre le prompt IA pour retourner `pedals_used: [{name, params}]`
+- Schema localStorage extension (bump STATE_VERSION 10 → 11)
+- UI section dédiée
+- Tests Vitest
+
+**Timing** : **après Phase 7.61 + 7.64 + 9** (les 3 dettes
+prioritaires actuelles). Probably **fin juin / juillet** si
+bandwidth.
+
+**Dépendances ouvertes** :
+- Bass Elliot (TSR_PACK_GROUPS.Bass) : étendre scoring aux basses
+  (cf section "Catalog Anniversary Premium" de CLAUDE.md ligne 639+)
+- Drive Pedal Pack 3, Jivey Drives, Jivey Drives 2 : packs TSR
+  "pédale seule" qui ne fittent pas le modèle amp-centric V9
+  actuel. Phase 8 pourrait ajouter `entry.kind: 'pedal'` qui shunte
+  refAmpScore — réconcilier ces packs avec le scoring.
+
+
 
 ### Améliorations mode démo (proposées, à activer selon priorité)
 
