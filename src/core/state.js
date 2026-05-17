@@ -61,7 +61,7 @@ import {
 import demoSnapshot from '../data/demo-profile.json';
 
 // ─── Versioning + clés localStorage ──────────────────────────────────
-const STATE_VERSION = 9;
+const STATE_VERSION = 10;
 const LOCALE_KEY = 'backline_locale'; // Phase 7.49 — fallback pour migrateV7toV8
 const TOMBSTONE_MAX_AGE_MS = 30 * 24 * 3600 * 1000;
 const LS_KEY = 'tonex_guide_v2';        // nom historique stable
@@ -334,6 +334,34 @@ function ensureProfilesV9(profiles) {
   return out;
 }
 
+// Phase 7.54 — v9 → v10 : pose `profile.aiCache = {}` (additif optionnel).
+// Stocke les analyses IA per-profile au lieu de partagé dans
+// `shared.songDb[i].aiCache`. Chaque profil ne stocke que SES analyses
+// → state local par device diminue drastiquement quand plusieurs profils
+// utilisent l'app.
+//
+// La migration ne touche PAS shared.songDb[i].aiCache existant (rétro-
+// compatible — fallback de lecture). C'est `migrateV9toV10` qui se
+// charge de copier shared → profile pour le profil actif et de drop le
+// shared associé.
+//
+// Idempotent : si profile.aiCache existe déjà, retourne le profil tel
+// quel.
+function ensureProfileV10(profile) {
+  if (!profile) return profile;
+  const v9 = ensureProfileV9(profile);
+  if (v9.aiCache && typeof v9.aiCache === 'object') return v9;
+  return { ...v9, aiCache: {} };
+}
+function ensureProfilesV10(profiles) {
+  if (!profiles) return profiles;
+  const out = {};
+  for (const [id, p] of Object.entries(profiles)) {
+    out[id] = ensureProfileV10(p);
+  }
+  return out;
+}
+
 // Garbage-collection des tombstones plus anciens que `maxAgeMs`
 // (default 30 jours). Pure ; retourne un nouveau map. Au-delà de cette
 // fenêtre, on considère que tous les devices ont propagé la suppression.
@@ -455,6 +483,75 @@ function migrateV8toV9(v8) {
     version: 9,
     profiles: ensureProfilesV9(v8.profiles),
   };
+}
+
+// Phase 7.54 — v9 → v10 : migration aiCache shared → per-profile.
+//
+// Étapes :
+// 1. Pose `profile.aiCache = {}` sur TOUS les profils (additif via
+//    ensureProfilesV10).
+// 2. Pour le profil ACTIF (activeProfileId) UNIQUEMENT :
+//    - Identifie les songs présentes dans ses setlists (où profileIds
+//      inclut activeProfileId).
+//    - Pour chaque song avec shared.songDb[i].aiCache présent :
+//      copie aiCache → profile.aiCache[songId] et set
+//      shared.songDb[i].aiCache = null.
+//    - Stamp profile.lastModified pour propager via Firestore LWW.
+// 3. Les aiCache des songs hors setlists du profil actif restent dans
+//    shared (préservés pour les autres profils qui pourraient les
+//    avoir dans leurs setlists). Quand un autre profil bootera en
+//    v10, sa propre migration migrera ses songs.
+//
+// Idempotente : sur un state déjà v10, le helper extrait toujours les
+// aiCache shared restants (cas dégénéré où une song serait
+// re-shared-cached par un pull pré-7.54), ce qui converge vers un
+// état où shared.songDb[i].aiCache est null pour les songs du profil
+// actif.
+function migrateV9toV10(state) {
+  if (!state) return state;
+  const out = { ...state, version: 10, profiles: ensureProfilesV10(state.profiles) };
+  const activeId = state.activeProfileId;
+  const profiles = out.profiles || {};
+  if (!activeId || !profiles[activeId]) return out;
+  const activeProfile = profiles[activeId];
+  // Songs dans les setlists du profil actif
+  const mySongIds = new Set();
+  const setlists = state.shared?.setlists || [];
+  for (const sl of setlists) {
+    if (!Array.isArray(sl.profileIds) || !sl.profileIds.includes(activeId)) continue;
+    for (const id of sl.songIds || []) mySongIds.add(id);
+  }
+  // Copier aiCache shared → profile.aiCache + drop shared
+  const newProfileCache = { ...(activeProfile.aiCache || {}) };
+  const newSongDb = (state.shared?.songDb || []).map((s) => {
+    if (!s || !s.id || !mySongIds.has(s.id)) return s;
+    if (!s.aiCache) return s;
+    // Si profile a déjà un aiCache plus récent (sv supérieur), on le
+    // garde et on drop juste le shared. Sinon, on copie.
+    const existing = newProfileCache[s.id];
+    const existingSv = existing && typeof existing.sv === 'number' ? existing.sv : -1;
+    const sharedSv = s.aiCache && typeof s.aiCache.sv === 'number' ? s.aiCache.sv : 0;
+    if (sharedSv > existingSv) {
+      newProfileCache[s.id] = s.aiCache;
+    }
+    return { ...s, aiCache: null };
+  });
+  out.profiles = {
+    ...profiles,
+    [activeId]: { ...activeProfile, aiCache: newProfileCache, lastModified: Date.now() },
+  };
+  out.shared = { ...(state.shared || {}), songDb: newSongDb };
+  return out;
+}
+
+// Phase 7.54 — Helper lookup aiCache (priorité profile.aiCache, fallback
+// shared.songDb[i].aiCache). Exposé pour la dérivation
+// songDbWithProfileCache au niveau App + pour les call sites isolés.
+function getProfileAiCache(profile, songId) {
+  if (!profile || !songId) return null;
+  const cache = profile.aiCache;
+  if (cache && typeof cache === 'object' && cache[songId]) return cache[songId];
+  return null;
 }
 
 // ─── Merge helpers LWW (utilisés par main.jsx applyRemoteData) ────────
@@ -592,15 +689,15 @@ function mergeProfilesLWW(localProfiles, remoteProfiles, options = {}) {
       const rts = typeof rp.lastModified === 'number' ? rp.lastModified : 0;
       if (rts > lts) {
         const adopted = applySecrets ? applySecrets({ [id]: rp })[id] : rp;
-        out[id] = ensureProfileV9(adopted);
+        out[id] = ensureProfileV10(adopted);
       } else {
-        out[id] = ensureProfileV9(lp);
+        out[id] = ensureProfileV10(lp);
       }
     } else if (lp) {
-      out[id] = ensureProfileV9(lp);
+      out[id] = ensureProfileV10(lp);
     } else if (rp) {
       const adopted = applySecrets ? applySecrets({ [id]: rp })[id] : rp;
-      out[id] = ensureProfileV9(adopted);
+      out[id] = ensureProfileV10(adopted);
     }
   }
   return out;
@@ -1171,8 +1268,10 @@ function stripDemoFromSetlists(state, { stamp = true } = {}) {
 // passe `gcTombstones` finale (purge >30j) défensive.
 function _runFullChain(d) {
   const v9 = migrateV8toV9(migrateV7toV8(migrateV6toV7(migrateV5toV6(migrateV4toV5(migrateV3toV4(d))))));
-  if (v9 && v9.shared && v9.shared.deletedSetlistIds) {
-    v9.shared = { ...v9.shared, deletedSetlistIds: gcTombstones(v9.shared.deletedSetlistIds) };
+  // Phase 7.54 — v9 → v10 : aiCache per-profile.
+  const v10 = migrateV9toV10(v9);
+  if (v10 && v10.shared && v10.shared.deletedSetlistIds) {
+    v10.shared = { ...v10.shared, deletedSetlistIds: gcTombstones(v10.shared.deletedSetlistIds) };
   }
   // Phase 7.52.9 — Heal défensif au load : retire 'demo' des profileIds
   // des setlists non-démo (pollution Firestore historique, cf
@@ -1181,7 +1280,7 @@ function _runFullChain(d) {
   // au boot. Sinon Mac+iPhone stamperaient chacun au boot → loop LWW
   // infinie → sync cassée. Le stamp se fait seulement au push Firestore
   // (saveToFirestore.prep) pour propager le clean correctement.
-  return stripDemoFromSetlists(v9, { stamp: false });
+  return stripDemoFromSetlists(v10, { stamp: false });
 }
 
 function loadState() {
@@ -1190,6 +1289,7 @@ function loadState() {
     if (raw) {
       const d = JSON.parse(raw);
       if (d.version === STATE_VERSION) return _runFullChain(d);
+      if (d.version === 9) return _runFullChain(d);
       if (d.version === 8) return _runFullChain(d);
       if (d.version === 7) return _runFullChain(d);
       if (d.version === 6) return _runFullChain(d);
@@ -1604,6 +1704,7 @@ export {
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
   mergeToneNetPresetsLWW,
+  ensureProfileV10, ensureProfilesV10, migrateV9toV10, getProfileAiCache,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,
   toggleSetlistProfile,

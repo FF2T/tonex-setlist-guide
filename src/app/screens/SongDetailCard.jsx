@@ -42,7 +42,15 @@ import GuitarSelect from '../components/GuitarSelect.jsx';
 import PBlock from '../components/PBlock.jsx';
 import FeedbackPanel from '../components/FeedbackPanel.jsx';
 
-function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, onClose, guitars, allRigsGuitars, availableSources, savedGuitarId, onGuitarChange, aiProvider, aiKeys, onSongDb, profile, guitarBias, onTmpPatchOverride }) {
+function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, onClose, guitars, allRigsGuitars, availableSources, savedGuitarId, onGuitarChange, aiProvider, aiKeys, onSongDb, onAiCacheUpdate, profile, guitarBias, onTmpPatchOverride }) {
+  // Phase 7.54 — Helper interne : écrit aiCache via onAiCacheUpdate
+  // (profile.aiCache) si disponible, sinon fallback onSongDb (shared).
+  // Pour les invalidations (value=null), utilise aussi onAiCacheUpdate
+  // (qui supprimera l'entry du profile.aiCache).
+  const writeAiCache = (newValue) => {
+    if (onAiCacheUpdate) onAiCacheUpdate(song.id, newValue);
+    else if (onSongDb) onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, aiCache: newValue } : x));
+  };
   const locale = useLocale();
   const ig = getIg(song, guitars);
   const [gId, setGId] = useState(savedGuitarId || ig[0] || '');
@@ -74,7 +82,8 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
       const recalc = enrichAIResult(cleaned2, gType, gId, banksAnn, banksPlug, undefined, song);
       setLocalAiResult(recalc);
       setLocalAiErr(null);
-      setTimeout(() => onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, aiCache: { ...updateAiCache(x.aiCache, gId, recalc), sv: SCORING_VERSION } } : x)), 0);
+      // Phase 7.54 — Écrit dans profile.aiCache
+      setTimeout(() => writeAiCache({ ...updateAiCache(song.aiCache, gId, recalc), sv: SCORING_VERSION }), 0);
       return;
     }
     if (!onSongDb) return;
@@ -89,7 +98,8 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         setLocalAiResult(r);
         setLocalAiErr(null);
         const rigSnapshot = computeRigSnapshot(allRigsGuitars || guitars);
-        onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, aiCache: { ...updateAiCache(x.aiCache, gId, r, { rigSnapshot }), sv: SCORING_VERSION } } : x));
+        // Phase 7.54 — Écrit dans profile.aiCache
+        writeAiCache({ ...updateAiCache(song.aiCache, gId, r, { rigSnapshot }), sv: SCORING_VERSION });
         if (!gId && r?.ideal_guitar && onGuitarChange) {
           const matched = findGuitarByAIName(r.ideal_guitar, allRigsGuitars || guitars);
           if (matched) {
@@ -405,7 +415,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 <button key={id || 'profile'}
                   data-testid={`song-reco-mode-${id || 'profile'}`}
                   onClick={() => {
-                    onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, recoMode: id || undefined, aiCache: null } : x));
+                    // Phase 7.54 — recoMode reste dans song (shared), aiCache va dans profile.
+                    onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, recoMode: id || undefined } : x));
+                    writeAiCache(null);
                     setLocalAiResult(null);
                   }}
                   title={id ? tFormat('song-detail.mode-tooltip-override', { label }, 'Override : {label}') : t('song-detail.mode-tooltip-profile', 'Hérite du mode profil. Cliquer invalide le cache IA pour re-fetcher avec le nouveau mode.')}
@@ -563,7 +575,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                     data-testid="song-feedback-clear-all"
                     onClick={() => {
                       if (!window.confirm(tFormat('song-detail.feedback-clear-confirm', { count: all.length, title: song.title }, 'Effacer tous les {count} feedbacks pour "{title}" ?\n\nL\'analyse IA va être recalculée sans tes corrections passées (~8s).'))) return;
-                      onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, feedback: [], aiCache: null } : x));
+                      // Phase 7.54 — feedback dans song (shared), aiCache dans profile
+                      onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, feedback: [] } : x));
+                      writeAiCache(null);
                       setLocalAiResult(null);
                     }}
                     style={{ fontSize: 9, background: 'none', border: '1px solid var(--a10)', color: 'var(--text-dim)', borderRadius: 'var(--r-sm)', padding: '1px 6px', cursor: 'pointer' }}
@@ -578,7 +592,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                       <button
                         data-testid={`song-feedback-delete-${i}`}
                         onClick={() => {
-                          onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, feedback: (x.feedback || []).filter((_, j) => j !== i), aiCache: null } : x));
+                          // Phase 7.54 — feedback dans song (shared), aiCache dans profile
+                          onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, feedback: (x.feedback || []).filter((_, j) => j !== i) } : x));
+                          writeAiCache(null);
                           setLocalAiResult(null);
                         }}
                         title={t('song-detail.feedback-delete-tooltip', 'Supprimer ce feedback + recalculer la reco IA sans lui')}
@@ -601,11 +617,11 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                     .then((r) => {
                       const pick = mergeBestResults(prev, r);
                       setLocalAiResult(pick);
-                      if (onSongDb) onSongDb((p) => p.map((x) => {
-                        if (x.id !== song.id) return x;
-                        const newFeedback = fb ? [...(x.feedback || []), { text: fb, ts: Date.now() }] : x.feedback;
-                        return { ...x, aiCache: updateAiCache(x.aiCache, gId, pick), feedback: newFeedback };
-                      }));
+                      // Phase 7.54 — feedback dans song (shared), aiCache dans profile.
+                      if (fb && onSongDb) {
+                        onSongDb((p) => p.map((x) => x.id !== song.id ? x : { ...x, feedback: [...(x.feedback || []), { text: fb, ts: Date.now() }] }));
+                      }
+                      writeAiCache(updateAiCache(song.aiCache, gId, pick));
                     })
                     .catch((e) => { setLocalAiErr(e?.message || String(e)); })
                     .finally(() => setReloading(false));

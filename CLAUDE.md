@@ -746,7 +746,116 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-16, Phase 7.53.1 close — LWW per-item toneNetPresets)
+## État actuel (2026-05-17, Phase 7.54 close — aiCache per-profile, STATE_VERSION 10)
+
+**Backline v8.14.85 / SW backline-v185 / STATE_VERSION 10 / 1038 tests verts.**
+
+Phase 7.54 résout structurellement le bug de strip aiCache au push
+Firestore. Le state Mac dépassait 800 KB compressed →
+`stripAiCacheForSync` Phase 5.7.1 retirait l'aiCache du push → modifs
+analyses Mac n'atterrissaient jamais sur iPhone. Cercle vicieux : drop
+local → pull Firestore ré-injecte tous les aiCache via Phase 5.7.1
+`mergeSongDbPreservingLocalAiCache`.
+
+### Cause
+
+Phase 3.6 (mai 2026) : aiCache stocké dans `shared.songDb[i].aiCache`
+partagé entre tous les profils. État Mac contenait 148 aiCache (50
+songs setlists Sébastien + 98 d'autres profils Bruno/Francisco/démo) →
+1.68 MB raw → 922 KB compressed → > seuil 800 KB.
+
+### Fix Phase 7.54 — Migration STATE_VERSION 9 → 10
+
+Nouveau champ `profile.aiCache: {[songId]: aiCacheValue}` per-profile.
+Lookup au render priorité `profile.aiCache` → fallback
+`shared.songDb[i].aiCache` (rétro-compat legacy).
+
+```
+profile {
+  ...,                                  // v9 inchangé
+  aiCache: { [songId]: aiCache }        // v10 : per-profile
+}
+shared.songDb[i] {
+  ...,
+  aiCache?: ...                         // conservé en fallback legacy
+                                        // (drop pour songs du profil
+                                        // actif au moment de la migration)
+}
+```
+
+### migrateV9toV10 (additif, idempotent)
+
+1. Pose `profile.aiCache = {}` sur tous profils via `ensureProfilesV10`
+2. Pour le **profil actif uniquement** (`activeProfileId`) :
+   - Identifie songs dans ses setlists (profileIds inclut activeId)
+   - Pour chaque song avec `shared.songDb[i].aiCache` : copie →
+     `profile.aiCache[songId]` puis drop `shared.songDb[i].aiCache = null`
+3. Les autres profils gardent shared.aiCache jusqu'à leur boot v10
+4. Idempotente : preserve si profile.aiCache déjà plus récent (sv supérieur)
+
+### Architecture livrée
+
+```
+src/core/state.js
+  STATE_VERSION 9 → 10
+  +ensureProfileV10 / ensureProfilesV10
+  +migrateV9toV10
+  +getProfileAiCache helper
+  mergeProfilesLWW utilise ensureProfileV10
+src/main.jsx
+  +songDbWithProfileCache useMemo (dérivation au render)
+  +setSongAiCache useCallback (écrit profile.aiCache)
+  syncHash inclut profile.aiCache
+  Batch rescore Phase 1 utilise songDbWithProfileCache + setSongAiCache
+  Propagation aux 6 screens
+src/app/screens/SongDetailCard.jsx
+  +writeAiCache helper interne (route onAiCacheUpdate ou onSongDb)
+  5 sites d'écriture adaptés (fetchAI, recoMode, feedback x3)
+src/app/screens/ListScreen.jsx
+  +prop onAiCacheUpdate (batch analyzeMissingAll, improveAll)
+src/app/screens/SetlistsScreen.jsx, HomeScreen.jsx, RecapScreen.jsx,
+  MonProfilScreen.jsx, MaintenanceTab.jsx
+  +prop onAiCacheUpdate propagée
+  Sites add song / wipe / recalcAll adaptés
+src/app/components/AddSongModal.jsx
+  +prop onAiCacheUpdate
+src/core/state.test.js  +13 tests Phase 7.54
+src/main.jsx APP_VERSION 8.14.84 → 8.14.85
+public/sw.js CACHE backline-v184 → backline-v185
+```
+
+### Conséquences
+
+- **1038/1038 tests verts** (+13 Phase 7.54)
+- **Bundle** 2160.91 → 2163.32 KB (+2.4 KB)
+- **STATE_VERSION 9 → 10** : additif, idempotent, rétrocompatible
+- **Cohabitation v9/v10** : un device pré-7.54 ignore profile.aiCache,
+  un device v10 reçoit v9 push, ensureProfileV10 pose aiCache={} à
+  l'adoption.
+
+### Effet attendu Mac + iPhone post-déploiement
+
+1. Reload PWA Mac 2× → migration auto → 50 aiCache Sébastien dans
+   profile.aiCache, shared.songDb allégé
+2. Push Firestore → state allégé → compressed < 800 KB → push WITH
+   aiCache (plus de strip)
+3. iPhone reload 2× → pull → reçoit profile.aiCache Sébastien via
+   mergeProfilesLWW → modifs Mac propagées
+4. Beta-testeurs futurs : first boot v10 migre leur propre aiCache
+   shared. État local ne contient QUE leurs analyses.
+
+### Limites acceptées v1
+
+- **Merge LWW grossier au profil** : modifs aiCache parallèles sur Mac
+  vs iPhone → le LWW garde le profil le plus récent. Cas rare,
+  acceptable.
+- **Wipe "Invalider tous les caches" admin** wipe aussi shared.aiCache
+  legacy en plus de profile.aiCache. Si d'autres profils ont des
+  shared.aiCache, perdus côté curateur.
+
+---
+
+## État précédent (2026-05-16, Phase 7.53.1 close — LWW per-item toneNetPresets)
 
 **Backline v8.14.82 / SW backline-v182 / STATE_VERSION 9 / 1017 tests verts.**
 
@@ -6659,7 +6768,12 @@ spécifiques pour artistes pas couverts par Anniversary Premium).
 **Décision actuelle** : **proposée Phase 7.53**, pas d'implémentation
 immédiate.
 
-### Phase 7.54 (proposée) — aiCache per-profile (sync isolé par profil)
+### Phase 7.54 — ✅ LIVRÉE 2026-05-17 (cf section "État actuel" en haut)
+
+aiCache per-profile (STATE_VERSION 10). Le texte ci-dessous reste comme
+contexte design pour référence historique.
+
+### Phase 7.54 (contexte design — livrée)
 
 **Contexte** : aujourd'hui le `aiCache` est stocké dans
 `shared.songDb[i].aiCache` (Phase 3.6 décision : "partagé entre
@@ -6901,6 +7015,435 @@ Phase 9 hypothétique, à activer si :
 
 (cf. BETA_TESTING.md section 2 Ok_Ask2411 pour les détails du
 format observé et la comparaison Backline ↔ Gear Assistant.)
+
+### Phase 7.55 (proposée) — Blindage mode démo pour conversion publique
+
+**Contexte** : Phase 7.51 (mai 2026) a livré l'infrastructure du mode
+démo (foundations / guards runtime / accès UI + banner / outil
+d'export admin) + Phase 7.51.4 + Phase 7.52.14-16 (override par id,
+buildDemoSnapshot préserve curateur). Le mode démo *fonctionne
+techniquement* — un visiteur peut entrer via `?demo=1` ou la carte
+ProfilePicker et explorer une Demo Setlist de 11 morceaux pré-curée.
+
+**Mais** : un audit UX en mode "visiteur first-time ToneX user"
+mené 2026-05-17 a révélé que la **conversion** du mode démo est
+faible parce que :
+1. La home publique (`/`) ne *vend* pas l'app — elle affiche
+   directement ProfilePickerScreen avec une carte démo discrète,
+   aucune landing marketing au-dessus. Un visiteur Reddit/DM qui
+   débarque sans contexte préalable ne comprend pas ce qu'il
+   regarde et bounce probablement avant de cliquer "Mode démo".
+2. La modale d'onboarding démo est bonne sur le problème ("tu
+   scrolles, tu testes, tu perds du temps") mais ne *montre* pas
+   immédiatement la valeur — il faut taper un morceau dans le
+   champ recherche pour voir le "aha moment" (fiche reco
+   complète avec banque/slot + conseils de réglage).
+3. L'écran Accueil démo après la modale est un grand champ
+   recherche vide — le visiteur ne sait pas quoi taper.
+4. Le CTA "demande un accès" dans la bannière démo pointe sur un
+   `mailto:` (Phase 7.51.3) — Phase 7.44 propose un formulaire
+   structuré, à coupler.
+5. Une seconde cible **studios de captures** (Studio Rats déjà en
+   contact via Paul Phase 7.45, future ML Sound Lab / Galtone /
+   Amalgam Audio etc.) n'a aucune page dédiée alors qu'elle a
+   des questions complètement différentes des guitaristes
+   ("comment mon pack est catalogué ? combien d'users l'ont ?").
+6. Bugs responsive iPhone/iPad documentés (cf. sous-section
+   "Bugs UI/UX responsive identifiés" plus bas).
+
+**Cible utilisateur double et coexistante** :
+- **Beta-testeurs guitaristes ToneX** (cible principale V1) :
+  utilisateurs Pedal Anniversary / Plug avec ≥10 packs achetés,
+  pain point "scroller dans 600+ presets en répète". Conversion
+  attendue : visiteur → mode démo → demande d'accès → setup admin
+  par Sébastien.
+- **Studios de captures** (cible stratégique secondaire) :
+  éditeurs de packs (Studio Rats, ML Sound Lab, Galtone, Amalgam
+  Audio…) qui pourraient devenir partenaires/promouvoir l'app à
+  leur clientèle. Pain point : visibilité de leurs packs dans le
+  workflow utilisateur. Conversion attendue : page dédiée → contact
+  établi → témoignage / co-marketing.
+
+**Contrainte V1** : positionnement ToneX-only assumé (Pedal,
+Anniversary, Plug, Cab). Tone Master Pro reste en R&D, non garanti.
+Ne pas mentionner Quad Cortex / Kemper / NAM / Helix dans la
+landing publique tant que la V1 n'est pas validée — risque
+d'attirer des visiteurs déçus et de diluer le positionnement.
+
+#### Sous-phase 7.55.1 (P0) — Landing publique au-dessus du picker
+
+Aujourd'hui `/` rend `ProfilePickerScreen` directement. Phase
+7.55.1 insère une **landing page marketing** servie à `/` pour
+les visiteurs first-time (détection : aucun profil trusted dans
+`tonex_trusted_devices` localStorage). Si profil trusted présent
+→ skip landing → ProfilePicker (comportement actuel préservé
+pour les utilisateurs récurrents).
+
+Contenu landing :
+- **H1** : "Backline — le copilote intelligent de ta ToneX"
+- **Sous-titre** : "Quel preset, quelle guitare, quels réglages —
+  pour chaque morceau. L'IA fait le tri dans tes 64 packs."
+- **3 captures animées** (GIF/MP4, à produire avec OBS sur la
+  démo curée) : (1) tape un morceau, (2) voit la reco avec
+  banque/slot, (3) conseils de réglage micro/tone/volume.
+- **Ligne d'assumption matérielle** : "V1 dédiée ToneX (Pedal,
+  Anniversary, Plug, Cab). Support Tone Master Pro en
+  développement."
+- **2 CTAs principaux** :
+  - "Essayer en mode démo" → click → set
+    `_demoModeRequested = true` → `enterDemoMode()` (réutilise
+    Phase 7.51.3).
+  - "Demander un accès beta" → click → ouvre le formulaire
+    Phase 7.44 (ou `mailto:` legacy si 7.44 pas implémenté).
+- **Lien discret footer** : "Vous éditez des packs ?" →
+  Sous-phase 7.55.4 (page studios).
+
+Composants à créer :
+- `src/app/screens/LandingScreen.jsx` : composant React avec
+  hero + features + CTAs.
+- `src/main.jsx` : router pour servir `<LandingScreen>` si
+  `!hasTrustedDevice() && screen === 'picker'`.
+- `src/i18n/{en,es}.js` : traductions complètes des copies
+  landing (FR fallback inline).
+- Assets visuels : 3 GIFs/MP4 à produire, à stocker en data-URI
+  inline (vite-plugin-singlefile contrainte) ou hébergé GitHub
+  Pages (`public/assets/landing/`).
+
+**Coût estimé** : ~6-8h dev (composant + i18n + integration
+router) + ~4-6h production assets vidéo. Pas de bump
+STATE_VERSION (purement UI publique).
+
+#### Sous-phase 7.55.2 (P0) — Pré-charger un exemple direct
+
+Aujourd'hui modale d'intro démo affiche 4 étapes numérotées avec
+emojis + bouton "C'est parti !" qui ferme la modale et amène sur
+Accueil avec champ vide. Le "aha moment" arrive seulement après
+taper "Highway to Hell" et cliquer la suggestion.
+
+Phase 7.55.2 ajoute un **bouton secondaire** dans la modale
+d'intro : "Voir un exemple direct". Click → ferme la modale +
+charge automatiquement la fiche "Highway to Hell" comme si
+l'utilisateur l'avait choisie. C'est l'écran le plus impressionnant
+de l'app (titre + history + raisonnement IA + reco preset/guitare
++ banque/slot + conseils micro/tone) — il faut le mettre devant.
+
+Implémentation : la modale d'intro vit dans `HomeScreen.jsx`
+(composant `OnboardingWizard` Phase 1+). Ajouter un 2e CTA qui
+appelle `onAddSong({ id: 'acdc_highway_to_hell', ... })` puis
+ferme la modale. La fiche s'ouvrira automatiquement.
+
+**Coût estimé** : ~1-2h dev. Trivial mais gros impact perçu.
+
+#### Sous-phase 7.55.3 (P1) — Curiosité guidée sur Accueil démo
+
+Aujourd'hui Accueil démo après fermeture de la modale d'intro =
+grand vide avec champ "Titre, artiste…". Paralysant pour un
+visiteur qui ne sait pas quoi chercher.
+
+Phase 7.55.3 ajoute (uniquement en mode démo, gated par
+`profile.isDemo`) :
+- **4 chips de morceaux suggérés** sous le champ recherche :
+  "Essaye : *Highway to Hell* · *The Thrill Is Gone* · *Smoke on
+  the Water* · *Wish You Were Here*". Click sur un chip → charge
+  la fiche correspondante.
+- **Bouton "🎲 Tirer un morceau au hasard"** : pioche aléatoirement
+  parmi les 11 morceaux de la Demo Setlist et charge la fiche.
+
+Composants à modifier :
+- `src/app/screens/HomeScreen.jsx` : props supplémentaires
+  `isDemo` (déjà disponible Phase 7.51.3.1) + ajout de la section
+  chips + bouton random.
+- Aucune nouvelle dépendance, aucun nouveau state global.
+
+**Coût estimé** : ~2h dev + smoke test.
+
+#### Sous-phase 7.55.4 (P2) — Page dédiée aux studios de captures
+
+Aujourd'hui aucune page ne parle aux éditeurs de packs. Paul (TSR)
+a répondu cordialement Phase 7.45 mais sans page de "pitch
+B2B" claire, un nouvel éditeur n'aura pas de raison de creuser.
+
+Phase 7.55.4 ajoute `/studios` (route SPA, pas une vraie URL
+serveur) avec :
+- **Pitch dédié** : "Vos captures, intelligemment recommandées à
+  des centaines d'utilisateurs ToneX par morceau qu'ils jouent."
+- **Comment ça marche** : Backline catalogue les packs par
+  éditeur + amp source + gain bucket. Le moteur de scoring V9
+  cible les captures pertinentes selon le morceau + la guitare
+  de l'utilisateur. L'utilisateur voit la banque/slot de SA pédale
+  + le nom de TON pack.
+- **Stats anonymisées** (futur, Phase 7.55.5+) : "X% des
+  utilisateurs Backline ont au moins un de vos packs", "Top 3
+  morceaux où vos captures sont recommandées".
+- **Showcase** : screenshots de fiches morceau où un pack TSR /
+  ML / autre est recommandé (avec accord du studio).
+- **CTA** : "Devenir partenaire" → `mailto:sebastien.chemin@gmail.com`
+  ou form Phase 7.44 avec champ "Je suis un studio".
+
+Composants :
+- `src/app/screens/StudiosScreen.jsx` : nouveau, similaire en
+  structure à LandingScreen 7.55.1.
+- Lien discret footer "Vous éditez des packs ?" → route
+  `screen === 'studios'`.
+- Pas de gating profil (publique).
+
+**Coût estimé** : ~4-6h dev pour la page statique + ~2-3h
+copywriting/design. Stats anonymisées = Phase ultérieure
+(nécessite collecte télémétrie opt-in).
+
+#### Sous-phase 7.55.5 (P1) — Formulaire "demande un accès" qualifiant
+
+Aujourd'hui le lien dans la bannière démo (Phase 7.51.3) ouvre un
+`mailto:` pré-rempli. Pour scaler au-delà de 10-20 testeurs, basculer
+sur le formulaire Phase 7.44 (déjà documenté dans "Idées en
+attente") avec **enrichissement spécifique mode démo** :
+- Champ "Comment as-tu découvert Backline ?" (radio : Reddit /
+  DM / Démo publique / Studio recommended / Autre).
+- Champ "Tu testes en mode démo depuis combien de temps ?" (radio :
+  <5 min / 5-15 min / >15 min). Premier signal qualitatif sur le
+  fit.
+
+Ces champs alimentent le rapport conversion mode démo (Sous-phase
+7.55.7).
+
+**Coût estimé** : ~1-2h supplémentaires en plus de Phase 7.44 si
+les deux sont livrées ensemble.
+
+#### Sous-phase 7.55.6 (P1) — Tracker l'engagement démo
+
+Sébastien valide un concept → besoin de signaux quantitatifs.
+Aucun analytics aujourd'hui. Phase 7.55.6 ajoute (privacy-friendly,
+opt-out par défaut respectant les utilisateurs avec
+`navigator.doNotTrack`) :
+
+Évènements à tracker :
+- Entrée landing publique (Phase 7.55.1)
+- Click "Essayer en mode démo" → mode démo entered
+- Click "Voir un exemple direct" (Phase 7.55.2)
+- Recherche effectuée (terme + résultat trouvé / non trouvé)
+- Click sur une fiche morceau depuis Setlists ou Explorer
+- Scroll jusqu'au bloc "PARAMÉTRAGE — MON CHOIX"
+- Click "Demande un accès"
+- Temps passé en mode démo (mesure session)
+
+**Options d'outils analytics** (audit 2026-05-17) classées du
+plus simple au plus puissant :
+
+| Outil | Coût | Effort setup | Privacy | Événements custom | Quand l'utiliser |
+|-------|------|--------------|---------|-------------------|------------------|
+| Cloudflare Web Analytics | gratuit | ~10 min | très bon (zéro cookie, pas de bandeau RGPD) | non | démarrage simple, juste compter les visiteurs et savoir d'où ils viennent |
+| Plausible (cloud) | 9 $/mois pour 10K vues | ~10 min | très bon (RGPD-compliant par défaut) | oui (goals limités) | quand tu communiques sérieusement et veux un dashboard partageable |
+| Umami (self-host) | gratuit (Vercel / Cloudflare Pages free tier) | ~30 min | excellent (tu maîtrises les données) | oui | meilleur trade-off Backline : aligné avec positionnement privacy |
+| PostHog (cloud free) | gratuit jusqu'à 1M events/mois | ~1h | OK (configurable DNT, hosting EU dispo) | oui (funnels, session replays) | quand la beta scale et tu veux des funnels précis |
+
+**À éviter** : Google Analytics (incompatible positionnement privacy
++ bandeau cookies obligatoire en EU + bundle lourd).
+
+**Recommandation séquencée** :
+- **Maintenant** : Cloudflare Web Analytics. 10 min de setup,
+  gratuit, zéro maintenance — tu sais immédiatement si tu as 5
+  ou 500 visiteurs/jour. Largement suffisant pour valider le
+  signal de conversion brut.
+- **Au lancement du post Reddit / DM studios** (couplé à Phase
+  7.55.5 formulaire d'accès) : ajouter **Umami self-hosted sur
+  Vercel** pour tracker les goals précis (entrée démo, click
+  "demande un accès", scroll jusqu'à PARAMÉTRAGE). Les deux outils
+  cohabitent : Cloudflare pour le macro, Umami pour les events.
+- **Plus tard, si beta scale (≥100 visiteurs/sem)** : envisager
+  PostHog pour les vrais funnels et session replays.
+
+**Contraintes spécifiques Backline à respecter** :
+
+1. **Single-file build (`vite-plugin-singlefile`)** : le plugin
+   n'inline QUE les bundles produits par Vite. Un `<script
+   src="https://plausible.io/...">` dans `index.html` reste
+   chargé externe au runtime — aucun blocage technique. Le
+   `<script>` doit être ajouté dans `index.html` côté source
+   (avant le build) ou injecté dans `dist/index.html` après le
+   build par script bash dans le workflow déploiement Phase 5.2.
+2. **GitHub Pages** : aucun analytics server-side possible (pas
+   d'accès aux logs nginx). Tout passe forcément par beacon
+   côté client.
+3. **PWA offline-first** : événements perdus si l'utilisateur
+   joue sans réseau. Acceptable : la majorité des visites du
+   mode démo seront en ligne par définition. Plus tard, on
+   peut implémenter un buffer IndexedDB + flush au retour
+   online si nécessaire.
+4. **Mode démo vs profils trusted** : gate strictement sur
+   `profile.isDemo === true`. Les sessions Sébastien/Bruno/
+   Francisco/etc. = noise (on connaît déjà leur usage). Seuls
+   les visiteurs démo doivent générer des événements.
+5. **DNT (Do Not Track)** : par cohérence avec le ton privacy
+   de Backline, no-op si `navigator.doNotTrack === '1'`.
+   Cloudflare/Plausible/Umami respectent nativement. PostHog
+   doit être configuré explicitement.
+6. **Pas de bandeau cookies** : si tu choisis Cloudflare /
+   Plausible / Umami, aucun cookie n'est posé → pas de banner
+   consentement RGPD nécessaire. Si tu passes à PostHog en mode
+   identifié (cookies de session pour les funnels cross-visite),
+   il faut prévoir un banner — friction supplémentaire à éviter
+   en démo publique.
+
+Composant à créer (commun aux 4 options) :
+- `src/app/utils/analytics.js` : helper `trackEvent(name, props)`
+  qui no-op si :
+  - `navigator.doNotTrack === '1'`
+  - `profile?.isDemo !== true` (gate principal)
+  - Mode `no-sync` activé (Phase 7.24) — cohérence "mode local
+    = aucune télémétrie".
+  Dispatch vers la stack analytics choisie (Plausible
+  `plausible('event_name')` / Umami `umami.track('event_name',
+  {props})` / PostHog `posthog.capture('event_name', {props})`).
+- Câblage minimal : 1 call par événement listé plus haut.
+- À tester localement avec un compte sandbox avant push prod.
+
+**Setup Cloudflare Web Analytics (option recommandée pour
+démarrer)** :
+1. Créer un compte Cloudflare (gratuit).
+2. Dashboard → Analytics & Logs → Web Analytics → Add a site.
+3. Renseigner `mybackline.app` (même si Cloudflare n'est pas
+   le DNS — Cloudflare accepte les sites externes).
+4. Copier le `<script>` JS Snippet (~80 caractères) fourni.
+5. Le coller dans `src/index.html` juste avant `</head>`
+   (sera servi tel quel par vite-plugin-singlefile).
+6. Bumper `APP_VERSION` + SW `CACHE`, build, deploy.
+7. Stats apparaissent sous 24h dans le dashboard Cloudflare.
+
+**Setup Umami self-hosted** :
+1. Fork du repo `umami-software/umami` sur GitHub.
+2. Deploy sur Vercel (1 clic depuis le repo) avec une DB
+   Postgres provisionnée (Vercel Postgres free tier ou
+   Supabase free tier).
+3. Pointer un sous-domaine `stats.mybackline.app` vers le
+   déploiement Vercel (CNAME record côté OVH).
+4. Créer un website dans Umami, copier le script `<script
+   async defer data-website-id="..." src="https://stats.mybackline.app/script.js"></script>`.
+5. Coller dans `src/index.html`.
+6. Build, deploy.
+
+**Coût estimé total** : Cloudflare seul = ~10 min. Umami seul
+= ~30 min setup + ~3-4h câblage events custom + ~1h tests.
+Phase 7.55.6 complète (Cloudflare + Umami + helper analytics.js)
+= ~5-6h.
+
+#### Sous-phase 7.55.7 (P2) — Polish responsive mobile / iPad
+
+Audit responsive 2026-05-17 a révélé :
+
+**iPhone 393×852** :
+- **Bug 1** : bouton OK du champ recherche `HomeScreen.SongSearchBar`
+  déborde à droite. Layout `flex` sans wrap, OK posé après input
+  full-width. Le bord droit du bouton sort de la viewport.
+- **Bug 2** : version `v8.14.84` dans AppHeader tronquée à droite
+  (label trop large).
+- **Bug 3** : Accueil démo a beaucoup de vide noir au centre (header +
+  bannière + Mode scène + champ recherche tassent contenu vers le
+  bas). Optimiser le layout vertical mobile.
+
+**iPad 11" portrait (834×1194)** :
+- Layout = version desktop rétrécie. Pas pensé iPad.
+- Champ recherche + OK rentrent ensemble (711 px pour 830 viewport)
+  mais la mise en page paraît "desktop tassé", pas "iPad natif".
+
+**iPad 11" / 13" — Mode scène** : non testé en condition réelle.
+Phase 7.55.7 inclut un design dédié :
+- Police XXL (titre morceau ~64-80pt, banque/preset ~48pt).
+- Swipe gauche/droite entre morceaux (réutilise gestures Phase 4).
+- Mode portrait + paysage adaptatif (orientation lock OFF).
+- Wake Lock auto (déjà Phase 4) + indicateur visuel "🔒 écran
+  verrouillé".
+- Bouton fullscreen quit en haut à gauche, gros (cible touch 48×48
+  min, ergonomie scène avec doigts moites).
+
+Composants à toucher :
+- `src/app/components/SongSearchBar.jsx` (ou inline `HomeScreen`) :
+  flex wrap au-dessous d'un breakpoint, ou bouton OK en absolute
+  positioned dans l'input.
+- `src/app/components/AppHeader.jsx` : truncate version label
+  via CSS ou cacher sur mobile.
+- `src/app/screens/HomeScreen.jsx` : revoir layout vertical pour
+  mobile (moins de vide central).
+- `src/app/screens/LiveScreen.jsx` : refonte iPad-first.
+
+**Coût estimé** : ~6-8h dev + tests sur iPad réel obligatoires
+(Sébastien a iPad Pro M4 dans son setup).
+
+#### Sous-phase 7.55.8 (P2) — Petits irritants visuels
+
+Détails relevés lors de l'audit, à fixer en lot :
+- Modale d'intro démo : étape 4 "Rock'n'roll !" décoratif, à
+  supprimer ou fusionner avec étape 3.
+- Carte "Mode démo" sur picker : badge "Sans compte" trop gros vs
+  titre, équilibrer hiérarchie typographique.
+- Footer "PathToTone" vs nom produit "Backline" : créer mini-page
+  "À propos" expliquant que PathToTone = société éditrice, Backline
+  = produit. Évite confusion légale et conversion.
+
+**Coût estimé** : ~2h dev.
+
+#### Risques et hors-scope explicite
+
+- **Ne PAS exposer publiquement la liste des profils** dans la
+  landing (Phase 7.29.6 a déjà fixé ce point sur ProfilePicker).
+  S'assurer que la landing 7.55.1 ne fait pas d'appel Firestore
+  pour des données users.
+- **Ne PAS activer Stripe / pricing / tier payant** tant que le
+  concept n'est pas validé (cible : 10-20 beta-testeurs actifs
+  avec retours positifs).
+- **Ne PAS supporter Kemper / Quad Cortex / Helix / NAM** tant
+  que la V1 ToneX n'est pas validée. La landing 7.55.1 doit
+  affirmer clairement le positionnement ToneX-only.
+- **Ne PAS faire de mobile app native** (iOS/Android). Le PWA +
+  responsive serré suffit largement pour valider le concept et
+  les beta-testeurs.
+- **GDPR / RGPD** : tout tracking analytics (Phase 7.55.6) doit
+  respecter DNT + bandeau de consentement minimal (pas de
+  cookies tiers si Plausible/Umami).
+
+#### Ordre recommandé d'implémentation
+
+1. **Phase 7.55.1 + 7.55.2** (P0) : landing + exemple direct.
+   Highest ROI. À livrer ensemble (un commit "phase-7.55-landing").
+2. **Phase 7.55.5** (P1) : formulaire qualifiant (combine Phase
+   7.44 + enrichissement démo).
+3. **Phase 7.55.3** (P1) : chips et random sur Accueil démo.
+4. **Phase 7.55.6** (P1) : analytics pour mesurer l'impact des
+   sous-phases précédentes.
+5. **Phase 7.55.7** (P2) : polish responsive (en parallèle si un
+   dev second se libère, ou en lot une fois 1-4 livrées).
+6. **Phase 7.55.4** (P2) : page studios. À aligner avec le timing
+   des contacts Paul TSR / autres éditeurs.
+7. **Phase 7.55.8** (P2) : irritants visuels. À grignoter
+   opportunistement.
+
+#### Métriques de succès Phase 7.55
+
+- Taux de conversion landing → entrée en mode démo : ≥30%
+  (visiteurs first-time qui cliquent "Essayer démo").
+- Temps moyen passé en mode démo : ≥3 minutes (vs probablement
+  <1 min aujourd'hui sans landing).
+- Taux de conversion mode démo → demande d'accès : ≥10% (1 sur
+  10 visiteurs démo demande un compte).
+- Taux de qualif des demandes reçues : ≥60% (au moins 6 sur 10
+  demandes sont des ToneX users actifs avec ≥5 packs).
+- Au moins 1 contact établi avec un studio (TSR / ML / Galtone /
+  Amalgam) générant un témoignage public.
+
+Métriques mesurées via Phase 7.55.6 analytics + reporting manuel
+des demandes admin par Sébastien.
+
+#### Décision actuelle
+
+**Phase 7.55 proposée, pas implémentée.** À déclencher quand
+Sébastien valide :
+- Le positionnement ToneX-only V1 (vs attendre Tone Master Pro).
+- L'opportunité d'investir 25-35h dev sur conversion publique
+  (vs continuer à grandir organiquement via Reddit/DM).
+- L'accord avec un outil analytics (Plausible / Umami / autre).
+
+Idée enregistrée 2026-05-17 suite à un audit UX "first-time
+ToneX user" mené par Claude (Cowork mode). Cf. session du même
+jour pour les screenshots et observations détaillées.
 
 ## Hors scope (pour rappel, à NE PAS faire sans demande explicite)
 

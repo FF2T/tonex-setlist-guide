@@ -24,7 +24,7 @@ import { enrichAIResult, updateAiCache } from '../utils/ai-helpers.js';
 import { fetchAI } from '../utils/fetchAI.js';
 import { isNoSyncMode, setNoSyncMode } from '../utils/firestore.js';
 
-function MaintenanceTab({ songDb, onSongDb, setlists, onSetlists, onDeletedSetlistIds, banksAnn, banksPlug, aiProvider, aiKeys, profile, profiles, guitarBias, onFullReset }) {
+function MaintenanceTab({ songDb, onSongDb, onAiCacheUpdate, onProfiles, activeProfileId, setlists, onSetlists, onDeletedSetlistIds, banksAnn, banksPlug, aiProvider, aiKeys, profile, profiles, guitarBias, onFullReset }) {
   const [recalculating, setRecalculating] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0, current: '' });
   const [done, setDone] = useState(false);
@@ -107,7 +107,10 @@ function MaintenanceTab({ songDb, onSongDb, setlists, onSetlists, onDeletedSetli
           ? s.feedback.map((f) => f.text).filter(Boolean).join('. ')
           : null;
         const r = await fetchAI(s, '', banksAnn, banksPlug, aiProvider, aiKeys, GUITARS, historicalFeedback, null, profile?.recoMode || 'balanced', guitarBias);
-        onSongDb((p) => p.map((x) => x.id === s.id ? { ...x, aiCache: updateAiCache(x.aiCache, '', r) } : x));
+        // Phase 7.54 — Écrit dans profile.aiCache via onAiCacheUpdate
+        const newCache = updateAiCache(s.aiCache, '', r);
+        if (onAiCacheUpdate) onAiCacheUpdate(s.id, newCache);
+        else onSongDb((p) => p.map((x) => x.id === s.id ? { ...x, aiCache: newCache } : x));
       } catch (e) { console.warn('Recalc failed for', s.title, e); }
       if (i < songDb.length - 1) await new Promise((r) => setTimeout(r, 2000));
     }
@@ -120,7 +123,15 @@ function MaintenanceTab({ songDb, onSongDb, setlists, onSetlists, onDeletedSetli
     const n = songDb.length;
     const msg = tFormat('maintenance.refresh-confirm', { songs: songsPlural(n) }, "Rafraîchir l'IA pour {songs} ?\n\nLe cache est vidé immédiatement. Le recalcul IA se fera passivement à l'ouverture de chaque morceau (incluant tes nouvelles guitares).\n\nAucun appel API n'est lancé maintenant.");
     if (!window.confirm(msg)) return;
-    onSongDb((p) => p.map((s) => ({ ...s, aiCache: null })));
+    // Phase 7.54 — Wipe profile.aiCache (admin invalidate all caches of active profile).
+    // Note : ce bouton est admin "Invalider tous les caches" — il invalide
+    // uniquement le profile.aiCache du profil actif. Les autres profils
+    // gardent leurs caches. Pour invalider les caches shared.songDb legacy
+    // (rétro-compat), aussi reset onSongDb.
+    if (onProfiles && activeProfileId) {
+      onProfiles((p) => ({ ...p, [activeProfileId]: { ...p[activeProfileId], aiCache: {}, lastModified: Date.now() } }));
+    }
+    onSongDb((p) => p.map((s) => s.aiCache ? { ...s, aiCache: null } : s));
     setDone(true); setTimeout(() => setDone(false), 4000);
   };
 
@@ -198,15 +209,19 @@ function MaintenanceTab({ songDb, onSongDb, setlists, onSetlists, onDeletedSetli
         <div>
           <button onClick={() => {
             try {
-              const updated = songDb.map((s) => {
-                if (!s.aiCache?.result?.cot_step1) return s;
+              // Phase 7.54 — Itère sur songDb (déjà résolu avec profile.aiCache
+              // via main.jsx songDbWithProfileCache) et écrit dans
+              // profile.aiCache via onAiCacheUpdate.
+              songDb.forEach((s) => {
+                if (!s.aiCache?.result?.cot_step1) return;
                 const gId = s.aiCache.gId || '';
                 const gType = findGuitar(gId)?.type || 'HB';
                 const cleaned = { ...s.aiCache.result, preset_ann: null, preset_plug: null, ideal_preset: null, ideal_preset_score: 0, ideal_top3: null };
-                const recalc = enrichAIResult(cleaned, gType, gId, banksAnn, banksPlug);
-                return { ...s, aiCache: { ...updateAiCache(s.aiCache, gId, recalc), sv: SCORING_VERSION } };
+                const recalc = enrichAIResult(cleaned, gType, gId, banksAnn, banksPlug, undefined, s);
+                const newCache = { ...updateAiCache(s.aiCache, gId, recalc), sv: SCORING_VERSION };
+                if (onAiCacheUpdate) onAiCacheUpdate(s.id, newCache);
+                else onSongDb((p) => p.map((x) => x.id === s.id ? { ...x, aiCache: newCache } : x));
               });
-              onSongDb(() => updated);
             } catch (e) { console.warn('Rescore error:', e); }
             setDone(true); setTimeout(() => setDone(false), 3000);
           }} style={{ background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>{tFormat('maintenance.rescore-button', { songs: songsPlural(songDb.filter((s) => s.aiCache).length) }, '📐 Recalculer les scores (sans IA) — {songs} en cache')}</button>

@@ -11,7 +11,7 @@ import { t, tFormat } from '../../i18n/index.js';
 import { fetchAI } from '../utils/fetchAI.js';
 import { updateAiCache } from '../utils/ai-helpers.js';
 
-function AddSongModal({ songDb, onSongDb, setlists, onSetlists, activeSlId, onClose, banksAnn, banksPlug, aiProvider, aiKeys, guitars, guitarBias }) {
+function AddSongModal({ songDb, onSongDb, onAiCacheUpdate, setlists, onSetlists, activeSlId, onClose, banksAnn, banksPlug, aiProvider, aiKeys, guitars, guitarBias }) {
   const [mode, setMode] = useState('existing');
   const [search, setSearch] = useState('');
   const [selectedSongs, setSelectedSongs] = useState([]);
@@ -34,7 +34,12 @@ function AddSongModal({ songDb, onSongDb, setlists, onSetlists, activeSlId, onCl
       onSongDb((p) => [...p, ns]);
       onSetlists((p) => p.map((sl) => targetSlIds.includes(sl.id) ? { ...sl, songIds: [...sl.songIds, ns.id] } : sl));
       fetchAI(ns, '', banksAnn, banksPlug, aiProvider, aiKeys, guitars, null, null, 'balanced', guitarBias)
-        .then((r) => onSongDb((p) => p.map((x) => x.id === ns.id ? { ...x, aiCache: updateAiCache(x.aiCache, '', r) } : x)))
+        // Phase 7.54 — Écrit dans profile.aiCache
+        .then((r) => {
+          const value = updateAiCache(null, '', r);
+          if (onAiCacheUpdate) onAiCacheUpdate(ns.id, value);
+          else onSongDb((p) => p.map((x) => x.id === ns.id ? { ...x, aiCache: value } : x));
+        })
         .catch(() => {});
     }
     onClose();

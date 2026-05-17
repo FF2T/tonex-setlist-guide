@@ -59,7 +59,7 @@ function InlineRenameInput({ initialName, onSave, onCancel, inp, placeholder, bu
 }
 
 function ListScreen({
-  songDb, onSongDb, setlists, allSetlists, onSetlists, mySongIds,
+  songDb, onSongDb, onAiCacheUpdate, setlists, allSetlists, onSetlists, mySongIds,
   checked, onChecked, onNext, onSettings,
   banksAnn, onBanksAnn, banksPlug, onBanksPlug,
   aiProvider, aiKeys, hideHeader = false, allGuitars, allRigsGuitars,
@@ -336,7 +336,10 @@ function ListScreen({
         const r = await fetchAI(s, '', banksAnn, banksPlug, aiProvider, aiKeys, allRigsGuitars || guitars, historicalFeedback, null, profile?.recoMode || 'balanced', guitarBias);
         if (analyzeCancelRef.current) break;
         const rigSnapshot = computeRigSnapshot(allRigsGuitars || guitars);
-        onSongDb((p) => p.map((x) => x.id === s.id ? { ...x, aiCache: { ...updateAiCache(x.aiCache, '', r, { rigSnapshot }), sv: SCORING_VERSION } } : x));
+        // Phase 7.54 — Écrit dans profile.aiCache via setSongAiCache.
+        const newCache = { ...updateAiCache(s.aiCache, '', r, { rigSnapshot }), sv: SCORING_VERSION };
+        if (onAiCacheUpdate) onAiCacheUpdate(s.id, newCache);
+        else onSongDb((p) => p.map((x) => x.id === s.id ? { ...x, aiCache: newCache } : x));
       } catch (e) {
         // eslint-disable-next-line no-console
         console.warn(`[analyzeMissingAll] Skip "${s.title}":`, e?.message || e);
@@ -376,7 +379,10 @@ function ListScreen({
             : null;
           const r = await waitOrCancel(fetchAI(s, gId, banksAnn, banksPlug, aiProvider, aiKeys, allRigsGuitars || guitars, historicalFeedback, null, profile?.recoMode || 'balanced', guitarBias));
           if (improveCancelRef.current) break;
-          onSongDb((p) => p.map((x) => x.id === s.id ? { ...x, aiCache: updateAiCache(x.aiCache, gId, r) } : x));
+          // Phase 7.54 — Écrit dans profile.aiCache.
+          const newCache = updateAiCache(s.aiCache, gId, r);
+          if (onAiCacheUpdate) onAiCacheUpdate(s.id, newCache);
+          else onSongDb((p) => p.map((x) => x.id === s.id ? { ...x, aiCache: newCache } : x));
         } catch (e) { if (improveCancelRef.current) break; /* skip */ }
       }
       if (improveCancelRef.current) break;
@@ -697,7 +703,7 @@ function ListScreen({
                     onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-dim)'; }}
                   >🗑️</button>}
                 </div>
-                {isExpanded && <SongDetailCard song={s} banksAnn={banksAnn} banksPlug={banksPlug} onBanksAnn={onBanksAnn} onBanksPlug={onBanksPlug} onClose={() => setExpandedId(null)} guitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} savedGuitarId={activeSl?.guitars?.[s.id]} onGuitarChange={(songId, gId) => { if (activeSlId) onSetlists((p) => p.map((sl) => sl.id === activeSlId ? { ...sl, guitars: { ...(sl.guitars || {}), [songId]: gId } } : sl)); }} aiProvider={aiProvider} aiKeys={aiKeys} onSongDb={onSongDb} profile={profile} guitarBias={guitarBias} onTmpPatchOverride={onTmpPatchOverride}/>}
+                {isExpanded && <SongDetailCard song={s} banksAnn={banksAnn} banksPlug={banksPlug} onBanksAnn={onBanksAnn} onBanksPlug={onBanksPlug} onClose={() => setExpandedId(null)} guitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} savedGuitarId={activeSl?.guitars?.[s.id]} onGuitarChange={(songId, gId) => { if (activeSlId) onSetlists((p) => p.map((sl) => sl.id === activeSlId ? { ...sl, guitars: { ...(sl.guitars || {}), [songId]: gId } } : sl)); }} aiProvider={aiProvider} aiKeys={aiKeys} onSongDb={onSongDb} onAiCacheUpdate={onAiCacheUpdate} profile={profile} guitarBias={guitarBias} onTmpPatchOverride={onTmpPatchOverride}/>}
               </div>
             </div>
           );
@@ -734,7 +740,7 @@ function ListScreen({
         >{t('list.undo', '↩ Annuler')}</button>
       </div>}
 
-      {showAdd && <AddSongModal songDb={songDb} onSongDb={onSongDb} setlists={setlists} onSetlists={onSetlists} activeSlId={activeSlId} onClose={() => setShowAdd(false)} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} guitars={allGuitars} guitarBias={guitarBias}/>}
+      {showAdd && <AddSongModal songDb={songDb} onSongDb={onSongDb} onAiCacheUpdate={onAiCacheUpdate} setlists={setlists} onSetlists={onSetlists} activeSlId={activeSlId} onClose={() => setShowAdd(false)} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} guitars={allGuitars} guitarBias={guitarBias}/>}
     </div>
   );
 }

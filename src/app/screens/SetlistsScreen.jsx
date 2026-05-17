@@ -17,7 +17,7 @@ import ListScreen from './ListScreen.jsx';
 import { SongSearchBar } from './HomeScreen.jsx';
 
 function SetlistsScreen({
-  songDb, onSongDb, setlists, allSetlists, onSetlists, mySongIds,
+  songDb, onSongDb, onAiCacheUpdate, setlists, allSetlists, onSetlists, mySongIds,
   checked, onChecked, onNext, onSettings, onNavigate,
   banksAnn, onBanksAnn, banksPlug, onBanksPlug,
   aiProvider, aiKeys, allGuitars, allRigsGuitars, guitarBias,
@@ -69,7 +69,14 @@ function SetlistsScreen({
     onSongDb((p) => [...p, ns]);
     if (newSongSlIds.length > 0) onSetlists((p) => p.map((sl) => newSongSlIds.includes(sl.id) ? { ...sl, songIds: [...sl.songIds, ns.id] } : sl));
     fetchAI(ns, '', banksAnn, banksPlug, aiProvider, aiKeys, allGuitars, null, null, profile?.recoMode || 'balanced', guitarBias)
-      .then((r) => onSongDb((p) => p.map((x) => x.id === ns.id ? { ...x, aiCache: updateAiCache(x.aiCache, '', r) } : x)))
+      // Phase 7.54 — Écrit dans profile.aiCache via setSongAiCache au lieu
+      // de shared.songDb. Si onAiCacheUpdate n'est pas passé (cas dégénéré),
+      // fallback vers onSongDb pour compat.
+      .then((r) => {
+        const value = updateAiCache(null, '', r);
+        if (onAiCacheUpdate) onAiCacheUpdate(ns.id, value);
+        else onSongDb((p) => p.map((x) => x.id === ns.id ? { ...x, aiCache: value } : x));
+      })
       .catch(() => {});
     setNewSongSlIds([]);
   };
@@ -90,7 +97,7 @@ function SetlistsScreen({
         {tabBtn('setlists', t('setlists.tab-setlists', 'Setlists'))}
         {tabBtn('songs', t('setlists.tab-songs', 'Morceaux'))}
       </div>
-      {tab === 'setlists' && <ListScreen songDb={songDb} onSongDb={onSongDb} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} mySongIds={mySongIds} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={guitarBias} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={onLive}/>}
+      {tab === 'setlists' && <ListScreen songDb={songDb} onSongDb={onSongDb} onAiCacheUpdate={onAiCacheUpdate} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} mySongIds={mySongIds} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={guitarBias} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={onLive}/>}
       {tab === 'songs' && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>

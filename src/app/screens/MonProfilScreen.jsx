@@ -30,7 +30,7 @@ import { FACTORY_BANKS_ANNIVERSARY } from '../../devices/tonex-anniversary/index
 import { FACTORY_BANKS_PLUG } from '../../devices/tonex-plug/index.js';
 
 function MonProfilScreen({
-  songDb, onSongDb, setlists, allSetlists, onSetlists, onDeletedSetlistIds,
+  songDb, onSongDb, onAiCacheUpdate, setlists, allSetlists, onSetlists, onDeletedSetlistIds,
   banksAnn, onBanksAnn, banksPlug, onBanksPlug,
   onBack, onNavigate,
   aiProvider, onAiProvider, aiKeys, onAiKeys, theme, onTheme,
@@ -87,7 +87,12 @@ function MonProfilScreen({
     onSongDb((p) => [...p, ns]);
     if (newSongSlIds.length > 0) onSetlists((p) => p.map((sl) => newSongSlIds.includes(sl.id) ? { ...sl, songIds: [...sl.songIds, ns.id] } : sl));
     fetchAI(ns, '', banksAnn, banksPlug, aiProvider, aiKeys, allGuitars, null, null, profile?.recoMode || 'balanced', guitarBias)
-      .then((r) => onSongDb((p) => p.map((x) => x.id === ns.id ? { ...x, aiCache: updateAiCache(x.aiCache, '', r) } : x)))
+      // Phase 7.54 — Écrit dans profile.aiCache
+      .then((r) => {
+        const value = updateAiCache(null, '', r);
+        if (onAiCacheUpdate) onAiCacheUpdate(ns.id, value);
+        else onSongDb((p) => p.map((x) => x.id === ns.id ? { ...x, aiCache: value } : x));
+      })
       .catch(() => {});
     setNewSongTitle(''); setNewSongArtist(''); setNewSongSlIds([]);
   };
@@ -346,6 +351,17 @@ function MonProfilScreen({
                 onClick={() => {
                   if (!myCount) { window.alert('Aucun cache IA à invalider sur tes morceaux.'); return; }
                   if (!window.confirm(`Invalider ${myCount} cache${myCount > 1 ? 's' : ''} IA sur tes morceaux ?\n\nMode actuel : ${profile.recoMode || 'balanced'}.\n\nLes morceaux passeront en ⏳ et seront re-analysés à la demande.\n\nCela consomme du quota Gemini quand les re-analyses tournent (~8s par morceau).`)) return;
+                  // Phase 7.54 — Wipe profile.aiCache pour mes songs uniquement.
+                  // Reset les entries dans profile.aiCache du profil actif.
+                  // Aussi reset shared.aiCache (rétro-compat avec songs pre-v10).
+                  onProfiles((p) => {
+                    const cur = p[activeProfileId];
+                    if (!cur) return p;
+                    const prevCache = cur.aiCache || {};
+                    const nextCache = { ...prevCache };
+                    mySongIds.forEach((id) => { delete nextCache[id]; });
+                    return { ...p, [activeProfileId]: { ...cur, aiCache: nextCache, lastModified: Date.now() } };
+                  });
                   onSongDb((p) => p.map((s) => (mySongIds.has(s.id) && s.aiCache) ? { ...s, aiCache: null } : s));
                   window.alert(`✓ ${myCount} cache${myCount > 1 ? 's' : ''} invalidé${myCount > 1 ? 's' : ''}. Va dans Setlists et clique "🤖 Analyser/MAJ".`);
                 }}
@@ -363,6 +379,14 @@ function MonProfilScreen({
               const n = (songDb || []).filter((s) => s.aiCache).length;
               if (!n) { window.alert('Aucun cache IA à invalider.'); return; }
               if (!window.confirm(`Invalider ${n} cache${n > 1 ? 's' : ''} IA (TOUS profils) ?\n\nMode actuel : ${profile.recoMode || 'balanced'}.\n\nLes morceaux passeront en ⏳ et seront re-analysés à la demande (ouverture ou bouton "⏳ Analyser/MAJ" en setlists).\n\nCela consomme du quota Gemini quand les re-analyses tournent (~8s par morceau).`)) return;
+              // Phase 7.54 — Wipe TOUS les profile.aiCache + shared.songDb.aiCache.
+              onProfiles((p) => {
+                const out = {};
+                for (const [id, pr] of Object.entries(p)) {
+                  out[id] = { ...pr, aiCache: {}, lastModified: Date.now() };
+                }
+                return out;
+              });
               onSongDb((p) => p.map((s) => s.aiCache ? { ...s, aiCache: null } : s));
               window.alert(`✓ ${n} caches invalidés. Reviens dans Setlists et clique "⏳ Analyser/MAJ".`);
             }}
@@ -401,7 +425,7 @@ function MonProfilScreen({
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>Cle Anthropic (fallback)</div>
         <input type="password" placeholder="sk-ant-..." value={aiKeys.anthropic} onChange={(e) => onAiKeys((p) => ({ ...p, anthropic: e.target.value }))} style={{ ...inp, width: '100%', fontFamily: 'monospace' }}/>
       </div>}
-      {profile.isAdmin && tab === 'maintenance' && MaintenanceTabComponent && <MaintenanceTabComponent songDb={songDb} onSongDb={onSongDb} setlists={allSetlists} onSetlists={onSetlists} onDeletedSetlistIds={onDeletedSetlistIds} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} profile={profile} profiles={profiles} guitarBias={guitarBias}/>}
+      {profile.isAdmin && tab === 'maintenance' && MaintenanceTabComponent && <MaintenanceTabComponent songDb={songDb} onSongDb={onSongDb} onAiCacheUpdate={onAiCacheUpdate} onProfiles={onProfiles} activeProfileId={activeProfileId} setlists={allSetlists} onSetlists={onSetlists} onDeletedSetlistIds={onDeletedSetlistIds} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} profile={profile} profiles={profiles} guitarBias={guitarBias}/>}
       {profile.isAdmin && tab === 'export' && <ExportImportScreen banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} onBack={() => setTab('profile')} onNavigate={onNavigate} fullState={fullState} onImportState={onImportState} inline={true}/>}
       {profile.isAdmin && tab === 'admin_profiles' && <ProfilesAdmin profiles={profiles} onProfiles={onProfiles}/>}
       <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--a8)', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>

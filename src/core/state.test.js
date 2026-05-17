@@ -14,6 +14,7 @@ import {
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
   mergeToneNetPresetsLWW,
+  ensureProfileV10, ensureProfilesV10, migrateV9toV10, getProfileAiCache,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,
   toggleSetlistProfile,
@@ -28,7 +29,7 @@ import {
 
 describe('STATE_VERSION', () => {
   test('vaut 9 en Phase 7.51.1 (mode démo, profile.isDemo)', () => {
-    expect(STATE_VERSION).toBe(9);
+    expect(STATE_VERSION).toBe(10);
   });
 });
 
@@ -2099,7 +2100,7 @@ describe('buildDemoSnapshot (Phase 7.51.4)', () => {
 
   test('format compatible loadDemoSnapshot (version + 4 clés)', () => {
     const snap = buildDemoSnapshot(sampleProfile, sampleSetlists, sampleSongs);
-    expect(snap.version).toBe(9);
+    expect(snap.version).toBe(10);
     expect(snap).toHaveProperty('profile');
     expect(snap).toHaveProperty('setlists');
     expect(snap).toHaveProperty('songs');
@@ -2662,5 +2663,126 @@ describe('dedupSongDb — Phase 7.20', () => {
     const snap = JSON.stringify(input);
     dedupSongDb(input);
     expect(JSON.stringify(input)).toBe(snap);
+  });
+});
+
+describe('migrateV9toV10 — Phase 7.54', () => {
+  test('pose profile.aiCache={} sur tous les profils (additif)', () => {
+    const v9 = {
+      version: 9,
+      activeProfileId: 'sebastien',
+      shared: { songDb: [], setlists: [] },
+      profiles: { sebastien: { id: 'sebastien' }, bruno: { id: 'bruno' } },
+    };
+    const v10 = migrateV9toV10(v9);
+    expect(v10.version).toBe(10);
+    expect(v10.profiles.sebastien.aiCache).toEqual({});
+    expect(v10.profiles.bruno.aiCache).toEqual({});
+  });
+
+  test('copie shared aiCache → profile.aiCache pour songs profil actif', () => {
+    const v9 = {
+      version: 9,
+      activeProfileId: 'sebastien',
+      shared: {
+        songDb: [
+          { id: 's1', aiCache: { sv: 9, result: { cot_step1: 'fr' } } },
+          { id: 's2', aiCache: { sv: 9, result: { cot_step1: 'es' } } },
+          { id: 's3', aiCache: { sv: 9, result: { cot_step1: 'autre' } } },
+        ],
+        setlists: [
+          { id: 'sl1', name: 'Ma Setlist', songIds: ['s1', 's2'], profileIds: ['sebastien'] },
+          { id: 'sl2', name: 'Autre', songIds: ['s3'], profileIds: ['bruno'] },
+        ],
+      },
+      profiles: { sebastien: { id: 'sebastien' }, bruno: { id: 'bruno' } },
+    };
+    const v10 = migrateV9toV10(v9);
+    expect(v10.profiles.sebastien.aiCache.s1).toBeDefined();
+    expect(v10.profiles.sebastien.aiCache.s2).toBeDefined();
+    // s3 n'est PAS dans setlists Sébastien → reste dans shared
+    expect(v10.profiles.sebastien.aiCache.s3).toBeUndefined();
+    // shared.songDb : s1 et s2 ont aiCache=null (dropped), s3 intact
+    expect(v10.shared.songDb.find(s => s.id === 's1').aiCache).toBeNull();
+    expect(v10.shared.songDb.find(s => s.id === 's2').aiCache).toBeNull();
+    expect(v10.shared.songDb.find(s => s.id === 's3').aiCache).toBeTruthy();
+  });
+
+  test('idempotente : v10 → v10 ne mute pas profile.aiCache existant', () => {
+    const v10input = {
+      version: 10,
+      activeProfileId: 'sebastien',
+      shared: { songDb: [], setlists: [] },
+      profiles: { sebastien: { id: 'sebastien', aiCache: { existing: { sv: 9 } } } },
+    };
+    const v10out = migrateV9toV10(v10input);
+    expect(v10out.profiles.sebastien.aiCache.existing).toBeDefined();
+  });
+
+  test('preserve si profile.aiCache déjà plus récent (sv supérieur)', () => {
+    const v9 = {
+      version: 9,
+      activeProfileId: 'sebastien',
+      shared: {
+        songDb: [{ id: 's1', aiCache: { sv: 9, result: { source: 'shared' } } }],
+        setlists: [{ id: 'sl1', songIds: ['s1'], profileIds: ['sebastien'] }],
+      },
+      profiles: { sebastien: { id: 'sebastien', aiCache: { s1: { sv: 10, result: { source: 'profile' } } } } },
+    };
+    const v10 = migrateV9toV10(v9);
+    expect(v10.profiles.sebastien.aiCache.s1.sv).toBe(10);
+    expect(v10.profiles.sebastien.aiCache.s1.result.source).toBe('profile');
+  });
+
+  test('null state → null', () => {
+    expect(migrateV9toV10(null)).toBeNull();
+  });
+
+  test('pas d activeProfileId → migrate sans copie shared', () => {
+    const v9 = {
+      version: 9,
+      activeProfileId: null,
+      shared: { songDb: [{ id: 's1', aiCache: { sv: 9 } }], setlists: [] },
+      profiles: { sebastien: { id: 'sebastien' } },
+    };
+    const v10 = migrateV9toV10(v9);
+    expect(v10.profiles.sebastien.aiCache).toEqual({});
+    // shared.songDb intact
+    expect(v10.shared.songDb[0].aiCache).toBeTruthy();
+  });
+});
+
+describe('getProfileAiCache — Phase 7.54', () => {
+  test('retourne profile.aiCache[songId] si présent', () => {
+    const profile = { aiCache: { s1: { sv: 10 } } };
+    expect(getProfileAiCache(profile, 's1')).toEqual({ sv: 10 });
+  });
+  test('null si profile sans aiCache', () => {
+    expect(getProfileAiCache({}, 's1')).toBeNull();
+    expect(getProfileAiCache(null, 's1')).toBeNull();
+  });
+  test('null si songId absent', () => {
+    const profile = { aiCache: { s2: { sv: 10 } } };
+    expect(getProfileAiCache(profile, 's1')).toBeNull();
+  });
+  test('null si arguments invalides', () => {
+    expect(getProfileAiCache(null, null)).toBeNull();
+    expect(getProfileAiCache({ aiCache: {} }, '')).toBeNull();
+  });
+});
+
+describe('ensureProfileV10 — Phase 7.54', () => {
+  test('pose aiCache={} si absent', () => {
+    const p = ensureProfileV10({ id: 's' });
+    expect(p.aiCache).toEqual({});
+  });
+  test('préserve aiCache existant', () => {
+    const p = ensureProfileV10({ id: 's', aiCache: { s1: { sv: 10 } } });
+    expect(p.aiCache.s1).toBeDefined();
+  });
+  test('chaîne v3→v10 (héritage isDemo)', () => {
+    const p = ensureProfileV10({ id: 's' });
+    expect(p.isDemo).toBe(false);
+    expect(p.aiCache).toEqual({});
   });
 });

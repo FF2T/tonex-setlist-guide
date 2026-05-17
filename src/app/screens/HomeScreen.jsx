@@ -286,7 +286,7 @@ function OnboardingWizard({ onClose, onProfile }) {
 
 // ─── HomeScreen ──────────────────────────────────────────────────────
 function HomeScreen({
-  songDb, onSongDb, setlists, allSetlists, onSetlists, mySongIds,
+  songDb, onSongDb, onAiCacheUpdate, setlists, allSetlists, onSetlists, mySongIds,
   checked, onChecked, onNext, onSettings, onProfile, onSetlistScreen, onJam, onExplore, onOptimizer,
   banksAnn, banksPlug, aiProvider, aiKeys, allGuitars, guitarBias, availableSources,
   profiles, activeProfileId, onSwitchProfile, onProfiles, customPacks, syncStatus,
@@ -401,8 +401,15 @@ function HomeScreen({
                       if (m) setSelectedGuitar(m);
                     }
                     if (!existing) {
-                      const ns = { id: `c_${Date.now()}`, title: canonTitle, artist: canonArtist, isCustom: true, ig: [], aiCache: updateAiCache(null, '', r) };
+                      // Phase 7.54 — Crée la song dans shared.songDb sans aiCache,
+                      // puis pousse l'aiCache initial dans profile.aiCache via
+                      // onAiCacheUpdate.
+                      const newId = `c_${Date.now()}`;
+                      const ns = { id: newId, title: canonTitle, artist: canonArtist, isCustom: true, ig: [], aiCache: null };
                       onSongDb((p) => [...p, ns]);
+                      const initialCache = updateAiCache(null, '', r);
+                      if (onAiCacheUpdate) onAiCacheUpdate(newId, initialCache);
+                      else onSongDb((p) => p.map((x) => x.id === newId ? { ...x, aiCache: initialCache } : x));
                     }
                   })
                   .catch((e) => setSongErr(e.message))
