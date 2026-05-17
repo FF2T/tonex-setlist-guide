@@ -210,10 +210,32 @@
 
 Suite à la livraison Phase 7.60.1 (snapshot démo balance 4 pack
 creators : AA 25% + JS 25% + TJ 25% + TSR 25%), Sébastien envisage
-d'étendre l'approche "showcase respectueux" type Paul Drew (TSR)
-aux autres créateurs visibles dans la démo. Réflexion en cours.
+d'étendre l'approche "showcase" type Paul Drew (TSR) aux autres
+créateurs visibles dans la démo.
 
-#### Reco priorisation
+#### Angle commercial — Backline = discovery layer
+
+**Réalité économique cruciale** : Backline NE DISTRIBUE PAS les
+captures AA/TSR/JS/TJ/WT. L'app ne fait que **citer leurs noms**
+(`preset_ann_name = "AA MRSH JT50"`, etc.) avec bank/slot
+addressing. Pour utiliser une capture recommandée, l'utilisateur
+doit posséder :
+- Soit le **pack standalone** du créateur (achat direct sur leur
+  site)
+- Soit la **ToneX Pedal Anniversary** (qui inclut les 30 captures
+  Premium de chacun des 5 créateurs)
+
+**Conséquence stratégique** : chaque recommandation Backline =
+un implicite "achète ce pack" auprès de l'utilisateur. Backline
+fonctionne donc comme un **discovery layer qui génère de la
+demande** pour les packs, pas une menace pour leur valeur.
+
+C'est un alignement d'intérêts gagnant-gagnant. L'angle inverse
+("je dilue ta propriété intellectuelle") est faux : on la met en
+visibilité auprès d'une audience qui ne la connaît peut-être pas
+encore.
+
+#### Reco priorisation (corrigée 2026-05-17)
 
 1. **Jason Sadites (JS)** — priorité haute
    - 2 captures pinnées dans la démo : `JS Sir Ombre Ult Push 1`
@@ -221,25 +243,26 @@ aux autres créateurs visibles dans la démo. Réflexion en cours.
      Eagles)
    - Profil indépendant créateur très actif sur YouTube/forums →
      plus accessible qu'un studio corporate
-   - Risque faible : approche identique à Paul, "no ask, just
-     wanted to share"
    - Timing recommandé : **viser fin mai (J+10 post-Paul mail 2)**
      pour étaler les contacts dans le temps
 
-2. **Tone Junkie TV (TJ)** — priorité moyenne
+2. **Tone Junkie TV (TJ)** — priorité haute
    - 2 captures pinnées : `TJ 74 Purple Plexi` (Smoke on the Water)
      + `TJ DMBL ODS 124 LEAD 1` (Help the Poor Robben Ford)
    - Catalog Phase 7.52 a usages explicites Brian May, Beatles,
      Pete Townshend → couvre une niche British classic
    - Timing : **viser début juin** (~J+20 post-Paul)
 
-3. **Amalgam Audio (AA)** — priorité basse, sensible
-   - 50% des recos démo (dominance Marshall/Fender/Hiwatt blues-rock
-     70s)
-   - Risque "vous me piquez tous mes packs" si pas approché
-     délicatement : mentionner explicitement que AA est le pack
-     creator le plus représenté dans la démo, par construction
-     scoring honnête
+3. **Amalgam Audio (AA)** — priorité haute (corrigée)
+   - 50% des recos démo (dominance Marshall/Fender/Hiwatt blues-
+     rock 70s) → **discovery layer le plus efficace des 4** : leur
+     dominance scoring = leur visibilité maximale auprès des
+     utilisateurs Backline
+   - Pas de risque PI : l'angle commercial "tes captures sont
+     recommandées 50%+ du temps → 50%+ d'incitations à acheter ton
+     pack" est purement bénéfique
+   - Précédente analyse "priorité basse, sensible" était erronée
+     (basée sur une lecture inversée de la perception côté AA)
    - Timing : **viser mi-juin** (~J+30 post-Paul)
 
 4. **Worship Tutorials (WT)** — pas prioritaire
@@ -249,40 +272,86 @@ aux autres créateurs visibles dans la démo. Réflexion en cours.
    - Pas de raison technique de contacter avant d'avoir un beta-
      tester worship qui le demande
 
-#### Principes pour les contacts JS/TJ/AA
+#### Template DM universel (à personnaliser par créateur)
 
-- **Messages personnalisés**, pas template uniforme (chaque pack
-  creator a sa spécificité — citer le slot précis qu'on a vu pinné)
+```
+Hi [name],
+
+I built Backline, an AI-powered tool that helps guitarists pick
+the right preset and guitar for each song they rehearse. It
+recommends your captures by name (e.g., "[capture exemple]"),
+with bank/slot addressing pointing straight to the pedal position.
+
+To use a recommended capture, the user needs either your
+standalone pack OR the ToneX Pedal Anniversary (which includes
+your 30 captures). So in practice, Backline functions as a
+discovery layer that drives demand for your work — every
+recommendation is an implicit "you should own this pack".
+
+Public demo: https://mybackline.app/?demo=1 — your captures
+surface on [morceau spécifique avec capture]. 30-second look,
+no login.
+
+No ask attached — just wanted you to know your work powers the
+recommendations.
+
+Cheers,
+Seb
+```
+
+Personnalisation par créateur :
+- **JS** : `[capture] = "JS Sir Ombre Ult Push 1"`, `[morceau] = "Pride and Joy (SRV)"`
+- **TJ** : `[capture] = "TJ 74 Purple Plexi"`, `[morceau] = "Smoke on the Water (Deep Purple)"`
+- **AA** : `[capture] = "AA MRSH JT50"`, `[morceau] = "Back in Black (AC/DC)"`
+
+#### Principes opérationnels
+
 - **Étaler dans le temps** (1 contact / 1-2 semaines max) pour ne
-  pas paraître spammy ni saturer le pipeline follow-ups
-- **Garder l'angle "showcase respectueux"** Phase 7.45 : disclaimer
-  marques en footer + reframing prompt "le preset est calibré
-  correctement par son créateur, tu peux l'adapter à ton matériel"
+  pas saturer le pipeline follow-ups si plusieurs répondent
+- **Messages personnalisés** : citer le slot précis pinné dans la
+  démo (cf personnalisation ci-dessus)
+- **Garder l'angle "discovery layer drives demand"** : c'est le
+  vrai argument commercial, pas un fallback PI defensive
 - **No ask** : pas de partnership, pas de tarif spécial, juste
-  "voici ce que je construis avec vos captures"
+  "voici ce que je construis et voilà l'effet sur ton catalogue"
 - Si réponse positive → proposer profil pré-configuré comme Paul
-  (mais accepter qu'il dise "pas le temps" comme on a vu)
+  (mais accepter qu'ils disent "pas le temps")
 
-#### Risques à anticiper
+#### Argument commercial si demande "et concrètement ça m'apporte quoi ?"
 
-- **Asymétrie attention** : si 4 contacts simultanés et 2 répondent
-  positivement → 2 follow-ups + 2 onboardings + management de la
-  charge cognitive. Limite proposée : **1 contact actif à la fois**
+- **Discoverability** : leur pack devient visible auprès de tous
+  les utilisateurs Backline qui ne le connaissent pas encore
+- **Recommandation contextualisée** : pas un "regarde tous les
+  packs" mais "pour CE morceau, voici TON pack qui matche"
+- **Bank/slot addressing** : indique précisément où charger leur
+  capture → réduit la friction d'usage côté utilisateur (donc plus
+  de probabilité d'achat)
+- **Effet réseau** : si l'utilisateur Backline a une bonne
+  expérience avec leur pack, il en parle autour de lui (le bouche-
+  à-oreille guitariste est puissant)
+
+#### Risques à anticiper (réduits)
+
+- **Bandwidth attention** : si 4 contacts et 2-3 répondent
+  positivement → 2-3 follow-ups + 2-3 onboardings + management de
+  la charge cognitive. Reco : **1 contact actif à la fois maximum**
   (donc attendre Paul avant JS, etc.)
-- **Dilution effet "I built around YOUR captures"** : si TSR voit
-  qu'on contacte tous, l'unicité perçue baisse. Conséquence :
-  formuler chaque contact pour souligner ce qui est **spécifique**
-  à ce créateur dans Backline
 - **Spam apparent** : Reddit DM batch = mauvais signal. Préférer
-  email direct (site web, contact form) ou DM forum spécialisé
+  **email direct** (site web, contact form) ou DM forum spécialisé.
+  Important : NE PAS batch des DM identiques le même jour
+- **Dilution sentiment "I built around YOUR captures"** : moins
+  préoccupant qu'avant car l'angle "discovery layer" est
+  intrinsèquement bénéfique au créateur, mais quand même formuler
+  chaque contact pour souligner ce qui est **spécifique** à leur
+  catalog
 
 #### Décision en attente
 
 Sébastien hésite — pas décidé entre attendre la réponse Paul J+5-7
 avant d'engager JS, ou démarrer JS dès maintenant en parallèle.
-Argument pour parallèle : si Paul ne répond jamais (~50% probabilité
-réaliste), on a perdu 1-2 semaines sans engager le réseau. Argument
-contre : on découpe l'attention.
+Argument pour parallèle : si Paul ne répond jamais (~50%
+probabilité réaliste), on a perdu 1-2 semaines sans engager le
+réseau. Argument contre : on découpe l'attention.
 
 À trancher dans les prochains jours selon retour Paul.
 
