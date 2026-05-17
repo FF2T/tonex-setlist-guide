@@ -265,7 +265,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.101";
+const APP_VERSION = "8.14.102";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -1115,7 +1115,12 @@ function App() {
       if(JSON.stringify(next)===JSON.stringify(prev))return prev;
       return next;
     });
-    if(data.activeProfileId) setActiveProfileId(data.activeProfileId);
+    // Phase 7.62 — NE PAS adopter data.activeProfileId depuis Firestore.
+    // C'est une notion local par device. Avant fix : un device A switche
+    // sur profil X → push à Firestore → device B pull → setActiveProfileId(X)
+    // → bascule involontaire. Cf docstring strip côté firestore.js prep().
+    // Cohabitation : un client pre-7.62 peut encore push activeProfileId,
+    // mais on l'ignore au pull, donc no-op de notre côté.
   };
 
   // Load from Firestore on first mount — merge with local using LWW.
@@ -1149,7 +1154,8 @@ function App() {
         // payload >1 MB qui continue de renvoyer 400 à chaque save.
         var ps={
           version:STATE_VERSION,
-          activeProfileId:data.activeProfileId||activeProfileId,
+          // Phase 7.62 — activeProfileId retiré (local-only, strippé en
+          // prep() côté firestore.js de toute façon). Cosmétique.
           shared:{
             songDb:mergedSongs,
             theme:data.shared.theme||theme,

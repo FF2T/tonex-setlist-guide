@@ -79,6 +79,15 @@ export function saveToFirestore(s) {
     const c = JSON.parse(JSON.stringify(stripped));
     c.syncId = sid;
     if (c.profiles) { for (const pid in c.profiles) { if (c.profiles[pid].aiKeys) c.profiles[pid].aiKeys = { anthropic: '', gemini: '' }; } }
+    // Phase 7.62 — strip activeProfileId du payload Firestore. C'est
+    // une notion LOCAL par device (quel profil est actif sur CE Mac),
+    // pas une notion sync globale. Avant fix, un device A qui switche
+    // sur profil X poussait `activeProfileId=X` à Firestore → tous les
+    // autres devices pull adoptaient ce X via applyRemoteData →
+    // bascule involontaire et ping-pong cross-device. Bug latent
+    // depuis Phase 5.x, manifesté avec multi-device cross-user
+    // (Sébastien Mac + Francisco iPhone en 2026-05-17).
+    delete c.activeProfileId;
     return c;
   };
   const cleanFull = prep(s);
