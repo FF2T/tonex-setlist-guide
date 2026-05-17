@@ -746,9 +746,103 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-17, Phases 7.54 → 7.54.2 close — aiCache per-profile, sync bilatérale)
+## État actuel (2026-05-17, Phases 7.54.x + 7.56 close — sync + pin customs IA tolérant)
 
-**Backline v8.14.87 / SW backline-v187 / STATE_VERSION 10 / 1038 tests verts.**
+**Backline v8.14.88 / SW backline-v188 / STATE_VERSION 10 / 1047 tests verts.**
+
+Phase 7.56 ajoutée après pré-calcul d'analyses pour Bruno (beta-testeur).
+Bug observé : Gemini retournait `preset_ann_name = '48A "Kirk & James -
+Gasoline v2"'` (format avec position + quotes) au lieu du nom seul →
+`findSlotByName` Phase 7.31 ne matchait pas → fallback scoring V9 →
+custom Galtone ignoré au profit d'un Factory HG MARK3.
+
+### Phase 7.56 — `findSlotByName` tolère format prefixé
+
+```js
+// AVANT : match exact case-insensitive
+target = String(name).trim().toLowerCase();
+// → '48a "kirk & james - gasoline v2"' ≠ 'kirk & james - gasoline v2'
+// → no match → fallback V9 → factory wins
+
+// APRÈS : strip prefix position + quotes
+let target = String(name).trim();
+target = target.replace(/^\s*\d{1,2}[ABC]\s+/i, '');  // strip "48A " ou "9c "
+target = target.replace(/^["']/, '').replace(/["']$/, '');  // strip quotes
+target = target.trim().toLowerCase();
+```
+
+### Effet validé sur Bruno
+
+| Song | Avant Phase 7.56 | Après Phase 7.56 |
+|------|------------------|------------------|
+| For Whom the Bell Tolls (Metallica) | 9C HG MARK3 (factory) | **48A Kirk & James - Gasoline v2** ✅ |
+| Fear of the Dark (Iron Maiden) | 6A HG VX30 (Vox AC30 ?!) | **49C TSR Mars 800SL Cn1&2 HG** ✅ |
+
+### Cas non résolus par Phase 7.56 (non-déterminisme Gemini)
+
+- **All the Small Things (Blink-182)** : Gemini renvoie
+  `preset_ann_name: undefined` malgré présence de "Blink-182 Mesa Boggie"
+  dans bank 48B + priorité 2 du prompt explicite. Gemini hallucine son
+  fallback factory. **Workaround utilisateur** : donner un feedback IA
+  explicite sur ce morceau pour forcer le pin.
+- **Self Esteem (Offspring)** : pas de custom dédié Offspring dans les
+  banks Bruno → fallback factory acceptable.
+
+### Architecture livrée Phase 7.56
+
+```
+src/app/utils/ai-helpers.js
+  findSlotByName : strip prefix "BB[C]\s+" (case-insensitive) +
+                   strip quotes "..." ou '...' avant match
+src/app/utils/ai-helpers.test.js  +9 tests Phase 7.56 :
+  - legacy match (rétro-compat)
+  - prefix "48A name" et "48A \"name\""
+  - quotes doubles et simples
+  - position 1-2 chiffres (9C, 48A)
+  - case-insensitive sur position
+  - falsy inputs → null
+src/main.jsx APP_VERSION 8.14.87 → 8.14.88
+public/sw.js CACHE backline-v187 → backline-v188
+```
+
+### Conséquences
+
+- **1047/1047 tests verts** (+9 Phase 7.56)
+- **Bundle** 2163.32 → 2163.43 KB (stable)
+- **Pas de bump SCORING_VERSION** ni migration
+- **Rétro-compat** : match exact toujours fonctionnel
+
+### Workflow pré-calcul beta-testeurs (validé)
+
+Procédure documentée pour pré-calculer les analyses IA d'un beta-testeur
+avant son arrivée :
+
+1. **Switcher sur leur profil** sur Mac (ProfileSelector déconnexion +
+   reconnexion avec leur password). Indispensable car le fetch utilise
+   leurs banks, sources, customPacks, recoMode.
+2. Vérifier `profile.customPacks` non vide côté Mac (sinon l'IA n'a pas
+   les metadata custom).
+3. Setlists → setlist principale du beta-testeur → "🤖 Analyser/MAJ N"
+4. Attendre ~30s-1min par morceau, vérifier 2-3 fiches.
+5. Donner feedback IA explicite si non-déterminisme Gemini fait fail
+   un pin custom (cas Blink-182 observé).
+6. Switcher back sur Sébastien admin.
+7. Beta-testeur reload sa PWA → profile.aiCache déjà rempli via sync
+   Firestore (Phase 7.54 LWW per-profile).
+
+### Phase 7.54.x — Récap (à jour)
+
+| Phase | Sujet | Version |
+|-------|-------|---------|
+| 7.54 | aiCache per-profile (STATE_VERSION 10) | 8.14.85 |
+| 7.54.1 | Drop ALL shared.aiCache + skip merge isV10 | 8.14.86 |
+| 7.54.2 | Hash setlist complet (fix latent Phase 5.7.3) | 8.14.87 |
+| 7.56 | findSlotByName tolère format IA | 8.14.88 |
+
+### Phase 7.54 — aiCache per-profile (STATE_VERSION 9 → 10)
+
+Phase 7.54 résout structurellement le bug de strip aiCache au push
+Firestore.
 
 Famille Phase 7.54.x : refonte architecturale du sync aiCache pour
 casser un cercle vicieux qui bloquait toute propagation des analyses
