@@ -30,7 +30,7 @@ const MAILTO_URL = 'mailto:contact@mybackline.app'
 function DemoBanner({ onExit }) {
   useLocale(); // re-render au switch de langue
   const text = t('demo.banner-text', 'Tu testes Backline en mode démo.');
-  const linkLabel = t('demo.banner-link', 'Pour avoir ton propre profil avec ta rig, demande un accès');
+  const linkLabel = t('demo.banner-link', 'Pour avoir ton propre profil avec ton matériel, demande un accès');
   const exitLabel = t('demo.banner-exit', 'Quitter');
 
   // Phase 7.55-B — Sortie explicite : reload sans ?demo=1 + (optionnel)
