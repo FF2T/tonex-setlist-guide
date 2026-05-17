@@ -225,7 +225,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.86";
+const APP_VERSION = "8.14.87";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -399,10 +399,16 @@ function App() {
       const next = typeof updater === "function" ? updater(prev) : updater;
       if (!Array.isArray(next)) return next;
       const now = Date.now();
+      // Phase 7.54.2 — Hash COMPLET (tous champs sauf lastModified) pour
+      // détecter TOUTE modif et stamper. Avant : shallowHash ne couvrait
+      // que length+name+profileIds+songIds, donc modifs guitars/notes/
+      // recoMode/etc. ne stampaient pas → merge LWW iPhone tiebreak
+      // keep local (lastModified égal) → modifs Mac perdues. Bug observé
+      // sur sélection guitare per-song qui ne propageait pas Mac→iPhone.
       const shallowHash = (sl) => {
-        const pIds = Array.isArray(sl.profileIds) ? [...sl.profileIds].sort().join("+") : "";
-        const sIds = Array.isArray(sl.songIds) ? [...sl.songIds].sort().join("+") : "";
-        return `${(sl.songIds||[]).length}|${sl.name||""}|${pIds}|${sIds}`;
+        if (!sl) return '';
+        const { lastModified: _lm, ...rest } = sl;
+        try { return JSON.stringify(rest); } catch { return String(rest); }
       };
       const prevById = new Map(prev.map(sl => [sl.id, sl]));
       const stamped = next.map(sl => {
