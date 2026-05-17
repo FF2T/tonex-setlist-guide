@@ -911,6 +911,50 @@ n'a pas fait de modif (qui purgerait le champ via le nouveau prep()).
 Sébastien peut forcer la purge en faisant 1 modif quelconque sur
 chaque device après reload v8.14.102.
 
+### Dette résiduelle Phase 7.64 — Bonus family match Strat/Tele/LP (rapporté Francisco 2026-05-17 soir)
+
+Francisco a écrit ce soir (17 mai, après ses tests post-weekend) :
+*"En Daft Punk - Get Lucky la IA me elegía la Telecaster (Sire T7)*
+*en lugar de la Squier Stratocaster, aunque Nile Rodgers toca Strat.*
+*Quizá si simplificásemos por el tipo de guitarra se pueden evitar*
+*estos errores. Como la meta es buscar el sonido original, la marca*
+*o modelo no es vital — la familia importa más."*
+
+**Constat** : il a raison. Le scoring V9 actuel
+(`computeGuitarScoreV2` dans `src/core/scoring/guitar.js`) compare
+les caractéristiques techniques (pickup type, body shape, scores
+HB/SC/P90) mais n'a **pas de notion explicite de family**
+(Stratocaster vs Telecaster vs Les Paul vs SG vs ES-335 vs
+Jazzmaster). Conséquence : si la chanson originale est jouée sur
+Strat et que le rig user a 2 guitares SC (Strat + Tele), le scoring
+peut préférer la Tele pour des raisons secondaires.
+
+**Solution proposée Phase 7.64** :
+
+1. Helper `getGuitarFamily(name)` retourne `'stratocaster' | 'telecaster' | 'les_paul' | 'sg' | 'es335' | 'jazzmaster' | 'other'`
+   via regex/keywords sur le nom (ou via `brand+name` pour les Sire/Squier/etc.).
+2. Helper `getRefGuitarFamily(refGuitarName)` pareil sur le nom
+   retourné par l'IA (`aiResult.ref_guitar`).
+3. Dans `enrichAIResult` (post-processing, **pas** bump SCORING_VERSION) :
+   bonus +15-20 pts sur les guitares du rig dont la family match
+   `aiResult.ref_guitar`. Si plusieurs match family → départage par
+   le scoring V9 standard.
+4. Tests Vitest sur les cas types (Get Lucky → Strat ; Stairway →
+   LP ; Brown Sugar → Strat ; etc.).
+5. Validation manuelle sur rig Francisco (Sire T7 + Squier Strat)
+   et Sébastien (LP + SG + Strat + Tele + ES-335).
+
+**Bonus** : couplé à Phase 7.61 (rename guitares vers noms complets
+"Fender Stratocaster American Vintage II 1961"), `getGuitarFamily`
+devient trivial (match direct sur le nom).
+
+**Couplage Phase 7.61 + 7.64** : à faire ensemble pour un seul tour
+de validation IA. Effort estimé combiné : ~3-4h dev + tests + deploy.
+
+**Workaround pour Francisco maintenant** : feedback IA explicite
+*"Prefiero la Squier Strat pour Get Lucky"* via bouton 💬. L'IA
+réanalyse en intégrant le feedback. Pas parfait mais débloque le cas.
+
 ### Dette résiduelle Phase 7.63 — Sécurité admin-switch profil
 
 Rapporté 2026-05-17 par Sébastien (observation théorique, pas
@@ -7816,7 +7860,38 @@ d'implémentation immédiate. À activer quand un beta-testeur (Bruno,
 Arthur, futurs) commence à utiliser activement Backline et que
 Sébastien constate des analyses écrasées.
 
-### Phase 9 (proposée) — Output IA enrichi (inspiration Gear Assistant Ok_Ask2411)
+### Phase 9 (validée 2026-05-17 — 2 signaux indépendants) — Output IA enrichi avec knob settings chiffrés
+
+**Status mis à jour 2026-05-17 soir** : promue de "proposée" à
+**validée prioritaire** suite au 2e signal indépendant. 2 signaux
+distincts demandent maintenant explicitement la même feature :
+
+1. **Ok_Ask2411 peer-builder** (2026-05-15) : a démontré son outil
+   "Gear Assistant" qui retourne knob settings chiffrés en table
+   (Gain 6.2, Bass 4.5, Mid 7.0, Treble 5.3, Presence 4.7, Volume
+   6.0) + section "ONE TWEAK TO FIX IT" conditionnelle. Cf
+   BETA_TESTING.md section 2 Ok_Ask2411.
+
+2. **Francisco beta-tester** (2026-05-17 soir) : *"Otro punto
+   importante es la recomendación de la ecualización del amplificador,
+   cada grupo tiene su sonido del amplificador ajustando graves,
+   medios y agudos. Yo he probado con la IA y si que te puede
+   recomendar como tienes que ajustar cada tono, al igual que el
+   gain."* — demande explicite knob settings chiffrés vs le
+   `settings_preset` prose actuel.
+
+**Conclusion** : 2 utilisateurs indépendants (peer-builder + beta-
+tester débutant-intermédiaire) ont identifié le même gap. Signal
+fort que cette feature serait valuable.
+
+**Timing** : à intégrer **après Phase 7.61** (rename guitares +
+fix ellipses) + **Phase 7.64** (bonus family match). Donc Phase 9
+livrée probably fin mai / début juin si bandwidth.
+
+**Détails techniques originaux conservés ci-dessous (cf "Idées
+en attente" historique)** :
+
+
 
 **Contexte** : un peer-builder Reddit (Ok_Ask2411, 2026-05-15) a
 partagé l'output complet de son "Gear Assistant" appliqué à
