@@ -746,16 +746,109 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-17, Phases 7.54.x → 7.55.8-light close — UX démo + mode polish)
+## État actuel (2026-05-17, Phases 7.54.x → 7.59 close — sync stable + protections défensives)
 
-**Backline v8.14.96 / SW backline-v196 / STATE_VERSION 10 / 1047 tests verts.**
+**Backline v8.14.97 / SW backline-v197 / STATE_VERSION 10 / 1047 tests verts.**
 
-Session 2026-05-17 = **24 phases livrées en 28 deploys prod**.
+Session 2026-05-17 = **25 phases livrées en 30 deploys prod**.
 Sync bilatérale Mac↔iPhone validée avec push WITH aiCache stable,
 pin customs IA fonctionnel via post-processing tolérant, mode démo
-durci avec chips + auto-open URL + bouton Quitter, UI épurée
-(BPM/tonalité retirés, modale onboarding réduite à 3 étapes,
-footer PathToTone clarifié).
+durci, UI épurée. **Protections défensives Phase 7.59** ajoutées
+suite à pollution profile cross-mélange observée (sire_t7/t3 du
+profil Francisco apparus dans profile.sebastien.myGuitars sans
+repro identifié).
+
+### Phase 7.59 — Protections défensives pollution profile (v8.14.97)
+
+Suite à un incident 2026-05-17 où Sébastien a constaté que son
+profil avait perdu des guitares (Tele 51) et en avait gagné d'autres
+(Sire T3 + T7, qui appartiennent à Francisco). Diagnostic confirmé :
+`profile.sebastien.myGuitars` contenait `sire_t7` + `sire_t3` + son
+`profile.aiCache` était vidé. Aucune repro identifiée — possiblement
+race condition lors des switchs profil pour pré-calcul beta (Bruno,
+Francisco, démo curateur) du même jour, OU `mergeProfilesLWW` LWW
+per-profile entier adoptant un état remote pollué.
+
+Le backup auto Phase 4.1 (MAX_BACKUPS=1, throttle 5 min) avait un
+backup à 13:10:21 et la pollution stampée à 13:10:31 — backup
+probablement déjà pollué. Restauration manuelle nécessaire.
+
+#### Phase 7.59-A — Snapshots manuels (MaintenanceTab admin)
+
+Stockage séparé `localStorage.tonex_guide_snapshots_manual` (vs
+`tonex_guide_backups` rotation auto). Pas de limite MAX, pas de
+throttle — l'admin contrôle.
+
+Cas d'usage : sauvegarde explicite AVANT une opération risquée
+(pré-calcul beta-testeur, switch profil, import CSV banks, etc.) →
+restauration en 2 clics si pollution observée.
+
+```
+src/core/state.js  +helpers purs :
+  createManualSnapshot(label) → { ok, id } ou { ok: false, error }
+  listManualSnapshots() → array { id, time, label, data }
+  restoreManualSnapshot(id) → boolean (écrit data dans LS_KEY)
+  deleteManualSnapshot(id) → boolean
+  LS_MANUAL_SNAPSHOTS_KEY = 'tonex_guide_snapshots_manual'
+src/app/screens/MaintenanceTab.jsx
+  +section "💾 Snapshots manuels" (admin only)
+  +bouton "Créer un snapshot" avec window.prompt label
+  +liste snapshots avec boutons Restaurer / ✕ Supprimer par ligne
+```
+
+#### Phase 7.59-B — Sanity check guitar orphelins au boot
+
+`validateProfileGuitars(state, guitarsCatalog)` helper pur dans
+`state.js`. Pour chaque profile.myGuitars, vérifie que chaque id
+existe dans :
+- `GUITARS` catalog standard (Sire ajoutées Phase 7.48 T11)
+- `state.shared.customGuitars` (Phase 7.x migration shared)
+- `profile.customGuitars` legacy v3-
+
+Si un id n'est dans AUCUN des trois → guitar orphelin → log
+`console.warn` au boot :
+```
+[backline-sanity] Pollution profile détectée — guitar ids orphelins:
+  [{profileId: "sebastien", profileName: "Sébastien",
+    orphanIds: ["sire_t7", "sire_t3"]}]
+```
+
+Non bloquant — diagnostic facilité. Au prochain incident, Sébastien
+copie le log + contexte (qu'a-t-il fait ?) pour qu'on identifie la
+cause racine.
+
+### i18n complet
+
+10 nouvelles clés EN/ES ajoutées pour la section snapshots manuels
+(create, restore, delete, prompts, errors).
+
+### Récap final session 2026-05-17
+
+| Famille | Versions | Sujet |
+|---------|----------|-------|
+| 7.52.6 → 7.52.17 | 8.14.77-80 | Hotel California, snapshot curateur, auth Firebase |
+| 7.53.x | 8.14.81-83 | ToneNET usages + LWW + UX flush |
+| 7.55 catalog | 8.14.84 | findCatalogEntryByUsages ideal_top3 |
+| 7.54.x | 8.14.85-87 | aiCache per-profile + drop shared + hash setlist |
+| 7.56 | 8.14.88 | findSlotByName tolère format IA |
+| 7.55-quickwins | 8.14.89 | F+B+G+7.52.18 mode démo |
+| 7.55-A | 8.14.90 | Snapshot démo enrichi v10 |
+| 7.57 | 8.14.91 | Retire éditeur BPM/tonalité |
+| 7.58 | 8.14.92 | Strip profile.aiCache non-actifs au push |
+| 7.58.1+i18n | 8.14.93 | Bump SAFE_LIMIT 980 KB + traductions EN/ES |
+| 7.55.3 + G auto-open | 8.14.94-95 | Chips démo + bouton random + URL auto-open |
+| 7.55.8-light | 8.14.96 | Modale 3 étapes + footer PathToTone clarifié |
+| **7.59 A+B** | **8.14.97** | **Snapshots manuels admin + sanity check guitar orphelins** |
+
+**6 bugs latents fixés** : 401 Firebase auth, effacement bloc
+toneNetPresets, hash partiel setlists, écrasement Hotel California,
+scale state local 1.7→2.3 MB → strip aiCache, pollution profile
+cross-mélange (protections défensives ajoutées Phase 7.59 mais
+cause racine non identifiée — repro pending).
+
+**Backline v8.14.97 stable, prêt pour beta-testeurs.**
+
+### Sous-phases additionnelles post-7.55-A (continued)
 
 ### Phase 7.55.3 + G auto-open (v8.14.94-95) — Mode démo "aha moment"
 
