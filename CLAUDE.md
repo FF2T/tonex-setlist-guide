@@ -830,7 +830,7 @@ avant son arrivée :
 7. Beta-testeur reload sa PWA → profile.aiCache déjà rempli via sync
    Firestore (Phase 7.54 LWW per-profile).
 
-### Phase 7.54.x — Récap (à jour)
+### Famille Phase 7.54.x — Refonte sync aiCache
 
 | Phase | Sujet | Version |
 |-------|-------|---------|
@@ -839,15 +839,10 @@ avant son arrivée :
 | 7.54.2 | Hash setlist complet (fix latent Phase 5.7.3) | 8.14.87 |
 | 7.56 | findSlotByName tolère format IA | 8.14.88 |
 
-### Phase 7.54 — aiCache per-profile (STATE_VERSION 9 → 10)
-
-Phase 7.54 résout structurellement le bug de strip aiCache au push
-Firestore.
-
-Famille Phase 7.54.x : refonte architecturale du sync aiCache pour
-casser un cercle vicieux qui bloquait toute propagation des analyses
-Mac → iPhone depuis plusieurs semaines. 3 sous-phases livrées en
-cascade après que chacune ait révélé un nouveau couche du problème.
+Refonte architecturale du sync aiCache pour casser un cercle vicieux
+qui bloquait toute propagation des analyses Mac → iPhone depuis
+plusieurs semaines. 3 sous-phases livrées en cascade après que
+chacune ait révélé un nouveau couche du problème.
 
 ### Résultat final (validé sur Mac + iPhone)
 
@@ -6734,6 +6729,151 @@ profile {
   passer en stale-while-revalidate sur le HTML.
 
 ## Idées en attente (proposées, pas encore validées)
+
+### Améliorations mode démo (proposées, à activer selon priorité)
+
+État au 2026-05-17 : mode démo fonctionnel (URL `?demo=1` + carte
+ProfilePicker, snapshot bundlé src/data/demo-profile.json avec 11
+morceaux Demo Setlist curés). Mais le snapshot date du 2026-05-16
+(Phase 7.52.16 re-export) AVANT les améliorations Phase 7.53 → 7.56.
+Quelques axes pour améliorer la qualité perçue du mode démo :
+
+#### A. Re-export snapshot avec améliorations récentes (effort ~30 min)
+
+**Trigger** : à activer si tu veux que les recos du mode démo
+bénéficient des fixes des derniers jours.
+
+**Pourquoi maintenant** : le snapshot bundlé contient un aiCache
+calculé AVANT :
+- Phase 7.53 (édition usages ToneNET) — possibilité de tagger
+  certains presets ToneNET du curateur pour des morceaux précis
+- Phase 7.55 (catalog usages-match dans ideal_top3) — applique au
+  render donc déjà actif sur le snapshot existant ✅
+- Phase 7.56 (findSlotByName tolère format IA prefixé) — n'aide que
+  si l'IA retourne preset_ann_name avec format prefixé (cas
+  observé sur custom packs)
+- Phase 7.54.x (aiCache per-profile + drop shared) — neutre pour le
+  mode démo (snapshot reste dans shared.songDb)
+
+**Effet attendu après re-export** : pour les morceaux où Gemini
+retourne `preset_ann_name` au format prefixé, le pin custom sera
+honoré. Hotel California déjà OK via Phase 7.55. Les recos sont déjà
+de bonne qualité dans le snapshot actuel — l'amélioration est
+marginale.
+
+**Étapes** :
+1. Sur Mac, switch profil curateur (`demo_1778839429588`)
+2. Mon Profil → 🎯 Préférences IA → "🔄 Réinitialiser mes analyses"
+   (invalide les 11 aiCache curateur)
+3. Setlists → "Demo Setlist" → "🤖 Analyser/MAJ 11"
+4. Ouvrir 2-3 fiches pour valider les nouvelles recos
+5. Switch sur Sébastien admin
+6. Mon Profil → 🔧 Maintenance → "📦 Exporter snapshot démo" →
+   dropdown sélectionne `demo_1778839429588 — Demo` → télécharge
+7. Remplacer `src/data/demo-profile.json` par le fichier téléchargé
+8. Bump APP_VERSION + SW CACHE, build, deploy
+
+#### B. Bouton "Quitter le mode démo" explicite (effort ~30 min)
+
+**Idée** : aujourd'hui, le visiteur démo doit reload sans `?demo=1`
+ou switcher manuellement via ProfileSelector pour quitter. Ajouter
+un bouton "Quitter le mode démo" sur DemoBanner ou dans Mon Profil
+qui :
+1. Restore activeProfileId à sessionStorage (s'il y avait un profil
+   trusted précédent) OU bascule sur ProfilePicker
+2. Strip le snapshot in-memory (drop le profil démo de profiles,
+   drop ses setlists, drop ses songs)
+3. Reload la page sans `?demo=1`
+
+**Pourquoi** : UX plus claire. Aujourd'hui un visiteur démo qui
+veut s'inscrire n'a pas de chemin évident de sortie.
+
+**Trigger** : à activer si un beta-testeur ou visiteur signale la
+confusion (pas encore observé).
+
+#### C. Audit complet UX grisé en mode démo (effort ~1h)
+
+**Idée** : Phase 7.51.3.1 a grisé `SongSearchBar`. D'autres inputs
+en mode démo restent fonctionnels — tap → toast 🔒 mais sans signal
+visuel préalable. À griser pour cohérence :
+- Rename setlist (ListScreen inline rename)
+- Création setlist (ListScreen "+ Nouvelle setlist")
+- Ajout custom guitar (ProfileTab GuitarSearchAdd)
+- Toggle partage setlist (ListScreen Phase 5.8 pills)
+- Bouton "💬 Donner un feedback à l'IA" (SongDetailCard)
+- Boutons "🔄 Réinitialiser mes analyses" + "🗑 Invalider tous
+  les caches IA"
+
+**Pourquoi** : tap → toast 🔒 fonctionne (Phase 7.51.2 wrapDemoGuard)
+mais sans signal visuel l'utilisateur peut s'énerver de tester
+plein de boutons et toujours recevoir un toast bloqué.
+
+**Trigger** : à activer si un visiteur démo se plaint de la
+confusion UX.
+
+#### D. Tests E2E mode démo (effort ~3-4h, à automatiser)
+
+**Idée** : Vitest + jsdom ne couvre pas le flow complet mode démo
+(URL `?demo=1` → carte ProfilePicker → DemoBanner → ouverture fiche
+song → tap bloqué → toast). Aujourd'hui smoke-test manuel
+post-déploiement. Playwright/Cypress automatiserait.
+
+**Trigger** : à activer si le mode démo casse régulièrement sur des
+changements (pas encore observé — 2 releases sans casse depuis
+Phase 7.51).
+
+#### E. Tracker visiteurs démo (effort variable, dépend tech)
+
+**Idée** : compteur de visiteurs uniques entrés en mode démo
+(idem : combien ouvrent la fiche d'un morceau, combien restent
+plus de 1 min, combien font une demande d'accès). Aujourd'hui : zéro
+visibilité.
+
+**Tech possibilités** :
+- Plausible Analytics (privacy-friendly, ~9€/mois) — événements
+  custom au `enterDemoMode` + `openSongDetail`
+- Tracker maison via Firestore counter (gratuit mais code à écrire)
+- Google Analytics (efficace mais privacy concerns)
+
+**Trigger** : à activer après le post case-study J+10 sur Reddit si
+le volume justifie. Avant ça, traffic trop faible pour analyser.
+
+#### F. Limitation visiteurs démo simultanés (non urgent)
+
+**Idée** : un visiteur démo n'a pas son propre profil utilisateur
+côté Firestore (`isDemo: true` chargé in-memory). Tous les
+visiteurs partagent les MÊMES aiCache du snapshot bundlé. Donc
+aucune limite côté quota.
+
+Mais s'ils tentent un fetchAI (bloqué Phase 7.51.2 mais à valider),
+ça consommerait ta clé Gemini partagée. Sécurité défensive : ajouter
+un cap sur les fetchAI déclenchés depuis profile.isDemo (déjà à 0
+en théorie via wrapDemoGuard).
+
+**Trigger** : à valider si Google Console montre des spikes de
+quota Gemini suspects.
+
+#### G. URL démo paramétrable (effort ~30 min)
+
+**Idée** : `?demo=1&song=acdc_hth&guitar=lp60` pour pré-ouvrir une
+fiche précise. Permet à Sébastien de partager un lien spécifique
+("Regarde la reco pour Hotel California sur ma démo") qui ouvre
+direct la fiche.
+
+**Trigger** : si demande explicite (utile pour cas studies dans
+Reddit posts).
+
+#### H. Mode démo avec rig configurable (effort ~2-3h)
+
+**Idée** : permettre au visiteur démo de switcher entre 2-3 rigs
+pré-configurés (ex. "Démo blues rock 70s — Sébastien", "Démo
+metal — Bruno", "Démo single coil — Francisco") pour montrer que
+l'app s'adapte à différents styles.
+
+**Tech** : 3 snapshots bundlés, switch via dropdown sur DemoBanner.
+
+**Trigger** : si signal qu'un seul rig démo (Sébastien) restreint
+l'audience. Pas encore demandé.
 
 ### Phase 7.44 (proposée) — Bouton "Demander un compte" sur ProfilePicker
 
