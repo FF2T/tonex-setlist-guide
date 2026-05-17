@@ -1,0 +1,50 @@
+Backline — Proprietary License
+
+Copyright (c) 2026 PathToTone (Sébastien Chemin)
+All rights reserved.
+
+This software and its associated source code (the "Software") are the
+exclusive property of PathToTone (Sébastien Chemin). The Software is
+published on GitHub (https://github.com/FF2T/tonex-setlist-guide) for
+transparency, technical reference, and educational viewing only.
+
+Permitted uses:
+  - Reading the source code for personal educational purposes.
+  - Forking the repository for personal study, with no public
+    redistribution of forks.
+  - Submitting issues, bug reports, or pull requests (which, if
+    accepted, are licensed back to the project under this same
+    license).
+
+Prohibited uses (without prior written permission from the copyright
+holder):
+  - Redistributing the Software, in whole or in part, in source or
+    compiled form.
+  - Hosting a public deployment derived from this Software (whether
+    free or paid).
+  - Using the Software, or any substantial portion thereof, in a
+    commercial product or service.
+  - Sublicensing or transferring rights to third parties.
+  - Removing or altering this copyright notice or the LICENSE file.
+
+Trademarks:
+  Backline is a product name and trademark of PathToTone. ToneX is a
+  trademark of IK Multimedia SpA. Other trademarks referenced in the
+  Software (Marshall, Fender, Gibson, Mesa Boogie, Studio Rats, ML
+  Sound Lab, Galtone, Amalgam Audio, Jason Sadites, Tone Junkie TV,
+  Worship Tutorials, etc.) are the property of their respective
+  owners and are used nominatively only.
+
+No warranty:
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+  NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDER
+  BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN
+  ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN
+  CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+Contact:
+  For licensing inquiries, partnerships, or other questions, contact
+  Sébastien Chemin at sebastien.chemin@gmail.com.
