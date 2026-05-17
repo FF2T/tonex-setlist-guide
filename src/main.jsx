@@ -155,10 +155,20 @@ if (typeof window !== 'undefined' && window.location && window.location.search) 
       _demoModeRequested = true;
       params.delete('demo');
       // Phase 7.55-G — capture les query params optionnels song/guitar
+      // + expose sur window pour que HomeScreen puisse les consommer
+      // après enterDemoMode (useEffect autoOpen).
       const sParam = params.get('song');
-      if (sParam) { _demoPrefSongId = sParam; params.delete('song'); }
+      if (sParam) {
+        _demoPrefSongId = sParam;
+        if (typeof window !== 'undefined') window._demoPrefSongId = sParam;
+        params.delete('song');
+      }
       const gParam = params.get('guitar');
-      if (gParam) { _demoPrefGuitarId = gParam; params.delete('guitar'); }
+      if (gParam) {
+        _demoPrefGuitarId = gParam;
+        if (typeof window !== 'undefined') window._demoPrefGuitarId = gParam;
+        params.delete('guitar');
+      }
       console.log('[demo] Auto-activated demo mode via URL param.',
         _demoPrefSongId ? `song=${_demoPrefSongId}` : '',
         _demoPrefGuitarId ? `guitar=${_demoPrefGuitarId}` : '');
@@ -238,7 +248,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.94";
+const APP_VERSION = "8.14.95";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
