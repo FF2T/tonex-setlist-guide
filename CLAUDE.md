@@ -746,17 +746,116 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-17, Phases 7.54.x → 7.60 close — sync stable + landing publique)
+## État actuel (2026-05-17, Phases 7.54.x → 7.60.1 close — sync stable + landing publique + snapshot démo balance pack creators)
 
-**Backline v8.14.99 / SW backline-v199 / STATE_VERSION 10 / 1047 tests verts.**
+**Backline v8.14.100 / SW backline-v200 / STATE_VERSION 10 / 1047 tests verts.**
 
-Session 2026-05-17 = **26 phases livrées en 31 deploys prod**.
+Session 2026-05-17 = **27 phases livrées en 32 deploys prod**.
 Sync bilatérale Mac↔iPhone validée avec push WITH aiCache stable,
 pin customs IA fonctionnel via post-processing tolérant, mode démo
 durci, UI épurée. **Protections défensives Phase 7.59** ajoutées
 suite à pollution profile cross-mélange observée. **Phase 7.60**
 sort le premier morceau de la stratégie de conversion publique
-(landing pour first-time visitors).
+(landing pour first-time visitors + ThanksScreen post-Tally).
+**Phase 7.60.1** finalise le snapshot démo avec un balance 4 pack
+creators à parité, en vue d'envoi à Paul Drew (TSR) et autres
+peer-creators.
+
+### Phase 7.60.1 — Snapshot démo balance 4 pack creators (v8.14.100)
+
+Suite à un constat 2026-05-17 : le snapshot démo Phase 7.55-A avait
+11 morceaux dont **8 recos AA + 1 JS + 2 fallback** (aucun TSR
+visible). Lecture possible par un cofondateur TSR (Paul Drew) :
+"Backline est AA-first". Signal involontaire à éviter avant l'envoi
+DM démo.
+
+**Démarche** : fine-tuning itératif de la setlist démo sur le profil
+curateur `demo_1778839429588`. Tentatives :
+
+- Voodoo Child (Hendrix) → pin AA MRSH SL100 (Hendrix usages
+  explicit AA Premium gagne sur TSR Mars Super1100)
+- For Whom the Bell Tolls → pin AA MES MKIICP (Metallica usages
+  explicit AA gagne)
+- Aces High (Iron Maiden) → pin AA MRSH JC800 (Marshall générique,
+  scores HB AA Premium curés > TSR)
+- Holy Wars (Megadeth) → pin AA PV 5050 LD (idem)
+
+**Constat structurel** : la curation Phase 7.52 d'AA Premium a
+optimisé les scores HB pour gagner par défaut sur metal/hard rock
+générique. Seuls les artistes **sans AA Premium dans usages**
+permettent à TSR de pin :
+- **Tool / SOAD** (aucun AA Premium n'a Tool/SOAD) → Chop Suey
+  (SOAD) pin `TSR Rectified - Vintage 2`, Schism (Tool) pin
+  `TSR Rectified - Modern 1`.
+
+**Setlist finale 8 morceaux (balance parfait 2-2-2-2)** :
+
+| Style | Morceau | Reco |
+|---|---|---|
+| Hard rock | AC/DC — Back in Black | AA MRSH JT50 |
+| Blues clean | B.B. King — The Thrill Is Gone | AA FNDR BFTWN |
+| Rock | Eagles — Hotel California | JS Wrecked Z Push 1 |
+| Blues SC | SRV — Pride and Joy | JS Sir Ombre Ult Push 1 |
+| Hard rock | Deep Purple — Smoke on the Water | TJ 74 Purple Plexi |
+| Jazz/blues | Robben Ford — Help the Poor | TJ DMBL ODS 124 LEAD 1 |
+| Metal | SOAD — Chop Suey | TSR Rectified - Vintage 2 |
+| Metal/prog | Tool — Schism | TSR Rectified - Modern 1 |
+
+**Balance** : 2 AA / 2 JS / 2 TJ / 2 TSR = 25% chacun. Message
+diversité 4 pack creators visible immédiatement par tout visiteur
+démo. AA passe de 73% (Phase 7.55-A) à 25%.
+
+**ToneX Plug retiré** du profil curateur démo (`enabledDevices`
+passe de `['tonex-anniversary', 'tonex-plug']` à `['tonex-anniversary']`).
+1 device suffit pour épurer les fiches du visiteur démo (1 colonne
+reco au lieu de 2). Les visiteurs avec ToneX Plug pourront tester
+via leur propre profil après onboard.
+
+### Architecture livrée Phase 7.60.1
+
+```
+src/data/demo-profile.json   Re-exporté depuis le profil curateur
+                             demo_1778839429588 avec :
+                             - 8 morceaux setlist (vs 11 Phase 7.55-A)
+                             - profile.enabledDevices = ['tonex-anniversary']
+                               (Plug retiré)
+                             - profileIds = ['demo', 'demo_1778839429588']
+                               (curateur préservé Phase 7.52.16)
+                             - 21 entries profile.aiCache (8 setlist
+                               + reliquats des morceaux retirés en cours
+                               de session)
+src/main.jsx                 APP_VERSION 8.14.99 → 8.14.100
+public/sw.js                 CACHE backline-v199 → backline-v200
+```
+
+### Conséquences Phase 7.60.1
+
+- **1047/1047 tests verts** (snapshot ne casse aucun test, juste
+  data).
+- **Bundle** 2351.16 → 2360.22 KB (+9 KB pour snapshot enrichi).
+- **Pas de bump STATE_VERSION** (v10 préservée).
+- **Pas de migration** (snapshot data uniquement).
+- **Cohabitation** : un client pré-7.60.1 reçoit le nouveau snapshot
+  au prochain mount mode démo → 8 morceaux affichés. Pas de risque.
+
+### Dette résiduelle Phase 7.60.1 → 7.61
+
+- **Rename guitares vers noms complets** identifié pendant la
+  session : `Strat AM Vintage II 61` → `Fender Stratocaster American
+  Vintage II 1961` (et 10 autres). Avant rename, il faut **rendre
+  `matchGuitarName` plus tolérant** (`src/core/scoring/guitar.js:212`)
+  pour ne pas casser les aiCache existants qui contiennent les
+  anciens noms dans `cot_step2_guitars[].name`. Risque rétro-compat :
+  un aiCache historique avec `"Strat AM Vintage II 61"` dans
+  cot_step2_guitars ne matcherait plus la guitare strat61 si `name`
+  change. Solution Phase 7.61 : tokenize set words dans
+  `matchGuitarName` (ex: "strat 1961" match "fender stratocaster
+  american vintage ii 1961"), puis rename les 11 guitares, puis
+  re-export snapshot démo.
+- **Ellipses (...) sur badges preset en desktop** (ListScreen) :
+  `maxWidth: 220` hardcoded ligne 620 → tronque en desktop alors
+  qu'il y a 800+px dispo. Fix simple Phase 7.61 :
+  `maxWidth: 'clamp(200px, 35vw, 500px)'` responsive.
 
 ### Phase 7.60 — Landing publique first-time visitors (v8.14.99)
 
