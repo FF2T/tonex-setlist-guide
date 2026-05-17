@@ -871,6 +871,42 @@ public/sw.js                 CACHE backline-v199 → backline-v200
   Phase 7.50). Tester sur les 8 morceaux de la démo + sur une
   setlist Bruno-style pour valider visuellement.
 
+### Dette résiduelle Phase 7.62 — Sécurité admin-switch profil
+
+Rapporté 2026-05-17 par Sébastien (observation théorique, pas
+d'incident effectif). Quand l'admin clique sur un autre profil
+dans le ProfileSelector dropdown, `switchProfile` (`main.jsx:1267`)
+fait `setActiveProfileId(id)` SANS demander de password. Toute
+action ultérieure (toggle guitare, modif setlist, etc.) s'applique
+au profil cible et part en push Firestore avec son `profileId`.
+
+**Risques** :
+- Confidentialité : admin voit tout le rig/setlists/aiCache du
+  beta-testeur sans son consentement explicite
+- Sync concurrent : si beta-testeur est connecté sur son device
+  en même temps, LWW per-profile (Phase 5.7) peut écraser ses
+  modifs récentes
+- Switch accidentel : un click malheureux dans le dropdown peut
+  faire changer de contexte sans avertissement
+
+**3 améliorations possibles Phase 7.62** (par ordre coût/impact) :
+
+1. **Banner persistant** *"🔍 Connecté en tant que Francisco
+   (mode admin) — tes modifs s'appliquent à son profil"* en haut
+   de tous les écrans. ~30 min. Le plus utile.
+2. **Log dans loginHistory** : entry spéciale *"Sébastien (admin)
+   connected as Francisco at 2026-05-17 22:30"* visible quand le
+   beta-testeur consulte son loginHistory. ~30 min. Transparence.
+3. **Modale de confirmation** *"Tu vas accéder à Francisco en
+   mode admin. Continuer ?"* avant switch. ~1h. Évite switchs
+   accidentels mais friction supplémentaire pour l'admin.
+4. **Demander password** du beta-testeur pour switcher sur lui.
+   ~2h. Respect vie privée max mais friction max aussi. Probably
+   pas nécessaire — l'angle 1+2 suffit.
+
+**Reco** : implémenter 1+2 ensemble dans Phase 7.62 (1h total),
+les plus utiles. Reporter 3 et écarter 4.
+
 ### Phase 7.60 — Landing publique first-time visitors (v8.14.99)
 
 Phase 7.60 = MVP V1 de la sous-phase 7.55.1 documentée dans "Idées
