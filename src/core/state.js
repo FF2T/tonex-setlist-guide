@@ -736,17 +736,60 @@ function mergeProfilesLWW(localProfiles, remoteProfiles, options = {}) {
 // son aiCache retiré. Le state local (localStorage) reste intact.
 // Pure : ne mute pas l'input. Si shared.songDb absent → retourne
 // l'input tel quel.
-function stripAiCacheForSync(state) {
+function stripAiCacheForSync(state, options = {}) {
   if (!state || typeof state !== 'object') return state;
   const shared = state.shared;
-  if (!shared || !Array.isArray(shared.songDb)) return state;
-  const lightSongs = shared.songDb.map((s) => {
-    if (!s || typeof s !== 'object') return s;
-    if (!('aiCache' in s)) return s;
-    const { aiCache, ...rest } = s;
-    return rest;
-  });
-  return { ...state, shared: { ...shared, songDb: lightSongs } };
+  let mutated = false;
+  let out = state;
+  // Strip shared.songDb[i].aiCache (Phase 5.7.1 legacy)
+  if (shared && Array.isArray(shared.songDb)) {
+    const lightSongs = shared.songDb.map((s) => {
+      if (!s || typeof s !== 'object') return s;
+      if (!('aiCache' in s)) return s;
+      const { aiCache, ...rest } = s;
+      return rest;
+    });
+    out = { ...state, shared: { ...shared, songDb: lightSongs } };
+    mutated = true;
+  }
+  // Phase 7.58 — strip profile.aiCache des profils NON-ACTIFS au push.
+  // Le profile.aiCache du profil actif (activeId) est PRÉSERVÉ —
+  // c'est l'objectif Phase 7.54 (per-profile). Les autres profils
+  // sont gardés en local sur le device mais pas pushés pour éviter
+  // de gonfler le payload Firestore (limite hard 1 MB).
+  //
+  // Conséquence : si un autre profil se connecte sur SON device et
+  // pull, il ne recevra PAS les profile.aiCache calculés depuis le
+  // device de Sébastien (cas pré-calcul beta-testeur). Il doit
+  // re-fetcher localement. Acceptable car les pré-calculs admin
+  // restent disponibles via le snapshot démo bundlé Phase 7.51.4.
+  const activeId = options.activeId || state.activeProfileId;
+  if (activeId && out.profiles && typeof out.profiles === 'object') {
+    // Vérifie d'abord si au moins un profil non-actif a un aiCache non-vide
+    // (sinon le strip est no-op → garder identity check)
+    let hasNonActiveAiCache = false;
+    for (const [id, p] of Object.entries(out.profiles)) {
+      if (id !== activeId && p && p.aiCache && Object.keys(p.aiCache).length > 0) {
+        hasNonActiveAiCache = true;
+        break;
+      }
+    }
+    if (hasNonActiveAiCache) {
+      const lightProfiles = {};
+      for (const [id, p] of Object.entries(out.profiles)) {
+        if (id === activeId) {
+          lightProfiles[id] = p;
+        } else if (p && typeof p === 'object' && p.aiCache && Object.keys(p.aiCache).length > 0) {
+          lightProfiles[id] = { ...p, aiCache: {} };
+        } else {
+          lightProfiles[id] = p;
+        }
+      }
+      out = { ...out, profiles: lightProfiles };
+      mutated = true;
+    }
+  }
+  return mutated ? out : state;
 }
 
 // Merge songDb avec préservation explicite de aiCache local (Phase 5.7.1).
