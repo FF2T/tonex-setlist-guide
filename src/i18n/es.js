@@ -51,6 +51,28 @@ const es = {
   'demo.suggest-label': 'Prueba:',
   'demo.random-button': '🎲 Aleatorio',
   'demo.random-title': 'Elegir una canción al azar',
+
+  // landing (Phase 7.60)
+  'landing.h1': 'Backline — el copiloto de tu ToneX',
+  'landing.subtitle': 'Qué preset, qué guitarra, qué ajustes — para cada canción. La IA filtra entre tus packs.',
+  'landing.feature-1-title': 'Buscas una canción',
+  'landing.feature-1-body': 'Escribe el título. La IA identifica el rig original (guitarrista, ampli, pedales de la época).',
+  'landing.feature-2-title': 'La IA propone una reco',
+  'landing.feature-2-body': 'El preset adecuado en tus bancos (número + slot A/B/C), la guitarra adecuada de tu rig.',
+  'landing.feature-3-title': 'Tocas, ella asiste',
+  'landing.feature-3-body': 'Consejos de interpretación, elección de pastilla, ajustes de tono. Modo escena pantalla completa.',
+  'landing.cta-demo': '🎸 Probar el modo demo (sin cuenta)',
+  'landing.cta-beta': '✉️ Solicitar acceso beta',
+  'landing.has-account': 'Ya tengo una cuenta',
+  'landing.studios-link': '¿Editas packs de captures? Contáctanos',
+
+  // thanks (Phase 7.60)
+  'thanks.h1': '¡Gracias!',
+  'thanks.body-main': 'Te crearemos un perfil Backline pre-configurado con tus guitarras y tu setlist. Recibirás tus credenciales por email en menos de 48h.',
+  'thanks.body-spam': '¿Nada en 3 días? Revisa tu carpeta de spam, o responde a uno de mis posts en Reddit.',
+  'thanks.cta-demo': '🎸 Probar la demo mientras esperas',
+  'thanks.cta-back': 'Volver al inicio',
+
   'tonenet.usages-toggle': 'Usos artista / canción (opcional)',
   'tonenet.usages-hint': 'Etiquetar este preset para artistas/canciones específicas lo hace prioritario en las recomendaciones AI cuando la canción analizada coincide.',
   'tonenet.usage-artist': 'Artista (ej: Black Sabbath)',

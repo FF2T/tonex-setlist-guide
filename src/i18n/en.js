@@ -53,6 +53,28 @@ const en = {
   'demo.suggest-label': 'Try:',
   'demo.random-button': '🎲 Random',
   'demo.random-title': 'Pick a random song',
+
+  // landing (Phase 7.60)
+  'landing.h1': 'Backline — your ToneX copilot',
+  'landing.subtitle': "Which preset, which guitar, which settings — for every song. The AI sifts through your packs.",
+  'landing.feature-1-title': 'You search a song',
+  'landing.feature-1-body': "Type the title. The AI identifies the original rig (guitarist, amp, period-correct pedals).",
+  'landing.feature-2-title': 'The AI proposes a reco',
+  'landing.feature-2-body': 'The right preset in your banks (number + slot A/B/C), the right guitar from your rig.',
+  'landing.feature-3-title': 'You play, it assists',
+  'landing.feature-3-body': "Playing tips, pickup choice, tone tweaks. Full-screen live mode.",
+  'landing.cta-demo': '🎸 Try the demo (no account)',
+  'landing.cta-beta': '✉️ Request beta access',
+  'landing.has-account': 'I already have an account',
+  'landing.studios-link': 'Do you publish capture packs? Get in touch',
+
+  // thanks (Phase 7.60)
+  'thanks.h1': 'Thanks!',
+  'thanks.body-main': "We'll create a pre-configured Backline profile with your guitars and setlist. You'll receive your credentials by email within 48h.",
+  'thanks.body-spam': "Nothing in 3 days? Check your spam folder, or reply to one of my Reddit posts.",
+  'thanks.cta-demo': '🎸 Try the demo while you wait',
+  'thanks.cta-back': 'Back to home',
+
   'tonenet.usages-toggle': 'Artist / song usages (optional)',
   'tonenet.usages-hint': 'Tagging this preset for specific artists/songs makes this slot a priority in AI recommendations when the analyzed song matches.',
   'tonenet.usage-artist': 'Artist (e.g. Black Sabbath)',

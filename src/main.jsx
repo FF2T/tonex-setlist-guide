@@ -115,7 +115,12 @@ import { getSharedGeminiKey, setSharedGeminiKey } from './app/utils/shared-key.j
 // silencieusement. Désormais ./sw.js a pour scope la racine du site et
 // reprend en main offline + stale-while-revalidate. Bumper le CACHE dans
 // public/sw.js à chaque release.
-if ('serviceWorker' in navigator) {
+// Phase 7.60 — Gate la registration à PROD uniquement. En dev (Vite
+// serve, hot reload), un SW déjà installé intercepte les fetchs Vite
+// (paths différents du build prod) → erreurs "Failed to convert value
+// to 'Response'" + écran noir. Le SW n'est utile que pour la PWA prod
+// déployée (offline + stale-while-revalidate).
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
 
@@ -140,6 +145,11 @@ import DemoBanner from './app/components/DemoBanner.jsx';
 // Le snapshot bundlé (loadDemoSnapshot) est injecté in-memory dans le
 // state initial de App (cf. useEffect mount). L'URL est nettoyée.
 let _demoModeRequested = false;
+// Phase 7.60 — Param `?thanks=1` posé par la redirection Tally après
+// soumission du formulaire "demande accès beta". Le visiteur atterrit
+// sur ThanksScreen (page de remerciement branded mybackline.app) au
+// lieu d'être ramené sur tally.so/r/.../thanks générique.
+let _thanksRequested = false;
 // Phase 7.55-G — URL paramétrable `?demo=1&song=X&guitar=Y` pour
 // pré-ouvrir une fiche song (et optionnellement pré-sélectionner une
 // guitare). Permet à Sébastien de partager des liens cas studies
@@ -152,6 +162,11 @@ if (typeof window !== 'undefined' && window.location && window.location.search) 
     if (params.get('beta') === '1') {
       setNoSyncMode(true);
       params.delete('beta');
+    }
+    if (params.get('thanks') === '1' || params.get('thanks') === 'true') {
+      _thanksRequested = true;
+      params.delete('thanks');
+      console.log('[thanks] Auto-activated thanks screen via URL param.');
     }
     if (params.get('demo') === '1' || params.get('demo') === 'true') {
       _demoModeRequested = true;
@@ -250,7 +265,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.98";
+const APP_VERSION = "8.14.99";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -306,6 +321,10 @@ import BankEditor from './app/components/BankEditor.jsx';
 
 // Phase 7.18 — Profile picker/selector + couleur extracted.
 import ProfilePickerScreen from './app/screens/ProfilePickerScreen.jsx';
+// Phase 7.60 — Landing publique pour first-time visitors.
+import LandingScreen from './app/screens/LandingScreen.jsx';
+// Phase 7.60 — Page de remerciement post-soumission Tally.
+import ThanksScreen from './app/screens/ThanksScreen.jsx';
 import ProfileSelector from './app/components/ProfileSelector.jsx';
 import { profileColor } from './app/components/profile-color.js';
 import GuitarSearchAdd from './app/components/GuitarSearchAdd.jsx';
@@ -1178,6 +1197,16 @@ function App() {
   const loginRecorded=useRef(false);
   useEffect(()=>{
     if(!firestoreLoaded||screen!=="loading") return;
+    // Phase 7.60 — URL ?thanks=1 (redirect après soumission Tally) :
+    // affiche ThanksScreen branded mybackline.app au lieu de
+    // continuer l'auto-login. PRIORITAIRE sur tout : un user trusted
+    // qui clique "Demander un accès beta" depuis la landing et soumet
+    // verra quand même la confirmation (pas auto-login direct).
+    if(_thanksRequested){
+      _thanksRequested = false; // consommé
+      setScreen("thanks");
+      return;
+    }
     // Phase 7.51.3 — URL ?demo=1 court-circuite l'auto-login : on entre
     // direct dans le profil démo, aucun trusted device n'est consulté
     // ni ajouté.
@@ -1199,6 +1228,14 @@ function App() {
       if(trustedIds.length===1&&allProfiles[trustedIds[0]]){
         var tid=trustedIds[0];
         setActiveProfileId(tid);sessionStorage.setItem("tonex_active_profile",tid);recordLogin(tid);loginRecorded.current=true;setScreen("list");
+      } else if(trustedIds.length===0){
+        // Phase 7.60 — Aucun device trusted = first-time visitor.
+        // Servir LandingScreen au lieu de basculer direct sur
+        // ProfilePicker (qui demanderait nom + password sans contexte).
+        // Le visiteur peut depuis cette page : entrer en mode démo,
+        // demander un accès beta (formulaire Tally), ou cliquer "J'ai
+        // déjà un compte" → setScreen("pick") classique.
+        setScreen("landing");
       } else if(profileCount>1){setScreen("pick");}
     else{recordLogin(activeProfileId);loginRecorded.current=true;setScreen("list");}
     }
@@ -1296,6 +1333,8 @@ function App() {
   var showNav=mainScreens.includes(screen);
 
   if(screen==="loading") return <div className="page-root"><div style={{textAlign:"center",padding:"60px 20px"}}><div style={{marginBottom:16,display:"flex",justifyContent:"center"}}><BacklineIcon size={56} color="var(--brass-300)"/></div><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)"}}>{APP_NAME}</div><div style={{fontSize:13,color:"var(--text-muted)",marginTop:8}}>{t("loading","Chargement...")}</div></div></div>;
+  if(screen==="landing") return <div className="page-root"><LandingScreen onDemoEnter={enterDemoMode} onShowPicker={()=>setScreen("pick")} appVersion={APP_VERSION}/></div>;
+  if(screen==="thanks") return <div className="page-root"><ThanksScreen onDemoEnter={enterDemoMode} onBackHome={()=>setScreen("landing")} appVersion={APP_VERSION}/></div>;
   if(screen==="pick") return <div className="page-root"><ProfilePickerScreen profiles={profiles} onPick={pickProfile} appVersion={APP_VERSION} onUpgradePassword={(id,newHash)=>setProfiles(p=>({...p,[id]:{...p[id],password:newHash,lastModified:Date.now()}}))} onDemoEnter={enterDemoMode}/></div>;
 
   // Phase 4 — mode scène plein écran. Le LiveScreen gère lui-même son

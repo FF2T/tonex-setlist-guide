@@ -746,17 +746,107 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-17, Phases 7.54.x → 7.59 close — sync stable + protections défensives)
+## État actuel (2026-05-17, Phases 7.54.x → 7.60 close — sync stable + landing publique)
 
-**Backline v8.14.97 / SW backline-v197 / STATE_VERSION 10 / 1047 tests verts.**
+**Backline v8.14.99 / SW backline-v199 / STATE_VERSION 10 / 1047 tests verts.**
 
-Session 2026-05-17 = **25 phases livrées en 30 deploys prod**.
+Session 2026-05-17 = **26 phases livrées en 31 deploys prod**.
 Sync bilatérale Mac↔iPhone validée avec push WITH aiCache stable,
 pin customs IA fonctionnel via post-processing tolérant, mode démo
 durci, UI épurée. **Protections défensives Phase 7.59** ajoutées
-suite à pollution profile cross-mélange observée (sire_t7/t3 du
-profil Francisco apparus dans profile.sebastien.myGuitars sans
-repro identifié).
+suite à pollution profile cross-mélange observée. **Phase 7.60**
+sort le premier morceau de la stratégie de conversion publique
+(landing pour first-time visitors).
+
+### Phase 7.60 — Landing publique first-time visitors (v8.14.99)
+
+Phase 7.60 = MVP V1 de la sous-phase 7.55.1 documentée dans "Idées
+en attente". Servie aux visiteurs qui arrivent sur mybackline.app
+sans aucun trusted device (donc jamais aux profils déjà connectés
+sur leurs appareils — comportement legacy strictement préservé).
+
+**Composant `src/app/screens/LandingScreen.jsx`** :
+- Hero : icône Backline 64px + H1 "Backline — le copilote de ta
+  ToneX" + sous-titre "Quel preset, quelle guitare, quels réglages
+  — pour chaque morceau. L'IA fait le tri dans tes packs." + ligne
+  italique "V1 dédiée ToneX (Pedal, Anniversary, Plug). Support
+  Tone Master Pro en développement." (positionne le scope V1).
+- 3 cards features statiques : 🔍 "Tu cherches un morceau" / 🎯
+  "L'IA propose une reco" / 🎛️ "Tu joues, elle assiste". Grid
+  responsive (auto-fit, minmax 220px).
+- 2 CTAs principaux :
+  - **Démo** (brass→copper gradient, le CTA fort) → `onDemoEnter`
+    qui appelle `enterDemoMode()` (réutilise Phase 7.51.3).
+  - **Beta** (style secondaire) → lien externe `target="_blank"`
+    vers `TALLY_URL` constant (placeholder `https://tally.so/r/REPLACE_ME`
+    à remplacer par Sébastien après création du formulaire Tally).
+- Lien discret "J'ai déjà un compte" → `onShowPicker` → setScreen
+  ("pick") → ProfilePickerScreen legacy.
+- Footer micro : lien mailto studios + numéro de version.
+- Trilingue FR/EN/ES dès J0 (15 nouvelles clés `landing.*`).
+
+**Routing `src/main.jsx`** : l'auto-login `useEffect` Phase 7.51.3
+gagne une nouvelle branche AVANT le check `profileCount>1` :
+```js
+} else if(trustedIds.length===0){
+  setScreen("landing");
+}
+```
+Si l'utilisateur a au moins 1 trusted device → auto-login direct
+(legacy). Si aucun → landing. La condition `?demo=1` reste
+prioritaire en tête de l'effect (Phase 7.51.3 inchangé).
+
+Dispatch JSX :
+```jsx
+if(screen==="landing") return <div className="page-root">
+  <LandingScreen onDemoEnter={enterDemoMode}
+    onShowPicker={()=>setScreen("pick")}
+    appVersion={APP_VERSION}/>
+</div>;
+```
+
+**Conséquences** :
+- Pour Sébastien (Mac + iPhone trusted) : aucun changement, jamais
+  exposé à la landing.
+- Pour un visiteur fresh sur `https://mybackline.app/` : voit la
+  landing au lieu du ProfilePickerScreen "Qui joue aujourd'hui ?"
+  qui demandait nom + password sans contexte.
+- Bundle 2347.81 → 2348.18 KB (+0.37 KB pour LandingScreen + 15 i18n
+  trilingues). Aucun GIF/MP4 inline → pas de gros impact taille.
+- Pas de bump STATE_VERSION (purement UI publique).
+- Pas de migration localStorage.
+- 1047/1047 tests verts (aucun nouveau test Vitest dédié à
+  LandingScreen — cohérent avec Phase 7.51 landing). Smoke-test
+  manuel à faire post-déploiement (navigation privée pour simuler
+  un device fresh).
+
+**Action post-déploiement Sébastien** :
+1. Créer le formulaire Tally (champs suggérés : nom, email,
+   guitares principales, modèle ToneX, 5-10 morceaux prioritaires,
+   "comment as-tu découvert Backline ?")
+2. Récupérer l'URL `https://tally.so/r/XXXXXX`
+3. Remplacer `TALLY_URL` dans `src/app/screens/LandingScreen.jsx`
+4. Rebuild + redeploy
+
+Tant que le placeholder est en place, le clic sur "Demander un
+accès beta" ouvre une page 404 Tally → non bloquant pour le
+déploiement initial, juste à corriger avant que les utilisateurs
+n'arrivent en volume.
+
+**Roadmap V2 (différée)** : remplacer les 3 cards statiques par des
+GIF/MP4 enregistrés via OBS sur la démo curée (3 clips × ~500 KB
+= +1.5 MB bundle inline). Effort estimé : ~6h production vidéo +
+1h intégration. À déclencher après J+10 si les analytics (Phase
+7.55.6) montrent un signal de conversion suffisant pour justifier
+l'investissement.
+
+**Sous-phases 7.55.x suivantes proposées** :
+- 7.55.2 : bouton "Voir un exemple direct" dans la modale d'intro
+  démo qui charge auto Highway to Hell (cf docs "Idées en attente")
+- 7.55.4 : page studios `/studios` (B2B éditeurs de packs)
+- 7.55.5 : formulaire Tally qualifiant enrichi (avec champ
+  "comment as-tu découvert ?")
+- 7.55.6 : analytics Cloudflare/Umami pour mesurer la conversion
 
 ### Phase 7.59 — Protections défensives pollution profile (v8.14.97)
 
