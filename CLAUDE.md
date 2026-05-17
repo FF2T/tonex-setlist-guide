@@ -746,9 +746,27 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-17, Phase 7.54 close — aiCache per-profile, STATE_VERSION 10)
+## État actuel (2026-05-17, Phases 7.54 → 7.54.2 close — aiCache per-profile, sync bilatérale)
 
-**Backline v8.14.85 / SW backline-v185 / STATE_VERSION 10 / 1038 tests verts.**
+**Backline v8.14.87 / SW backline-v187 / STATE_VERSION 10 / 1038 tests verts.**
+
+Famille Phase 7.54.x : refonte architecturale du sync aiCache pour
+casser un cercle vicieux qui bloquait toute propagation des analyses
+Mac → iPhone depuis plusieurs semaines. 3 sous-phases livrées en
+cascade après que chacune ait révélé un nouveau couche du problème.
+
+### Résultat final (validé sur Mac + iPhone)
+
+| Métrique | Avant Phase 7.54 | Après 7.54.2 |
+|----------|------------------|--------------|
+| State local Mac (raw) | 1684 KB | **903 KB** |
+| Push compressed | 922 KB ≥ seuil → strip aiCache | **382 KB WITH aiCache** |
+| profile.aiCache (Sébastien) | n/a | **50 entries** |
+| shared.songDb aiCache legacy | 148 | **0** |
+| Propagation guitare per-song Mac→iPhone | ❌ silencieuse | ✅ 5-10s |
+| Propagation analyses Mac→iPhone | ❌ strippées | ✅ avec aiCache |
+
+### Phase 7.54 — aiCache per-profile (STATE_VERSION 9 → 10)
 
 Phase 7.54 résout structurellement le bug de strip aiCache au push
 Firestore. Le state Mac dépassait 800 KB compressed →
@@ -852,6 +870,94 @@ public/sw.js CACHE backline-v184 → backline-v185
 - **Wipe "Invalider tous les caches" admin** wipe aussi shared.aiCache
   legacy en plus de profile.aiCache. Si d'autres profils ont des
   shared.aiCache, perdus côté curateur.
+
+### Phase 7.54.1 — Drop ALL shared.aiCache + skip merge
+
+**Bug observé immédiatement après Phase 7.54** : state Mac encore
+2513 KB au reload. Le push restait `WITHOUT aiCache (compressed 923 KB
+still ≥ 800 KB)`. Cause :
+
+1. **Migration v9→v10 trop conservatrice** : ne droppait que les
+   shared.aiCache du profil actif (50 caches Sébastien). Les 98 caches
+   des autres profils (Bruno/Francisco/démo/Arthur) restaient en shared
+   → ~1500 KB raw conservés inutilement.
+2. **`mergeSongDbPreservingLocalAiCache` ré-injectait** au pull Firestore
+   le `remote.shared.aiCache`. Cercle vicieux : drop local → pull → réinjection.
+
+**Fix Phase 7.54.1** :
+
+- `migrateV9toV10` étendu : drop ALL `shared.songDb.aiCache` (pas
+  seulement profil actif). Les autres profils retrouvent leurs caches
+  via leur propre `profile.aiCache` (sync per-profile via
+  `mergeProfilesLWW` Phase 5.7) ET via leur propre migration v10 sur
+  leur device.
+- `mergeSongDbPreservingLocalAiCache` accepte nouveau param `options.isV10`.
+  Si `true`, drop `remote.aiCache` au merge (legacy obsolète en v10).
+  Sinon, comportement Phase 5.7.1 inchangé (rétro-compat).
+- Call sites main.jsx (`applyRemoteData` + initial pull) → `isV10:true`.
+
+**Trade-off accepté** : si un autre profil se connecte sur le Mac de
+Sébastien, ses analyses doivent re-fetcher (pas dispo localement
+avant sync via profile). En pratique : rare, compromise vs blocage
+permanent du sync.
+
+**v8.14.85 → v8.14.86, SW v186.**
+
+### Phase 7.54.2 — Hash setlist complet (fix bug latent depuis Phase 5.7.3)
+
+**Bug observé immédiatement après Phase 7.54.1** : Sébastien sélectionne
+guitare LP P90 pour "Back in Black" sur Mac → iPhone reçoit setlist
+avec `lastModified` identique mais `guitars: {}` (vide).
+
+**Cause** : `_setSetlistsComposed.shallowHash` Phase 5.7.3 ne hashait
+que `length + name + profileIds + songIds`. Le champ `guitars`
+(mapping per-song gId) — ainsi que `notes`, `recoMode`, et tout autre
+champ futur — n'était PAS dans le hash. Conséquence chaîne :
+
+1. Mac click guitare → `onSetlists` modifie `setlist.guitars[songId]`
+2. `shallowHash(prev) === shallowHash(next)` car guitars hors hash
+3. → pas de stamp `lastModified` → setlists mise à jour localement
+   mais avec `lastModified` ancien
+4. Push à Firestore embarque la setlist avec guitars mais lastModified
+   ancien
+5. iPhone pull → `mergeSetlistsLWW` voit `remote.lastModified ===
+   local.lastModified` → tiebreak keep local → modif Mac perdue côté
+   iPhone
+
+Bug latent depuis Phase 5.7.3 (mai 2026). Masqué auparavant par le
+fait que d'autres modifs concurrentes (toggle guitare collection,
+ajout setlist, etc.) re-stampaient régulièrement les setlists.
+Phase 7.54.x a rendu le sync plus exigeant → bug émerge.
+
+**Fix Phase 7.54.2** : remplacer `shallowHash` partiel par
+`JSON.stringify` complet de la setlist (sans `lastModified`). Couvre
+tous les champs présents et futurs.
+
+```js
+const shallowHash = (sl) => {
+  if (!sl) return '';
+  const { lastModified: _lm, ...rest } = sl;
+  try { return JSON.stringify(rest); } catch { return String(rest); }
+};
+```
+
+**v8.14.86 → v8.14.87, SW v187.**
+
+### Validation finale (2026-05-17)
+
+Test bilatéral confirmé :
+- Mac : sélection guitare → `lastModified: 2026-05-17T09:54:39.653Z`,
+  `guitars: {acdc_bib: "lp50p90"}`
+- iPhone après reload + 5s : **MÊME** `lastModified` + **MÊME** `guitars`
+- Sync stable, pas de strip, propagation bilatérale 5-10s
+
+### Récap complet famille 7.54.x
+
+| Phase | Sujet | Version |
+|-------|-------|---------|
+| 7.54 | aiCache per-profile (STATE_VERSION 10) | 8.14.85 |
+| 7.54.1 | Drop ALL shared.aiCache + skip merge | 8.14.86 |
+| 7.54.2 | Hash setlist complet (fix latent Phase 5.7.3) | 8.14.87 |
 
 ---
 
