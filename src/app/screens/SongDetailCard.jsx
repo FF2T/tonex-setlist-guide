@@ -34,7 +34,7 @@ import {
   getBestResult, getLocalizedText,
 } from '../utils/ai-helpers.js';
 import { findInBanks } from '../utils/preset-helpers.js';
-import { resolveDisplayGuitar } from '../utils/display-guitar.js';
+import { resolveDisplayGuitar, filterCotGuitarsToRig } from '../utils/display-guitar.js';
 import { getActiveDevicesForRender } from '../utils/devices-render.js';
 import { fetchAI } from '../utils/fetchAI.js';
 import { scoreColor } from '../components/score-utils.js';
@@ -207,10 +207,19 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         </div>
       )}
 
-      {!reloading && aiC && (
+      {!reloading && aiC && (() => {
+        // Phase 7.65.1 — Filtre strict cot_step2_guitars sur le rig actif
+        // pour la section "Raisonnement IA → Scoring guitares". Phase 3.6
+        // (union all-rigs au prompt) faisait que ce bloc affichait des
+        // guitares d'autres profils (ex. Bruno voyait Strat AM Vintage II
+        // 61 + Les Paul Standard 60, hors rig). Le filtre tombe aussi la
+        // section si toutes les top-N IA sont hors rig.
+        const cotInRig = filterCotGuitarsToRig(aiC.cot_step2_guitars, guitars);
+        const showReasoning = aiC.cot_step1 || cotInRig.length > 0 || aiC.cot_step3_amp;
+        return (
         <>
           {/* SECTION 2 : Raisonnement IA */}
-          {(aiC.cot_step1 || aiC.cot_step2_guitars || aiC.cot_step3_amp) && (
+          {showReasoning && (
             <div style={sectionStyle}>
               <div onClick={() => setShowCot((p) => !p)} style={{ cursor: 'pointer', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', display: 'flex', alignItems: 'center', gap: 5, userSelect: 'none' }}>
                 {t('song-detail.reasoning', '🧠 Raisonnement IA')} <span style={{ fontSize: 10, marginLeft: 'auto', fontWeight: 400 }}>{showCot ? '▲' : '▼'}</span>
@@ -221,9 +230,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                     <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-tonal', 'Profil tonal')}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{getLocalizedText(aiC.cot_step1, locale)}</div>
                   </div>}
-                  {aiC.cot_step2_guitars?.length > 0 && <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+                  {cotInRig.length > 0 && <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
                     <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-guitars', 'Scoring guitares')}</div>
-                    {aiC.cot_step2_guitars.map((gt, i) => <div key={i} style={{ fontSize: 11, color: 'var(--text-sec)', marginBottom: i < aiC.cot_step2_guitars.length - 1 ? 4 : 0, display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                    {cotInRig.map((gt, i) => <div key={i} style={{ fontSize: 11, color: 'var(--text-sec)', marginBottom: i < cotInRig.length - 1 ? 4 : 0, display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 600, color: 'var(--text-bright)', flexShrink: 0 }}>{gt.name}</span>
                       <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: scoreColor(gt.score), flexShrink: 0 }}>{gt.score}%</span>
                       <span style={{ color: 'var(--text-dim)' }}>{getLocalizedText(gt.reason, locale)}</span>
@@ -361,7 +370,8 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             </div>
           </div>
         </>
-      )}
+        );
+      })()}
 
       {/* SECTION 4 : Paramétrage */}
       <div style={customSectionStyle}>

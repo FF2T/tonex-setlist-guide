@@ -746,7 +746,140 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-18, Phase 7.65 close — vue repliée ListScreen filtre guitare sur rig actif)
+## État actuel (2026-05-18, Phases 7.65 + 7.65.1 close — vue repliée + Raisonnement IA filtrés rig actif)
+
+**Backline v8.14.104 / SW backline-v204 / STATE_VERSION 10 / 1069 tests verts.**
+
+### Phase 7.65.1 — Filtre cot_step2_guitars + ideal_guitar sur rig actif (v8.14.104)
+
+Suite Phase 7.65 (vue repliée ListScreen), Sébastien remonte un 2e
+site qui leakait des guitares hors rig : la section **"🧠 Raisonnement
+IA → Scoring guitares"** dans la vue dépliée (`SongDetailCard`) et
+sur l'écran Accueil après recherche libre (`HomeScreen`). Ces sites
+itéraient `aiC.cot_step2_guitars` brut → pour Bruno (rig HB-only)
+sur "The Final Countdown" :
+
+> Strat AM Vintage II 61 (SC) 92% — Norum joue 1965 Strat…
+> Les Paul Standard 60 (HB) 85% — humbuckers 80s…
+> Schecter C-1 Platinum (HB) 78% — solo confort.
+
+Bug racine identique à Phase 7.65 : Phase 3.6 (union all-rigs au
+prompt) → cot_step2 mentionne des guitares d'autres profils.
+
+**Décision UX** (validée 2026-05-18) : **filtre strict** (drop des
+entrées hors rig). Si toutes les top-N IA sont hors rig, la section
+"Scoring guitares" se cache → l'IA n'a comparé que des guitares
+inaccessibles, on ne ment pas. Trade-off vs option "afficher tout +
+badge hors rig" : moins de contexte comparatif mais aucune confusion.
+
+**Fix Phase 7.65.1 (purement d'affichage)** :
+
+1. **Nouveau helper `filterCotGuitarsToRig(cotList, rigGuitars)`**
+   dans `src/app/utils/display-guitar.js` (à côté de
+   `resolveDisplayGuitar`). Retourne un nouveau tableau, immutable
+   sur la source. Drop entries sans `name`, sans match rig, ou
+   malformées.
+
+2. **SongDetailCard "Scoring guitares"** (`src/app/screens/SongDetailCard.jsx`
+   lignes 224-234) : `cotInRig = filterCotGuitarsToRig(...)` avant
+   `.map`. Bloc englobant `(cot_step1 || cot_step2_guitars ||
+   cot_step3_amp)` mis à jour → `(cot_step1 || cotInRig.length > 0
+   || cot_step3_amp)` pour cacher TOUTE la section si rien à
+   afficher. Le rendu cot_step2 utilise `cotInRig` et son `.length`.
+
+3. **HomeScreen** (`src/app/screens/HomeScreen.jsx`) :
+   - Bloc 543-569 "Raisonnement IA" : pareil, filtre via
+     `cotInRigHS`.
+   - Lignes 508-513 : ancien calcul `idealGuitarFromCollection +
+     idealGuitarCot + idealGuitarObj + idealGuitarScore` (4 vars
+     dont une — `idealGuitarObj` — fallback `cot_step2_guitars?.[0]`
+     pouvant être hors rig) → remplacé par 3 lignes basées sur
+     `resolveDisplayGuitar(songResult, allGuitars, { fallbackToFirst:
+     false })`. Mode strict, cache la ligne si rien ne matche.
+   - Ligne 578 (section "Recommandation idéale") : affiche
+     `displayIdealGuitarName` au lieu de `songResult.ideal_guitar`
+     brut. Si hors rig → ligne cachée (`displayIdealGuitarName ===
+     null`).
+   - Ligne 619 (section "Paramétrage — mon choix") : fallback
+     `displayIdealGuitarName` au lieu de `songResult.ideal_guitar`.
+
+### Tests Phase 7.65.1 (+7 nouveaux Vitest)
+
+`src/app/utils/display-guitar.test.js` étendu pour
+`filterCotGuitarsToRig` :
+- **Scénario bug Bruno reproduit** : cotList [Strat, LP, Schecter]
+  sur rig [Schecter, Ibanez] → garde Schecter uniquement, drop les
+  2 hors rig.
+- Ordre IA préservé quand plusieurs entries matchent.
+- Toutes hors rig → `[]`.
+- cotList vide/null/undefined → `[]`.
+- rigGuitars vide/null → `[]`.
+- Entries malformées (sans name / null / name vide) ignorées.
+- **Immutabilité** : la liste source n'est jamais mutée.
+
+22 tests verts dans `display-guitar.test.js` (15 Phase 7.65 + 7
+Phase 7.65.1). Suite globale **1069 tests** (1062 + 7).
+
+### Architecture livrée Phase 7.65.1
+
+```
+src/main.jsx                            APP_VERSION 8.14.103 → 8.14.104
+public/sw.js                            CACHE backline-v203 → backline-v204
+src/app/utils/display-guitar.js         +filterCotGuitarsToRig export
+src/app/utils/display-guitar.test.js    +7 tests filterCotGuitarsToRig
+src/app/screens/SongDetailCard.jsx      +import filterCotGuitarsToRig
+                                        +IIFE wrap pour scope `cotInRig`
+                                        bloc Section 2 Raisonnement
+                                        IA : filtre cot_step2 + cache
+                                        sous-bloc si vide + cache la
+                                        section entière si tout vide
+src/app/screens/HomeScreen.jsx          +import resolveDisplayGuitar,
+                                        filterCotGuitarsToRig
+                                        Refactor du bloc songResult
+                                        (4 vars → 3) en utilisant
+                                        resolveDisplayGuitar strict.
+                                        3 sites mis à jour :
+                                        Raisonnement IA, Reco idéale
+                                        Guitare, Paramétrage choix.
+```
+
+### Conséquences Phase 7.65.1
+
+- **1069 tests verts**.
+- **Pas de bump STATE_VERSION** (purement display).
+- **Pas de migration**.
+- **Pas de modif aiCache** : les caches Bruno/autres restent
+  valides. Filtrage au render → effet immédiat au reload v8.14.104.
+- **Cas-cible Bruno post-fix** :
+  - "The Final Countdown" vue dépliée → onglet Raisonnement IA
+    "Scoring guitares" affiche uniquement Schecter 78%
+    (raison : "Idéale pour le confort de jeu sur le solo
+    technique"). Plus de Strat 92% ni LP 85%.
+  - Si la cot_step2 IA ne mentionne AUCUNE guitare du rig → la
+    sous-section "Scoring guitares" se cache complètement. Si en
+    plus pas de cot_step1 ni cot_step3_amp → toute la section
+    "🧠 Raisonnement IA" se cache.
+
+### Dette résiduelle Phase 7.65.1
+
+- **Textes IA en prose** (`song_desc`, `guitar_reason`,
+  `cot_step3_amp`, `settings_preset`, `settings_guitar`) peuvent
+  encore mentionner des guitares hors rig par leur nom (la prose
+  est générée IA, non structurée). Pas filtrable mécaniquement.
+  Acceptable car ces champs ne sont pas le vecteur principal du
+  bug perçu — c'est le rendu tabulaire structuré (cot_step2) qui
+  faisait le plus mal.
+- **RecapScreen + LiveScreen + SynthesisScreen + JamScreen** :
+  aucun n'a de rendu structuré de cot_step2_guitars (cf audit
+  Phase 7.65). Pas touchés.
+- **`localGuitarSongScore` est encore utilisé en pratique** quand
+  l'IA pin une guitare du rig non listée dans cot_step2 (cas rare).
+  Le score fallback `localGuitarSongScore` étant calculé
+  localement, il ne fuite pas de guitare. Pas de risque ici.
+
+---
+
+## État précédent (2026-05-18, Phase 7.65 close — vue repliée ListScreen filtre guitare sur rig actif)
 
 **Backline v8.14.103 / SW backline-v203 / STATE_VERSION 10 / 1062 tests verts.**
 

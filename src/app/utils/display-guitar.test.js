@@ -9,7 +9,7 @@
 //   - scénario bug Bruno : "Strat AM Vintage II 61" dans aiC sur rig HB-only
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { resolveDisplayGuitar } from './display-guitar.js';
+import { resolveDisplayGuitar, filterCotGuitarsToRig } from './display-guitar.js';
 
 const LP60 = { id: 'lp60', name: 'Les Paul Standard 60', short: 'LP 60', type: 'HB', brand: 'Gibson' };
 const SG61 = { id: 'sg61', name: 'SG Standard 61', short: 'SG 61', type: 'HB', brand: 'Gibson' };
@@ -213,5 +213,80 @@ describe('resolveDisplayGuitar', () => {
       expect(result.score).toBe(0);
       expect(result.source).toBe('cot');
     });
+  });
+});
+
+describe('filterCotGuitarsToRig', () => {
+  it('scénario bug Bruno : filtre les guitares hors rig', () => {
+    // Cas réel observé sur SongDetailCard onglet Raisonnement IA :
+    // Bruno (rig HB-only Schecter + Ibanez) voyait Strat AM Vintage II 61
+    // 92% + Les Paul Standard 60 85% + Schecter 78%. Après Phase 7.65.1,
+    // ne reste que Schecter.
+    const cotList = [
+      { name: 'Strat AM Vintage II 61', score: 92, reason: 'Hendrix' },
+      { name: 'Les Paul Standard 60', score: 85, reason: 'HB power' },
+      { name: 'Schecter C-1 Platinum', score: 78, reason: 'Confort solo' },
+    ];
+    const result = filterCotGuitarsToRig(cotList, [SCHECTER, IBANEZ]);
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe('Schecter C-1 Platinum');
+    expect(result[0].score).toBe(78);
+    expect(result[0].reason).toBe('Confort solo');
+  });
+
+  it('préserve l\'ordre IA quand plusieurs entrées matchent le rig', () => {
+    const cotList = [
+      { name: 'Les Paul Standard 60', score: 95 },
+      { name: 'Strat AM Vintage II 61', score: 88 }, // hors rig
+      { name: 'SG Standard 61', score: 82 },
+    ];
+    const result = filterCotGuitarsToRig(cotList, [LP60, SG61]);
+    expect(result).toHaveLength(2);
+    expect(result[0].name).toBe('Les Paul Standard 60');
+    expect(result[1].name).toBe('SG Standard 61');
+  });
+
+  it('toutes hors rig → retourne []', () => {
+    const cotList = [
+      { name: 'Les Paul Standard 60', score: 95 },
+      { name: 'Strat AM Vintage II 61', score: 88 },
+    ];
+    expect(filterCotGuitarsToRig(cotList, [SCHECTER])).toEqual([]);
+  });
+
+  it('cotList vide / null / undefined → []', () => {
+    expect(filterCotGuitarsToRig([], [LP60])).toEqual([]);
+    expect(filterCotGuitarsToRig(null, [LP60])).toEqual([]);
+    expect(filterCotGuitarsToRig(undefined, [LP60])).toEqual([]);
+  });
+
+  it('rigGuitars vide / null → []', () => {
+    const cotList = [{ name: 'Les Paul', score: 90 }];
+    expect(filterCotGuitarsToRig(cotList, [])).toEqual([]);
+    expect(filterCotGuitarsToRig(cotList, null)).toEqual([]);
+  });
+
+  it('entries malformées ignorées (pas de name / null / name vide)', () => {
+    const cotList = [
+      { score: 95 },
+      null,
+      { name: '', score: 90 },
+      { name: 'Les Paul Standard 60', score: 85 },
+    ];
+    const result = filterCotGuitarsToRig(cotList, [LP60]);
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe('Les Paul Standard 60');
+  });
+
+  it('immutabilité : ne mute pas la liste source', () => {
+    const cotList = [
+      { name: 'Les Paul Standard 60', score: 95 },
+      { name: 'Strat AM Vintage II 61', score: 88 },
+    ];
+    const originalLength = cotList.length;
+    filterCotGuitarsToRig(cotList, [LP60]);
+    expect(cotList).toHaveLength(originalLength);
+    expect(cotList[0].name).toBe('Les Paul Standard 60');
+    expect(cotList[1].name).toBe('Strat AM Vintage II 61');
   });
 });

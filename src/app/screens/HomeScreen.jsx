@@ -27,6 +27,7 @@ import {
   getLocalizedText,
 } from '../utils/ai-helpers.js';
 import { findInBanks } from '../utils/preset-helpers.js';
+import { resolveDisplayGuitar, filterCotGuitarsToRig } from '../utils/display-guitar.js';
 import { getActiveDevicesForRender } from '../utils/devices-render.js';
 import { fetchAI } from '../utils/fetchAI.js';
 import { getSharedGeminiKey } from '../utils/shared-key.js';
@@ -505,12 +506,16 @@ function HomeScreen({
             {songResult && confirmedSong && (() => {
               const existing = songDb.find((s) => normalizePresetName(s.title) === normalizePresetName(confirmedSong.title));
               const info = existing ? getSongInfo(existing) : { year: songResult.song_year, album: songResult.song_album, desc: songResult.song_desc, key: songResult.song_key, bpm: songResult.song_bpm };
-              const idealGuitarFromCollection = songResult.ideal_guitar ? findGuitarByAIName(songResult.ideal_guitar, allGuitars) : null;
-              const idealGuitarCot = idealGuitarFromCollection ? findCotEntryForGuitar(songResult.cot_step2_guitars, idealGuitarFromCollection) : null;
-              const idealGuitarObj = idealGuitarCot || songResult.cot_step2_guitars?.[0];
-              const idealGuitarScore = idealGuitarCot?.score
-                || (idealGuitarFromCollection ? localGuitarSongScore(idealGuitarFromCollection, songResult) : null)
-                || idealGuitarObj?.score || null;
+              // Phase 7.65.1 — Restreint l'ideal_guitar et son score au rig
+              // actif (allGuitars). Si rien dans aiCache ne matche le rig,
+              // on cache la ligne plutôt que d'afficher une guitare d'un
+              // autre profil (cohérent avec Phase 7.32 SongDetailCard).
+              const _hsResolved = resolveDisplayGuitar(songResult, allGuitars, { fallbackToFirst: false });
+              const displayIdealGuitarName = _hsResolved.guitar?.name || null;
+              const idealGuitarScore = _hsResolved.score;
+              // cot_step2_guitars filtré rig actif pour la section
+              // "Raisonnement IA → Scoring guitares" (Phase 7.65.1).
+              const cotInRigHS = filterCotGuitarsToRig(songResult.cot_step2_guitars, allGuitars);
               const chosenGuitarCot = selectedGuitar ? findCotEntryForGuitar(songResult.cot_step2_guitars, selectedGuitar) : null;
               const chosenGuitarScore = chosenGuitarCot?.score || (selectedGuitar ? localGuitarSongScore(selectedGuitar, songResult) : idealGuitarScore);
               const chosenGuitarScoreEstimated = !!selectedGuitar && !chosenGuitarCot && chosenGuitarScore != null;
@@ -539,8 +544,8 @@ function HomeScreen({
                       )}
                     </div>
 
-                    {/* Section Raisonnement */}
-                    {(songResult.cot_step1 || songResult.cot_step2_guitars || songResult.cot_step3_amp) && (
+                    {/* Section Raisonnement (Phase 7.65.1 — filtre rig actif) */}
+                    {(songResult.cot_step1 || cotInRigHS.length > 0 || songResult.cot_step3_amp) && (
                       <div style={sectionStyle}>
                         <div onClick={() => setShowCotSearch((p) => !p)} style={{ cursor: 'pointer', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', display: 'flex', alignItems: 'center', gap: 5, userSelect: 'none' }}>
                           {t('home.song.reasoning', '🧠 Raisonnement IA')} <span style={{ fontSize: 10, marginLeft: 'auto', fontWeight: 400 }}>{showCotSearch ? '▲' : '▼'}</span>
@@ -551,9 +556,9 @@ function HomeScreen({
                               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('home.song.cot-tonal', 'Profil tonal')}</div>
                               <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{getLocalizedText(songResult.cot_step1, locale)}</div>
                             </div>}
-                            {songResult.cot_step2_guitars?.length > 0 && <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+                            {cotInRigHS.length > 0 && <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
                               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('home.song.cot-guitars', 'Scoring guitares')}</div>
-                              {songResult.cot_step2_guitars.map((gt, i) => <div key={i} style={{ fontSize: 11, color: 'var(--text-sec)', marginBottom: i < songResult.cot_step2_guitars.length - 1 ? 4 : 0, display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                              {cotInRigHS.map((gt, i) => <div key={i} style={{ fontSize: 11, color: 'var(--text-sec)', marginBottom: i < cotInRigHS.length - 1 ? 4 : 0, display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
                                 <span style={{ fontWeight: 600, color: 'var(--text-bright)', flexShrink: 0 }}>{gt.name}</span>
                                 <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: scoreColor(gt.score), flexShrink: 0 }}>{gt.score}%</span>
                                 <span style={{ color: 'var(--text-dim)' }}>{getLocalizedText(gt.reason, locale)}</span>
@@ -572,10 +577,10 @@ function HomeScreen({
                     <div style={sectionStyle}>
                       {sectionTitle(<StatusDot score={100} ideal={true} size={10}/>, t('home.song.reco-ideal', 'Recommandation idéale'))}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {songResult.ideal_guitar && (
+                        {displayIdealGuitarName && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
                             <StatusDot score={idealGuitarScore} ideal={true}/>
-                            <div style={{ flex: 1 }}>{t('home.song.guitar-label', 'Guitare ')}<span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{songResult.ideal_guitar}</span></div>
+                            <div style={{ flex: 1 }}>{t('home.song.guitar-label', 'Guitare ')}<span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{displayIdealGuitarName}</span></div>
                             {idealGuitarScore && <b style={{ color: scoreColor(idealGuitarScore), flexShrink: 0 }}>{idealGuitarScore}%</b>}
                           </div>
                         )}
@@ -616,7 +621,7 @@ function HomeScreen({
                       <div style={{ marginBottom: 8 }}>
                         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{t('home.song.guitar-chosen', 'Guitare choisie')}</div>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 4 }}>
-                          {(selectedGuitar || songResult.ideal_guitar) && <span style={{ fontSize: 11, background: 'var(--a5)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '4px 10px', color: 'var(--text-bright)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}><StatusDot score={chosenGuitarScore} ideal={!selectedGuitar || matchGuitarName(songResult.cot_step2_guitars?.[0]?.name, selectedGuitar)}/>{selectedGuitar ? `${selectedGuitar.name} (${selectedGuitar.type})` : songResult.ideal_guitar}</span>}
+                          {(selectedGuitar || displayIdealGuitarName) && <span style={{ fontSize: 11, background: 'var(--a5)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '4px 10px', color: 'var(--text-bright)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}><StatusDot score={chosenGuitarScore} ideal={!selectedGuitar || matchGuitarName(songResult.cot_step2_guitars?.[0]?.name, selectedGuitar)}/>{selectedGuitar ? `${selectedGuitar.name} (${selectedGuitar.type})` : displayIdealGuitarName}</span>}
                           <button onClick={() => setShowGuitarPick((p) => !p)} style={{ fontSize: 10, background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '3px 8px', cursor: 'pointer' }}>{t('home.song.change', 'Changer')}</button>
                         </div>
                         {selectedGuitar && chosenGuitarScore && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>{t('home.song.compat', 'Compatibilité :')} <b style={{ color: scoreColor(chosenGuitarScore) }}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated && <span style={{ marginLeft: 6, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>{t('home.song.estimated', '(estimé)')}</span>}</div>}

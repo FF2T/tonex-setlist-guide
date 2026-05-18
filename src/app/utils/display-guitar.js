@@ -36,6 +36,29 @@ import {
   findGuitarByAIName, findCotEntryForGuitar, localGuitarSongScore,
 } from '../../core/scoring/guitar.js';
 
+/**
+ * filterCotGuitarsToRig(cotList, rigGuitars)
+ *
+ * Filtre la liste cot_step2_guitars pour ne garder que les entrées dont
+ * le `name` matche une guitare du rig actif. Phase 7.65.1 — utilisé par
+ * la section "🧠 Raisonnement IA → Scoring guitares" (SongDetailCard +
+ * HomeScreen) pour ne pas exposer à un profil non-admin des guitares
+ * d'autres profils via l'union all-rigs Phase 3.6.
+ *
+ * Retourne un nouveau tableau (l'original n'est jamais muté). Si vide,
+ * l'appelant doit décider de cacher le sous-bloc (sinon il affiche
+ * une section "Scoring guitares" vide).
+ *
+ * - cotList null/non-array → []
+ * - rigGuitars null/vide → []
+ * - entries sans name ou null → ignorées
+ */
+export function filterCotGuitarsToRig(cotList, rigGuitars) {
+  if (!Array.isArray(cotList) || !cotList.length) return [];
+  if (!Array.isArray(rigGuitars) || !rigGuitars.length) return [];
+  return cotList.filter((c) => c?.name && findGuitarByAIName(c.name, rigGuitars));
+}
+
 export function resolveDisplayGuitar(aiC, rigGuitars, options = {}) {
   const { fallbackToFirst = true } = options;
   const rig = Array.isArray(rigGuitars) ? rigGuitars : [];
