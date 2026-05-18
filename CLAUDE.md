@@ -1068,46 +1068,24 @@ n'a pas fait de modif (qui purgerait le champ via le nouveau prep()).
 Sébastien peut forcer la purge en faisant 1 modif quelconque sur
 chaque device après reload v8.14.102.
 
-### Dette résiduelle Phase 7.65 — Vue repliée ListScreen filtre rig actif (rapporté Bruno 2026-05-18 matin)
+### Phase 7.65 — ✅ LIVRÉE 2026-05-18 (v8.14.103)
 
-Bug confirmé en vue repliée du `ListScreen` sur le profil non-admin
-Bruno (rig = Schecter C-1 Platinum HB + Ibanez Gio miKro HB seulement) :
-pour le morceau **The Final Countdown**, la vue repliée affiche
-"Strat AM Vintage II 61 (SC) 92%" — guitare qui appartient au rig
-admin Sébastien, pas à Bruno. Pour **For Whom the Bell Tolls**,
-aucune guitare n'est affichée en vue repliée (l'IA propose probablement
-"Gibson Explorer" ou similaire, hors catalog `GUITARS`).
+Bug rapporté par Bruno 2026-05-18 matin fixé le même jour. Voir
+section "État actuel (2026-05-18)" en tête de CLAUDE.md pour le
+détail (helper `resolveDisplayGuitar`, refactor ListScreen +
+SongDetailCard DRY, 15 tests Vitest, audit RecapScreen /
+SynthesisScreen / JamScreen / LiveScreen).
 
-**Cause** : Phase 3.6 ("AI cache — guitar list") fait que la liste
-de guitares envoyée au prompt IA est l'UNION des rigs de tous les
-profils. Donc `aiCache.result.ideal_guitar` et
-`cot_step2_guitars[].name` peuvent contenir une guitare absente du
-rig du profil actif. Phase 7.32 a déjà corrigé ce problème dans la
-vue dépliée (`SongDetailCard.jsx`) via le helper local
-`displayIdealGuitarName` qui scanne `cot_step2_guitars` et retourne
-la première guitare qui matche le rig actif via
-`findGuitarByAIName(c.name, rigGuitars)`. La vue repliée
-(`ListScreen → SongCollapsedDeviceRows`) n'a pas ce filtrage.
+Notes design conservées pour référence :
 
-**Solution Phase 7.65 (Fix A — affichage seulement)** :
-
-1. Étendre la logique `displayIdealGuitarName` Phase 7.32 à la vue
-   repliée. Possibilité de factoriser en helper partagé
-   (`src/app/utils/display-guitar.js` ou dans `ai-helpers.js`) si
-   c'est DRY-friendly.
-2. Règle stricte : ne JAMAIS afficher en vue repliée une guitare qui
-   n'est pas dans `rigGuitars` du profil actif. Fallback sur la
-   première guitare du rig actif avec son score V9 recalculé
-   localement.
-3. Tests Vitest : 3 cas (aiCache matche le rig, aiCache hors rig,
-   aiCache vide / cot_step2_guitars vide).
-4. Vérifier les autres écrans qui peuvent avoir le même bug latent
-   (`RecapScreen`, `SynthesisScreen`, `JamScreen`, `LiveScreen`).
-
-**Effort estimé** : ~30 min dev + tests + bump APP_VERSION/SW CACHE.
-
-**Pas de bump SCORING_VERSION** (V9 inchangé, c'est purement un fix
-d'affichage). Le scoring V9 local et l'aiCache restent intacts.
+- Helper partagé `src/app/utils/display-guitar.js` (préféré à un
+  inlining dupliqué). 3 étapes : `ideal_guitar` matche rig → premier
+  `cot_step2` matche rig → fallback rig[0] (option
+  `fallbackToFirst: false` pour Phase 7.32 strict).
+- HomeScreen ligne 510 a un fallback latent (`idealGuitarObj =
+  idealGuitarCot || songResult.cot_step2_guitars?.[0]`) qui pourrait
+  laisser passer une guitare hors rig — à scope **Phase 7.65.1** si
+  observé, ~10 min même helper.
 
 ### Dette résiduelle Phase 7.66 — Prompt fetchAI passe rig profil actif (Fix B, plus profond, plus risqué)
 
@@ -1138,11 +1116,13 @@ dans `ideal_guitar` ou `cot_step2_guitars[0]`.
 Phase 7.65 car touche au cœur du prompt IA et casse partiellement
 Phase 3.6.
 
-**Décision actuelle** : reporter après Phase 7.65 (qui débloque
-visuellement Bruno) + Phase 7.67 (qui débloque l'édition rig
-non-admin). À déclencher quand au moins un autre beta-tester
-non-admin remontre le même bug que Bruno (signal d'urgence
-suffisant).
+**Décision actuelle** : Phase 7.65 (Fix A) livrée 2026-05-18 →
+visuellement Bruno est débloqué. Phase 7.66 reportée après Phase
+7.67 (édition rig non-admin). À déclencher quand au moins un autre
+beta-tester non-admin remontre le même bug racine que Bruno
+(signal d'urgence suffisant), ou si on observe en pratique des
+recos hors-rig persistantes qui dégradent la confiance utilisateur
+malgré le filtrage d'affichage Phase 7.65.
 
 ### Dette résiduelle Phase 7.67 — Édition rig par non-admin (rapporté Bruno 2026-05-18)
 
@@ -1233,8 +1213,9 @@ setlist."*
    `gId` vide → fallback `ideal_guitar` filtré rig actif Phase
    7.32).
 
-**Effort estimé** : ~1-2h investigation + fix si bug confirmé. À
-faire après Phase 7.65.
+**Effort estimé** : ~1-2h investigation + fix si bug confirmé.
+Phase 7.65 livrée 2026-05-18 — peut maintenant être démarrée si
+Bruno reconfirme le bug post-déploiement v8.14.103.
 
 ### Bug investigation post-Phase 7.65 — customPacks Bruno usages Metallica
 
@@ -8321,10 +8302,11 @@ intermédiaire-avancé) ont identifié des features cohérentes de
 l'enrichissement output IA. Signal très fort, validation cross-
 profil. Phase 9 monte en priorité confirmée.
 
-**Timing** : à intégrer **après Phase 7.65** (Fix A vue repliée
-filtre rig actif, P0 Bruno) + **Phase 7.61** (rename guitares +
-fix ellipses) + **Phase 7.64** (bonus family match Strat/Tele/LP).
-Donc Phase 9 livrée probably fin mai / début juin si bandwidth.
+**Timing** : Phase 7.65 (Fix A vue repliée filtre rig actif, P0
+Bruno) livrée 2026-05-18. À intégrer ensuite **après Phase 7.61**
+(rename guitares + fix ellipses) + **Phase 7.64** (bonus family
+match Strat/Tele/LP). Donc Phase 9 livrée probably fin mai / début
+juin si bandwidth.
 Bruno étant le 3e signal explicite sur l'output enrichi (et
 particulièrement sur les built-in FX), priorisation possible de
 sous-phase 9.2 (FX params générés) avant 9.1 (knob settings) si
