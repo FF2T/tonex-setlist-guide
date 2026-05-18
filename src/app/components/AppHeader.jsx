@@ -11,6 +11,7 @@ import { APP_NAME } from '../../core/branding.js';
 import { isNoSyncMode } from '../utils/firestore.js';
 import BacklineIcon from './BacklineIcon.jsx';
 import NavIcon from './NavIcon.jsx';
+import ProfileSelector from './ProfileSelector.jsx';
 import { profileColor } from './profile-color.js';
 
 // Phase 7.43 — getNavItems() au lieu d'un const top-level pour permettre
@@ -23,14 +24,29 @@ const getNavItems = () => [
   { id: 'optimizer', label: t('nav.optimizer', 'Optimiser'), adminOnly: true },
 ];
 
-function AppHeader({ profiles, activeProfileId, onProfile, screen, onNavigate, isAdmin, syncStatus, appVersion }) {
+function AppHeader({ profiles, activeProfileId, onProfile, onSwitch, onViewProfile, onUpgradePassword, screen, onNavigate, isAdmin, syncStatus, appVersion }) {
   const visibleNav = getNavItems().filter((it) => !it.adminOnly || isAdmin);
   const profileName = (profiles[activeProfileId] || {}).name || '';
   const c = profileColor(activeProfileId);
   return (
     <div>
       <div className="app-header-bar" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px var(--s-3,12px)', background: 'var(--surface-card,var(--bg-card))', borderBottom: '1px solid var(--border-subtle,var(--a8))' }}>
-        <button onClick={onProfile} style={{ background: c, color: 'var(--text-inverse)', border: 'none', borderRadius: 'var(--r-pill,50%)', width: 32, height: 32, fontSize: 14, fontWeight: 800, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }} title={profileName}>{profileName[0]?.toUpperCase() || '?'}</button>
+        {/* Phase 7.63 — Pour les admins, ProfileSelector dropdown (switch
+            profils trusted + lien Mon Profil en bas). Pour les non-admins,
+            bouton avatar simple qui ouvre directement MonProfilScreen
+            (pas de switch possible — Phase 7.29.6 confidentialité). */}
+        {isAdmin && onSwitch ? (
+          <ProfileSelector
+            profiles={profiles}
+            activeProfileId={activeProfileId}
+            onSwitch={onSwitch}
+            onSettings={onProfile}
+            onViewProfile={onViewProfile}
+            onUpgradePassword={onUpgradePassword}
+          />
+        ) : (
+          <button onClick={onProfile} style={{ background: c, color: 'var(--text-inverse)', border: 'none', borderRadius: 'var(--r-pill,50%)', width: 32, height: 32, fontSize: 14, fontWeight: 800, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }} title={profileName}>{profileName[0]?.toUpperCase() || '?'}</button>
+        )}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
           <BacklineIcon size={20} color="var(--brass-300)"/>
           <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-display,system-ui)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{APP_NAME}</div>

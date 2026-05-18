@@ -746,7 +746,59 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-18, Phases 7.65 + 7.65.1 + 7.47.1 + 7.65.x + 7.61 + 7.64 + 7.63 close — 7 phases livrées)
+## État actuel (2026-05-18, Phases 7.65 + 7.65.1 + 7.47.1 + 7.65.x + 7.61 + 7.64 + 7.63 + 7.63.1 close — 8 phases livrées)
+
+**Backline v8.14.109 / SW backline-v209 / STATE_VERSION 10 / 1140 tests verts.**
+
+### Phase 7.63.1 — Réintroduire ProfileSelector dropdown dans AppHeader (v8.14.109)
+
+Suite Phase 7.63, Sébastien rapporte que le banner admin-switch ne s'active jamais en pratique. Investigation : le composant `ProfileSelector.jsx` (dropdown switch profil dans le header) existe et est importé dans `main.jsx` ligne 330, **mais n'est jamais rendu**. Régression silencieuse du découpage Phase 7.22 (`AppHeader.jsx`) qui a remplacé le dropdown par un bouton avatar simple ouvrant directement `MonProfilScreen` via `onProfile`.
+
+Conséquence : pas de flow `switchProfile` accessible par l'UI → Phase 7.63 banner inerte (le seul appel à `switchProfile` était le bouton "← Retour admin" du banner lui-même → catch-22). Sébastien switchait entre profils via logout + login password sur ProfilePicker (= `pickProfile`, pas `switchProfile`) — donc aucune entry `admin_switch` loguée et aucun banner.
+
+**Fix Phase 7.63.1 (~30 min)** :
+
+1. **`ProfileSelector.jsx`** : ajout d'un lien "⚙️ Mon Profil" en bas du dropdown (séparateur horizontal + bouton qui appelle `onSettings`). Préserve l'accès à `MonProfilScreen` (qui était l'unique action du bouton avatar simple).
+2. **`AppHeader.jsx`** : rendu conditionnel — si `isAdmin && onSwitch` → `<ProfileSelector>` (dropdown switch profil + Mon Profil), sinon bouton avatar simple (comportement antérieur, pour les non-admins). Filtre interne du ProfileSelector (ligne 61) garde le `active?.isAdmin || p.id === activeProfileId` : un admin voit tous les profils, un non-admin (cas dégénéré improbable ici) ne voit que le sien.
+3. **`main.jsx`** : `headerProps` étendu avec `onSwitch: switchProfile`, `onViewProfile`, `onUpgradePassword` (handler hashed → SHA-256+salt au login, Phase 7.28).
+
+### Comportement post-déploiement
+
+- **Admin Sébastien** : clic avatar header → dropdown avec liste tous profils (Bruno, Francisco, Arthur, Franck, etc.) + lien "⚙️ Mon Profil" en bas. Clic sur Bruno → si trusted device → `switchProfile('bruno')` direct → banner `AdminAsBanner` Phase 7.63 s'affiche + entry `admin_switch` dans `bruno.loginHistory`. Si pas trusted → modale password (workflow normal ProfileSelector Phase 7.18).
+- **Non-admin Bruno** : clic avatar header → ouvre `MonProfilScreen` directement (pas de dropdown — Phase 7.29.6 préserve la confidentialité, Bruno ne voit pas les autres profils).
+
+### Architecture livrée Phase 7.63.1
+
+```
+src/main.jsx                            APP_VERSION 8.14.108 → 8.14.109
+                                        headerProps étendu : onSwitch
+                                        (switchProfile), onViewProfile,
+                                        onUpgradePassword
+public/sw.js                            CACHE backline-v208 → backline-v209
+src/app/components/AppHeader.jsx        +import ProfileSelector
+                                        rendu conditionnel admin/non-admin
+                                        (dropdown vs bouton simple)
+src/app/components/ProfileSelector.jsx  +lien "⚙️ Mon Profil" en bas du
+                                        dropdown (séparateur + bouton
+                                        onSettings)
+```
+
+### Conséquences Phase 7.63.1
+
+- **1140/1140 tests verts** (aucun nouveau test — purement UX, fonctionnalité déjà testée Phase 7.63).
+- Pas de bump STATE_VERSION.
+- Pas de migration.
+- **Bundle** 2368.57 → 2373.88 KB (+5.3 KB pour ProfileSelector inline + Mon Profil link).
+- **Effet immédiat** : le banner Phase 7.63 et le log loginHistory deviennent **vraiment activables** par le workflow de switch profil de l'admin.
+
+### Dette résiduelle Phase 7.63.1
+
+- **Le ProfileSelector demande encore le password au switch si le profil cible n'est pas trusted**. Workflow inchangé depuis Phase 7.18. Si Sébastien admin n'a jamais été trusted sur Bruno → password demandé. C'est strictement plus restrictif que ce que je promettais Phase 7.63 (qui assumait le switch direct), mais cohérent avec la sécurité existante. À discuter si besoin d'un switch admin SANS password (l'admin a déjà accès au password via le state, donc strictement pas une protection — juste de la friction).
+- **Trilingue EN/ES** : nouveau key `profile-selector.settings` avec fallback FR "Mon Profil". Traductions complètes à ajouter (Phase 7.63 dette résiduelle déjà documentée).
+
+---
+
+## État précédent (2026-05-18, Phases 7.65 + 7.65.1 + 7.47.1 + 7.65.x + 7.61 + 7.64 + 7.63 close — 7 phases livrées)
 
 **Backline v8.14.108 / SW backline-v208 / STATE_VERSION 10 / 1140 tests verts.**
 

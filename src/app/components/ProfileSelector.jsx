@@ -84,6 +84,24 @@ function ProfileSelector({ profiles, activeProfileId, onSwitch, onSettings, onVi
             </div>}
           </div>;
         })}
+        {/* Phase 7.63 — lien Mon Profil en bas du dropdown pour ne pas perdre
+            l'accès à MonProfilScreen quand le bouton avatar bascule sur le
+            dropdown switch profil (admin only). */}
+        {onSettings && (
+          <>
+            <div style={{ borderTop: '1px solid var(--a8)', margin: '6px 0' }}/>
+            <button
+              onClick={() => { setOpen(false); onSettings(); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'transparent', border: 'none', cursor: 'pointer', padding: '6px 8px', color: 'var(--text-sec)', fontSize: 12, fontWeight: 500, borderRadius: 'var(--r-md)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--a5)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+              title={t('profile-selector.settings', 'Mon Profil')}
+            >
+              <span style={{ width: 26, textAlign: 'center', fontSize: 14 }}>⚙️</span>
+              {t('profile-selector.settings', 'Mon Profil')}
+            </button>
+          </>
+        )}
       </div>}
     </div>
   );

@@ -267,7 +267,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.108";
+const APP_VERSION = "8.14.109";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -1373,7 +1373,25 @@ function App() {
   };
 
   const [profileInitTab,setProfileInitTab]=useState(null);
-  var headerProps={profiles:profiles,activeProfileId:activeProfileId,onProfile:function(){setProfileInitTab(null);setScreen("profile");},screen:screen,onNavigate:setScreen,isAdmin:isAdmin,syncStatus:syncStatus,appVersion:APP_VERSION};
+  // Phase 7.63 — Réintroduit le ProfileSelector dropdown dans AppHeader
+  // pour les admins (régression Phase 7.22 du découpage). switchProfile
+  // appelé via onSwitch → push entry admin_switch dans loginHistory du
+  // profil cible + active le banner AdminAsBanner. Aussi expose
+  // onViewProfile + onUpgradePassword pour les fonctionnalités existantes
+  // du composant ProfileSelector.
+  var headerProps={
+    profiles:profiles,
+    activeProfileId:activeProfileId,
+    onProfile:function(){setProfileInitTab(null);setScreen("profile");},
+    onSwitch:switchProfile,
+    onViewProfile:function(id){setViewProfileId(id);setScreen("viewprofile");},
+    onUpgradePassword:function(id,newHash){setProfiles(function(p){return Object.assign({},p,{[id]:Object.assign({},p[id],{password:newHash,lastModified:Date.now()})});});},
+    screen:screen,
+    onNavigate:setScreen,
+    isAdmin:isAdmin,
+    syncStatus:syncStatus,
+    appVersion:APP_VERSION,
+  };
   var mainScreens=["list","setlists","explore","jam","optimizer","recap","synthesis","profile","viewprofile","exportimport"];
   var showNav=mainScreens.includes(screen);
 
