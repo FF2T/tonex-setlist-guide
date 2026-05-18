@@ -7,7 +7,7 @@
 // - inputs falsy/edge cases
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { getLocalizedText, findSlotByUsageMatch, findCatalogEntryByUsages, findSlotByName } from './ai-helpers.js';
+import { getLocalizedText, findSlotByUsageMatch, findCatalogEntryByUsages, findSlotByName, enrichAIResult } from './ai-helpers.js';
 import { PRESET_CATALOG_MERGED } from '../../core/catalog.js';
 
 describe('getLocalizedText', () => {
@@ -547,3 +547,192 @@ describe('findCatalogEntryByUsages — Phase 7.65.x (customs avec usages)', () =
     if (m) expect(m.entry.src).not.toBe('custom');
   });
 });
+
+// Phase 7.64 — Bonus family match dans enrichAIResult. Cible le bug
+// rapporté Francisco 2026-05-17 soir : sur Get Lucky (Daft Punk),
+// l'IA recommandait Sire T7 (Tele) au lieu de la Squier Strat alors
+// que ref_guitar="Fender Stratocaster".
+describe('enrichAIResult — Phase 7.64 (bonus family match)', () => {
+  // Banks vides pour ces tests : on se concentre sur cot_step2_guitars
+  // et ideal_guitar, pas sur les presets ann/plug.
+  const emptyBanks = {};
+
+  it('scénario Francisco Get Lucky : ref_guitar Stratocaster boost Strat vs Tele', () => {
+    const aiResult = {
+      song_style: 'pop',
+      target_gain: 4,
+      ref_guitar: 'Fender Stratocaster',
+      ideal_guitar: 'Sire Larry Carlton T7 (Telecaster)',
+      cot_step2_guitars: [
+        { name: 'Sire Larry Carlton T7 (Telecaster)', score: 88, reason: 'SC versatile' },
+        { name: 'Squier Classic Vibe Stratocaster', score: 78, reason: 'SC plus brillant' },
+      ],
+      preset_ann: null,
+      preset_plug: null,
+      ideal_preset: null,
+      ideal_preset_score: 0,
+      ideal_top3: [],
+    };
+    const out = enrichAIResult(aiResult, 'SC', null, emptyBanks, emptyBanks, undefined, null);
+    // Bonus +15 sur la Strat (78 → 93). Tele inchangée (88).
+    const strat = out.cot_step2_guitars.find((g) => g.name.includes('Stratocaster'));
+    const tele = out.cot_step2_guitars.find((g) => g.name.includes('Telecaster'));
+    expect(strat.score).toBe(93);
+    expect(strat._familyBoost).toBe(15);
+    expect(strat._familyMatched).toBe('stratocaster');
+    expect(tele.score).toBe(88);
+    expect(tele._familyBoost).toBeUndefined();
+    // Après re-tri, Strat est première.
+    expect(out.cot_step2_guitars[0].name).toContain('Stratocaster');
+    // ideal_guitar mis à jour pour cohérence avec ref_guitar family.
+    expect(out.ideal_guitar).toContain('Stratocaster');
+  });
+
+  it('Stairway to Heaven : ref_guitar Les Paul boost LP60 vs SG', () => {
+    const aiResult = {
+      song_style: 'rock',
+      target_gain: 6,
+      ref_guitar: 'Gibson Les Paul Standard',
+      ideal_guitar: "Gibson SG Standard '61",
+      cot_step2_guitars: [
+        { name: "Gibson SG Standard '61", score: 90 },
+        { name: "Gibson Les Paul Standard '60s", score: 82 },
+        { name: 'Gibson ES-335', score: 75 },
+      ],
+      preset_ann: null,
+      preset_plug: null,
+    };
+    const out = enrichAIResult(aiResult, 'HB', null, emptyBanks, emptyBanks, undefined, null);
+    const lp = out.cot_step2_guitars.find((g) => g.name.includes('Les Paul'));
+    const sg = out.cot_step2_guitars.find((g) => g.name.includes('SG'));
+    const es = out.cot_step2_guitars.find((g) => g.name.includes('ES-335'));
+    expect(lp.score).toBe(97); // 82 + 15
+    expect(lp._familyBoost).toBe(15);
+    expect(sg.score).toBe(90); // pas boosté (sg ≠ les_paul)
+    expect(es.score).toBe(75);
+    // LP devient première après re-tri.
+    expect(out.cot_step2_guitars[0].name).toContain('Les Paul');
+    expect(out.ideal_guitar).toContain('Les Paul');
+  });
+
+  it('plusieurs guitares de la même famille → toutes boostées, départage scoring V9', () => {
+    const aiResult = {
+      song_style: 'rock',
+      ref_guitar: 'Fender Stratocaster',
+      ideal_guitar: 'Squier Strat',
+      cot_step2_guitars: [
+        { name: 'Squier Stratocaster', score: 82 },
+        { name: 'Fender Stratocaster American Vintage II 1961', score: 80 },
+        { name: 'Fender Telecaster', score: 75 },
+      ],
+      preset_ann: null,
+      preset_plug: null,
+    };
+    const out = enrichAIResult(aiResult, 'SC', null, emptyBanks, emptyBanks, undefined, null);
+    const squier = out.cot_step2_guitars.find((g) => g.name === 'Squier Stratocaster');
+    const am61 = out.cot_step2_guitars.find((g) => g.name.includes('Vintage II 1961'));
+    expect(squier.score).toBe(97); // 82 + 15
+    expect(am61.score).toBe(95);   // 80 + 15
+    // Squier reste 1er après tri (97 > 95 > 75).
+    expect(out.cot_step2_guitars[0].name).toBe('Squier Stratocaster');
+  });
+
+  it('ref_guitar family "other" → pas de boost', () => {
+    const aiResult = {
+      song_style: 'metal',
+      ref_guitar: 'Schecter C-1 Platinum', // family = other
+      ideal_guitar: 'Schecter C-1 Platinum',
+      cot_step2_guitars: [
+        { name: 'Schecter C-1 Platinum', score: 92 },
+        { name: 'Ibanez Gio miKro GRGM21', score: 78 },
+      ],
+      preset_ann: null,
+      preset_plug: null,
+    };
+    const out = enrichAIResult(aiResult, 'HB', null, emptyBanks, emptyBanks, undefined, null);
+    // Aucun boost — scores inchangés.
+    expect(out.cot_step2_guitars[0].score).toBe(92);
+    expect(out.cot_step2_guitars[1].score).toBe(78);
+    expect(out.cot_step2_guitars[0]._familyBoost).toBeUndefined();
+  });
+
+  it('aucune guitare du rig ne matche la family → pas de re-tri', () => {
+    const aiResult = {
+      song_style: 'rock',
+      ref_guitar: 'Fender Stratocaster',
+      ideal_guitar: 'Schecter C-1 Platinum',
+      cot_step2_guitars: [
+        { name: 'Schecter C-1 Platinum', score: 88 },
+        { name: 'Ibanez Gio miKro GRGM21', score: 72 },
+      ],
+      preset_ann: null,
+      preset_plug: null,
+    };
+    const out = enrichAIResult(aiResult, 'HB', null, emptyBanks, emptyBanks, undefined, null);
+    // Rien à booster, ordre préservé.
+    expect(out.cot_step2_guitars[0].name).toBe('Schecter C-1 Platinum');
+    expect(out.cot_step2_guitars[0].score).toBe(88);
+    expect(out.ideal_guitar).toBe('Schecter C-1 Platinum'); // pas réécrit
+  });
+
+  it('idempotent : appel multiple ne double pas le boost (_familyBoosted flag)', () => {
+    const aiResult = {
+      song_style: 'pop',
+      ref_guitar: 'Fender Stratocaster',
+      cot_step2_guitars: [
+        { name: 'Squier Stratocaster', score: 75 },
+        { name: 'Fender Telecaster', score: 85 },
+      ],
+      preset_ann: null,
+      preset_plug: null,
+    };
+    const out1 = enrichAIResult(aiResult, 'SC', null, emptyBanks, emptyBanks, undefined, null);
+    const stratScore1 = out1.cot_step2_guitars.find((g) => g.name === 'Squier Stratocaster').score;
+    expect(stratScore1).toBe(90); // 75 + 15
+    // Re-appel sur le même aiResult → pas de double boost grâce au flag.
+    const out2 = enrichAIResult(out1, 'SC', null, emptyBanks, emptyBanks, undefined, null);
+    const stratScore2 = out2.cot_step2_guitars.find((g) => g.name === 'Squier Stratocaster').score;
+    expect(stratScore2).toBe(90); // pas 105
+  });
+
+  it('plafonné à 99 (Math.min)', () => {
+    const aiResult = {
+      song_style: 'rock',
+      ref_guitar: 'Fender Stratocaster',
+      cot_step2_guitars: [
+        { name: 'Fender Stratocaster', score: 95 },
+      ],
+      preset_ann: null,
+      preset_plug: null,
+    };
+    const out = enrichAIResult(aiResult, 'SC', null, emptyBanks, emptyBanks, undefined, null);
+    // 95 + 15 = 110 → plafonné à 99.
+    expect(out.cot_step2_guitars[0].score).toBe(99);
+  });
+
+  it('cot_step2_guitars vide ou absent → no-op', () => {
+    const ai1 = { ref_guitar: 'Fender Stratocaster', cot_step2_guitars: [], preset_ann: null, preset_plug: null };
+    const out1 = enrichAIResult(ai1, 'SC', null, emptyBanks, emptyBanks, undefined, null);
+    expect(out1.cot_step2_guitars).toEqual([]);
+
+    const ai2 = { ref_guitar: 'Fender Stratocaster', preset_ann: null, preset_plug: null };
+    const out2 = enrichAIResult(ai2, 'SC', null, emptyBanks, emptyBanks, undefined, null);
+    expect(out2.cot_step2_guitars).toBeUndefined();
+  });
+
+  it('ref_guitar null/undefined → pas de boost (no-op)', () => {
+    const aiResult = {
+      song_style: 'rock',
+      ref_guitar: null,
+      cot_step2_guitars: [
+        { name: 'Fender Stratocaster', score: 80 },
+      ],
+      preset_ann: null,
+      preset_plug: null,
+    };
+    const out = enrichAIResult(aiResult, 'SC', null, emptyBanks, emptyBanks, undefined, null);
+    expect(out.cot_step2_guitars[0].score).toBe(80);
+    expect(out.cot_step2_guitars[0]._familyBoost).toBeUndefined();
+  });
+});
+

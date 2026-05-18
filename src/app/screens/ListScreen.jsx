@@ -611,18 +611,25 @@ function ListScreen({
             const scColorV = sc != null ? scoreColor(sc) : null;
             const scBgV = sc != null ? scoreBg(sc) : null;
             const isIdeal = label && aiC?.ideal_preset && label === aiC.ideal_preset;
-            const badgeColor = deviceColor || (loc ? CC[loc.slot] : null);
+            // Phase 7.61 — Audit couleurs badges : 1 règle homogène. Tous
+            // les badges du row (slot, label, score%) prennent la couleur
+            // du score (`scColorV`) pour cohérence visuelle. Fallback sur
+            // la couleur device/slot uniquement si score absent (cas rare,
+            // preset orphelin). Avant : badge slot en deviceColor, badge
+            // label+score en scoreColor — mélange confus rapporté
+            // 2026-05-17 par Sébastien.
+            const unifiedColor = scColorV || deviceColor || (loc ? CC[loc.slot] : null) || 'var(--text-sec)';
             return (
               <div style={{ display: 'flex', alignItems: 'center', gap: 5 }} data-device-id={deviceId || 'unknown'}>
                 <StatusDot score={sc} ideal={isIdeal}/>
                 {loc
-                  ? <span title={tFormat('list.bank-tooltip', { bank: loc.bank, slot: loc.slot, label: CL[loc.slot] }, 'Banque {bank}, slot {slot} — {label}')} style={{ fontSize: 10, background: `${badgeColor}18`, color: badgeColor, border: `1px solid ${badgeColor}40`, borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700 }}>{loc.bank}{loc.slot}</span>
+                  ? <span title={tFormat('list.bank-tooltip', { bank: loc.bank, slot: loc.slot, label: CL[loc.slot] }, 'Banque {bank}, slot {slot} — {label}')} style={{ fontSize: 10, background: `${unifiedColor}18`, color: unifiedColor, border: `1px solid ${unifiedColor}40`, borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700 }}>{loc.bank}{loc.slot}</span>
                   : <span style={{ fontSize: 10, background: 'var(--yellow-bg)', color: 'var(--yellow)', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700 }}>⬇</span>}
-                {label && <span title={ampName ? `${label} · ${ampName}` : label} style={{ fontSize: 10, color: scColorV || 'var(--text-sec)', background: scBgV || 'transparent', border: scColorV ? `1px solid ${scColorV}30` : 'none', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220, display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                {label && <span title={ampName ? `${label} · ${ampName}` : label} style={{ fontSize: 10, color: unifiedColor, background: scBgV || 'transparent', border: scColorV ? `1px solid ${scColorV}30` : 'none', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 'clamp(200px, 35vw, 500px)', display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{label}</span>
                   {ampName && <span style={{ opacity: 0.6, fontWeight: 500, fontSize: 9, flexShrink: 0 }}>· {ampName.replace(/^Marshall /, '').replace(/^Fender /, '').replace(/^Mesa Boogie /, 'Mesa ')}</span>}
                 </span>}
-                {sc != null && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 800, color: scColorV, background: scBgV, borderRadius: 'var(--r-sm)', padding: '1px 6px', border: `1px solid ${scColorV}30` }} title={scoreLabel(sc).tip}>{sc}%</span>}
+                {sc != null && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 800, color: unifiedColor, background: scBgV, borderRadius: 'var(--r-sm)', padding: '1px 6px', border: `1px solid ${unifiedColor}30` }} title={scoreLabel(sc).tip}>{sc}%</span>}
               </div>
             );
           };

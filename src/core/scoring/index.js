@@ -13,6 +13,7 @@ import {
   computeGuitarScoreV2, matchGuitarName, findGuitarByAIName,
   findCotEntryForGuitar, localGuitarSongScore, pickTopGuitar,
   guitarChoiceFeedback, localGuitarSettings,
+  getGuitarFamily,
 } from './guitar.js';
 import {
   GAIN_RANGES, getGainRange, gainToNumeric, inferGainFromName,
@@ -95,6 +96,7 @@ export {
   computeGuitarScoreV2, matchGuitarName, findGuitarByAIName,
   findCotEntryForGuitar, localGuitarSongScore, pickTopGuitar,
   guitarChoiceFeedback, localGuitarSettings,
+  getGuitarFamily,
   GAIN_RANGES, getGainRange, gainToNumeric, inferGainFromName,
   STYLE_COMPATIBILITY, computeStyleMatchScore,
   computeRefAmpScore,

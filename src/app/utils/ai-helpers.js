@@ -29,6 +29,7 @@ import {
   computeFinalScore, computePickupScore, computeGainMatchScore,
   computeStyleMatchScore, computeRefAmpScore,
   getGainRange, gainToNumeric,
+  getGuitarFamily,
 } from '../../core/scoring/index.js';
 
 // Amp aliases : maps des ref_amp libres vers les noms canoniques du
@@ -526,6 +527,51 @@ function enrichAIResult(aiResult, gType, gId, banksAnn, banksPlug, availableSour
   if (best.idealTop3?.length && (!aiResult.ideal_top3?.length || best.idealTop3[0]?.score >= (aiResult.ideal_top3[0]?.score || 0))) {
     aiResult.ideal_top3 = best.idealTop3;
   }
+
+  // Phase 7.64 — Bonus family match. Si aiResult.ref_guitar mentionne une
+  // famille connue (Stratocaster, Telecaster, Les Paul, etc.), boost +15
+  // sur chaque cot_step2_guitars[i] dont la family matche. Cible exacte :
+  // sur "Get Lucky" (Daft Punk, ref_guitar = Stratocaster), le rig Francisco
+  // {Squier Strat + Sire T7 Telecaster} doit préférer la Strat même si
+  // le scoring V9 brut préfère la Tele pour des raisons secondaires.
+  //
+  // Idempotent via flag _familyBoosted : si enrichAIResult est appelé
+  // plusieurs fois (vue dépliée + vue repliée), le bonus ne s'empile pas.
+  // Post-processing pur — pas de bump SCORING_VERSION, aiCache existants
+  // bénéficient au render dès v8.14.107.
+  if (!aiResult._familyBoosted && Array.isArray(aiResult.cot_step2_guitars) && aiResult.cot_step2_guitars.length > 0) {
+    const refFamily = getGuitarFamily(aiResult.ref_guitar);
+    if (refFamily !== 'other') {
+      const FAMILY_BONUS = 15;
+      let modified = false;
+      aiResult.cot_step2_guitars = aiResult.cot_step2_guitars.map((entry) => {
+        if (!entry?.name || typeof entry.score !== 'number') return entry;
+        const entryFamily = getGuitarFamily(entry.name);
+        if (entryFamily === refFamily) {
+          modified = true;
+          return {
+            ...entry,
+            score: Math.min(99, entry.score + FAMILY_BONUS),
+            _familyBoost: FAMILY_BONUS,
+            _familyMatched: refFamily,
+          };
+        }
+        return entry;
+      });
+      if (modified) {
+        // Re-trier par score décroissant pour que la 1ère soit la nouvelle top.
+        aiResult.cot_step2_guitars.sort((a, b) => (b.score || 0) - (a.score || 0));
+        // Si la nouvelle top après bonus est de la family ref_guitar, mettre
+        // à jour ideal_guitar pour cohérence (l'IA aurait dû la choisir).
+        const topAfter = aiResult.cot_step2_guitars[0];
+        if (topAfter?.name && getGuitarFamily(topAfter.name) === refFamily) {
+          aiResult.ideal_guitar = topAfter.name;
+        }
+      }
+    }
+    aiResult._familyBoosted = true;
+  }
+
   return aiResult;
 }
 

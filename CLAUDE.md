@@ -746,7 +746,105 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-18, Phases 7.65 + 7.65.1 + 7.47.1 + 7.65.x close — filtre rig actif + metadata factory PDF v2 + customs usages pin)
+## État actuel (2026-05-18, Phases 7.65 + 7.65.1 + 7.47.1 + 7.65.x + 7.61 + 7.64 close — filtre rig + metadata PDF + customs usages + family match)
+
+**Backline v8.14.107 / SW backline-v207 / STATE_VERSION 10 / 1124 tests verts.**
+
+### Phase 7.61 + 7.64 — Rename guitares + bonus family match (v8.14.107)
+
+Promesse Francisco 17 mai soir "esta semana" honorée. Couplage des 2 phases pour 1 seul tour de validation.
+
+**Phase 7.61 — Rename guitares vers noms complets + matchGuitarName tolérant** :
+
+1. **`matchGuitarName` étendu** avec tokenize-set + stoplist + expand abbreviations (LP → les paul, JM → jazzmaster, JB → jazz bass). Gère :
+   - Suffixe numeric : "61" matche "1961"
+   - Prefix numeric : "60" matche "60s"
+   - Substring ≥4 chars : "strat" matche "stratocaster"
+   - Stoplist : marques (fender, gibson, sire…), qualificatifs (american, vintage, standard, ii…), abréviations (am, pro) — filtrés avant tokenize-set
+   - Conserve les 2 paths legacy (exact match + substring) pour rétro-compat.
+2. **11 guitares renommées** dans `core/guitars.js` vers noms marketing/PDF complets :
+   - `lp60` : "Les Paul Standard 60" → "Gibson Les Paul Standard '60s"
+   - `lp50p90` : "Les Paul Standard 50 P90" → "Gibson Les Paul Standard '50s P-90"
+   - `sg_ebony` : "SG Standard Ebony" → "Gibson SG Standard Ebony"
+   - `sg61` : "SG Standard 61" → "Gibson SG Standard '61"
+   - `es335` : "ES-335" → "Gibson ES-335"
+   - `strat61` : "Strat AM Vintage II 61" → "Fender Stratocaster American Vintage II 1961"
+   - `strat_pro2` : "Strat AM Pro II" → "Fender Stratocaster American Professional II"
+   - `strat_ec` : "Eric Clapton Strat" → "Fender Eric Clapton Signature Stratocaster"
+   - `tele63` : "Telecaster AM Vintage II 63" → "Fender Telecaster American Vintage II 1963"
+   - `tele_ultra` : "Telecaster Ultra" → "Fender Telecaster American Ultra"
+   - `jazzmaster` : "Jazzmaster" → "Fender American Vintage II 1966 Jazzmaster"
+   - `short` inchangé (badge ListScreen compact).
+3. **Rétro-compat aiCache** garantie : les anciens noms (`cot_step2_guitars[].name = "Strat AM Vintage II 61"`) matchent encore les nouveaux via tokenize-set.
+4. **Fix ellipses badges preset desktop** : `maxWidth: 220` hardcoded → `clamp(200px, 35vw, 500px)` responsive.
+5. **Audit codes couleur badges vue repliée** : unification — tous les badges (slot, label, score%) prennent la même couleur basée sur le score (`scColorV`). Avant : badge slot en `deviceColor`, badge label+score en `scoreColor` — mélange confus rapporté par Sébastien.
+
+**Phase 7.64 — Bonus family match Strat/Tele/LP** :
+
+1. **Nouveau helper `getGuitarFamily(name)`** dans `core/scoring/guitar.js` retourne `'stratocaster' | 'telecaster' | 'les_paul' | 'sg' | 'es335' | 'jazzmaster' | 'jaguar' | 'mustang' | 'flying_v' | 'explorer' | 'firebird' | 'prs' | 'superstrat' | 'other'`. Match par substring sur le nom (couplé à Phase 7.61 nouveaux noms complets : `getGuitarFamily("Fender Stratocaster American Vintage II 1961") === 'stratocaster'` trivialement).
+2. **Bonus dans `enrichAIResult`** : si `aiResult.ref_guitar` a une family connue (≠ 'other'), boost +15 pts sur chaque `cot_step2_guitars[i]` dont la family matche. Plafonné à 99. Re-tri par score décroissant. Si la nouvelle top est de la family ref_guitar, mise à jour de `aiResult.ideal_guitar`.
+3. **Idempotent** : flag `_familyBoosted` posé après application — pas de double-boost si `enrichAIResult` appelé plusieurs fois (vue dépliée + vue repliée).
+4. **Post-processing pur** : pas de bump SCORING_VERSION, les aiCache existants bénéficient au render dès reload v8.14.107.
+
+### Tests Phase 7.61 + 7.64 (+47 nouveaux Vitest)
+
+- `src/core/scoring/guitar-family.test.js` (NOUVEAU) — 38 tests : `getGuitarFamily` sur toutes les familles Fender/Gibson/PRS + scénarios bugs (Francisco Get Lucky, Stairway, Brown Sugar) + `matchGuitarName` tokenize-set (rétro-compat ancien aiCache, abréviations LP/SG/Strat/Tele, négatifs).
+- `src/app/utils/ai-helpers.test.js` — 9 nouveaux tests sur `enrichAIResult` Phase 7.64 :
+  - **Scénario bug Francisco Get Lucky** reproduit : ref_guitar Stratocaster + cot_step2 [Tele 88, Strat 78] → après bonus [Strat 93, Tele 88], ideal_guitar = Strat.
+  - Stairway to Heaven : ref_guitar Les Paul + cot_step2 [SG 90, LP 82, ES 75] → après [LP 97, SG 90, ES 75].
+  - Plusieurs guitares même family → toutes boostées, départage scoring V9.
+  - ref_guitar family 'other' → pas de boost.
+  - Aucune match → pas de re-tri.
+  - Idempotent (double appel ne double pas).
+  - Plafonné à 99.
+  - cot_step2 vide/absent → no-op.
+  - ref_guitar null → no-op.
+
+1124/1124 tests verts globaux (1077 + 47).
+
+### Architecture livrée Phase 7.61 + 7.64
+
+```
+src/main.jsx                            APP_VERSION 8.14.106 → 8.14.107
+public/sw.js                            CACHE backline-v206 → backline-v207
+src/core/scoring/guitar.js              matchGuitarName étendu tokenize-set
+                                        +GUITAR_STOPWORDS Set
+                                        +_expandGuitarAbbreviations,
+                                          _tokenizeGuitarName,
+                                          _significantTokens,
+                                          _tokenMatch, _tokenSubsetMatch
+                                        +getGuitarFamily export
+src/core/scoring/index.js               re-export getGuitarFamily
+src/core/guitars.js                     11 guitares renommées noms complets
+src/app/utils/ai-helpers.js             +import getGuitarFamily
+                                        enrichAIResult : +bonus family match
+                                        avant return (idempotent _familyBoosted)
+src/app/screens/ListScreen.jsx          fix ellipses badges desktop
+                                          (maxWidth 220 → clamp responsive)
+                                        audit couleurs badges : unifiedColor
+                                          (scColorV partout)
+src/core/scoring/guitar-family.test.js  NOUVEAU — 38 tests
+src/app/utils/ai-helpers.test.js        +9 tests enrichAIResult Phase 7.64
+```
+
+### Conséquences Phase 7.61 + 7.64
+
+- **1124/1124 tests verts** (1077 + 47 nouveaux).
+- **Pas de bump STATE_VERSION** (purement post-processing + rename data).
+- **Pas de migration localStorage** : rétro-compat aiCache historique via `matchGuitarName` tokenize-set.
+- **Effet immédiat sur Francisco** post-reload v8.14.107 : à l'ouverture de "Get Lucky" (Daft Punk), le post-processing applique +15 sur la Squier Strat (family stratocaster matche ref_guitar) → la Strat passe devant la Sire T7 Telecaster. Workaround feedback IA explicite plus nécessaire.
+- **Effet immédiat sur tous les profils avec guitares ambiguës** (Strat+Tele, LP+SG, etc.) : la family de `ref_guitar` est désormais respectée par le scoring.
+- **Bundle** 2360.54 → 2363.98 KB (+3.4 KB pour les helpers + tests).
+
+### Dette résiduelle Phase 7.61 / 7.64
+
+- **Customs sans family identifiable** (Schecter, Ibanez Gio, etc.) restent en `'other'` → pas de boost. Le scoring V9 brut décide. C'est cohérent (l'IA n'a pas de référence "Schecter" comme family, juste comme nom).
+- **Phase 7.64 ne couvre PAS l'autre direction** : si user dit "je veux jouer Get Lucky sur ma Tele" (feedback explicit), le bonus s'applique quand même sur la Strat. Le feedback override Phase 7.6 reste prioritaire (réécrit aiResult avant enrichAIResult).
+- **`getGuitarFamily` étend la liste de familles si nouveau besoin** : superstrat est déjà couvert mais grossier ("Ibanez RG superstrat"). À affiner si user remonte un cas concret.
+
+---
+
+## État précédent (2026-05-18, Phases 7.65 + 7.65.1 + 7.47.1 + 7.65.x close — filtre rig actif + metadata factory PDF v2 + customs usages pin)
 
 **Backline v8.14.106 / SW backline-v206 / STATE_VERSION 10 / 1077 tests verts.**
 
@@ -1659,7 +1757,11 @@ seuls — le code Backline les exploite correctement pour les
 customs. Voir section "Phase 7.65.x — ✅ LIVRÉE" plus bas pour
 le détail technique du fix.
 
-### Dette résiduelle Phase 7.64 — Bonus family match Strat/Tele/LP (rapporté Francisco 2026-05-17 soir)
+### Phase 7.64 — ✅ LIVRÉE 2026-05-18 (v8.14.107) — Bonus family match Strat/Tele/LP
+
+Livrée couplée à Phase 7.61 (rename guitares vers noms complets) pour 1 seul tour de validation IA. Voir section "État actuel (2026-05-18)" en tête de CLAUDE.md pour le détail (helper `getGuitarFamily`, bonus +15 dans `enrichAIResult` idempotent via flag `_familyBoosted`, 47 tests Vitest dont scénario Francisco Get Lucky reproduit).
+
+**Notes design conservées pour référence** :
 
 Francisco a écrit ce soir (17 mai, après ses tests post-weekend) :
 *"En Daft Punk - Get Lucky la IA me elegía la Telecaster (Sire T7)*
@@ -1699,9 +1801,10 @@ devient trivial (match direct sur le nom).
 **Couplage Phase 7.61 + 7.64** : à faire ensemble pour un seul tour
 de validation IA. Effort estimé combiné : ~3-4h dev + tests + deploy.
 
-**Workaround pour Francisco maintenant** : feedback IA explicite
-*"Prefiero la Squier Strat pour Get Lucky"* via bouton 💬. L'IA
-réanalyse en intégrant le feedback. Pas parfait mais débloque le cas.
+**Workaround Francisco pré-Phase 7.64 (obsolète depuis 2026-05-18)** :
+feedback IA explicite *"Prefiero la Squier Strat pour Get Lucky"*
+via bouton 💬. Plus nécessaire — Phase 7.64 livrée le boost est
+automatique.
 
 ### Dette résiduelle Phase 7.63 — Sécurité admin-switch profil
 
@@ -9264,6 +9367,119 @@ Sébastien valide :
 Idée enregistrée 2026-05-17 suite à un audit UX "first-time
 ToneX user" mené par Claude (Cowork mode). Cf. session du même
 jour pour les screenshots et observations détaillées.
+
+### Phase 10 (validée 2026-05-18 — 1 signal Bruno) — Preset avec/sans cab × contexte d'écoute
+
+**Contexte** : Bruno (beta-tester metal/punk) a rapporté en
+soirée du 2026-05-18, après la livraison Phase 7.65.x :
+
+> *"juste une autre remarque, il faudrait aussi pouvoir préciser
+> je pense si on veut un preset avec ou sans cab. J'ai un mélange
+> des deux pour gérer le cas où je joue au casque, je sors sur
+> mon ampli pourri, je sors sur la table de mixage / enceintes
+> FRFR. Et évidemment si l'IA me conseille un preset sans cab
+> alors que je joue au casque c'est une bouillie sonore :)"*
+
+**Diagnostic** : aujourd'hui le catalog `PRESET_CATALOG_MERGED`
+(Factory + Anniversary + ToneNET + customPacks) n'a aucune notion
+de la présence ou non d'une simulation de cab dans le tone model.
+Le scoring V9 et le prompt IA traitent indifféremment :
+- Une capture **avec cab modélisé** : sortie directe casque/FRFR
+  OK, mais doublonne si branchée sur ampli avec cab physique →
+  son boueux/criard.
+- Une capture **sans cab** (amp-only) : nécessite un cab en aval
+  (physique ou modélisé). Sur casque ou FRFR sans cab actif →
+  bouillie aiguë inintelligible (signal saturé brut sans
+  post-traitement).
+
+Bruno (et probablement la majorité des utilisateurs ToneX
+intermédiaires/avancés) maintient un mélange des deux dans ses
+banks pour switcher selon le contexte d'écoute. L'IA recommande
+sans tenir compte → 50% du temps elle propose un preset
+inadapté au setup live.
+
+**Cas-cibles concrets** :
+- Bruno utilise les 3 contextes : casque (à la maison), ampli
+  "pourri" (qui a son propre cab — probably un combo avec préamp
+  bypassé), table de mixage / FRFR (en répétition).
+- Sébastien : ToneX Cab (FRFR avec cab integré → tous presets
+  marchent), Marshall SV20h + SV112 (cab physique → preset
+  sans cab uniquement), Spark Neo (FRFR intégré → tous OK),
+  Roland TH-5 casque (→ tous OK). 4 contextes possibles selon
+  le matériel sélectionné.
+- Francisco : ToneX Pedal + ampli physique combo ? À investiguer
+  s'il rapporte le même cas.
+
+**Solution proposée Phase 10** :
+
+1. **Champ `hasCab: boolean`** sur chaque entry de
+   `PRESET_CATALOG_MERGED` (Factory v2 + Anniversary + ToneNET +
+   customPacks). Pour le PDF Factory v2, le champ "CAB NAME" (col
+   8) signale la présence d'un cab (non-vide = `hasCab: true`,
+   vide = `hasCab: false`). Banks 35-39 "(Amp)" + Banks 40-44
+   stomps standalone + Banks 47-49 stomps bass = `hasCab: false`.
+   Pour Anniversary Premium et ToneNET / customPacks, à déclarer
+   lors de la curation. Vision IA tab Packs (Phase 7.x) peut
+   inférer auto via l'image du pack.
+
+2. **Champ `profile.outputContext`** ∈ `{headphone, frfr,
+   ampWithCab, ampNoCab}` (4 valeurs explicites). Setting UI
+   dans Mon Profil → 🎯 Préférences IA ou nouvel onglet 🔌
+   Sortie audio. Default `frfr` (le cas le plus courant
+   utilisateurs ToneX).
+
+3. **Filtre `findCatalogEntry`** étendu : selon
+   `profile.outputContext`, exclure ou pénaliser les entries
+   incompatibles :
+   - `headphone` ou `frfr` ou `ampWithCab` (cab physique aval) :
+     priorité `hasCab` matchant le contexte. Sur `ampWithCab` :
+     préférer `hasCab: false` (sinon doublon cab).
+   - `ampNoCab` (préampli pur ou émulation cab désactivée aval) :
+     priorité `hasCab: true`.
+
+4. **Override par morceau** : champ `song.outputContext` (comme
+   Phase 7.3 `song.recoMode`) pour les cas où Bruno veut tester
+   un autre setup ponctuellement. UI 4 boutons compacts dans
+   SongDetailCard.
+
+5. **Prompt IA enrichi** : section "CONTEXTE D'ÉCOUTE" injectée
+   dans `fetchAI` après "MODE RECO". Demande à Gemini de tenir
+   compte du contexte dans son `preset_ann_name` /
+   `preset_plug_name` retournés.
+
+6. **Post-process Phase 7.55** étendu : `findCatalogEntryByUsages`
+   et `findSlotByUsageMatch` filtrent `hasCab` selon
+   `outputContext` avant de promouvoir dans `ideal_top3`.
+
+7. **UI Mon Profil** : badge couleur sur chaque slot dans le tab
+   Pedale ToneX (🔊 avec cab vs 📡 sans cab) pour aider
+   l'utilisateur à mémoriser ses banks.
+
+**Effort estimé** : ~6-10h dev. Découpage possible :
+- 10A — `hasCab` champ catalog + parser PDF Factory v2 (2h)
+- 10B — `profile.outputContext` setting + UI Mon Profil (2h)
+- 10C — Filtre `findCatalogEntry` + override par morceau (2h)
+- 10D — Prompt IA enrichi + tests Vitest (2h)
+- 10E — UI badges visuels (2h)
+
+**Pas de bump SCORING_VERSION** (additif, filtre côté display +
+prompt). Pas de migration localStorage majeure (additif champ
+optionnel sur entries + profile).
+
+**Timing** : à intégrer après Phases prioritaires
+(7.61/7.64/9/8/7.67). Phase 10 livrée probably juin-juillet
+selon bande passante. **Signal** : 1 seul (Bruno) pour l'instant.
+À promouvoir si Francisco ou autre beta-tester rapporte le même
+cas — c'est probablement très répandu chez les utilisateurs ToneX
+intermédiaires (la moitié des questions sur le sub r/tonex porte
+sur "casque vs FRFR vs ampli physique").
+
+**Décision actuelle** : proposée Phase 10. Pas d'implémentation
+immédiate. À activer quand au moins 1 autre beta-tester ou
+visiteur démo remontre le même cas (renforce signal cross-profil
+comme Phase 8 et 9), OU si Bruno re-confirme en pratique que la
+limitation gêne son usage quotidien après quelques jours d'usage
+post-Phase 7.65.x.
 
 ## Hors scope (pour rappel, à NE PAS faire sans demande explicite)
 

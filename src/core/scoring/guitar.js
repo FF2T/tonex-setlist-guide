@@ -209,15 +209,101 @@ function computeGuitarScoreV2(guitarId,presetStyle,presetGainRange,presetVoicing
 
 
 // avec une guitare de la collection. Évite que "SG Ebony" rate "SG Standard Ebony".
+//
+// Phase 7.61 — Extension tokenize-set : permet de matcher des variantes
+// abrégées ou suffixées de noms longs ("Strat 1961" ↔ "Fender Stratocaster
+// American Vintage II 1961"). Sert deux objectifs :
+//   1. Rétro-compat aiCache historique avec anciens noms abrégés (le rename
+//      des 11 guitares Phase 7.61 vers noms PDF/marketing complets aurait
+//      cassé les caches sinon).
+//   2. Phase 7.64 family match — `getRefGuitarFamily` n'a plus besoin de
+//      regex complexe puisque les noms complets contiennent "Stratocaster",
+//      "Telecaster", etc.
+
+// Stopwords courants des noms de guitares — pas discriminants pour le
+// matching (présents dans beaucoup de noms différents). Pour matcher
+// par tokens significatifs, on filtre ces mots vides.
+const GUITAR_STOPWORDS = new Set([
+  // articles + connecteurs
+  'the','a','an','of','and','with','for','de','la','le',
+  // marques (la marque seule ne discrimine pas le modèle)
+  'fender','gibson','epiphone','squier','sire','ibanez','schecter',
+  'gretsch','prs','yamaha','jackson','esp','ltd','charvel','jet',
+  // qualificatifs marketing courants
+  'american','mexican','japanese','standard','professional','custom',
+  'classic','vintage','modern','reissue','signature','limited','edition',
+  'series','original','player','plus',
+  // numerals romains
+  'ii','iii','iv','v','vi',
+  // génériques
+  'guitar','electric','solidbody',
+  // abréviations communes
+  'am','pro','mim','mia',
+]);
+
+// Expand les abréviations communes en forme longue AVANT tokenize.
+// "LP 60" → "les paul 60" pour matcher "Gibson Les Paul Standard '60s".
+function _expandGuitarAbbreviations(s){
+  return s
+    .replace(/\blp\b/gi,'les paul')
+    .replace(/\bjm\b/gi,'jazzmaster')
+    .replace(/\bjb\b/gi,'jazz bass');
+}
+
+function _tokenizeGuitarName(s){
+  return _expandGuitarAbbreviations(String(s).toLowerCase())
+    .replace(/[-()'.,/]/g,' ')
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function _significantTokens(tokens){
+  return tokens.filter(t=>!GUITAR_STOPWORDS.has(t));
+}
+
+// Match flexible entre 2 tokens : exact, suffix/prefix numeric, ou
+// substring sur ≥4 chars.
+function _tokenMatch(t1,t2){
+  if(t1===t2) return true;
+  const m1=t1.match(/^\d+/);
+  const m2=t2.match(/^\d+/);
+  if(m1&&m2){
+    const d1=m1[0],d2=m2[0];
+    if(d1===d2) return true;                          // 60 ↔ 60s
+    if(d1.length>=2&&d2.endsWith(d1)) return true;    // 61 ↔ 1961
+    if(d2.length>=2&&d1.endsWith(d2)) return true;
+  }
+  if(t1.length>=4&&t2.includes(t1)) return true;      // strat ↔ stratocaster
+  if(t2.length>=4&&t1.includes(t2)) return true;
+  return false;
+}
+
+// Tous les tokens significatifs de `needle` doivent matcher au moins un
+// token de `haystack`.
+function _tokenSubsetMatch(needle,haystack){
+  if(!needle.length) return false;
+  return needle.every(n=>haystack.some(h=>_tokenMatch(n,h)));
+}
+
 function matchGuitarName(name,g){
   if(!name||!g) return false;
   const n=String(name).toLowerCase().replace(/\s+/g," ").trim();
   const a=String(g.name||"").toLowerCase().replace(/\s+/g," ").trim();
   const b=String(g.short||"").toLowerCase().replace(/\s+/g," ").trim();
   if(!n) return false;
+  // Match exact (legacy)
   if(n===a||n===b) return true;
+  // Match substring (legacy, conserve "Schecter C-1 Platinum" ↔
+  // "Schecter" et autres cas où une chaîne en contient une autre).
   if(a&&(n.includes(a)||a.includes(n))) return true;
   if(b&&(n.includes(b)||b.includes(n))) return true;
+  // Phase 7.61 — tokenize-set avec expand abbreviations + stoplist.
+  const nTokens=_significantTokens(_tokenizeGuitarName(n));
+  if(!nTokens.length) return false;
+  const aTokens=_significantTokens(_tokenizeGuitarName(a));
+  if(aTokens.length&&_tokenSubsetMatch(nTokens,aTokens)) return true;
+  const bTokens=_significantTokens(_tokenizeGuitarName(b));
+  if(bTokens.length&&_tokenSubsetMatch(nTokens,bTokens)) return true;
   return false;
 }
 function findGuitarByAIName(name,guitars){
@@ -227,6 +313,38 @@ function findGuitarByAIName(name,guitars){
 function findCotEntryForGuitar(cotList,g){
   if(!cotList||!g) return null;
   return cotList.find(gt=>matchGuitarName(gt?.name,g))||null;
+}
+
+// Phase 7.64 — Famille de guitare (Strat/Tele/LP/SG/ES-335/Jazzmaster/other).
+// Sert au bonus de scoring family-match : quand l'IA dit "ref_guitar:
+// Fender Stratocaster" et que le rig contient une Strat + une Tele, on
+// veut privilégier la Strat même si le scoring V9 brut préfère la Tele
+// pour des raisons secondaires (voicing pickups, etc.).
+//
+// Couplé à Phase 7.61 (rename guitares vers noms complets type "Fender
+// Stratocaster American Vintage II 1961"), le match est trivial via
+// substring sur le mot famille. Pour les noms abrégés legacy ou les
+// customs (Schecter C-1, Ibanez Gio…), tombera sur 'other' — ce qui est
+// correct (pas de bonus appliqué, scoring V9 standard).
+function getGuitarFamily(name){
+  if(!name||typeof name!=="string") return 'other';
+  const n=name.toLowerCase();
+  // Ordre intentionnel : 'jazz bass' avant 'jazzmaster' pour ne pas confondre.
+  // 'les paul' avant 'paul' générique (pas d'autre cas).
+  if(n.includes('stratocaster')||/\bstrat\b/.test(n)) return 'stratocaster';
+  if(n.includes('telecaster')||/\btele\b/.test(n)) return 'telecaster';
+  if(n.includes('les paul')||/\blp\b/.test(n)) return 'les_paul';
+  if(n.includes('jazzmaster')) return 'jazzmaster';
+  if(n.includes('jaguar')) return 'jaguar';
+  if(n.includes('mustang')) return 'mustang';
+  if(/\bes[- ]?(335|339|345|355|175|150|125)\b/.test(n)) return 'es335';
+  if(n.includes('flying v')||/\bflying[- ]v\b/.test(n)) return 'flying_v';
+  if(n.includes('explorer')) return 'explorer';
+  if(n.includes('firebird')) return 'firebird';
+  if(/\bsg\b/.test(n)) return 'sg';
+  if(/\bprs\b/.test(n)||n.includes('paul reed smith')) return 'prs';
+  if(n.includes('superstrat')||n.includes('super strat')) return 'superstrat';
+  return 'other';
 }
 
 // Score local de compatibilité guitare ↔ morceau, utilisé quand l'IA ne renvoie pas cette guitare dans cot_step2_guitars (top 2-3 only).
@@ -372,4 +490,5 @@ export {
   computeGuitarScoreV2, matchGuitarName, findGuitarByAIName,
   findCotEntryForGuitar, localGuitarSongScore, pickTopGuitar,
   guitarChoiceFeedback, localGuitarSettings,
+  getGuitarFamily,
 };
