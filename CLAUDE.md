@@ -746,7 +746,142 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-17, Phases 7.54.x → 7.62 close — sync stable + landing publique + snapshot démo balance pack creators + fix critique sync activeProfileId)
+## État actuel (2026-05-18, Phase 7.65 close — vue repliée ListScreen filtre guitare sur rig actif)
+
+**Backline v8.14.103 / SW backline-v203 / STATE_VERSION 10 / 1062 tests verts.**
+
+### Phase 7.65 — Vue repliée ListScreen filtre guitare sur rig actif (v8.14.103)
+
+**Bug confirmé** sur le profil non-admin Bruno (rig = Schecter C-1
+Platinum HB + Ibanez Gio miKro HB) : pour "The Final Countdown",
+la vue repliée affichait `Strat AM Vintage II 61 (SC) 92%` — une
+guitare du rig admin Sébastien, hors rig actif. Pour "For Whom the
+Bell Tolls", aucune guitare affichée (nom hors catalog GUITARS).
+
+**Cause racine** : Phase 3.6 (cf section "AI cache — guitar list")
+fait que le prompt IA reçoit l'UNION des rigs de tous les profils.
+Donc `aiCache.result.ideal_guitar` et `cot_step2_guitars[].name`
+peuvent référencer une guitare absente du rig actif. Phase 7.32
+avait déjà fixé ce problème dans la vue **dépliée**
+(SongDetailCard.jsx via helper local `displayIdealGuitarName`).
+La vue **repliée** (ListScreen → bloc badge guitare juste avant
+SongCollapsedDeviceRows) n'avait pas ce filtrage : si `g` (résolu
+depuis `gId = savedGId || ig[0]`) finissait par référencer une
+guitare partagée via `setlist.guitars[songId]` (Phase 5.8 partage
+de setlists entre profils), elle était affichée brute. Symétrique
+côté fallback `aiC?.ideal_guitar` : nom string rendu tel quel.
+
+**Fix Phase 7.65 (purement d'affichage, scoring V9 et aiCache
+intacts)** :
+
+1. **Nouveau helper `resolveDisplayGuitar(aiC, rigGuitars, options?)`**
+   dans `src/app/utils/display-guitar.js`. Ordre de préférence :
+   - Étape 1 : `aiC.ideal_guitar` matche le rig → cette guitare
+     (score : cot_step2.score si présent, sinon
+     `localGuitarSongScore`).
+   - Étape 2 : premier `cot_step2_guitars[i]` dont `name` matche
+     le rig → cette guitare (score : `cot.score`, fallback
+     `localGuitarSongScore`).
+   - Étape 3 : `fallbackToFirst: true` (défaut) → 1ère guitare du
+     rig. `fallbackToFirst: false` → `null` (Phase 7.32 préserve
+     son comportement "cache la ligne").
+   - Source explicite (`'ideal' | 'cot' | 'fallback' | null`) pour
+     que l'appelant marque ou non "idéal" dans l'UI.
+
+2. **ListScreen vue repliée** (`src/app/screens/ListScreen.jsx`
+   lignes ~662) : `g` validé `g && rig.some(r => r.id === g.id)`
+   AVANT de l'utiliser ; sinon `resolveDisplayGuitar` (rig-in
+   strict + fallback rig[0]). Plus aucune affichage de
+   `aiC.ideal_guitar` brut.
+
+3. **SongDetailCard** (DRY) : le bloc Phase 7.32 inline
+   (lignes 137-150 avant fix) est remplacé par un appel
+   `resolveDisplayGuitar(aiC, guitars, { fallbackToFirst: false })`
+   qui préserve exactement le comportement Phase 7.32 (la ligne
+   "Guitare" se cache si rien dans l'aiCache ne matche le rig).
+   Edge case bug latent Phase 7.32 corrigé en passant : si
+   `aiC.ideal_guitar` matche le rig mais n'a pas de cot entry, la
+   ligne reste désormais visible (avant : disparaissait).
+
+### Tests Phase 7.65 (15 nouveaux Vitest)
+
+`src/app/utils/display-guitar.test.js` couvre :
+- Étape 1 (match ideal_guitar) × 3 : match exact, match via
+  `short`, fallback `localGuitarSongScore` si pas de cot entry.
+- Étape 2 (cot_step2 dans le rig) × 2 dont **scénario bug Bruno
+  reproduit** (ideal_guitar "Strat AM Vintage II 61" sur rig
+  HB-only Schecter+Ibanez → bascule sur Schecter via cot match).
+- Étape 3 (fallback rig[0]) × 3 : aiCache vide, cot toutes hors
+  rig, aiC.cot_step2 absent.
+- Option `fallbackToFirst: false` × 3 : null au lieu de rig[0],
+  Étape 1 fonctionne quand même.
+- Edge cases × 4 : rig vide, rigGuitars null, cot entries
+  malformées (sans name / null / name vide), cot score 0 préservé.
+
+Stub `window.__allGuitars` via `beforeAll/afterAll` pour que
+`findGuitar` (core/guitars.js) résolve les guitares custom de test
+(Schecter, Ibanez) qui ne sont pas dans le catalog statique.
+
+### Architecture livrée Phase 7.65
+
+```
+src/main.jsx                            APP_VERSION 8.14.102 → 8.14.103
+public/sw.js                            CACHE backline-v202 → backline-v203
+src/app/utils/display-guitar.js         NOUVEAU — resolveDisplayGuitar
+                                        helper pur (Étapes 1/2/3 +
+                                        fallbackToFirst option)
+src/app/utils/display-guitar.test.js    NOUVEAU — 15 tests Vitest
+src/app/screens/ListScreen.jsx          +import resolveDisplayGuitar
+                                        vue repliée : g validé in-rig
+                                        avant usage, sinon helper
+                                        + fallback rig[0]
+src/app/screens/SongDetailCard.jsx      +import resolveDisplayGuitar
+                                        bloc Phase 7.32 refactor →
+                                        appel helper { fallbackToFirst:
+                                        false } (DRY)
+```
+
+### Conséquences Phase 7.65
+
+- **1062 tests verts** (1047 + 15 nouveaux).
+- **Pas de bump STATE_VERSION** (purement UI display, scoring V9
+  inchangé).
+- **Pas de migration localStorage**.
+- **Pas de modif aiCache** : les caches existants Bruno/autres
+  restent valides. Le filtrage s'applique au render → effet
+  immédiat au reload v8.14.103.
+- **Cas-cible Bruno post-fix** :
+  - "The Final Countdown" → badge devient
+    `Schecter C-1 Platinum (HB)` (1ère cot_step2 dans rig) avec
+    score cot ou fallback local, plus jamais
+    `Strat AM Vintage II 61 (SC)`.
+  - "For Whom the Bell Tolls" (ideal_guitar hors catalog) →
+    badge affiche soit la première cot_step2 dans rig, soit
+    `Schecter C-1 Platinum` en fallback rig[0] (avec marker
+    `source: 'fallback'`).
+
+### Dette résiduelle Phase 7.65
+
+- **Fix B reporté Phase 7.66** : ne pas toucher au prompt fetchAI
+  ni à `getAllRigsGuitars` Phase 7.65 — c'était délibéré. Le bug
+  de fond reste : l'IA voit l'union all-rigs et peut proposer
+  des guitares hors rig. Phase 7.66 (proposée, pas démarrée)
+  réfléchira à passer le rig actif **uniquement** au prompt pour
+  les profils non-admin (trade-off avec Phase 3.6 union pour
+  enrichir le cache cross-profils).
+- **Autres écrans audités** : RecapScreen (déjà OK, filtre via
+  `findGuitarByAIName(aiG, guitars)` + drop si null),
+  SynthesisScreen / JamScreen / LiveScreen (aucun affichage
+  guitare basé sur aiCache.ideal_guitar). **HomeScreen ligne 510**
+  a un fallback latent (`idealGuitarObj = idealGuitarCot ||
+  songResult.cot_step2_guitars?.[0]`) qui pourrait laisser passer
+  une guitare hors rig dans le rendu — à scope Phase 7.65.x si
+  observé. Pas inclus dans ce commit (vue repliée ListScreen
+  exclusivement).
+
+---
+
+## État précédent (2026-05-17, Phases 7.54.x → 7.62 close — sync stable + landing publique + snapshot démo balance pack creators + fix critique sync activeProfileId)
 
 **Backline v8.14.102 / SW backline-v202 / STATE_VERSION 10 / 1047 tests verts.**
 
@@ -932,6 +1067,225 @@ visible dans le state Firestore historique tant qu'un client pre-7.62
 n'a pas fait de modif (qui purgerait le champ via le nouveau prep()).
 Sébastien peut forcer la purge en faisant 1 modif quelconque sur
 chaque device après reload v8.14.102.
+
+### Dette résiduelle Phase 7.65 — Vue repliée ListScreen filtre rig actif (rapporté Bruno 2026-05-18 matin)
+
+Bug confirmé en vue repliée du `ListScreen` sur le profil non-admin
+Bruno (rig = Schecter C-1 Platinum HB + Ibanez Gio miKro HB seulement) :
+pour le morceau **The Final Countdown**, la vue repliée affiche
+"Strat AM Vintage II 61 (SC) 92%" — guitare qui appartient au rig
+admin Sébastien, pas à Bruno. Pour **For Whom the Bell Tolls**,
+aucune guitare n'est affichée en vue repliée (l'IA propose probablement
+"Gibson Explorer" ou similaire, hors catalog `GUITARS`).
+
+**Cause** : Phase 3.6 ("AI cache — guitar list") fait que la liste
+de guitares envoyée au prompt IA est l'UNION des rigs de tous les
+profils. Donc `aiCache.result.ideal_guitar` et
+`cot_step2_guitars[].name` peuvent contenir une guitare absente du
+rig du profil actif. Phase 7.32 a déjà corrigé ce problème dans la
+vue dépliée (`SongDetailCard.jsx`) via le helper local
+`displayIdealGuitarName` qui scanne `cot_step2_guitars` et retourne
+la première guitare qui matche le rig actif via
+`findGuitarByAIName(c.name, rigGuitars)`. La vue repliée
+(`ListScreen → SongCollapsedDeviceRows`) n'a pas ce filtrage.
+
+**Solution Phase 7.65 (Fix A — affichage seulement)** :
+
+1. Étendre la logique `displayIdealGuitarName` Phase 7.32 à la vue
+   repliée. Possibilité de factoriser en helper partagé
+   (`src/app/utils/display-guitar.js` ou dans `ai-helpers.js`) si
+   c'est DRY-friendly.
+2. Règle stricte : ne JAMAIS afficher en vue repliée une guitare qui
+   n'est pas dans `rigGuitars` du profil actif. Fallback sur la
+   première guitare du rig actif avec son score V9 recalculé
+   localement.
+3. Tests Vitest : 3 cas (aiCache matche le rig, aiCache hors rig,
+   aiCache vide / cot_step2_guitars vide).
+4. Vérifier les autres écrans qui peuvent avoir le même bug latent
+   (`RecapScreen`, `SynthesisScreen`, `JamScreen`, `LiveScreen`).
+
+**Effort estimé** : ~30 min dev + tests + bump APP_VERSION/SW CACHE.
+
+**Pas de bump SCORING_VERSION** (V9 inchangé, c'est purement un fix
+d'affichage). Le scoring V9 local et l'aiCache restent intacts.
+
+### Dette résiduelle Phase 7.66 — Prompt fetchAI passe rig profil actif (Fix B, plus profond, plus risqué)
+
+Phase 7.65 (Fix A) traite le symptôme (l'affichage). Phase 7.66
+(Fix B) traite la cause racine : le prompt IA reçoit l'union all-rigs
+(Phase 3.6) et l'IA peut donc proposer une guitare hors rig actif
+dans `ideal_guitar` ou `cot_step2_guitars[0]`.
+
+**Solution proposée Phase 7.66** :
+
+1. Modifier `getAllRigsGuitars` (dans `core/state.js`) ou le call
+   site dans `fetchAI` pour passer uniquement le rig du profil actif
+   (+ ses customs perso) au prompt.
+2. **Risque rétro-compatibilité** : un profil non-admin qui ajoute
+   une custom guitar devra attendre un recalcul pour la voir dans
+   les recos (avant, l'union all-rigs lui donnait visibilité
+   immédiate via les caches partagés Phase 3.6).
+3. **Compensation** : ajouter un trigger automatique de recalcul
+   `aiCache` à l'ajout d'une custom guitar (invalidation per-song)
+   pour conserver l'esprit Phase 3.6 (custom guitars visibles dès
+   ouverture). Couplé à Phase 7.67 (édition rig non-admin) si
+   livrées ensemble.
+4. Tests Vitest sur le cas "rig user contient Schecter+Ibanez,
+   prompt IA ne mentionne PAS Strat AM Vintage II 61 (Sébastien)".
+5. Validation manuelle sur profils Bruno et Francisco.
+
+**Effort estimé** : ~2-3h dev + tests + deploy. Plus risqué que
+Phase 7.65 car touche au cœur du prompt IA et casse partiellement
+Phase 3.6.
+
+**Décision actuelle** : reporter après Phase 7.65 (qui débloque
+visuellement Bruno) + Phase 7.67 (qui débloque l'édition rig
+non-admin). À déclencher quand au moins un autre beta-tester
+non-admin remontre le même bug que Bruno (signal d'urgence
+suffisant).
+
+### Dette résiduelle Phase 7.67 — Édition rig par non-admin (rapporté Bruno 2026-05-18)
+
+Bruno demande explicitement : *"à voir pour l'utilisateur comment
+ajouter ses presets manuellement, sans que cela soit trop fastidieux"*.
+
+**Contexte** : Phase 7.29.4 gate les tabs admin (Sources, ToneNET,
+Maintenance, ProfilesAdmin) et l'édition de custom guitars +
+customPacks aux profils admin uniquement. Un beta-tester non-admin
+peut consulter son rig mais pas l'éditer. C'est pénible pour un user
+engagé qui veut affiner sa configuration sans solliciter l'admin.
+
+**Solution proposée Phase 7.67** :
+
+1. Permettre à un non-admin d'éditer SON propre `profile.myGuitars`
+   (toggle des guitares dans le catalog standard) — déjà fait Phase
+   7.29.4 (`ProfileTab` toggle ouvert) ?
+2. Permettre à un non-admin d'éditer SES propres `profile.customPacks`
+   (mais pas ceux des autres) — actuellement gated admin, à ouvrir.
+3. Permettre à un non-admin d'éditer SES propres `profile.customGuitars`
+   (mais pas le catalog `shared.customGuitars` partagé) — actuellement
+   gated admin, à ouvrir avec garde-fou per-profile.
+4. Wizard onboarding 3 étapes (Matériel / Guitares / Setlist) à la
+   première connexion d'un profil non-admin sans devices ni guitares
+   (cf Phase 7.48 T8 dette différée).
+
+**Effort estimé** : ~3-4h dev + tests + UX validation. Couplé
+potentiellement à Phase 7.66 (Fix B) qui ajoute un trigger recalc
+automatique à l'ajout custom.
+
+**Décision actuelle** : proposée, à activer si Bruno (ou autre
+beta-tester) demande activement à éditer son rig pendant les
+prochains jours. Sinon, reporter Phase 8+.
+
+### Dette résiduelle Phase 7.47 — Opportunité firmware V1 (rapporté Bruno 2026-05-18)
+
+Bruno rapporte un **décalage banks Factory Pedal** (VX30 éclaté sur
+banks 5 et 6 au lieu d'être consolidé sur une bank, WRECK éclaté
+sur banks 6-7, etc.). Hypothèse forte : **Bruno a un firmware V1**
+(Pedal classique achetée avant avril 2025) — son mapping factory
+réel diffère de `FACTORY_BANKS_PEDALE_V2` livré Phase 7.47.
+
+Phase 7.47 a livré V2 conforme PDF officiel 2025/04/03 et un
+placeholder `FACTORY_BANKS_PEDALE_V1 = {}` (liste à fournir). Si
+Bruno confirme V1 + envoie ses banks 0/25/49 (comme Francisco l'a
+fait pour V2), c'est l'opportunité de **remplir le mapping V1
+manquant** depuis un user réel.
+
+**Action en attente** :
+1. Bruno répond à la question "banks 0, 25 et 49 exactes" (DM
+   envoyé 2026-05-18).
+2. Si V1 confirmé, ajouter les entries correspondantes au
+   `FACTORY_CATALOG` (avec `src: "FactoryV1"`) et remplir
+   `FACTORY_BANKS_PEDALE_V1` dans `data_catalogs.js`.
+3. Le dropdown firmware dans `BankEditor` (Phase 7.47) s'activera
+   automatiquement pour V1.
+4. Récupérer aussi les autres banks V1 par échange ultérieur si
+   pertinent (Bruno a 50 banks au total, mais 3 sample suffisent
+   pour valider).
+
+**Effort estimé** : ~1h dev une fois les données Bruno reçues.
+
+### Bug investigation P2 — Reco différentes Accueil vs Setlists (rapporté Bruno 2026-05-18)
+
+Bruno rapporte : *"pour un même morceau j'ai parfois des reco
+différentes entre la page de garde et quand je passe par le setlist.
+En particulier si je ne choisis pas de guitare dans l'onglet
+setlist."*
+
+**Hypothèses à investiguer** :
+- L'Accueil utilise un fallback différent (random guitare ? première
+  du rig ?) quand `gId` est vide, vs Setlists qui attend une sélection
+  explicite.
+- Le `rigStale` Phase 7.48 T10 peut forcer un re-fetch dans un cas
+  et pas dans l'autre (Accueil rebondit sur l'aiCache, Setlists
+  recompute).
+- Possiblement lié à la dérivation `effectiveGuitarBias` Phase 7.9 :
+  une bias `style→guitar` peut s'appliquer différemment selon le
+  contexte (Accueil avec recherche libre vs Setlists avec setlist
+  contextuelle).
+
+**Plan d'investigation** :
+1. Reproduire le bug sur le profil Bruno (sans choisir de guitare
+   explicite, comparer la reco Accueil pour "Self Esteem" vs reco
+   Setlists pour le même morceau).
+2. Logger `gId` initial dans les deux flows.
+3. Décider du comportement canonique attendu (probablement : si
+   `gId` vide → fallback `ideal_guitar` filtré rig actif Phase
+   7.32).
+
+**Effort estimé** : ~1-2h investigation + fix si bug confirmé. À
+faire après Phase 7.65.
+
+### Bug investigation post-Phase 7.65 — customPacks Bruno usages Metallica
+
+Bruno rapporte que pour **For Whom the Bell Tolls** (Metallica),
+l'IA recommande **DR VX30** (Vox AC30, Factory Pedal) en preset
+idéal **alors que** :
+1. L'analyse IA raisonne correctement "Mesa Mark IIC+ ou JCM800
+   modifié".
+2. Bruno possède 48A `Kirk & James - Gasoline v2` (custom Mesa
+   Triple Rectifier signature Metallica), 49C `TSR Mars 800SL Cn1&2
+   HG` (custom Marshall JCM800), 49B `Silver Jubilee 2555 HG`
+   (Marshall).
+
+Phase 7.34 (anti cross-contamination) devrait précisément pinner
+48A Kirk & James pour Metallica. Le fail apparent doit venir de :
+- `profile.customPacks` de Bruno ne contient pas les metadata
+  `usages` Metallica pour 48A (vérifier ses customPacks), OU
+- Phase 7.34 strict mode filtre "Kirk & James" car ce nom ne mentionne
+  pas "Metallica" littéralement, OU
+- Le post-processing Phase 7.55 `findSlotByUsageMatch` ne match pas
+  faute de champ `usages` rempli côté customPack Bruno.
+
+**Plan d'investigation** :
+1. Après Phase 7.65 livrée + re-fetch propre Bruno, vérifier
+   `JSON.stringify(profiles.bruno.customPacks)` côté console DevTools
+   pour identifier si les `usages` Metallica sont présents.
+2. Si absents, étendre `customPacks` Bruno avec usages explicites
+   (Metallica For Whom the Bell Tolls, AC/DC, Iron Maiden, etc.).
+3. Re-tester `findSlotByUsageMatch` sur le morceau.
+
+**Effort estimé** : ~30 min investigation + 1h fix customPacks si
+nécessaire.
+
+### Pitfall renforcé — Pré-calcul aiCache depuis profil admin (preuve concrète Bruno 2026-05-18)
+
+Le pitfall documenté dans BETA_TESTING.md section 6 ("Lancer
+'Analyser/MAJ' depuis profil Sébastien admin → cache pollué") a une
+**preuve concrète** depuis le 2026-05-18 : la vue repliée du profil
+Bruno affiche "Strat AM Vintage II 61" pour The Final Countdown
+alors que Bruno n'a que Schecter + Ibanez Gio dans son rig. La Strat
+AM Vintage II 61 vient du rig admin Sébastien et était dans la liste
+prompt union all-rigs (Phase 3.6) au moment du pré-calcul.
+
+**Renforcement procédure onboarding** :
+- TOUJOURS switcher sur le profil du beta-tester AVANT de lancer
+  "🤖 Analyser/MAJ N" (déjà documenté en section 6, à durcir avec
+  warning visuel optionnel "tu es admin, en mode 'Analyser/MAJ' tu
+  pollues les caches du profil cible si tu n'es pas en bascule").
+- En cas de pollution constatée, scope l'invalidation au profil
+  affecté via Phase 7.33 ("🔄 Réinitialiser MES analyses" depuis
+  le profil actif).
 
 ### Dette résiduelle Phase 7.64 — Bonus family match Strat/Tele/LP (rapporté Francisco 2026-05-17 soir)
 
@@ -7929,11 +8283,12 @@ d'implémentation immédiate. À activer quand un beta-testeur (Bruno,
 Arthur, futurs) commence à utiliser activement Backline et que
 Sébastien constate des analyses écrasées.
 
-### Phase 9 (validée 2026-05-17 — 2 signaux indépendants) — Output IA enrichi avec knob settings chiffrés
+### Phase 9 (validée 2026-05-18 — 3 signaux indépendants) — Output IA enrichi avec knob settings chiffrés + built-in FX
 
-**Status mis à jour 2026-05-17 soir** : promue de "proposée" à
-**validée prioritaire** suite au 2e signal indépendant. 2 signaux
-distincts demandent maintenant explicitement la même feature :
+**Status mis à jour 2026-05-18** : promue de "2 signaux" à
+**3 signaux indépendants** suite au retour Bruno. 3 utilisateurs
+distincts demandent explicitement des fonctionnalités cohérentes
+sur l'enrichissement de l'output IA :
 
 1. **Ok_Ask2411 peer-builder** (2026-05-15) : a démontré son outil
    "Gear Assistant" qui retourne knob settings chiffrés en table
@@ -7949,13 +8304,33 @@ distincts demandent maintenant explicitement la même feature :
    gain."* — demande explicite knob settings chiffrés vs le
    `settings_preset` prose actuel.
 
-**Conclusion** : 2 utilisateurs indépendants (peer-builder + beta-
-tester débutant-intermédiaire) ont identifié le même gap. Signal
-fort que cette feature serait valuable.
+3. **Bruno beta-tester** (2026-05-18 matin) : *"est ce que l'IA a
+   connaissance des effets appliqués aux preset et les inclut dans
+   son raisonnement ou bien elle raisonne uniquement sur l'amp et
+   le cab + stomp ?"* — pointe explicitement le **manque d'intégration
+   des built-in FX (Noise Gate, Modulation, Delay, Reverb) dans le
+   scoring**. Bruno a observé que pour For Whom the Bell Tolls
+   (thrash), l'IA a proposé `DR VX30` (Vox AC30) qui a "modulation
+   et reverb très marquées" — totalement inadapté au profil sonore
+   sec du thrash Metallica. C'est exactement le sous-bug Phase 9.2
+   (FX params générés par l'IA) documenté ci-dessous.
 
-**Timing** : à intégrer **après Phase 7.61** (rename guitares +
-fix ellipses) + **Phase 7.64** (bonus family match). Donc Phase 9
-livrée probably fin mai / début juin si bandwidth.
+**Conclusion** : 3 utilisateurs indépendants (peer-builder + beta-
+tester débutant-intermédiaire + beta-tester metal/punk
+intermédiaire-avancé) ont identifié des features cohérentes de
+l'enrichissement output IA. Signal très fort, validation cross-
+profil. Phase 9 monte en priorité confirmée.
+
+**Timing** : à intégrer **après Phase 7.65** (Fix A vue repliée
+filtre rig actif, P0 Bruno) + **Phase 7.61** (rename guitares +
+fix ellipses) + **Phase 7.64** (bonus family match Strat/Tele/LP).
+Donc Phase 9 livrée probably fin mai / début juin si bandwidth.
+Bruno étant le 3e signal explicite sur l'output enrichi (et
+particulièrement sur les built-in FX), priorisation possible de
+sous-phase 9.2 (FX params générés) avant 9.1 (knob settings) si
+on veut adresser son cas For Whom the Bell Tolls (où le FX
+mismatch a immédiatement fait sortir Bruno de l'illusion "ça
+marche").
 
 **Détails techniques originaux conservés ci-dessous (cf "Idées
 en attente" historique)** :

@@ -34,6 +34,7 @@ import {
   getBestResult, getLocalizedText,
 } from '../utils/ai-helpers.js';
 import { findInBanks } from '../utils/preset-helpers.js';
+import { resolveDisplayGuitar } from '../utils/display-guitar.js';
 import { getActiveDevicesForRender } from '../utils/devices-render.js';
 import { fetchAI } from '../utils/fetchAI.js';
 import { scoreColor } from '../components/score-utils.js';
@@ -127,27 +128,23 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   const needRescore = !localAiResult && aiCraw && gId && song.aiCache?.gId !== gId;
   const aiC = needRescore ? enrichAIResult({ ...aiCraw, preset_ann: null, preset_plug: null, ideal_preset: null, ideal_preset_score: 0, ideal_top3: null }, type, gId, banksAnn, banksPlug, undefined, song) : aiCraw;
   const songInfo = getSongInfo(song);
-  // Phase 7.32 — Restreindre ideal_guitar aux guitares POSSÉDÉES par le
-  // profil actif. L'aiCache est partagé via Phase 3.6 (union all-rigs), donc
-  // ideal_guitar peut nommer une guitare d'un autre profil (ex. Sébastien a
-  // Les Paul, Bruno ne l'a pas mais le cache mentionne "Les Paul Standard 60").
-  // On filtre côté affichage : on cherche la première guitare de cot_step2_guitars
-  // qui est dans le rig actif. Fallback : si aucune cot_step2 matche, on cache
-  // la ligne Guitare plutôt que de mentir.
-  const idealGuitarFromCollection = aiC?.ideal_guitar ? findGuitarByAIName(aiC.ideal_guitar, guitars) : null;
-  // Si ideal_guitar n'est pas dans le rig actif, chercher dans cot_step2_guitars
-  // une guitare qui EST dans le rig actif (ordre de préférence IA respecté).
-  const idealGuitarCotInRig = idealGuitarFromCollection
-    ? findCotEntryForGuitar(aiC?.cot_step2_guitars, idealGuitarFromCollection)
-    : (aiC?.cot_step2_guitars || []).find((c) => findGuitarByAIName(c.name, guitars));
-  const idealGuitarInRigObj = idealGuitarCotInRig
-    ? findGuitarByAIName(idealGuitarCotInRig.name, guitars)
-    : null;
+  // Phase 7.32 / 7.65 — Restreindre l'ideal_guitar au rig actif. L'aiCache
+  // est partagé via Phase 3.6 (union all-rigs) donc ideal_guitar peut
+  // nommer une guitare d'un autre profil. Phase 7.65 a factorisé la
+  // logique dans `resolveDisplayGuitar` (cf src/app/utils/display-guitar.js),
+  // partagée avec ListScreen (vue repliée). Ici on garde le comportement
+  // Phase 7.32 strict (fallbackToFirst:false) : si rien dans l'aiCache ne
+  // matche le rig, on cache la ligne "Guitare" plutôt que de mentir.
+  const _displayGuitar = resolveDisplayGuitar(aiC, guitars, { fallbackToFirst: false });
+  const idealGuitarInRigObj = _displayGuitar.guitar;
   const displayIdealGuitarName = idealGuitarInRigObj?.name || null;
-  const idealGuitarObj = idealGuitarCotInRig || aiC?.cot_step2_guitars?.[0];
-  const idealGuitarScore = idealGuitarCotInRig?.score
-    || (idealGuitarInRigObj ? localGuitarSongScore(idealGuitarInRigObj, aiC) : null)
-    || null;
+  const idealGuitarScore = _displayGuitar.score;
+  // idealGuitarObj : utilisé pour ouvrir le détail (cot_step2 entry). Si on
+  // a un match rig, on prend son cot entry s'il existe ; sinon premier
+  // cot_step2 brut (peut être hors rig — usage interne, pas un display).
+  const idealGuitarObj = idealGuitarInRigObj
+    ? (findCotEntryForGuitar(aiC?.cot_step2_guitars, idealGuitarInRigObj) || aiC?.cot_step2_guitars?.[0])
+    : aiC?.cot_step2_guitars?.[0];
   // Phase 7.32 — Le "Preset" de la Recommandation idéale doit refléter le
   // meilleur preset RÉELLEMENT accessible à l'utilisateur (max de preset_ann,
   // preset_plug, ideal_preset). Avant : on affichait ideal_preset (catalog

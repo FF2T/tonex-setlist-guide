@@ -35,6 +35,7 @@ import {
   computeRigSnapshot, resolveRefAmp,
 } from '../utils/ai-helpers.js';
 import { findInBanks, guitarScore } from '../utils/preset-helpers.js';
+import { resolveDisplayGuitar } from '../utils/display-guitar.js';
 import { fetchAI } from '../utils/fetchAI.js';
 import { CC, CL, TYPE_COLORS } from '../utils/ui-constants.js';
 import { scoreColor, scoreBg, scoreLabel } from '../components/score-utils.js';
@@ -659,18 +660,45 @@ function ListScreen({
                       <span style={{ color: 'var(--text-tertiary)' }}>·</span>
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{hist.amp}</span>
                     </div>}
-                    {showDeviceRows && !isExpanded && (g || aiC?.ideal_guitar) && (() => {
-                      const chosenGuitarCot = findCotEntryForGuitar(aiC?.cot_step2_guitars, g);
-                      const idealGuitarScore = aiC?.cot_step2_guitars?.[0]?.score || null;
-                      const gScore = chosenGuitarCot?.score || (g ? localGuitarSongScore(g, aiC) : idealGuitarScore);
-                      const isIdealGuitar = g ? ig.includes(gId) : true;
+                    {showDeviceRows && !isExpanded && (() => {
+                      // Phase 7.65 — Vue repliée : la guitare affichée doit
+                      // OBLIGATOIREMENT être dans le rig actif. Avant fix :
+                      // affichage direct de aiC.ideal_guitar (issu de l'union
+                      // all-rigs Phase 3.6) → pour Bruno (HB-only), on voyait
+                      // "Strat AM Vintage II 61 (SC) 92%" (guitare Sébastien).
+                      // Logique :
+                      //   1. Si gId pointe une guitare DANS le rig → on la
+                      //      garde (respect du choix utilisateur).
+                      //   2. Sinon → resolveDisplayGuitar (rig-in strict +
+                      //      fallback rig[0]).
+                      const rig = allGuitars || GUITARS;
+                      const gInRig = g && rig.some((r) => r.id === g.id) ? g : null;
+                      let displayG;
+                      let displayScore;
+                      let displaySource;
+                      if (gInRig) {
+                        const cot = findCotEntryForGuitar(aiC?.cot_step2_guitars, gInRig);
+                        displayG = gInRig;
+                        displayScore = (cot?.score != null) ? cot.score : localGuitarSongScore(gInRig, aiC);
+                        displaySource = 'chosen';
+                      } else {
+                        const resolved = resolveDisplayGuitar(aiC, rig);
+                        if (!resolved.guitar) return null;
+                        displayG = resolved.guitar;
+                        displayScore = resolved.score;
+                        displaySource = resolved.source;
+                      }
+                      const isIdealGuitar = displaySource === 'chosen'
+                        ? ig.includes(displayG.id)
+                        : (displaySource === 'ideal' || displaySource === 'cot');
+                      const isCustomChoice = displaySource === 'chosen'
+                        && savedGId === displayG.id
+                        && !ig.includes(savedGId);
                       return (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 4 }}>
-                          <StatusDot score={gScore || null} ideal={isIdealGuitar}/>
-                          {g
-                            ? <span style={{ fontSize: 10, color: 'var(--text-sec)', background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '1px 7px', fontWeight: 600 }}>{g.name} ({g.type}){savedGId && !ig.includes(savedGId) ? ' ' + t('list.custom-choice', '(choix perso)') : ''}</span>
-                            : aiC?.ideal_guitar && <span style={{ fontSize: 10, color: 'var(--text-sec)', background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '1px 7px', fontWeight: 600 }}>{aiC.ideal_guitar}</span>}
-                          {gScore > 0 && <span style={{ fontSize: 10, fontWeight: 800, color: scoreColor(gScore), background: scoreBg(gScore), borderRadius: 'var(--r-sm)', padding: '1px 6px', border: `1px solid ${scoreColor(gScore)}30` }} title={scoreLabel(gScore).tip + '  —  score guitare'}>{gScore}%</span>}
+                          <StatusDot score={displayScore || null} ideal={isIdealGuitar}/>
+                          <span style={{ fontSize: 10, color: 'var(--text-sec)', background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '1px 7px', fontWeight: 600 }}>{displayG.name} ({displayG.type}){isCustomChoice ? ' ' + t('list.custom-choice', '(choix perso)') : ''}</span>
+                          {displayScore > 0 && <span style={{ fontSize: 10, fontWeight: 800, color: scoreColor(displayScore), background: scoreBg(displayScore), borderRadius: 'var(--r-sm)', padding: '1px 6px', border: `1px solid ${scoreColor(displayScore)}30` }} title={scoreLabel(displayScore).tip + '  —  score guitare'}>{displayScore}%</span>}
                         </div>
                       );
                     })()}
