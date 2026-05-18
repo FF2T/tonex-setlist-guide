@@ -1685,33 +1685,42 @@ automatique à l'ajout custom.
 beta-tester) demande activement à éditer son rig pendant les
 prochains jours. Sinon, reporter Phase 8+.
 
-### Dette résiduelle Phase 7.47 — Opportunité firmware V1 (rapporté Bruno 2026-05-18)
+### Phase 7.47 V1 firmware — ❌ ABANDONNÉE 2026-05-18 soir
+
+Décision Sébastien post-validation Phase 7.65.x + 7.68 : "j'ai
+l'impression que tout le monde a updaté" → le firmware V1
+historique pré-avril 2025 n'a plus de population d'utilisateurs
+actifs identifiée. Bruno (qui était le seul cas suspect) tournait
+finalement avec stale `profile.banksPedale` héritée pré-Phase 7.47,
+pas un vrai V1 hardware.
+
+Le placeholder `FACTORY_BANKS_PEDALE_V1 = {}` reste dans
+`data_catalogs.js` comme no-op safe (le dropdown firmware
+BankEditor reste désactivé pour V1, comportement attendu). Aucune
+action à entreprendre.
+
+À réactiver UNIQUEMENT si un futur beta-tester confirme un
+hardware V1 (ToneX Pedal classique acheté pré-avril 2025 jamais
+updaté) ET demande explicitement le support. Probabilité faible
+— IK Multimedia pousse les updates firmware via leur software
+companion automatiquement.
+
+**Notes design conservées pour référence** :
 
 Bruno rapporte un **décalage banks Factory Pedal** (VX30 éclaté sur
 banks 5 et 6 au lieu d'être consolidé sur une bank, WRECK éclaté
 sur banks 6-7, etc.). Hypothèse forte : **Bruno a un firmware V1**
 (Pedal classique achetée avant avril 2025) — son mapping factory
 réel diffère de `FACTORY_BANKS_PEDALE_V2` livré Phase 7.47.
+**Réfuté ultérieurement** : Bruno avait juste un stale
+`profile.banksPedale` héritée d'une session pré-Phase 7.47, fixé
+par reset banks via console.
 
 Phase 7.47 a livré V2 conforme PDF officiel 2025/04/03 et un
 placeholder `FACTORY_BANKS_PEDALE_V1 = {}` (liste à fournir). Si
 Bruno confirme V1 + envoie ses banks 0/25/49 (comme Francisco l'a
 fait pour V2), c'est l'opportunité de **remplir le mapping V1
-manquant** depuis un user réel.
-
-**Action en attente** :
-1. Bruno répond à la question "banks 0, 25 et 49 exactes" (DM
-   envoyé 2026-05-18).
-2. Si V1 confirmé, ajouter les entries correspondantes au
-   `FACTORY_CATALOG` (avec `src: "FactoryV1"`) et remplir
-   `FACTORY_BANKS_PEDALE_V1` dans `data_catalogs.js`.
-3. Le dropdown firmware dans `BankEditor` (Phase 7.47) s'activera
-   automatiquement pour V1.
-4. Récupérer aussi les autres banks V1 par échange ultérieur si
-   pertinent (Bruno a 50 banks au total, mais 3 sample suffisent
-   pour valider).
-
-**Effort estimé** : ~1h dev une fois les données Bruno reçues.
+manquant** depuis un user réel. [Cf décision ci-dessus : abandonné.]
 
 ### Phase 7.68 — ✅ LIVRÉE 2026-05-18 (v8.14.110) — Bug investigation P2 (recos Accueil vs Setlists)
 
