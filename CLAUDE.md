@@ -746,7 +746,23 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-18, Phases 7.65 + 7.65.1 + 7.47.1 close — filtre rig actif + metadata FACTORY_CATALOG conforme PDF v2)
+## État actuel (2026-05-18, Phases 7.65 + 7.65.1 + 7.47.1 + 7.65.x close — filtre rig actif + metadata factory PDF v2 + customs usages pin)
+
+**Backline v8.14.106 / SW backline-v206 / STATE_VERSION 10 / 1077 tests verts.**
+
+### Phase 7.65.x — Fix useMemo customPacks copie le champ `usages` (v8.14.106)
+
+Bug rapporté Bruno : ses customs Mesa Mark IIC+ / Marshall JCM800 avec usages explicit (Metallica / Iron Maiden) ne sont pas pinnés par l'IA pour "For Whom the Bell Tolls" / "Fear of the Dark", alors que les customs dont le nom contient littéralement l'artiste (Blink-182, Dr. Stein) sont correctement pinnés.
+
+**Cause racine** : l'useMemo `main.jsx` Phase 7.30 qui injecte `profile.customPacks` dans `PRESET_CATALOG_MERGED` ne copiait pas le champ `usages`. Donc tous les flows aval (prompt IA, post-process `findSlotByUsageMatch`) recevaient un catalog entry sans `usages` pour les customs. Le pin via PRIORITÉ 1 du prompt (Phase 7.34) ne fonctionnait jamais pour les customs ; seule la PRIORITÉ 2 (nom contient artiste/morceau littéralement) survivait.
+
+**Fix** : 1 ligne effective dans l'useMemo + 8 tests Vitest dédiés. Voir section "Phase 7.65.x — ✅ LIVRÉE" plus bas pour le détail.
+
+Aucune autre modif nécessaire — `buildInstalledSlotsSection`, `findSlotByUsageMatch`, `findCatalogEntryByUsages` sont corrects dans leur logique, leur input `entry.usages` était simplement toujours `undefined` pour les customs.
+
+---
+
+## État précédent (2026-05-18, Phases 7.65 + 7.65.1 + 7.47.1 close — filtre rig actif + metadata FACTORY_CATALOG conforme PDF v2)
 
 **Backline v8.14.105 / SW backline-v205 / STATE_VERSION 10 / 1069 tests verts.**
 
@@ -1432,7 +1448,82 @@ setlist."*
 Phase 7.65 livrée 2026-05-18 — peut maintenant être démarrée si
 Bruno reconfirme le bug post-déploiement v8.14.103.
 
-### Bug investigation post-Phase 7.65 — customPacks Bruno usages Metallica
+### Phase 7.65.x — ✅ LIVRÉE 2026-05-18 PM (v8.14.106) — Fix useMemo customPacks copie le champ `usages`
+
+**Cause racine identifiée** : l'useMemo `main.jsx` Phase 7.30 (ligne ~690) qui synchronise `profile.customPacks` dans `PRESET_CATALOG_MERGED` **ne recopiait pas le champ `usages`**. Donc :
+- `findCatalogEntry("Kirk & James - Gasoline v2")` retournait une entry sans `usages`.
+- `buildInstalledSlotsSection` (Phase 7.52.1) ne sérialisait pas les usages au prompt IA.
+- `findSlotByUsageMatch` (Phase 7.52.5) ne matchait jamais sur les customs (la logique du helper était correcte, mais l'input `entry.usages` était toujours `undefined`).
+
+Le pattern qui fonctionnait pour Blink-182 et Dr. Stein passait par PRIORITÉ 2 du prompt Phase 7.34 ("capture dont le NOM mentionne explicitement l'artiste/morceau") — totalement indépendant de `usages`. Les autres customs (Kirk & James pour Metallica, Maiden Pack pour Fear of the Dark) tombaient au fallback scoring V9 standard.
+
+**Fix Phase 7.65.x (1 ligne effective)** dans `src/main.jsx` useMemo :
+```js
+if (Array.isArray(p.usages) && p.usages.length > 0) entry.usages = p.usages;
+```
+Ajout conditionnel pour ne pas polluer le catalog avec un champ vide (cohérent avec le pattern Phase 7.53 ToneNET ligne ~517).
+
+**Audit complet livré** :
+- `buildInstalledSlotsSection` (`fetchAI.js`) : OK, lit `info.usages` via `findCatalogEntry`. Aucune modif nécessaire.
+- `findSlotByUsageMatch` (`ai-helpers.js`) : OK, logique de match correcte (artist exact + title exact case-insensitive). Aucune modif.
+- `findCatalogEntryByUsages` (`ai-helpers.js`) : OK, scan `PRESET_CATALOG_MERGED` correctement.
+- Prompt Phase 7.34 strict mode : pas trop strict — la PRIORITÉ 1 "capture dont les usages contiennent l'artiste/titre" fonctionne dès que les usages arrivent au prompt.
+
+**Tests Vitest Phase 7.65.x (+8 nouveaux dans `ai-helpers.test.js`)** :
+- Scénario bug Bruno reproduit : `findSlotByUsageMatch(banks{48:{A:"Kirk & James - Gasoline v2"}}, "Metallica", "For Whom the Bell Tolls")` → bank 48 col A score 100.
+- Scénario bug Bruno reproduit : `findSlotByUsageMatch(banks{40:{B:"Maiden Pack | Fear Of The Solo"}}, "Iron Maiden", "Fear of the Dark")` → bank 40 col B score 100.
+- Custom usages artist seul (titre pas dans songs) → score 50.
+- Custom SANS usages → null (fallback scoring V9 standard prend le relais).
+- Régression Phase 7.55 (factory Anniversary Premium avec usages) → toujours OK.
+- Mélange customs + factory → cherche correctement les 2.
+- `findCatalogEntryByUsages` sur customs → remonte dans `ideal_top3` (catalog scan, indépendant des banks installées).
+- `availableSources={custom:false}` → custom skippé.
+
+Setup tests : seed direct de `PRESET_CATALOG_MERGED` dans `beforeEach` (simule l'useMemo CORRECT) + cleanup `afterEach`. 1077/1077 tests verts globaux (1069 + 8).
+
+**Architecture livrée Phase 7.65.x** :
+```
+src/main.jsx                            APP_VERSION 8.14.105 → 8.14.106
+                                        useMemo customPacks Phase 7.30 :
+                                        +ajout conditionnel entry.usages
+                                        depuis p.usages
+public/sw.js                            CACHE backline-v205 → backline-v206
+src/app/utils/ai-helpers.test.js        +import beforeEach/afterEach +
+                                        PRESET_CATALOG_MERGED
+                                        +describe "Phase 7.65.x (customs
+                                        avec usages)" (8 tests)
+```
+
+**Conséquences Phase 7.65.x** :
+- 1077/1077 tests verts.
+- Pas de bump STATE_VERSION (fix logique additif, schéma identique).
+- Pas de migration : les `profile.customPacks` existants (Bruno avec usages enrichis) sont déjà compatibles. Le fix les rend simplement exploitables.
+- Effet immédiat sur Bruno post-reload v8.14.106 : prochaine analyse IA de "For Whom the Bell Tolls" devrait pin 48A Kirk & James (PRIORITÉ 1 usages match), et "Fear of the Dark" devrait pin 40B Maiden Pack.
+
+**Note historique — Étape 1 résolue séparément 2026-05-18 PM (via JS console DevTools)** :
+Sébastien (Chrome MCP en mode admin Bruno) a enrichi
+`profile.customPacks` Bruno avec `usages: [{artist, songs?}]` sur
+les 34 presets banks 38-49. Couverture complète :
+- 48A `Kirk & James - Gasoline v2` → usages Metallica (11 songs
+  dont For Whom the Bell Tolls, Master of Puppets, One, Battery)
+- 48B `Blink-182 Mesa Boggie` → usages Blink-182 (7 songs)
+- 49C `TSR Mars 800SL Cn1&2 HG` → usages Iron Maiden + Metallica
+- 40A/B `Maiden Pack | Fear Of The Clean/Solo` → usages Iron Maiden
+  (Fear of the Dark)
+- 39C `80s Pack | Bark at Dr. Stein` → usages Helloween (Dr. Stein)
+- 47A `MRSH SLAFD AFD Drive WRM CAB ScD` → usages Guns N' Roses
+- Etc.
+
+Pack renommé `Bruno — Banks 38-49 (mix Amalgam + TSR + Galtone +
+ToneNET + Peavey 5050 + Iron Maiden Pack + Metallica Ride The
+Lightning + Helloween)`. Persisté Firestore (stamp `lastModified`),
+sync OK vers les autres devices Bruno au prochain pull.
+
+**Validation expérimentale après resolve étape 1 (avant Phase 7.65.x)** : pattern observé "pin fonctionne quand nom contient artiste/morceau littéralement, échoue sinon" → confirmé que Phase 7.34 PRIORITÉ 2 fonctionnait mais PRIORITÉ 1 (usages) était brisée par l'absence de copie du champ. Phase 7.65.x corrige.
+
+---
+
+### Bug investigation historique post-Phase 7.65 — customPacks Bruno usages Metallica (étape 1 ✅ résolue 2026-05-18 PM, étapes 2-3 ✅ résolues Phase 7.65.x ci-dessus)
 
 Bruno rapporte que pour **For Whom the Bell Tolls** (Metallica),
 l'IA recommande **DR VX30** (Vox AC30, Factory Pedal) en preset
@@ -1445,24 +1536,69 @@ idéal **alors que** :
    (Marshall).
 
 Phase 7.34 (anti cross-contamination) devrait précisément pinner
-48A Kirk & James pour Metallica. Le fail apparent doit venir de :
+48A Kirk & James pour Metallica. Les 3 causes possibles identifiées
+initialement :
 - `profile.customPacks` de Bruno ne contient pas les metadata
-  `usages` Metallica pour 48A (vérifier ses customPacks), OU
+  `usages` Metallica pour 48A (vérifier ses customPacks)
 - Phase 7.34 strict mode filtre "Kirk & James" car ce nom ne mentionne
-  pas "Metallica" littéralement, OU
+  pas "Metallica" littéralement
 - Le post-processing Phase 7.55 `findSlotByUsageMatch` ne match pas
   faute de champ `usages` rempli côté customPack Bruno.
 
-**Plan d'investigation** :
-1. Après Phase 7.65 livrée + re-fetch propre Bruno, vérifier
-   `JSON.stringify(profiles.bruno.customPacks)` côté console DevTools
-   pour identifier si les `usages` Metallica sont présents.
-2. Si absents, étendre `customPacks` Bruno avec usages explicites
-   (Metallica For Whom the Bell Tolls, AC/DC, Iron Maiden, etc.).
-3. Re-tester `findSlotByUsageMatch` sur le morceau.
+**Étape 1 — ✅ résolue 2026-05-18 PM via JS console DevTools** :
+Sébastien (via Chrome MCP en mode admin Bruno) a enrichi
+`profile.customPacks` Bruno avec `usages: [{artist, songs?}]` sur
+les 34 presets banks 38-49. Couverture complète :
+- 48A `Kirk & James - Gasoline v2` → usages Metallica (11 songs
+  dont For Whom the Bell Tolls, Master of Puppets, One, Battery)
+- 48B `Blink-182 Mesa Boggie` → usages Blink-182 (7 songs)
+- 49C `TSR Mars 800SL Cn1&2 HG` → usages Iron Maiden + Metallica
+- 40A/B `Maiden Pack | Fear Of The Clean/Solo` → usages Iron Maiden
+  (Fear of the Dark)
+- 39C `80s Pack | Bark at Dr. Stein` → usages Helloween (Dr. Stein)
+- 47A `MRSH SLAFD AFD Drive WRM CAB ScD` → usages Guns N' Roses
+- Etc.
 
-**Effort estimé** : ~30 min investigation + 1h fix customPacks si
-nécessaire.
+Pack renommé `Bruno — Banks 38-49 (mix Amalgam + TSR + Galtone +
+ToneNET + Peavey 5050 + Iron Maiden Pack + Metallica Ride The
+Lightning + Helloween)`. Persisté Firestore (stamp `lastModified`),
+sync OK vers les autres devices Bruno au prochain pull.
+
+**Validation expérimentale après resolve étape 1** : re-fetch IA
+des 6 morceaux setlist Bruno via "🤖 Analyser/MAJ 6". Pattern net
+observé :
+- **Pin custom fonctionne quand le nom du preset contient
+  LITTÉRALEMENT l'artiste/morceau** :
+  - All the Small Things (Blink-182) → 48B `Blink-182 Mesa Boggie`
+    90% ✅ (nom contient "Blink-182")
+  - Dr. Stein (Helloween) → 39C `80s Pack | Bark at Dr. Stein`
+    96% ✅ (nom contient "Dr. Stein")
+- **Pin custom échoue quand il doit passer UNIQUEMENT par les
+  `usages`** :
+  - For Whom the Bell Tolls (Metallica) → toujours 2B `HG 515S`
+    Factory v2 92% ❌ (Kirk & James 48A pas pinné malgré usages
+    explicit Metallica "For Whom the Bell Tolls")
+  - Fear of the Dark (Iron Maiden) → toujours 2B `HG 515S` 94% ❌
+    (Maiden Pack 40A/B pas pinné malgré usages Iron Maiden "Fear
+    of the Dark")
+
+Donc la cause racine restante est dans **le code Backline** :
+soit Phase 7.34 strict (cause 2), soit findSlotByUsageMatch
+(cause 3), soit useMemo Phase 7.31 qui ne copie pas
+`pr.usages → catalog[name].usages`, soit
+buildInstalledSlotsSection Phase 7.52.1 qui ne sérialise pas
+les usages des customPacks au prompt.
+
+**Étapes 2-3 — déléguées à Claude Code (prompt envoyé 2026-05-18 PM)** :
+Claude Code va investiguer en local pour identifier le site exact
+du bug (entre `main.jsx` useMemo Phase 7.31,
+`src/app/utils/fetchAI.js` buildInstalledSlotsSection Phase 7.52.1,
+`src/app/utils/ai-helpers.js` findSlotByUsageMatch Phase 7.55, et
+fetchAI prompt Phase 7.34 strict mode). Phase 7.65.x à livrer
+avec tests Vitest dédiés.
+
+**Effort estimé livraison Claude Code** : ~1-2h (investigation +
+fix + tests + bump APP_VERSION + commit).
 
 ### Pitfall renforcé — Pré-calcul aiCache depuis profil admin (preuve concrète Bruno 2026-05-18)
 
@@ -1482,6 +1618,46 @@ prompt union all-rigs (Phase 3.6) au moment du pré-calcul.
 - En cas de pollution constatée, scope l'invalidation au profil
   affecté via Phase 7.33 ("🔄 Réinitialiser MES analyses" depuis
   le profil actif).
+
+### Pitfall onboarding renforcé — Enrichir customPacks avec `usages` dès la création (2026-05-18 PM)
+
+Au-delà du pré-calcul aiCache, la session 2026-05-18 PM a révélé
+un 2e pitfall onboarding critique : créer les `profile.customPacks`
+d'un beta-tester SANS le champ `usages: [{artist, songs?}]` rend
+le pin custom Phase 7.31 / 7.55 strictement dépendant de la
+présence littérale de l'artiste/morceau dans le NOM du preset.
+
+**Conséquence pratique** : si le nom du preset est neutre (ex.
+"Kirk & James - Gasoline v2" pour Metallica, "Maiden Pack | Fear
+Of The Solo" pour Iron Maiden Fear of the Dark), le pin échoue
+même quand l'IA a tout pour décider correctement (analyse de
+l'ampli historique + capture dans le rig). C'était le cas de
+Bruno avant 2026-05-18 PM.
+
+**Procédure recommandée future** (à intégrer
+BETA_ONBOARDING.md + workflow Vision IA Tab Packs) :
+- À chaque création / import d'un customPack, vérifier que **chaque
+  preset a un champ `usages`** quand le contexte le permet (capture
+  signature artiste, capture dédiée morceau, capture sur album
+  spécifique).
+- Format `[{artist: "Metallica", songs: ["For Whom the Bell Tolls",
+  ...]}, {artist: "Kirk Hammett"}, {artist: "James Hetfield"}]`.
+- Peut être fait via Vision IA (extraction du nom du pack) ou
+  manuel. Pour les ToneNET, Phase 7.53 a livré l'UI éditable côté
+  profil utilisateur.
+- Pour les customs admin-only (Galtone, Amalgam, etc.), penser à
+  les enrichir lors de l'onboarding plutôt qu'après coup (évite
+  un re-fetch IA correctif).
+
+**Note technique** : Phase 7.65.x ✅ livrée 2026-05-18 PM
+(v8.14.106) — l'useMemo `main.jsx` Phase 7.30 recopie désormais
+le champ `usages` au passage `profile.customPacks` →
+`PRESET_CATALOG_MERGED`, débloquant `buildInstalledSlotsSection`
+(prompt PRIORITÉ 1) et `findSlotByUsageMatch` (post-process pin
+de slot). À partir de v8.14.106, les `usages` enrichis suffisent
+seuls — le code Backline les exploite correctement pour les
+customs. Voir section "Phase 7.65.x — ✅ LIVRÉE" plus bas pour
+le détail technique du fix.
 
 ### Dette résiduelle Phase 7.64 — Bonus family match Strat/Tele/LP (rapporté Francisco 2026-05-17 soir)
 

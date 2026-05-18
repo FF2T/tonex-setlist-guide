@@ -6,8 +6,9 @@
 // - fallback cascade locale → fr → en → es → ''
 // - inputs falsy/edge cases
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { getLocalizedText, findSlotByUsageMatch, findCatalogEntryByUsages, findSlotByName } from './ai-helpers.js';
+import { PRESET_CATALOG_MERGED } from '../../core/catalog.js';
 
 describe('getLocalizedText', () => {
   describe('legacy string format', () => {
@@ -375,5 +376,174 @@ describe('findSlotByName — Phase 7.56 (tolérance format IA)', () => {
     expect(findSlotByName(null, 'foo')).toBeNull();
     expect(findSlotByName(banks, null)).toBeNull();
     expect(findSlotByName(banks, '')).toBeNull();
+  });
+});
+
+// Phase 7.65.x — Couvre le bug constaté sur le profil Bruno :
+// les customs avec usages n'étaient pas pinnés par l'IA car
+// l'useMemo qui injecte profile.customPacks dans
+// PRESET_CATALOG_MERGED (main.jsx Phase 7.30) ne copiait pas le
+// champ `usages`. Conséquence : `findCatalogEntry("Kirk & James -
+// Gasoline v2")` retournait metadata sans `usages` →
+// `buildInstalledSlotsSection` n'envoyait rien au prompt IA et
+// `findSlotByUsageMatch` ne matchait pas (alors qu'il est correct
+// dans sa logique). Le pin ne fonctionnait que via PRIORITÉ 2
+// du prompt (nom contient artiste/morceau littéralement).
+//
+// Ici on simule l'useMemo CORRECT en seedant directement
+// PRESET_CATALOG_MERGED avec une entry custom + usages.
+describe('findSlotByUsageMatch — Phase 7.65.x (customs avec usages)', () => {
+  const CUSTOM_KIRK = 'Kirk & James - Gasoline v2';
+  const CUSTOM_MAIDEN = 'Maiden Pack | Fear Of The Solo';
+  const CUSTOM_NO_USAGES = 'Custom Sans Usages';
+  const seededKeys = [CUSTOM_KIRK, CUSTOM_MAIDEN, CUSTOM_NO_USAGES];
+
+  beforeEach(() => {
+    // Simule l'useMemo Phase 7.65.x : injection d'un custom avec usages.
+    PRESET_CATALOG_MERGED[CUSTOM_KIRK] = {
+      src: 'custom',
+      amp: 'Mesa Mark IIC+',
+      gain: 'high',
+      style: 'metal',
+      channel: '',
+      pack: 'Bruno — Banks 38-49',
+      scores: { HB: 95, SC: 55, P90: 68 },
+      usages: [
+        { artist: 'Metallica', songs: ['For Whom the Bell Tolls', 'Master of Puppets', 'One', 'Enter Sandman'] },
+      ],
+    };
+    PRESET_CATALOG_MERGED[CUSTOM_MAIDEN] = {
+      src: 'custom',
+      amp: 'Marshall JCM800',
+      gain: 'high',
+      style: 'metal',
+      channel: '',
+      pack: 'Bruno — Banks 38-49',
+      scores: { HB: 92, SC: 56, P90: 73 },
+      usages: [
+        { artist: 'Iron Maiden', songs: ['Fear of the Dark'] },
+      ],
+    };
+    PRESET_CATALOG_MERGED[CUSTOM_NO_USAGES] = {
+      src: 'custom',
+      amp: 'Marshall JCM800',
+      gain: 'high',
+      style: 'metal',
+      channel: '',
+      pack: 'Bruno — Banks 38-49',
+      scores: { HB: 90, SC: 55, P90: 70 },
+      // Pas de usages → ne devrait pas matcher via findSlotByUsageMatch
+    };
+  });
+
+  afterEach(() => {
+    for (const k of seededKeys) delete PRESET_CATALOG_MERGED[k];
+  });
+
+  it('scénario bug Bruno (For Whom the Bell Tolls / Metallica) → pin custom Kirk & James 48A', () => {
+    const banks = {
+      48: { A: CUSTOM_KIRK, B: '', C: '' },
+    };
+    const m = findSlotByUsageMatch(banks, 'Metallica', 'For Whom the Bell Tolls');
+    expect(m).toBeTruthy();
+    expect(m.bank).toBe(48);
+    expect(m.col).toBe('A');
+    expect(m.label).toBe(CUSTOM_KIRK);
+    expect(m.score).toBe(100);
+  });
+
+  it('scénario bug Bruno (Fear of the Dark / Iron Maiden) → pin custom Maiden Pack 40B', () => {
+    const banks = {
+      40: { A: '', B: CUSTOM_MAIDEN, C: '' },
+    };
+    const m = findSlotByUsageMatch(banks, 'Iron Maiden', 'Fear of the Dark');
+    expect(m).toBeTruthy();
+    expect(m.bank).toBe(40);
+    expect(m.col).toBe('B');
+    expect(m.label).toBe(CUSTOM_MAIDEN);
+    expect(m.score).toBe(100);
+  });
+
+  it('custom avec usages artist seul (titre pas dans songs) → score 50', () => {
+    // Bruno joue un autre morceau de Metallica pas listé dans usages.songs.
+    const banks = { 48: { A: CUSTOM_KIRK, B: '', C: '' } };
+    const m = findSlotByUsageMatch(banks, 'Metallica', 'Battery');
+    expect(m).toBeTruthy();
+    expect(m.label).toBe(CUSTOM_KIRK);
+    expect(m.score).toBe(50);
+  });
+
+  it('custom SANS usages → findSlotByUsageMatch retourne null (fallback scoring V9)', () => {
+    // Sans usages, le custom ne peut pas être pinné par usage-match.
+    // C'est attendu : le scoring V9 standard prend le relais ailleurs.
+    const banks = { 47: { A: CUSTOM_NO_USAGES, B: '', C: '' } };
+    const m = findSlotByUsageMatch(banks, 'Iron Maiden', 'Fear of the Dark');
+    expect(m).toBeNull();
+  });
+
+  it('régression Phase 7.55 : Anniversary Premium factory avec usages toujours matché', () => {
+    // Le catalog statique AA MRSH SB100 (usages Cream) reste matchable.
+    const banks = {
+      8: { A: 'AA MRSH SB100 I Edge WRM CAB', B: '', C: '' },
+    };
+    const m = findSlotByUsageMatch(banks, 'Cream', 'White Room');
+    expect(m).toBeTruthy();
+    expect(m.label).toBe('AA MRSH SB100 I Edge WRM CAB');
+    expect(m.score).toBe(100);
+  });
+
+  it('mélange customs + factory dans les mêmes banks → cherche correctement les 2', () => {
+    const banks = {
+      8: { A: 'AA MRSH SB100 I Edge WRM CAB', B: '', C: '' },
+      48: { A: CUSTOM_KIRK, B: '', C: '' },
+    };
+    // Cream → factory
+    const m1 = findSlotByUsageMatch(banks, 'Cream', 'White Room');
+    expect(m1?.bank).toBe(8);
+    // Metallica → custom
+    const m2 = findSlotByUsageMatch(banks, 'Metallica', 'For Whom the Bell Tolls');
+    expect(m2?.bank).toBe(48);
+    expect(m2?.label).toBe(CUSTOM_KIRK);
+  });
+});
+
+// Phase 7.65.x — Valide via findCatalogEntryByUsages (Phase 7.55) que
+// les customs avec usages remontent aussi dans ideal_top3 (catalog
+// scan, indépendant des banks installées).
+describe('findCatalogEntryByUsages — Phase 7.65.x (customs avec usages)', () => {
+  const CUSTOM_KIRK = 'Kirk & James - Gasoline v2';
+
+  beforeEach(() => {
+    PRESET_CATALOG_MERGED[CUSTOM_KIRK] = {
+      src: 'custom',
+      amp: 'Mesa Mark IIC+',
+      gain: 'high',
+      style: 'metal',
+      scores: { HB: 95, SC: 55, P90: 68 },
+      usages: [
+        { artist: 'Metallica', songs: ['For Whom the Bell Tolls', 'Master of Puppets'] },
+      ],
+    };
+  });
+
+  afterEach(() => {
+    delete PRESET_CATALOG_MERGED[CUSTOM_KIRK];
+  });
+
+  it('custom avec usages remonte dans findCatalogEntryByUsages (catalog scan)', () => {
+    const m = findCatalogEntryByUsages('Metallica', 'For Whom the Bell Tolls', null);
+    expect(m).toBeTruthy();
+    expect(m.name).toBe(CUSTOM_KIRK);
+    expect(m.score).toBe(100);
+    expect(m.entry.src).toBe('custom');
+  });
+
+  it('availableSources={custom:false} → skip le custom même avec usages match', () => {
+    // Cohérence Phase 5.6 / 5.12 : filtrer par sources activées par le profil.
+    const m = findCatalogEntryByUsages('Metallica', 'For Whom the Bell Tolls', null, { custom: false });
+    // Le custom est skippé ; éventuellement un autre catalog match existe
+    // (par ex. WT Mars Super1100 JMP 5 a usages Metallica). On vérifie
+    // simplement que le custom Bruno n'est pas retourné.
+    if (m) expect(m.entry.src).not.toBe('custom');
   });
 });

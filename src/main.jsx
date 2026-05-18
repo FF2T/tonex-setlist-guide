@@ -265,7 +265,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.105";
+const APP_VERSION = "8.14.106";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -686,6 +686,14 @@ function App() {
   // avant les child useMemos qui scorent les banks (computeBestPresets).
   // Évite que "Blink-182 Mesa Boggie" (capture Mesa Triple Rectifier) soit
   // interprété comme metadata fragile guessée depuis le mot "boogie".
+  //
+  // Phase 7.65.x — Recopie aussi `usages` (champ optionnel ajouté quand
+  // l'utilisateur tague son custom avec un artiste/morceau spécifique).
+  // Sans ce champ, `findCatalogEntry("Kirk & James - Gasoline v2")` retournait
+  // metadata sans usages → `buildInstalledSlotsSection` n'envoyait pas
+  // l'info au prompt IA et `findSlotByUsageMatch` ne matchait pas. Le pin
+  // ne fonctionnait que pour les customs dont le NOM contenait l'artiste
+  // littéralement (Blink-182, Dr. Stein) via PRIORITÉ 2 du prompt.
   useMemo(()=>{
     for(const k of Object.keys(PRESET_CATALOG_MERGED)){
       if(PRESET_CATALOG_MERGED[k].src==="custom") delete PRESET_CATALOG_MERGED[k];
@@ -693,7 +701,7 @@ function App() {
     (profile?.customPacks||[]).forEach(pack=>{
       (pack.presets||[]).forEach(p=>{
         if(!p.name) return;
-        PRESET_CATALOG_MERGED[p.name]={
+        const entry={
           src:"custom",
           amp:p.amp||"Custom",
           gain:p.gain||"mid",
@@ -702,6 +710,10 @@ function App() {
           pack:pack.name||"Custom Pack",
           scores:p.scores||{HB:75,SC:75,P90:75},
         };
+        // Phase 7.65.x : ajout conditionnel pour ne pas polluer le catalog
+        // avec un champ vide quand le user n'a pas tagué d'usages.
+        if(Array.isArray(p.usages) && p.usages.length>0) entry.usages=p.usages;
+        PRESET_CATALOG_MERGED[p.name]=entry;
       });
     });
   },[profile?.customPacks]);
