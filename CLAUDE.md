@@ -746,7 +746,89 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-18, Phases 7.65 + 7.65.1 close — vue repliée + Raisonnement IA filtrés rig actif)
+## État actuel (2026-05-18, Phases 7.65 + 7.65.1 + 7.47.1 close — filtre rig actif + metadata FACTORY_CATALOG conforme PDF v2)
+
+**Backline v8.14.105 / SW backline-v205 / STATE_VERSION 10 / 1069 tests verts.**
+
+### Phase 7.47.1 — FACTORY_CATALOG metadata conforme PDF v2 (v8.14.105)
+
+Audit complet `FACTORY_CATALOG` vs `tone_models/TONEX_Pedal_Pre-loaded_Factory_Presets.pdf` v2 (2025/04/03). Phase 7.47 avait livré le mapping `FACTORY_BANKS_PEDALE_V2` correct (bank → slot → preset name) **mais** la metadata associée dans `FACTORY_CATALOG` (champ `amp`) était soit simplifiée (`"Mesa Mark"` au lieu de `"Mesa Boogie Mark III"`), soit carrément fausse (`STERPAN` amp = `"Fuzzy"` qui n'est pas un amp réel).
+
+**Catégorie A — 4 vrais bugs corrigés** :
+- **Bank 41A typo** : `DRVMASTR` → `DRVMSTR` (preset name PDF). Renommé clé `FACTORY_CATALOG` + valeur `FACTORY_BANKS_PEDALE_V2[41].A` + valeur `factory-banks.test.js PDF_V2_EXPECTED[41].A`.
+- **STERPAN amp** : `"Fuzzy"` → `"Fender Super Six Reverb"` (PDF). `"Fuzzy"` n'était pas un amp réel — faussait `computeRefAmpScore` (30% du score V9) sur les morceaux qui invoquaient cet ampli.
+- **HG 5051 (Amp)** : `"EVH 5150"` → `"Peavey 5150"` (PDF, cohérent avec `HG 5051` standard Bank 15 qui était déjà `Peavey 5150`). Confusion 2 marques différentes — EVH (récent, branding Eddie Van Halen 2018+) vs Peavey (original 5150 années 90 avec Eddie).
+- **BS B15 amp** : `"Ampeg SVT"` → `"Ampeg B15"` (PDF). B15 et SVT sont 2 amplis Ampeg différents.
+
+**Catégorie B — ~50 amp names alignés exactement sur PDF** (sans erreur métier, juste précision) :
+- `Dumble ODS` → `Dumble Overdrive Special #0080`
+- `Marshall Plexi` → `Marshall Super Lead MKII`
+- `EVH 5150` → `EVH 5150 Stealth`
+- `Fender Twin Reverb` → `Fender Twin Reverb '65`
+- `Mesa Rectifier` → `Mesa Boogie Dual Rectifier 90s`
+- `Dr. Z` → `Dr. Z Z Wreck`
+- `Friedman BE-100` → `Friedman BE100` (hyphen)
+- `Soldano SLO-100` → `Soldano SLO100`
+- `Mesa Mark` → `Mesa Boogie Mark III` (Bank 10) / `Mesa Boogie Mark V` (Bank 17) — distinction !
+- `Marshall JCM800` → `Marshall JCM 800` (avec espace)
+- `Diezel` → `Diezel VH4`
+- `Fender Princeton` → `Fender 65 Princeton Reverb`
+- `ENGL` → `ENGL Fireball`
+- `Roland JC-120` → `Roland JC120` (sans hyphen)
+- `Orange` → `Orange Thunderverb 200` (Bank 20) / `Orange OR120` (Bank 30 AMBIENT) — distinction
+- `Fender Deluxe Reverb` → `Fender 65 Deluxe Reverb`
+- `Marshall` (générique) → `Marshall AFD100 Slash Signature` (Bank 23 GUNS — c'est un signature pack Slash, pas générique)
+- `Mesa Boogie` → `Mesa Boogie Maverick` (Bank 24)
+- `Fender Bassman` → `Fender '59 Bassman LTD`
+- `Marshall JCM900` → `Marshall JCM 900`
+- `EVH 5150` (Bank 31 AINTALK + Bank 33 1CHAIN) → `Fender EVH 5150III 50w` (différent — c'est la version 50w spécifique)
+- `Marshall` (Bank 33 VOWELS) → `Marshall JMP 100W`
+- `Fender` (générique × 3) → `Fender Super Reverb` / `Fender Pro Junior` / `Fender Hot Rod Deluxe` (3 amplis distincts pour Bank 32 SPRING4/MYBABY/BLKHOLE)
+- `Dr. Z` (Bank 34 LUSH) → `DrZ Maz 18`
+- `HG DUAL (Amp)` Bank 38C → `Mesa Boogie Dual Rectifier 2ch` (différent du 90s sur Bank 5)
+- Variantes `(Amp)` Bank 35-39 alignées idem
+- `Ampeg SVT` (générique × 3 bass) → `Ampeg SVT2 Pro` (Bank 45C) / `Ampeg SVT VR` (Bank 47A)
+- `Marshall JCM800` (Bank 46A BS 800) → `Marshall JCM 800 Bass Amp`
+- `Orange` (Bank 46C BS ORNG) → `Orange AD200`
+
+**Reporter en dette résiduelle Phase 7.47.x** :
+- **Catégorie C — Stomps standalone** (Banks 40-44, certains Banks 47-49) : code stocke la **character** PDF (`Stomp - Overdrive` / `Stomp - Distortion` / `Stomp - Fuzz`) dans le champ `amp:` au lieu du modèle pédale réel (Boss SD-1, Klon Centaur, Marshall DriveMaster, Fulltone OCD, Ibanez TS808, ProCo Rat, Tech21 SansAmp, EHX Big Muff, etc.). Ces presets ne fittent pas le scoring V9 amp-centric. Phase 8 (pédales modélisées) résoudra mieux avec un champ `pedal:` dédié. Reporter.
+- **Catégorie D — Champ `toneModelName` absent** : le PDF a 2 colonnes nom (`PRESET NAME` ex. "CL DMBL" + `TONE MODEL NAME` ex. "Unique #80"). Le firmware ToneX affiche probablement le Tone Model Name sur l'écran de la pédale. Ajout du champ à chaque entry + tolérance `findCatalogEntry` (comme Phase 7.52.4 pour Anniversary Premium). À déclencher si un beta-tester remonte la confusion. Reporter.
+
+### Architecture livrée Phase 7.47.1
+
+```
+src/main.jsx                                APP_VERSION 8.14.104 → 8.14.105
+public/sw.js                                CACHE backline-v204 → backline-v205
+src/data/data_catalogs.js                   FACTORY_BANKS_PEDALE_V2[41].A
+                                            DRVMASTR → DRVMSTR
+                                            FACTORY_CATALOG :
+                                            +rename clé DRVMASTR → DRVMSTR
+                                            +amp values alignées PDF v2
+                                            (~50 entries amp-based, Cat A+B)
+src/devices/tonex-pedal/factory-banks.test.js
+                                            PDF_V2_EXPECTED[41].A
+                                            DRVMASTR → DRVMSTR
+```
+
+### Conséquences Phase 7.47.1
+
+- **1069/1069 tests verts** (snapshots V9 inchangés — les amp names ne sont pas dans les chaînes hardcodées des snapshots, le scoring V9 utilise les `scores` HB/SC/P90 toujours identiques).
+- **Pas de bump STATE_VERSION** (additif sur metadata, schéma identique).
+- **Pas de migration localStorage** : les `profile.banksPedale` existants gardent leurs preset names (`DRVMASTR` legacy reste résolvable via fallback `guessPresetInfo` si pas dans le catalog rénommé — ou re-clic "Reset factory" pour propager `DRVMSTR`).
+- **Bundle** 2360.54 → 2361.29 KB (+0.75 KB pour commentaires + amp names plus longs).
+- **Effet sur scoring V9** : `computeRefAmpScore` matche désormais plus précisément les recommandations IA qui mentionnent un ampli spécifique (`Mark III` vs `Mark V` distincts, `Peavey 5150` vs `EVH 5150` distincts, `Fender Pro Junior` vs `Fender Super Reverb` distincts, etc.). Amélioration nette de précision pour les morceaux dont l'IA retourne un `ref_amp` précis.
+- **Bug Bruno (5C DR VX30 vs LD DUAL)** : indépendant de Phase 7.47.1 — c'est probablement du localStorage stale sur Bruno (banks initialisés pré-Phase 7.47). À traiter à part (reset manuel via console Firestore).
+
+### Dette résiduelle Phase 7.47.x
+
+- **Phase 7.47.2 (proposée) — Cat C stomps** : remplacer `Stomp - Overdrive` générique par modèle pédale réel + champ `pedal:` dédié. Couplé à Phase 8 (pédales modélisées) qui ajoutera une vraie base de données pédales avec scoring adapté.
+- **Phase 7.47.3 (proposée) — Cat D toneModelName** : ajouter champ `toneModelName` à chaque entry `FACTORY_CATALOG`, étendre `findCatalogEntry` avec fallback toneModelName (réplique pattern Phase 7.52.4 pour Anniversary Premium). Utile pour cohérence cross-device (Bruno regarde "Super Double" sur son écran, Backline lui parle "LD DUAL" — un seul des deux est ambigu).
+- **Cab name column PDF** : non importée dans `FACTORY_CATALOG` (champ `cab:` absent côté Factory, contrairement à `ANNIVERSARY_CATALOG` qui a un champ `cab` riche). Pas urgent — le scoring V9 ne lit pas `cab` pour les entries Factory. À envisager si Phase 8+ valorise la précision du cab.
+
+---
+
+## État précédent (2026-05-18, Phases 7.65 + 7.65.1 close — vue repliée + Raisonnement IA filtrés rig actif)
 
 **Backline v8.14.104 / SW backline-v204 / STATE_VERSION 10 / 1069 tests verts.**
 

@@ -54,7 +54,7 @@ const PDF_V2_EXPECTED = {
   38: { A: 'CL DMBL (Amp)',   B: 'DR FRIED (Amp)', C: 'HG DUAL (Amp)' },
   39: { A: 'CL HIWTT (Amp)',  B: 'DR BOGN (Amp)',  C: 'HG FIRE (Amp)' },
   40: { A: 'BOX-SD1',         B: 'CLONE 1',        C: 'CLONE 2' },
-  41: { A: 'DRVMASTR',        B: 'FULDRV 2',       C: 'FULL DOC' },
+  41: { A: 'DRVMSTR',         B: 'FULDRV 2',       C: 'FULL DOC' },
   42: { A: 'MAXO 8O8',        B: 'TS8O8 A',        C: 'TS8O8 B' },
   43: { A: 'SUNSET',          B: 'BOX-DS1',        C: 'MOUSE' },
   44: { A: 'XOTBOOST',        B: 'FUZZONE',        C: 'MAYFUZZ' },
