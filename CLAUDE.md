@@ -799,6 +799,7 @@ src/app/screens/HomeScreen.jsx          +import getIg de song-helpers
 - Pas de migration : les aiCache existants restent valides, simplement re-cleanupés au render.
 - **Bundle** 2373.88 → 2374.05 KB (+0.17 KB pour le commentaire + cleanup).
 - **Effet immédiat post-reload v8.14.110** : pour tout morceau ouvert depuis l'Accueil, la reco est désormais identique à celle vue depuis Setlists vue dépliée. Cohérence complète entre les 2 points d'entrée.
+- **✅ Validé Sébastien post-déploiement 2026-05-18 soir** : recos identiques sur Anniversary ET Plug entre Accueil et Setlists vue dépliée. Tests 2 (Phase 7.63 banner admin-switch) et 3 (Phase 7.64 family match Get Lucky Francisco) aussi validés dans la même séance.
 
 ### Dette résiduelle Phase 7.68
 
