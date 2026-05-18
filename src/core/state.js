@@ -1867,7 +1867,60 @@ function getAllRigsGuitars(profiles, customGuitars, allStandardGuitars) {
   return [...standards, ...customs];
 }
 
+// Phase 7.63 — Sécurité admin-switch profil.
+//
+// Quand un admin (Sébastien) clique sur un autre profil dans le
+// ProfileSelector dropdown, on tracke l'origine admin via sessionStorage
+// (clé ADMIN_ORIGIN_KEY) et on push une entry `{type: 'admin_switch'}`
+// dans `profile.loginHistory` du profil cible. Le beta-testeur garde la
+// trace de l'accès admin sur son profil (transparence). Le banner UI
+// `AdminAsBanner` (mode "Connecté en tant que X") s'affiche tant que
+// sessionStorage tonex_admin_origin est posé.
+//
+// loginHistory accepte désormais 2 formats par entry :
+//   - number (timestamp) : login normal (Phase 5.7+, format historique)
+//   - object {type: 'admin_switch', ts, adminId, adminName} : Phase 7.63
+// La UI loginHistory display gère les 2 formats.
+
+const ADMIN_ORIGIN_KEY = 'tonex_admin_origin';
+
+// Push une entry admin_switch dans loginHistory du profil target.
+// Pure : retourne un nouvel objet profiles, ne mute pas l'original.
+// adminProfile : { id, name } — le profil admin d'origine au moment du switch.
+function recordAdminSwitch(profiles, targetId, adminProfile) {
+  if (!profiles || !profiles[targetId] || !adminProfile?.id) return profiles;
+  const target = profiles[targetId];
+  const h = Array.isArray(target.loginHistory) ? target.loginHistory.slice() : [];
+  h.unshift({
+    type: 'admin_switch',
+    ts: Date.now(),
+    adminId: adminProfile.id,
+    adminName: adminProfile.name || adminProfile.id,
+  });
+  // Phase 7.63 : cap à 10 entries (5 historique Phase 5.7 + marge pour
+  // admin_switch). Les entries plus anciennes sont écartées.
+  if (h.length > 10) h.length = 10;
+  return {
+    ...profiles,
+    [targetId]: { ...target, loginHistory: h, lastModified: Date.now() },
+  };
+}
+
+// True si l'admin est actuellement connecté sur un profil ≠ son propre id.
+// `adminOriginId` vient typiquement de sessionStorage.tonex_admin_origin
+// (posé par switchProfile dans main.jsx). On valide qu'il pointe bien sur
+// un profil ADMIN existant — sinon false (cas defensive : session corrompue
+// ou profil admin supprimé entre temps).
+function isAdminAsMode(profiles, activeProfileId, adminOriginId) {
+  if (!adminOriginId || !activeProfileId) return false;
+  if (adminOriginId === activeProfileId) return false;
+  const origin = profiles?.[adminOriginId];
+  if (!origin?.isAdmin) return false;
+  return true;
+}
+
 export {
+  ADMIN_ORIGIN_KEY, recordAdminSwitch, isAdminAsMode,
   STATE_VERSION, TOMBSTONE_MAX_AGE_MS,
   LS_KEY, LS_KEY_V1, LS_SECRETS_KEY, LS_TRUSTED_KEY, LS_BACKUP_KEY, MAX_BACKUPS,
   mergeBanks, deriveEnabledDevices, getDevicesForRender,

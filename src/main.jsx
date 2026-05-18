@@ -71,6 +71,7 @@ import {
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,
   toggleSetlistProfile,
+  ADMIN_ORIGIN_KEY, recordAdminSwitch, isAdminAsMode,
   getDevicesForRender,
   loadState, saveState, persistState,
   autoBackup, listBackups, restoreBackup, clearBackups,
@@ -134,6 +135,7 @@ import {
 } from './app/utils/firestore.js';
 import ToastDemoBlocked from './app/components/ToastDemoBlocked.jsx';
 import DemoBanner from './app/components/DemoBanner.jsx';
+import AdminAsBanner from './app/components/AdminAsBanner.jsx';
 
 // Phase 7.25 — Auto-activation du mode beta via URL param `?beta=1`.
 // L'utilisateur reçoit un lien `https://ff2t.github.io/...?beta=1` →
@@ -265,7 +267,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.107";
+const APP_VERSION = "8.14.108";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -1319,7 +1321,32 @@ function App() {
     const meta=document.querySelector('meta[name="theme-color"]');
     if(meta) meta.content=theme==="dark"?"var(--bg)":"var(--cream-50)";
   },[theme]);
-  const switchProfile = id => { if(profiles[id]){recordLogin(id);setActiveProfileId(id);sessionStorage.setItem("tonex_active_profile",id);} };
+  // Phase 7.63 — Sécurité admin-switch profil. Si l'admin switch vers
+  // un profil non-admin, on tracke l'origine via sessionStorage et on
+  // logge un `admin_switch` dans le loginHistory du profil cible
+  // (transparence pour le beta-testeur). Retour sur le profil admin
+  // d'origine → clear sessionStorage. Switch entre profils admin →
+  // pas de mode admin-as (les 2 sont admin).
+  const switchProfile = id => {
+    if(!profiles[id]||id===activeProfileId) return;
+    const stored=sessionStorage.getItem(ADMIN_ORIGIN_KEY);
+    const currentIsAdmin=!!profiles[activeProfileId]?.isAdmin;
+    const adminOriginId=stored||(currentIsAdmin?activeProfileId:null);
+    const adminOrigin=adminOriginId?profiles[adminOriginId]:null;
+    const targetIsAdmin=!!profiles[id]?.isAdmin;
+    if(adminOrigin?.isAdmin&&id!==adminOriginId&&!targetIsAdmin){
+      // Entrée/changement mode admin-as (admin → non-admin)
+      sessionStorage.setItem(ADMIN_ORIGIN_KEY,adminOriginId);
+      setProfiles(p=>recordAdminSwitch(p,id,adminOrigin));
+    }else{
+      // Tous les autres cas : retour admin d'origine, switch vers admin,
+      // ou switch entre non-admins (rare). Clear le marker.
+      if(id===adminOriginId||targetIsAdmin) sessionStorage.removeItem(ADMIN_ORIGIN_KEY);
+      recordLogin(id);
+    }
+    setActiveProfileId(id);
+    sessionStorage.setItem("tonex_active_profile",id);
+  };
   const isAdmin = profile.isAdmin === true;
   const pickProfile = id => { recordLogin(id);setActiveProfileId(id);sessionStorage.setItem("tonex_active_profile",id); setScreen("list"); };
   const createAndPick = name => {
@@ -1390,20 +1417,36 @@ function App() {
   var screenContent=null;
   if(screen==="viewprofile"&&profile?.isAdmin&&viewProfileId&&profiles[viewProfileId]) screenContent=<ViewProfileScreen profile={profiles[viewProfileId]} onBack={()=>setScreen("list")} onNavigate={setScreen}/>;
   else if(screen==="exportimport") screenContent=<ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("profile")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/>;
-  else if(screen==="profile") screenContent=<MonProfilScreen songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} onDeletedSetlistIds={setDeletedSetlistIds} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={effectiveGuitarBias} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}} MaintenanceTabComponent={MaintenanceTab} onSaveSharedKey={saveSharedKey}/>;
+  else if(screen==="profile") screenContent=<MonProfilScreen songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} onDeletedSetlistIds={setDeletedSetlistIds} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={effectiveGuitarBias} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");sessionStorage.removeItem(ADMIN_ORIGIN_KEY);setScreen("pick");}} MaintenanceTabComponent={MaintenanceTab} onSaveSharedKey={saveSharedKey}/>;
   else if(screen==="setlists") screenContent=<SetlistsScreen songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} mySongIds={mySongIds} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
   else if(screen==="jam") screenContent=<div><Breadcrumb crumbs={[{label:t("nav.home","Accueil"),screen:"list"},{label:t("nav.jam","Jammer")}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>{t("jam.page-title","🎲 Jammer")}</div><JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources} profile={profile}/></div>;
   else if(screen==="explore") screenContent=<div><Breadcrumb crumbs={[{label:t("nav.home","Accueil"),screen:"list"},{label:t("nav.explore","Explorer")}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>{t("preset-browser.page-title","🎛️ Explorer les presets")}</div><PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={profile.customPacks} guitars={allGuitars} toneNetPresets={toneNetPresets}/></div>;
   else if(screen==="optimizer"&&isAdmin) screenContent=<BankOptimizerScreen songDb={songDbWithProfileCache} setlists={mySetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} allGuitars={allGuitars} availableSources={availableSources} onNavigate={setScreen} profile={profile}/>;
   else if(screen==="synthesis"&&synth) screenContent=<SynthesisScreen songs={songs} gps={synth.gps} aiR={synth.aiR} onBack={()=>setScreen("recap")} onNavigate={setScreen} songDb={songDbWithProfileCache} banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources} profile={profile}/>;
   else if(screen==="recap") screenContent=<RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} profile={profile} onTmpPatchOverride={onTmpPatchOverride}/>;
-  else screenContent=<HomeScreen songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} mySongIds={mySongIds} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} onOptimizer={()=>setScreen("optimizer")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");setScreen("pick");}} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
+  else screenContent=<HomeScreen songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} mySongIds={mySongIds} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} onOptimizer={()=>setScreen("optimizer")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");sessionStorage.removeItem(ADMIN_ORIGIN_KEY);setScreen("pick");}} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
+
+  // Phase 7.63 — Détection mode admin-as. sessionStorage.tonex_admin_origin
+  // est posé par switchProfile quand un admin switch vers un profil
+  // non-admin. Le banner s'affiche tant que le marker est posé ET que
+  // le profil actif n'est pas le profil admin d'origine.
+  const _adminOriginId = (typeof window !== 'undefined') ? sessionStorage.getItem(ADMIN_ORIGIN_KEY) : null;
+  const _showAdminAsBanner = isAdminAsMode(profiles, activeProfileId, _adminOriginId) && screen !== 'live' && !isDemo;
+  const _adminOriginProfile = _adminOriginId ? profiles[_adminOriginId] : null;
 
   return <div className="page-root">
+    {_showAdminAsBanner && (
+      <AdminAsBanner
+        targetProfileName={profile?.name}
+        adminProfileName={_adminOriginProfile?.name}
+        onSwitchBack={() => { if (_adminOriginId) switchProfile(_adminOriginId); }}
+      />
+    )}
     {isDemo && screen!=="live" && <DemoBanner onExit={()=>{
       // Phase 7.55-B — Sortie explicite mode démo. Clean state in-memory
       // (drop le profil démo) + reset session + reload propre.
       try { sessionStorage.removeItem("tonex_active_profile"); } catch {}
+      try { sessionStorage.removeItem(ADMIN_ORIGIN_KEY); } catch {}
       _setProfilesRaw(prev => { const out = { ...prev }; delete out.demo; return out; });
       // Reload sans le param ?demo=1 si présent
       try {

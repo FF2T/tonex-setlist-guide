@@ -18,6 +18,7 @@ import {
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,
   toggleSetlistProfile,
+  recordAdminSwitch, isAdminAsMode,
   deriveEnabledDevices, makeDefaultProfile,
   getAllRigsGuitars,
   computeGuitarBiasFromFeedback,
@@ -2785,5 +2786,129 @@ describe('ensureProfileV10 — Phase 7.54', () => {
     const p = ensureProfileV10({ id: 's' });
     expect(p.isDemo).toBe(false);
     expect(p.aiCache).toEqual({});
+  });
+});
+
+// Phase 7.63 — Sécurité admin-switch profil.
+describe('recordAdminSwitch (Phase 7.63)', () => {
+  test('push une entry admin_switch dans loginHistory du target', () => {
+    const profiles = {
+      bruno: { id: 'bruno', name: 'Bruno', isAdmin: false, loginHistory: [] },
+      sebastien: { id: 'sebastien', name: 'Sébastien', isAdmin: true },
+    };
+    const out = recordAdminSwitch(profiles, 'bruno', profiles.sebastien);
+    expect(out.bruno.loginHistory).toHaveLength(1);
+    const entry = out.bruno.loginHistory[0];
+    expect(entry.type).toBe('admin_switch');
+    expect(entry.adminId).toBe('sebastien');
+    expect(entry.adminName).toBe('Sébastien');
+    expect(typeof entry.ts).toBe('number');
+    expect(out.bruno.lastModified).toBeGreaterThan(0);
+  });
+
+  test('préserve les entries existantes (timestamp + admin_switch précédent)', () => {
+    const profiles = {
+      bruno: {
+        id: 'bruno',
+        loginHistory: [
+          1716000000000,
+          { type: 'admin_switch', ts: 1715990000000, adminId: 'sebastien', adminName: 'Sébastien' },
+        ],
+      },
+      sebastien: { id: 'sebastien', name: 'Sébastien', isAdmin: true },
+    };
+    const out = recordAdminSwitch(profiles, 'bruno', profiles.sebastien);
+    expect(out.bruno.loginHistory).toHaveLength(3);
+    expect(out.bruno.loginHistory[0].type).toBe('admin_switch'); // nouveau en tête
+    expect(out.bruno.loginHistory[1]).toBe(1716000000000);
+    expect(out.bruno.loginHistory[2].type).toBe('admin_switch');
+  });
+
+  test('cap à 10 entries', () => {
+    const longHistory = Array(15).fill(0).map((_, i) => 1716000000000 + i * 1000);
+    const profiles = {
+      bruno: { id: 'bruno', loginHistory: longHistory },
+      sebastien: { id: 'sebastien', name: 'Sébastien', isAdmin: true },
+    };
+    const out = recordAdminSwitch(profiles, 'bruno', profiles.sebastien);
+    expect(out.bruno.loginHistory).toHaveLength(10);
+    expect(out.bruno.loginHistory[0].type).toBe('admin_switch');
+  });
+
+  test('utilise adminId si name manquant', () => {
+    const profiles = { bruno: { id: 'bruno', loginHistory: [] } };
+    const adminProfile = { id: 'sebastien_admin_42', isAdmin: true };
+    const out = recordAdminSwitch(profiles, 'bruno', adminProfile);
+    expect(out.bruno.loginHistory[0].adminName).toBe('sebastien_admin_42');
+  });
+
+  test('targetId inexistant → retourne profiles inchangé', () => {
+    const profiles = { sebastien: { id: 'sebastien', isAdmin: true } };
+    const out = recordAdminSwitch(profiles, 'ghost', profiles.sebastien);
+    expect(out).toBe(profiles);
+  });
+
+  test('adminProfile sans id → retourne profiles inchangé', () => {
+    const profiles = { bruno: { id: 'bruno', loginHistory: [] } };
+    expect(recordAdminSwitch(profiles, 'bruno', {})).toBe(profiles);
+    expect(recordAdminSwitch(profiles, 'bruno', null)).toBe(profiles);
+  });
+
+  test('immutabilité : ne mute pas le profiles d\'origine', () => {
+    const profiles = { bruno: { id: 'bruno', loginHistory: [] } };
+    const originalLength = profiles.bruno.loginHistory.length;
+    recordAdminSwitch(profiles, 'bruno', { id: 'sebastien', name: 'Sébastien', isAdmin: true });
+    expect(profiles.bruno.loginHistory).toHaveLength(originalLength);
+  });
+
+  test('loginHistory non-array (corrupted) → init array vide', () => {
+    const profiles = { bruno: { id: 'bruno', loginHistory: 'corrupted' } };
+    const out = recordAdminSwitch(profiles, 'bruno', { id: 'sebastien', name: 'Sébastien', isAdmin: true });
+    expect(out.bruno.loginHistory).toHaveLength(1);
+    expect(out.bruno.loginHistory[0].type).toBe('admin_switch');
+  });
+});
+
+describe('isAdminAsMode (Phase 7.63)', () => {
+  const profiles = {
+    sebastien: { id: 'sebastien', name: 'Sébastien', isAdmin: true },
+    bruno: { id: 'bruno', name: 'Bruno', isAdmin: false },
+    franck: { id: 'franck', name: 'Franck', isAdmin: true },
+  };
+
+  test('admin sur profil non-admin → true (cas Sébastien switch sur Bruno)', () => {
+    expect(isAdminAsMode(profiles, 'bruno', 'sebastien')).toBe(true);
+  });
+
+  test('admin sur son propre profil → false', () => {
+    expect(isAdminAsMode(profiles, 'sebastien', 'sebastien')).toBe(false);
+  });
+
+  test('sans adminOriginId → false', () => {
+    expect(isAdminAsMode(profiles, 'bruno', null)).toBe(false);
+    expect(isAdminAsMode(profiles, 'bruno', undefined)).toBe(false);
+    expect(isAdminAsMode(profiles, 'bruno', '')).toBe(false);
+  });
+
+  test('adminOriginId pointe sur profil non-admin → false (defensive)', () => {
+    expect(isAdminAsMode(profiles, 'sebastien', 'bruno')).toBe(false);
+  });
+
+  test('adminOriginId pointe sur profil inexistant → false', () => {
+    expect(isAdminAsMode(profiles, 'bruno', 'ghost')).toBe(false);
+  });
+
+  test('admin sur un autre profil admin → true (les 2 sont admin)', () => {
+    expect(isAdminAsMode(profiles, 'franck', 'sebastien')).toBe(true);
+  });
+
+  test('activeProfileId manquant → false', () => {
+    expect(isAdminAsMode(profiles, null, 'sebastien')).toBe(false);
+    expect(isAdminAsMode(profiles, '', 'sebastien')).toBe(false);
+  });
+
+  test('profiles null/undefined → false', () => {
+    expect(isAdminAsMode(null, 'bruno', 'sebastien')).toBe(false);
+    expect(isAdminAsMode(undefined, 'bruno', 'sebastien')).toBe(false);
   });
 });

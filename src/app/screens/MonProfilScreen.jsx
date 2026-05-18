@@ -9,7 +9,7 @@
 // temps de la séparation.
 
 import React, { useState } from 'react';
-import { SUPPORTED_LOCALES, setLocale, useLocale, t, tFormat } from '../../i18n/index.js';
+import { SUPPORTED_LOCALES, setLocale, useLocale, t, tFormat, getLocale } from '../../i18n/index.js';
 import { findDuplicateSong } from '../utils/song-helpers.js';
 import { updateAiCache } from '../utils/ai-helpers.js';
 import { fetchAI } from '../utils/fetchAI.js';
@@ -502,6 +502,39 @@ function PasswordTab({ profile, onProfiles, activeProfileId, inp }) {
         style={{ background: submitting ? 'var(--bg-disabled)' : 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.6 : 1 }}
       >{submitting ? 'En cours…' : 'Enregistrer le nouveau mot de passe'}</button>
     </div>
+
+    {/* Phase 7.63 — Historique de connexion. Affiche les 5 dernières
+        entries du loginHistory. Entries au format number = login normal.
+        Entries au format {type:'admin_switch',ts,adminId,adminName} =
+        accès admin (Phase 7.63, transparence beta-testeur).
+        Le beta-testeur (non-admin) voit ici si Sébastien (ou un autre
+        admin) a accédé à son profil. */}
+    {Array.isArray(profile?.loginHistory) && profile.loginHistory.length > 0 && (
+      <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, maxWidth: 480, width: '100%', boxSizing: 'border-box', marginTop: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>{t('password.history-title', 'Historique de connexion')}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>{t('password.history-hint', 'Les 5 derniers événements sur ton profil. Les entrées 🔍 indiquent un accès admin (un autre profil avec droits admin a switché sur le tien).')}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {profile.loginHistory.slice(0, 5).map((entry, i) => {
+            if (typeof entry === 'number') {
+              return (
+                <div key={i} style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.6 }}>
+                  ✓ {new Date(entry).toLocaleString(getLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </div>
+              );
+            }
+            if (entry && entry.type === 'admin_switch') {
+              const dt = new Date(entry.ts).toLocaleString(getLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+              return (
+                <div key={i} style={{ fontSize: 11, color: 'var(--copper-300, #d97a3a)', lineHeight: 1.6 }} title={t('password.admin-switch-title', 'Un admin a accédé à ton profil')}>
+                  🔍 {entry.adminName || entry.adminId} <span style={{ color: 'var(--text-muted)' }}>({t('password.admin-mode', 'mode admin')}) · {dt}</span>
+                </div>
+              );
+            }
+            return null;
+          })}
+        </div>
+      </div>
+    )}
   </div>;
 }
 

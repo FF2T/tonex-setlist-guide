@@ -746,7 +746,90 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-18, Phases 7.65 + 7.65.1 + 7.47.1 + 7.65.x + 7.61 + 7.64 close — filtre rig + metadata PDF + customs usages + family match)
+## État actuel (2026-05-18, Phases 7.65 + 7.65.1 + 7.47.1 + 7.65.x + 7.61 + 7.64 + 7.63 close — 7 phases livrées)
+
+**Backline v8.14.108 / SW backline-v208 / STATE_VERSION 10 / 1140 tests verts.**
+
+### Phase 7.63 — Sécurité admin-switch profil (v8.14.108)
+
+Quand l'admin (Sébastien) clique sur un autre profil dans le `ProfileSelector` dropdown, le switch était silencieux : pas de feedback visuel persistant, pas de trace pour le beta-testeur. Risques (sans incident effectif observé, mais préventif) :
+- Confidentialité : admin voit rig/setlists/aiCache sans consentement.
+- Sync concurrent : LWW per-profile peut écraser modifs beta-testeur si admin écrit après lui.
+- Switch accidentel : click malheureux peut faire éditer dans le mauvais profil.
+
+**Fix Phase 7.63 (Options 1+2 du plan, ~1h)** :
+
+1. **Banner persistant `AdminAsBanner`** (`src/app/components/AdminAsBanner.jsx` — NOUVEAU) — sticky top, gradient copper/brass, affiché tant que l'admin est connecté sur un profil ≠ son admin d'origine. Bouton "← Retour admin" pour repasser sur le profil admin d'origine. Visible partout sauf `screen === 'live'` et `isDemo` (priorité au DemoBanner). Trilingue FR/EN/ES (11 clés `admin-as.*`).
+
+2. **Log `admin_switch` dans `loginHistory`** : entry au format `{type: 'admin_switch', ts, adminId, adminName}` push dans `profile.loginHistory` du profil cible au moment du switch. Le beta-testeur peut consulter via Mon Profil → 🔐 Mot de passe → nouvelle section "Historique de connexion" (5 dernières entries). Format dual : `number` (login normal Phase 5.7+) + `object` (admin_switch Phase 7.63). UI rendu distinct : ✓ + horodatage pour login normal, 🔍 + nom admin + (mode admin) + horodatage pour admin_switch (couleur copper).
+
+3. **`switchProfile` étendu** dans `main.jsx` :
+   - Détecte si on switch DEPUIS un profil admin (currentProfile.isAdmin) OU si on est déjà en mode admin-as (`sessionStorage.tonex_admin_origin` posé).
+   - Si admin → cible non-admin : pose `sessionStorage.tonex_admin_origin` + appel `recordAdminSwitch(profiles, targetId, adminProfile)`.
+   - Si retour sur profil admin d'origine OU switch vers un autre admin : clear `sessionStorage.tonex_admin_origin`.
+   - Switch entre 2 admins : pas de mode admin-as (pas de risque de confidentialité).
+
+4. **Clear du marker** sur tous les sites de logout : `MonProfilScreen.onLogout`, `HomeScreen.onLogout`, `DemoBanner.onExit` — tous appellent désormais `sessionStorage.removeItem(ADMIN_ORIGIN_KEY)` en plus du clear `tonex_active_profile`.
+
+5. **Helpers purs `recordAdminSwitch` + `isAdminAsMode`** dans `src/core/state.js` (16 tests Vitest).
+
+### Tests Phase 7.63 (+16 nouveaux Vitest)
+
+`src/core/state.test.js` :
+- `recordAdminSwitch` × 8 : push entry, préservation existantes, cap 10, fallback adminId si name manquant, targetId inexistant → no-op, adminProfile sans id → no-op, immutabilité, loginHistory corrupted → init array.
+- `isAdminAsMode` × 8 : admin sur non-admin → true (scénario Sébastien switch sur Bruno), admin sur soi → false, sans adminOriginId → false, adminOriginId pointe sur non-admin (defensive) → false, adminOriginId inexistant → false, admin sur autre admin → true, activeProfileId/profiles falsy → false.
+
+1140/1140 tests verts globaux (1124 + 16).
+
+### Architecture livrée Phase 7.63
+
+```
+src/main.jsx                            APP_VERSION 8.14.107 → 8.14.108
+                                        +import ADMIN_ORIGIN_KEY,
+                                          recordAdminSwitch, isAdminAsMode
+                                        +import AdminAsBanner
+                                        switchProfile : tracker admin origin
+                                          + push loginHistory entry sur target
+                                        +clear sessionStorage admin_origin
+                                          sur 3 sites onLogout
+                                        +<AdminAsBanner> au root JSX
+                                          (gated isAdminAsMode + screen !==
+                                          'live' + !isDemo)
+public/sw.js                            CACHE backline-v207 → backline-v208
+src/core/state.js                       +ADMIN_ORIGIN_KEY constant
+                                        +recordAdminSwitch helper pur
+                                        +isAdminAsMode helper pur
+                                        +exports
+src/core/state.test.js                  +16 tests Phase 7.63
+src/app/components/AdminAsBanner.jsx    NOUVEAU — banner sticky top copper
+src/app/screens/MonProfilScreen.jsx     +import getLocale
+                                        PasswordTab : +section
+                                        "Historique de connexion" qui rend
+                                        loginHistory (dual format
+                                        timestamp/admin_switch avec icône
+                                        ✓ ou 🔍 différenciés)
+src/app/screens/ProfilesAdmin.jsx       loginHistory display étendu
+                                        (gère le format admin_switch)
+```
+
+### Conséquences Phase 7.63
+
+- **1140/1140 tests verts** (+16 nouveaux).
+- **Pas de bump STATE_VERSION** (additif sur `loginHistory[]` entries — coexistent number et object).
+- **Pas de migration localStorage** : les loginHistory existants (avec timestamps purs) continuent à fonctionner. Les nouveaux entries `admin_switch` s'ajoutent au fur et à mesure.
+- **Bundle** 2363.98 → 2366.55 KB (+2.6 KB pour banner + helpers + tests).
+- **Cas-cible Sébastien post-déploiement** : switch sur Bruno via dropdown → banner copper "🔍 Connecté en tant que Bruno (mode admin) — tes modifs s'appliquent à son profil" + bouton "← Retour admin" → Bruno consulte son Mon Profil → 🔐 Mot de passe → section Historique → voit "🔍 Sébastien (mode admin) · 18/05/2026 22:30".
+
+### Dette résiduelle Phase 7.63
+
+- **Trilingue EN/ES** : 11 nouvelles clés `admin-as.*` + 4 nouvelles `password.*` / `profiles.*` ont des fallbacks FR inline. Traductions complètes à ajouter dans `i18n/en.js` et `es.js` (~10 min).
+- **Option 3 (modale confirmation avant switch)** : non implémentée. Reporter sauf si Sébastien remonte des switchs accidentels.
+- **Option 4 (demander password beta-testeur)** : volontairement écartée — friction max sans gain réel de sécurité (admin a déjà accès au password via state Firestore).
+- **sessionStorage non-réactif** : `getItem(ADMIN_ORIGIN_KEY)` est lu dans le render JSX. Le re-render est triggéré par `setActiveProfileId` (qui se passe en même temps que le set du sessionStorage). Fonctionne en pratique car les 2 sont synchrones côté React. Si un jour le marker est modifié hors-flow React (par un autre tab/onglet), pas de re-render — pas observé en pratique.
+
+---
+
+## État précédent (2026-05-18, Phases 7.65 + 7.65.1 + 7.47.1 + 7.65.x + 7.61 + 7.64 close — 6 phases livrées)
 
 **Backline v8.14.107 / SW backline-v207 / STATE_VERSION 10 / 1124 tests verts.**
 
@@ -1806,7 +1889,11 @@ feedback IA explicite *"Prefiero la Squier Strat pour Get Lucky"*
 via bouton 💬. Plus nécessaire — Phase 7.64 livrée le boost est
 automatique.
 
-### Dette résiduelle Phase 7.63 — Sécurité admin-switch profil
+### Phase 7.63 — ✅ LIVRÉE 2026-05-18 (v8.14.108) — Sécurité admin-switch profil
+
+Options 1 (banner persistant) + 2 (log loginHistory) livrées. Voir section "État actuel (2026-05-18)" en tête de CLAUDE.md pour le détail.
+
+**Notes design conservées pour référence** :
 
 Rapporté 2026-05-17 par Sébastien (observation théorique, pas
 d'incident effectif). Quand l'admin clique sur un autre profil

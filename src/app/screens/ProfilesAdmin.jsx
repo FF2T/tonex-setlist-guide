@@ -86,7 +86,21 @@ function ProfilesAdmin({ profiles, onProfiles }) {
           </div>}
           {(p.loginHistory || []).length > 0 && <div style={{ marginTop: 8, borderTop: '1px solid var(--a8)', paddingTop: 6 }}>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{t('profiles.last-logins', 'Dernières connexions')}</div>
-            {(p.loginHistory || []).slice(0, 5).map((ts, i) => <div key={i} style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.6 }}>{new Date(ts).toLocaleString(getLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>)}
+            {/* Phase 7.63 — loginHistory entries peuvent être soit un timestamp
+                (number, login normal Phase 5.7+), soit un objet
+                {type:'admin_switch', ts, adminId, adminName} (Phase 7.63).
+                Les admin_switch sont affichés avec icône 🔍 + couleur copper
+                pour signaler la traçabilité des accès admin. */}
+            {(p.loginHistory || []).slice(0, 5).map((entry, i) => {
+              if (typeof entry === 'number') {
+                return <div key={i} style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.6 }}>{new Date(entry).toLocaleString(getLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>;
+              }
+              if (entry && entry.type === 'admin_switch') {
+                const dt = new Date(entry.ts).toLocaleString(getLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                return <div key={i} style={{ fontSize: 11, color: 'var(--copper-300, #d97a3a)', lineHeight: 1.6 }} title={t('profiles.admin-switch-title', 'Accès admin sur ce profil')}>🔍 {entry.adminName || entry.adminId} <span style={{ color: 'var(--text-muted)' }}>({t('profiles.admin-mode', 'mode admin')}) · {dt}</span></div>;
+              }
+              return null;
+            })}
           </div>}
         </div>
       ))}
