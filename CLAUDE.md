@@ -790,6 +790,7 @@ src/app/components/ProfileSelector.jsx  +lien "⚙️ Mon Profil" en bas du
 - Pas de migration.
 - **Bundle** 2368.57 → 2373.88 KB (+5.3 KB pour ProfileSelector inline + Mon Profil link).
 - **Effet immédiat** : le banner Phase 7.63 et le log loginHistory deviennent **vraiment activables** par le workflow de switch profil de l'admin.
+- **✅ Validé Sébastien post-déploiement 2026-05-18 soir** : dropdown apparaît au clic avatar, switch sur profil non-admin déclenche banner copper + entry loginHistory bien visible côté beta-testeur.
 
 ### Dette résiduelle Phase 7.63.1
 
