@@ -21,7 +21,19 @@
 // ToneX Pedal est identique entre v1 et v2 — seul change le firmware
 // pré-installé (et donc la liste des presets factory).
 
-const SOURCE_IDS = ['TSR', 'ML', 'Anniversary', 'Factory', 'FactoryV1', 'PlugFactory', 'ToneNET', 'custom'];
+// Phase 7.67 — Extension SOURCE_IDS pour le tab "📦 Mes presets custom"
+// (MyCustomPacksTab). Permet à un beta-tester non-admin de tagger ses
+// presets avec le pack creator d'origine (AA Amalgam Audio, JS Jason
+// Sadites, TJ Tone Junkie TV, WT Worship Tutorials, Galtone). Ces
+// sources sont commerciales (le user a acheté un pack standalone),
+// donc gerées comme TSR/ML : présentes dans availableSources, filtrables
+// dans Profil → Sources.
+//
+// IMPORTANT : les entries `ANNIVERSARY_PREMIUM_CATALOG` (Phase 7.52)
+// gardent `src: "Anniversary"` (collection livrée avec la pédale
+// Anniversary). Les nouvelles SOURCE_IDS AA/JS/TJ/WT/Galtone servent
+// pour les packs STANDALONE achetés séparément par le user.
+const SOURCE_IDS = ['TSR', 'ML', 'AA', 'JS', 'TJ', 'WT', 'Galtone', 'Anniversary', 'Factory', 'FactoryV1', 'PlugFactory', 'ToneNET', 'custom'];
 
 // Label long pour les UI principales (filtres profil, ProfileTab,
 // ViewProfileScreen, ExportImportScreen…).
@@ -30,6 +42,11 @@ const SOURCE_IDS = ['TSR', 'ML', 'Anniversary', 'Factory', 'FactoryV1', 'PlugFac
 const SOURCE_LABELS = {
   TSR: 'TSR — 64 Studio Rats Packs',
   ML: 'ML — ML Sound Lab Essentials',
+  AA: 'Amalgam Audio — Packs standalone',
+  JS: 'Jason Sadites — Packs standalone',
+  TJ: 'Tone Junkie TV — Packs standalone',
+  WT: 'Worship Tutorials — Packs standalone',
+  Galtone: 'Galtone — Packs standalone',
   Anniversary: 'Anniversary — Captures pré-installées',
   Factory: 'Pédale classique v2 — Captures pré-installées',
   FactoryV1: 'Pédale classique v1 — Captures pré-installées',
@@ -43,6 +60,11 @@ const SOURCE_LABELS = {
 const SOURCE_DESCRIPTIONS = {
   TSR: 'Si tu as acheté un ou plusieurs des 64 packs The Studio Rats.',
   ML: 'Si tu as acheté le pack ML Sound Lab Essentials.',
+  AA: 'Si tu as acheté un pack standalone Amalgam Audio.',
+  JS: 'Si tu as acheté un pack standalone Jason Sadites.',
+  TJ: 'Si tu as acheté un pack standalone Tone Junkie TV.',
+  WT: 'Si tu as acheté un pack standalone Worship Tutorials.',
+  Galtone: 'Si tu as acheté un pack standalone Galtone.',
   Anniversary: 'Si tu possèdes une ToneX Pédale Anniversary (rouge).',
   Factory: 'Si ta ToneX Pédale classique tourne sur le firmware v2 (presets 2025/04/03).',
   FactoryV1: 'Si ta ToneX Pédale classique tourne sur le firmware v1 (presets historiques).',
@@ -59,6 +81,11 @@ const SOURCE_DESCRIPTIONS = {
 const SOURCE_BADGES = {
   TSR: 'TSR',
   ML: 'ML',
+  AA: 'AA',
+  JS: 'JS',
+  TJ: 'TJ',
+  WT: 'WT',
+  Galtone: 'Galtone',
   Anniversary: 'Pédale',
   Factory: 'Fact v2',
   FactoryV1: 'Fact v1',
@@ -73,6 +100,11 @@ const SOURCE_BADGES = {
 const SOURCE_INFO = {
   TSR: { icon: '📦', label: 'Pack 64 Studio Rats (zip)' },
   ML: { icon: '🎚', label: 'ML Sound Lab Essentials' },
+  AA: { icon: '🎚', label: 'Amalgam Audio (standalone)' },
+  JS: { icon: '🎚', label: 'Jason Sadites (standalone)' },
+  TJ: { icon: '🎚', label: 'Tone Junkie TV (standalone)' },
+  WT: { icon: '🎚', label: 'Worship Tutorials (standalone)' },
+  Galtone: { icon: '🎚', label: 'Galtone (standalone)' },
   ToneNET: { icon: '🌐', label: 'ToneNET (preset partagé)' },
   Anniversary: { icon: '🏭', label: 'ToneX Anniversary Factory' },
   Factory: { icon: '🏭', label: 'ToneX Pedal Factory (firmware v2)' },

@@ -20,6 +20,7 @@ import BankEditor from '../components/BankEditor.jsx';
 import ProfileTab from './ProfileTab.jsx';
 import MesAppareilsTab from './MesAppareilsTab.jsx';
 import ToneNetTab from './ToneNetTab.jsx';
+import MyCustomPacksTab from './MyCustomPacksTab.jsx';
 import ProfilesAdmin from './ProfilesAdmin.jsx';
 import PacksTab from './PacksTab.jsx';
 import ExportImportScreen from './ExportImportScreen.jsx';
@@ -116,6 +117,10 @@ function MonProfilScreen({
         {!isDemo && tabBtn('profile', t('profile.tab.guitars', '🎸 Guitares'))}
         {!isDemo && tabBtn('devices', t('profile.tab.devices', '📱 Mes appareils'))}
         {!isDemo && tabBtn('sources', t('profile.tab.sources', '📦 Sources'))}
+        {/* Phase 7.67 — Tab "📦 Mes presets custom" accessible à TOUS
+            les profils (non-admin inclus) pour documenter customPacks
+            personnels avec metadata enrichie + usages artistes. */}
+        {!isDemo && tabBtn('custompacks', t('profile.tab.custom-packs', '📦 Mes presets custom'))}
         {!isDemo && profile.isAdmin && tabBtn('tonenet', t('profile.tab.tonenet', '🌐 ToneNET'))}
         {!isDemo && (() => { const en = new Set(profile.enabledDevices || []); return <>
           {en.has('tonex-pedal') && tabBtn('pedale', t('profile.tab.pedal', '🎛 Pedale ToneX'))}
@@ -128,12 +133,17 @@ function MonProfilScreen({
         {!isDemo && tabBtn('password', t('profile.tab.password', '🔐 Mot de passe'))}
         {!isDemo && profile.isAdmin && tabBtn('ia', t('profile.tab.api-key', '🔑 Clé API'))}
         {!isDemo && profile.isAdmin && tabBtn('maintenance', t('profile.tab.maintenance', '🔧 Maintenance'))}
-        {!isDemo && profile.isAdmin && tabBtn('export', t('profile.tab.export', '📋 Export / Import'))}
+        {/* Phase 7.67 — Export/Import ouvert aux non-admins. Les setters
+            onBanksAnn/onBanksPlug écrivent dans profile.banksAnn/banksPlug
+            du profil actif (per-profile, pas cross-profil). Modale preview
+            ajoutée dans ExportImportScreen avant l'overwrite. */}
+        {!isDemo && tabBtn('export', t('profile.tab.export', '📋 Export / Import'))}
         {!isDemo && profile.isAdmin && tabBtn('admin_profiles', t('profile.tab.profiles', '👥 Profils'))}
       </div>
       {tab === 'profile' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="guitars" aiKeys={aiKeys} customGuitars={customGuitars} onCustomGuitars={onCustomGuitars}/>}
       {tab === 'devices' && <MesAppareilsTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId}/>}
       {tab === 'sources' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="sources"/>}
+      {tab === 'custompacks' && <MyCustomPacksTab profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId} songDb={songDb} inp={inp}/>}
       {profile.isAdmin && tab === 'tonenet' && <ToneNetTab toneNetPresets={toneNetPresets} onToneNetPresets={onToneNetPresets} inp={inp} songDb={songDb}/>}
       {tab === 'setlists' && <div>
         <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>{setlists.length} setlist{setlists.length > 1 ? 's' : ''}</div>
@@ -427,7 +437,7 @@ function MonProfilScreen({
         <input type="password" placeholder="sk-ant-..." value={aiKeys.anthropic} onChange={(e) => onAiKeys((p) => ({ ...p, anthropic: e.target.value }))} style={{ ...inp, width: '100%', fontFamily: 'monospace' }}/>
       </div>}
       {profile.isAdmin && tab === 'maintenance' && MaintenanceTabComponent && <MaintenanceTabComponent songDb={songDb} onSongDb={onSongDb} onAiCacheUpdate={onAiCacheUpdate} onProfiles={onProfiles} activeProfileId={activeProfileId} setlists={allSetlists} onSetlists={onSetlists} onDeletedSetlistIds={onDeletedSetlistIds} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} profile={profile} profiles={profiles} guitarBias={guitarBias}/>}
-      {profile.isAdmin && tab === 'export' && <ExportImportScreen banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} onBack={() => setTab('profile')} onNavigate={onNavigate} fullState={fullState} onImportState={onImportState} inline={true}/>}
+      {tab === 'export' && <ExportImportScreen banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} onBack={() => setTab('profile')} onNavigate={onNavigate} fullState={fullState} onImportState={onImportState} inline={true} isAdmin={profile.isAdmin}/>}
       {profile.isAdmin && tab === 'admin_profiles' && <ProfilesAdmin profiles={profiles} onProfiles={onProfiles}/>}
       <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--a8)', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <button onClick={() => { if (typeof window.setShowOnboarding === 'function') window.setShowOnboarding(true); else { const e = new CustomEvent('showOnboarding'); window.dispatchEvent(e); } }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>Aide</button>

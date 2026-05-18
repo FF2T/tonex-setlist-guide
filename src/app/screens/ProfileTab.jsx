@@ -153,8 +153,11 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                         <div style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: sel ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: sel ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{sel && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
                         <div style={{ flex: 1 }}><span style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{g.short}</span><span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 6 }}>{g.name}</span></div>
                         <span style={{ fontSize: 10, color: 'var(--text-dim)', marginRight: 4 }}>{g.type}</span>
-                        {isAdmin && sel && <button onClick={(e) => { e.stopPropagation(); startEditGuitar(g, true); }} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '3px 7px', fontSize: 10, cursor: 'pointer' }}>✏️</button>}
-                        {isAdmin && <button onClick={(e) => { e.stopPropagation(); removeCustomGuitar(g.id); }} style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 11, padding: '2px 4px' }}>✕</button>}
+                        {/* Phase 7.67 — Édition custom guitars ouverte aux non-admins.
+                            Les customGuitars sont per-profile (profile.customGuitars),
+                            donc pas de risque cross-profil. */}
+                        {sel && <button onClick={(e) => { e.stopPropagation(); startEditGuitar(g, true); }} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '3px 7px', fontSize: 10, cursor: 'pointer' }}>✏️</button>}
+                        <button onClick={(e) => { e.stopPropagation(); removeCustomGuitar(g.id); }} style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 11, padding: '2px 4px' }}>✕</button>
                       </div>
                       {isEditing && <div style={{ background: 'var(--a5)', borderRadius: '0 0 8px 8px', padding: '10px 12px', marginTop: -1, border: '1px solid var(--a8)', borderTop: 'none' }}>
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
@@ -189,9 +192,12 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
             })}
           </div>;
         })()}
-        {isAdmin && <GuitarSearchAdd inp={inp} aiKeys={aiKeys} onAdd={(name, short, type) => {
+        {/* Phase 7.67 — Ajout de custom guitars ouvert aux non-admins
+            (un beta-tester peut ajouter sa Schecter / Sire / Ibanez Gio
+            via la recherche IA Gemini sans solliciter l'admin). */}
+        <GuitarSearchAdd inp={inp} aiKeys={aiKeys} onAdd={(name, short, type) => {
           addCustomGuitar({ id: `cg_${Date.now()}`, name, short, type, brand: inferBrand(name) });
-        }}/>}
+        }}/>
       </div>}
 
       {s === 'sources' && <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 16 }}>

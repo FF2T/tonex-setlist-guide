@@ -7,10 +7,18 @@ import {
 } from './sources.js';
 
 describe('SOURCE_IDS — liste canonique', () => {
-  test('contient les 8 sources connues (Phase 7.47 : FactoryV1 ajouté)', () => {
+  test('contient les 13 sources connues (Phase 7.67 : AA/JS/TJ/WT/Galtone ajoutés)', () => {
     expect(SOURCE_IDS).toEqual([
-      'TSR', 'ML', 'Anniversary', 'Factory', 'FactoryV1', 'PlugFactory', 'ToneNET', 'custom',
+      'TSR', 'ML', 'AA', 'JS', 'TJ', 'WT', 'Galtone',
+      'Anniversary', 'Factory', 'FactoryV1', 'PlugFactory', 'ToneNET', 'custom',
     ]);
+  });
+  test('contient les sources pack creators Phase 7.67', () => {
+    expect(SOURCE_IDS).toContain('AA');
+    expect(SOURCE_IDS).toContain('JS');
+    expect(SOURCE_IDS).toContain('TJ');
+    expect(SOURCE_IDS).toContain('WT');
+    expect(SOURCE_IDS).toContain('Galtone');
   });
 });
 

@@ -746,7 +746,82 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-18, Phases 7.65 + 7.65.1 + 7.47.1 + 7.65.x + 7.61 + 7.64 + 7.63 + 7.63.1 + 7.68 close — 9 phases livrées)
+## État actuel (2026-05-18, 10 phases livrées — Phase 7.67 close)
+
+**Backline v8.14.111 / SW backline-v211 / STATE_VERSION 10 / 1163 tests verts.**
+
+### Phase 7.67 — Édition rig par non-admin (autonomie beta-testeurs) (v8.14.111)
+
+Suite à la session 2026-05-18 où Sébastien a dû faire 2 fix manuels via JS console DevTools pour Bruno (alignement banks + enrichissement 34 customs avec usages), workflow non-scalable. Phase 7.67 donne aux beta-testeurs non-admin l'autonomie pour configurer leur rig sans solliciter l'admin.
+
+**3 changements parallèles livrés** :
+
+1. **Custom guitars par non-admin** (`ProfileTab.jsx`) :
+   - Retrait des gates `isAdmin` autour de `GuitarSearchAdd` (formulaire ajout via IA Gemini)
+   - Retrait des gates `isAdmin` autour des boutons ✏️ (edit) et ✕ (delete) sur les custom guitars
+   - Le user édite uniquement SES propres `profile.customGuitars` (per-profile, pas cross-profil)
+   - Effet : Bruno peut désormais ajouter sa Schecter / Sire / Ibanez Gio directement via la recherche IA Gemini
+
+2. **Nouveau tab "📦 Mes presets custom"** (`MyCustomPacksTab.jsx`, NOUVEAU) :
+   - Accessible à TOUS les profils (admin et non-admin, gated `!isDemo`)
+   - Édite directement `profile.customPacks` du profil actif (per-profile)
+   - CRUD complet : liste des packs expandables, formulaire ajout/édition preset, suppression avec confirm
+   - Form fields : nom + source (dropdown SOURCE_IDS étendu) + ampli (datalist knownAmps) + gain/style/channel + scores HB/SC/P90 + usages éditables avec autocomplete songDb + pack (existant ou nouveau)
+   - Auto-suggest source via `inferSource` (regex sur nom) + amp/gain/style via `inferPresetInfo` (Phase 7.19)
+   - Persiste avec stamp `lastModified` pour LWW Firestore
+
+3. **Export/Import CSV au non-admin avec preview enrichie** (`ExportImportScreen.jsx`) :
+   - Retrait du gate `isAdmin` sur le tab "📋 Export / Import"
+   - Section JSON full state gated `isAdmin` (contient tous les profils)
+   - Aperçu détaillé des 5 premières banks par device avant overwrite
+   - Mode "Remplacer" stylé wine/destructive + warning + `window.confirm` supplémentaire
+
+**SOURCE_IDS étendu** (8 → 13) : ajout `AA`, `JS`, `TJ`, `WT`, `Galtone` comme sources standalone (distinctes d'`Anniversary` qui reste la collection pré-installée). availableSources reste permissive (fallback true si clé absente).
+
+### Tests Phase 7.67 (+23 nouveaux Vitest)
+
+- `src/core/sources.test.js` : 1 test étendu pour les 13 SOURCE_IDS (incluant AA/JS/TJ/WT/Galtone)
+- `src/app/screens/MyCustomPacksTab.test.js` (NOUVEAU) : 22 tests `inferSource` — TSR, AA, JS, TJ, ML, WT, Galtone, Factory (CL/DR/HG/LD/BS), custom fallback, priorités, edge cases (chaîne vide, null, whitespace)
+
+1163/1163 tests verts globaux (1140 + 23).
+
+### Architecture livrée Phase 7.67
+
+```
+src/main.jsx                            APP_VERSION 8.14.110 → 8.14.111
+public/sw.js                            CACHE backline-v210 → backline-v211
+src/core/sources.js                     SOURCE_IDS étendu +5 (AA/JS/TJ/WT/Galtone)
+                                        +labels, descriptions, badges, info
+src/core/sources.test.js                +tests SOURCE_IDS Phase 7.67
+src/app/screens/ProfileTab.jsx          Retrait 3 gates isAdmin
+src/app/screens/MyCustomPacksTab.jsx    NOUVEAU — CRUD presets + inferSource
+src/app/screens/MyCustomPacksTab.test.js NOUVEAU — 22 tests inferSource
+src/app/screens/MonProfilScreen.jsx     +tabBtn 'custompacks' + rendu
+                                        Retrait gate isAdmin tab export
+                                        +isAdmin prop ExportImportScreen
+src/app/screens/ExportImportScreen.jsx  +prop isAdmin + section JSON gated
+                                        +preview détaillée 5 banks/device
+                                        +mode Replace destructive style + confirm
+```
+
+### Conséquences Phase 7.67
+
+- **1163/1163 tests verts** (+23 nouveaux).
+- Pas de bump STATE_VERSION (additif sur sources + UI).
+- Pas de migration : profils existants gardent leurs customPacks/customGuitars tels quels.
+- **Bundle** 2374.05 → 2392.68 KB (+18.6 KB pour MyCustomPacksTab + form).
+- **Effet immédiat** : Bruno, Francisco, et futurs beta-testeurs configurent leur rig en autonomie. Plus besoin d'admin pour custom guitars, customPacks, import CSV. Workflow onboarding simplifié à la création profil + setlist initiale.
+
+### Dette résiduelle Phase 7.67
+
+- **Vision IA pour MyCustomPacksTab** : non implémentée (saisie manuelle). Le tab admin `PacksTab` garde l'extraction Vision. Si beta-testeur demande, Phase 7.67.1+.
+- **Pas de partage cross-profil** : customs restent per-profile. Reporter Phase 11.1+ si pertinent.
+- **Trilingue EN/ES** : ~30 nouvelles clés `mycustompacks.*` + `profile.tab.custom-packs` avec fallbacks FR inline. Traductions à ajouter (~20 min).
+- **inferSource** : 8 patterns regex. Naming exotique non couvert → tombe sur 'custom' (le user peut override manuellement).
+
+---
+
+## État précédent (2026-05-18, Phases 7.65 + 7.65.1 + 7.47.1 + 7.65.x + 7.61 + 7.64 + 7.63 + 7.63.1 + 7.68 close — 9 phases livrées)
 
 **Backline v8.14.110 / SW backline-v210 / STATE_VERSION 10 / 1140 tests verts.**
 
@@ -1652,7 +1727,13 @@ beta-tester non-admin remontre le même bug racine que Bruno
 recos hors-rig persistantes qui dégradent la confiance utilisateur
 malgré le filtrage d'affichage Phase 7.65.
 
-### Dette résiduelle Phase 7.67 — Édition rig par non-admin (rapporté Bruno 2026-05-18)
+### Phase 7.67 — ✅ LIVRÉE 2026-05-18 (v8.14.111) — Édition rig par non-admin
+
+Voir section "État actuel (2026-05-18)" en tête de CLAUDE.md pour le détail (3 changements : custom guitars non-admin, MyCustomPacksTab, Export/Import CSV non-admin + preview).
+
+**Notes design conservées pour référence** :
+
+### Dette résiduelle Phase 7.67 (historique) — Édition rig par non-admin (rapporté Bruno 2026-05-18)
 
 Bruno demande explicitement : *"à voir pour l'utilisateur comment
 ajouter ses presets manuellement, sans que cela soit trop fastidieux"*.
@@ -9698,6 +9779,597 @@ visiteur démo remontre le même cas (renforce signal cross-profil
 comme Phase 8 et 9), OU si Bruno re-confirme en pratique que la
 limitation gêne son usage quotidien après quelques jours d'usage
 post-Phase 7.65.x.
+
+### Phase 11 (pivot stratégique 2026-05-18 soir) — Enrichissement metadata via studios partenaires + protections Vision IA + fallbacks user
+
+**Contexte** : la session 2026-05-18 (fix Bruno) a révélé que
+le pin custom Phase 7.31 / 7.55 est strictement dépendant des
+`usages: [{artist, songs?}]` dans `profile.customPacks`. Bruno
+avait 34 customs sans usages → pin échoue. Enrichissement manuel
+de Sébastien via JS console matin → 4 pins customs fonctionnent
+(Blink-182, Helloween, Metallica, Iron Maiden) après livraison
+Phase 7.65.x.
+
+Mais ce workflow JS console n'est PAS scalable. Pour les futurs
+beta-testeurs (Francisco, Paul Drew TSR, autres), il faut une
+solution propre.
+
+Pendant la conversation 2026-05-18 soir, Sébastien a fait
+**l'insight stratégique clé** : *"la base 'communautaire'
+pourrait surtout être enrichie par les studios (TSR, AA, ML et
+autres) pour que leurs presets remontent en recos."*
+
+Ce pivot change radicalement le modèle d'enrichissement metadata
+de Backline.
+
+#### Pourquoi c'est puissant — 5 raisons
+
+1. **Alignement d'intérêts parfait** : les studios VEULENT que
+   leurs presets sortent en recos. Plus leurs packs apparaissent
+   dans les fiches Backline, plus les utilisateurs achètent leurs
+   packs. C'est un jeu positive-sum, pas zero-sum.
+
+2. **Qualité maximale absolue** : TSR sait EXACTEMENT quels
+   artistes/morceaux leurs captures `TSR Mars 800SL Cn1&2 HG`
+   ciblent. Un user lambda doit deviner. Les `usages` deviennent
+   factual data fournis par la source primaire.
+
+3. **Effort distribué et naturel** : 64 packs TSR × 1-2h par pack
+   = ~100h pour Paul Drew sur plusieurs mois. Mais ce n'est PAS
+   Sébastien qui paie cet effort — c'est TSR qui investit pour
+   son propre marketing. Asymétrie élégante.
+
+4. **Branding signal positif** : badge "Curated by The Studio
+   Rats" sur les recos = pub gratuite pour studios, signal de
+   qualité pour users Backline. Win-win.
+
+5. **Modèle business affiliate viable** : Backline mesure combien
+   d'achats packs viennent de ses recommandations (UTM tracking
+   par studio). Sébastien monétise sans facturer les users —
+   cohérent avec son positionnement "passion + Ko-fi + affiliate
+   discrets" du DM IKM matin 2026-05-18 et DM Bruno soir
+   2026-05-18.
+
+#### Comparaison vs crowdsource users (approche initiale écartée)
+
+| Critère | Crowdsource users | **Studio-driven** |
+|---|---|---|
+| Qualité metadata | Variable, dépend du user | **Excellente, source primaire** |
+| Effort distribué | 100s users, redondance massive | **50 studios × 1-2h = 100h cumulé** |
+| Vitesse acquisition | Lente, chicken & egg | **Rapide si studios accrochent** |
+| Branding | Aucun pour user | **Visible et valuable pour studios** |
+| Levier économique | Pas de monétisation | **Affiliate links mesurable** |
+| Lock-in | Distribué (robuste) | Studio-par-studio (risque conflit) |
+
+Studio-driven écrase crowdsource sur 5/6 dimensions.
+
+#### Stratégie en 4 couches d'enrichissement
+
+L'idée Phase 11 ne remplace pas tout le travail Sébastien — elle
+le complète dans une architecture multi-couches qui couvre
+~100% du catalog tonex écosystème :
+
+**Couche 1 — Catalog statique enrichi par Sébastien (Phase 7.52 + extensions)**
+
+Sébastien enrichit progressivement les 50-100 packs commerciaux
+les plus populaires via Vision IA + validation manuelle. Le
+résultat est dans `PRESET_CATALOG_MERGED` côté code, livré avec
+chaque release Backline.
+
+- Effort initial : ~50-100h sur plusieurs mois (1-2h par pack via
+  Vision IA assistée)
+- Coût Vision IA : ~$1-2 total (50 packs × ~$0.02 par extraction)
+- Couverture estimée : 80% des banks user
+
+**Couche 2 — Studio-driven (cœur Phase 11)**
+
+Les studios partenaires (TSR, ML Sound Lab, JS, TJ, AA, WT,
+Galtone, Amalgam, etc.) enrichissent EUX-MÊMES leurs packs avec
+metadata `usages`. Effort distribué naturellement, qualité
+source primaire.
+
+- Effort dev Backline : ~6-10h (infrastructure studio account +
+  format import + badge + tracking affiliate)
+- Effort par studio partenaire : 1-2h par pack × leurs packs
+- Coût Vision IA : 0 (les studios fournissent les data)
+- Couverture estimée : +15% (top packs commerciaux)
+
+**Couche 3 — Auto-IA enrichissement par nom (compromis intelligent)**
+
+Pour les presets non-couverts par les studios partenaires : un
+appel Gemini structured-output à partir du nom du preset + amp
+source connu peut inférer des `usages` raisonnables. Genre
+"Kirk & James" → l'IA reconnaît automatiquement Metallica.
+
+- Effort dev : ~2-3h (prompt fetchAI dédié "preset enrichment")
+- Limite : marche pour noms évocateurs, échoue sur noms neutres
+- Coût : marginal (~$0.01 par enrichissement)
+- Couverture estimée : +3%
+
+**Couche 4 — Saisie manuelle assistée + Vision IA optionnelle pour long tail**
+
+Pour les vrais cas custom user (5% restants, captures originales
+ou packs très niche) : UI où l'utilisateur saisit lui-même le
+nom + amp + usages. Vision IA optionnelle (rate-limitée) pour
+ceux qui veulent booster via screenshots ToneX Control.
+
+- Effort dev : ~3-4h (Phase 7.67 étendue + Vision IA modal)
+- Couvre les cas que aucune des 3 couches précédentes ne touche
+
+**Synthèse couverture estimée** :
+
+| Couche | Effort | Couverture cumulée | Coût Vision IA |
+|---|---|---|---|
+| 1. Catalog statique (Sébastien) | 50-100h | 80% | ~$2 total |
+| 2. Studio-driven | 6-10h dev + accords | 95% | 0 |
+| 3. Auto-IA par nom | 2-3h dev | 98% | marginal |
+| 4. User manual + Vision IA | 3-4h dev | 100% | rate-limité |
+| **Total dev Backline** | **~15-20h** | **~100%** | **~$5-10 total** |
+
+#### Opérationnalisation Phase 11 — 5 axes
+
+**Axe 1 — Format d'import simple pour studios**
+
+CSV/JSON Excel-friendly avec colonnes : `preset_name`, `amp`,
+`gain`, `style`, `channel`, `scores_HB`, `scores_SC`, `scores_P90`,
+`usages_artist`, `usages_songs` (séparé par virgules ou
+sub-arrays JSON).
+
+Le studio remplit dans Excel/Google Sheets, upload sur Backline
+via un endpoint dédié (POST `/api/studio/packs/:pack_id/usages`
+ou via UI). Ingestion automatique dans
+`shared.publicPacks[studio_id].presets[].usages`.
+
+Pas de jargon technique imposé aux studios — un Excel suffit.
+
+**Axe 2 — Compte "Studio" dédié dans Backline**
+
+Nouveau type de profil entre user standard et admin Backline :
+
+- Permissions : édition uniquement de SES propres packs (filter
+  par `pack.studio_id`)
+- Pas accès aux profils users, aux tabs admin, aux logs Firestore
+- Authentification via email confirmé (vérification que la
+  personne représente bien le studio — process manuel léger
+  Sébastien)
+
+UI dédiée : `mybackline.app/studio` (nouvelle route gated par
+`profile.studio_id != null`). Liste leurs packs, bouton
+"enrichir metadata", éditeur batch.
+
+**Axe 3 — Badge "Curated by [Studio Name]" sur les recos**
+
+Affichage visible dans la fiche dépliée d'un morceau quand le
+preset pinné a été enrichi par son studio :
+
+```
+Preset HG 800
+✓ Installé — Banque 11B · 🏭 Pédale Factory (firmware v2)
+🎯 Curated by The Studio Rats — metadata vérifiée par le créateur
+```
+
+Signal de qualité pour user + branding gratuit pour studio.
+
+**Axe 4 — Lien d'affiliation tracking**
+
+Chaque pack curated par un studio a un bouton "Acheter ce pack"
+dans Backline qui redirige vers la page d'achat du studio avec
+un paramètre UTM (`?utm_source=backline&utm_medium=preset_reco`)
+ou un coupon code unique par studio (`BACKLINE10`).
+
+Sébastien voit dans son tableau de bord :
+- Nombre de clics par studio
+- Conversion estimée (si les studios partagent les data)
+- Négociation possible : commission 1-5% du revenu attribué à
+  Backline
+
+Cohérent avec position "affiliate discrets, pas SaaS" DM IKM +
+DM Bruno.
+
+**Axe 5 — Page publique "Studios partners"**
+
+Route `mybackline.app/studios` qui liste :
+- Studios déjà partenaires (badge "Active")
+- Studios contactés en attente (badge "Pending")
+- Form contact pour studios non-contactés ("Êtes-vous studio,
+  contactez-nous")
+
+Crée un effet FOMO ("TSR est déjà partenaire, on devrait y
+être"). À coupler avec Phase 7.55.4 déjà documentée
+("StudiosScreen — page dédiée éditeurs de packs").
+
+#### Protections Vision IA (couche 4 user-facing)
+
+Si on ouvre Vision IA aux non-admins (Phase 7.67 étendue + couche
+4), 3 protections obligatoires avant le go live public :
+
+**Protection 1 — Rate limiting par user (priorité 1)**
+
+Limite stricte côté Backline : max **10 requêtes Vision IA / jour
+/ profil**. Reset à minuit UTC. Largement suffisant pour onboarding
+(5-12 screenshots pour 50 banks customs full). Bloque les abus.
+
+- Implémentation : compteur `profile.visionIaQuota: { date, count }`
+  localStorage + check avant chaque appel. ~30 min dev.
+- Affichage UI : "8/10 analyses Vision IA utilisées aujourd'hui"
+  sous le bouton Upload.
+
+**Protection 2 — Hash dedup d'images (priorité 1, gros impact)**
+
+Avant d'appeler Vision IA, calculer SHA-256 de l'image. Si hash
+existe déjà dans `shared.visionIaCache`, retourner le résultat
+caché sans appeler Gemini.
+
+- Impact ÉNORME : si 10 users ont le même Maiden Pack (probable
+  parmi metalleux), Sébastien paie 1 fois Vision IA pour les 10.
+- Implémentation : 1h dev (helper crypto + cache Firestore
+  partagé).
+- Bénéfice connexe : alimente automatiquement les templates
+  publics studios (Couche 2) avec les enrichissements générés par
+  IA.
+
+**Protection 3 — Validation image-side (priorité 2)**
+
+Avant l'envoi à Vision IA, vérifier côté client :
+- Dimensions cohérentes (largeur > 800px, ratio paysage 16:9 ou
+  4:3)
+- Taille raisonnable (< 5 MB, > 50 KB)
+- Optionnel : OCR léger client-side (Tesseract.js, ~700KB
+  bundle) pour détecter présence de mots-clés "BANK", "PRESET",
+  "CL", "DR", "HG" — rejette les images non-pertinentes.
+
+- Implémentation : 1-2h dev (sans OCR), +3h si on ajoute OCR
+  client.
+- Bénéfice : tue 95% des abuse cas.
+
+**Coût estimé total Vision IA à différents volumes** :
+
+| Volume | Requêtes/jour | Couvert ? | Coût payant |
+|---|---|---|---|
+| 50 users × 5 screenshots étalés sur 1 mois | ~8/jour | ✅ free tier | $0 |
+| 500 users onboardés progressivement | ~80/jour | ✅ free tier | $0 |
+| 1000 users en 1 mois (croissance virale) | ~165/jour | ✅ free tier | $0 |
+| 5000 users en 1 semaine (cas extrême) | ~3500/jour | ❌ dépasse | ~$3-5/jour pendant le pic |
+
+Au volume réaliste beta actuel (5-10 testeurs), free tier large.
+
+#### Position défensive vs ToneNET et IK Multimedia
+
+Cette section est cruciale : Backline studio-driven peut être
+perçu comme concurrent à ToneNET (plateforme communautaire IK).
+À anticiper.
+
+**Niveau 1 — Pas concurrent direct (verticaux différents)**
+
+| Dimension | ToneNET | Backline studio-driven |
+|---|---|---|
+| Fonction primaire | **Hosting** des fichiers .tonex + découverte libre | **Recommandation contextuelle** "quel preset pour ce morceau" |
+| Question utilisateur | "Où trouver des captures ?" | "Quel preset pour mon morceau Get Lucky ?" |
+| Hosting fichiers | Oui (terabytes) | Non (juste référence + bank/slot addressing) |
+| Public cible | Tous utilisateurs ToneX | Utilisateurs ToneX avec setlist/répétition |
+| Source du contenu | Uploads users (communauté) | Studios partenaires + Anniversary Premium + Factory + ToneNET integrated (Phase 7.53) |
+
+Couches complémentaires de la chaîne de valeur. Backline UTILISE
+ToneNET comme une des sources (Phase 7.53 déjà en place : user
+peut tagger ses presets ToneNET dans Backline). Backline ne se
+substitue pas — il propose une couche d'usage au-dessus.
+
+Analogie : Spotify vs Tidal sur hosting, ou Last.fm vs Spotify
+sur la découverte. Coexistence possible.
+
+**Niveau 2 — Mais 3 zones de friction réelles à anticiper**
+
+1. **Drive du traffic découverte** : si Backline devient le point
+   d'entrée "par morceau", users commencent leur recherche par
+   Backline au lieu de ToneNET directement. ToneNET perd des
+   sessions de découverte libre — même si Backline lui redirige
+   du traffic ciblé sur les téléchargements. Net effect dépend
+   du ratio.
+
+2. **Metadata structurée** : si Backline héberge des `usages:
+   [{artist, songs}]` enrichis par les studios, c'est une valeur
+   ajoutée que ToneNET (descriptions texte libre) n'offre pas.
+   IK pourrait vouloir égaliser en ajoutant cette fonctionnalité
+   à ToneNET — pas un mal en soi, mais ça crée une logique de
+   concurrence directe sur ce vertical-là.
+
+3. **Lien d'affiliation studios → contournement IK** : si
+   Backline drive des achats vers les pages d'achat des studios
+   (TheStudioRats.com etc.), ça contourne ToneNET comme canal
+   d'acquisition. IK ne touche pas de commission. Zone la plus
+   sensible.
+
+**Position défensive recommandée si IK pose la question**
+
+Affirmation propre à utiliser publiquement (ou en DM CM IKM) :
+
+> *"Backline est un outil compagnon qui maximise la valeur
+> d'usage de TONEX. Il pousse les utilisateurs à exploiter les
+> 200+ presets qu'ils ont déjà au lieu des 3-5 qu'ils utilisent
+> habituellement. Il drive du traffic vers ToneNET (référencement
+> direct des presets community) et augmente la demande pour les
+> packs Anniversary Premium et studios partenaires. Il n'héberge
+> pas de fichiers .tonex, ne concurrence pas ToneNET sur le
+> hosting, et n'attire pas d'utilisateurs hors écosystème TONEX."*
+
+Cette position protège tant que :
+- Respect des marques (Phase 7.44 disclaimer déjà en place)
+- Pas de SaaS commercial sur le dos de TONEX (DM IKM matin)
+- Référencement public de ToneNET comme source partenaire dans
+  Backline (Phase 7.53)
+
+**Risque long terme à anticiper**
+
+Si Backline devient un standard de découverte par morceau et
+signe plusieurs studios partenaires majeurs, IK pourrait :
+- Lancer un "ToneNET Pro" concurrent avec metadata enrichies
+  similaires
+- Offre d'acquisition Backline (best case scenario Sébastien)
+- Frictions : API ToneNET fermée, restrictions sur usage de
+  noms IK, etc.
+
+Science-fiction pour aujourd'hui (5-10 beta-testeurs). À
+surveiller si le volume monte.
+
+#### Pitch pour démarcher studios
+
+Formulation alignée sur "complément ToneNET" :
+
+> *"Backline ne remplace pas ToneNET — il indexe vos packs
+> commerciaux + Anniversary Premium dans un contexte d'usage
+> différent (recommandation par morceau pour répétition/live).
+> Vos uploads ToneNET continuent normalement. Backline ajoute
+> juste une couche metadata structurée que ToneNET n'a pas
+> (usages artiste/morceau). Et ça drive des achats vers vos
+> sites avec un tracking affiliate."*
+
+Studios à prioriser pour démarche (déjà documenté dans
+BETA_TESTING.md section 2.bis "Autres pack creators") :
+1. Paul Drew (TSR) — déjà contacté, follow-up Mail 3 prêt 19-20 mai
+2. Jason Sadites (JS) — fin mai (J+10 post-Paul)
+3. Tone Junkie TV (TJ) — début juin (~J+20)
+4. Amalgam Audio (AA) — mi-juin (~J+30)
+5. Worship Tutorials (WT) — pas prioritaire (0 capture pinnée
+   dans la démo actuelle)
+
+#### Synergies avec phases existantes
+
+Phase 11 connecte avec plusieurs travaux déjà en cours :
+
+- **Phase 7.45** (Paul Drew TSR) : déjà contacté, premier studio
+  partenaire potentiel. Mail 3 follow-up Phase 11 servira aussi
+  à introduire l'idée Studio-driven enrichment.
+- **Phase 7.52** (Anniversary Premium curé) : Sébastien fait
+  déjà partiellement la Couche 1 (catalog statique). Phase 11
+  étend l'approche aux packs commerciaux des studios.
+- **Phase 7.53** (ToneNET usages éditable par user) : UI
+  existante peut être généralisée aux studio packs.
+- **Phase 7.55.4** (StudiosScreen page dédiée éditeurs) : à
+  coupler avec page "Studios partners" Phase 11 Axe 5.
+- **Phase 7.67** (édition rig par non-admin) : Couche 4 Phase 11
+  s'appuie dessus.
+- **Phase 9** (knob settings chiffrés + FX intégrés) : les
+  studios peuvent aussi enrichir les knob settings de chaque
+  preset. Doublement valuable.
+- **BETA_TESTING.md section 2.bis** (stratégie d'extension
+  autres pack creators) : Phase 11 est l'opérationnalisation
+  technique de ce qui est déjà documenté commercialement.
+
+#### Mécanique de curation user → public (Phase 11.1)
+
+L'enrichissement par les studios partenaires (Couche 2) est idéal
+mais lent à mettre en place — il dépend des accords commerciaux
+avec chaque studio. En attendant, et en parallèle, une approche
+**user-contributed catalog avec admin curation** (pattern
+Wikipedia / Last.fm / IMDB) permet à Sébastien de mutualiser le
+travail d'enrichissement de ses beta-testeurs au bénéfice de tous.
+
+**Architecture en 4 couches au lookup `findCatalogEntry(name)` :**
+
+```
+1. profile.customPacks (sa version perso, override)
+2. shared.publicPacks (curé par Sébastien, partagé)        ← NIVEAU NOUVEAU
+3. PRESET_CATALOG_MERGED (livré dans le code Backline)
+4. guessPresetInfo (fallback heuristique)
+```
+
+Si le même preset existe à plusieurs niveaux, la version perso a
+priorité (l'user peut overrider la version publique avec ses
+propres usages).
+
+**Mécanique de promotion user → public :**
+
+1. **User ajoute un preset** dans `profile.customPacks` via le
+   tab Phase 7.67. Champ optionnel "Contribuer au catalog
+   communautaire ?" (case à cocher, par défaut activée).
+
+2. **Si opt-in user** : le preset reçoit `curationStatus:
+   'submitted'` et apparaît dans la **queue de curation admin**
+   (nouveau tab Sébastien-only "🎯 Curation").
+
+3. **Tab Curation admin** liste les presets soumis triés par :
+   - **Fréquence** : combien d'users ont déclaré ce preset
+     (5 users avec le même "TSR Mars 800SL Cn1&2 HG" → prio haute)
+   - **Date** : plus récents en haut
+   - **Source** : grouper par TSR / JS / etc. pour curer en batch
+
+4. **Sébastien peut** :
+   - **Promouvoir tel quel** : copie vers `shared.publicPacks`
+     avec source identifiée → `curationStatus: 'curated'`
+   - **Éditer puis promouvoir** : modifier usages / amp / scores
+     avant de valider
+   - **Fusionner versions** : si 3 users ont des usages
+     divergents pour le même preset, UI side-by-side pour choisir
+     la meilleure version
+   - **Rejeter** : `curationStatus: 'rejected'` avec raison
+     (mauvais usages, doublon, incohérent)
+
+5. **Notification user** (optionnelle) : *"Ton enrichissement de
+   Kirk & James a été ajouté au catalog public — merci pour la
+   contribution !"*. Renforce engagement long terme.
+
+**Modèle data :**
+
+Côté `profile.customPacks` (extension) :
+```js
+{
+  name, source, // existant
+  presets: [
+    {
+      name, amp, gain, style, channel, scores, usages,
+      curationStatus: 'private' | 'submitted' | 'curated' | 'rejected',
+      contributedBy: profileId,
+      curationDate: timestamp,
+    },
+    ...
+  ]
+}
+```
+
+Côté `shared.publicPacks` (nouvelle structure) :
+```js
+[
+  {
+    name: "TSR Mars 800SL Cn1&2 HG",
+    source: 'TSR',
+    amp: 'Marshall JCM800',
+    gain: 'high',
+    style: 'metal',
+    scores: {HB:95, SC:60, P90:70},
+    usages: [{artist:'Iron Maiden', songs:[...]}, {artist:'Metallica'}],
+    curatedBy: 'sebastien',
+    curationDate: 2026-05-20,
+    contributors: ['bruno', 'francisco'],
+  },
+  ...
+]
+```
+
+**Hiérarchie de sources avec priorité (combinée avec Couche 2 studios) :**
+
+```
+1. Sources studios partenaires (TSR, ML, AA, ...) si partenariat actif
+   → "Curated by The Studio Rats" badge
+   → Authoritative
+2. Catalog communautaire curé par Sébastien (shared.publicPacks)
+   → "Curated by Backline community" badge
+   → Trustworthy
+3. Catalog statique Backline (PRESET_CATALOG_MERGED)
+   → Code-shipped, stable
+4. Custom user perso (profile.customPacks)
+   → Override local, pas partagé
+```
+
+Quand TSR signe partenariat plus tard, leur enrichissement TSR
+écrase tout dans le catalog public pour les presets TSR.
+
+**Bénéfices concrets :**
+
+- Bruno enrichit 12 customs Phase 7.67 → tu cures 5-6 d'entre eux
+  (les plus universels : Kirk & James pour Metallica, Maiden Pack
+  pour Iron Maiden) → tous les futurs metalleux qui ont ces packs
+  bénéficient automatiquement sans rien faire.
+- Francisco ajoute des customs liés à son répertoire pop/rock
+  espagnol que tu n'aurais jamais découvert → tu enrichis le
+  catalog côté espagnol/latin.
+- Toi : moins d'enrichissement manuel à grande échelle. Asymétrie
+  travail/bénéfice 1:N.
+
+**Risques + mitigations :**
+
+1. **Charge curation Sébastien** : 50 users × 10 customs = 500
+   presets à curer. Mitigations :
+   - Priorisation automatique par fréquence (1 preset rapporté
+     par 5+ users → prio haute, par 1 user → prio basse)
+   - Auto-curation pour cas évidents (source identifiée + nom
+     pattern connu → pré-curation 1-clic)
+   - Délégation à 2-3 power users "curators" à long terme
+
+2. **Conflits sémantiques** : 2 users avec versions divergentes
+   pour le même preset. UI merge side-by-side nécessaire (Phase
+   11.4).
+
+3. **Pollution** : un user pourrait spammer. Validation Sébastien
+   protège, mais effort. Option rate limiting par user (max 50
+   submits/jour) si abus.
+
+**Effort estimé curation user → public :**
+
+- **Phase 11.1a** (curationStatus + opt-in + queue admin basique) :
+  ~3h dev
+- **Phase 11.1b** (promotion vers shared.publicPacks + lookup
+  multi-couches) : ~3h dev
+- **Phase 11.2** (consentement user + notifications post-curation) :
+  ~1h dev
+- **Phase 11.3** (priorisation auto par fréquence) : ~1h dev
+- **Phase 11.4** (UI dedup/merge versions divergentes) : ~2-3h
+  dev (optionnel, peut être différé)
+
+**Total MVP curation** (sans dedup/merge) : ~7h dev.
+
+**Recommandation séquencée Phase 11 globale :**
+
+1. **Phase 7.67 d'abord** (~2h) : ouvrir édition user customs +
+   custom guitars + Import/Export CSV. Les users commencent à
+   enrichir leurs profils en autonomie. Pas encore de partage
+   public — strictement perso.
+
+2. **Phase 11.1 après quelques semaines** (~6h) : ajouter
+   curationStatus + queue admin + promotion vers
+   shared.publicPacks. Activer quand 3-5 users actifs ont commencé
+   à enrichir.
+
+3. **Phase 11.2/3** (~2h) : consentement explicite + notifications +
+   priorisation auto par fréquence, polish UX.
+
+4. **Phase 11.4 dedup/merge** : seulement si conflits sémantiques
+   observés en pratique.
+
+5. **En parallèle, démarche commerciale studios** (Phase 11
+   Couche 2) : Mail 3 Paul Drew TSR (19-20 mai), JS fin mai, TJ
+   début juin, AA mi-juin. Quand un studio signe partenariat,
+   sa source écrase le catalog community pour ses propres packs.
+
+Design qui scale : Phase 11.1 peut rester dormante tant que volume
+bas, à activer quand croissance utilisateurs justifie le travail
+de curation.
+
+#### Décision actuelle Phase 11
+
+**Validée mais pas implémentée immédiatement.** Effort total
+estimé ~15-20h dev Backline (infrastructure studio + Vision IA
+protections + UI) + démarches commerciales étalées sur 2-3 mois
+(approche studios un par un).
+
+Déclencheurs pour démarrer l'implémentation :
+1. Paul Drew TSR répond positivement au Mail 3 (19-20 mai prévu)
+   et signale intérêt à enrichir ses packs
+2. OU au moins 2 studios contactés démontrent intérêt
+3. OU au moins 1 beta-tester non-admin (Bruno, Francisco, futur)
+   bloque effectivement sur le manque d'enrichissement de ses
+   customs et exprime explicitement le besoin
+
+Tant qu'aucun de ces 3 déclencheurs n'est atteint, focus reste
+sur :
+- Couche 1 (Sébastien enrichit Anniversary Premium + autres
+  catalog statique)
+- Phases livraison code priorité haute en cours (7.61, 7.64,
+  7.65.x, 7.67)
+- Démarche commerciale studios (Mail 3 Paul, démarcher JS/TJ)
+
+**Note pour BUSINESS_PLAN.md** : ce pivot Studio-driven affecte
+le modèle économique (canal affiliate viable). Doit être reflété
+dans la doc business stratégique avec :
+- Hypothèses revenus affiliate (X% × volume packs vendus via
+  Backline)
+- Couts d'acquisition studio (effort démarchage, support)
+- Risque dépendance IK Multimedia (si concurrence ToneNET Pro
+  émerge)
+
+Idée enregistrée 2026-05-18 fin de soirée. Source : insight
+Sébastien après discussion sur les 4 couches d'enrichissement
+metadata + observation des coûts Vision IA + question pivot
+"la base communautaire ne devrait pas être users mais studios".
 
 ## Hors scope (pour rappel, à NE PAS faire sans demande explicite)
 

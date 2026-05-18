@@ -12,7 +12,7 @@ import { CC, CL } from '../utils/ui-constants.js';
 import { downloadFile, generateCSV, exportJSON, parseCSV } from '../utils/csv-helpers.js';
 import Breadcrumb from '../components/Breadcrumb.jsx';
 
-function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBack, onNavigate, fullState, onImportState }) {
+function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBack, onNavigate, fullState, onImportState, inline, isAdmin = true }) {
   const [exported, setExported] = useState(null);
   const [importData, setImportData] = useState(null);
   const [importErr, setImportErr] = useState(null);
@@ -65,16 +65,19 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
       <Breadcrumb crumbs={[{ label: t('common.home', 'Accueil'), screen: 'list' }, { label: t('export.breadcrumb-profile', 'Mon Profil'), screen: 'profile' }, { label: t('export.breadcrumb', 'Import / Export') }]} onNavigate={onNavigate}/>
       <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 20 }}>{t('export.title', '📋 Export / Import')}</div>
 
-      {/* Sauvegarde JSON */}
-      <div style={{ background: 'var(--green-bg)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', marginBottom: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('export.json-section', '💾 Sauvegarde complète (JSON)')}</div>
+      {/* Phase 7.67 — Sauvegarde JSON gated isAdmin uniquement.
+          fullState contient TOUS les profils (Sébastien + Bruno + Francisco
+          + …) — pas pour un beta-tester non-admin. L'import JSON pareil :
+          écraserait l'état global de l'app. */}
+      {isAdmin && <div style={{ background: 'var(--green-bg)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', marginBottom: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('export.json-section', '💾 Sauvegarde complète (JSON) — admin')}</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button onClick={doExportJSON} style={{ background: 'var(--green)', border: 'none', color: 'var(--text)', borderRadius: 'var(--r-lg)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{t('export.export-json', '⬇ Exporter JSON')}</button>
           <button onClick={() => jsonRef.current?.click()} style={{ background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.35)', color: 'var(--green)', borderRadius: 'var(--r-lg)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{t('export.import-json', '📂 Importer JSON')}</button>
           <input ref={jsonRef} type="file" accept=".json" onChange={handleJSONFile} style={{ display: 'none' }}/>
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>{t('export.json-hint', 'Sauvegarde complète : setlists, morceaux, presets, banks. Parfait pour sauvegarder ou transférer entre appareils.')}</div>
-      </div>
+      </div>}
 
       {/* Export CSV */}
       <div style={{ background: 'var(--a3)', border: '1px solid var(--a7)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
@@ -98,14 +101,56 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
             {Object.keys(importData.ann).length > 0 && <div style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 'var(--r-md)', padding: '6px 12px' }}><div style={{ fontSize: 12, color: 'var(--text-sec)', fontWeight: 700 }}>{t('export.pedale-label', '📦 Pedale')}</div><div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{tFormat('export.banks-count', { count: Object.keys(importData.ann).length }, '{count} banks')}</div></div>}
             {Object.keys(importData.plug).length > 0 && <div style={{ background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-md)', padding: '6px 12px' }}><div style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 700 }}>{t('export.plug-label', '🔌 Plug')}</div><div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{tFormat('export.banks-count', { count: Object.keys(importData.plug).length }, '{count} banks')}</div></div>}
           </div>
+          {/* Phase 7.67 — Aperçu détaillé des 5 premières banks pour vérification.
+              Détecte aussi les banks > 49 (filtrées au parse mais on signale au user). */}
+          {['ann', 'plug'].map((k) => {
+            const data = importData[k];
+            const keys = Object.keys(data || {}).map(Number).sort((a, b) => a - b);
+            if (!keys.length) return null;
+            const sample = keys.slice(0, 5);
+            const label = k === 'ann' ? t('export.pedale-label-long', '📦 Pedale / Anniversary') : t('export.plug-label-long', '🔌 Plug');
+            return (
+              <div key={k} style={{ marginBottom: 10, background: 'var(--a3)', border: '1px solid var(--a7)', borderRadius: 'var(--r-md)', padding: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-sec)', marginBottom: 6 }}>{label} — {t('export.preview-first-banks', '5 premières banks')}</div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+                  <thead><tr><th style={{ textAlign: 'left', padding: '2px 4px', color: 'var(--text-muted)' }}>Bank</th><th style={{ textAlign: 'left', padding: '2px 4px', color: CC.A }}>A</th><th style={{ textAlign: 'left', padding: '2px 4px', color: CC.B }}>B</th><th style={{ textAlign: 'left', padding: '2px 4px', color: CC.C }}>C</th></tr></thead>
+                  <tbody>
+                    {sample.map((bk) => {
+                      const v = data[bk] || {};
+                      return (
+                        <tr key={bk} style={{ borderTop: '1px solid var(--a5)' }}>
+                          <td style={{ padding: '3px 4px', fontWeight: 700, color: 'var(--accent)' }}>{bk}</td>
+                          <td style={{ padding: '3px 4px', color: 'var(--text)' }}>{v.A || '—'}</td>
+                          <td style={{ padding: '3px 4px', color: 'var(--text)' }}>{v.B || '—'}</td>
+                          <td style={{ padding: '3px 4px', color: 'var(--text)' }}>{v.C || '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {keys.length > 5 && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>{tFormat('export.preview-and-more', { n: keys.length - 5 }, '… et {n} banks de plus')}</div>}
+              </div>
+            );
+          })}
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            {[{ v: 'replace', l: t('export.mode-replace', '🔄 Remplacer') }, { v: 'merge', l: t('export.mode-merge', '🔀 Fusionner') }].map(({ v, l }) => (
-              <button key={v} onClick={() => setImportMode(v)} style={{ flex: 1, background: importMode === v ? 'var(--accent-bg)' : 'var(--a5)', border: importMode === v ? '1px solid var(--border-accent)' : '1px solid var(--a10)', color: importMode === v ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '8px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{l}</button>
+            {[{ v: 'replace', l: t('export.mode-replace', '🔄 Remplacer (destructif)'), warn: true }, { v: 'merge', l: t('export.mode-merge', '🔀 Fusionner') }].map(({ v, l, warn }) => (
+              <button key={v} onClick={() => setImportMode(v)} style={{ flex: 1, background: importMode === v ? (warn ? 'var(--wine-300)' : 'var(--accent-bg)') : 'var(--a5)', border: importMode === v ? `1px solid ${warn ? 'var(--wine-400)' : 'var(--border-accent)'}` : '1px solid var(--a10)', color: importMode === v ? (warn ? 'var(--text-inverse)' : 'var(--accent)') : 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '8px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{l}</button>
             ))}
           </div>
+          {importMode === 'replace' && (
+            <div style={{ marginBottom: 12, background: 'var(--wine-100, rgba(168,33,53,0.15))', border: '1px solid var(--wine-400, #a82135)', borderRadius: 'var(--r-md)', padding: '8px 10px', fontSize: 11, color: 'var(--wine-400, #d04050)' }}>
+              ⚠️ {t('export.replace-warning', 'Mode Remplacer : toutes tes banks actuelles seront écrasées par les banks du CSV. Action irréversible.')}
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => setImportData(null)} style={{ flex: 1, background: 'var(--a7)', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '9px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{t('export.cancel', 'Annuler')}</button>
-            <button onClick={confirmCSV} style={{ flex: 2, background: 'var(--accent)', border: 'none', color: 'var(--text)', borderRadius: 'var(--r-md)', padding: '9px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{t('export.import', '✅ Importer')}</button>
+            <button
+              onClick={() => {
+                if (importMode === 'replace' && !window.confirm(t('export.confirm-replace', 'Tu vas REMPLACER toutes tes banks par le contenu du CSV. Confirmer ?'))) return;
+                confirmCSV();
+              }}
+              style={{ flex: 2, background: importMode === 'replace' ? 'var(--wine-400, #a82135)' : 'var(--accent)', border: 'none', color: 'var(--text)', borderRadius: 'var(--r-md)', padding: '9px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+            >{importMode === 'replace' ? t('export.import-replace', '⚠️ Confirmer le remplacement') : t('export.import', '✅ Importer')}</button>
           </div>
         </div>}
       </div>
