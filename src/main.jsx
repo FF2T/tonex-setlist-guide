@@ -267,7 +267,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.111";
+const APP_VERSION = "8.14.112";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -696,6 +696,16 @@ function App() {
   // l'info au prompt IA et `findSlotByUsageMatch` ne matchait pas. Le pin
   // ne fonctionnait que pour les customs dont le NOM contenait l'artiste
   // littéralement (Blink-182, Dr. Stein) via PRIORITÉ 2 du prompt.
+  // Phase 7.69 — `src` toujours "custom" pour TOUS les presets persos
+  // (peu importe la provenance déclarée par le user : TSR, AA, ToneNET,
+  // etc.). Décision UX : 1 seul toggle dans Sources ("Mes presets custom")
+  // active/désactive TOUS les presets persos. Le champ `creator` séparé
+  // garde la provenance informative (label sur le badge) sans affecter
+  // le filtrage isSourceAvailable.
+  //
+  // Migration silencieuse : si un preset legacy avait p.src = "AA"
+  // (Phase 7.67), on récupère cette valeur dans `creator` et on force
+  // `src: "custom"`. Pas de bump STATE_VERSION (additif, idempotent).
   useMemo(()=>{
     for(const k of Object.keys(PRESET_CATALOG_MERGED)){
       if(PRESET_CATALOG_MERGED[k].src==="custom") delete PRESET_CATALOG_MERGED[k];
@@ -705,6 +715,11 @@ function App() {
         if(!p.name) return;
         const entry={
           src:"custom",
+          // Phase 7.69 — creator informatif (TSR/AA/JS/TJ/ML/WT/Galtone/
+          // ToneNET/Custom maison/Autre). Préservation du legacy p.src
+          // si différent de "custom" (Phase 7.67 stockait la provenance
+          // dans src). Sinon p.creator explicit (saisi dans le form).
+          creator:p.creator||(p.src&&p.src!=="custom"?p.src:""),
           amp:p.amp||"Custom",
           gain:p.gain||"mid",
           style:p.style||"rock",

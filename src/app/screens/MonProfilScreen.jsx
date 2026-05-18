@@ -20,7 +20,8 @@ import BankEditor from '../components/BankEditor.jsx';
 import ProfileTab from './ProfileTab.jsx';
 import MesAppareilsTab from './MesAppareilsTab.jsx';
 import ToneNetTab from './ToneNetTab.jsx';
-import MyCustomPacksTab from './MyCustomPacksTab.jsx';
+import MyCustomPresetsTab from './MyCustomPresetsTab.jsx';
+import AllUserPresetsTab from './AllUserPresetsTab.jsx';
 import ProfilesAdmin from './ProfilesAdmin.jsx';
 import PacksTab from './PacksTab.jsx';
 import ExportImportScreen from './ExportImportScreen.jsx';
@@ -139,11 +140,13 @@ function MonProfilScreen({
             ajoutée dans ExportImportScreen avant l'overwrite. */}
         {!isDemo && tabBtn('export', t('profile.tab.export', '📋 Export / Import'))}
         {!isDemo && profile.isAdmin && tabBtn('admin_profiles', t('profile.tab.profiles', '👥 Profils'))}
+        {!isDemo && profile.isAdmin && tabBtn('alluserpresets', t('profile.tab.alluserpresets', '👁 Tous les presets users'))}
       </div>
       {tab === 'profile' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="guitars" aiKeys={aiKeys} customGuitars={customGuitars} onCustomGuitars={onCustomGuitars}/>}
       {tab === 'devices' && <MesAppareilsTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId}/>}
       {tab === 'sources' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="sources"/>}
-      {tab === 'custompacks' && <MyCustomPacksTab profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId} songDb={songDb} inp={inp}/>}
+      {tab === 'custompacks' && <MyCustomPresetsTab profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId} songDb={songDb} inp={inp}/>}
+      {profile.isAdmin && tab === 'alluserpresets' && <AllUserPresetsTab profiles={profiles} onProfiles={onProfiles} songDb={songDb} inp={inp}/>}
       {profile.isAdmin && tab === 'tonenet' && <ToneNetTab toneNetPresets={toneNetPresets} onToneNetPresets={onToneNetPresets} inp={inp} songDb={songDb}/>}
       {tab === 'setlists' && <div>
         <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>{setlists.length} setlist{setlists.length > 1 ? 's' : ''}</div>
@@ -437,7 +440,27 @@ function MonProfilScreen({
         <input type="password" placeholder="sk-ant-..." value={aiKeys.anthropic} onChange={(e) => onAiKeys((p) => ({ ...p, anthropic: e.target.value }))} style={{ ...inp, width: '100%', fontFamily: 'monospace' }}/>
       </div>}
       {profile.isAdmin && tab === 'maintenance' && MaintenanceTabComponent && <MaintenanceTabComponent songDb={songDb} onSongDb={onSongDb} onAiCacheUpdate={onAiCacheUpdate} onProfiles={onProfiles} activeProfileId={activeProfileId} setlists={allSetlists} onSetlists={onSetlists} onDeletedSetlistIds={onDeletedSetlistIds} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} profile={profile} profiles={profiles} guitarBias={guitarBias}/>}
-      {tab === 'export' && <ExportImportScreen banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} onBack={() => setTab('profile')} onNavigate={onNavigate} fullState={fullState} onImportState={onImportState} inline={true} isAdmin={profile.isAdmin}/>}
+      {tab === 'export' && <ExportImportScreen banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} onBack={() => setTab('profile')} onNavigate={onNavigate} fullState={fullState} onImportState={onImportState} inline={true} isAdmin={profile.isAdmin} onAddCustomPresets={(presets) => {
+        // Phase 7.69 — Callback depuis ExportImportScreen quand le user
+        // choisit "Ajouter" pour 1+ presets inconnus détectés au parse CSV.
+        // Push dans le pack "Mes presets" du profil actif (créé à la volée
+        // si absent). Stamp lastModified pour LWW Firestore.
+        onProfiles((p) => {
+          const cur = p[activeProfileId];
+          if (!cur) return p;
+          const packs = (cur.customPacks || []).slice();
+          const defaultIdx = packs.findIndex((pk) => pk.name === 'Mes presets');
+          if (defaultIdx >= 0) {
+            const existing = packs[defaultIdx];
+            const existingNames = new Set((existing.presets || []).map((pr) => pr.name));
+            const newOnes = presets.filter((pr) => !existingNames.has(pr.name));
+            packs[defaultIdx] = { ...existing, presets: [...(existing.presets || []), ...newOnes] };
+          } else {
+            packs.push({ name: 'Mes presets', presets: presets.slice() });
+          }
+          return { ...p, [activeProfileId]: { ...cur, customPacks: packs, lastModified: Date.now() } };
+        });
+      }}/>}
       {profile.isAdmin && tab === 'admin_profiles' && <ProfilesAdmin profiles={profiles} onProfiles={onProfiles}/>}
       <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--a8)', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <button onClick={() => { if (typeof window.setShowOnboarding === 'function') window.setShowOnboarding(true); else { const e = new CustomEvent('showOnboarding'); window.dispatchEvent(e); } }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>Aide</button>

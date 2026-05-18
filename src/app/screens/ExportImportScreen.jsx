@@ -10,14 +10,43 @@ import React, { useState, useRef } from 'react';
 import { t, tFormat } from '../../i18n/index.js';
 import { CC, CL } from '../utils/ui-constants.js';
 import { downloadFile, generateCSV, exportJSON, parseCSV } from '../utils/csv-helpers.js';
+import { findCatalogEntry } from '../../core/catalog.js';
 import Breadcrumb from '../components/Breadcrumb.jsx';
+import { inferCreator } from './MyCustomPresetsTab.jsx';
+import { inferPresetInfo } from '../utils/infer-preset.js';
 
-function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBack, onNavigate, fullState, onImportState, inline, isAdmin = true }) {
+// Phase 7.69 — Détection des presets CSV inconnus AVANT l'overwrite.
+// Scan importData (ann + plug), retourne la liste des noms qui ne
+// sont pas dans PRESET_CATALOG_MERGED. Le user choisira :
+//   - "Ajouter comme custom" : push dans profile.customPacks avec
+//     metadata par défaut (creator inferé + amp/gain/style inferé)
+//   - "Laisser vide" : remplace le nom par "" dans importData
+function detectUnknownPresets(importData) {
+  const seen = new Set();
+  ['ann', 'plug'].forEach((k) => {
+    Object.values(importData?.[k] || {}).forEach((bank) => {
+      ['A', 'B', 'C'].forEach((slot) => {
+        const name = bank?.[slot];
+        if (!name || typeof name !== 'string') return;
+        if (findCatalogEntry(name)) return;
+        seen.add(name);
+      });
+    });
+  });
+  return Array.from(seen).sort();
+}
+
+function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBack, onNavigate, fullState, onImportState, inline, isAdmin = true, onAddCustomPresets }) {
   const [exported, setExported] = useState(null);
   const [importData, setImportData] = useState(null);
   const [importErr, setImportErr] = useState(null);
   const [importMode, setImportMode] = useState('merge');
   const [toast, setToast] = useState(null);
+  // Phase 7.69 — Modale presets inconnus.
+  // unknownPresets : Array<string> liste des noms à choisir
+  // unknownChoices : { [name]: 'add' | 'skip' }
+  const [unknownPresets, setUnknownPresets] = useState(null);
+  const [unknownChoices, setUnknownChoices] = useState({});
   const csvRef = useRef(null);
   const jsonRef = useRef(null);
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
@@ -29,8 +58,82 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
   const handleCSVFile = (e) => {
     const file = e.target.files[0]; if (!file) return; setImportErr(null);
     const reader = new FileReader();
-    reader.onload = (ev) => { try { const p = parseCSV(ev.target.result); if (!p) { setImportErr(t('export.csv-format-error', 'Format non reconnu.')); return; } setImportData(p); } catch (err) { setImportErr(tFormat('export.csv-parse-error', { msg: err.message }, 'Erreur : {msg}')); } };
+    reader.onload = (ev) => {
+      try {
+        const p = parseCSV(ev.target.result);
+        if (!p) { setImportErr(t('export.csv-format-error', 'Format non reconnu.')); return; }
+        // Phase 7.69 — Détection des presets inconnus AVANT l'overwrite.
+        // Si tous les presets du CSV sont déjà dans PRESET_CATALOG_MERGED
+        // (catalog statique + customPacks user) → preview directe comme
+        // avant. Sinon → modale "Presets inconnus" qui demande au user
+        // ce qu'il veut faire de chaque nom non référencé.
+        const unknowns = detectUnknownPresets(p);
+        if (unknowns.length > 0) {
+          // Default : tout "add" si onAddCustomPresets dispo, sinon tout "skip"
+          const choices = {};
+          unknowns.forEach((name) => { choices[name] = onAddCustomPresets ? 'add' : 'skip'; });
+          setUnknownChoices(choices);
+          setUnknownPresets(unknowns);
+          setImportData(p); // garde le data en attente pour finalisation après choix
+        } else {
+          setImportData(p);
+        }
+      } catch (err) {
+        setImportErr(tFormat('export.csv-parse-error', { msg: err.message }, 'Erreur : {msg}'));
+      }
+    };
     reader.readAsText(file, 'UTF-8'); e.target.value = '';
+  };
+
+  // Phase 7.69 — Applique les choix user de la modale "presets inconnus".
+  // Push les "add" dans profile.customPacks via onAddCustomPresets, et
+  // remplace les "skip" par "" dans importData. Ferme la modale. La
+  // preview banks habituelle s'affiche ensuite pour confirmation finale.
+  const finalizeUnknownChoices = () => {
+    if (!unknownPresets || !importData) return;
+    const toAdd = unknownPresets.filter((name) => unknownChoices[name] === 'add');
+    const toSkip = unknownPresets.filter((name) => unknownChoices[name] === 'skip');
+    // 1. Push les "add" comme customs avec defaults raisonnables
+    if (toAdd.length > 0 && typeof onAddCustomPresets === 'function') {
+      const newPresets = toAdd.map((name) => {
+        const info = inferPresetInfo(name) || {};
+        return {
+          name,
+          src: 'custom',
+          creator: inferCreator(name),
+          amp: info.amp || 'Custom',
+          gain: info.gain || 'mid',
+          style: info.style || 'rock',
+          channel: '',
+          scores: { HB: 75, SC: 75, P90: 75 },
+        };
+      });
+      onAddCustomPresets(newPresets);
+    }
+    // 2. Remplace les "skip" par "" dans importData
+    if (toSkip.length > 0) {
+      const skipSet = new Set(toSkip);
+      const nextImportData = { ann: {}, plug: {} };
+      ['ann', 'plug'].forEach((k) => {
+        Object.entries(importData[k] || {}).forEach(([bank, slots]) => {
+          const nextSlots = { ...slots };
+          ['A', 'B', 'C'].forEach((slot) => {
+            if (skipSet.has(nextSlots[slot])) nextSlots[slot] = '';
+          });
+          nextImportData[k][bank] = nextSlots;
+        });
+      });
+      setImportData(nextImportData);
+    }
+    // 3. Ferme la modale
+    setUnknownPresets(null);
+    setUnknownChoices({});
+  };
+
+  const cancelUnknownModal = () => {
+    setUnknownPresets(null);
+    setUnknownChoices({});
+    setImportData(null);
   };
   const handleJSONFile = (e) => {
     const file = e.target.files[0]; if (!file) return;
@@ -95,7 +198,84 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
         <button onClick={() => csvRef.current?.click()} style={{ background: 'var(--yellow-bg)', border: '1px solid rgba(251,191,36,0.35)', color: 'var(--yellow)', borderRadius: 'var(--r-lg)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 8 }}>{t('export.load-csv', '📂 Charger CSV')}</button>
         <input ref={csvRef} type="file" accept=".csv,.txt" onChange={handleCSVFile} style={{ display: 'none' }}/>
         {importErr && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--red)', background: 'rgba(239,68,68,0.1)', borderRadius: 'var(--r-md)', padding: '8px 12px' }}>{importErr}</div>}
-        {importData && <div style={{ marginTop: 14, background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-lg)', padding: 14 }}>
+        {/* Phase 7.69 — Modale "Presets inconnus détectés".
+            S'affiche AVANT la preview banks si le CSV contient des noms
+            non référencés dans PRESET_CATALOG_MERGED (catalog statique +
+            customs user). Le user choisit pour chaque inconnu :
+            - "Ajouter" : push dans profile.customPacks avec defaults
+              (creator inferé, amp/gain/style inferé)
+            - "Laisser vide" : remplace le nom par "" dans importData
+            Boutons groupés "Tout ajouter" / "Tout laisser vide" pour
+            traitement batch. */}
+        {unknownPresets && unknownPresets.length > 0 && (
+          <div style={{ marginTop: 14, background: 'var(--yellow-bg)', border: '1px solid var(--yellow)', borderRadius: 'var(--r-lg)', padding: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--yellow)', marginBottom: 6 }}>
+              ⚠️ {tFormat('export.unknown-title', { n: unknownPresets.length }, '{n} preset(s) inconnu(s) détecté(s)')}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-sec)', marginBottom: 10 }}>
+              {onAddCustomPresets
+                ? t('export.unknown-hint', 'Ces presets ne sont ni dans le catalog ToneX standard, ni dans tes presets persos. Choisis ce qu\'on en fait :')
+                : t('export.unknown-hint-noadmin', 'Ces presets ne sont ni dans le catalog ToneX standard, ni dans tes presets persos. Ils seront marqués comme "laisser vide" dans les banks.')}
+            </div>
+            {/* Boutons groupés batch (Phase 7.69) */}
+            {onAddCustomPresets && (
+              <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                <button
+                  onClick={() => {
+                    const all = {};
+                    unknownPresets.forEach((n) => { all[n] = 'add'; });
+                    setUnknownChoices(all);
+                  }}
+                  style={{ background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-sm)', padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                >{t('export.unknown-all-add', 'Tout ajouter')}</button>
+                <button
+                  onClick={() => {
+                    const all = {};
+                    unknownPresets.forEach((n) => { all[n] = 'skip'; });
+                    setUnknownChoices(all);
+                  }}
+                  style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                >{t('export.unknown-all-skip', 'Tout laisser vide')}</button>
+              </div>
+            )}
+            {/* Liste avec choix individuels */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 280, overflowY: 'auto', marginBottom: 10, background: 'var(--a3)', borderRadius: 'var(--r-md)', padding: 6 }}>
+              {unknownPresets.map((name) => {
+                const choice = unknownChoices[name] || 'skip';
+                const creator = inferCreator(name);
+                return (
+                  <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 6px', background: 'var(--a4)', borderRadius: 'var(--r-sm)' }}>
+                    <div style={{ flex: 1, minWidth: 0, fontSize: 11 }}>
+                      <span style={{ color: 'var(--text)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block', maxWidth: '100%', whiteSpace: 'nowrap' }}>{name}</span>
+                      {creator && (
+                        <span style={{ marginLeft: 6, fontSize: 9, background: 'var(--a7)', color: 'var(--text-muted)', borderRadius: 'var(--r-sm)', padding: '1px 5px' }}>{creator}</span>
+                      )}
+                    </div>
+                    {onAddCustomPresets ? (
+                      <select
+                        value={choice}
+                        onChange={(e) => setUnknownChoices((c) => ({ ...c, [name]: e.target.value }))}
+                        style={{ fontSize: 10, padding: '2px 4px', background: 'var(--bg-elev-1)', color: 'var(--text)', border: '1px solid var(--a10)', borderRadius: 'var(--r-sm)', cursor: 'pointer' }}
+                      >
+                        <option value="add">{t('export.unknown-add', 'Ajouter')}</option>
+                        <option value="skip">{t('export.unknown-skip', 'Laisser vide')}</option>
+                      </select>
+                    ) : (
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t('export.unknown-skip', 'Laisser vide')}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={cancelUnknownModal} style={{ flex: 1, background: 'var(--a7)', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '9px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{t('export.cancel', 'Annuler import')}</button>
+              <button onClick={finalizeUnknownChoices} style={{ flex: 2, background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '9px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{t('export.unknown-continue', 'Continuer →')}</button>
+            </div>
+          </div>
+        )}
+        {/* Preview banks (Phase 7.67 / 7.68) — affichée APRÈS résolution
+            de la modale presets inconnus Phase 7.69 (unknownPresets vidé). */}
+        {importData && !unknownPresets && <div style={{ marginTop: 14, background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-lg)', padding: 14 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)', marginBottom: 10 }}>{t('export.preview', 'Aperçu')}</div>
           <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
             {Object.keys(importData.ann).length > 0 && <div style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 'var(--r-md)', padding: '6px 12px' }}><div style={{ fontSize: 12, color: 'var(--text-sec)', fontWeight: 700 }}>{t('export.pedale-label', '📦 Pedale')}</div><div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{tFormat('export.banks-count', { count: Object.keys(importData.ann).length }, '{count} banks')}</div></div>}

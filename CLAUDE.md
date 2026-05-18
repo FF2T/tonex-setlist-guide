@@ -746,7 +746,221 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-18, 10 phases livrées — Phase 7.67 close)
+## État actuel (2026-05-19, Phase 7.69 close — Refonte modèle filtrage presets + import CSV interactif + vue admin)
+
+**Backline v8.14.112 / SW backline-v212 / STATE_VERSION 10 / 1163 tests verts.**
+
+### Phase 7.69 — Refonte UX presets custom (v8.14.112)
+
+Retour utilisateur 2026-05-19 sur Phase 7.67 : *"Pour moi ce n'est pas
+clair et user friendly. Déjà il faut uniformiser les termes 'Mes
+presets personnels' dans 'Sources' et onglet 'Mes presets custom'.
+Pour moi, si on ajoute un preset custom (même si la source est AA,
+TSR...), c'est un preset custom. Le fait même de cocher 'Mes presets
+custom' dans source doit suffire à le prendre en compte dans le
+scoring. Activer AA, TSR ou autres dans les sources revient à
+activer des catalogues de presets curated (par moi ou par les
+studios) mais ne doivent pas être liés au presets persos. Pour les
+CSV, de mon point de vue, il faut expressément demander à
+l'utilisateur, lors de l'import, lorsqu'un preset n'est pas
+référencé en base : soit de l'ajouter comme custom preset, soit de
+considérer la banque vide s'il ne veut pas renseigner le preset
+custom. Je pense que dans la notion de 'pack' dans l'onglet Mes
+presets custom est compliqué. Je listerais simplement dans une
+liste unique, tous les presets saisis par l'utilisateur. Ce que je
+veux en tant qu'admin c'est pouvoir avoir une vue sur tous les
+presets saisis par les users et éventuellement les modifier."*
+
+**4 sous-phases livrées en cascade** :
+
+#### Sous-phase 1 — Modèle filtrage simplifié
+
+Architecture corrigée : **un preset saisi par l'utilisateur est
+TOUJOURS `src: "custom"` immuable**, peu importe sa provenance
+réelle (TSR, AA, JS, ToneNET, etc.). Le champ `src` ne sert qu'au
+filtrage `availableSources`. Un nouveau champ **`creator`** (séparé)
+porte l'information de provenance pour l'affichage et l'éventuel
+auto-tagging IA.
+
+- Toggle "📦 Sources → Mes presets custom" = filtre unique pour
+  TOUS les presets persos.
+- Toggles "📦 Sources → AA / TSR / ML / JS / TJ / WT / Galtone /
+  ToneNET" = filtres pour les **catalogues curated** (Anniversary
+  Premium Phase 7.52, factory packs, etc.), pas pour les saisies user.
+
+**`src/main.jsx`** useMemo customPacks (Phase 7.30) modifié :
+- `src: "custom"` forcé toujours (jamais p.src).
+- Nouveau champ `creator: p.creator || (p.src && p.src !== "custom" ? p.src : "")`.
+- Migration silencieuse : un legacy preset avec `src: "AA"` (Phase 7.67)
+  voit son `src` forcé à `"custom"` mais sa valeur initiale préservée
+  dans `creator: "AA"`.
+
+**`src/core/sources.js`** :
+- `SOURCE_LABELS.custom` : "Mes presets personnels" → "Mes presets custom"
+  (uniformisation avec le tab).
+- `SOURCE_DESCRIPTIONS.custom` clarifiée : "Tous les presets que tu
+  as documentés via le tab '📦 Mes presets custom' (peu importe leur
+  provenance déclarée : TSR, AA, JS, ToneNET, etc.)."
+
+#### Sous-phase 2 — MyCustomPresetsTab : liste plate sans notion de pack
+
+Remplace `MyCustomPacksTab.jsx` (Phase 7.67) par
+**`MyCustomPresetsTab.jsx`** (refonte complète) :
+- **Liste plate** unique de tous les presets, triée alpha par nom.
+  La notion de "pack" est invisible côté UI.
+- Stockage interne : tous les nouveaux presets vont dans un pack
+  technique `"Mes presets"` créé à la volée. Les packs legacy
+  (Phase 7.67) restent visibles aplatis.
+- Helper exporté `flattenPresets(customPacks)` : concatène +
+  préserve `packIdx`/`presetIdx`/`packName` pour retrouver l'origine
+  à l'édition/suppression.
+- Dropdown **"Provenance (informatif)"** avec 11 choix fermés :
+  vide / TSR / ML / AA / JS / TJ / WT / Galtone / ToneNET /
+  Maison / Autre. Le user peut overrider.
+- Helper exporté **`inferCreator(name)`** : regex sur le nom du
+  preset pour auto-pré-remplir le creator. Différence vs
+  `inferSource` Phase 7.67 : **pas de fallback Factory** ni `custom`
+  (les patterns CL/DR/HG sont Factory ToneX, pas des saisies user
+  → champ laissé vide pour que le user choisisse explicitement
+  "Maison" ou "Autre").
+- Constante exportée `DEFAULT_PACK_NAME = 'Mes presets'`.
+
+#### Sous-phase 3 — Import CSV avec modale interactive presets inconnus
+
+`src/app/screens/ExportImportScreen.jsx` étendu :
+- Nouvelle fonction `detectUnknownPresets(importData)` : scanne les
+  banks Anniversary + Plug du CSV importé, identifie tous les noms
+  absents de `PRESET_CATALOG_MERGED`.
+- Si ≥1 inconnu détecté → **modale obligatoire** avant overwrite
+  des banks :
+  - Liste tous les presets inconnus avec creator inféré.
+  - Pour chaque preset, dropdown user : **"Ajouter comme custom"**
+    (avec creator pré-suggéré) ou **"Laisser le slot vide"**.
+  - Boutons de batch "Tout ajouter" / "Tout laisser vide" pour
+    accélérer.
+  - Validation → les "add" sont poussés via callback
+    `onAddCustomPresets` dans le pack "Mes presets" du profil
+    actif (créé à la volée). Les "skip" voient leur nom remplacé
+    par "" dans `importData` (banques vides à ces slots).
+- `MonProfilScreen` câble le callback :
+  ```js
+  onAddCustomPresets={(presets) => {
+    onProfiles((p) => {
+      const cur = p[activeProfileId];
+      const packs = (cur.customPacks || []).slice();
+      const defaultIdx = packs.findIndex((pk) => pk.name === 'Mes presets');
+      if (defaultIdx >= 0) {
+        // Merge dans le pack existant, dédup par nom
+        const existing = packs[defaultIdx];
+        const existingNames = new Set((existing.presets || []).map((pr) => pr.name));
+        const newOnes = presets.filter((pr) => !existingNames.has(pr.name));
+        packs[defaultIdx] = { ...existing, presets: [...(existing.presets || []), ...newOnes] };
+      } else {
+        packs.push({ name: 'Mes presets', presets: presets.slice() });
+      }
+      return { ...p, [activeProfileId]: { ...cur, customPacks: packs, lastModified: Date.now() } };
+    });
+  }}
+  ```
+- Aperçu détaillé des 5 premières banks rendu **après** résolution
+  de la modale (`{importData && !unknownPresets && ...}`).
+
+Effet pour Bruno (cas concret 2026-05-18) : à l'import de son CSV
+contenant 34 presets non référencés (TSR custom captures), au lieu
+du Phase 7.67 silencieux (banks remplies mais aucun preset en
+catalog → recos ratées), il voit une modale explicite et choisit
+en quelques clics quels presets ajouter comme custom.
+
+#### Sous-phase 4 — Vue admin "👁 Tous les presets users"
+
+Nouveau composant **`AllUserPresetsTab.jsx`** (admin only) :
+- Tab `alluserpresets` dans MonProfilScreen, gated `profile.isAdmin`.
+- Vue agrégée par profil : nom + badge ADMIN si applicable + count
+  presets/packs.
+- Tri par nombre de presets décroissant (visibilité top contributeurs
+  beta-testeurs).
+- Click sur un profil → réutilise `MyCustomPresetsTab` avec
+  `activeProfileId={editingProfileId}` (override la cible des
+  writes). L'admin peut donc éditer/supprimer un preset d'un autre
+  profil sans switch de session (utile pour modération / correction
+  d'usages mal saisis).
+- Banner "Mode admin : les modifications s'appliquent au profil
+  cible et seront synchronisées via Firestore" pour transparence.
+- Bouton "← Retour à la liste" pour revenir à la vue agrégée.
+
+### Architecture livrée Phase 7.69
+
+```
+src/main.jsx                                     APP_VERSION 8.14.111 → 8.14.112
+                                                 useMemo customPacks : src=custom toujours,
+                                                                       creator séparé
+public/sw.js                                     CACHE backline-v211 → backline-v212
+src/core/sources.js                              SOURCE_LABELS.custom uniformisé
+                                                 SOURCE_DESCRIPTIONS.custom clarifiée
+src/app/screens/MyCustomPresetsTab.jsx           NOUVEAU — liste plate, dropdown creator
+                                                 informatif, src=custom forcé
+src/app/screens/MyCustomPresetsTab.test.js       NOUVEAU — 22 tests (inferCreator,
+                                                 CREATOR_OPTIONS×11, flattenPresets,
+                                                 DEFAULT_PACK_NAME)
+src/app/screens/MyCustomPacksTab.jsx             SUPPRIMÉ (Phase 7.67 obsolète)
+src/app/screens/MyCustomPacksTab.test.js         SUPPRIMÉ (Phase 7.67 obsolète)
+src/app/screens/AllUserPresetsTab.jsx            NOUVEAU — vue admin agrégée + édition
+                                                 cross-profil via MyCustomPresetsTab override
+src/app/screens/ExportImportScreen.jsx           +detectUnknownPresets, state
+                                                 unknownPresets/unknownChoices, modale,
+                                                 finalizeUnknownChoices, prop onAddCustomPresets
+src/app/screens/MonProfilScreen.jsx              import AllUserPresetsTab + MyCustomPresetsTab
+                                                 (au lieu de MyCustomPacksTab)
+                                                 +tabBtn 'alluserpresets' gated isAdmin
+                                                 +callback onAddCustomPresets vers
+                                                  profile.customPacks "Mes presets"
+```
+
+### Conséquences Phase 7.69
+
+- **1163/1163 tests verts** (Phase 7.67 → 7.69 : 22 tests
+  `MyCustomPacksTab.test.js` supprimés + 22 tests
+  `MyCustomPresetsTab.test.js` ajoutés = net 0).
+- Pas de bump STATE_VERSION (additif sur `customPacks[].presets[i].creator`,
+  rétro-compat via fallback `p.src !== 'custom'` au render).
+- Pas de migration explicite : la migration est faite **à la volée**
+  au render via le useMemo customPacks (legacy `src: "AA"` →
+  `creator: "AA"` + `src: "custom"` forcé). Le legacy reste dans
+  localStorage tant que le user n'a pas re-sauvegardé le preset ;
+  acceptable car cohabitation safe.
+- **Bundle** 2392.68 → 2400.08 KB (+7.4 KB pour AllUserPresetsTab +
+  modale CSV + helpers).
+- **Effet immédiat** :
+  - Bruno cocher uniquement "Mes presets custom" dans Sources →
+    ses 34 captures TSR sont prises en compte (au lieu d'avoir à
+    cocher AA/TSR/etc. en plus).
+  - À l'import CSV, modale interactive transparente : il choisit
+    explicitement quels presets ajouter ou laisser vide.
+  - Sébastien admin a une vue d'ensemble sur tous les presets
+    saisis par tous les profils, et peut intervenir si besoin.
+
+### Dette résiduelle Phase 7.69
+
+- **Trilingue EN/ES** : ~15 nouvelles clés `mycustompresets.*` et
+  `alluserpresets.*` + `import.unknown-*` avec fallbacks FR inline.
+  Traductions à ajouter Phase 7.70 (~30 min).
+- **Pas de migration purge legacy** : un preset legacy
+  `src: "AA"` reste tel quel dans localStorage / Firestore tant que
+  le user ne l'édite pas. Le render le traite via fallback. Si on
+  veut nettoyer définitivement, ajouter un `migrateProfilePresetsToCustom`
+  one-shot. Pas urgent.
+- **Pas de bouton "exporter ma collection custom presets"** côté
+  utilisateur (pour partager facilement entre devices ou avec
+  Sébastien). Reporter si demandé.
+- **Vue admin lecture-seule** sur banks/usages d'autres profils :
+  Phase 7.69 permet l'édition presets uniquement. Si admin veut
+  voir/modifier banks/setlists/profil complet d'un autre user,
+  garder le mécanisme switchProfile Phase 7.63 (banner +
+  loginHistory) existant.
+
+---
+
+## État précédent (2026-05-18, 10 phases livrées — Phase 7.67 close)
 
 **Backline v8.14.111 / SW backline-v211 / STATE_VERSION 10 / 1163 tests verts.**
 

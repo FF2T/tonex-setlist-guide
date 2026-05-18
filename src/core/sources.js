@@ -52,7 +52,13 @@ const SOURCE_LABELS = {
   FactoryV1: 'Pédale classique v1 — Captures pré-installées',
   PlugFactory: 'Plug — Captures pré-installées',
   ToneNET: 'ToneNET — Presets téléchargés',
-  custom: 'Mes presets personnels',
+  // Phase 7.69 — label uniformisé "Mes presets custom" (alignement avec
+  // le tab "📦 Mes presets custom"). TOUS les presets persos du user
+  // ont src: "custom" peu importe leur creator déclaré (TSR/AA/...).
+  // Le filtre custom = 1 toggle global pour activer/désactiver tous
+  // les presets persos. AA/TSR/etc. dans Sources = catalogues curated
+  // (par moi-curator ou par les studios), distincts des presets persos.
+  custom: 'Mes presets custom',
 };
 
 // Phase 5.12 — Descriptions courtes affichées sous chaque label en
@@ -70,7 +76,7 @@ const SOURCE_DESCRIPTIONS = {
   FactoryV1: 'Si ta ToneX Pédale classique tourne sur le firmware v1 (presets historiques).',
   PlugFactory: 'Si tu possèdes une ToneX Plug (la petite).',
   ToneNET: 'Presets gratuits téléchargés depuis tonenet.com.',
-  custom: 'Presets que tu as créés ou modifiés toi-même.',
+  custom: 'Tous les presets que tu as documentés via le tab "📦 Mes presets custom" (peu importe leur provenance déclarée : TSR, AA, JS, ToneNET, etc.).',
 };
 
 // Badge court (≤ 8 char) pour les listes denses où on n'a pas la
