@@ -20,7 +20,7 @@ import {
 import { findCatalogEntry, normalizePresetName } from '../../core/catalog.js';
 import { getSourceInfo } from '../../core/sources.js';
 import {
-  normalizeSongTitle, normalizeArtist, findDuplicateSong,
+  normalizeSongTitle, normalizeArtist, findDuplicateSong, getIg,
 } from '../utils/song-helpers.js';
 import {
   enrichAIResult, mergeBestResults, updateAiCache, safeParseJSON,
@@ -354,12 +354,35 @@ function HomeScreen({
     setConfirmedSong({ title: canonTitle, artist: canonArtist });
     setSongResult(null); setSongBaseAI(null); setSongErr(null); setSelectedGuitar(null);
     if (existing?.aiCache?.result?.cot_step1) {
+      // Phase 7.68 — Aligne HomeScreen sur SongDetailCard pour fixer le
+      // bug rapporté Bruno (recos différentes Accueil vs Setlists).
+      // Avant : enrichAIResult était appelé avec le aiCache.result brut
+      // (incluant preset_ann/plug/ideal_preset/ideal_top3 cached qui
+      // pouvaient être stale — calculés pour un autre gId, autres
+      // banks/sources). SongDetailCard nettoyait ces champs avant
+      // recompute pour garantir le scoring sur le contexte actuel.
+      // Ici on fait pareil.
+      //
+      // Aussi : valide que cachedGId est dans le rig actif. Sinon
+      // fallback sur ig[0] du rig (équivalent SongDetailCard ligne
+      // 57 : `savedGuitarId || ig[0] || ''`).
       const cachedGId = existing.aiCache.gId || '';
-      const cachedG = allGuitars.find((x) => x.id === cachedGId);
-      const gType = cachedG?.type || 'HB';
-      const r = enrichAIResult({ ...existing.aiCache.result }, gType, cachedGId, banksAnn, banksPlug, undefined, existing);
+      const cachedG = cachedGId ? allGuitars.find((x) => x.id === cachedGId) : null;
+      const ig = getIg(existing, allGuitars);
+      const gIdToUse = cachedG ? cachedGId : (ig[0] || '');
+      const gActive = cachedG || (gIdToUse ? allGuitars.find((x) => x.id === gIdToUse) : null);
+      const gType = gActive?.type || 'HB';
+      const cleaned = {
+        ...existing.aiCache.result,
+        preset_ann: null,
+        preset_plug: null,
+        ideal_preset: null,
+        ideal_preset_score: 0,
+        ideal_top3: null,
+      };
+      const r = enrichAIResult(cleaned, gType, gIdToUse, banksAnn, banksPlug, undefined, existing);
       setSongResult(r); setSongBaseAI(r);
-      if (cachedG) setSelectedGuitar(cachedG);
+      if (gActive) setSelectedGuitar(gActive);
       else if (r.ideal_guitar) {
         const m = findGuitarByAIName(r.ideal_guitar, allGuitars);
         if (m) setSelectedGuitar(m);

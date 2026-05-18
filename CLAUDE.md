@@ -746,7 +746,69 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-18, Phases 7.65 + 7.65.1 + 7.47.1 + 7.65.x + 7.61 + 7.64 + 7.63 + 7.63.1 close — 8 phases livrées)
+## État actuel (2026-05-18, Phases 7.65 + 7.65.1 + 7.47.1 + 7.65.x + 7.61 + 7.64 + 7.63 + 7.63.1 + 7.68 close — 9 phases livrées)
+
+**Backline v8.14.110 / SW backline-v210 / STATE_VERSION 10 / 1140 tests verts.**
+
+### Phase 7.68 — Aligner HomeScreen sur SongDetailCard (recos cohérentes Accueil ↔ Setlists) (v8.14.110)
+
+Bug rapporté Bruno 2026-05-18 matin : *"pour un même morceau j'ai parfois des reco différentes entre la page de garde et quand je passe par le setlist."* Investigation menée Phase 7.68 (P2 du backlog).
+
+**Cause racine identifiée** : divergence du flow `enrichAIResult` entre les 2 écrans.
+
+`HomeScreen.handleSongConfirm` (cache-hit) faisait :
+```js
+const r = enrichAIResult({ ...existing.aiCache.result }, gType, cachedGId, banksAnn, banksPlug, undefined, existing);
+```
+→ aiCache.result **brut** (avec `preset_ann`, `preset_plug`, `ideal_preset`, `ideal_top3` cached) → spread → enrichAIResult.
+
+`SongDetailCard.useEffect` (cache-hit) faisait :
+```js
+const cleaned2 = { ...song.aiCache.result, preset_ann: null, preset_plug: null, ideal_preset: null, ideal_preset_score: 0, ideal_top3: null };
+const recalc = enrichAIResult(cleaned2, gType, gId, banksAnn, banksPlug, undefined, song);
+```
+→ aiCache **nettoyé des presets** avant recompute → enrichAIResult repart à zéro pour ces champs.
+
+**Conséquence pratique pour Bruno** :
+- Sur l'Accueil avec recherche libre : il voyait les `preset_ann/plug/ideal_preset` **cached** (calculés à un instant T précédent, potentiellement avec un autre `gId` actif et/ou des banks/sources différentes).
+- Sur Setlists vue dépliée : il voyait les `preset_ann/plug/ideal_preset` **recomputés** pour le `gId` courant + banks/sources actuels.
+
+Recos différentes pour le même morceau selon le point d'entrée. Particulièrement visible *"si je ne choisis pas de guitare dans l'onglet setlist"* car les fallbacks `gId` étaient aussi divergents (Accueil : `cachedGId` brut ; Setlists : `savedGuitarId || ig[0] || ''` filtré rig actif).
+
+**Fix Phase 7.68** dans `HomeScreen.handleSongConfirm` cache-hit :
+
+1. **Cleanup presets cached avant enrichAIResult** : preset_ann/plug/ideal_preset/ideal_top3 remis à null pour que enrichAIResult recompute proprement avec le contexte actuel.
+2. **Validation `cachedGId` in-rig** : si `cachedGId` n'existe pas dans `allGuitars` (rig actif), fallback sur `getIg(existing, allGuitars)[0]` (équivalent SongDetailCard ligne 57 : `savedGuitarId || ig[0] || ''`). Préserve la cohérence Phase 7.65.
+
+### Architecture livrée Phase 7.68
+
+```
+src/main.jsx                            APP_VERSION 8.14.109 → 8.14.110
+public/sw.js                            CACHE backline-v209 → backline-v210
+src/app/screens/HomeScreen.jsx          +import getIg de song-helpers
+                                        handleSongConfirm cache-hit :
+                                        +cleanup preset_ann/plug/ideal_*
+                                        +valid cachedGId in-rig + fallback ig[0]
+                                        +recompute enrichAIResult propre
+```
+
+### Conséquences Phase 7.68
+
+- **1140/1140 tests verts** (aucun nouveau — les helpers enrichAIResult sont déjà couverts, le fix est dans le flow d'appel HomeScreen).
+- Pas de bump STATE_VERSION (purement display/render-time).
+- Pas de migration : les aiCache existants restent valides, simplement re-cleanupés au render.
+- **Bundle** 2373.88 → 2374.05 KB (+0.17 KB pour le commentaire + cleanup).
+- **Effet immédiat post-reload v8.14.110** : pour tout morceau ouvert depuis l'Accueil, la reco est désormais identique à celle vue depuis Setlists vue dépliée. Cohérence complète entre les 2 points d'entrée.
+
+### Dette résiduelle Phase 7.68
+
+- **Tests Vitest dédiés** : pas ajoutés (le helper `enrichAIResult` est déjà bien testé, le fix est dans le flow d'appel React qui n'a pas de tests d'intégration). Si régression observée, ajouter un test sur `handleSongConfirm` mock.
+- **HomeScreen ligne 510** (résiduelle Phase 7.65.1) — fallback `idealGuitarObj = idealGuitarCot || songResult.cot_step2_guitars?.[0]` qui peut laisser passer une guitare hors rig dans certains cas. Non touché Phase 7.68. À scoper Phase 7.65.2 si observé.
+- **Bug investigation P2** (CLAUDE.md ligne 1419) marqué ✅ LIVRÉ avec Phase 7.68.
+
+---
+
+## État précédent (2026-05-18, Phases 7.65 + 7.65.1 + 7.47.1 + 7.65.x + 7.61 + 7.64 + 7.63 + 7.63.1 close — 8 phases livrées)
 
 **Backline v8.14.109 / SW backline-v209 / STATE_VERSION 10 / 1140 tests verts.**
 
@@ -1650,7 +1712,13 @@ manquant** depuis un user réel.
 
 **Effort estimé** : ~1h dev une fois les données Bruno reçues.
 
-### Bug investigation P2 — Reco différentes Accueil vs Setlists (rapporté Bruno 2026-05-18)
+### Phase 7.68 — ✅ LIVRÉE 2026-05-18 (v8.14.110) — Bug investigation P2 (recos Accueil vs Setlists)
+
+Voir section "État actuel (2026-05-18)" en tête de CLAUDE.md pour le détail (cleanup presets cached avant enrichAIResult dans `HomeScreen.handleSongConfirm` + validation `cachedGId` in-rig + fallback `ig[0]`).
+
+**Notes design conservées pour référence** :
+
+### Bug investigation P2 (historique) — Reco différentes Accueil vs Setlists (rapporté Bruno 2026-05-18)
 
 Bruno rapporte : *"pour un même morceau j'ai parfois des reco
 différentes entre la page de garde et quand je passe par le setlist.
