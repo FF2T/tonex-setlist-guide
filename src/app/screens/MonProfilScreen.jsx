@@ -139,7 +139,10 @@ function MonProfilScreen({
             onBanksAnn/onBanksPlug écrivent dans profile.banksAnn/banksPlug
             du profil actif (per-profile, pas cross-profil). Modale preview
             ajoutée dans ExportImportScreen avant l'overwrite. */}
-        {!isDemo && tabBtn('export', t('profile.tab.export', '📋 Export / Import'))}
+        {/* Phase 7.73.1 — Tab "📋 Export / Import" supprimé.
+            Import/Export CSV intégré directement dans les onglets device
+            (pedale/ann/plug). Le JSON full state admin reste accessible
+            via ⚙️ Admin → Maintenance. */}
         {/* Phase 7.72 — Tabs Profils + AllUserPresets + AdminPacks
             migrés dans Admin séparé (cf bouton ⚙️ Admin dans la nav). */}
       </div>
@@ -240,14 +243,23 @@ function MonProfilScreen({
           </div>
         </div>
       </div>}
-      {tab === 'pedale' && <BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} toneNetPresets={toneNetPresets}
-        factoryBanksByVersion={[
-          { id: 'v2', label: t('bank-editor.firmware-v2', 'Firmware v2 (2025/04/03)'), banks: FACTORY_BANKS_PEDALE_V2 },
-          { id: 'v1', label: t('bank-editor.firmware-v1', 'Firmware v1 (historique)'), banks: FACTORY_BANKS_PEDALE_V1 },
-        ]}
-        defaultFactoryVersion="v2"/>}
-      {tab === 'ann' && <BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} factoryBanks={FACTORY_BANKS_ANNIVERSARY} toneNetPresets={toneNetPresets}/>}
-      {tab === 'plug' && <BankEditor banks={banksPlug} onBanks={onBanksPlug} color="var(--accent)" maxBanks={10} startBank={1} factoryBanks={FACTORY_BANKS_PLUG} toneNetPresets={toneNetPresets}/>}
+      {tab === 'pedale' && <>
+        <DeviceCSVPanel restrictToDevice="ann" banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} fullState={fullState} onImportState={onImportState} isAdmin={profile.isAdmin} onAddCustomPresets={makeOnAddCustomPresets(onProfiles, activeProfileId)} onNavigate={onNavigate}/>
+        <BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} toneNetPresets={toneNetPresets}
+          factoryBanksByVersion={[
+            { id: 'v2', label: t('bank-editor.firmware-v2', 'Firmware v2 (2025/04/03)'), banks: FACTORY_BANKS_PEDALE_V2 },
+            { id: 'v1', label: t('bank-editor.firmware-v1', 'Firmware v1 (historique)'), banks: FACTORY_BANKS_PEDALE_V1 },
+          ]}
+          defaultFactoryVersion="v2"/>
+      </>}
+      {tab === 'ann' && <>
+        <DeviceCSVPanel restrictToDevice="ann" banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} fullState={fullState} onImportState={onImportState} isAdmin={profile.isAdmin} onAddCustomPresets={makeOnAddCustomPresets(onProfiles, activeProfileId)} onNavigate={onNavigate}/>
+        <BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} factoryBanks={FACTORY_BANKS_ANNIVERSARY} toneNetPresets={toneNetPresets}/>
+      </>}
+      {tab === 'plug' && <>
+        <DeviceCSVPanel restrictToDevice="plug" banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} fullState={fullState} onImportState={onImportState} isAdmin={profile.isAdmin} onAddCustomPresets={makeOnAddCustomPresets(onProfiles, activeProfileId)} onNavigate={onNavigate}/>
+        <BankEditor banks={banksPlug} onBanks={onBanksPlug} color="var(--accent)" maxBanks={10} startBank={1} factoryBanks={FACTORY_BANKS_PLUG} toneNetPresets={toneNetPresets}/>
+      </>}
       {tab === 'tmp' && <TmpBrowser profile={profile} onUpdateCustoms={(customs) => {
         onProfiles((p) => {
           const cur = p[activeProfileId]; if (!cur) return p;
@@ -409,28 +421,9 @@ function MonProfilScreen({
           >🗑 Invalider tous les caches IA</button>
         </div>}
       </div>}
-      {/* Phase 7.72 — Tabs Clé API + Maintenance migrés dans AdminScreen. */}
-      {tab === 'export' && <ExportImportScreen banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} onBack={() => setTab('profile')} onNavigate={onNavigate} fullState={fullState} onImportState={onImportState} inline={true} isAdmin={profile.isAdmin} onAddCustomPresets={(presets) => {
-        // Phase 7.69 — Callback depuis ExportImportScreen quand le user
-        // choisit "Ajouter" pour 1+ presets inconnus détectés au parse CSV.
-        // Push dans le pack "Mes presets" du profil actif (créé à la volée
-        // si absent). Stamp lastModified pour LWW Firestore.
-        onProfiles((p) => {
-          const cur = p[activeProfileId];
-          if (!cur) return p;
-          const packs = (cur.customPacks || []).slice();
-          const defaultIdx = packs.findIndex((pk) => pk.name === 'Mes presets');
-          if (defaultIdx >= 0) {
-            const existing = packs[defaultIdx];
-            const existingNames = new Set((existing.presets || []).map((pr) => pr.name));
-            const newOnes = presets.filter((pr) => !existingNames.has(pr.name));
-            packs[defaultIdx] = { ...existing, presets: [...(existing.presets || []), ...newOnes] };
-          } else {
-            packs.push({ name: 'Mes presets', presets: presets.slice() });
-          }
-          return { ...p, [activeProfileId]: { ...cur, customPacks: packs, lastModified: Date.now() } };
-        });
-      }}/>}
+      {/* Phase 7.72 — Tabs Clé API + Maintenance migrés dans AdminScreen.
+          Phase 7.73.1 — Tab Export/Import inline retiré (CSV par device
+          via DeviceCSVPanel ci-dessus dans les tabs pedale/ann/plug). */}
       {/* Phase 7.72 — Tab Profils migré dans AdminScreen. */}
       <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--a8)', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <button onClick={() => { if (typeof window.setShowOnboarding === 'function') window.setShowOnboarding(true); else { const e = new CustomEvent('showOnboarding'); window.dispatchEvent(e); } }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>Aide</button>
@@ -547,6 +540,55 @@ function PasswordTab({ profile, onProfiles, activeProfileId, inp }) {
       </div>
     )}
   </div>;
+}
+
+// Phase 7.73.1 — Factory : callback pour push les "ajouter custom" depuis
+// la modale presets inconnus (CSV import) vers profile.customPacks "Mes
+// presets" du profil actif. Centralisé ici pour réutilisation dans
+// DeviceCSVPanel (3 instances : pedale/ann/plug).
+function makeOnAddCustomPresets(onProfiles, activeProfileId) {
+  return (presets) => {
+    onProfiles((p) => {
+      const cur = p[activeProfileId];
+      if (!cur) return p;
+      const packs = (cur.customPacks || []).slice();
+      const defaultIdx = packs.findIndex((pk) => pk.name === 'Mes presets');
+      if (defaultIdx >= 0) {
+        const existing = packs[defaultIdx];
+        const existingNames = new Set((existing.presets || []).map((pr) => pr.name));
+        const newOnes = presets.filter((pr) => !existingNames.has(pr.name));
+        packs[defaultIdx] = { ...existing, presets: [...(existing.presets || []), ...newOnes] };
+      } else {
+        packs.push({ name: 'Mes presets', presets: presets.slice() });
+      }
+      return { ...p, [activeProfileId]: { ...cur, customPacks: packs, lastModified: Date.now() } };
+    });
+  };
+}
+
+// Phase 7.73.1 — Panneau CSV import/export filtré par device. Wrapper
+// minimal autour de ExportImportScreen avec prop restrictToDevice qui
+// cache les boutons/previews de l'autre device + filter l'import.
+// Rendu en haut de chaque tab device (pedale/ann/plug) dans
+// MonProfilScreen pour donner l'accès CSV au plus proche du contexte.
+function DeviceCSVPanel({ restrictToDevice, banksAnn, onBanksAnn, banksPlug, onBanksPlug, fullState, onImportState, isAdmin, onAddCustomPresets, onNavigate }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <ExportImportScreen
+        banksAnn={banksAnn}
+        onBanksAnn={onBanksAnn}
+        banksPlug={banksPlug}
+        onBanksPlug={onBanksPlug}
+        fullState={fullState}
+        onImportState={onImportState}
+        inline={true}
+        isAdmin={false}  /* hide JSON full state — admin l'a via ⚙️ Admin */
+        onAddCustomPresets={onAddCustomPresets}
+        onNavigate={onNavigate}
+        restrictToDevice={restrictToDevice}
+      />
+    </div>
+  );
 }
 
 export default MonProfilScreen;

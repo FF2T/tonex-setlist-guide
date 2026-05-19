@@ -28,9 +28,10 @@ import { inferPresetInfo } from '../utils/infer-preset.js';
 // On considère "inconnu" tout entry qui :
 //   - est falsy (théorique, name vide géré en amont)
 //   - OU a `guessed: true` (fallback heuristique, pas dans le catalog)
-function detectUnknownPresets(importData) {
+function detectUnknownPresets(importData, restrictToDevice) {
   const seen = new Set();
-  ['ann', 'plug'].forEach((k) => {
+  const devices = restrictToDevice ? [restrictToDevice] : ['ann', 'plug'];
+  devices.forEach((k) => {
     Object.values(importData?.[k] || {}).forEach((bank) => {
       ['A', 'B', 'C'].forEach((slot) => {
         const name = bank?.[slot];
@@ -44,7 +45,10 @@ function detectUnknownPresets(importData) {
   return Array.from(seen).sort();
 }
 
-function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBack, onNavigate, fullState, onImportState, inline, isAdmin = true, onAddCustomPresets }) {
+// Phase 7.73.1 — restrictToDevice ('ann'|'plug') filtre le composant
+// sur un device unique : cache les boutons et previews de l'autre
+// device, filtre l'import CSV pour ignorer les banks de l'autre device.
+function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBack, onNavigate, fullState, onImportState, inline, isAdmin = true, onAddCustomPresets, restrictToDevice }) {
   const [exported, setExported] = useState(null);
   const [importData, setImportData] = useState(null);
   const [importErr, setImportErr] = useState(null);
@@ -91,14 +95,18 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
-        const p = parseCSV(ev.target.result);
+        let p = parseCSV(ev.target.result);
         if (!p) { setImportErr(t('export.csv-format-error', 'Format non reconnu.')); return; }
+        // Phase 7.73.1 — Si restrictToDevice, on filtre l'autre device
+        // (le user importe un CSV destiné à 1 seul device — ignore le reste).
+        if (restrictToDevice === 'ann') p = { ann: p.ann || {}, plug: {} };
+        else if (restrictToDevice === 'plug') p = { ann: {}, plug: p.plug || {} };
         // Phase 7.69 — Détection des presets inconnus AVANT l'overwrite.
         // Si tous les presets du CSV sont déjà dans PRESET_CATALOG_MERGED
         // (catalog statique + customPacks user) → preview directe comme
         // avant. Sinon → modale "Presets inconnus" qui demande au user
         // ce qu'il veut faire de chaque nom non référencé.
-        const unknowns = detectUnknownPresets(p);
+        const unknowns = detectUnknownPresets(p, restrictToDevice);
         if (unknowns.length > 0) {
           // Phase 7.69.5 — pré-calcul top suggestion fuzzy par preset
           // inconnu. Si match catalog ≥0.7 token-set ratio → option
@@ -276,9 +284,9 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
       <div style={{ background: 'var(--a3)', border: '1px solid var(--a7)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-sec)', marginBottom: 12, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('export.csv-export', 'Export CSV (Banks)')}</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {xBtn(() => doExportCSV(banksAnn, 'ToneX Anniversary', 'Anniversary'), 'Anniversary', t('export.export-ann', '⬇ Anniversary'), 'var(--brass-300)')}
-          {xBtn(() => doExportCSV(banksPlug, 'ToneX Plug', 'Plug'), 'Plug', t('export.export-plug', '⬇ Plug'), 'var(--accent)')}
-          {xBtn(doExportAll, 'all', t('export.export-both', '⬇ Les deux'), 'var(--brass-500)')}
+          {(!restrictToDevice || restrictToDevice === 'ann') && xBtn(() => doExportCSV(banksAnn, 'ToneX Anniversary', 'Anniversary'), 'Anniversary', t('export.export-ann', '⬇ Anniversary'), 'var(--brass-300)')}
+          {(!restrictToDevice || restrictToDevice === 'plug') && xBtn(() => doExportCSV(banksPlug, 'ToneX Plug', 'Plug'), 'Plug', t('export.export-plug', '⬇ Plug'), 'var(--accent)')}
+          {!restrictToDevice && xBtn(doExportAll, 'all', t('export.export-both', '⬇ Les deux'), 'var(--brass-500)')}
         </div>
       </div>
 
