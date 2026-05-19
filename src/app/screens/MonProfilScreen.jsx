@@ -125,12 +125,8 @@ function MonProfilScreen({
         {!isDemo && tabBtn('custompacks', t('profile.tab.custom-packs', '📦 Mes presets custom'))}
         {/* Phase 7.72 — Tab ToneNET migré dans l'écran Admin séparé.
             Accessible via le bouton "⚙️ Admin" dans la nav. */}
-        {!isDemo && (() => { const en = new Set(profile.enabledDevices || []); return <>
-          {en.has('tonex-pedal') && tabBtn('pedale', t('profile.tab.pedal', '🎛 Pedale ToneX'))}
-          {en.has('tonex-anniversary') && tabBtn('ann', t('profile.tab.ann', '🎛 ToneX Ann.'))}
-          {en.has('tonex-plug') && tabBtn('plug', t('profile.tab.plug', '🔌 ToneX Plug'))}
-          {en.has('tonemaster-pro') && tabBtn('tmp', t('profile.tab.tmp', '🎚️ Patches TMP'))}
-        </>; })()}
+        {/* Phase 7.75 — Tabs pedale/ann/plug/tmp consolidés dans Mes
+            appareils (sections collapsables par device activé). */}
         {tabBtn('display', t('profile.tab.display', '🎨 Affichage'))}
         {!isDemo && tabBtn('reco', t('profile.tab.reco', '🎯 Préférences IA'))}
         {!isDemo && tabBtn('password', t('profile.tab.password', '🔐 Mot de passe'))}
@@ -147,7 +143,7 @@ function MonProfilScreen({
             migrés dans Admin séparé (cf bouton ⚙️ Admin dans la nav). */}
       </div>
       {tab === 'profile' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="guitars" aiKeys={aiKeys} customGuitars={customGuitars} onCustomGuitars={onCustomGuitars}/>}
-      {tab === 'devices' && <MesAppareilsTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId}/>}
+      {tab === 'devices' && <MesAppareilsTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} toneNetPresets={toneNetPresets} fullState={fullState} onImportState={onImportState} onNavigate={onNavigate}/>}
       {tab === 'sources' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="sources"/>}
       {tab === 'custompacks' && <MyCustomPresetsTab profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId} songDb={songDb} inp={inp}/>}
       {/* Phase 7.72 — Tabs AllUserPresets + AdminPacks migrés dans AdminScreen. */}
@@ -243,30 +239,9 @@ function MonProfilScreen({
           </div>
         </div>
       </div>}
-      {tab === 'pedale' && <>
-        <DeviceCSVPanel restrictToDevice="ann" banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} fullState={fullState} onImportState={onImportState} isAdmin={profile.isAdmin} onAddCustomPresets={makeOnAddCustomPresets(onProfiles, activeProfileId)} onNavigate={onNavigate}/>
-        <BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} toneNetPresets={toneNetPresets}
-          factoryBanksByVersion={[
-            { id: 'v2', label: t('bank-editor.firmware-v2', 'Firmware v2 (2025/04/03)'), banks: FACTORY_BANKS_PEDALE_V2 },
-            { id: 'v1', label: t('bank-editor.firmware-v1', 'Firmware v1 (historique)'), banks: FACTORY_BANKS_PEDALE_V1 },
-          ]}
-          defaultFactoryVersion="v2"/>
-      </>}
-      {tab === 'ann' && <>
-        <DeviceCSVPanel restrictToDevice="ann" banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} fullState={fullState} onImportState={onImportState} isAdmin={profile.isAdmin} onAddCustomPresets={makeOnAddCustomPresets(onProfiles, activeProfileId)} onNavigate={onNavigate}/>
-        <BankEditor banks={banksAnn} onBanks={onBanksAnn} color="var(--accent)" maxBanks={50} factoryBanks={FACTORY_BANKS_ANNIVERSARY} toneNetPresets={toneNetPresets}/>
-      </>}
-      {tab === 'plug' && <>
-        <DeviceCSVPanel restrictToDevice="plug" banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} fullState={fullState} onImportState={onImportState} isAdmin={profile.isAdmin} onAddCustomPresets={makeOnAddCustomPresets(onProfiles, activeProfileId)} onNavigate={onNavigate}/>
-        <BankEditor banks={banksPlug} onBanks={onBanksPlug} color="var(--accent)" maxBanks={10} startBank={1} factoryBanks={FACTORY_BANKS_PLUG} toneNetPresets={toneNetPresets}/>
-      </>}
-      {tab === 'tmp' && <TmpBrowser profile={profile} onUpdateCustoms={(customs) => {
-        onProfiles((p) => {
-          const cur = p[activeProfileId]; if (!cur) return p;
-          const prevTmp = cur.tmpPatches || { custom: [], factoryOverrides: {} };
-          return { ...p, [activeProfileId]: { ...cur, tmpPatches: { ...prevTmp, custom: customs }, lastModified: Date.now() } };
-        });
-      }}/>}
+      {/* Phase 7.75 — Tabs pedale/ann/plug/tmp consolidés dans MesAppareilsTab.
+          Le tab 'devices' (Mes appareils) rend désormais aussi les BankEditor
+          + TmpBrowser + CSV compact pour chaque device activé. */}
       {tab === 'password' && <PasswordTab profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp}/>}
       {tab === 'reco' && <div>
         <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>{t('profile.reco.intro', 'Comment l\'IA propose les recommandations.')}</div>

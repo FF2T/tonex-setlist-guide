@@ -48,7 +48,10 @@ function detectUnknownPresets(importData, restrictToDevice) {
 // Phase 7.73.1 — restrictToDevice ('ann'|'plug') filtre le composant
 // sur un device unique : cache les boutons et previews de l'autre
 // device, filtre l'import CSV pour ignorer les banks de l'autre device.
-function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBack, onNavigate, fullState, onImportState, inline, isAdmin = true, onAddCustomPresets, restrictToDevice }) {
+// Phase 7.75 — prop `compact: true` : rend une version compacte avec
+// 2 boutons import/export sur une seule ligne, sans hint/header
+// cosmétique. Utilisé dans MesAppareilsTab consolidé.
+function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBack, onNavigate, fullState, onImportState, inline, isAdmin = true, onAddCustomPresets, restrictToDevice, compact }) {
   const [exported, setExported] = useState(null);
   const [importData, setImportData] = useState(null);
   const [importErr, setImportErr] = useState(null);
@@ -260,17 +263,24 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
   const th = { padding: '7px 10px', textAlign: 'left', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', borderBottom: '2px solid var(--a10)', color: 'var(--text-sec)' };
   const td = { padding: '6px 10px', fontSize: 11, borderBottom: '1px solid var(--a5)', verticalAlign: 'middle' };
 
+  // Phase 7.75 — petits boutons compacts pour le mode `compact: true`
+  // (intégration dans MesAppareilsTab sections par device).
+  const xBtnCompact = (onClick, key, label, color) => (
+    <button onClick={onClick} style={{ background: exported === key ? 'var(--green-border)' : color, border: 'none', color: 'var(--text)', borderRadius: 'var(--r-md)', padding: '5px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+      {exported === key ? t('export.ok', '✅') : label}
+    </button>
+  );
+
   return (
     <div>
       {toast && <div style={{ position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', background: 'var(--green)', color: 'var(--text)', borderRadius: 'var(--r-lg)', padding: '10px 22px', fontSize: 13, fontWeight: 700, zIndex: 999 }}>✅ {toast}</div>}
-      <Breadcrumb crumbs={[{ label: t('common.home', 'Accueil'), screen: 'list' }, { label: t('export.breadcrumb-profile', 'Mon Profil'), screen: 'profile' }, { label: t('export.breadcrumb', 'Import / Export') }]} onNavigate={onNavigate}/>
-      <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 20 }}>{t('export.title', '📋 Export / Import')}</div>
+      {!compact && <Breadcrumb crumbs={[{ label: t('common.home', 'Accueil'), screen: 'list' }, { label: t('export.breadcrumb-profile', 'Mon Profil'), screen: 'profile' }, { label: t('export.breadcrumb', 'Import / Export') }]} onNavigate={onNavigate}/>}
+      {!compact && <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 20 }}>{t('export.title', '📋 Export / Import')}</div>}
 
       {/* Phase 7.67 — Sauvegarde JSON gated isAdmin uniquement.
-          fullState contient TOUS les profils (Sébastien + Bruno + Francisco
-          + …) — pas pour un beta-tester non-admin. L'import JSON pareil :
-          écraserait l'état global de l'app. */}
-      {isAdmin && <div style={{ background: 'var(--green-bg)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
+          fullState contient TOUS les profils — pas pour beta-testeur.
+          Phase 7.75 — caché aussi en mode compact (intégration MesAppareilsTab). */}
+      {isAdmin && !compact && <div style={{ background: 'var(--green-bg)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', marginBottom: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('export.json-section', '💾 Sauvegarde complète (JSON) — admin')}</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button onClick={doExportJSON} style={{ background: 'var(--green)', border: 'none', color: 'var(--text)', borderRadius: 'var(--r-lg)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{t('export.export-json', '⬇ Exporter JSON')}</button>
@@ -280,22 +290,35 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>{t('export.json-hint', 'Sauvegarde complète : setlists, morceaux, presets, banks. Parfait pour sauvegarder ou transférer entre appareils.')}</div>
       </div>}
 
-      {/* Export CSV */}
-      <div style={{ background: 'var(--a3)', border: '1px solid var(--a7)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-sec)', marginBottom: 12, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('export.csv-export', 'Export CSV (Banks)')}</div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {(!restrictToDevice || restrictToDevice === 'ann') && xBtn(() => doExportCSV(banksAnn, 'ToneX Anniversary', 'Anniversary'), 'Anniversary', t('export.export-ann', '⬇ Anniversary'), 'var(--brass-300)')}
-          {(!restrictToDevice || restrictToDevice === 'plug') && xBtn(() => doExportCSV(banksPlug, 'ToneX Plug', 'Plug'), 'Plug', t('export.export-plug', '⬇ Plug'), 'var(--accent)')}
-          {!restrictToDevice && xBtn(doExportAll, 'all', t('export.export-both', '⬇ Les deux'), 'var(--brass-500)')}
+      {/* Export CSV — Phase 7.75 compact mode = 1 ligne, petits boutons */}
+      {compact ? (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          {(!restrictToDevice || restrictToDevice === 'ann') && xBtnCompact(() => doExportCSV(banksAnn, 'ToneX Anniversary', 'Anniversary'), 'Anniversary', t('export.export-compact-ann', '⬇ CSV Ann.'), 'var(--brass-300)')}
+          {(!restrictToDevice || restrictToDevice === 'plug') && xBtnCompact(() => doExportCSV(banksPlug, 'ToneX Plug', 'Plug'), 'Plug', t('export.export-compact-plug', '⬇ CSV Plug'), 'var(--accent)')}
+          <button onClick={() => csvRef.current?.click()} style={{ background: 'var(--yellow-bg)', border: '1px solid rgba(251,191,36,0.35)', color: 'var(--yellow)', borderRadius: 'var(--r-md)', padding: '5px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>{t('export.import-compact', '📂 Importer CSV')}</button>
+          <input ref={csvRef} type="file" accept=".csv,.txt" onChange={handleCSVFile} style={{ display: 'none' }}/>
+          {importErr && <span style={{ fontSize: 11, color: 'var(--red)' }}>⚠ {importErr}</span>}
         </div>
-      </div>
+      ) : (
+        <div style={{ background: 'var(--a3)', border: '1px solid var(--a7)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-sec)', marginBottom: 12, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('export.csv-export', 'Export CSV (Banks)')}</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {(!restrictToDevice || restrictToDevice === 'ann') && xBtn(() => doExportCSV(banksAnn, 'ToneX Anniversary', 'Anniversary'), 'Anniversary', t('export.export-ann', '⬇ Anniversary'), 'var(--brass-300)')}
+            {(!restrictToDevice || restrictToDevice === 'plug') && xBtn(() => doExportCSV(banksPlug, 'ToneX Plug', 'Plug'), 'Plug', t('export.export-plug', '⬇ Plug'), 'var(--accent)')}
+            {!restrictToDevice && xBtn(doExportAll, 'all', t('export.export-both', '⬇ Les deux'), 'var(--brass-500)')}
+          </div>
+        </div>
+      )}
 
-      {/* Import CSV */}
-      <div style={{ background: 'var(--a3)', border: '1px solid var(--a7)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 16 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-sec)', marginBottom: 12, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('export.csv-import', 'Import CSV (Banks)')}</div>
-        <button onClick={() => csvRef.current?.click()} style={{ background: 'var(--yellow-bg)', border: '1px solid rgba(251,191,36,0.35)', color: 'var(--yellow)', borderRadius: 'var(--r-lg)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 8 }}>{t('export.load-csv', '📂 Charger CSV')}</button>
-        <input ref={csvRef} type="file" accept=".csv,.txt" onChange={handleCSVFile} style={{ display: 'none' }}/>
-        {importErr && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--red)', background: 'rgba(239,68,68,0.1)', borderRadius: 'var(--r-md)', padding: '8px 12px' }}>{importErr}</div>}
+      {/* Import CSV — Phase 7.75 :
+          - mode standard : section complète (titre + bouton + modale + preview)
+          - mode compact : titre + bouton standard cachés (rendus en haut via bloc compact)
+            mais modale presets inconnus + preview banks rendus dans tous les cas */}
+      <div style={!compact ? { background: 'var(--a3)', border: '1px solid var(--a7)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 16 } : { marginBottom: 8 }}>
+        {!compact && <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-sec)', marginBottom: 12, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('export.csv-import', 'Import CSV (Banks)')}</div>}
+        {!compact && <button onClick={() => csvRef.current?.click()} style={{ background: 'var(--yellow-bg)', border: '1px solid rgba(251,191,36,0.35)', color: 'var(--yellow)', borderRadius: 'var(--r-lg)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 8 }}>{t('export.load-csv', '📂 Charger CSV')}</button>}
+        {!compact && <input ref={csvRef} type="file" accept=".csv,.txt" onChange={handleCSVFile} style={{ display: 'none' }}/>}
+        {!compact && importErr && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--red)', background: 'rgba(239,68,68,0.1)', borderRadius: 'var(--r-md)', padding: '8px 12px' }}>{importErr}</div>}
         {/* Phase 7.69 — Modale "Presets inconnus détectés".
             S'affiche AVANT la preview banks si le CSV contient des noms
             non référencés dans PRESET_CATALOG_MERGED (catalog statique +

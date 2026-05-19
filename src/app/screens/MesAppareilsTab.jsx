@@ -1,19 +1,70 @@
-// src/app/screens/MesAppareilsTab.jsx — Phase 7.19 (découpage main.jsx).
+// src/app/screens/MesAppareilsTab.jsx — Phase 7.19 + Phase 7.75 consolidation.
 //
-// Onglet "📱 Mes appareils" dans MonProfilScreen. Lit le registry des
-// devices (tonex-pedal, tonex-anniversary, tonex-plug, tonemaster-pro)
-// et permet d'activer/désactiver chacun pour le profil courant. Le
-// scoring/Recap n'affiche que les devices activés. Garde-fou : au
-// moins un device doit rester coché.
+// Onglet "📱 Mes appareils" CONSOLIDÉ : checkboxes des devices + contenu
+// banks/patches par device activé en sections collapsables.
+//
+// Avant Phase 7.75 : 4 onglets séparés (Mes appareils + 🎛 Pedale + 🎛 Ann +
+//   🔌 Plug + 🎚 TMP) → fouillis dans MonProfilScreen.
+// Phase 7.75 : tout dans Mes appareils. Sections collapsables par device,
+//   CSV compact 1 ligne par device, warning si Pedal+Anniversary partagent
+//   banksAnn.
 
-import React from 'react';
-import { t } from '../../i18n/index.js';
+import React, { useState } from 'react';
+import { t, tFormat } from '../../i18n/index.js';
 import { getAllDevices } from '../../devices/registry.js';
 import { stampedProfileUpdate } from '../../core/state.js';
+import BankEditor from '../components/BankEditor.jsx';
+import ExportImportScreen from './ExportImportScreen.jsx';
+import TmpBrowser from '../../devices/tonemaster-pro/Browser.jsx';
+import { FACTORY_BANKS_PEDALE_V1, FACTORY_BANKS_PEDALE_V2 } from '../../devices/tonex-pedal/index.js';
+import { FACTORY_BANKS_ANNIVERSARY } from '../../devices/tonex-anniversary/index.js';
+import { FACTORY_BANKS_PLUG } from '../../devices/tonex-plug/index.js';
 
-function MesAppareilsTab({ profile, profiles, onProfiles, activeProfileId }) {
+// Phase 7.75 — Factory : callback pour push les "ajouter custom" depuis
+// la modale presets inconnus (CSV import) vers profile.customPacks "Mes
+// presets" du profil actif. Centralisé ici car partagé entre les 3
+// sections device (Pedal/Ann/Plug).
+function makeOnAddCustomPresets(onProfiles, activeProfileId) {
+  return (presets) => {
+    onProfiles((p) => {
+      const cur = p[activeProfileId];
+      if (!cur) return p;
+      const packs = (cur.customPacks || []).slice();
+      const defaultIdx = packs.findIndex((pk) => pk.name === 'Mes presets');
+      if (defaultIdx >= 0) {
+        const existing = packs[defaultIdx];
+        const existingNames = new Set((existing.presets || []).map((pr) => pr.name));
+        const newOnes = presets.filter((pr) => !existingNames.has(pr.name));
+        packs[defaultIdx] = { ...existing, presets: [...(existing.presets || []), ...newOnes] };
+      } else {
+        packs.push({ name: 'Mes presets', presets: presets.slice() });
+      }
+      return { ...p, [activeProfileId]: { ...cur, customPacks: packs, lastModified: Date.now() } };
+    });
+  };
+}
+
+function MesAppareilsTab({
+  profile, profiles, onProfiles, activeProfileId,
+  banksAnn, onBanksAnn, banksPlug, onBanksPlug,
+  toneNetPresets,
+  fullState, onImportState,
+  onNavigate,
+}) {
   const allDevices = getAllDevices();
   const enabled = new Set(profile.enabledDevices || []);
+
+  // Sections expandables : par défaut toutes ouvertes (le user voit
+  // tout son rig d'un coup). Toggle pour collapse si besoin.
+  const [collapsedDevices, setCollapsedDevices] = useState(() => new Set());
+  const toggleCollapsed = (id) => {
+    setCollapsedDevices((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
   const toggleDevice = (id) => {
     const next = new Set(enabled);
     if (next.has(id)) {
@@ -23,47 +74,188 @@ function MesAppareilsTab({ profile, profiles, onProfiles, activeProfileId }) {
       next.add(id);
     }
     const arr = allDevices.filter((d) => next.has(d.id)).map((d) => d.id);
-    // Phase 7.74 — stamp obligatoire (bug critique : sans stamp, le
-    // toggle device peut être écrasé par un autre device sync ; cause
-    // probable du symptôme "banks corrompus" rapporté 2026-05-18).
     onProfiles((p) => stampedProfileUpdate(p, activeProfileId, { enabledDevices: arr }));
   };
-  return (
-    <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 16 }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>{t('devices.title', 'Mes appareils audio')}</div>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>{t('devices.hint', "Coche les appareils que tu utilises. Les blocs Recap et Synthèse n'afficheront que ceux-ci. Au moins un appareil doit rester coché.")}</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {allDevices.map((d) => {
-          const on = enabled.has(d.id);
-          return (
-            <button
-              key={d.id}
-              onClick={() => toggleDevice(d.id)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 12,
-                background: on ? 'var(--green-bg)' : 'var(--a3)',
-                border: on ? '1px solid var(--green-border)' : '1px solid var(--a8)',
-                borderRadius: 'var(--r-md)', padding: '12px 14px',
-                cursor: 'pointer', textAlign: 'left', width: '100%',
-              }}
-            >
-              <div style={{
-                width: 18, height: 18, borderRadius: 'var(--r-sm)',
-                border: on ? '2px solid var(--green)' : '2px solid var(--text-muted)',
-                background: on ? 'var(--green)' : 'transparent',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              }}>
-                {on && <span style={{ color: 'var(--bg)', fontSize: 10, fontWeight: 900 }}>✓</span>}
-              </div>
-              <span style={{ fontSize: 18, flexShrink: 0 }}>{d.icon}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: on ? 'var(--text)' : 'var(--text-sec)' }}>{d.label}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{d.description}</div>
-              </div>
-            </button>
-          );
-        })}
+
+  const addCustomPresets = makeOnAddCustomPresets(onProfiles, activeProfileId);
+
+  // Phase 7.75 — warning si Pedal + Anniversary tous deux activés :
+  // ils partagent banksAnn (data legacy depuis Phase 2). On affiche
+  // un message clair que les modifs sur l'un affectent l'autre.
+  const sharesBanksAnn = enabled.has('tonex-pedal') && enabled.has('tonex-anniversary');
+
+  // Rendu section device (BankEditor + CSV compact + TMP).
+  const renderDeviceSection = (d) => {
+    const isCollapsed = collapsedDevices.has(d.id);
+    const sectionStyle = {
+      background: 'var(--a3)',
+      border: '1px solid var(--a7)',
+      borderRadius: 'var(--r-lg)',
+      padding: 14,
+      marginTop: 12,
+    };
+
+    let content = null;
+
+    if (d.id === 'tonex-pedal') {
+      content = (
+        <>
+          {sharesBanksAnn && (
+            <div style={{ fontSize: 11, color: 'var(--yellow)', background: 'var(--yellow-bg)', border: '1px solid rgba(251,191,36,0.35)', borderRadius: 'var(--r-md)', padding: '6px 10px', marginBottom: 10 }}>
+              {t('devices.shared-banks-warning', '⚠ Ces banks sont partagées avec ton ToneX Anniversary (data legacy). Modifs sur l\'un affectent l\'autre.')}
+            </div>
+          )}
+          <ExportImportScreen
+            banksAnn={banksAnn} onBanksAnn={onBanksAnn}
+            banksPlug={banksPlug} onBanksPlug={onBanksPlug}
+            fullState={fullState} onImportState={onImportState}
+            inline={true} isAdmin={false}
+            onAddCustomPresets={addCustomPresets}
+            onNavigate={onNavigate}
+            restrictToDevice="ann"
+            compact={true}
+          />
+          <BankEditor
+            banks={banksAnn} onBanks={onBanksAnn}
+            color="var(--accent)" maxBanks={50}
+            toneNetPresets={toneNetPresets}
+            factoryBanksByVersion={[
+              { id: 'v2', label: t('bank-editor.firmware-v2', 'Firmware v2 (2025/04/03)'), banks: FACTORY_BANKS_PEDALE_V2 },
+              { id: 'v1', label: t('bank-editor.firmware-v1', 'Firmware v1 (historique)'), banks: FACTORY_BANKS_PEDALE_V1 },
+            ]}
+            defaultFactoryVersion="v2"
+          />
+        </>
+      );
+    } else if (d.id === 'tonex-anniversary') {
+      content = (
+        <>
+          {sharesBanksAnn && (
+            <div style={{ fontSize: 11, color: 'var(--yellow)', background: 'var(--yellow-bg)', border: '1px solid rgba(251,191,36,0.35)', borderRadius: 'var(--r-md)', padding: '6px 10px', marginBottom: 10 }}>
+              {t('devices.shared-banks-warning', '⚠ Ces banks sont partagées avec ton ToneX Pedal classique (data legacy). Modifs sur l\'un affectent l\'autre.')}
+            </div>
+          )}
+          <ExportImportScreen
+            banksAnn={banksAnn} onBanksAnn={onBanksAnn}
+            banksPlug={banksPlug} onBanksPlug={onBanksPlug}
+            fullState={fullState} onImportState={onImportState}
+            inline={true} isAdmin={false}
+            onAddCustomPresets={addCustomPresets}
+            onNavigate={onNavigate}
+            restrictToDevice="ann"
+            compact={true}
+          />
+          <BankEditor
+            banks={banksAnn} onBanks={onBanksAnn}
+            color="var(--accent)" maxBanks={50}
+            factoryBanks={FACTORY_BANKS_ANNIVERSARY}
+            toneNetPresets={toneNetPresets}
+          />
+        </>
+      );
+    } else if (d.id === 'tonex-plug') {
+      content = (
+        <>
+          <ExportImportScreen
+            banksAnn={banksAnn} onBanksAnn={onBanksAnn}
+            banksPlug={banksPlug} onBanksPlug={onBanksPlug}
+            fullState={fullState} onImportState={onImportState}
+            inline={true} isAdmin={false}
+            onAddCustomPresets={addCustomPresets}
+            onNavigate={onNavigate}
+            restrictToDevice="plug"
+            compact={true}
+          />
+          <BankEditor
+            banks={banksPlug} onBanks={onBanksPlug}
+            color="var(--accent)" maxBanks={10} startBank={1}
+            factoryBanks={FACTORY_BANKS_PLUG}
+            toneNetPresets={toneNetPresets}
+          />
+        </>
+      );
+    } else if (d.id === 'tonemaster-pro') {
+      content = (
+        <TmpBrowser profile={profile} onUpdateCustoms={(customs) => {
+          onProfiles((p) => {
+            const cur = p[activeProfileId];
+            if (!cur) return p;
+            const prevTmp = cur.tmpPatches || { custom: [], factoryOverrides: {} };
+            return { ...p, [activeProfileId]: { ...cur, tmpPatches: { ...prevTmp, custom: customs }, lastModified: Date.now() } };
+          });
+        }}/>
+      );
+    }
+
+    if (!content) return null;
+
+    return (
+      <div key={d.id} style={sectionStyle}>
+        <button
+          onClick={() => toggleCollapsed(d.id)}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0, marginBottom: isCollapsed ? 0 : 10 }}
+        >
+          <span style={{ fontSize: 18, flexShrink: 0 }}>{d.icon}</span>
+          <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{d.label}</span>
+          <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{isCollapsed ? '▼' : '▲'}</span>
+        </button>
+        {!isCollapsed && content}
       </div>
+    );
+  };
+
+  // Liste des devices activés à afficher (ordre du registry).
+  const enabledList = allDevices.filter((d) => enabled.has(d.id));
+
+  return (
+    <div>
+      {/* Section 1 — Toggle des devices */}
+      <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>{t('devices.title', 'Mes appareils audio')}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>{t('devices.hint', "Coche les appareils que tu utilises. Les blocs Recap et Synthèse n'afficheront que ceux-ci. Au moins un appareil doit rester coché.")}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {allDevices.map((d) => {
+            const on = enabled.has(d.id);
+            return (
+              <button
+                key={d.id}
+                onClick={() => toggleDevice(d.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  background: on ? 'var(--green-bg)' : 'var(--a3)',
+                  border: on ? '1px solid var(--green-border)' : '1px solid var(--a8)',
+                  borderRadius: 'var(--r-md)', padding: '12px 14px',
+                  cursor: 'pointer', textAlign: 'left', width: '100%',
+                }}
+              >
+                <div style={{
+                  width: 18, height: 18, borderRadius: 'var(--r-sm)',
+                  border: on ? '2px solid var(--green)' : '2px solid var(--text-muted)',
+                  background: on ? 'var(--green)' : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  {on && <span style={{ color: 'var(--bg)', fontSize: 10, fontWeight: 900 }}>✓</span>}
+                </div>
+                <span style={{ fontSize: 18, flexShrink: 0 }}>{d.icon}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: on ? 'var(--text)' : 'var(--text-sec)' }}>{d.label}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{d.description}</div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Section 2 — Contenu par device activé (BankEditor + CSV + TMP) */}
+      {enabledList.length > 0 && (
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, marginLeft: 4 }}>
+            {tFormat('devices.sections-hint', { n: enabledList.length }, 'Banks et patches de tes {n} appareil(s) activé(s) :')}
+          </div>
+          {enabledList.map(renderDeviceSection)}
+        </div>
+      )}
     </div>
   );
 }
