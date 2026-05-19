@@ -4,8 +4,10 @@ const {execSync} = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+// Phase 7.69.4 — chemin corrigé : la structure Drive a évolué et inclut
+// un dossier "Google Drive" intermédiaire (au lieu de "Documents GDrive").
 const BASE = path.join(
-  '/Users/sebastien/Library/CloudStorage/GoogleDrive-sebastien.chemin@gmail.com/Mon Drive/Documents GDrive/Musique/Guitare/TONEX/AMP'
+  '/Users/sebastien/Library/CloudStorage/GoogleDrive-sebastien.chemin@gmail.com/Mon Drive/Google Drive/Musique/Guitare/TONEX/AMP'
 );
 const TSR_DIR = path.join(BASE, 'TSR TONE MODELS');
 const ML_DIR  = path.join(BASE, 'ML-Sound-Lab-Capture-Pack-ESSENTIALS/ToneX');

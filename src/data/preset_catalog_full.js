@@ -722,4 +722,5 @@ const PRESET_CATALOG_FULL = {
   "Tube King Imp MK2 FULL BEANS": {src:"TSR",amp:"Mesa Mark IIC+",gain:"high",style:"metal",scores:{HB:94,SC:50,P90:65}},
 };
 // 636 presets total
+
 export { PRESET_CATALOG_FULL };
