@@ -849,6 +849,21 @@ src/core/state.test.js      +9 tests Phase 7.74.4
                             +2 tests legacy language ajustés
 ```
 
+### Validation post-déploiement (2026-05-19 nuit)
+
+- **Push origin main fait** (commit `e73ea99` sur main avec
+  `dist/index.html` + `dist/sw.js` v8.14.145).
+- **iPhone reload validé** : `JSON.parse(localStorage.tonex_guide_v2)
+  .profiles.sebastien` = 12 guitares dont Tele 51 (`cg_1779120397266`),
+  pas de sire_t3/sire_t7 polluants, language `fr`. Wrapper Phase
+  7.74.5 actif (`✅ [Backline] Persistent merge logger active`).
+- **Erreurs transitoires "Service Worker context closed" + firestore
+  "Load failed"** observées au 1er reload iPhone — attendues au
+  basculement SW v244 → v245 (fetch en cours tué par activation
+  nouveau SW). Disparues au 2e reload.
+- Aucun log forensique `[merge-defense]` capturé sur iPhone post-fix
+  → état stable, pas de merge suspect en cours.
+
 ### Dette résiduelle Phase 7.74.4
 
 - **Source de pollution non identifiée** : on a éliminé le state
@@ -857,6 +872,10 @@ src/core/state.test.js      +9 tests Phase 7.74.4
   auto-pollution historique. Wrapper iPhone activé Phase 7.74.4
   (Sébastien a posé `localStorage.__backline_persist_logs = 'true'`)
   → catch en live au prochain épisode si récidive.
+- **Surveillance 24-48h** : si aucune récidive observée, archiver
+  la dette pollution myGuitars. Si récidive avec log forensique
+  capturé (`window.__getMergeDebugLogs()` côté iPhone) → Phase
+  7.74.5 ciblée selon le pattern observé.
 - **Détection symétrique manquante** : le swap suspect catch
   "1 cg_* dropped → standard added". Mais le pattern inverse
   "1 standard dropped → cg_* added" n'est pas catché. Improbable
