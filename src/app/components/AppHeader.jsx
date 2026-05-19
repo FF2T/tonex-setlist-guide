@@ -22,6 +22,8 @@ const getNavItems = () => [
   { id: 'explore', label: t('nav.explore', 'Explorer') },
   { id: 'jam', label: t('nav.jam', 'Jammer') },
   { id: 'optimizer', label: t('nav.optimizer', 'Optimiser'), adminOnly: true },
+  // Phase 7.72 — Écran admin séparé, gated isAdmin.
+  { id: 'admin', label: t('nav.admin', '⚙️ Admin'), adminOnly: true },
 ];
 
 function AppHeader({ profiles, activeProfileId, onProfile, onSwitch, onViewProfile, onUpgradePassword, screen, onNavigate, isAdmin, syncStatus, appVersion }) {
@@ -74,6 +76,8 @@ function AppNavBottom({ screen, onNavigate, isAdmin }) {
     { id: 'explore', label: t('nav.explore', 'Explorer') },
     { id: 'jam', label: t('nav.jam', 'Jammer') },
     { id: 'optimizer', label: t('nav.optimizer', 'Optimiser'), adminOnly: true },
+    // Phase 7.72 — Écran admin séparé.
+    { id: 'admin', label: t('nav.admin', '⚙️ Admin'), adminOnly: true },
   ];
   const visibleItems = ITEMS.filter((it) => !it.adminOnly || isAdmin);
   return (

@@ -19,12 +19,10 @@ import Breadcrumb from '../components/Breadcrumb.jsx';
 import BankEditor from '../components/BankEditor.jsx';
 import ProfileTab from './ProfileTab.jsx';
 import MesAppareilsTab from './MesAppareilsTab.jsx';
-import ToneNetTab from './ToneNetTab.jsx';
 import MyCustomPresetsTab from './MyCustomPresetsTab.jsx';
-import AllUserPresetsTab from './AllUserPresetsTab.jsx';
-import ProfilesAdmin from './ProfilesAdmin.jsx';
 import PacksTab from './PacksTab.jsx';
-import AdminPacksTab from './AdminPacksTab.jsx';
+// Phase 7.72 — ToneNetTab, AllUserPresetsTab, ProfilesAdmin, AdminPacksTab
+// migrés dans src/app/screens/AdminScreen.jsx (écran admin séparé).
 import ExportImportScreen from './ExportImportScreen.jsx';
 import { InlineRenameInput } from './ListScreen.jsx';
 import TmpBrowser from '../../devices/tonemaster-pro/Browser.jsx';
@@ -124,7 +122,8 @@ function MonProfilScreen({
             les profils (non-admin inclus) pour documenter customPacks
             personnels avec metadata enrichie + usages artistes. */}
         {!isDemo && tabBtn('custompacks', t('profile.tab.custom-packs', '📦 Mes presets custom'))}
-        {!isDemo && profile.isAdmin && tabBtn('tonenet', t('profile.tab.tonenet', '🌐 ToneNET'))}
+        {/* Phase 7.72 — Tab ToneNET migré dans l'écran Admin séparé.
+            Accessible via le bouton "⚙️ Admin" dans la nav. */}
         {!isDemo && (() => { const en = new Set(profile.enabledDevices || []); return <>
           {en.has('tonex-pedal') && tabBtn('pedale', t('profile.tab.pedal', '🎛 Pedale ToneX'))}
           {en.has('tonex-anniversary') && tabBtn('ann', t('profile.tab.ann', '🎛 ToneX Ann.'))}
@@ -134,24 +133,21 @@ function MonProfilScreen({
         {tabBtn('display', t('profile.tab.display', '🎨 Affichage'))}
         {!isDemo && tabBtn('reco', t('profile.tab.reco', '🎯 Préférences IA'))}
         {!isDemo && tabBtn('password', t('profile.tab.password', '🔐 Mot de passe'))}
-        {!isDemo && profile.isAdmin && tabBtn('ia', t('profile.tab.api-key', '🔑 Clé API'))}
-        {!isDemo && profile.isAdmin && tabBtn('maintenance', t('profile.tab.maintenance', '🔧 Maintenance'))}
+        {/* Phase 7.72 — Tabs Clé API + Maintenance migrés dans Admin séparé. */}
         {/* Phase 7.67 — Export/Import ouvert aux non-admins. Les setters
             onBanksAnn/onBanksPlug écrivent dans profile.banksAnn/banksPlug
             du profil actif (per-profile, pas cross-profil). Modale preview
             ajoutée dans ExportImportScreen avant l'overwrite. */}
         {!isDemo && tabBtn('export', t('profile.tab.export', '📋 Export / Import'))}
-        {!isDemo && profile.isAdmin && tabBtn('admin_profiles', t('profile.tab.profiles', '👥 Profils'))}
-        {!isDemo && profile.isAdmin && tabBtn('alluserpresets', t('profile.tab.alluserpresets', '👁 Tous les presets users'))}
-        {!isDemo && profile.isAdmin && tabBtn('adminpacks', t('profile.tab.adminpacks', '📦 Packs (admin)'))}
+        {/* Phase 7.72 — Tabs Profils + AllUserPresets + AdminPacks
+            migrés dans Admin séparé (cf bouton ⚙️ Admin dans la nav). */}
       </div>
       {tab === 'profile' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="guitars" aiKeys={aiKeys} customGuitars={customGuitars} onCustomGuitars={onCustomGuitars}/>}
       {tab === 'devices' && <MesAppareilsTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId}/>}
       {tab === 'sources' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="sources"/>}
       {tab === 'custompacks' && <MyCustomPresetsTab profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId} songDb={songDb} inp={inp}/>}
-      {profile.isAdmin && tab === 'alluserpresets' && <AllUserPresetsTab profiles={profiles} onProfiles={onProfiles} songDb={songDb} inp={inp}/>}
-      {profile.isAdmin && tab === 'adminpacks' && <AdminPacksTab adminPacks={adminPacks} onAdminPacks={onAdminPacks} profile={profile} inp={inp} aiKeys={aiKeys} aiProvider={aiProvider}/>}
-      {profile.isAdmin && tab === 'tonenet' && <ToneNetTab toneNetPresets={toneNetPresets} onToneNetPresets={onToneNetPresets} inp={inp} songDb={songDb}/>}
+      {/* Phase 7.72 — Tabs AllUserPresets + AdminPacks migrés dans AdminScreen. */}
+      {/* Phase 7.72 — Rendus admin migrés dans AdminScreen.jsx */}
       {tab === 'setlists' && <div>
         <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>{setlists.length} setlist{setlists.length > 1 ? 's' : ''}</div>
         {setlists.map((sl) => (
@@ -412,38 +408,7 @@ function MonProfilScreen({
           >🗑 Invalider tous les caches IA</button>
         </div>}
       </div>}
-      {profile.isAdmin && tab === 'ia' && <div>
-        <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>Configuration de la clé API pour l'IA.</div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 12px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontWeight: 700 }}>Modèle actif :</span>
-          <span style={{ color: 'var(--green)', fontWeight: 600 }}>{aiProvider === 'gemini' ? 'gemini-3-flash-preview' : 'claude-haiku-4-5'}</span>
-        </div>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>Cle Gemini</div>
-        <input type="password" placeholder="AIza..." value={aiKeys.gemini} onChange={(e) => onAiKeys((p) => ({ ...p, gemini: e.target.value }))} style={{ ...inp, width: '100%', marginBottom: 8, fontFamily: 'monospace' }}/>
-        <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-          <button
-            data-testid="profile-share-gemini-key"
-            onClick={() => {
-              if (!aiKeys.gemini) { window.alert('Configure d\'abord une clé Gemini.'); return; }
-              if (!window.confirm('Partager ta clé Gemini avec tous les profils ?\n\n• La clé est stockée dans Firestore (config/apikeys.gemini)\n• Tous les devices (Mac, iPhone, iPad) la téléchargent au boot\n• Les profils sans clé personnelle l\'utiliseront en fallback\n• Les appels IA seront facturés sur ton quota Google\n\nGemini a un free tier généreux (1500 req/jour) qui suffit largement.')) return;
-              if (!onSaveSharedKey) { window.alert('saveSharedKey indisponible.'); return; }
-              onSaveSharedKey(aiKeys.gemini).then(() => {
-                setSharedGeminiKey(aiKeys.gemini);
-                window.alert('✓ Clé partagée. Les autres profils l\'utiliseront au prochain reload.');
-              }).catch((e) => {
-                console.error('[saveSharedKey] failed:', e);
-                window.alert('Échec du partage. Vérifie ta console pour le détail.');
-              });
-            }}
-            disabled={!aiKeys.gemini}
-            style={{ background: aiKeys.gemini ? 'var(--green)' : 'var(--bg-disabled)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: aiKeys.gemini ? 'pointer' : 'not-allowed' }}
-          >🔑 Partager la clé (tous les profils)</button>
-          <span style={{ fontSize: 10, color: 'var(--text-dim)', alignSelf: 'center' }}>aistudio.google.com → Get API key</span>
-        </div>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>Cle Anthropic (fallback)</div>
-        <input type="password" placeholder="sk-ant-..." value={aiKeys.anthropic} onChange={(e) => onAiKeys((p) => ({ ...p, anthropic: e.target.value }))} style={{ ...inp, width: '100%', fontFamily: 'monospace' }}/>
-      </div>}
-      {profile.isAdmin && tab === 'maintenance' && MaintenanceTabComponent && <MaintenanceTabComponent songDb={songDb} onSongDb={onSongDb} onAiCacheUpdate={onAiCacheUpdate} onProfiles={onProfiles} activeProfileId={activeProfileId} setlists={allSetlists} onSetlists={onSetlists} onDeletedSetlistIds={onDeletedSetlistIds} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} profile={profile} profiles={profiles} guitarBias={guitarBias}/>}
+      {/* Phase 7.72 — Tabs Clé API + Maintenance migrés dans AdminScreen. */}
       {tab === 'export' && <ExportImportScreen banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} onBack={() => setTab('profile')} onNavigate={onNavigate} fullState={fullState} onImportState={onImportState} inline={true} isAdmin={profile.isAdmin} onAddCustomPresets={(presets) => {
         // Phase 7.69 — Callback depuis ExportImportScreen quand le user
         // choisit "Ajouter" pour 1+ presets inconnus détectés au parse CSV.
@@ -465,7 +430,7 @@ function MonProfilScreen({
           return { ...p, [activeProfileId]: { ...cur, customPacks: packs, lastModified: Date.now() } };
         });
       }}/>}
-      {profile.isAdmin && tab === 'admin_profiles' && <ProfilesAdmin profiles={profiles} onProfiles={onProfiles}/>}
+      {/* Phase 7.72 — Tab Profils migré dans AdminScreen. */}
       <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--a8)', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <button onClick={() => { if (typeof window.setShowOnboarding === 'function') window.setShowOnboarding(true); else { const e = new CustomEvent('showOnboarding'); window.dispatchEvent(e); } }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>Aide</button>
         <button onClick={() => { location.reload(true); }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>Mise à jour</button>
