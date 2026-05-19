@@ -561,26 +561,36 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
         </div>}
       </div>
 
-      {/* Tableaux banks */}
-      {[{ banks: banksAnn, label: 'ToneX Anniversary', color: 'var(--accent)' }, { banks: banksPlug, label: 'ToneX Plug', color: 'var(--accent)' }].map(({ banks, label, color }) => (
-        <div key={label} style={{ marginBottom: 20 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}><div style={{ width: 4, height: 18, background: color, borderRadius: 'var(--r-xs)' }}/><div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{label}</div><div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{tFormat('export.banks-count', { count: Object.keys(banks).length }, '{count} banks')}</div></div>
-          <div style={{ overflowX: 'auto', borderRadius: 'var(--r-lg)', border: '1px solid var(--a8)' }}>
-            <table>
-              <thead><tr style={{ background: 'var(--a4)' }}><th style={{ ...th, width: 45 }}>{t('export.col-bank', 'Bank')}</th><th style={th}>{t('export.col-category', 'Catégorie')}</th>{['A', 'B', 'C'].map((c) => <th key={c} style={{ ...th, color: CC[c] }}>{c} — {CL[c]}</th>)}</tr></thead>
-              <tbody>
-                {Object.entries(banks).sort((a, b) => Number(a[0]) - Number(b[0])).map(([k, v], i) => (
-                  <tr key={k} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--a3)' }}>
-                    <td style={{ ...td, fontWeight: 800, color: color, fontSize: 13 }}>{k}</td>
-                    <td style={{ ...td, color: 'var(--text-sec)' }}>{v.cat}</td>
-                    {['A', 'B', 'C'].map((c) => <td key={c} style={td}><span style={{ color: 'var(--text-bright)' }}>{v[c]}</span></td>)}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* Tableaux banks read-only — Phase 7.75 :
+          - mode standalone (compat) : affiche les 2 devices (ann + plug)
+          - mode compact (MesAppareilsTab) : entièrement caché. Le user
+            voit déjà le BankEditor interactif juste après (qui rend les
+            mêmes banks avec les pastilles + édition). Le tableau read-only
+            créait un doublon visuel. */}
+      {!compact && [{ banks: banksAnn, label: 'ToneX Anniversary', color: 'var(--accent)' }, { banks: banksPlug, label: 'ToneX Plug', color: 'var(--accent)' }]
+        .filter(({ banks }) => Object.keys(banks).length > 0)
+        .filter(({ label }) => !restrictToDevice
+          || (restrictToDevice === 'ann' && label === 'ToneX Anniversary')
+          || (restrictToDevice === 'plug' && label === 'ToneX Plug'))
+        .map(({ banks, label, color }) => (
+          <div key={label} style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}><div style={{ width: 4, height: 18, background: color, borderRadius: 'var(--r-xs)' }}/><div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{label}</div><div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{tFormat('export.banks-count', { count: Object.keys(banks).length }, '{count} banks')}</div></div>
+            <div style={{ overflowX: 'auto', borderRadius: 'var(--r-lg)', border: '1px solid var(--a8)' }}>
+              <table>
+                <thead><tr style={{ background: 'var(--a4)' }}><th style={{ ...th, width: 45 }}>{t('export.col-bank', 'Bank')}</th><th style={th}>{t('export.col-category', 'Catégorie')}</th>{['A', 'B', 'C'].map((c) => <th key={c} style={{ ...th, color: CC[c] }}>{c} — {CL[c]}</th>)}</tr></thead>
+                <tbody>
+                  {Object.entries(banks).sort((a, b) => Number(a[0]) - Number(b[0])).map(([k, v], i) => (
+                    <tr key={k} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--a3)' }}>
+                      <td style={{ ...td, fontWeight: 800, color: color, fontSize: 13 }}>{k}</td>
+                      <td style={{ ...td, color: 'var(--text-sec)' }}>{v.cat}</td>
+                      {['A', 'B', 'C'].map((c) => <td key={c} style={td}><span style={{ color: 'var(--text-bright)' }}>{v[c]}</span></td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
     </div>
   );
 }
