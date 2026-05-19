@@ -24,6 +24,7 @@ import MyCustomPresetsTab from './MyCustomPresetsTab.jsx';
 import AllUserPresetsTab from './AllUserPresetsTab.jsx';
 import ProfilesAdmin from './ProfilesAdmin.jsx';
 import PacksTab from './PacksTab.jsx';
+import AdminPacksTab from './AdminPacksTab.jsx';
 import ExportImportScreen from './ExportImportScreen.jsx';
 import { InlineRenameInput } from './ListScreen.jsx';
 import TmpBrowser from '../../devices/tonemaster-pro/Browser.jsx';
@@ -40,6 +41,7 @@ function MonProfilScreen({
   allGuitars, allRigsGuitars, guitarBias,
   initTab, customGuitars, onCustomGuitars,
   toneNetPresets, onToneNetPresets,
+  adminPacks, onAdminPacks,
   fullState, onImportState, onLogout,
   MaintenanceTabComponent, onSaveSharedKey,
 }) {
@@ -141,12 +143,14 @@ function MonProfilScreen({
         {!isDemo && tabBtn('export', t('profile.tab.export', '📋 Export / Import'))}
         {!isDemo && profile.isAdmin && tabBtn('admin_profiles', t('profile.tab.profiles', '👥 Profils'))}
         {!isDemo && profile.isAdmin && tabBtn('alluserpresets', t('profile.tab.alluserpresets', '👁 Tous les presets users'))}
+        {!isDemo && profile.isAdmin && tabBtn('adminpacks', t('profile.tab.adminpacks', '📦 Packs (admin)'))}
       </div>
       {tab === 'profile' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="guitars" aiKeys={aiKeys} customGuitars={customGuitars} onCustomGuitars={onCustomGuitars}/>}
       {tab === 'devices' && <MesAppareilsTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId}/>}
       {tab === 'sources' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="sources"/>}
       {tab === 'custompacks' && <MyCustomPresetsTab profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId} songDb={songDb} inp={inp}/>}
       {profile.isAdmin && tab === 'alluserpresets' && <AllUserPresetsTab profiles={profiles} onProfiles={onProfiles} songDb={songDb} inp={inp}/>}
+      {profile.isAdmin && tab === 'adminpacks' && <AdminPacksTab adminPacks={adminPacks} onAdminPacks={onAdminPacks} profile={profile} inp={inp}/>}
       {profile.isAdmin && tab === 'tonenet' && <ToneNetTab toneNetPresets={toneNetPresets} onToneNetPresets={onToneNetPresets} inp={inp} songDb={songDb}/>}
       {tab === 'setlists' && <div>
         <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>{setlists.length} setlist{setlists.length > 1 ? 's' : ''}</div>

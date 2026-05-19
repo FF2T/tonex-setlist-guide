@@ -267,7 +267,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.117";
+const APP_VERSION = "8.14.118";
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
 // avec Mon Profil → tabs admin (déjà gated sur profile.isAdmin). Tout
 // l'admin passe désormais par Mon Profil, pas de PIN à mémoriser.
@@ -405,7 +405,7 @@ function App() {
   const initDefault = saved || {
     version:STATE_VERSION,
     activeProfileId:"sebastien",
-    shared:{songDb:INIT_SONG_DB_META, theme:"dark", setlists:[{id:"sl_main",name:"Ma Setlist",songIds:INIT_SONG_DB_META.map(s=>s.id),profileIds:["sebastien"],lastModified:Date.now()}], toneNetPresets:[], deletedSetlistIds:{}, lastModified:Date.now()},
+    shared:{songDb:INIT_SONG_DB_META, theme:"dark", setlists:[{id:"sl_main",name:"Ma Setlist",songIds:INIT_SONG_DB_META.map(s=>s.id),profileIds:["sebastien"],lastModified:Date.now()}], toneNetPresets:[], deletedSetlistIds:{}, adminPacks:[], lastModified:Date.now()},
     profiles:{sebastien:makeDefaultProfile("sebastien","Sébastien",true)}
   };
 
@@ -488,6 +488,11 @@ function App() {
     return migrated;
   });
   const [toneNetPresets, setToneNetPresets] = useState(initDefault.shared?.toneNetPresets || []);
+  // Phase 7.69.7 — adminPacks : packs créés par l'admin via PacksTab
+  // (import listing texte unzip -l). Stockés dans shared.* → visibles
+  // par tous les profils via leur toggle Sources existant (TSR / AA /
+  // ML / JS / TJ / WT / Galtone / ToneNET selon la source choisie).
+  const [adminPacks, setAdminPacks] = useState(initDefault.shared?.adminPacks || []);
   // Sync ToneNET presets to global lookup for findCatalogEntry
   useEffect(()=>{
     var lookup={};
@@ -734,6 +739,40 @@ function App() {
       });
     });
   },[profile?.customPacks]);
+
+  // Phase 7.69.7 — Sync adminPacks dans PRESET_CATALOG_MERGED.
+  // Pattern identique customPacks mais lecture depuis shared.adminPacks
+  // (visible à tous les profils). Chaque preset prend src = pack.source
+  // (SOURCE_ID standard : TSR, AA, JS, TJ, ML, WT, Galtone, ToneNET ou
+  // custom). Le toggle Sources existant du user contrôle l'inclusion.
+  // Marqueur interne `adminPack: true` + `pack: pack.name` pour
+  // traçabilité (debug + UI).
+  useMemo(()=>{
+    // Clean : retire d'abord les entries marquées adminPack: true (pour
+    // gérer suppression/édition).
+    for(const k of Object.keys(PRESET_CATALOG_MERGED)){
+      if(PRESET_CATALOG_MERGED[k].adminPack) delete PRESET_CATALOG_MERGED[k];
+    }
+    (adminPacks||[]).forEach(pack=>{
+      const src = pack.source || 'custom';
+      (pack.presets||[]).forEach(p=>{
+        if(!p.name) return;
+        const entry={
+          src,
+          adminPack:true,
+          creator:p.creator||'',
+          amp:p.amp||'Unknown',
+          gain:p.gain||'mid',
+          style:p.style||'rock',
+          channel:p.channel||'',
+          pack:pack.name||'Admin Pack',
+          scores:p.scores||{HB:75,SC:75,P90:75},
+        };
+        if(Array.isArray(p.usages) && p.usages.length>0) entry.usages=p.usages;
+        PRESET_CATALOG_MERGED[p.name]=entry;
+      });
+    });
+  },[adminPacks]);
 
   // Per-profile convenience setters. Phase 5.7 : stamp profile.lastModified
   // au write pour permettre le LWW per-profile côté merge Firestore.
@@ -990,6 +1029,8 @@ function App() {
       (setlists||[]).map(s=>s.id+":"+(s.songIds||[]).slice().sort().join(',')+":"+(s.profileIds||[]).slice().sort().join(',')+":"+(s.name||'')).join('|'),
       (customGuitars||[]).map(g=>g.id).slice().sort().join(','),
       Object.keys(deletedSetlistIds||{}).slice().sort().join(','),
+      // Phase 7.69.7 — hash adminPacks pour déclencher sync sur modif
+      (adminPacks||[]).map(pk=>(pk.id||'')+':'+(pk.lastModified||0)+':'+((pk.presets||[]).length)).join('|'),
       profileHash,
       activeProfileId,
       theme,
@@ -1007,7 +1048,7 @@ function App() {
     const state={
       version:STATE_VERSION,
       activeProfileId,
-      shared:{songDb,theme,setlists,customGuitars,toneNetPresets,deletedSetlistIds,lastModified:lastSharedModRef.current},
+      shared:{songDb,theme,setlists,customGuitars,toneNetPresets,deletedSetlistIds,adminPacks,lastModified:lastSharedModRef.current},
       profiles,
     };
     // Phase 7.51.3 — mode démo : ne JAMAIS persister le snapshot in-memory
@@ -1076,7 +1117,7 @@ function App() {
     // Le clearTimeout explicite ligne 888 (en début de branche
     // shouldBump=true) suffit pour le debounce normal sur modifs
     // consécutives.
-  },[songDb,theme,setlists,customGuitars,toneNetPresets,deletedSetlistIds,profiles,activeProfileId,firestoreLoaded]);
+  },[songDb,theme,setlists,customGuitars,toneNetPresets,deletedSetlistIds,adminPacks,profiles,activeProfileId,firestoreLoaded]);
 
   // Apply remote data into local state, using LWW per record (Phase 5.7).
   //  - songDb : union by id (mergeSongDb, hors scope LWW).
@@ -1132,6 +1173,23 @@ function App() {
     // par []) ou présent (merge per-id par lastModified).
     if(data.shared.toneNetPresets!==undefined) setToneNetPresets(prev=>{
       const merged=mergeToneNetPresetsLWW(prev,data.shared.toneNetPresets);
+      if(JSON.stringify(merged)===JSON.stringify(prev))return prev;
+      return merged;
+    });
+    // Phase 7.69.7 — Merge adminPacks (admin write seul → LWW grossier
+    // par pack id, remote gagne si lastModified plus récent ou si pack
+    // local absent. Pas de tombstone, suppression non propagée auto —
+    // si nécessaire, ajouter shared.deletedAdminPackIds plus tard).
+    if(Array.isArray(data.shared.adminPacks)) setAdminPacks(prev=>{
+      const remote=data.shared.adminPacks;
+      const byId={};
+      (prev||[]).forEach(pk=>{ if(pk?.id) byId[pk.id]=pk; });
+      remote.forEach(pk=>{
+        if(!pk?.id) return;
+        const local=byId[pk.id];
+        if(!local || (pk.lastModified||0)>=(local.lastModified||0)) byId[pk.id]=pk;
+      });
+      const merged=Object.values(byId);
       if(JSON.stringify(merged)===JSON.stringify(prev))return prev;
       return merged;
     });
@@ -1450,7 +1508,7 @@ function App() {
   var screenContent=null;
   if(screen==="viewprofile"&&profile?.isAdmin&&viewProfileId&&profiles[viewProfileId]) screenContent=<ViewProfileScreen profile={profiles[viewProfileId]} onBack={()=>setScreen("list")} onNavigate={setScreen}/>;
   else if(screen==="exportimport") screenContent=<ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("profile")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/>;
-  else if(screen==="profile") screenContent=<MonProfilScreen songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} onDeletedSetlistIds={setDeletedSetlistIds} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={effectiveGuitarBias} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");sessionStorage.removeItem(ADMIN_ORIGIN_KEY);setScreen("pick");}} MaintenanceTabComponent={MaintenanceTab} onSaveSharedKey={saveSharedKey}/>;
+  else if(screen==="profile") screenContent=<MonProfilScreen songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} onDeletedSetlistIds={setDeletedSetlistIds} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={effectiveGuitarBias} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} adminPacks={adminPacks} onAdminPacks={setAdminPacks} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");sessionStorage.removeItem(ADMIN_ORIGIN_KEY);setScreen("pick");}} MaintenanceTabComponent={MaintenanceTab} onSaveSharedKey={saveSharedKey}/>;
   else if(screen==="setlists") screenContent=<SetlistsScreen songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} mySongIds={mySongIds} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
   else if(screen==="jam") screenContent=<div><Breadcrumb crumbs={[{label:t("nav.home","Accueil"),screen:"list"},{label:t("nav.jam","Jammer")}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>{t("jam.page-title","🎲 Jammer")}</div><JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources} profile={profile}/></div>;
   else if(screen==="explore") screenContent=<div><Breadcrumb crumbs={[{label:t("nav.home","Accueil"),screen:"list"},{label:t("nav.explore","Explorer")}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>{t("preset-browser.page-title","🎛️ Explorer les presets")}</div><PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={profile.customPacks} guitars={allGuitars} toneNetPresets={toneNetPresets}/></div>;
