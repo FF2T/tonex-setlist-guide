@@ -16,11 +16,12 @@ import { stampedProfileUpdate } from '../../core/state.js';
 import BankEditor from '../components/BankEditor.jsx';
 import ExportImportScreen from './ExportImportScreen.jsx';
 import ResolveUnknownsModal from '../components/ResolveUnknownsModal.jsx';
+import CurateNonCuratedModal from '../components/CurateNonCuratedModal.jsx';
 import TmpBrowser from '../../devices/tonemaster-pro/Browser.jsx';
 import { FACTORY_BANKS_PEDALE_V1, FACTORY_BANKS_PEDALE_V2 } from '../../devices/tonex-pedal/index.js';
 import { FACTORY_BANKS_ANNIVERSARY } from '../../devices/tonex-anniversary/index.js';
 import { FACTORY_BANKS_PLUG } from '../../devices/tonex-plug/index.js';
-import { detectUnknownsInBanks, applyResolutionsToBanks } from '../../core/preset-curation.js';
+import { detectUnknownsInBanks, detectAllNonCurated, applyResolutionsToBanks } from '../../core/preset-curation.js';
 import { PRESET_CATALOG_MERGED, normalizePresetName } from '../../core/catalog.js';
 
 // Phase 7.75 — Factory : callback pour push les "ajouter custom" depuis
@@ -50,10 +51,12 @@ function makeOnAddCustomPresets(onProfiles, activeProfileId) {
 function MesAppareilsTab({
   profile, profiles, onProfiles, activeProfileId,
   banksAnn, onBanksAnn, banksPlug, onBanksPlug,
-  toneNetPresets,
+  toneNetPresets, onToneNetPresets,
+  songDb,
   fullState, onImportState,
   onNavigate,
 }) {
+  const isAdmin = !!profile?.isAdmin;
   const allDevices = getAllDevices();
   const enabled = new Set(profile.enabledDevices || []);
 
@@ -133,6 +136,78 @@ function MesAppareilsTab({
       if (nextBanks !== banksPlug) onBanksPlug(nextBanks);
     }
     setResolveModalDevice(null);
+  };
+
+  // Phase 7.78 — Curation des non-curés (admin only).
+  // Détecte par device les presets status='known' (catalog OK mais sans
+  // usages). MVP : éditables = custom + ToneNET, read-only = catalog statique.
+  const [curateModalDevice, setCurateModalDevice] = useState(null);
+
+  const nonCuratedByDevice = useMemo(() => {
+    if (!isAdmin) return { 'tonex-pedal': [], 'tonex-anniversary': [], 'tonex-plug': [] };
+    return {
+      'tonex-pedal': detectAllNonCurated(banksAnn),
+      'tonex-anniversary': detectAllNonCurated(banksAnn),
+      'tonex-plug': detectAllNonCurated(banksPlug),
+    };
+  }, [isAdmin, banksAnn, banksPlug]);
+
+  // Phase 7.78 — apply curation usages.
+  // usagesByName = { [presetName]: usages[]|undefined }.
+  // Route au save :
+  //   - src='custom' → modifie profile.customPacks[].presets[].usages (LWW profil).
+  //   - src='ToneNET' → modifie shared.toneNetPresets[].usages (LWW shared).
+  // Stamp lastModified pour LWW Firestore.
+  const handleCurateConfirm = (deviceId, usagesByName) => {
+    const names = Object.keys(usagesByName);
+    if (names.length === 0) { setCurateModalDevice(null); return; }
+
+    // Séparer customs (par nom) vs ToneNET (par nom) selon le catalog.
+    // detectAllNonCurated nous a donné le src au moment du detect.
+    const nonCurated = nonCuratedByDevice[deviceId] || [];
+    const srcByName = {};
+    nonCurated.forEach((p) => { srcByName[p.name] = p.src; });
+
+    // 1. Customs : update profile.customPacks
+    const customUpdates = names.filter((n) => srcByName[n] === 'custom');
+    if (customUpdates.length > 0) {
+      onProfiles((p) => {
+        const cur = p[activeProfileId];
+        if (!cur) return p;
+        const packs = (cur.customPacks || []).map((pack) => ({
+          ...pack,
+          presets: (pack.presets || []).map((pr) => {
+            if (!customUpdates.includes(pr.name)) return pr;
+            const newUsages = usagesByName[pr.name];
+            if (!newUsages) {
+              const { usages: _, ...rest } = pr; // drop usages si vide
+              return rest;
+            }
+            return { ...pr, usages: newUsages };
+          }),
+        }));
+        return { ...p, [activeProfileId]: { ...cur, customPacks: packs, lastModified: Date.now() } };
+      });
+    }
+
+    // 2. ToneNET : update shared.toneNetPresets
+    const tonenetUpdates = names.filter((n) => srcByName[n] === 'ToneNET');
+    if (tonenetUpdates.length > 0 && typeof onToneNetPresets === 'function') {
+      onToneNetPresets((prev) => {
+        return (prev || []).map((tp) => {
+          if (!tonenetUpdates.includes(tp.name)) return tp;
+          const newUsages = usagesByName[tp.name];
+          const stamped = { ...tp, lastModified: Date.now() };
+          if (!newUsages) {
+            const { usages: _, ...rest } = stamped;
+            return rest;
+          }
+          return { ...stamped, usages: newUsages };
+        });
+      });
+    }
+
+    setCurateModalDevice(null);
   };
 
   // Rendu section device (BankEditor + CSV compact + TMP).
@@ -243,6 +318,8 @@ function MesAppareilsTab({
     // Phase 7.77 — count d'unknowns dans les banks de ce device. TMP exclu
     // (pas de banks). Bouton "🔴 Résoudre" affiché si N > 0.
     const unknownsCount = (unknownsByDevice[d.id] || []).length;
+    // Phase 7.78 — count de non-curés (admin only).
+    const nonCuratedCount = isAdmin ? (nonCuratedByDevice[d.id] || []).length : 0;
 
     return (
       <div key={d.id} style={sectionStyle}>
@@ -271,6 +348,25 @@ function MesAppareilsTab({
               }}
             >
               {tFormat('resolve.button', { n: unknownsCount }, '🔴 Résoudre ({n})')}
+            </button>
+          )}
+          {isAdmin && nonCuratedCount > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setCurateModalDevice(d.id); }}
+              title={t('curate.button-hint', 'Curer les presets non curés (orange) avec des usages artiste/morceau')}
+              style={{
+                background: 'rgba(218,165,32,0.15)',
+                border: '1px solid rgba(218,165,32,0.4)',
+                color: 'var(--brass-300)',
+                borderRadius: 'var(--r-sm)',
+                padding: '3px 8px',
+                fontSize: 10,
+                fontWeight: 700,
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              {tFormat('curate.button', { n: nonCuratedCount }, '🟠 Curer ({n})')}
             </button>
           )}
           <button
@@ -346,6 +442,16 @@ function MesAppareilsTab({
           allowAddCustom={true}
           onConfirm={(resolutions, customsToAdd) => handleResolveConfirm(resolveModalDevice, resolutions, customsToAdd)}
           onCancel={() => setResolveModalDevice(null)}
+        />
+      )}
+
+      {/* Phase 7.78 — Modale "Curer les non-curés" (admin only) */}
+      {isAdmin && curateModalDevice && (nonCuratedByDevice[curateModalDevice] || []).length > 0 && (
+        <CurateNonCuratedModal
+          nonCurated={nonCuratedByDevice[curateModalDevice]}
+          songDb={songDb}
+          onConfirm={(usagesByName) => handleCurateConfirm(curateModalDevice, usagesByName)}
+          onCancel={() => setCurateModalDevice(null)}
         />
       )}
     </div>

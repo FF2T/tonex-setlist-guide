@@ -13,7 +13,15 @@
 // Phase 7.77 cible 'unknown' (résolution user). Phase 7.78 cible 'known'
 // éditables (résolution admin).
 
-import { getPresetCurationStatus } from './catalog.js';
+import { getPresetCurationStatus, findCatalogEntry } from './catalog.js';
+
+// Phase 7.78 — sources de presets dont les usages sont éditables au
+// runtime depuis l'app (sans modif source code). custom = profile.customPacks
+// (Phase 7.69), ToneNET = shared.toneNetPresets (Phase 7.53).
+// Les autres sources (TSR/ML/AA/JS/TJ/WT/Galtone/Anniversary/Factory/
+// FactoryV1/PlugFactory) sont des catalogs statiques bundlés dans le code
+// → édition nécessite Phase 11 (Studio-driven) ou modif source code.
+const EDITABLE_SOURCES = new Set(['custom', 'ToneNET']);
 
 /**
  * Scanne un objet banks {[bank]: {A,B,C,cat?}} et retourne la liste des
@@ -92,9 +100,44 @@ function applyResolutionsToBanks(banks, resolutions) {
   return changed ? next : banks;
 }
 
+/**
+ * Phase 7.78 — Détecte tous les presets 🟠 non curés dans les banks et
+ * retourne pour chaque : {name, src, editable}.
+ *
+ * editable=true si src ∈ {custom, ToneNET} (édition runtime via UI).
+ * editable=false sinon (catalog statique → édition nécessite Phase 11
+ * ou modif source code).
+ *
+ * Dédupliqué par nom, trié alpha. Le first encounter wins pour le src.
+ *
+ * @param {Object} banks
+ * @returns {Array<{name: string, src: string, editable: boolean}>}
+ */
+function detectAllNonCurated(banks) {
+  if (!banks || typeof banks !== 'object') return [];
+  const seen = new Map();
+  Object.values(banks).forEach((bank) => {
+    if (!bank) return;
+    ['A', 'B', 'C'].forEach((slot) => {
+      const name = bank[slot];
+      if (!name || typeof name !== 'string') return;
+      if (seen.has(name)) return;
+      const status = getPresetCurationStatus(name);
+      if (status !== 'known') return;
+      const entry = findCatalogEntry(name);
+      if (!entry || entry.guessed) return; // sécurité (filtré déjà par status)
+      const src = entry.src || '';
+      seen.set(name, { name, src, editable: EDITABLE_SOURCES.has(src) });
+    });
+  });
+  return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export {
   detectPresetsByStatus,
   detectUnknownsInBanks,
   detectNonCuratedInBanks,
+  detectAllNonCurated,
+  EDITABLE_SOURCES,
   applyResolutionsToBanks,
 };

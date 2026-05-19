@@ -5,6 +5,8 @@ import {
   detectPresetsByStatus,
   detectUnknownsInBanks,
   detectNonCuratedInBanks,
+  detectAllNonCurated,
+  EDITABLE_SOURCES,
   applyResolutionsToBanks,
 } from './preset-curation.js';
 
@@ -153,5 +155,54 @@ describe('applyResolutionsToBanks', () => {
     const res = { [UNKNOWN_NAME]: { action: 'clear' } };
     const out = applyResolutionsToBanks(banks, res);
     expect(out[1].cat).toBe('Custom');
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────
+// Phase 7.78 — detectAllNonCurated
+// ───────────────────────────────────────────────────────────────────
+
+describe('detectAllNonCurated', () => {
+  test('EDITABLE_SOURCES contient custom + ToneNET (MVP)', () => {
+    expect(EDITABLE_SOURCES.has('custom')).toBe(true);
+    expect(EDITABLE_SOURCES.has('ToneNET')).toBe(true);
+    expect(EDITABLE_SOURCES.has('TSR')).toBe(false);
+    expect(EDITABLE_SOURCES.has('Factory')).toBe(false);
+  });
+
+  test('preset known catalog statique → {name, src, editable: false}', () => {
+    // HG 800 = Factory v2, sans usages → status='known', src='Factory'
+    const banks = { 1: { A: KNOWN_NAME, B: '', C: '' } };
+    const out = detectAllNonCurated(banks);
+    expect(out).toHaveLength(1);
+    expect(out[0].name).toBe(KNOWN_NAME);
+    expect(out[0].src).toBe('Factory');
+    expect(out[0].editable).toBe(false);
+  });
+
+  test('unknown preset → exclu (status != known)', () => {
+    const banks = { 1: { A: UNKNOWN_NAME, B: '', C: '' } };
+    expect(detectAllNonCurated(banks)).toEqual([]);
+  });
+
+  test('banks vide / null / undefined → []', () => {
+    expect(detectAllNonCurated({})).toEqual([]);
+    expect(detectAllNonCurated(null)).toEqual([]);
+    expect(detectAllNonCurated(undefined)).toEqual([]);
+  });
+
+  test('dédoublonnage par nom + tri alpha', () => {
+    const banks = {
+      1: { A: KNOWN_NAME, B: '', C: KNOWN_NAME },
+      2: { A: KNOWN_NAME, B: '', C: '' },
+    };
+    const out = detectAllNonCurated(banks);
+    expect(out).toHaveLength(1);
+    expect(out[0].name).toBe(KNOWN_NAME);
+  });
+
+  test('slots vides ou non-string → ignorés', () => {
+    const banks = { 1: { A: '', B: null, C: undefined } };
+    expect(detectAllNonCurated(banks)).toEqual([]);
   });
 });
