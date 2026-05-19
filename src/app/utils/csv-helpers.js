@@ -32,8 +32,20 @@ export function downloadFile(content, filename, type = 'text/csv;charset=utf-8;'
 }
 
 export function parseCSV(text) {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim());
-  if (lines.length < 2) return null;
+  const rawLines = text.split(/\r?\n/).filter((l) => l.trim());
+  if (rawLines.length < 2) return null;
+  // Phase 7.69.1 — Détection CSV double-quoted (cas Excel/Numbers
+  // qui re-quote un export déjà quoté). Chaque ligne entière est
+  // wrappée d'une paire de quotes externes + quotes internes
+  // doublées (`""`). On unwrap si TOUTES les lignes matchent le
+  // pattern (évite false positive sur un CSV légitime dont la
+  // 1ère/dernière colonne contiendrait juste un mot quoté).
+  const looksDoubleQuoted = rawLines.every((l) =>
+    l.length >= 2 && l.startsWith('"') && l.endsWith('"') && l.includes('""'),
+  );
+  const lines = looksDoubleQuoted
+    ? rawLines.map((l) => l.slice(1, -1).replace(/""/g, '"'))
+    : rawLines;
   const sep = lines[0].includes(';') ? ';' : ',';
   const parseLine = (line) => {
     const res = []; let cur = '', inQ = false;
