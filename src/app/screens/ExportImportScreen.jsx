@@ -294,7 +294,7 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-sec)', marginBottom: 10 }}>
               {onAddCustomPresets
-                ? t('export.unknown-hint-remap', 'Ces presets ne matchent pas le catalog. Quand une suggestion est trouvée, tu peux Remapper (recommandé), sinon Ajouter comme preset perso ou Laisser le slot vide.')
+                ? t('export.unknown-hint-remap', 'Ces presets ne matchent pas le catalog. 4 options par ligne : Remapper (si suggestion proposée), Rechercher dans le catalog (autocomplete sur les ~1700 noms existants), Ajouter comme preset perso, ou Laisser le slot vide.')
                 : t('export.unknown-hint-noadmin', 'Ces presets ne sont ni dans le catalog ToneX standard, ni dans tes presets persos. Ils seront marqués comme "laisser vide" dans les banks.')}
             </div>
             {/* Boutons groupés batch (Phase 7.69 + 7.69.5) */}
@@ -353,7 +353,7 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
                           style={{ fontSize: 10, padding: '2px 4px', background: 'var(--bg-elev-1)', color: 'var(--text)', border: '1px solid var(--a10)', borderRadius: 'var(--r-sm)', cursor: 'pointer' }}
                         >
                           {suggestion && <option value="remap">{t('export.unknown-remap', 'Remapper')}</option>}
-                          <option value="manual">{t('export.unknown-manual', 'Saisir…')}</option>
+                          <option value="manual">{t('export.unknown-manual', 'Rechercher dans le catalog')}</option>
                           <option value="add">{t('export.unknown-add', 'Ajouter')}</option>
                           <option value="skip">{t('export.unknown-skip', 'Laisser vide')}</option>
                         </select>
@@ -380,7 +380,7 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
                             list="catalog-names-dl"
                             value={typed}
                             onChange={(e) => setUnknownManualInput((m) => ({ ...m, [name]: e.target.value }))}
-                            placeholder={t('export.unknown-manual-placeholder', 'Tape le nom catalog…')}
+                            placeholder={t('export.unknown-manual-placeholder', 'Tape pour rechercher (autocomplete catalog)…')}
                             style={{ flex: 1, fontSize: 10, padding: '3px 6px', background: 'var(--bg-elev-1)', color: 'var(--text)', border: '1px solid ' + (typed ? (validated ? 'var(--green)' : 'var(--red)') : 'var(--a10)'), borderRadius: 'var(--r-sm)' }}
                           />
                           {typed && (
