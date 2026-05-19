@@ -109,7 +109,11 @@ function ProfilePickerScreen({ profiles, onPick, appVersion, onUpgradePassword, 
       {selectedId && profiles[selectedId]?.password && !isTrusted(selectedId) && <div style={{ width: '100%', maxWidth: 300 }}>
         <div style={{ fontSize: 12, color: 'var(--text-sec)', marginBottom: 8, textAlign: 'center' }}>{tFormat('picker.password-for', { name: profiles[selectedId].name }, 'Mot de passe pour {name}')}</div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <input ref={pwdRef} type="password" inputMode="numeric" autoFocus placeholder={t('picker.password', 'Mot de passe')} value={pwd} onChange={(e) => { setPwd(e.target.value); setPwdErr(false); }} onKeyDown={(e) => e.key === 'Enter' && tryLogin()} style={{ flex: 1, background: 'var(--bg-card)', color: 'var(--text)', border: `1px solid ${pwdErr ? 'var(--red)' : 'var(--a15)'}`, borderRadius: 'var(--r-md)', padding: '10px 14px', fontSize: 14 }}/>
+          {/* Phase 7.74.3 fix : inputMode="numeric" retiré — vestige de
+              l'ancien PIN admin (Phase pré-7.28). Les passwords sont
+              alphanumériques depuis Phase 7.28 (SHA-256 + salt). iOS
+              affichait un clavier numérique qui empêchait la saisie. */}
+          <input ref={pwdRef} type="password" autoComplete="current-password" autoFocus placeholder={t('picker.password', 'Mot de passe')} value={pwd} onChange={(e) => { setPwd(e.target.value); setPwdErr(false); }} onKeyDown={(e) => e.key === 'Enter' && tryLogin()} style={{ flex: 1, background: 'var(--bg-card)', color: 'var(--text)', border: `1px solid ${pwdErr ? 'var(--red)' : 'var(--a15)'}`, borderRadius: 'var(--r-md)', padding: '10px 14px', fontSize: 14 }}/>
           <button onClick={tryLogin} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{t('picker.ok', 'OK')}</button>
         </div>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, fontSize: 12, color: 'var(--text-sec)', cursor: 'pointer', justifyContent: 'center' }}>
