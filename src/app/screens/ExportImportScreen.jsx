@@ -10,7 +10,7 @@ import React, { useState, useRef, useMemo } from 'react';
 import { t, tFormat } from '../../i18n/index.js';
 import { CC, CL } from '../utils/ui-constants.js';
 import { downloadFile, generateCSV, exportJSON, parseCSV } from '../utils/csv-helpers.js';
-import { findCatalogEntry, findCatalogSuggestions, PRESET_CATALOG_MERGED } from '../../core/catalog.js';
+import { findCatalogEntry, findCatalogSuggestions, PRESET_CATALOG_MERGED, normalizePresetName } from '../../core/catalog.js';
 import Breadcrumb from '../components/Breadcrumb.jsx';
 import { inferCreator } from './MyCustomPresetsTab.jsx';
 import { inferPresetInfo } from '../utils/infer-preset.js';
@@ -65,9 +65,19 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
   const [unknownManualInput, setUnknownManualInput] = useState({});
 
   // Phase 7.69.6 — liste des noms du catalog pour datalist autocomplete.
-  // ~1700 entries triées alpha. useMemo car PRESET_CATALOG_MERGED est
-  // module-level statique (référence stable).
-  const catalogNames = useMemo(() => Object.keys(PRESET_CATALOG_MERGED).sort(), []);
+  // Phase 7.69.11 — dédupliqué par normalizePresetName (le catalog contient
+  // ~317 doublons normalize-equivalents type "TSR 50-51 Bright" vs
+  // "TSR - 50-51 - Bright"). Garde la forme la plus courte = sans
+  // séparateurs ` - ` extras. Évite la pollution autocomplete.
+  const catalogNames = useMemo(() => {
+    const byNorm = new Map();
+    for (const k of Object.keys(PRESET_CATALOG_MERGED)) {
+      const norm = normalizePresetName(k);
+      const existing = byNorm.get(norm);
+      if (!existing || k.length < existing.length) byNorm.set(norm, k);
+    }
+    return Array.from(byNorm.values()).sort();
+  }, []);
   const csvRef = useRef(null);
   const jsonRef = useRef(null);
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
