@@ -23,7 +23,9 @@ import {
   findGuitarByAIName, findCotEntryForGuitar, localGuitarSongScore,
   localGuitarSettings, guitarChoiceFeedback,
 } from '../../core/scoring/guitar.js';
-import { findCatalogEntry, getPresetCurationStatus, CURATION_COLORS, getCurationLabel } from '../../core/catalog.js';
+import { findCatalogEntry } from '../../core/catalog.js';
+import CurationDot from '../components/CurationDot.jsx';
+import PresetCurationModal from '../components/PresetCurationModal.jsx';
 import { getSongInfo } from '../../core/songs.js';
 import { getSourceInfo } from '../../core/sources.js';
 import { AMP_TAXONOMY, EXTERNAL_PACK_CATALOG } from '../../data/data_context.js';
@@ -43,7 +45,7 @@ import GuitarSelect from '../components/GuitarSelect.jsx';
 import PBlock from '../components/PBlock.jsx';
 import FeedbackPanel from '../components/FeedbackPanel.jsx';
 
-function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, onClose, guitars, allRigsGuitars, availableSources, savedGuitarId, onGuitarChange, aiProvider, aiKeys, onSongDb, onAiCacheUpdate, profile, guitarBias, onTmpPatchOverride }) {
+function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, onClose, guitars, allRigsGuitars, availableSources, savedGuitarId, onGuitarChange, aiProvider, aiKeys, onSongDb, onAiCacheUpdate, profile, guitarBias, onTmpPatchOverride, songDb, onProfiles, activeProfileId, toneNetPresets, onToneNetPresets }) {
   // Phase 7.54 — Helper interne : écrit aiCache via onAiCacheUpdate
   // (profile.aiCache) si disponible, sinon fallback onSongDb (shared).
   // Pour les invalidations (value=null), utilise aussi onAiCacheUpdate
@@ -58,6 +60,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   const [reloading, setReloading] = useState(false);
   const [localAiResult, setLocalAiResult] = useState(null);
   const [localAiErr, setLocalAiErr] = useState(null);
+  // Phase 7.79 — modale info/édition usages d'un preset.
+  const [curationModalPreset, setCurationModalPreset] = useState(null);
+  const isAdmin = !!profile?.isAdmin;
   const [showFeedback, setShowFeedback] = useState(false);
   const [showCot, setShowCot] = useState(false);
   const [installTarget, setInstallTarget] = useState(null);
@@ -305,27 +310,10 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
                       <StatusDot score={idealScore} ideal={true}/>
                       <div style={{ flex: 1 }}>{t('song-detail.preset-label', 'Preset')} <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{displayPresetName}</span>
-                        {/* Phase 7.70.1 — Pastille curation à côté du nom preset top */}
-                        {(() => {
-                          const curStatus = getPresetCurationStatus(displayPresetName);
-                          if (!curStatus) return null;
-                          const curColor = CURATION_COLORS[curStatus];
-                          const curLabel = getCurationLabel(curStatus);
-                          return <span
-                            title={curLabel}
-                            aria-label={curLabel}
-                            style={{
-                              display: 'inline-block',
-                              width: 6,
-                              height: 6,
-                              borderRadius: '50%',
-                              background: curColor.dot,
-                              border: `1px solid ${curColor.border}`,
-                              marginLeft: 6,
-                              verticalAlign: 'middle',
-                            }}
-                          />;
-                        })()}
+                        {/* Phase 7.70.1 + 7.79 — Pastille curation cliquable */}
+                        <span style={{ marginLeft: 6 }}>
+                          <CurationDot name={displayPresetName} onClick={(n) => setCurationModalPreset(n)}/>
+                        </span>
                       </div>
                       {idealScore > 0 && <b style={{ color: scoreColor(idealScore), flexShrink: 0 }}>{idealScore}%</b>}
                     </div>
@@ -639,6 +627,22 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         </div>
       )}
       <button onClick={onClose} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, marginTop: 4 }}>{t('song-detail.close', 'Fermer ↑')}</button>
+
+      {/* Phase 7.79 — Modale info/édition usages d'un preset (déclenchée
+          par CurationDot ligne 308). */}
+      {curationModalPreset && (
+        <PresetCurationModal
+          presetName={curationModalPreset}
+          isAdmin={isAdmin}
+          songDb={songDb}
+          profile={profile}
+          onProfiles={onProfiles}
+          activeProfileId={activeProfileId}
+          toneNetPresets={toneNetPresets}
+          onToneNetPresets={onToneNetPresets}
+          onClose={() => setCurationModalPreset(null)}
+        />
+      )}
     </div>
   );
 }

@@ -9051,6 +9051,78 @@ profile {
 
 ## Idées en attente (proposées, pas encore validées)
 
+### Phase 7.80 (à investiguer 2026-05-19) — 2 dettes critiques observées
+
+**Dette 1 — Revue UX/UI responsive complète**
+
+Audit complet du responsive design à mener. Identifié 2026-05-19 par
+Sébastien : problèmes ponctuels d'affichage sur iPhone (header tronqué,
+overflow inputs, boutons trop petits cf B-COSM-03 Phase 7.50) et iPad
+portrait (layout desktop tassé). Auditer systématiquement chaque écran :
+- HomeScreen (SongSearchBar overflow iPhone Phase 7.55.7)
+- AppHeader (version label tronquée)
+- ListScreen (badges desktop ellipsis vs mobile)
+- BankEditor (sélecteurs A/B/C tactiles)
+- SongDetailCard (sections empilées)
+- LiveScreen (mode iPad portrait + paysage)
+- MesAppareilsTab (sections device empilées, modales)
+- Modales (ResolveUnknowns, CurateNonCurated, PresetCuration —
+  particulièrement scroll mobile)
+- Tabs MonProfilScreen / AdminScreen (scroll horizontal)
+
+À faire idéalement avec :
+- iPhone réel + Safari iOS (PWA installée)
+- iPad Pro M4 réel
+- Chrome DevTools responsive mode (375x667 / 390x844 / 412x915 / 834x1194)
+
+Effort estimé : ~6-10h audit + ~10-15h fixes selon profondeur.
+Trigger : à activer après stabilisation pollution myGuitars OU si
+beta-testeurs remontent des cas concrets bloquants.
+
+**Dette 2 — Sync analyses IA Mac ↔ iPhone défectueuse**
+
+Symptôme observé 2026-05-19 : Sébastien rapporte que les analyses IA
+calculées sur Mac ne descendent pas sur iPhone (et vice-versa). Il
+doit relancer le calcul sur chaque device. Phase 7.54 (aiCache
+per-profile via `profile.aiCache[songId]`) était censée résoudre ça
+via stockage profil + sync Firestore standard.
+
+Hypothèses à investiguer :
+1. **Strip aiCache au push** : Phase 7.58 strip `profile.aiCache` des
+   profils NON-ACTIFS au push si compressed > SAFE_LIMIT (980 KB
+   Phase 7.58.1). Si état Sébastien dépasse encore le seuil après
+   compression, son aiCache personnel pourrait être strippé.
+2. **Merge LWW per-field** : Phase 7.74 Couche 2 `mergeProfileLWW`
+   per-field — vérifier que `profile.aiCache` est bien dans la liste
+   des champs adoptés (peut-être omis du merge → garde local toujours
+   au lieu d'adopter remote).
+3. **`stamp` lastModified manquant** : si écriture aiCache (cf
+   `setSongAiCache` main.jsx Phase 7.54) ne stamp pas
+   `profile.lastModified`, le merge LWW ne tranche pas en faveur du
+   profil avec le nouveau cache.
+4. **`syncHash` Phase 7.46** : vérifier que `profile.aiCache` est inclus
+   dans le hash → sinon push ne se déclenche pas après nouvelle analyse.
+5. **Régression Phase 7.54.x** : couche shared.aiCache legacy supprimée
+   Phase 7.54.1 mais profile.aiCache pas correctement adopté au pull.
+
+Diagnostic pratique :
+1. Sur Mac : faire une analyse IA d'un morceau (ex Highway to Hell).
+2. Console : `JSON.parse(localStorage.tonex_guide_v2).profiles.sebastien.aiCache['acdc_highway_to_hell']`
+   → doit retourner l'objet aiCache.
+3. Attendre ~5s (debounce push) → vérifier qu'un push Firestore
+   s'est déclenché (log `[firestore] Push WITH aiCache` dans console).
+4. iPhone : recharger, attendre pull initial (~5-10s).
+5. Console iPhone (via Safari Mac → Develop → iPhone) :
+   `JSON.parse(localStorage.tonex_guide_v2).profiles.sebastien.aiCache['acdc_highway_to_hell']`
+   → doit retourner le même objet.
+6. Si étape 5 vide → bug merge / pull. Si étape 3 absent → bug push
+   (syncHash ou stamp).
+
+Effort estimé : ~2-4h investigation + fix selon cause.
+Trigger : prioritaire — affecte directement l'expérience principale
+(coût Gemini ×2, friction utilisateur, défaut perçu critique sur
+multi-device).
+
 ### Phase 7.73.2 (proposée 2026-05-19, validée Full scope) — Onglet "👤 Mon compte"
 
 **Contexte** : Phase 7.72 a séparé Mon Profil / Admin. Phase 7.73.0+.1 ont

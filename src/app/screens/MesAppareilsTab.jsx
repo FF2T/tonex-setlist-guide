@@ -245,6 +245,9 @@ function MesAppareilsTab({
             banks={banksAnn} onBanks={onBanksAnn}
             color="var(--accent)" maxBanks={50}
             toneNetPresets={toneNetPresets}
+            onToneNetPresets={onToneNetPresets}
+            profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId}
+            songDb={songDb} isAdmin={isAdmin}
             factoryBanksByVersion={[
               { id: 'v2', label: t('bank-editor.firmware-v2', 'Firmware v2 (2025/04/03)'), banks: FACTORY_BANKS_PEDALE_V2 },
               { id: 'v1', label: t('bank-editor.firmware-v1', 'Firmware v1 (historique)'), banks: FACTORY_BANKS_PEDALE_V1 },
@@ -276,6 +279,9 @@ function MesAppareilsTab({
             color="var(--accent)" maxBanks={50}
             factoryBanks={FACTORY_BANKS_ANNIVERSARY}
             toneNetPresets={toneNetPresets}
+            onToneNetPresets={onToneNetPresets}
+            profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId}
+            songDb={songDb} isAdmin={isAdmin}
           />
         </>
       );
@@ -297,6 +303,9 @@ function MesAppareilsTab({
             color="var(--accent)" maxBanks={10} startBank={1}
             factoryBanks={FACTORY_BANKS_PLUG}
             toneNetPresets={toneNetPresets}
+            onToneNetPresets={onToneNetPresets}
+            profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId}
+            songDb={songDb} isAdmin={isAdmin}
           />
         </>
       );

@@ -21,8 +21,9 @@ function SetlistsScreen({
   checked, onChecked, onNext, onSettings, onNavigate,
   banksAnn, onBanksAnn, banksPlug, onBanksPlug,
   aiProvider, aiKeys, allGuitars, allRigsGuitars, guitarBias,
-  availableSources, activeProfileId, profiles, profile,
+  availableSources, activeProfileId, profiles, profile, onProfiles,
   onTmpPatchOverride, onLive,
+  toneNetPresets, onToneNetPresets,
 }) {
   const visibleSongDb = useMemo(
     () => (mySongIds ? songDb.filter((s) => mySongIds.has(s.id)) : songDb),
@@ -98,7 +99,7 @@ function SetlistsScreen({
         {tabBtn('setlists', t('setlists.tab-setlists', 'Setlists'))}
         {tabBtn('songs', t('setlists.tab-songs', 'Morceaux'))}
       </div>
-      {tab === 'setlists' && <ListScreen songDb={songDb} onSongDb={onSongDb} onAiCacheUpdate={onAiCacheUpdate} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} mySongIds={mySongIds} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={guitarBias} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onTmpPatchOverride={onTmpPatchOverride} onLive={onLive}/>}
+      {tab === 'setlists' && <ListScreen songDb={songDb} onSongDb={onSongDb} onAiCacheUpdate={onAiCacheUpdate} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} mySongIds={mySongIds} checked={checked} onChecked={onChecked} onNext={onNext} onSettings={onSettings} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={guitarBias} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onProfiles={onProfiles} onTmpPatchOverride={onTmpPatchOverride} onLive={onLive} toneNetPresets={toneNetPresets} onToneNetPresets={onToneNetPresets}/>}
       {tab === 'songs' && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
