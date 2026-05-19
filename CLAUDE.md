@@ -746,7 +746,131 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-19 fin de soirée, 30+ phases livrées — UX curation complète + JSON Maintenance + wrapper logger + fix sync aiCache)
+## État actuel (2026-05-19 nuit, Phase 7.74.4 livrée — fix pattern swap cg_*→standard + language delta 60s)
+
+**Backline v8.14.145 / SW backline-v245 / STATE_VERSION 10 / 1298 tests verts.**
+
+### Phase 7.74.4 — Couche 4 défense myGuitars + language delta élargi (v8.14.145)
+
+**Bug observé 2026-05-19 ~21h** (4e occurrence pollution profile,
+captures via wrapper Phase 7.74.5 sur Mac) :
+
+```
+local  : [11 standards Sébastien, cg_1779120397266 (Tele 51)]
+remote : [11 standards Sébastien, sire_t7, sire_t3]
+otherProfilesGuitars (Phase 7.74.1) : {sire_t7, ...} sans sire_t3
+```
+
+Phase 7.74.1 a filtré `sire_t7` (orphan, dans rig Francisco local)
+mais pas `sire_t3`. Confirmation iPhone : `sire_t3` n'est dans le
+rig d'AUCUN profil (Francisco actuel = `[sire_t7, cg_1779120671806]`,
+Bruno/Arthur/Franck/Emmanuel n'ont pas Sire). **Pollution pure** :
+sire_t3 a été ajouté à `sebastien.myGuitars` par un push antérieur
+(iPhone session pré-correction probablement), sans trace dans aucun
+profil actuel.
+
+Conséquences chaînées :
+- Couche 3 (drop ≥3 ou >50%) inopérante : drop = 1 (`cg_1779120397266`)
+- Couche 1 orphan check inopérante : sire_t3 absent du rig d'aucun
+  profil → pas dans `otherProfilesGuitars`
+- Adoption merge → Tele 51 perdue, sire_t3 adopté
+- Bonus : langue FR → EN basculée (delta merges > 5s seuil Phase 7.74)
+
+### Fix Phase 7.74.4 (2 changements ciblés)
+
+**Site 1 — `mergeProfileLWW` myGuitars section** : nouvelle Couche
+4 après filter orphan. Si après filter le delta entre local et
+nextGuitars est **"drop exactement 1 cg_* + add ≥1 standard"**,
+c'est la signature d'une pollution résiduelle → keep local entier.
+
+```js
+const isSwapSuspect =
+  droppedNow.length === 1 &&
+  /^cg_/.test(droppedNow[0]) &&
+  addedNow.length >= 1 &&
+  addedNow.every((g) => !/^cg_/.test(g));
+if (isSwapSuspect) {
+  nextGuitars = localGuitars; // keep local
+}
+```
+
+**Risque false-positive** : un user remplace explicitement sa custom
+par une standard du catalog. Très rare (les customs existent
+justement car absentes du catalog). Workaround : faire les 2 actions
+sur des stamps séparés (add d'abord, remove ensuite — donne 2 merges
+distincts qui passent).
+
+**Site 2 — `mergeProfileLWW` language section** : seuil delta
+élargi 5s → 60s. Les events de pollution observés étaient espacés
+de plusieurs minutes (>5s), donc Phase 7.74 garde-fou language
+inopérant. Au-delà de 60s, on considère le changement comme
+intentionnel utilisateur.
+
+### Approche explorée puis rejetée (union local+remote)
+
+Initialement : étendre `guitarsByProfile` de `mergeProfilesLWW` à
+l'union local+remote, pour couvrir le cas "Francisco a ajouté sire_t3
+sur son device, local francisco stale". **Rejeté** : conflit
+asymétrique — la pollution dans `remote.sebastien` contamine
+`guitarsByProfile.sebastien` qui contamine ensuite l'orphan check
+des autres profils. Le bug réel observé (sire_t3 dans aucun rig)
+n'est pas couvert par cette approche. Le swap suspect cg_*→standard
+le catch directement, plus simple et plus robuste.
+
+### Tests Phase 7.74.4 (+9 nouveaux)
+
+`src/core/state.test.js` :
+- **Couche 4 swap suspect** × 6 :
+  - SCÉNARIO BUG 4 reproduction exacte (Tele 51 + sire_t3, otherProfilesGuitars vide)
+  - drop 1 cg_* + add 2 standards hors orphans → keep local
+  - régression ajout SEUL standard (pas de drop) → adopté
+  - régression drop standard (pas cg_*) + add standard → adopté
+  - régression drop cg_* + add cg_* (custom→custom) → adopté
+  - régression drop 2 cg_* + add 2 standards (drop ≤ 50%) → adopté
+- **Language delta 60s** × 3 :
+  - delta 30s + conflict → keep local (élargi vs 5s)
+  - delta 70s + conflict → adopt remote (au-delà seuil)
+  - régression delta < 5s → keep local (préservé)
+
+Tests existants Phase 7.74 language ajustés pour le nouveau seuil
+(10s → 100s pour test "long delta → adopt").
+
+**1298/1298 tests verts** (vs 1289 Phase 7.80.2).
+
+### Architecture livrée Phase 7.74.4
+
+```
+src/main.jsx                APP_VERSION 8.14.144 → 8.14.145
+public/sw.js                CACHE backline-v244 → backline-v245
+src/core/state.js           mergeProfileLWW :
+                              +Couche 4 swap suspect cg_*→standard
+                              +language delta 5s → 60s
+src/core/state.test.js      +9 tests Phase 7.74.4
+                            +2 tests legacy language ajustés
+```
+
+### Dette résiduelle Phase 7.74.4
+
+- **Source de pollution non identifiée** : on a éliminé le state
+  iPhone actuel comme source (12 guitares dont Tele 51, propre).
+  Probable : session iPhone antérieure pré-correction OU Mac
+  auto-pollution historique. Wrapper iPhone activé Phase 7.74.4
+  (Sébastien a posé `localStorage.__backline_persist_logs = 'true'`)
+  → catch en live au prochain épisode si récidive.
+- **Détection symétrique manquante** : le swap suspect catch
+  "1 cg_* dropped → standard added". Mais le pattern inverse
+  "1 standard dropped → cg_* added" n'est pas catché. Improbable
+  en pratique (pollution = ajout de standards d'autres profils,
+  pas ajout de customs d'un user inconnu). À ajouter si observé.
+- **False-positive intentionnel non détecté** : si user remplace
+  Tele 51 custom par sire_t3 standard légitimement, blocage. Le
+  user devra splitter ses actions (add sire_t3 d'abord, ré-ouvrir
+  l'app, remove Tele 51 après). Acceptable car cas extrêmement
+  rare.
+
+---
+
+## État précédent (2026-05-19 fin de soirée, 30+ phases livrées — UX curation complète + JSON Maintenance + wrapper logger + fix sync aiCache)
 
 **Backline v8.14.144 / SW backline-v244 / STATE_VERSION 10 / 1289 tests verts.**
 

@@ -2997,16 +2997,16 @@ describe('mergeProfileLWW — Phase 7.74 Couche 2 (per-field) + 3 (defense)', ()
     expect(out.myGuitars).toEqual(['a', 'b', 'c']);
   });
 
-  test('language conflict short delta < 5s → keep local', () => {
+  test('language conflict short delta < 60s → keep local (Phase 7.74.4 élargi de 5s à 60s)', () => {
     const local = { id: 'seb', lastModified: 1000, language: 'fr' };
     const remote = { id: 'seb', lastModified: 3000, language: 'en' }; // delta 2s
     const out = mergeProfileLWW(local, remote);
     expect(out.language).toBe('fr');
   });
 
-  test('language conflict long delta > 5s → adopt remote', () => {
+  test('language conflict long delta > 60s → adopt remote', () => {
     const local = { id: 'seb', lastModified: 1000, language: 'fr' };
-    const remote = { id: 'seb', lastModified: 10000, language: 'en' }; // delta 9s
+    const remote = { id: 'seb', lastModified: 100000, language: 'en' }; // delta 99s
     const out = mergeProfileLWW(local, remote);
     expect(out.language).toBe('en');
   });
@@ -3252,6 +3252,170 @@ describe('mergeSetlistsLWW — Phase 7.74 Couche 4 dedup intégré', () => {
     expect(out).toHaveLength(1);
     // Survivant a stamp récent
     expect(out[0].lastModified).toBeGreaterThan(before + 5000);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────
+// Phase 7.74.4 — Couche 4 : swap suspect cg_*→standard + union remote
+// ───────────────────────────────────────────────────────────────────
+
+describe('mergeProfileLWW — Phase 7.74.4 swap suspect cg_*→standard', () => {
+  test('SCÉNARIO BUG 4 (2026-05-19 soir) : drop cg_* + add standard hors otherProfilesGuitars → keep local', () => {
+    // Reproduction exacte du bug observé via wrapper Phase 7.74.5 :
+    // - local Mac : 11 standards Sébastien + cg_1779120397266 (Tele 51)
+    // - remote pollué (iPhone session antérieure) : 11 standards + sire_t3
+    // - otherProfilesGuitars : sire_t3 N'EST PAS DEDANS (Francisco actuel
+    //   n'a que [sire_t7, cg_1779120671806], donc sire_t3 pas dans le rig
+    //   d'aucun profil au moment du merge)
+    // → Couche 3 drop ≥3 inopérante (drop = 1)
+    // → Couche 1 orphan check inopérante (sire_t3 pas dans otherProfilesGuitars)
+    // → Couche 4 swap suspect doit catch : drop 1 cg_* + add 1 g_* → keep local
+    const local = {
+      id: 'sebastien',
+      lastModified: 1000,
+      myGuitars: ['lp60', 'lp50p90', 'sg_ebony', 'sg61', 'es335', 'strat61', 'strat_pro2', 'strat_ec', 'tele63', 'tele_ultra', 'jazzmaster', 'cg_1779120397266'],
+    };
+    const remote = {
+      id: 'sebastien',
+      lastModified: 2000,
+      myGuitars: ['lp60', 'lp50p90', 'sg_ebony', 'sg61', 'es335', 'strat61', 'strat_pro2', 'strat_ec', 'tele63', 'tele_ultra', 'jazzmaster', 'sire_t3'],
+    };
+    const otherProfilesGuitars = new Set(['sire_t7', 'cg_1779120671806', 'schecter_c1']);
+    const out = mergeProfileLWW(local, remote, { otherProfilesGuitars });
+    // Tele 51 préservée (keep local entier)
+    expect(out.myGuitars).toContain('cg_1779120397266');
+    // sire_t3 rejeté
+    expect(out.myGuitars).not.toContain('sire_t3');
+    // 12 guitares, identique à local
+    expect(out.myGuitars).toHaveLength(12);
+  });
+
+  test('drop 1 cg_* + add 2 standards hors orphans → keep local (swap suspect élargi)', () => {
+    // Variante : même pattern avec multiple adds standard.
+    const local = {
+      id: 'seb', lastModified: 1000,
+      myGuitars: ['lp60', 'cg_xxx'],
+    };
+    const remote = {
+      id: 'seb', lastModified: 2000,
+      myGuitars: ['lp60', 'sire_t3', 'sire_t7'],
+    };
+    const out = mergeProfileLWW(local, remote, { otherProfilesGuitars: new Set() });
+    // Keep local : Tele 51 préservée, pas d'adoption suspecte
+    expect(out.myGuitars).toEqual(['lp60', 'cg_xxx']);
+  });
+
+  test('régression : ajout SEUL d\'une guitare standard (pas de drop) → adopté normalement', () => {
+    // User ajoute légitimement sg61 à son rig sur un autre device.
+    // Pas de drop → swap suspect NE DOIT PAS s'activer.
+    const local = {
+      id: 'seb', lastModified: 1000,
+      myGuitars: ['lp60', 'cg_xxx'],
+    };
+    const remote = {
+      id: 'seb', lastModified: 2000,
+      myGuitars: ['lp60', 'cg_xxx', 'sg61'],
+    };
+    const out = mergeProfileLWW(local, remote, { otherProfilesGuitars: new Set() });
+    expect(out.myGuitars).toEqual(expect.arrayContaining(['lp60', 'cg_xxx', 'sg61']));
+    expect(out.myGuitars).toHaveLength(3);
+  });
+
+  test('régression : drop d\'une standard (pas cg_*) + add standard → adopté (swap pas activé)', () => {
+    // Le user remplace une standard par une autre standard.
+    // Pas de cg_* dropped → pas un swap suspect au sens 7.74.4.
+    const local = {
+      id: 'seb', lastModified: 1000,
+      myGuitars: ['lp60', 'sg61'],
+    };
+    const remote = {
+      id: 'seb', lastModified: 2000,
+      myGuitars: ['lp60', 'es335'],
+    };
+    const out = mergeProfileLWW(local, remote, { otherProfilesGuitars: new Set() });
+    expect(out.myGuitars).toEqual(['lp60', 'es335']);
+  });
+
+  test('régression : drop 1 cg_* + add 1 cg_* (custom replace custom) → adopté', () => {
+    // User remplace une custom par une autre custom (peu probable mais possible).
+    // Le pattern n'est pas swap cg_*→standard (add est aussi cg_*) → adopté.
+    const local = {
+      id: 'seb', lastModified: 1000,
+      myGuitars: ['lp60', 'cg_old'],
+    };
+    const remote = {
+      id: 'seb', lastModified: 2000,
+      myGuitars: ['lp60', 'cg_new'],
+    };
+    const out = mergeProfileLWW(local, remote, { otherProfilesGuitars: new Set() });
+    expect(out.myGuitars).toEqual(['lp60', 'cg_new']);
+  });
+
+  test('régression : drop 2 cg_* + add 2 standards (drop ≤ 50% local) → adopté (swap pas activé)', () => {
+    // Le pattern signature est "drop exactement 1 cg_*". Si drop > 1,
+    // c'est Couche 3 (drop ≥3 = block, drop > 50% = block, drop modéré
+    // ≤ 50% = adopt) qui décide. Ici local de 5 → drop 2 = 40% → adopt.
+    const local = {
+      id: 'seb', lastModified: 1000,
+      myGuitars: ['lp60', 'sg61', 'es335', 'cg_a', 'cg_b'],
+    };
+    const remote = {
+      id: 'seb', lastModified: 2000,
+      myGuitars: ['lp60', 'sg61', 'es335', 'sire_t3', 'sire_t7'],
+    };
+    const out = mergeProfileLWW(local, remote, { otherProfilesGuitars: new Set() });
+    // Drop = 2 (pas 1) → swap suspect non activé → adopté
+    expect(out.myGuitars).toEqual(['lp60', 'sg61', 'es335', 'sire_t3', 'sire_t7']);
+  });
+});
+
+describe('mergeProfileLWW — Phase 7.74.4 language delta élargi 5s → 60s', () => {
+  test('delta 30s + language conflict → keep local (élargi vs 5s)', () => {
+    // Avant Phase 7.74.4 : delta 30s > 5s → adopt remote (language reset).
+    // Après Phase 7.74.4 : delta 30s < 60s → keep local.
+    const local = {
+      id: 'seb', lastModified: 1000,
+      language: 'fr',
+      myGuitars: ['lp60'],
+    };
+    const remote = {
+      id: 'seb', lastModified: 1000 + 30000, // +30s
+      language: 'en',
+      myGuitars: ['lp60'],
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.language).toBe('fr');
+  });
+
+  test('delta 70s + language conflict → adopt remote (au-delà du seuil élargi)', () => {
+    // Au-delà de 60s, on considère le changement comme intentionnel.
+    const local = {
+      id: 'seb', lastModified: 1000,
+      language: 'fr',
+      myGuitars: ['lp60'],
+    };
+    const remote = {
+      id: 'seb', lastModified: 1000 + 70000, // +70s > 60s
+      language: 'en',
+      myGuitars: ['lp60'],
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.language).toBe('en');
+  });
+
+  test('régression : delta < 5s → keep local (comportement Phase 7.74 préservé)', () => {
+    const local = {
+      id: 'seb', lastModified: 1000,
+      language: 'fr',
+      myGuitars: ['lp60'],
+    };
+    const remote = {
+      id: 'seb', lastModified: 1000 + 2000, // +2s
+      language: 'en',
+      myGuitars: ['lp60'],
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.language).toBe('fr');
   });
 });
 

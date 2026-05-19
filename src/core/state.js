@@ -837,6 +837,32 @@ function mergeProfileLWW(local, remote, options = {}) {
           nextGuitars = remoteGuitars.filter((g) => !orphans.includes(g));
         }
       }
+      // Phase 7.74.4 — Couche 4 : détection pattern swap suspect
+      // cg_* → standard. Si après filter orphan le delta entre local
+      // et nextGuitars est "drop exactement 1 cg_* + add ≥1 standard",
+      // c'est la signature d'une pollution résiduelle (cas observé
+      // 2026-05-19 soir : drop Tele 51 cg_* + add sire_t3 sans que
+      // sire_t3 soit dans le rig d'aucun profil — orphan check
+      // inopérant). Keep local entier.
+      //
+      // Risque false-positive : un user qui remplace explicitement
+      // sa custom par une standard du catalog. Très rare (les customs
+      // sont créés justement car absentes du catalog). Workaround :
+      // faire les 2 actions sur des stamps séparés (add d'abord,
+      // remove ensuite — donne 2 merges distincts qui passent).
+      const localSetCheck = new Set(localGuitars);
+      const nextSetCheck = new Set(nextGuitars);
+      const droppedNow = localGuitars.filter((g) => !nextSetCheck.has(g));
+      const addedNow = nextGuitars.filter((g) => !localSetCheck.has(g));
+      const isSwapSuspect =
+        droppedNow.length === 1 &&
+        /^cg_/.test(droppedNow[0]) &&
+        addedNow.length >= 1 &&
+        addedNow.every((g) => !/^cg_/.test(g));
+      if (isSwapSuspect) {
+        debugLog(`SUSPECT swap pattern cg_*→standard : drop=${droppedNow[0]} add=${addedNow.join(',')} — keeping local`, { dropped: droppedNow, added: addedNow, local: localGuitars, remote: remoteGuitars });
+        nextGuitars = localGuitars;
+      }
       merged.myGuitars = nextGuitars;
     }
   } else if (otherProfilesGuitars) {
@@ -853,10 +879,13 @@ function mergeProfileLWW(local, remote, options = {}) {
     merged.myGuitars = remoteGuitars;
   }
 
-  // ── language : keep local si delta stamp < 5s (anti-cycle, le user
-  //    n'a pas le temps de changer la langue 2× en 5s) ──
+  // ── language : keep local si delta stamp < 60s (Phase 7.74.4 — élargi
+  //    de 5s à 60s pour couvrir les cycles sync espacés observés
+  //    2026-05-19 soir où la langue passait FR → EN involontairement
+  //    via merge LWW grossier). Anti-cycle : le user ne change pas sa
+  //    langue 2× en 60s. ──
   if (local.language && remote.language && local.language !== remote.language) {
-    if (rts - lts < 5000) {
+    if (rts - lts < 60000) {
       debugLog(`SUSPECT language conflict short delta (${rts - lts}ms) : ${local.language} → ${remote.language} — keeping local`, { local: local.language, remote: remote.language });
       merged.language = local.language;
     }
@@ -929,6 +958,13 @@ function mergeProfilesLWW(localProfiles, remoteProfiles, options = {}) {
   // Source : on prend les profiles LOCAUX (avant merge). Les guitares
   // custom partagées (ex: lp60 dans plusieurs profils) ne sont PAS
   // considérées comme orphan car elles sont dans ce profil aussi.
+  //
+  // Phase 7.74.4 explore : étendre la source à union local+remote.
+  // Conclusion : approche rejetée. Cas pathologique symétrique — une
+  // pollution dans remote.X contamine guitarsByProfile.X qui contamine
+  // l'orphan check des autres profils. Le bug réel observé (sire_t3
+  // pas dans aucun rig) est couvert par la détection swap suspect
+  // cg_*→standard dans mergeProfileLWW (Couche 4 Phase 7.74.4).
   const guitarsByProfile = {};
   for (const [id, p] of Object.entries(local)) {
     guitarsByProfile[id] = new Set(Array.isArray(p?.myGuitars) ? p.myGuitars : []);
