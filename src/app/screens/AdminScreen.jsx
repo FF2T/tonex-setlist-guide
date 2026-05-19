@@ -33,6 +33,7 @@ function AdminScreen({
   toneNetPresets, onToneNetPresets,
   adminPacks, onAdminPacks,
   MaintenanceTabComponent,
+  fullState, onImportState,
   onBack, onNavigate,
 }) {
   const [tab, setTab] = useState('profiles');
@@ -129,6 +130,8 @@ function AdminScreen({
           profile={profile}
           profiles={profiles}
           guitarBias={guitarBias}
+          fullState={fullState}
+          onImportState={onImportState}
         />
       )}
 

@@ -24,8 +24,9 @@ import { normalizeSongTitle, normalizeArtist } from '../utils/song-helpers.js';
 import { enrichAIResult, updateAiCache } from '../utils/ai-helpers.js';
 import { fetchAI } from '../utils/fetchAI.js';
 import { isNoSyncMode, setNoSyncMode } from '../utils/firestore.js';
+import { downloadFile, exportJSON } from '../utils/csv-helpers.js';
 
-function MaintenanceTab({ songDb, onSongDb, onAiCacheUpdate, onProfiles, activeProfileId, setlists, onSetlists, onDeletedSetlistIds, banksAnn, banksPlug, aiProvider, aiKeys, profile, profiles, guitarBias, onFullReset }) {
+function MaintenanceTab({ songDb, onSongDb, onAiCacheUpdate, onProfiles, activeProfileId, setlists, onSetlists, onDeletedSetlistIds, banksAnn, banksPlug, aiProvider, aiKeys, profile, profiles, guitarBias, onFullReset, fullState, onImportState }) {
   const [recalculating, setRecalculating] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0, current: '' });
   const [done, setDone] = useState(false);
@@ -148,9 +149,58 @@ function MaintenanceTab({ songDb, onSongDb, onAiCacheUpdate, onProfiles, activeP
     recalcAll();
   };
 
+  // Phase 7.78.1 — JSON full state export/import (réintégré ici après
+  // retrait Phase 7.73.1 du tab Export/Import).
+  const handleExportJSON = () => {
+    if (!fullState) return;
+    exportJSON(fullState);
+  };
+  const handleImportJSONClick = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const data = JSON.parse(ev.target.result);
+          if (!window.confirm(t('maintenance.json-import-confirm', 'Restaurer ce JSON ? Toutes tes données locales seront REMPLACÉES. Action irréversible.'))) return;
+          if (typeof onImportState === 'function') onImportState(data);
+        } catch (err) {
+          alert(t('maintenance.json-invalid', 'Fichier JSON invalide.'));
+        }
+      };
+      reader.readAsText(file, 'UTF-8');
+    };
+    input.click();
+  };
+
   return (
     <div>
       <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 16 }}>{t('maintenance.intro', "Outils de maintenance de l'application.")}</div>
+
+      {/* Phase 7.78.1 — Sauvegarde/restauration JSON globale (admin).
+          Réintégrée ici suite retrait du tab Export/Import Phase 7.73.1. */}
+      {fullState && onImportState && (
+        <div style={{ background: 'var(--green-bg)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>💾</span><span>{t('maintenance.json-section', 'Sauvegarde complète (JSON)')}</span>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>
+            {t('maintenance.json-hint', 'Sauvegarde complète du state : setlists, morceaux, presets, banks, tous les profils. Parfait pour sauvegarder ou transférer entre appareils.')}
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button onClick={handleExportJSON} style={{ background: 'var(--green)', border: 'none', color: 'var(--text)', borderRadius: 'var(--r-lg)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              {t('maintenance.export-json', '⬇ Exporter JSON')}
+            </button>
+            <button onClick={handleImportJSONClick} style={{ background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.35)', color: 'var(--green)', borderRadius: 'var(--r-lg)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              {t('maintenance.import-json', '📂 Importer JSON')}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
