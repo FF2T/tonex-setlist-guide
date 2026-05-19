@@ -746,7 +746,95 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-19, Phase 7.69 close — Refonte modèle filtrage presets + import CSV interactif + vue admin)
+## État actuel (2026-05-19, session 16+ phases livrées — UX refonte profil/admin)
+
+**Backline v8.14.128 / SW backline-v228 / STATE_VERSION 10 / 1202 tests verts.**
+
+### Récap session 2026-05-19 (16+ phases en cascade, 4 axes UX)
+
+#### Axe 1 — Refonte modèle presets custom + import CSV (Phase 7.69.x)
+
+| Sous-phase | Sujet | Version |
+|---|---|---|
+| 7.69 | Refonte UX presets custom : src="custom" toujours, creator séparé, liste plate MyCustomPresetsTab, modale CSV unknowns interactive, vue admin AllUserPresetsTab | 8.14.112 |
+| 7.69.1 | Fix parseCSV double-quoted (Excel re-export bug) | 8.14.113 |
+| 7.69.2 | Fix detectUnknownPresets : tester `entry.guessed` au lieu de truthy | 8.14.114 |
+| 7.69.3 | normalizePresetName : abréviations gain (cln/clr → clean, drv → drive) | 8.14.115 |
+| 7.69.4 | Rename gen_catalog .js → .cjs + fix Drive path | — |
+| 7.69.5 | findCatalogSuggestions : fuzzy match token-set + alias + strip prefix pack | 8.14.116 |
+| 7.69.6 | 4e option modale CSV "Saisir…" avec datalist autocomplete + validation ✅/❌ | 8.14.117 |
+| 7.69.7 | Tab admin Packs : import via listing texte (`unzip -l`), `shared.adminPacks` syncé, AdminPacksTab | 8.14.118 |
+| 7.69.8 | Fix amp inference (Marshall JCM800 strippé) + label pack admin via getSourceInfo | 8.14.119 |
+| 7.69.9 | Enrichissement IA admin packs (raccord Explorer ampContext) | 8.14.120 |
+| 7.69.10 | Wording option modale CSV : "Saisir…" → "Rechercher dans le catalog" | 8.14.121 |
+| 7.69.11 | Dédup datalist catalog autocomplete (1355 → 1028 entries) | 8.14.122 |
+| 7.69.12 | Modale CSV en 2 sections (À remapper / À ajouter) | 8.14.123 |
+| 7.69.13 | Scores compatibilité qualitatifs (4 niveaux + auto-recalc depuis style) | 8.14.124 |
+
+#### Axe 2 — UX setlists (Phase 7.71)
+
+`ListScreen` :
+- Supprimées : checkboxes par morceau, bouton "Cocher / Décocher", bouton
+  "Retirer non-cochés", bouton "Générer le récap"
+- Ajouté : bouton **"✏️ Éditer la setlist / ✅ Terminer"** qui révèle
+  la corbeille 🗑 par morceau en mode édition
+- État après : row morceau visuellement nettoyé (2 colonnes maxi),
+  arrondi sur les 4 coins hors édition, undo toast Phase 5.4 préservé
+- v8.14.125
+
+#### Axe 3 — Mode admin séparé (Phase 7.72)
+
+Avant : ~18 onglets dans une rangée scrollable pour l'admin.
+
+Après :
+- **🙂 Mon Profil** (commun à tous, ~10 onglets) : Guitares / Devices /
+  Sources / Mes presets custom / Banks (par device enabled) / Affichage /
+  Préférences IA / Mot de passe / [CSV intégré dans device tabs Phase 7.73.1]
+- **⚙️ Admin** (nouvelle route gated `isAdmin`) : Profils / Tous presets
+  users / Packs admin / ToneNET / Maintenance / Clé API partagée
+
+Nouveau composant `AdminScreen.jsx`. Entrée NAV_ITEMS "⚙️ Admin" dans
+AppHeader + AppNavBottom (réutilise mécanisme `adminOnly: true` Phase
+7.29.3). Route `screen === 'admin'` gated `isAdmin` (URL hack defense).
+
+v8.14.126
+
+#### Axe 4 — Plan A Mon compte (Phase 7.73.0/.1, suite Phase 7.73.2 à venir)
+
+**Phase 7.73.0** — Tally feedback (v8.14.127) :
+- URL `https://tally.so/r/xXR1G5` stockée dans `core/branding.js`
+- Helper `buildFeedbackUrl(profileName, appVersion)` qui pré-remplit
+  les champs cachés Tally via URL params
+- Bouton **"💬 Envoyer un feedback"** dans le footer MonProfilScreen
+  (target=_blank, ouvre Tally avec `profile_name` + `app_version`
+  pré-remplis)
+- `window.__BACKLINE_APP_VERSION` exposé depuis main.jsx
+
+**Phase 7.73.1** — CSV dans device tabs + retrait tab Export/Import
+(v8.14.128) :
+- Prop `restrictToDevice: 'ann'|'plug'` ajoutée à `ExportImportScreen`
+  qui filtre les boutons export + le parsing CSV import + le scan
+  presets inconnus
+- Wrapper `DeviceCSVPanel` rendu en haut de chaque tab device
+  (pedale/ann/plug) — accès CSV au plus proche du contexte
+- Tab "📋 Export / Import" retiré de MonProfilScreen — JSON full
+  state admin reste accessible via ⚙️ Admin → Maintenance
+- Factory helper `makeOnAddCustomPresets(onProfiles, activeProfileId)`
+  centralisé pour partager le callback Phase 7.69 entre 3 instances
+
+#### Roadmap proposée même session (à activer)
+
+- **Phase 7.70** : code couleur curation preset dans BankEditor (4
+  catégories : inconnu/connu/curated admin/curated perso, 5e studio
+  pour Phase 11)
+- **Phase 7.73.2** : onglet "👤 Mon compte" complet (Full scope
+  validé) — voir Idées en attente
+- **Phase 12** : séparer catalog GLOBAL vs possession USER (granularité
+  par pack individuel, `profile.ownedPacks`)
+
+---
+
+## État précédent (2026-05-19 matin, Phase 7.69 close — Refonte modèle filtrage presets + import CSV interactif + vue admin)
 
 **Backline v8.14.112 / SW backline-v212 / STATE_VERSION 10 / 1163 tests verts.**
 
@@ -8700,6 +8788,111 @@ profile {
   passer en stale-while-revalidate sur le HTML.
 
 ## Idées en attente (proposées, pas encore validées)
+
+### Phase 7.73.2 (proposée 2026-05-19, validée Full scope) — Onglet "👤 Mon compte"
+
+**Contexte** : Phase 7.72 a séparé Mon Profil / Admin. Phase 7.73.0+.1 ont
+ajouté le bouton feedback Tally + intégré CSV dans device tabs. Reste à
+livrer le tab "👤 Mon compte" qui regroupe Identité + Sécurité + Données +
+Activité + Préférences musicales + Communauté + Aide.
+
+**Validation user 2026-05-19** : Full scope OK sauf "BPM cible préféré"
+et "Tuning par défaut" écartés. Bouton Tally feedback intégré dans
+l'onglet (en plus du footer Phase 7.73.0).
+
+#### Composant `MonCompteTab.jsx` (premier tab MonProfilScreen)
+
+Sections :
+
+**👤 Identité**
+- Avatar (photo, optionnel — réutilise `image-resize.js` Phase 7.29.9)
+- Nom (édition)
+- Bio courte (1-2 lignes, max 200 chars, optionnel)
+- Email (optionnel — pour récupération password + contact admin)
+- Badges read-only : ADMIN / BETA / DEMO selon profile
+
+**🎵 Préférences musicales**
+- Styles préférés (multi-select : blues/rock/hard_rock/jazz/metal/pop)
+- Stocké dans `profile.preferredStyles: string[]`
+- Pas de BPM cible ni tuning par défaut (écartés par user)
+
+**🔐 Sécurité**
+- Migration PasswordTab existante : changer mot de passe (current +
+  next + confirm, hashPassword via WebCrypto Phase 7.28)
+- Historique de connexion (5 dernières + admin_switch Phase 7.63)
+- Trusted devices (vue + bouton "Révoquer cet appareil") — nouveau
+
+**💾 Mes données**
+- "⬇ Exporter mes données (JSON)" — filtré profil actif uniquement :
+  rig + customPacks + customGuitars + banksAnn/Plug + toneNetPresets
+  perso + aiCache perso + setlists où profileIds inclut moi
+- "📂 Importer mes données" (JSON personnel)
+- "🗑 Réinitialiser mon profil" (confirm + reset profile sauf id/name/
+  password/loginHistory)
+
+**📊 Activité (read-only)**
+- Date d'inscription : depuis `loginHistory[0]` (extraction first timestamp)
+- Nb setlists possédées (filter par profileIds)
+- Nb morceaux analysés IA (count `profile.aiCache`)
+- Nb feedbacks donnés (count cumulé `song.feedback[]` mes entries)
+- Nb customs créés (count `profile.customPacks` flatten presets)
+
+**🤝 Communauté**
+- Partages reçus : "Sébastien a partagé X setlist avec toi"
+  (filter setlists où profileIds inclut moi MAIS le owner principal
+  est un autre profile)
+- Vue read-only initialement, action "Retirer mon accès" plus tard
+
+**💬 Aide**
+- Bouton "🎓 Relancer le tutoriel" (relance OnboardingWizard via
+  `window.setShowOnboarding(true)` — mécanisme existant Phase 1)
+- Bouton "💬 Envoyer un feedback" (réutilise `buildFeedbackUrl` Phase
+  7.73.0 — Tally pré-rempli profile_name + app_version)
+- Bouton "📧 Contacter l'admin" (mailto pré-rempli)
+- Version Backline affichée + lien CHANGELOG
+
+#### Tab order après Phase 7.73.2
+
+1. **👤 Mon compte** (NOUVEAU, premier tab — remplace position "🎸 Guitares")
+2. 🎸 Guitares
+3. 📱 Mes appareils
+4. 📦 Sources
+5. 📦 Mes presets custom
+6. 🎛 Pedale ToneX / Ann / Plug (si device — CSV intégré Phase 7.73.1)
+7. 🎚️ Patches TMP (si device)
+8. 🎨 Affichage
+9. 🎯 Préférences IA
+10. ~~🔐 Mot de passe~~ (migré dans Mon compte → 🔐 Sécurité)
+
+= 9 onglets (admin) ou 9 onglets (non-admin). Net -1 vs Phase 7.73.1.
+
+#### Schema data extensions
+
+- `profile.avatar: string` (data-URL JPEG via `resizeImageToDataUrl`,
+  ~30 KB optimisé Phase 7.29.9). Déjà supporté en théorie (champ
+  optional). Pas de bump STATE_VERSION.
+- `profile.bio: string` (optionnel, max 200 chars)
+- `profile.email: string` (optionnel)
+- `profile.preferredStyles: string[]` (multi-select)
+
+Tous additifs, optional, pas de bump STATE_VERSION ni migration.
+
+#### Effort estimé
+
+- Squelette + Identité (avatar + nom + bio + email) : ~1h
+- Sécurité (migration PasswordTab) : ~30 min
+- Mes données (export/import perso) : ~1h
+- Activité (stats) : ~1h
+- Communauté (partages reçus) : ~30 min
+- Aide (relance tuto + Tally + mailto + version) : ~30 min
+- Préférences musicales : ~30 min
+- Wiring tab order + retrait PasswordTab : ~30 min
+
+**Total : ~5-6h.**
+
+**Décision actuelle** : proposée, à activer dans la prochaine session.
+User a redéfini le scope plus tôt dans la session. Tous les helpers
+nécessaires existent déjà (hashPassword, image-resize, buildFeedbackUrl).
 
 ### Phase 7.70 (proposée 2026-05-19) — Code couleur curation preset dans BankEditor
 
