@@ -9299,6 +9299,193 @@ profile {
 
 ## Idées en attente (proposées, pas encore validées)
 
+### Phase 7.79.3 (validée 2026-05-19 soir, à livrer) — Cascade 3 niveaux user > studio > backline > default
+
+**Contexte** : Phase 7.78 + 7.79 + 7.79.2 livrent la curation runtime
+**uniquement** pour custom + ToneNET (`EDITABLE_SOURCES = {'custom',
+'ToneNET'}`). Les catalogs statiques (TSR/AA/JS/TJ/WT/Galtone/ML/
+Anniversary/Factory/PlugFactory) restent en mode lecture seule depuis
+l'UI — l'admin doit éditer le code source pour les enrichir.
+
+**Insight user 2026-05-19 soir** : *"je pense effectivement qu'il va
+falloir prévoir 2 voire 3 curations : 1. User 2. Backline 3. Studio.
+On verra laquelle gagne mais User doit passer devant je pense puis
+Studio puis Backline"*.
+
+**Design validé** : hiérarchie 3 niveaux avec cascade de résolution.
+
+#### Architecture data
+
+```
+profile.usagesOverrides: {                 ← Niveau 1 (priorité max) — User perso
+  [presetName]: {
+    usages: [{artist, songs?}] | null,     // null = override "vide explicite"
+    lastModified: number,
+  }
+}
+shared.studioUsages: {                     ← Niveau 2 — Studio (Phase 11 future)
+  [presetName]: {
+    usages: [...] | null,
+    curatedBy: studioId,                   // 'TSR', 'AA', 'JS', etc.
+    lastModified: number,
+  }
+}
+shared.usagesOverrides: {                  ← Niveau 3 — Backline admin runtime
+  [presetName]: {
+    usages: [...] | null,
+    lastModified: number,
+  }
+}
+// Niveau 4 : catalog.entry.usages (default code source, le moins prioritaire)
+```
+
+#### Cascade lecture
+
+```js
+resolveUsagesCascade(presetName) → { usages, source }
+  // Itère niveaux 1→4, retourne le premier non-null
+  1. profile.usagesOverrides[name]?.usages   → source='user'
+  2. shared.studioUsages[name]?.usages       → source='studio' (+ curatedBy)
+  3. shared.usagesOverrides[name]?.usages    → source='backline'
+  4. catalog.entry.usages                     → source='default'
+  // Si aucun non-null → null
+```
+
+Chaque écran qui affiche les usages reçoit aussi la `source` pour
+afficher un badge subtil :
+- 👤 *Toi* (user perso)
+- 🏷️ *Studio (TSR)* (Phase 11)
+- ⚙️ *Backline*
+- 📦 *Catalog* (default, pas de badge ou badge discret)
+
+#### Routing écriture
+
+`saveUsagesForPreset(name, usages, ctx)` étendu — route selon `entry.src`
+ET `ctx.isAdmin` :
+
+| Entry.src | User non-admin | User admin |
+|---|---|---|
+| `custom` | profile.customPacks | profile.customPacks |
+| `ToneNET` | shared.toneNetPresets | shared.toneNetPresets |
+| Catalog statique (TSR/AA/JS/...) | **profile.usagesOverrides** | **shared.usagesOverrides** |
+
+→ Bruno/Francisco peuvent curer TSR perso (priorité user).
+→ Sébastien admin cure pour tout le monde via shared (niveau Backline).
+→ Le user qui curé perso voit TOUJOURS sa curation user en priorité,
+   même si l'admin Backline pousse une autre curation après.
+
+#### Helpers à écrire
+
+- `resolveUsagesCascade(entry, profileOv, studioOv, backlineOv)`
+  retourne `{usages, source, curatedBy?}` — pure, testable.
+- `mergeUsagesOverridesLWW(local, remote)` per-item LWW Firestore
+  (pattern Phase 7.53.1 toneNetPresets).
+- `saveUsagesOverride(name, usages, level, ctx)` écrit selon `level`
+  ('user' | 'studio' | 'backline').
+- Extension `findCatalogEntry` : lit `window._usagesOverridesLookup`
+  (synchronisé depuis profile + shared au boot, pattern Phase 7.52.4
+  `_toneNetLookup`) et merge usages dans l'entry retourné avec source
+  badge.
+
+#### UI dans UsagesSection (PresetDetailInline) et PresetCurationModal
+
+- Affiche les usages résolus + **badge source** subtil à côté du titre
+  de section ("🎯 Usages curés · 👤 Toi" ou "⚙️ Backline" etc.)
+- Bouton "✏️ Modifier" disponible pour **TOUS les users** (admin ou non)
+  sur les catalogs statiques — mais routé différemment :
+  - Non-admin → écrit profile.usagesOverrides[name] (perso)
+  - Admin → écrit shared.usagesOverrides[name] (Backline)
+- Message info si user écrit par-dessus une curation existante d'un
+  autre niveau :
+  *"Ta curation perso prendra le pas sur la curation Backline (priorité
+  user). Toi seul la verras."*
+- Bouton secondaire "🔄 Restaurer Backline / Catalog" pour retirer
+  l'override perso et hériter du niveau suivant dans la cascade.
+- Distinction visuelle entre **"Ajouter usages"** (création) et
+  **"Override existant"** (modifier ou retirer pour revenir au default).
+
+#### Schéma localStorage
+
+Additif sur `profile` (nouveau champ `usagesOverrides`) et `shared`
+(nouveaux champs `usagesOverrides` et `studioUsages` — ce dernier
+slot vide pour Phase 11). **Pas de bump STATE_VERSION** (champs
+optionnels, pas de migration nécessaire — les profils existants
+adoptent au pull Firestore via merge LWW).
+
+#### Sync Firestore
+
+- `profile.usagesOverrides` → push via push profil habituel (sync
+  per-profile LWW Phase 5.7). Stamp `profile.lastModified` à chaque
+  write d'override.
+- `shared.usagesOverrides` → push via push shared habituel. Merge
+  per-item LWW via `mergeUsagesOverridesLWW` au pull (pattern Phase
+  7.53.1).
+- `shared.studioUsages` → idem que shared.usagesOverrides (Phase 11
+  future). Pas écrit par Backline actuellement.
+
+#### syncHash
+
+Ajouter `profile.usagesOverrides` dans le hash (sinon push ne se
+déclenche pas au stamp). Pour shared, `lastModified` global stamping
+suffit (déjà câblé). Cf Phase 7.46 pour le pattern.
+
+#### Tests Vitest
+
+- `resolveUsagesCascade` × 8 tests : tous niveaux non-null (chacun
+  gagne), user gagne sur backline, backline gagne sur catalog, slot
+  studio vide, niveau null explicite ne pas tomber sur le suivant
+  (override "vide intentionnel"), entry null safe.
+- `mergeUsagesOverridesLWW` × 4 tests : local plus récent, remote
+  plus récent, local-only, remote-only.
+- `saveUsagesOverride` routing × 6 tests : user non-admin → profile,
+  user admin → shared, niveau explicite 'user'/'backline', stamp
+  lastModified, null = retire l'override.
+
+#### Effort estimé
+
+~4-5h dev + ~30 min tests + ~15 min déploiement = ~5h total.
+
+Découpage possible si besoin :
+- **Phase 7.79.3a** : helpers cascade + extension `findCatalogEntry`
+  + tests (~2h, purement backend)
+- **Phase 7.79.3b** : UI badges + routing saveUsagesForPreset + boutons
+  Modifier sur catalogs statiques + bouton "Restaurer" (~2h)
+- **Phase 7.79.3c** : merge LWW Firestore + syncHash + propagation
+  Mac↔iPhone + déploiement (~1h)
+
+#### Trade-offs et limites
+
+- **Volume Firestore** : si Sébastien cure 50 presets via Backline +
+  beta-testeurs curent 10-20 chacun en perso, l'overhead localStorage
+  reste modeste (~5-10 KB total). Pas de risque de saturation.
+- **Conflit user vs Backline** : par design, l'override user gagne.
+  Si Backline pousse une nouvelle curation officielle qui devrait
+  écraser la perso, l'user doit explicitement cliquer "🔄 Restaurer
+  Backline". C'est intentionnel — respect du choix user.
+- **Visibilité admin** : l'admin Backline (Sébastien) ne voit PAS les
+  curations user perso des beta-testeurs (par design — profile.usagesOverrides
+  est per-profile, comme les analyses IA perso). Si besoin de vue
+  admin "toutes les curations user" pour modération, ajouter une route
+  Phase 7.79.4.
+- **Phase 11 préparée** : `shared.studioUsages` slot est créé mais non
+  écrit en MVP. Quand Phase 11 (Studio-driven) démarre, il suffit
+  d'ajouter le compte studio + le routing studio → shared.studioUsages,
+  la cascade fonctionne déjà.
+
+#### Quand activer
+
+Demain frais (2026-05-20) ou plus tard selon priorités. Le user a
+explicitement validé le design 2026-05-19 soir mais a opté pour
+**option B (documentation, livraison reportée)** car la soirée du
+2026-05-19 était déjà bien chargée (11 phases livrées en cascade).
+
+**Bénéficiaires immédiats à la livraison** :
+- Sébastien admin : peut curer TSR/AA/JS/TJ/WT/Galtone/ML directement
+  depuis l'UI Backline sans toucher au source code.
+- Bruno + Francisco + futurs beta-testeurs : peuvent ajouter leurs
+  curations perso sur les presets factory et catalog statique sans
+  attendre l'admin.
+
 ### Phase 7.80 (à investiguer 2026-05-19) — 2 dettes critiques observées
 
 **Dette 1 — Revue UX/UI responsive complète**
