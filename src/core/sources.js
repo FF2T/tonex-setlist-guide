@@ -39,38 +39,41 @@ const SOURCE_IDS = ['TSR', 'ML', 'AA', 'JS', 'TJ', 'WT', 'Galtone', 'Anniversary
 // ViewProfileScreen, ExportImportScreen…).
 // Phase 5.12 — labels révisés pour clarifier la distinction
 // device (matériel ToneX) vs source (collection de presets factory).
+// Phase 7.76 — Labels révisés : citer les studios par leur nom commercial
+// sans préciser le nombre de packs intégrés (mouvant). Une note commune
+// signale que tous les packs ne sont pas encore couverts (cf
+// SOURCE_DESCRIPTIONS). Évite confusion "64 packs" / "Packs standalone".
 const SOURCE_LABELS = {
-  TSR: 'TSR — 64 Studio Rats Packs',
-  ML: 'ML — ML Sound Lab Essentials',
-  AA: 'Amalgam Audio — Packs standalone',
-  JS: 'Jason Sadites — Packs standalone',
-  TJ: 'Tone Junkie TV — Packs standalone',
-  WT: 'Worship Tutorials — Packs standalone',
-  Galtone: 'Galtone — Packs standalone',
-  Anniversary: 'Anniversary — Captures pré-installées',
-  Factory: 'Pédale classique v2 — Captures pré-installées',
-  FactoryV1: 'Pédale classique v1 — Captures pré-installées',
-  PlugFactory: 'Plug — Captures pré-installées',
-  ToneNET: 'ToneNET — Presets téléchargés',
+  TSR: 'The Studio Rats',
+  ML: 'ML Sound Lab',
+  AA: 'Amalgam Audio',
+  JS: 'Jason Sadites',
+  TJ: 'Tone Junkie TV',
+  WT: 'Worship Tutorials',
+  Galtone: 'Galtone',
+  Anniversary: 'ToneX Anniversary — captures pré-installées',
+  Factory: 'ToneX Pédale classique (firmware v2)',
+  FactoryV1: 'ToneX Pédale classique (firmware v1)',
+  PlugFactory: 'ToneX Plug — captures pré-installées',
+  ToneNET: 'ToneNET (presets téléchargés)',
   // Phase 7.69 — label uniformisé "Mes presets custom" (alignement avec
   // le tab "📦 Mes presets custom"). TOUS les presets persos du user
   // ont src: "custom" peu importe leur creator déclaré (TSR/AA/...).
-  // Le filtre custom = 1 toggle global pour activer/désactiver tous
-  // les presets persos. AA/TSR/etc. dans Sources = catalogues curated
-  // (par moi-curator ou par les studios), distincts des presets persos.
   custom: 'Mes presets custom',
 };
 
-// Phase 5.12 — Descriptions courtes affichées sous chaque label en
-// onglet Sources. Aide à comprendre quand cocher quoi.
+// Phase 7.76 — Descriptions révisées : note commune "tous les packs ne
+// sont pas encore intégrés dans Backline" pour les 7 studios commerciaux
+// (TSR / ML / AA / JS / TJ / WT / Galtone). Évite que le user pense
+// avoir TOUS les presets quand il coche.
 const SOURCE_DESCRIPTIONS = {
-  TSR: 'Si tu as acheté un ou plusieurs des 64 packs The Studio Rats.',
-  ML: 'Si tu as acheté le pack ML Sound Lab Essentials.',
-  AA: 'Si tu as acheté un pack standalone Amalgam Audio.',
-  JS: 'Si tu as acheté un pack standalone Jason Sadites.',
-  TJ: 'Si tu as acheté un pack standalone Tone Junkie TV.',
-  WT: 'Si tu as acheté un pack standalone Worship Tutorials.',
-  Galtone: 'Si tu as acheté un pack standalone Galtone.',
+  TSR: 'Si tu as acheté un ou plusieurs packs The Studio Rats. (tous les packs ne sont pas encore intégrés dans Backline)',
+  ML: 'Si tu as acheté un ou plusieurs packs ML Sound Lab. (tous les packs ne sont pas encore intégrés dans Backline)',
+  AA: 'Si tu as acheté un ou plusieurs packs Amalgam Audio. (tous les packs ne sont pas encore intégrés dans Backline)',
+  JS: 'Si tu as acheté un ou plusieurs packs Jason Sadites. (tous les packs ne sont pas encore intégrés dans Backline)',
+  TJ: 'Si tu as acheté un ou plusieurs packs Tone Junkie TV. (tous les packs ne sont pas encore intégrés dans Backline)',
+  WT: 'Si tu as acheté un ou plusieurs packs Worship Tutorials. (tous les packs ne sont pas encore intégrés dans Backline)',
+  Galtone: 'Si tu as acheté un ou plusieurs packs Galtone. (tous les packs ne sont pas encore intégrés dans Backline)',
   Anniversary: 'Si tu possèdes une ToneX Pédale Anniversary (rouge).',
   Factory: 'Si ta ToneX Pédale classique tourne sur le firmware v2 (presets 2025/04/03).',
   FactoryV1: 'Si ta ToneX Pédale classique tourne sur le firmware v1 (presets historiques).',
@@ -103,14 +106,16 @@ const SOURCE_BADGES = {
 // Info riche pour les drawer : icon + label long. Utilisé par
 // presetSourceInfo() pour afficher la provenance d'un preset dans
 // la fiche détaillée.
+// Phase 7.76 — Labels SOURCE_INFO révisés : citer les studios par leur
+// nom commercial sans précision pack standalone/zip (qui prête à confusion).
 const SOURCE_INFO = {
-  TSR: { icon: '📦', label: 'Pack 64 Studio Rats (zip)' },
-  ML: { icon: '🎚', label: 'ML Sound Lab Essentials' },
-  AA: { icon: '🎚', label: 'Amalgam Audio (standalone)' },
-  JS: { icon: '🎚', label: 'Jason Sadites (standalone)' },
-  TJ: { icon: '🎚', label: 'Tone Junkie TV (standalone)' },
-  WT: { icon: '🎚', label: 'Worship Tutorials (standalone)' },
-  Galtone: { icon: '🎚', label: 'Galtone (standalone)' },
+  TSR: { icon: '📦', label: 'The Studio Rats' },
+  ML: { icon: '🎚', label: 'ML Sound Lab' },
+  AA: { icon: '🎚', label: 'Amalgam Audio' },
+  JS: { icon: '🎚', label: 'Jason Sadites' },
+  TJ: { icon: '🎚', label: 'Tone Junkie TV' },
+  WT: { icon: '🎚', label: 'Worship Tutorials' },
+  Galtone: { icon: '🎚', label: 'Galtone' },
   ToneNET: { icon: '🌐', label: 'ToneNET (preset partagé)' },
   Anniversary: { icon: '🏭', label: 'ToneX Anniversary Factory' },
   Factory: { icon: '🏭', label: 'ToneX Pedal Factory (firmware v2)' },
@@ -132,7 +137,7 @@ function getSourceInfo(entry) {
   const base = SOURCE_INFO[entry.src];
   if (!base) return { icon: '📁', label: String(entry.src) };
   if (entry.src === 'TSR' && entry.pack) {
-    return { icon: base.icon, label: `Pack 64 Studio Rats « ${entry.pack}.zip »` };
+    return { icon: base.icon, label: `The Studio Rats — « ${entry.pack}.zip »` };
   }
   if (entry.src === 'custom' && entry.pack) {
     return { icon: base.icon, label: `Custom — ${entry.pack}` };

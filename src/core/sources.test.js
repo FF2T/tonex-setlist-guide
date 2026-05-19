@@ -64,8 +64,9 @@ describe('getSourceBadge', () => {
 
 describe('getSourceInfo', () => {
   test('TSR sans pack → label générique', () => {
+    // Phase 7.76 — label révisé sans "Pack 64 Studio Rats"
     expect(getSourceInfo({ src: 'TSR' })).toEqual({
-      icon: '📦', label: 'Pack 64 Studio Rats (zip)',
+      icon: '📦', label: 'The Studio Rats',
     });
   });
   test('TSR avec pack → label inclut le nom du pack', () => {
