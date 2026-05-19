@@ -6,11 +6,11 @@
 // - Export CSV des banks (Anniversary / Plug / les deux).
 // - Import CSV avec preview + mode merge/replace.
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { t, tFormat } from '../../i18n/index.js';
 import { CC, CL } from '../utils/ui-constants.js';
 import { downloadFile, generateCSV, exportJSON, parseCSV } from '../utils/csv-helpers.js';
-import { findCatalogEntry, findCatalogSuggestions } from '../../core/catalog.js';
+import { findCatalogEntry, findCatalogSuggestions, PRESET_CATALOG_MERGED } from '../../core/catalog.js';
 import Breadcrumb from '../components/Breadcrumb.jsx';
 import { inferCreator } from './MyCustomPresetsTab.jsx';
 import { inferPresetInfo } from '../utils/infer-preset.js';
@@ -52,13 +52,22 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
   const [toast, setToast] = useState(null);
   // Phase 7.69 — Modale presets inconnus.
   // unknownPresets : Array<string> liste des noms à choisir
-  // unknownChoices : { [name]: 'add' | 'skip' | 'remap' }
+  // unknownChoices : { [name]: 'add' | 'skip' | 'remap' | 'manual' }
   // unknownSuggestions : { [name]: catalogName } — top match fuzzy via
   // findCatalogSuggestions Phase 7.69.5. Si présent, choix 'remap'
   // disponible et default.
+  // unknownManualInput : { [name]: userTypedName } — Phase 7.69.6,
+  // valeur saisie par le user quand il choisit 'manual'. Validée à
+  // la finalisation via findCatalogEntry (entry non-guessed).
   const [unknownPresets, setUnknownPresets] = useState(null);
   const [unknownChoices, setUnknownChoices] = useState({});
   const [unknownSuggestions, setUnknownSuggestions] = useState({});
+  const [unknownManualInput, setUnknownManualInput] = useState({});
+
+  // Phase 7.69.6 — liste des noms du catalog pour datalist autocomplete.
+  // ~1700 entries triées alpha. useMemo car PRESET_CATALOG_MERGED est
+  // module-level statique (référence stable).
+  const catalogNames = useMemo(() => Object.keys(PRESET_CATALOG_MERGED).sort(), []);
   const csvRef = useRef(null);
   const jsonRef = useRef(null);
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
@@ -113,6 +122,25 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
   // Push les "add" dans profile.customPacks via onAddCustomPresets, et
   // remplace les "skip" par "" dans importData. Ferme la modale. La
   // preview banks habituelle s'affiche ensuite pour confirmation finale.
+  // Phase 7.69.6 — valide la saisie manuelle d'un remap. Retourne le
+  // nom canonique du catalog s'il existe (entry non-guessed) ou null.
+  // findCatalogEntry fait déjà la tolérance casse/espaces via normalize.
+  const validateManualRemap = (typedName) => {
+    if (!typedName || typeof typedName !== 'string') return null;
+    const trimmed = typedName.trim();
+    if (!trimmed) return null;
+    const entry = findCatalogEntry(trimmed);
+    if (!entry || entry.guessed) return null;
+    // Match clé exacte si possible (cas datalist autocomplete).
+    if (PRESET_CATALOG_MERGED[trimmed]) return trimmed;
+    // Sinon : retrouve le key dont l'entry === entry trouvé (normalize
+    // match). Inefficace mais ne tourne que sur clic finalize.
+    for (const [k, v] of Object.entries(PRESET_CATALOG_MERGED)) {
+      if (v === entry) return k;
+    }
+    return trimmed;
+  };
+
   const finalizeUnknownChoices = () => {
     if (!unknownPresets || !importData) return;
     const toAdd = unknownPresets.filter((name) => unknownChoices[name] === 'add');
@@ -120,6 +148,16 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
     const toRemap = unknownPresets.filter((name) =>
       unknownChoices[name] === 'remap' && unknownSuggestions[name],
     );
+    // Phase 7.69.6 — Manuel : ne retient que les saisies VALIDÉES
+    // (matchent un entry catalog non-guessed). Une saisie invalide ou
+    // vide tombe en skip silencieux.
+    const manualRemap = {};
+    unknownPresets.forEach((name) => {
+      if (unknownChoices[name] !== 'manual') return;
+      const typed = unknownManualInput[name];
+      const validated = validateManualRemap(typed);
+      if (validated) manualRemap[name] = validated;
+    });
     // 1. Push les "add" comme customs avec defaults raisonnables
     if (toAdd.length > 0 && typeof onAddCustomPresets === 'function') {
       const newPresets = toAdd.map((name) => {
@@ -137,12 +175,18 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
       });
       onAddCustomPresets(newPresets);
     }
-    // 2. Phase 7.69.5 — Remap : remplace les noms par leur catalog match
-    //    + Skip : remplace par "" dans importData. Une seule passe.
-    if (toSkip.length > 0 || toRemap.length > 0) {
-      const skipSet = new Set(toSkip);
-      const remapMap = {};
-      toRemap.forEach((name) => { remapMap[name] = unknownSuggestions[name]; });
+    // 2. Phase 7.69.5/.6 — Remap (fuzzy suggestion OU saisie manuelle
+    //    validée) : remplace les noms par leur catalog match. Skip :
+    //    remplace par "". Une seule passe.
+    const remapMap = {};
+    toRemap.forEach((name) => { remapMap[name] = unknownSuggestions[name]; });
+    Object.entries(manualRemap).forEach(([name, target]) => { remapMap[name] = target; });
+    // Phase 7.69.6 — Si choix 'manual' MAIS saisie invalide → skip silencieux
+    const invalidManual = unknownPresets.filter((name) =>
+      unknownChoices[name] === 'manual' && !manualRemap[name],
+    );
+    if (toSkip.length > 0 || Object.keys(remapMap).length > 0 || invalidManual.length > 0) {
+      const skipSet = new Set([...toSkip, ...invalidManual]);
       const nextImportData = { ann: {}, plug: {} };
       ['ann', 'plug'].forEach((k) => {
         Object.entries(importData[k] || {}).forEach(([bank, slots]) => {
@@ -161,12 +205,14 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
     setUnknownPresets(null);
     setUnknownChoices({});
     setUnknownSuggestions({});
+    setUnknownManualInput({});
   };
 
   const cancelUnknownModal = () => {
     setUnknownPresets(null);
     setUnknownChoices({});
     setUnknownSuggestions({});
+    setUnknownManualInput({});
     setImportData(null);
   };
   const handleJSONFile = (e) => {
@@ -307,6 +353,7 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
                           style={{ fontSize: 10, padding: '2px 4px', background: 'var(--bg-elev-1)', color: 'var(--text)', border: '1px solid var(--a10)', borderRadius: 'var(--r-sm)', cursor: 'pointer' }}
                         >
                           {suggestion && <option value="remap">{t('export.unknown-remap', 'Remapper')}</option>}
+                          <option value="manual">{t('export.unknown-manual', 'Saisir…')}</option>
                           <option value="add">{t('export.unknown-add', 'Ajouter')}</option>
                           <option value="skip">{t('export.unknown-skip', 'Laisser vide')}</option>
                         </select>
@@ -317,14 +364,42 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
                     {/* Phase 7.69.5 — Affiche la suggestion en sous-ligne pour
                         montrer la cible du remap. Visible même quand le
                         user choisit "Ajouter" / "Laisser vide" (info latérale). */}
-                    {suggestion && (
+                    {suggestion && choice !== 'manual' && (
                       <div style={{ fontSize: 10, color: choice === 'remap' ? 'var(--green)' : 'var(--text-muted)', paddingLeft: 10 }}>
                         → <span style={{ fontWeight: choice === 'remap' ? 600 : 400 }}>{suggestion}</span>
                       </div>
                     )}
+                    {/* Phase 7.69.6 — Saisie manuelle avec datalist autocomplete +
+                        validation visuelle ✅/❌ via findCatalogEntry. */}
+                    {choice === 'manual' && (() => {
+                      const typed = unknownManualInput[name] || '';
+                      const validated = validateManualRemap(typed);
+                      return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingLeft: 10, marginTop: 2 }}>
+                          <input
+                            list="catalog-names-dl"
+                            value={typed}
+                            onChange={(e) => setUnknownManualInput((m) => ({ ...m, [name]: e.target.value }))}
+                            placeholder={t('export.unknown-manual-placeholder', 'Tape le nom catalog…')}
+                            style={{ flex: 1, fontSize: 10, padding: '3px 6px', background: 'var(--bg-elev-1)', color: 'var(--text)', border: '1px solid ' + (typed ? (validated ? 'var(--green)' : 'var(--red)') : 'var(--a10)'), borderRadius: 'var(--r-sm)' }}
+                          />
+                          {typed && (
+                            <span style={{ fontSize: 11, color: validated ? 'var(--green)' : 'var(--red)' }} title={validated ? `→ ${validated}` : t('export.unknown-manual-invalid', 'Aucun match catalog — sera laissé vide')}>
+                              {validated ? '✅' : '❌'}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}
+              {/* Phase 7.69.6 — Datalist partagée (tous noms catalog ~1700).
+                  Rendue 1 fois en bas de la liste, partagée par toutes les
+                  inputs manuelles via list="catalog-names-dl". */}
+              <datalist id="catalog-names-dl">
+                {catalogNames.map((n) => <option key={n} value={n}/>)}
+              </datalist>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={cancelUnknownModal} style={{ flex: 1, background: 'var(--a7)', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '9px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{t('export.cancel', 'Annuler import')}</button>
