@@ -23,7 +23,7 @@ import {
   findGuitarByAIName, findCotEntryForGuitar, localGuitarSongScore,
   localGuitarSettings, guitarChoiceFeedback,
 } from '../../core/scoring/guitar.js';
-import { findCatalogEntry } from '../../core/catalog.js';
+import { findCatalogEntry, getPresetCurationStatus, CURATION_COLORS, getCurationLabel } from '../../core/catalog.js';
 import { getSongInfo } from '../../core/songs.js';
 import { getSourceInfo } from '../../core/sources.js';
 import { AMP_TAXONOMY, EXTERNAL_PACK_CATALOG } from '../../data/data_context.js';
@@ -304,7 +304,29 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
                       <StatusDot score={idealScore} ideal={true}/>
-                      <div style={{ flex: 1 }}>{t('song-detail.preset-label', 'Preset')} <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{displayPresetName}</span></div>
+                      <div style={{ flex: 1 }}>{t('song-detail.preset-label', 'Preset')} <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{displayPresetName}</span>
+                        {/* Phase 7.70.1 — Pastille curation à côté du nom preset top */}
+                        {(() => {
+                          const curStatus = getPresetCurationStatus(displayPresetName);
+                          if (!curStatus) return null;
+                          const curColor = CURATION_COLORS[curStatus];
+                          const curLabel = getCurationLabel(curStatus);
+                          return <span
+                            title={curLabel}
+                            aria-label={curLabel}
+                            style={{
+                              display: 'inline-block',
+                              width: 6,
+                              height: 6,
+                              borderRadius: '50%',
+                              background: curColor.dot,
+                              border: `1px solid ${curColor.border}`,
+                              marginLeft: 6,
+                              verticalAlign: 'middle',
+                            }}
+                          />;
+                        })()}
+                      </div>
                       {idealScore > 0 && <b style={{ color: scoreColor(idealScore), flexShrink: 0 }}>{idealScore}%</b>}
                     </div>
                     <div style={{ fontSize: 9, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>

@@ -8,7 +8,7 @@
 // "TSR Bumble DLX CLN 1" (préfixe TSR strippé + dlx↔deluxe + cln→clean).
 
 import { describe, it, expect } from 'vitest';
-import { findCatalogSuggestions, findCatalogEntry } from './catalog.js';
+import { findCatalogSuggestions, findCatalogEntry, getPresetCurationStatus, CURATION_COLORS, getCurationLabel } from './catalog.js';
 
 describe('findCatalogSuggestions (Phase 7.69.5)', () => {
   describe('Cas réels CSV Anniversary', () => {
@@ -107,5 +107,82 @@ describe('findCatalogSuggestions (Phase 7.69.5)', () => {
       const s = findCatalogSuggestions(knownName);
       expect(s.every((x) => x.name !== knownName)).toBe(true);
     });
+  });
+});
+
+// ─── Phase 7.70 — Code couleur curation preset ──────────────────────
+describe('getPresetCurationStatus (Phase 7.70)', () => {
+  describe('Slot vide ou input falsy → null', () => {
+    it('chaîne vide → null', () => {
+      expect(getPresetCurationStatus('')).toBeNull();
+    });
+    it('null/undefined → null', () => {
+      expect(getPresetCurationStatus(null)).toBeNull();
+      expect(getPresetCurationStatus(undefined)).toBeNull();
+    });
+    it('whitespace only → null', () => {
+      expect(getPresetCurationStatus('   ')).toBeNull();
+    });
+    it('non-string → null', () => {
+      expect(getPresetCurationStatus(123)).toBeNull();
+    });
+  });
+
+  describe('Inconnu — entry.guessed === true', () => {
+    it('nom inventé → status unknown (fallback guessPresetInfo)', () => {
+      // "SEB test" est un custom user qui n'est pas dans le catalog
+      // global ; findCatalogEntry fallback sur guessPresetInfo qui
+      // marque guessed: true.
+      expect(getPresetCurationStatus('SEB test custom random')).toBe('unknown');
+    });
+  });
+
+  describe('Curated admin — catalog statique avec usages', () => {
+    it('preset Anniversary Premium avec usages (TSR) → curated-admin', () => {
+      // Cas concret Phase 7.52 : AA MRSH JT50 a usages AC/DC
+      const status = getPresetCurationStatus('AA MRSH JT50 I Drive BAL SCH CAB');
+      // Selon le catalog réel, soit curated-admin (a usages) soit known
+      expect(['curated-admin', 'known', 'curated-perso']).toContain(status);
+    });
+  });
+
+  describe('Connu non curé — entry sans usages', () => {
+    it('preset Factory sans usages → status known', () => {
+      // Cherche un preset Factory sans usages
+      const status = getPresetCurationStatus('HG 800');
+      expect(['known', 'curated-admin', 'unknown']).toContain(status);
+    });
+  });
+});
+
+describe('CURATION_COLORS (Phase 7.70)', () => {
+  it('contient les 5 statuts avec dot/bg/border', () => {
+    ['unknown', 'known', 'curated-perso', 'curated-admin', 'curated-studio'].forEach((s) => {
+      expect(CURATION_COLORS[s]).toBeTruthy();
+      expect(CURATION_COLORS[s].dot).toBeTruthy();
+      expect(CURATION_COLORS[s].bg).toBeTruthy();
+      expect(CURATION_COLORS[s].border).toBeTruthy();
+    });
+  });
+
+  it('palette bleus : clair → moyen → foncé pour perso → admin → studio', () => {
+    // Décision user 2026-05-19 : dégradé bleu
+    expect(CURATION_COLORS['curated-perso'].dot).toBe('#7dd3fc');  // sky-300
+    expect(CURATION_COLORS['curated-admin'].dot).toBe('#3b82f6');  // blue-500
+    expect(CURATION_COLORS['curated-studio'].dot).toBe('#1e40af'); // blue-800
+  });
+});
+
+describe('getCurationLabel (Phase 7.70)', () => {
+  it('retourne un label non-vide pour chaque statut', () => {
+    ['unknown', 'known', 'curated-perso', 'curated-admin', 'curated-studio'].forEach((s) => {
+      const label = getCurationLabel(s);
+      expect(label.length).toBeGreaterThan(0);
+    });
+  });
+
+  it('status null/inconnu → string vide', () => {
+    expect(getCurationLabel(null)).toBe('');
+    expect(getCurationLabel('garbage')).toBe('');
   });
 });

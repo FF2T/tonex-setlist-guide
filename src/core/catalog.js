@@ -232,4 +232,59 @@ function findCatalogSuggestions(name, options = {}) {
   return candidates.slice(0, max);
 }
 
-export { PRESET_CATALOG_MERGED, findCatalogEntry, guessPresetInfo, normalizePresetName, findCatalogSuggestions };
+// Phase 7.70 — Code couleur curation preset (BankEditor + SongDetailCard).
+//
+// Catégorise un nom de preset en 4 statuts visuels :
+//   - 'unknown'        : pas dans le catalog, fallback guessPresetInfo
+//   - 'known'          : dans le catalog mais pas d'usages → pas de pin IA
+//   - 'curated-perso'  : src=custom OU src=ToneNET, avec usages
+//   - 'curated-admin'  : src dans catalog statique, avec usages
+//   - 'curated-studio' : Phase 11 future, flag entry.curatedBy === 'studio'
+//
+// Slot vide ('' ou null) → retourne null (pas de pastille).
+const CURATED_ADMIN_SOURCES = new Set(['Factory', 'FactoryV1', 'Anniversary', 'PlugFactory', 'TSR', 'ML', 'AA', 'JS', 'TJ', 'WT', 'Galtone']);
+
+function getPresetCurationStatus(name) {
+  if (!name || typeof name !== 'string' || !name.trim()) return null;
+  const entry = findCatalogEntry(name);
+  if (!entry || entry.guessed === true) return 'unknown';
+  const hasUsages = Array.isArray(entry.usages) && entry.usages.length > 0;
+  if (!hasUsages) return 'known';
+  // Curated avec usages → distinguer studio / admin / perso
+  if (entry.curatedBy === 'studio') return 'curated-studio'; // Phase 11
+  // Phase 7.69 : tous les presets saisis par user ont src=custom
+  // (peu importe la provenance déclarée via creator). ToneNET tagué via
+  // tab utilisateur = saisie perso également (cohérence Phase 7.53).
+  if (entry.src === 'custom' || entry.src === 'ToneNET') return 'curated-perso';
+  // Reste : catalog statique curé par admin (TSR, AA, JS, TJ, WT,
+  // Galtone, ML, Anniversary, Factory).
+  if (CURATED_ADMIN_SOURCES.has(entry.src)) return 'curated-admin';
+  // Fallback : entry inconnu mais a des usages → traiter comme admin
+  return 'curated-admin';
+}
+
+// Palette couleurs Phase 7.70 — user a tranché 2026-05-19 :
+// - Bleu clair / moyen / foncé pour les 3 catégories curées (gradient)
+// - Rouge wine inconnu, brass-jaune connu non-curé
+const CURATION_COLORS = {
+  unknown:         { dot: 'var(--wine-400)',   bg: 'rgba(155,58,44,0.15)',  border: 'rgba(155,58,44,0.4)' },
+  known:           { dot: 'var(--brass-300)',  bg: 'rgba(218,165,32,0.15)', border: 'rgba(218,165,32,0.4)' },
+  'curated-perso': { dot: '#7dd3fc',           bg: 'rgba(125,211,252,0.15)',border: 'rgba(125,211,252,0.4)' },
+  'curated-admin': { dot: '#3b82f6',           bg: 'rgba(59,130,246,0.15)', border: 'rgba(59,130,246,0.4)' },
+  'curated-studio':{ dot: '#1e40af',           bg: 'rgba(30,64,175,0.15)',  border: 'rgba(30,64,175,0.4)' },
+};
+
+// Labels i18n-ready pour tooltip hover. L'appelant peut passer son
+// propre `t` (i18n helper) ou utiliser les fallbacks FR.
+function getCurationLabel(status) {
+  switch (status) {
+    case 'unknown':         return 'Inconnu — scoring dégradé, pas de pin IA possible';
+    case 'known':           return 'Connu non curé — scoring V9 OK mais pas de pin direct artiste';
+    case 'curated-perso':   return 'Curé perso — tu as enrichi ce preset avec des usages artiste/morceau';
+    case 'curated-admin':   return 'Curé admin — preset enrichi par Sébastien dans le catalog Backline';
+    case 'curated-studio':  return 'Curé studio — preset enrichi par son créateur (Phase 11)';
+    default: return '';
+  }
+}
+
+export { PRESET_CATALOG_MERGED, findCatalogEntry, guessPresetInfo, normalizePresetName, findCatalogSuggestions, getPresetCurationStatus, CURATION_COLORS, getCurationLabel };

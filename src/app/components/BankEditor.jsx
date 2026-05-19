@@ -7,7 +7,7 @@
 
 import React, { useState } from 'react';
 import { t } from '../../i18n/index.js';
-import { findCatalogEntry } from '../../core/catalog.js';
+import { findCatalogEntry, getPresetCurationStatus, CURATION_COLORS, getCurationLabel } from '../../core/catalog.js';
 import { CC } from '../utils/ui-constants.js';
 import PresetSearchModal from './PresetSearchModal.jsx';
 import FuzzyPresetMatch from './FuzzyPresetMatch.jsx';
@@ -86,10 +86,29 @@ function BankEditor({ banks, onBanks, color, maxBanks, startBank, factoryBanks, 
               const name = v[c] || '';
               const isSel = selectedPreset && selectedPreset.bank === k && selectedPreset.slot === c;
               const notInDb = name && !findCatalogEntry(name);
+              // Phase 7.70 — Pastille couleur curation (slot vide → null).
+              const curStatus = getPresetCurationStatus(name);
+              const curColor = curStatus ? CURATION_COLORS[curStatus] : null;
+              const curLabel = curStatus ? getCurationLabel(curStatus) : '';
               return <div key={c} style={{ flex: 1, minWidth: 0 }}>
                 <button onClick={() => { if (!name) { setEditingPreset({ bank: k, slot: c }); setCustomInput(null); } else { setSelectedPreset(isSel ? null : { bank: k, slot: c, name }); setCustomInput(null); } }}
                   style={{ display: 'flex', alignItems: 'center', gap: 3, width: '100%', background: isSel ? 'var(--accent-bg)' : notInDb ? 'var(--yellow-bg)' : 'transparent', border: isSel ? '1px solid var(--accent-border)' : notInDb ? '1px solid var(--yellow-border)' : '1px solid transparent', borderRadius: 'var(--r-sm)', padding: '3px 4px', cursor: 'pointer', textAlign: 'left' }}>
                   <span style={{ fontSize: 10, fontWeight: 700, color: CC[c], flexShrink: 0 }}>{c}</span>
+                  {/* Phase 7.70 — Pastille 6×6 px + tooltip label */}
+                  {curColor && (
+                    <span
+                      title={curLabel}
+                      aria-label={curLabel}
+                      style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: '50%',
+                        background: curColor.dot,
+                        flexShrink: 0,
+                        border: `1px solid ${curColor.border}`,
+                      }}
+                    />
+                  )}
                   <span style={{ fontSize: 10, color: name ? 'var(--text-bright)' : 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{name || '—'}</span>
                 </button>
               </div>;
