@@ -746,7 +746,116 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-19, session 17 phases livrées — UX refonte profil/admin + fix sync robustesse)
+## État actuel (2026-05-19, session 20 phases livrées — UX refonte + sync robustesse + régression auto-repair contenue)
+
+**Backline v8.14.133 / SW backline-v233 / STATE_VERSION 10 / 1242 tests verts.**
+
+### Phase 7.74.x récap final
+
+| Sous-phase | Sujet | Version | Status |
+|---|---|---|---|
+| 7.74 | 4 couches sync robustesse (stamp + per-field LWW + defense drops ≥3 + dedup setlists) | 8.14.129 | ✅ Stable |
+| 7.74.1 | Filter orphan-cross-profile myGuitars | 8.14.131 | ✅ Stable |
+| 7.74.2 | Auto-repair orphans myGuitars (helper repairProfileGuitarsOrphans) | 8.14.132 | ⚠️ Désactivée (régression) |
+| 7.74.2-revert | Désactivation auto-repair, opt-in via `window.__BACKLINE_AUTO_REPAIR_GUITARS = true` | 8.14.133 | ✅ Stable |
+
+### Phase 7.74.2 régression (2026-05-19)
+
+**Symptôme** : helper auto-repair a droppé les guitares custom d'AUTRES
+profils (Francisco perdu 5, Bruno 6, Arthur 2, Emmanuel 3) sur Sébastien
+Mac admin au boot v8.14.132.
+
+**Cause racine** : les guitares custom des autres profils sont stockées
+per-profile sur leur device d'origine. Leur metadata n'apparaît PAS
+dans `shared.customGuitars` NI dans `profile.customGuitars` côté
+Sébastien Mac. Phase 7.59.1 avait correctement skippé les `cg_*`
+comme "soft orphans légitimes" — Phase 7.74.2 était trop strict en
+les considérant comme orphans à drop.
+
+**Limite intrinsèque structurelle** : sur un device admin (Sébastien
+Mac), on ne PEUT PAS distinguer un vrai orphelin historique (Tele 51
+ghost `cg_1778885069427`) d'un soft orphan légitime (guitare custom
+d'un autre profil dont la metadata vit sur le device d'origine). Donc
+auto-repair est structurellement risqué.
+
+**Fix v8.14.133** : helper gardé pour tests, useEffect d'invocation
+gated derrière flag opt-in `window.__BACKLINE_AUTO_REPAIR_GUITARS = true`.
+En default, **NO auto-repair**. Le user qui veut nettoyer un orphan
+spécifique doit le faire manuellement via snippet console.
+
+**Récupération** : user a remis les guitares perdues via UI (switch
+profil + Mon Profil → Guitares → toggle). Propagé via sync Mac → iPhone.
+
+### Récap session 2026-05-19 (20 phases en cascade, 5 axes UX + robustesse)
+
+#### Axe 1 — Refonte modèle presets custom + import CSV (Phase 7.69.x)
+
+| Sous-phase | Sujet | Version |
+|---|---|---|
+| 7.69 | Refonte UX presets custom : src="custom" toujours, creator séparé, liste plate MyCustomPresetsTab, modale CSV unknowns interactive, vue admin AllUserPresetsTab | 8.14.112 |
+| 7.69.1 | Fix parseCSV double-quoted (Excel re-export bug) | 8.14.113 |
+| 7.69.2 | Fix detectUnknownPresets : tester `entry.guessed` au lieu de truthy | 8.14.114 |
+| 7.69.3 | normalizePresetName : abréviations gain (cln/clr → clean, drv → drive) | 8.14.115 |
+| 7.69.4 | Rename gen_catalog .js → .cjs + fix Drive path | — |
+| 7.69.5 | findCatalogSuggestions : fuzzy match token-set + alias + strip prefix pack | 8.14.116 |
+| 7.69.6 | 4e option modale CSV "Saisir…" avec datalist autocomplete + validation ✅/❌ | 8.14.117 |
+| 7.69.7 | Tab admin Packs : import via listing texte (`unzip -l`), `shared.adminPacks` syncé | 8.14.118 |
+| 7.69.8 | Fix amp inference (Marshall JCM800 strippé) + label pack admin via getSourceInfo | 8.14.119 |
+| 7.69.9 | Enrichissement IA admin packs (raccord Explorer ampContext) | 8.14.120 |
+| 7.69.10 | Wording option modale CSV : "Saisir…" → "Rechercher dans le catalog" | 8.14.121 |
+| 7.69.11 | Dédup datalist catalog autocomplete (1355 → 1028 entries) | 8.14.122 |
+| 7.69.12 | Modale CSV en 2 sections (À remapper / À ajouter) | 8.14.123 |
+| 7.69.13 | Scores compatibilité qualitatifs (4 niveaux + auto-recalc depuis style) | 8.14.124 |
+
+#### Axe 2 — UX setlists (Phase 7.71)
+
+`ListScreen` : checkboxes + bouton "Cocher" + bouton "Retirer non-cochés"
++ bouton "Générer le récap" SUPPRIMÉS. Remplacé par mode édition
+"✏️ Éditer la setlist / ✅ Terminer" qui révèle la corbeille 🗑 par
+morceau. v8.14.125
+
+#### Axe 3 — Mode admin séparé (Phase 7.72)
+
+Mon Profil ~18 onglets admin → 11 onglets + nouvelle route `⚙️ Admin`
+séparée avec 6 sous-onglets (Profils, Tous presets, Packs admin,
+ToneNET, Maintenance, Clé API). NAV_ITEMS étendu `adminOnly: true`.
+v8.14.126
+
+#### Axe 4 — Mon compte + CSV device tabs (Phase 7.73.x)
+
+- **7.73.0** : Tally feedback button (`https://tally.so/r/xXR1G5`)
+  dans MonProfilScreen footer, pré-rempli `profile_name` + `app_version`.
+  v8.14.127
+- **7.73.1** : Import/Export CSV intégré directement dans tabs device
+  (`pedale` / `ann` / `plug`) via `DeviceCSVPanel`. Tab "📋 Export /
+  Import" retiré de Mon Profil. v8.14.128
+- **7.73.2** : Mon compte Full scope (proposée roadmap, ~5-6h).
+
+#### Axe 5 — Robustesse sync (Phase 7.74.x)
+
+- **7.74** : 4 couches (stamp + per-field LWW + defense drops ≥3 +
+  dedup setlists auto). v8.14.129
+- **7.74.1** : Filter orphan-cross-profile myGuitars. v8.14.131
+- **7.74.2** : Auto-repair orphans (régression observée + désactivée
+  v8.14.133, opt-in only).
+
+#### Axe 6 — Code couleur curation preset (Phase 7.70 + 7.70.1)
+
+`BankEditor.jsx` + `SongDetailCard.jsx` vue dépliée : pastille 6×6px
++ tooltip selon taxonomie 5 catégories (Inconnu rouge / Connu jaune /
+Curé perso bleu clair / Curé admin bleu moyen / Curé studio Phase 11
+bleu foncé). v8.14.130
+
+#### Roadmap proposée (à activer)
+
+- **Phase 7.73.2** : onglet "👤 Mon compte" Full scope (5-6h)
+- **Phase 7.75** : consolidation banks dans Mes appareils (paused
+  à cause Phase 7.74.x debug — ~3-4h)
+- **Phase 12** : séparer catalog GLOBAL vs possession USER
+
+---
+
+## État précédent (2026-05-19 après-midi, Phase 7.74 livrée — fix sync robustesse)
 
 **Backline v8.14.129 / SW backline-v229 / STATE_VERSION 10 / 1220 tests verts.**
 
