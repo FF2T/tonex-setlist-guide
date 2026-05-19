@@ -108,6 +108,13 @@ function normalizePresetName(n){
     .replace(/([a-z])(\d)/g,"$1 $2") // "ch1" → "ch 1" (sépare lettre+chiffre)
     .replace(/\bchnl\b/g,"ch")        // chnl → ch
     .replace(/\bchanl?\b/g,"ch")      // chanl/chan → ch
+    // Phase 7.69.3 — Abréviations gain courantes dans les noms de presets
+    // (CSV exportés depuis ToneX Editor ou packs avec naming abrégé).
+    // Évite de marquer "Mars 800SL Chnl 1 Cln" inconnu alors que
+    // "Mars 800SL Chnl 1 Clean" existe dans le catalog.
+    .replace(/\bcln\b/g,"clean")
+    .replace(/\bclr\b/g,"clean")
+    .replace(/\bdrv\b/g,"drive")
     .replace(/\s+/g," ").trim();      // espaces multiples → un seul
 }
 
