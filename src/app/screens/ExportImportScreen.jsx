@@ -304,46 +304,27 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-sec)', marginBottom: 10 }}>
               {onAddCustomPresets
-                ? t('export.unknown-hint-remap', 'Ces presets ne matchent pas le catalog. 4 options par ligne : Remapper (si suggestion proposée), Rechercher dans le catalog (autocomplete sur les ~1700 noms existants), Ajouter comme preset perso, ou Laisser le slot vide.')
+                ? t('export.unknown-hint-2sections', 'Les presets sont groupés en 2 listes : « à remapper » (point vers le catalog existant) et « à ajouter » (créés comme presets persos ou ignorés). Tu peux faire basculer un preset d\'une section à l\'autre via son menu.')
                 : t('export.unknown-hint-noadmin', 'Ces presets ne sont ni dans le catalog ToneX standard, ni dans tes presets persos. Ils seront marqués comme "laisser vide" dans les banks.')}
             </div>
-            {/* Boutons groupés batch (Phase 7.69 + 7.69.5) */}
-            {onAddCustomPresets && (
-              <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-                {Object.keys(unknownSuggestions).length > 0 && (
-                  <button
-                    onClick={() => {
-                      const all = { ...unknownChoices };
-                      Object.keys(unknownSuggestions).forEach((n) => { all[n] = 'remap'; });
-                      setUnknownChoices(all);
-                    }}
-                    style={{ background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.35)', color: 'var(--green)', borderRadius: 'var(--r-sm)', padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
-                    title={t('export.unknown-all-remap-hint', 'Remappe tous les presets avec une suggestion catalog vers leur nom officiel')}
-                  >
-                    {tFormat('export.unknown-all-remap', { n: Object.keys(unknownSuggestions).length }, 'Tout remapper ({n})')}
-                  </button>
-                )}
-                <button
-                  onClick={() => {
-                    const all = {};
-                    unknownPresets.forEach((n) => { all[n] = 'add'; });
-                    setUnknownChoices(all);
-                  }}
-                  style={{ background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-sm)', padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
-                >{t('export.unknown-all-add', 'Tout ajouter')}</button>
-                <button
-                  onClick={() => {
-                    const all = {};
-                    unknownPresets.forEach((n) => { all[n] = 'skip'; });
-                    setUnknownChoices(all);
-                  }}
-                  style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
-                >{t('export.unknown-all-skip', 'Tout laisser vide')}</button>
-              </div>
-            )}
-            {/* Liste avec choix individuels */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 280, overflowY: 'auto', marginBottom: 10, background: 'var(--a3)', borderRadius: 'var(--r-md)', padding: 6 }}>
-              {unknownPresets.map((name) => {
+            {/* Phase 7.69.12 — Partitionnement en 2 listes selon le choix
+                actuel résolvant vers le catalog. Bascule auto au render
+                quand le user change un choix. */}
+            {(() => {
+              const toRemap = []; // résout vers le catalog : 'remap' OU 'manual' validé
+              const toAdd = []; // 'add' / 'skip' / 'manual' non validé
+              unknownPresets.forEach((name) => {
+                const choice = unknownChoices[name] || 'skip';
+                if (choice === 'remap' && unknownSuggestions[name]) {
+                  toRemap.push(name);
+                } else if (choice === 'manual' && validateManualRemap(unknownManualInput[name])) {
+                  toRemap.push(name);
+                } else {
+                  toAdd.push(name);
+                }
+              });
+
+              const renderRow = (name) => {
                 const choice = unknownChoices[name] || 'skip';
                 const creator = inferCreator(name);
                 const suggestion = unknownSuggestions[name];
@@ -371,16 +352,11 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
                         <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t('export.unknown-skip', 'Laisser vide')}</span>
                       )}
                     </div>
-                    {/* Phase 7.69.5 — Affiche la suggestion en sous-ligne pour
-                        montrer la cible du remap. Visible même quand le
-                        user choisit "Ajouter" / "Laisser vide" (info latérale). */}
                     {suggestion && choice !== 'manual' && (
                       <div style={{ fontSize: 10, color: choice === 'remap' ? 'var(--green)' : 'var(--text-muted)', paddingLeft: 10 }}>
                         → <span style={{ fontWeight: choice === 'remap' ? 600 : 400 }}>{suggestion}</span>
                       </div>
                     )}
-                    {/* Phase 7.69.6 — Saisie manuelle avec datalist autocomplete +
-                        validation visuelle ✅/❌ via findCatalogEntry. */}
                     {choice === 'manual' && (() => {
                       const typed = unknownManualInput[name] || '';
                       const validated = validateManualRemap(typed);
@@ -403,14 +379,89 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
                     })()}
                   </div>
                 );
-              })}
-              {/* Phase 7.69.6 — Datalist partagée (tous noms catalog ~1700).
-                  Rendue 1 fois en bas de la liste, partagée par toutes les
-                  inputs manuelles via list="catalog-names-dl". */}
-              <datalist id="catalog-names-dl">
-                {catalogNames.map((n) => <option key={n} value={n}/>)}
-              </datalist>
-            </div>
+              };
+
+              return (
+                <>
+                  {/* Section 1 — à remapper */}
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>
+                        🎯 {tFormat('export.unknown-section-remap', { n: toRemap.length }, 'À remapper vers le catalog ({n})')}
+                      </div>
+                      {onAddCustomPresets && Object.keys(unknownSuggestions).length > 0 && (
+                        <button
+                          onClick={() => {
+                            const all = { ...unknownChoices };
+                            Object.keys(unknownSuggestions).forEach((n) => { all[n] = 'remap'; });
+                            setUnknownChoices(all);
+                          }}
+                          style={{ background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.35)', color: 'var(--green)', borderRadius: 'var(--r-sm)', padding: '3px 8px', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}
+                        >
+                          {tFormat('export.unknown-all-remap', { n: Object.keys(unknownSuggestions).length }, 'Tout remapper auto ({n})')}
+                        </button>
+                      )}
+                    </div>
+                    {toRemap.length === 0 ? (
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic', padding: '6px 8px', background: 'var(--a3)', borderRadius: 'var(--r-sm)' }}>
+                        {t('export.unknown-section-remap-empty', 'Aucun preset à remapper. Choisis "Remapper" ou "Rechercher dans le catalog" sur une ligne ci-dessous pour le déplacer ici.')}
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 200, overflowY: 'auto', background: 'var(--a3)', borderRadius: 'var(--r-md)', padding: 6 }}>
+                        {toRemap.map(renderRow)}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Section 2 — à ajouter / laisser vide */}
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>
+                        ➕ {tFormat('export.unknown-section-add', { n: toAdd.length }, 'À ajouter ou laisser vide ({n})')}
+                      </div>
+                      {onAddCustomPresets && (
+                        <>
+                          <button
+                            onClick={() => {
+                              const all = { ...unknownChoices };
+                              toAdd.forEach((n) => { all[n] = 'add'; });
+                              setUnknownChoices(all);
+                            }}
+                            style={{ background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-sm)', padding: '3px 8px', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}
+                          >
+                            {t('export.unknown-section-add-all', 'Tout ajouter')}
+                          </button>
+                          <button
+                            onClick={() => {
+                              const all = { ...unknownChoices };
+                              toAdd.forEach((n) => { all[n] = 'skip'; });
+                              setUnknownChoices(all);
+                            }}
+                            style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '3px 8px', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}
+                          >
+                            {t('export.unknown-section-skip-all', 'Tout laisser vide')}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    {toAdd.length === 0 ? (
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic', padding: '6px 8px', background: 'var(--a3)', borderRadius: 'var(--r-sm)' }}>
+                        {t('export.unknown-section-add-empty', 'Tous les presets ont été remappés vers le catalog.')}
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 200, overflowY: 'auto', background: 'var(--a3)', borderRadius: 'var(--r-md)', padding: 6 }}>
+                        {toAdd.map(renderRow)}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Phase 7.69.6 — Datalist partagée */}
+                  <datalist id="catalog-names-dl">
+                    {catalogNames.map((n) => <option key={n} value={n}/>)}
+                  </datalist>
+                </>
+              );
+            })()}
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={cancelUnknownModal} style={{ flex: 1, background: 'var(--a7)', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '9px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{t('export.cancel', 'Annuler import')}</button>
               <button onClick={finalizeUnknownChoices} style={{ flex: 2, background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '9px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{t('export.unknown-continue', 'Continuer →')}</button>
