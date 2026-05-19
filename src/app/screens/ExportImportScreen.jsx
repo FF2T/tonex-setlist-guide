@@ -21,6 +21,13 @@ import { inferPresetInfo } from '../utils/infer-preset.js';
 //   - "Ajouter comme custom" : push dans profile.customPacks avec
 //     metadata par défaut (creator inferé + amp/gain/style inferé)
 //   - "Laisser vide" : remplace le nom par "" dans importData
+//
+// Phase 7.69.2 — `findCatalogEntry` ne retourne JAMAIS null pour
+// un nom non-vide : il fallback sur `guessPresetInfo` qui devine
+// des metadata depuis le nom et marque l'entry `guessed: true`.
+// On considère "inconnu" tout entry qui :
+//   - est falsy (théorique, name vide géré en amont)
+//   - OU a `guessed: true` (fallback heuristique, pas dans le catalog)
 function detectUnknownPresets(importData) {
   const seen = new Set();
   ['ann', 'plug'].forEach((k) => {
@@ -28,7 +35,8 @@ function detectUnknownPresets(importData) {
       ['A', 'B', 'C'].forEach((slot) => {
         const name = bank?.[slot];
         if (!name || typeof name !== 'string') return;
-        if (findCatalogEntry(name)) return;
+        const entry = findCatalogEntry(name);
+        if (entry && !entry.guessed) return; // connu (catalog static, ToneNET saisi, ou custom)
         seen.add(name);
       });
     });

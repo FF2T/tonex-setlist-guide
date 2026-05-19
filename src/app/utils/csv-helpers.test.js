@@ -99,6 +99,22 @@ describe('parseCSV — CSV double-quoted (Phase 7.69.1)', () => {
   });
 });
 
+// Phase 7.69.2 — Test isolé sur le pattern détection unknown.
+// findCatalogEntry retournant toujours un fallback guessPresetInfo
+// (avec guessed:true), il faut filtrer sur ce flag pour distinguer
+// "connu" (entry catalog static / custom / ToneNET) vs "deviné".
+describe('detectUnknownPresets pattern (Phase 7.69.2)', () => {
+  it('un entry avec guessed:true est traité comme inconnu', () => {
+    const isUnknown = (entry) => !entry || entry.guessed === true;
+    expect(isUnknown(null)).toBe(true);
+    expect(isUnknown(undefined)).toBe(true);
+    expect(isUnknown({ src: 'ToneNET', guessed: true })).toBe(true);
+    expect(isUnknown({ src: 'Factory' })).toBe(false);
+    expect(isUnknown({ src: 'custom' })).toBe(false);
+    expect(isUnknown({ src: 'TSR', guessed: false })).toBe(false);
+  });
+});
+
 describe('parseCSV — erreurs', () => {
   it('texte vide → null', () => {
     expect(parseCSV('')).toBeNull();
