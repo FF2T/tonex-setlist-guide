@@ -878,6 +878,34 @@ function mergeProfileLWW(local, remote, options = {}) {
   for (const pk of remoteCP) { if (pk && pk.name) cpByName[pk.name] = pk; } // remote overwrite
   merged.customPacks = Object.values(cpByName);
 
+  // ── aiCache : merge per-songId (Phase 7.80.2 fix sync Mac↔iPhone) ──
+  // BUG avant 7.80.2 : `merged = { ...remote }` adoptait `aiCache` en
+  // bloc. Conséquence : un device avec aiCache vide qui push après une
+  // action quelconque (toggle guitare, login) écrasait les analyses
+  // d'un autre device via LWW per-profile.
+  //
+  // Maintenant : pour chaque songId présent dans local OU remote, garde
+  // la version avec le sv (SCORING_VERSION) le plus élevé. Égalité ou
+  // local-only → keep local. remote-only → adopt remote.
+  const localAi = (local.aiCache && typeof local.aiCache === 'object') ? local.aiCache : {};
+  const remoteAi = (remote.aiCache && typeof remote.aiCache === 'object') ? remote.aiCache : {};
+  const songIds = new Set([...Object.keys(localAi), ...Object.keys(remoteAi)]);
+  const mergedAi = {};
+  for (const sid of songIds) {
+    const le = localAi[sid];
+    const re = remoteAi[sid];
+    if (le && re) {
+      const lsv = typeof le.sv === 'number' ? le.sv : 0;
+      const rsv = typeof re.sv === 'number' ? re.sv : 0;
+      mergedAi[sid] = rsv > lsv ? re : le; // égalité → keep local
+    } else if (le) {
+      mergedAi[sid] = le;
+    } else if (re) {
+      mergedAi[sid] = re;
+    }
+  }
+  merged.aiCache = mergedAi;
+
   // Stamp lastModified = max des deux (pour que la prochaine sync
   // détecte cet état comme à jour).
   merged.lastModified = Math.max(lts, rts);

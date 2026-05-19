@@ -3254,3 +3254,122 @@ describe('mergeSetlistsLWW — Phase 7.74 Couche 4 dedup intégré', () => {
     expect(out[0].lastModified).toBeGreaterThan(before + 5000);
   });
 });
+
+// ───────────────────────────────────────────────────────────────────
+// Phase 7.80.2 — Fix mergeProfileLWW aiCache per-songId
+// ───────────────────────────────────────────────────────────────────
+
+describe('mergeProfileLWW — Phase 7.80.2 aiCache per-songId merge', () => {
+  test('scénario bug Mac↔iPhone : local plein + remote vide (récent) → keep local plein', () => {
+    // Cas observé : Mac a fait analyses → push avec aiCache plein, T1.
+    // iPhone toggle un truc → push avec aiCache vide, T2 > T1.
+    // Avant fix : Mac pull → merged = {...remote} → aiCache = {} ← PERTE.
+    // Fix : merge per-songId → garde Mac.aiCache (local plein).
+    const local = {
+      id: 'seb',
+      lastModified: 1000,
+      myGuitars: ['lp60'],
+      aiCache: {
+        song_a: { sv: 9, result: { ideal_guitar: 'LP' } },
+        song_b: { sv: 9, result: { ideal_guitar: 'SG' } },
+      },
+    };
+    const remote = {
+      id: 'seb',
+      lastModified: 2000, // PLUS RÉCENT
+      myGuitars: ['lp60'],
+      aiCache: {}, // VIDE !
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(Object.keys(out.aiCache).sort()).toEqual(['song_a', 'song_b']);
+    expect(out.aiCache.song_a.sv).toBe(9);
+    expect(out.aiCache.song_b.sv).toBe(9);
+  });
+
+  test('local vide + remote plein → adopt remote', () => {
+    const local = {
+      id: 'seb', lastModified: 1000, myGuitars: ['lp60'],
+      aiCache: {},
+    };
+    const remote = {
+      id: 'seb', lastModified: 2000, myGuitars: ['lp60'],
+      aiCache: { song_a: { sv: 9, result: { ideal_guitar: 'LP' } } },
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(Object.keys(out.aiCache)).toEqual(['song_a']);
+    expect(out.aiCache.song_a.sv).toBe(9);
+  });
+
+  test('conflit sur même songId → sv le plus élevé gagne', () => {
+    const local = {
+      id: 'seb', lastModified: 1000, myGuitars: ['lp60'],
+      aiCache: { song_a: { sv: 8, result: { ideal_guitar: 'LP-old' } } },
+    };
+    const remote = {
+      id: 'seb', lastModified: 2000, myGuitars: ['lp60'],
+      aiCache: { song_a: { sv: 9, result: { ideal_guitar: 'LP-new' } } },
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.aiCache.song_a.sv).toBe(9);
+    expect(out.aiCache.song_a.result.ideal_guitar).toBe('LP-new');
+  });
+
+  test('égalité sv → keep local (stabilité)', () => {
+    const local = {
+      id: 'seb', lastModified: 1000, myGuitars: ['lp60'],
+      aiCache: { song_a: { sv: 9, result: { ideal_guitar: 'LP-local' } } },
+    };
+    const remote = {
+      id: 'seb', lastModified: 2000, myGuitars: ['lp60'],
+      aiCache: { song_a: { sv: 9, result: { ideal_guitar: 'LP-remote' } } },
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.aiCache.song_a.result.ideal_guitar).toBe('LP-local');
+  });
+
+  test('union per-songId : Mac a song_a + iPhone analyse song_b → merge garde les 2', () => {
+    const local = {
+      id: 'seb', lastModified: 1000, myGuitars: ['lp60'],
+      aiCache: { song_a: { sv: 9, result: { ideal_guitar: 'LP' } } },
+    };
+    const remote = {
+      id: 'seb', lastModified: 2000, myGuitars: ['lp60'],
+      aiCache: { song_b: { sv: 9, result: { ideal_guitar: 'SG' } } },
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(Object.keys(out.aiCache).sort()).toEqual(['song_a', 'song_b']);
+  });
+
+  test('si remote plus ancien (rts ≤ lts) → return local entier (rien à merger)', () => {
+    const local = {
+      id: 'seb', lastModified: 2000, myGuitars: ['lp60'],
+      aiCache: { song_a: { sv: 9, result: { ideal_guitar: 'LP' } } },
+    };
+    const remote = {
+      id: 'seb', lastModified: 1000, myGuitars: ['lp60'],
+      aiCache: { song_b: { sv: 9, result: { ideal_guitar: 'SG' } } },
+    };
+    const out = mergeProfileLWW(local, remote);
+    // Phase 7.80.2 : si rts < lts, on retourne local tel quel (pas de merge)
+    // Donc aiCache = local.aiCache uniquement. C'est OK car local-only sera
+    // re-push à la prochaine modif et iPhone le pull à ce moment-là.
+    expect(out).toBe(local); // identity check (pas de clone)
+  });
+
+  test('aiCache absent des 2 côtés → mergedAi = {}', () => {
+    const local = { id: 'seb', lastModified: 1000, myGuitars: ['lp60'] };
+    const remote = { id: 'seb', lastModified: 2000, myGuitars: ['lp60'] };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.aiCache).toEqual({});
+  });
+
+  test('aiCache null défensif → traité comme {} ', () => {
+    const local = { id: 'seb', lastModified: 1000, myGuitars: ['lp60'], aiCache: null };
+    const remote = {
+      id: 'seb', lastModified: 2000, myGuitars: ['lp60'],
+      aiCache: { song_a: { sv: 9 } },
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.aiCache.song_a.sv).toBe(9);
+  });
+});
