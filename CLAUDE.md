@@ -10631,6 +10631,119 @@ Sébastien après discussion sur les 4 couches d'enrichissement
 metadata + observation des coûts Vision IA + question pivot
 "la base communautaire ne devrait pas être users mais studios".
 
+### Phase 12 (proposée 2026-05-19) — Séparer catalog GLOBAL vs possession USER
+
+**Contexte** : la notion actuelle `availableSources` mélange deux
+concepts distincts :
+- la **base de recommandation possible** (catalog global, tout ce
+  qui existe dans l'écosystème ToneX : Factory + Anniversary +
+  64 packs TSR + 5 packs Anniversary Premium + ToneNET public +
+  custom packs admin)
+- ce que l'**utilisateur possède réellement** (ex: 5 packs TSR
+  achetés sur 64, 0 ML, 3 presets téléchargés ToneNET, custom
+  packs persos)
+
+Aujourd'hui `availableSources` est un toggle booléen par SOURCE
+(TSR / AA / JS / TJ / ML / WT / Galtone / ToneNET / custom /
+Factory / FactoryV1 / PlugFactory / Anniversary) — tout ou rien
+par source. Un user qui n'a que 5 packs TSR sur 64 doit cocher
+"TSR" et hériter de tout le catalog TSR comme s'il l'avait. Le
+scoring V9 et l'IA traitent ces 64 packs comme dispos alors que
+seulement 5 le sont vraiment.
+
+**Architecture cible** :
+
+| Concept | Stockage | Utilisation |
+|---------|----------|-------------|
+| Catalog GLOBAL | `PRESET_CATALOG_MERGED` (statique + shared.adminPacks + shared.toneNetPresets) | `ideal_preset` IA (= "rêve"), Explorer, suggestions hors collection |
+| Possession USER | `profile.ownedPacks: {[packId]: true}` (per-profil) | `preset_ann`/`preset_plug` IA, scoring V9 local, filtrage Sources |
+
+**3 niveaux de granularité possibles** (à trancher) :
+- **A.** Par source entière (status quo, le moins de boulot)
+- **B.** Par pack individuel (TSR-Mars-800SL, TSR-D13, etc.) —
+  **recommandé** : c'est ce que les studios vendent et ce que
+  l'user achète. Sweet spot.
+- **C.** Par preset individuel — trop granulaire, ingérable
+
+**Liste des packs disponibles à exposer** (sources possibles) :
+- 64 packs TSR (`TSR_PACK_GROUPS` déjà défini Phase 7.14)
+- 5 packs Anniversary Premium : AA / JS / TJ / ML / WT (Phase 7.52)
+- ToneNET : pas de notion de pack, presets individuels (cocher
+  séparément via tab ToneNET existant Phase 7.53)
+- Factory : packs implicites (firmware v1 / v2 / Anniversary /
+  Plug) — déjà gérés via `enabledDevices`
+- Custom : packs persos user (`profile.customPacks` Phase 7.69)
+  + packs admin partagés (`shared.adminPacks` Phase 7.69.7)
+
+**Sous-phases proposées (additives, anti-régression)** :
+
+#### Phase 12.1 — Schema additif + UI parallèle
+
+- Nouveau champ `profile.ownedPacks: {[packId]: true}` (additif,
+  pas de bump STATE_VERSION nécessaire si optional fallback).
+- Migration silencieuse au boot : si `profile.ownedPacks` absent
+  ET `availableSources.TSR === true`, pose `ownedPacks` avec tous
+  les packs TSR cochés. Idem pour AA/JS/TJ/WT/Galtone/ML. Pas de
+  destruction de `availableSources` — coexistence.
+- Nouveau tab "📦 Ma collection" dans Mon Profil (parallèle à
+  "Sources") : liste hiérarchique avec checkboxes par pack et
+  groupes par source. Boutons "Tout cocher / Tout décocher" par
+  source.
+- Pas de changement scoring V9 → safe, snapshots verts.
+
+#### Phase 12.2 — Basculer scoring V9 vers ownedPacks
+
+- Refactor `isSourceAvailable` → `isPackAvailable(entry,
+  ownedPacks, availableSources)` qui fait :
+  - Si `entry.pack` connu : check `ownedPacks[entry.pack]`
+  - Fallback : check `availableSources[entry.src]` (rétro-compat)
+- Adapter `computeBestPresets`, `findCatalogEntryByUsages`,
+  `findSlotByUsageMatch`, `analyzeDevice` Optimiser, etc.
+- Tests Vitest sur le helper + cas régression.
+- Bump SCORING_VERSION 9 → 10 OBLIGATOIRE car le filter change
+  pour les aiCache existants → invalidation massive → re-fetch IA
+  côté tous les profils. Coût Gemini significatif (free tier OK
+  pour beta-testeurs actuels).
+
+#### Phase 12.3 — Recos `ideal_preset` hors collection
+
+- `ideal_preset` peut désormais pointer vers un preset hors
+  `ownedPacks` du user.
+- UI : badge **"📦 Pas dans tes packs"** sur le bloc reco idéale +
+  lien d'achat (cohérent affiliate Phase 11 Studio-driven).
+- `preset_ann`/`preset_plug` restent strictement dans les banks
+  installées (déjà filtré par possession physique → no-op).
+
+#### Phase 12.4 — Déprécier `availableSources`
+
+- Quand `ownedPacks` est stable et tous les profils ont migré,
+  retirer `availableSources` du schema. Cleanup code paths.
+
+**Effort total estimé** : 12-17h.
+- Phase 12.1 : 4-6h (schema, UI tab "Ma collection")
+- Phase 12.2 : 3-4h (refactor scoring + bump V10)
+- Phase 12.3 : 2-3h (UI badge + lien d'achat)
+- Phase 12.4 : 3-4h (cleanup tests + déprécation)
+
+**Risques** :
+- Bump SCORING_VERSION 9 → 10 invalidera tous les aiCache existants
+  → coût Gemini + désynchro temporaire. À coupler avec une
+  communication beta-testeurs.
+- Phase 11 (studio-driven enrichissement) pourrait introduire un
+  nouveau champ `entry.pack` plus structuré → couplage à anticiper.
+
+**Décision actuelle** : proposée. À activer après :
+- Phase 11 si elle démarre (couplage data model packs)
+- OU si un beta-tester remonte explicitement le manque de
+  granularité (ex: "j'ai juste 2 packs TSR pas 64, pourquoi
+  Backline me propose des SL760 que je n'ai pas ?")
+
+Idée enregistrée 2026-05-19 après session import CSV Phase
+7.69.x : Sébastien constate que pour ses propres 22 unknowns
+détectés depuis ToneX_Anniversary_test.csv, beaucoup étaient
+des packs qu'il ne possède PAS mais que `availableSources.TSR
+=== true` faisait passer pour dispos.
+
 ## Hors scope (pour rappel, à NE PAS faire sans demande explicite)
 
 - TypeScript.
