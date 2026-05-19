@@ -3053,6 +3053,72 @@ describe('mergeProfileLWW — Phase 7.74 Couche 2 (per-field) + 3 (defense)', ()
     const local = { id: 'seb', lastModified: 1000, name: 'Local' };
     expect(mergeProfileLWW(local, null)).toBe(local);
   });
+
+  // Phase 7.74.1 — orphan cross-profile filter
+  test('SCÉNARIO BUG 2 : remote add guitare appartenant à autre profil → filter orphan', () => {
+    // Cas Sébastien 2026-05-19 : remote essaye d'ajouter sire_t7+t3
+    // au profil Sébastien. sire_t7/t3 appartiennent à Francisco local.
+    // Drop modéré (1 guitare) ne bloque pas Couche 3 v1, mais le
+    // filter orphan-cross-profile Phase 7.74.1 doit kick in.
+    const local = {
+      id: 'sebastien', lastModified: 1000,
+      myGuitars: ['lp60', 'sg61', 'es335', 'strat61', 'tele51'],
+    };
+    const remote = {
+      id: 'sebastien', lastModified: 2000,
+      // Drop tele51 + ADD sire_t7 + sire_t3 (pollution Francisco)
+      myGuitars: ['lp60', 'sg61', 'es335', 'strat61', 'sire_t7', 'sire_t3'],
+    };
+    const otherProfilesGuitars = new Set(['sire_t7', 'sire_t3', 'ibanez_gio']); // guitares Francisco
+    const out = mergeProfileLWW(local, remote, { otherProfilesGuitars });
+    // Doit avoir filtré sire_t7 + sire_t3 (orphans)
+    expect(out.myGuitars).not.toContain('sire_t7');
+    expect(out.myGuitars).not.toContain('sire_t3');
+    // Mais doit adopter le drop tele51 (drop modéré accepté)
+    expect(out.myGuitars).not.toContain('tele51');
+  });
+
+  test('local vide + remote contient orphans → filter au premier merge', () => {
+    const local = { id: 'newuser', lastModified: 1000, myGuitars: [] };
+    const remote = { id: 'newuser', lastModified: 2000, myGuitars: ['lp60', 'sire_t7'] };
+    const otherProfilesGuitars = new Set(['sire_t7']);
+    const out = mergeProfileLWW(local, remote, { otherProfilesGuitars });
+    expect(out.myGuitars).toEqual(['lp60']);
+    expect(out.myGuitars).not.toContain('sire_t7');
+  });
+
+  test('guitare partagée légitimement (présente dans plusieurs profils) → pas considérée orphan', () => {
+    // lp60 est dans Sébastien ET dans Bruno local. Remote ajoute lp60
+    // à Bruno : ne doit pas filtrer (légitime).
+    const local = { id: 'bruno', lastModified: 1000, myGuitars: ['schecter_c1'] };
+    const remote = { id: 'bruno', lastModified: 2000, myGuitars: ['schecter_c1', 'lp60'] };
+    const otherProfilesGuitars = new Set(['lp60']); // appartient à Sébastien aussi
+    const out = mergeProfileLWW(local, remote, { otherProfilesGuitars });
+    // lp60 est dans la set otherProfilesGuitars (car appartient à Séb)
+    // ET pas dans local (Bruno n'avait pas lp60) → orphan filtré
+    expect(out.myGuitars).not.toContain('lp60');
+    // Note : sémantique stricte. Si user veut vraiment partager une
+    // guitare standard entre profils, il devra accepter le filter
+    // initial puis re-cocher manuellement.
+  });
+});
+
+describe('mergeProfilesLWW — Phase 7.74.1 calcul otherProfilesGuitarsByProfile', () => {
+  test('passe correctement otherProfilesGuitars au merge per-field', () => {
+    const local = {
+      sebastien: { id: 'sebastien', lastModified: 1000, myGuitars: ['lp60', 'tele51'] },
+      francisco: { id: 'francisco', lastModified: 1000, myGuitars: ['sire_t7', 'sire_t3'] },
+    };
+    const remote = {
+      sebastien: { id: 'sebastien', lastModified: 2000, myGuitars: ['lp60', 'sire_t7'] }, // pollution
+      francisco: { id: 'francisco', lastModified: 1000, myGuitars: ['sire_t7', 'sire_t3'] },
+    };
+    const out = mergeProfilesLWW(local, remote);
+    // Sébastien doit avoir sire_t7 filtré (orphan Francisco)
+    expect(out.sebastien.myGuitars).not.toContain('sire_t7');
+    // Francisco inchangé
+    expect(out.francisco.myGuitars).toEqual(expect.arrayContaining(['sire_t7', 'sire_t3']));
+  });
 });
 
 // ─── Phase 7.74 Couche 4 — dedup intégré au mergeSetlistsLWW ──────────

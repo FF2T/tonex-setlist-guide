@@ -804,17 +804,48 @@ function mergeProfileLWW(local, remote, options = {}) {
   // loginHistory, editedGuitars). On part de remote pour ces champs.
   const merged = { ...remote };
 
-  // ── myGuitars : Couche 3 defense — block adoption si drop suspect ──
-  // Si remote drop ≥ 3 guitares (ou plus de 50% des guitares locales),
-  // c'est probablement une pollution cross-profil. Keep local.
+  // ── myGuitars : Couche 3 defense ──
+  // 1. Block adoption si drop suspect (≥3 guitares OU >50% local)
+  // 2. Filter orphan-cross-profile (Phase 7.74.1 fix) : si remote
+  //    ADD une guitare qui appartient à un autre profil local
+  //    (otherProfilesGuitars) ET pas au local actuel, c'est une
+  //    pollution cross-profil → filter cette guitare.
   const localGuitars = Array.isArray(local.myGuitars) ? local.myGuitars : [];
   const remoteGuitars = Array.isArray(remote.myGuitars) ? remote.myGuitars : [];
+  // otherProfilesGuitars : set des guitares qui appartiennent UNIQUEMENT
+  // à d'autres profils locaux (pas au profil courant). Passé via
+  // options par mergeProfilesLWW pluriel.
+  const otherProfilesGuitars = options.otherProfilesGuitars instanceof Set
+    ? options.otherProfilesGuitars
+    : null;
+
   if (localGuitars.length > 0) {
     const dropped = localGuitars.filter((g) => !remoteGuitars.includes(g));
     const tooManyDropped = dropped.length >= 3 || (dropped.length / localGuitars.length) > 0.5;
     if (tooManyDropped) {
       debugLog(`SUSPECT myGuitars drop : remote drops ${dropped.length} guitares (${dropped.join(',')}) — keeping local`, { local: localGuitars, remote: remoteGuitars });
       merged.myGuitars = localGuitars;
+    } else {
+      // Drop modéré → on adopte remote MAIS on filtre les orphan
+      // cross-profile (Phase 7.74.1).
+      let nextGuitars = remoteGuitars;
+      if (otherProfilesGuitars) {
+        const localSet = new Set(localGuitars);
+        const orphans = remoteGuitars.filter((g) => !localSet.has(g) && otherProfilesGuitars.has(g));
+        if (orphans.length > 0) {
+          debugLog(`SUSPECT orphan-cross-profile : remote ADD guitares (${orphans.join(',')}) qui appartiennent à un autre profil — filtering`, { orphans, local: localGuitars, remote: remoteGuitars });
+          nextGuitars = remoteGuitars.filter((g) => !orphans.includes(g));
+        }
+      }
+      merged.myGuitars = nextGuitars;
+    }
+  } else if (otherProfilesGuitars) {
+    // Local vide : filtrer quand même les orphans pour ne pas hériter
+    // de pollutions au premier merge.
+    const orphans = remoteGuitars.filter((g) => otherProfilesGuitars.has(g));
+    if (orphans.length > 0) {
+      debugLog(`SUSPECT orphan-cross-profile (local vide) : remote contient ${orphans.length} guitares d'autres profils — filtering`, { orphans });
+      merged.myGuitars = remoteGuitars.filter((g) => !orphans.includes(g));
     } else {
       merged.myGuitars = remoteGuitars;
     }
@@ -860,6 +891,21 @@ function mergeProfilesLWW(localProfiles, remoteProfiles, options = {}) {
   const applySecrets = typeof options.applySecrets === 'function' ? options.applySecrets : null;
   const out = {};
   const ids = new Set([...Object.keys(local), ...Object.keys(remote)]);
+
+  // Phase 7.74.1 — Pré-calcul otherProfilesGuitarsByProfile : pour
+  // chaque profil, set des guitares qui appartiennent à un AUTRE
+  // profil local (et pas au profil courant). Permet à mergeProfileLWW
+  // de filtrer les orphan-cross-profile (= guitares ajoutées par
+  // remote au mauvais profil suite à une pollution sync).
+  //
+  // Source : on prend les profiles LOCAUX (avant merge). Les guitares
+  // custom partagées (ex: lp60 dans plusieurs profils) ne sont PAS
+  // considérées comme orphan car elles sont dans ce profil aussi.
+  const guitarsByProfile = {};
+  for (const [id, p] of Object.entries(local)) {
+    guitarsByProfile[id] = new Set(Array.isArray(p?.myGuitars) ? p.myGuitars : []);
+  }
+
   for (const id of ids) {
     const lp = local[id];
     const rp = remote[id];
@@ -867,7 +913,19 @@ function mergeProfilesLWW(localProfiles, remoteProfiles, options = {}) {
       // Phase 7.74 — Per-field merge via mergeProfileLWW (singulier).
       // Remplace l'ancien adopt-en-bloc qui causait des pollutions.
       const adoptedRemote = applySecrets ? applySecrets({ [id]: rp })[id] : rp;
-      const merged = mergeProfileLWW(lp, adoptedRemote, options);
+      // Phase 7.74.1 — Calcul de l'union des guitares des AUTRES profils
+      // locaux (excluant le profil courant).
+      const otherProfilesGuitars = new Set();
+      for (const [otherId, gset] of Object.entries(guitarsByProfile)) {
+        if (otherId === id) continue;
+        for (const g of gset) otherProfilesGuitars.add(g);
+      }
+      // Retire les guitares qui sont aussi dans le profil courant
+      // (ne pas considérer comme orphan une guitare légitimement
+      // partagée entre profils).
+      const localGuitarSet = guitarsByProfile[id] || new Set();
+      for (const g of localGuitarSet) otherProfilesGuitars.delete(g);
+      const merged = mergeProfileLWW(lp, adoptedRemote, { ...options, otherProfilesGuitars });
       out[id] = ensureProfileV10(merged || lp);
     } else if (lp) {
       out[id] = ensureProfileV10(lp);
