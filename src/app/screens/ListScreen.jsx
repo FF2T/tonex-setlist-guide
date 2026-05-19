@@ -267,9 +267,13 @@ function ListScreen({
     if (activeSlId === id) { setActiveSlId(null); onChecked([]); }
   };
   const renameSetlist = (id, name) => { onSetlists((p) => p.map((s) => s.id === id ? { ...s, name } : s)); setEditSlId(null); };
-  const toggle = (id) => onChecked((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
-  const toggleAll = () => onChecked(checked.length === activeSongs.length ? [] : activeSongs.map((s) => s.id));
+  // Phase 7.71 — checkboxes + sélection multiple supprimées (devenues
+  // inutiles avec le mode scène Phase 4 LiveScreen). Remplacé par un
+  // mode édition local qui révèle la corbeille 🗑 par morceau.
   const inp = { background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '6px 10px', fontSize: 12, boxSizing: 'border-box' };
+  // Reset le mode édition quand on change de setlist active
+  const [editingSongs, setEditingSongs] = useState(false);
+  useEffect(() => { setEditingSongs(false); }, [activeSlId]);
 
   // ─── Tout améliorer ───
   const IMPROVE_THRESHOLD = 90;
@@ -484,7 +488,20 @@ function ListScreen({
         </select>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
           {activeSongs.length > 0 && <button onClick={() => setShowTopGuitars(!showTopGuitars)} style={{ fontSize: 10, color: showTopGuitars ? 'var(--accent)' : 'var(--text-muted)', background: showTopGuitars ? 'var(--accent-bg)' : 'var(--a5)', border: '1px solid ' + (showTopGuitars ? 'var(--accent-border)' : 'var(--a10)'), borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer' }}>{t('list.guitars', 'Guitares')}</button>}
-          {activeSongs.length > 0 && <button onClick={toggleAll} style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--a5)', border: '1px solid var(--a10)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer' }}>{checked.length === activeSongs.length ? t('list.uncheck-all', 'Décocher') : t('list.check-all', 'Cocher')}</button>}
+          {/* Phase 7.71 — Mode édition setlist : révèle la corbeille
+              individuelle 🗑 par morceau. Visible uniquement quand une
+              setlist est active (pas en vue "Tous les morceaux"). */}
+          {activeSlId && activeSongs.length > 0 && (
+            <button
+              onClick={() => setEditingSongs((x) => !x)}
+              style={{ fontSize: 10, color: editingSongs ? 'var(--wine-400)' : 'var(--text-muted)', background: editingSongs ? 'rgba(155,58,44,0.12)' : 'var(--a5)', border: '1px solid ' + (editingSongs ? 'rgba(155,58,44,0.3)' : 'var(--a10)'), borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer', fontWeight: editingSongs ? 700 : 500 }}
+              title={t('list.edit-setlist-title', "Mode édition : permet de retirer les morceaux de la setlist (sans toucher à la base globale)")}
+            >
+              {editingSongs
+                ? t('list.edit-done', '✅ Terminer')
+                : t('list.edit-songs', '✏️ Éditer la setlist')}
+            </button>
+          )}
           {missingCount > 0 && !analyzeAllStatus && <button
             data-testid="list-screen-analyze-missing"
             onClick={() => {
@@ -501,22 +518,9 @@ function ListScreen({
             style={{ fontSize: 10, color: 'var(--wine-400)', background: 'rgba(155,58,44,0.12)', border: '1px solid rgba(155,58,44,0.3)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer', fontWeight: 700 }}
             title={tFormat('list.cancel-analyze', { current: analyzeAllStatus.current, total: analyzeAllStatus.total }, "Annuler l'analyse en cours ({current}/{total})")}
           >⏸ {analyzeAllStatus.current}/{analyzeAllStatus.total}</button>}
-          {activeSlId && checked.length > 0 && checked.length < activeSongs.length && <button
-            data-testid="list-screen-keep-checked"
-            onClick={() => {
-              const keepIds = new Set(checked);
-              const removeCount = activeSongs.length - checked.length;
-              const keepLabel = tPlural('list.songs-count', checked.length, {}, { one: '1 morceau', other: '{count} morceaux' });
-              const removeLabel = tPlural('list.others-count', removeCount, {}, { one: "1 autre", other: '{count} autres' });
-              const slName = activeSl?.name || t('list.this-setlist', 'cette setlist');
-              const msg = tFormat('list.keep-checked-confirm', { keep: keepLabel, remove: removeLabel, name: slName }, 'Garder {keep} et retirer les {remove} de "{name}" ?\n\nLes morceaux retirés restent dans la base globale.');
-              if (!window.confirm(msg)) return;
-              onSetlists((p) => p.map((sl) => sl.id === activeSlId ? { ...sl, songIds: sl.songIds.filter((id) => keepIds.has(id)) } : sl));
-              onChecked([]);
-            }}
-            style={{ fontSize: 10, color: 'var(--wine-400)', background: 'rgba(155,58,44,0.12)', border: '1px solid rgba(155,58,44,0.3)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer', fontWeight: 600 }}
-            title={t('list.remove-unchecked-title', 'Retirer les morceaux non cochés de cette setlist (garde-fou : confirmation)')}
-          >{tFormat('list.remove-unchecked', { count: activeSongs.length - checked.length }, '🧹 Retirer non-cochés ({count})')}</button>}
+          {/* Phase 7.71 — Bouton "Retirer non-cochés" supprimé (Phase 5.5)
+              car dépendait des checkboxes. Mode édition (bouton ci-dessus)
+              + corbeille par morceau remplace ce workflow. */}
           <button onClick={() => setShowAdd(true)} style={{ fontSize: 10, color: 'var(--accent)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer', fontWeight: 600 }}>+</button>
         </div>
       </div>
@@ -584,7 +588,6 @@ function ListScreen({
         return activeSongs.slice(0, visibleCount).map((s) => {
           const showArtistHeader = sort === 'artist' && s.artist !== lastArtist;
           if (showArtistHeader) lastArtist = s.artist;
-          const isC = checked.includes(s.id);
           const rd = songRowData.get(s.id) || { ig: [], savedGId: undefined, gId: '', g: null };
           const ig = rd.ig;
           const savedGId = rd.savedGId;
@@ -638,9 +641,6 @@ function ListScreen({
               {showArtistHeader && <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-sec)', marginTop: lastArtist === s.artist ? 0 : 12, marginBottom: 4, paddingLeft: 2, borderBottom: '1px solid var(--a7)', paddingBottom: 4 }}>{s.artist}</div>}
               <div style={{ marginBottom: isExpanded ? 0 : 8 }}>
                 <div style={{ display: 'flex' }}>
-                  <button onClick={() => toggle(s.id)} style={{ background: isC ? 'rgba(74,222,128,0.15)' : 'var(--a4)', border: isC ? '1px solid rgba(74,222,128,0.4)' : '1px solid var(--a10)', borderRight: 'none', borderRadius: isExpanded ? '10px 0 0 0' : '10px 0 0 10px', padding: '0 14px', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
-                    <div style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: isC ? '2px solid #4ade80' : '2px solid var(--text-muted)', background: isC ? 'var(--green)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{isC && <span style={{ color: 'var(--bg)', fontSize: 11, fontWeight: 900 }}>✓</span>}</div>
-                  </button>
                   <div onClick={() => {
                     const newId = isExpanded ? null : s.id;
                     setExpandedId(newId);
@@ -655,7 +655,7 @@ function ListScreen({
                         }
                       }));
                     }
-                  }} style={{ flex: 1, background: isC ? 'rgba(74,222,128,0.05)' : 'var(--a3)', border: isC ? '1px solid var(--green-border)' : '1px solid var(--a7)', borderLeft: 'none', borderRight: activeSlId ? 'none' : (isC ? '1px solid var(--green-border)' : '1px solid var(--a7)'), borderRadius: activeSlId ? '0' : (isExpanded ? '0 10px 0 0' : '0 10px 10px 0'), padding: '10px 13px', cursor: 'pointer' }}>
+                  }} style={{ flex: 1, background: 'var(--a3)', border: '1px solid var(--a7)', borderRight: (activeSlId && editingSongs) ? 'none' : '1px solid var(--a7)', borderRadius: (activeSlId && editingSongs) ? (isExpanded ? '10px 0 0 0' : '10px 0 0 10px') : (isExpanded ? '10px 10px 0 0' : '10px'), padding: '10px 13px', cursor: 'pointer' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
                       <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{s.title}</span>
                       {!s.aiCache && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>⏳</span>}
@@ -722,17 +722,17 @@ function ListScreen({
                       renderRow={(d, banks, presetData) => presetRow(d.icon, presetData.label, banks, presetData.score, d.id, d.deviceColor)}
                     />}
                   </div>
-                  {activeSlId && <button
+                  {activeSlId && editingSongs && <button
                     data-testid={`song-row-remove-${s.id}`}
                     onClick={(e) => { e.stopPropagation(); removeSongFromActiveSetlist(s.id, s.title); }}
                     title={tFormat('list.remove-song-title', { title: s.title }, 'Retirer "{title}" de la setlist')}
                     style={{
-                      background: isC ? 'rgba(74,222,128,0.05)' : 'var(--a3)',
-                      border: isC ? '1px solid var(--green-border)' : '1px solid var(--a7)',
+                      background: 'var(--a3)',
+                      border: '1px solid var(--a7)',
                       borderLeft: 'none',
                       borderRadius: isExpanded ? '0 10px 0 0' : '0 10px 10px 0',
-                      padding: '0 6px', cursor: 'pointer', color: 'var(--text-dim)',
-                      fontSize: 14, minWidth: 32, flexShrink: 0, transition: 'color 0.15s ease',
+                      padding: '0 8px', cursor: 'pointer', color: 'var(--text-dim)',
+                      fontSize: 14, minWidth: 36, flexShrink: 0, transition: 'color 0.15s ease',
                     }}
                     onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--red)'; }}
                     onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-dim)'; }}
@@ -745,7 +745,9 @@ function ListScreen({
         });
       })()}
 
-      {checked.length > 0 && <div className="bottom-action" style={{ paddingTop: 12 }}><button onClick={onNext} style={{ width: '100%', background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-lg)', padding: '14px', fontSize: 15, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)', fontFamily: 'var(--font-ui)' }}>{tFormat('list.generate-recap', { songs: tPlural('list.songs-count', checked.length, {}, { one: '1 morceau', other: '{count} morceaux' }) }, 'Générer le récap — {songs} →')}</button></div>}
+      {/* Phase 7.71 — Bouton "Générer le récap" supprimé. Dépendait de
+          checked. Le mode scène (🎤 LiveScreen) remplace ce workflow.
+          Si besoin du récap PDF, accessible via Setlists tab → édition. */}
 
       {removedSong && <div
         data-testid="song-remove-toast"
