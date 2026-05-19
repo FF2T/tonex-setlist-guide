@@ -9,16 +9,19 @@
 //   CSV compact 1 ligne par device, warning si Pedal+Anniversary partagent
 //   banksAnn.
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { t, tFormat } from '../../i18n/index.js';
 import { getAllDevices } from '../../devices/registry.js';
 import { stampedProfileUpdate } from '../../core/state.js';
 import BankEditor from '../components/BankEditor.jsx';
 import ExportImportScreen from './ExportImportScreen.jsx';
+import ResolveUnknownsModal from '../components/ResolveUnknownsModal.jsx';
 import TmpBrowser from '../../devices/tonemaster-pro/Browser.jsx';
 import { FACTORY_BANKS_PEDALE_V1, FACTORY_BANKS_PEDALE_V2 } from '../../devices/tonex-pedal/index.js';
 import { FACTORY_BANKS_ANNIVERSARY } from '../../devices/tonex-anniversary/index.js';
 import { FACTORY_BANKS_PLUG } from '../../devices/tonex-plug/index.js';
+import { detectUnknownsInBanks, applyResolutionsToBanks } from '../../core/preset-curation.js';
+import { PRESET_CATALOG_MERGED, normalizePresetName } from '../../core/catalog.js';
 
 // Phase 7.75 — Factory : callback pour push les "ajouter custom" depuis
 // la modale presets inconnus (CSV import) vers profile.customPacks "Mes
@@ -83,6 +86,54 @@ function MesAppareilsTab({
   // ils partagent banksAnn (data legacy depuis Phase 2). On affiche
   // un message clair que les modifs sur l'un affectent l'autre.
   const sharesBanksAnn = enabled.has('tonex-pedal') && enabled.has('tonex-anniversary');
+
+  // Phase 7.77 — état modale "Résoudre les inconnus" partagée entre les
+  // sections device. resolveModalDevice = id du device dont la modale
+  // est ouverte (ou null). Pas plus d'une modale à la fois.
+  const [resolveModalDevice, setResolveModalDevice] = useState(null);
+
+  // Phase 7.77 — datalist catalog (dédupliqué par normalize) pour autocomplete
+  // dans la modale. Identique à ExportImportScreen Phase 7.69.11.
+  const catalogNames = useMemo(() => {
+    const byNorm = new Map();
+    for (const k of Object.keys(PRESET_CATALOG_MERGED)) {
+      const norm = normalizePresetName(k);
+      const existing = byNorm.get(norm);
+      if (!existing || k.length < existing.length) byNorm.set(norm, k);
+    }
+    return Array.from(byNorm.values()).sort();
+  }, []);
+
+  // Phase 7.77 — Détection des unknowns par device. Memoize par device.
+  // Pedal + Anniversary partagent banksAnn → mêmes unknowns.
+  const unknownsByDevice = useMemo(() => {
+    return {
+      'tonex-pedal': detectUnknownsInBanks(banksAnn),
+      'tonex-anniversary': detectUnknownsInBanks(banksAnn),
+      'tonex-plug': detectUnknownsInBanks(banksPlug),
+    };
+  }, [banksAnn, banksPlug]);
+
+  // Phase 7.77 — Apply résolutions au callback de la modale.
+  // Le device détermine quelles banks (Ann ou Plug) reçoivent les updates.
+  const handleResolveConfirm = (deviceId, resolutions, customsToAdd) => {
+    // 1. Push customs s'il y en a
+    if (customsToAdd && customsToAdd.length > 0) {
+      addCustomPresets(customsToAdd);
+    }
+    // 2. Apply remap/clear aux banks concernées
+    const hasBanksAnn = deviceId === 'tonex-pedal' || deviceId === 'tonex-anniversary';
+    const hasBanksPlug = deviceId === 'tonex-plug';
+    if (hasBanksAnn) {
+      const nextBanks = applyResolutionsToBanks(banksAnn, resolutions);
+      if (nextBanks !== banksAnn) onBanksAnn(nextBanks);
+    }
+    if (hasBanksPlug) {
+      const nextBanks = applyResolutionsToBanks(banksPlug, resolutions);
+      if (nextBanks !== banksPlug) onBanksPlug(nextBanks);
+    }
+    setResolveModalDevice(null);
+  };
 
   // Rendu section device (BankEditor + CSV compact + TMP).
   const renderDeviceSection = (d) => {
@@ -189,16 +240,46 @@ function MesAppareilsTab({
 
     if (!content) return null;
 
+    // Phase 7.77 — count d'unknowns dans les banks de ce device. TMP exclu
+    // (pas de banks). Bouton "🔴 Résoudre" affiché si N > 0.
+    const unknownsCount = (unknownsByDevice[d.id] || []).length;
+
     return (
       <div key={d.id} style={sectionStyle}>
-        <button
-          onClick={() => toggleCollapsed(d.id)}
-          style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0, marginBottom: isCollapsed ? 0 : 10 }}
-        >
-          <span style={{ fontSize: 18, flexShrink: 0 }}>{d.icon}</span>
-          <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{d.label}</span>
-          <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{isCollapsed ? '▼' : '▲'}</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: isCollapsed ? 0 : 10 }}>
+          <button
+            onClick={() => toggleCollapsed(d.id)}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}
+          >
+            <span style={{ fontSize: 18, flexShrink: 0 }}>{d.icon}</span>
+            <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{d.label}</span>
+          </button>
+          {unknownsCount > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setResolveModalDevice(d.id); }}
+              title={t('resolve.button-hint', 'Résoudre les presets inconnus (rouges) dans les banks de ce device')}
+              style={{
+                background: 'rgba(155,58,44,0.15)',
+                border: '1px solid rgba(155,58,44,0.4)',
+                color: 'var(--wine-400)',
+                borderRadius: 'var(--r-sm)',
+                padding: '3px 8px',
+                fontSize: 10,
+                fontWeight: 700,
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              {tFormat('resolve.button', { n: unknownsCount }, '🔴 Résoudre ({n})')}
+            </button>
+          )}
+          <button
+            onClick={() => toggleCollapsed(d.id)}
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text-dim)', padding: '0 4px' }}
+          >
+            {isCollapsed ? '▼' : '▲'}
+          </button>
+        </div>
         {!isCollapsed && content}
       </div>
     );
@@ -255,6 +336,17 @@ function MesAppareilsTab({
           </div>
           {enabledList.map(renderDeviceSection)}
         </div>
+      )}
+
+      {/* Phase 7.77 — Modale "Résoudre les inconnus" (un seul device à la fois) */}
+      {resolveModalDevice && (unknownsByDevice[resolveModalDevice] || []).length > 0 && (
+        <ResolveUnknownsModal
+          unknowns={unknownsByDevice[resolveModalDevice]}
+          catalogNames={catalogNames}
+          allowAddCustom={true}
+          onConfirm={(resolutions, customsToAdd) => handleResolveConfirm(resolveModalDevice, resolutions, customsToAdd)}
+          onCancel={() => setResolveModalDevice(null)}
+        />
       )}
     </div>
   );
