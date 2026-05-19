@@ -7,7 +7,7 @@
 // - inputs falsy/edge cases
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { getLocalizedText, findSlotByUsageMatch, findCatalogEntryByUsages, findSlotByName, enrichAIResult } from './ai-helpers.js';
+import { getLocalizedText, findSlotByUsageMatch, findCatalogEntryByUsages, findSlotByName, enrichAIResult, updateAiCache, computeRigSnapshot } from './ai-helpers.js';
 import { PRESET_CATALOG_MERGED } from '../../core/catalog.js';
 
 describe('getLocalizedText', () => {
@@ -733,6 +733,83 @@ describe('enrichAIResult — Phase 7.64 (bonus family match)', () => {
     const out = enrichAIResult(aiResult, 'SC', null, emptyBanks, emptyBanks, undefined, null);
     expect(out.cot_step2_guitars[0].score).toBe(80);
     expect(out.cot_step2_guitars[0]._familyBoost).toBeUndefined();
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────
+// Phase 7.81 — updateAiCache stamp `ts` + rigSnapshot scope profil actif
+// ───────────────────────────────────────────────────────────────────
+
+describe('updateAiCache (Phase 7.81)', () => {
+  it('stamp ts = Date.now() au write par défaut', () => {
+    const before = Date.now();
+    const out = updateAiCache(null, 'lp60', { song_style: 'rock' });
+    const after = Date.now();
+    expect(typeof out.ts).toBe('number');
+    expect(out.ts).toBeGreaterThanOrEqual(before);
+    expect(out.ts).toBeLessThanOrEqual(after);
+  });
+
+  it('opts.ts permet de fixer un ts précis (utile pour tests)', () => {
+    const out = updateAiCache(null, 'lp60', { song_style: 'rock' }, { ts: 1234567 });
+    expect(out.ts).toBe(1234567);
+  });
+
+  it('ts stocké à chaque appel = Date.now() (overwrite ancien)', () => {
+    const first = updateAiCache(null, 'lp60', { song_style: 'rock' }, { ts: 1000 });
+    // Le 2e appel ne propage pas l'ancien ts (existing.ts non utilisé) :
+    // ts est toujours du moment du write.
+    const second = updateAiCache(first, 'lp60', { song_style: 'rock', x: 'updated' });
+    expect(second.ts).not.toBe(1000);
+    expect(second.ts).toBeGreaterThanOrEqual(1000);
+  });
+
+  it('rigSnapshot passé en opts est préservé', () => {
+    const out = updateAiCache(null, 'lp60', { foo: 'bar' }, { rigSnapshot: 'lp60|sg61' });
+    expect(out.rigSnapshot).toBe('lp60|sg61');
+  });
+
+  it('rigSnapshot hérité du existing si non passé en opts', () => {
+    const existing = { rigSnapshot: 'lp60|sg61' };
+    const out = updateAiCache(existing, 'lp60', { foo: 'bar' });
+    expect(out.rigSnapshot).toBe('lp60|sg61');
+  });
+});
+
+describe('computeRigSnapshot (Phase 5.10.2 + 7.81 scope profil actif)', () => {
+  it('retourne ids triés joints par |', () => {
+    const guitars = [{ id: 'sg61' }, { id: 'lp60' }, { id: 'es335' }];
+    expect(computeRigSnapshot(guitars)).toBe('es335|lp60|sg61');
+  });
+
+  it('input vide ou null → string vide', () => {
+    expect(computeRigSnapshot([])).toBe('');
+    expect(computeRigSnapshot(null)).toBe('');
+    expect(computeRigSnapshot(undefined)).toBe('');
+  });
+
+  it('Phase 7.81 — scope profil actif : 12 guitares Sébastien produit un snapshot différent de l\'union all-rigs (22)', () => {
+    // Cas réel observé 2026-05-20 : rigSnapshot pollué par union all-rigs
+    // (sire_t3, sire_t7, cg_* autres profils) → diverge entre Mac et iPhone
+    // selon pollution myGuitars cross-profile. Avec Phase 7.81, seul le
+    // rig du profil actif est snapshoté → stable peu importe l'état des
+    // autres profils.
+    const rigSeb = [
+      { id: 'es335' }, { id: 'jazzmaster' }, { id: 'lp50p90' }, { id: 'lp60' },
+      { id: 'sg61' }, { id: 'sg_ebony' }, { id: 'strat61' }, { id: 'strat_ec' },
+      { id: 'strat_pro2' }, { id: 'tele63' }, { id: 'tele_ultra' },
+      { id: 'cg_1779120397266' },
+    ];
+    const rigSebPlusPollution = [
+      ...rigSeb,
+      { id: 'sire_t3' }, { id: 'sire_t7' },
+      { id: 'cg_1779096718461' }, { id: 'cg_1779096765067' },
+    ];
+    const snapClean = computeRigSnapshot(rigSeb);
+    const snapPolluted = computeRigSnapshot(rigSebPlusPollution);
+    expect(snapClean).not.toBe(snapPolluted);
+    expect(snapClean.split('|').length).toBe(12);
+    expect(snapPolluted.split('|').length).toBe(16);
   });
 });
 

@@ -311,7 +311,13 @@ function ListScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [songDb, activeSl, banksAnn, banksPlug, allGuitars]);
 
-  const currentRigSnapshot = useMemo(() => computeRigSnapshot(allRigsGuitars || allGuitars || GUITARS), [allRigsGuitars, allGuitars]);
+  // Phase 7.81 — rigSnapshot scopé au rig du profil actif (pas allRigsGuitars).
+  // allRigsGuitars (union all-rigs Phase 3.6) reste utilisé pour le PROMPT
+  // fetchAI, mais le rigSnapshot stocké au cache doit représenter le rig
+  // propre du user pour ne pas générer de faux positifs rigStale quand un
+  // AUTRE profil ajoute/perd une custom guitar (pollution myGuitars
+  // cross-profile observée Phase 7.74.x).
+  const currentRigSnapshot = useMemo(() => computeRigSnapshot(allGuitars || GUITARS), [allGuitars]);
   const missingCount = useMemo(() => (activeSongs || []).filter((s) => {
     if (!s.aiCache) return true;
     if (s.aiCache.rigSnapshot && s.aiCache.rigSnapshot !== currentRigSnapshot) return true;
@@ -341,7 +347,8 @@ function ListScreen({
           : null;
         const r = await fetchAI(s, '', banksAnn, banksPlug, aiProvider, aiKeys, allRigsGuitars || guitars, historicalFeedback, null, profile?.recoMode || 'balanced', guitarBias);
         if (analyzeCancelRef.current) break;
-        const rigSnapshot = computeRigSnapshot(allRigsGuitars || guitars);
+        // Phase 7.81 — rigSnapshot stocké = rig profil actif (pas union all-rigs).
+        const rigSnapshot = computeRigSnapshot(guitars);
         // Phase 7.54 — Écrit dans profile.aiCache via setSongAiCache.
         const newCache = { ...updateAiCache(s.aiCache, '', r, { rigSnapshot }), sv: SCORING_VERSION };
         if (onAiCacheUpdate) onAiCacheUpdate(s.id, newCache);

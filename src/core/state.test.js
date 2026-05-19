@@ -3537,3 +3537,121 @@ describe('mergeProfileLWW — Phase 7.80.2 aiCache per-songId merge', () => {
     expect(out.aiCache.song_a.sv).toBe(9);
   });
 });
+
+// ───────────────────────────────────────────────────────────────────
+// Phase 7.81 — Fix divergence aiCache via LWW par ts
+// ───────────────────────────────────────────────────────────────────
+// Phase 7.80.2 résolvait le bug "Mac plein vs iPhone vide" via merge
+// per-songId. Mais le tiebreak par `sv` (SCORING_VERSION) ne convergait
+// pas quand 2 devices avaient analysé indépendamment le même morceau :
+// sv = 9 partout → égalité → keep local des 2 côtés → divergence
+// permanente (cas Hells Bells / Mountain Climbing observé 2026-05-20).
+//
+// Phase 7.81 : LWW par `ts` (timestamp posé par updateAiCache). Le
+// device qui a analysé en dernier gagne. Fallback sv pour entries
+// legacy sans ts.
+
+describe('mergeProfileLWW — Phase 7.81 aiCache LWW par ts', () => {
+  test('SCÉNARIO BUG : 2 devices ont analysé indépendamment HB → ts plus récent gagne', () => {
+    // Mac a analysé HB à T1 = 1000, result A.
+    // iPhone a analysé HB à T2 = 2000, result B.
+    // iPhone push → Mac pull → adopt remote (ts B > ts A).
+    const local = {
+      id: 'seb', lastModified: 1000, myGuitars: ['lp60'],
+      aiCache: { hb: { sv: 9, ts: 1000, result: { ref_amp: 'JMP 50 (Mac)' } } },
+    };
+    const remote = {
+      id: 'seb', lastModified: 2000, myGuitars: ['lp60'],
+      aiCache: { hb: { sv: 9, ts: 2000, result: { ref_amp: 'Super Lead (iPhone)' } } },
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.aiCache.hb.result.ref_amp).toBe('Super Lead (iPhone)');
+    expect(out.aiCache.hb.ts).toBe(2000);
+  });
+
+  test('ts local plus récent que remote → keep local', () => {
+    const local = {
+      id: 'seb', lastModified: 1000, myGuitars: ['lp60'],
+      aiCache: { hb: { sv: 9, ts: 5000, result: { ref_amp: 'LOCAL' } } },
+    };
+    const remote = {
+      id: 'seb', lastModified: 2000, myGuitars: ['lp60'],
+      aiCache: { hb: { sv: 9, ts: 3000, result: { ref_amp: 'REMOTE' } } },
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.aiCache.hb.result.ref_amp).toBe('LOCAL');
+  });
+
+  test('égalité ts → keep local (stabilité)', () => {
+    const local = {
+      id: 'seb', lastModified: 1000, myGuitars: ['lp60'],
+      aiCache: { hb: { sv: 9, ts: 5000, result: { ref_amp: 'LOCAL' } } },
+    };
+    const remote = {
+      id: 'seb', lastModified: 2000, myGuitars: ['lp60'],
+      aiCache: { hb: { sv: 9, ts: 5000, result: { ref_amp: 'REMOTE' } } },
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.aiCache.hb.result.ref_amp).toBe('LOCAL');
+  });
+
+  test('local sans ts (legacy) + remote avec ts → remote gagne (rts > 0, lts = 0)', () => {
+    // Cas migration : Mac upgrade d'abord, refait fetchAI HB → ts.
+    // iPhone encore sur ancien code (Phase 7.80.2) : aiCache HB sans ts.
+    // iPhone upgrade puis pull → adopt remote (Mac avec ts récent).
+    const local = {
+      id: 'seb', lastModified: 1000, myGuitars: ['lp60'],
+      aiCache: { hb: { sv: 9, result: { ref_amp: 'LEGACY-noTS' } } },
+    };
+    const remote = {
+      id: 'seb', lastModified: 2000, myGuitars: ['lp60'],
+      aiCache: { hb: { sv: 9, ts: 5000, result: { ref_amp: 'FRESH-withTS' } } },
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.aiCache.hb.result.ref_amp).toBe('FRESH-withTS');
+  });
+
+  test('local avec ts + remote sans ts (legacy) → local gagne (lts > 0, rts = 0)', () => {
+    const local = {
+      id: 'seb', lastModified: 1000, myGuitars: ['lp60'],
+      aiCache: { hb: { sv: 9, ts: 5000, result: { ref_amp: 'FRESH' } } },
+    };
+    const remote = {
+      id: 'seb', lastModified: 2000, myGuitars: ['lp60'],
+      aiCache: { hb: { sv: 9, result: { ref_amp: 'LEGACY' } } },
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.aiCache.hb.result.ref_amp).toBe('FRESH');
+  });
+
+  test('aucun ts (2 caches legacy) → fallback sv → comportement Phase 7.80.2 préservé', () => {
+    const local = {
+      id: 'seb', lastModified: 1000, myGuitars: ['lp60'],
+      aiCache: { hb: { sv: 9, result: { ref_amp: 'A' } } },
+    };
+    const remote = {
+      id: 'seb', lastModified: 2000, myGuitars: ['lp60'],
+      aiCache: { hb: { sv: 9, result: { ref_amp: 'B' } } },
+    };
+    const out = mergeProfileLWW(local, remote);
+    // Égalité sv (fallback legacy) → keep local
+    expect(out.aiCache.hb.result.ref_amp).toBe('A');
+  });
+
+  test('priorité ts sur sv : ts plus récent gagne même si sv plus bas', () => {
+    // Cas dégénéré : Mac a fait fetchAI sur sv=9 avec ts récent ; iPhone
+    // a un cache plus ancien stamped sv=10 (impossible en pratique mais
+    // testons la priorité de l'algo : ts > sv).
+    const local = {
+      id: 'seb', lastModified: 1000, myGuitars: ['lp60'],
+      aiCache: { hb: { sv: 9, ts: 5000, result: { ref_amp: 'A' } } },
+    };
+    const remote = {
+      id: 'seb', lastModified: 2000, myGuitars: ['lp60'],
+      aiCache: { hb: { sv: 10, ts: 3000, result: { ref_amp: 'B' } } },
+    };
+    const out = mergeProfileLWW(local, remote);
+    // ts local (5000) > ts remote (3000) → keep local
+    expect(out.aiCache.hb.result.ref_amp).toBe('A');
+  });
+});

@@ -627,7 +627,13 @@ function updateAiCache(existing, gId, newResult, opts) {
   const best = mergeBestResults(prevBest, merged);
   const bestByGuitar = { ...(existing?.bestByGuitar || {}), [gId]: best };
   const rigSnapshot = opts && opts.rigSnapshot != null ? opts.rigSnapshot : existing?.rigSnapshot;
-  return { gId, result: merged, sv: SCORING_VERSION, bestByGuitar, rigSnapshot };
+  // Phase 7.81 — Timestamp du write pour LWW per-songId au merge Firestore.
+  // Sans ts (Phase 7.80.2 utilisait sv qui est identique partout = 9),
+  // 2 devices avec aiCache divergent ne convergeaient JAMAIS (égalité sv
+  // → keep local des deux côtés). Maintenant : le device qui a analysé en
+  // dernier gagne. opts.ts permet de fixer un ts précis pour les tests.
+  const ts = (opts && typeof opts.ts === 'number') ? opts.ts : Date.now();
+  return { gId, result: merged, sv: SCORING_VERSION, bestByGuitar, rigSnapshot, ts };
 }
 
 function getBestResult(song, gId, fallback) {

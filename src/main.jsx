@@ -276,7 +276,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.145";
+const APP_VERSION = "8.14.146";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -1062,13 +1062,13 @@ function App() {
       +":"+(p.recoMode||'')
       +":"+JSON.stringify(p.guitarBias||{})
       +":"+(p.language||'')                      // Phase 7.49 — i18n per-profile
-      +":"+Object.keys(p.aiCache||{}).slice().sort().join(',')+":"+Object.values(p.aiCache||{}).map(a=>(a?.sv||0)+'|'+(a?.rigSnapshot||'')+'|'+(a?.gId||'')).join('!')  // Phase 7.54 — aiCache per-profile
+      +":"+Object.keys(p.aiCache||{}).slice().sort().join(',')+":"+Object.values(p.aiCache||{}).map(a=>(a?.sv||0)+'|'+(a?.rigSnapshot||'')+'|'+(a?.gId||'')+'|'+(a?.ts||0)).join('!')  // Phase 7.54 + 7.81 — aiCache per-profile, ts pour propager LWW
     ).join('|');
     const syncHash=[
       // Phase 7.54 — Hash basé sur songDbWithProfileCache (aiCache résolu
       // depuis profile.aiCache + fallback shared). Sans ça, les modifs
       // dans profile.aiCache ne déclenchaient pas le push Firestore.
-      (songDbWithProfileCache||[]).map(s=>s.id+":"+(s.aiCache?.sv||0)+":"+(s.aiCache?.rigSnapshot||'')+":"+(s.aiCache?.gId||'')).join(','),
+      (songDbWithProfileCache||[]).map(s=>s.id+":"+(s.aiCache?.sv||0)+":"+(s.aiCache?.rigSnapshot||'')+":"+(s.aiCache?.gId||'')+":"+(s.aiCache?.ts||0)).join(','),
       (setlists||[]).map(s=>s.id+":"+(s.songIds||[]).slice().sort().join(',')+":"+(s.profileIds||[]).slice().sort().join(',')+":"+(s.name||'')).join('|'),
       (customGuitars||[]).map(g=>g.id).slice().sort().join(','),
       Object.keys(deletedSetlistIds||{}).slice().sort().join(','),

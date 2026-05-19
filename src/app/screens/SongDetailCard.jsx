@@ -74,7 +74,11 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   // différent (autre profil ou rig évolué depuis), on force un fetchAI
   // complet plutôt que le rescore local. Le rigSnapshot est posé par
   // updateAiCache lors d'un fetchAI réussi (Phase 5.10.2).
-  const currentRigSnapshot = computeRigSnapshot(allRigsGuitars || guitars || GUITARS);
+  // Phase 7.81 — rigSnapshot scopé au rig du profil actif (pas allRigsGuitars
+  // Phase 3.6 union all-rigs). Sinon la modification de myGuitars d'un AUTRE
+  // profil (pollution myGuitars cross-profile, Phase 7.74.x) déclenche un
+  // rigStale faux positif sur les caches stockés.
+  const currentRigSnapshot = computeRigSnapshot(guitars || GUITARS);
   const rigStale = song.aiCache?.rigSnapshot && song.aiCache.rigSnapshot !== currentRigSnapshot;
   // Phase 7.51.2 — mode démo : jamais d'appel fetchAI (cache uniquement).
   const isDemo = profile?.isDemo === true;
@@ -103,7 +107,8 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
       .then((r) => {
         setLocalAiResult(r);
         setLocalAiErr(null);
-        const rigSnapshot = computeRigSnapshot(allRigsGuitars || guitars);
+        // Phase 7.81 — rigSnapshot stocké = rig profil actif (pas union all-rigs).
+        const rigSnapshot = computeRigSnapshot(guitars);
         // Phase 7.54 — Écrit dans profile.aiCache
         writeAiCache({ ...updateAiCache(song.aiCache, gId, r, { rigSnapshot }), sv: SCORING_VERSION });
         if (!gId && r?.ideal_guitar && onGuitarChange) {
