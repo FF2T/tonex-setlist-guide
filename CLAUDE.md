@@ -746,7 +746,170 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-19 nuit, Phase 7.74.4 livrée — fix pattern swap cg_*→standard + language delta 60s)
+## État actuel (2026-05-19 nuit++, Phase 7.81 livrée — fix divergence aiCache Mac↔iPhone)
+
+**Backline v8.14.146 / SW backline-v246 / STATE_VERSION 10 / 1313 tests verts.**
+
+### Phase 7.81 — Fix divergence aiCache via rigSnapshot scope profil actif + LWW par ts (v8.14.146)
+
+**Bug diagnostiqué 2026-05-19 nuit (~22h30 Paris)** par investigation
+DevTools côté Mac + iPhone. Deux phénomènes distincts identifiés sur
+le profil Sébastien (Mac + iPhone v8.14.145 active sur les deux) :
+
+**Phénomène 1 — "manque 5" sur iPhone, Mac affiche tout analysé** :
+sur la setlist "Ma Setlist", le bouton "🤖 Analyser/MAJ N" affichait
+N=5 côté iPhone alors que Mac n'avait aucun manquant. Les 2 devices
+avaient 29 entrées dans `profile.sebastien.aiCache` (identique).
+
+**Phénomène 2 — analyses divergentes sur Cours samedi après-midi** :
+Hells Bells (AC/DC) montrait `ref_amp: "Marshall JTM45 / JMP 50"` sur
+Mac mais `"Marshall JTM45 / Super Lead"` sur iPhone. Preset_ann
+diverge aussi (`13C TSR JTM Klone Lead` vs `13B TSR JTM Jumped`).
+Mountain Climbing : ref_amp `undefined` sur Mac, présent sur iPhone.
+2 fetchAI Gemini distincts persistants (LLM non déterministe), jamais
+convergent.
+
+### Cause racine 1 — `rigSnapshot` pollué par union all-rigs
+
+Dump comparatif (2026-05-19 22:34) :
+
+```
+Mac myGuitars (12)  = iPhone myGuitars (12) : IDENTIQUES ✅
+Mac rigSnapshot HB  = 22 guitares (avec sire_t3)
+iPhone rigSnapshot HB = 21 guitares (sans sire_t3)
+```
+
+`computeRigSnapshot()` était calculé sur `allRigsGuitars` (union
+de TOUS les profils, Phase 3.6 pour enrichir le prompt IA) et stocké
+dans `aiCache.rigSnapshot`. Quand un AUTRE profil (Francisco, Bruno)
+ajoute/perd une custom guitar (pollution myGuitars cross-profile
+observée Phase 7.74.x — 4 occurrences en 7 jours), l'union diverge
+entre devices → tous les `rigSnapshot` stockés deviennent stales →
+`rigStale === true` côté un seul device → **faux positif "manque 5"**.
+
+Effet collatéral non anticipé du Phase 3.6 (union all-rigs au prompt)
+qui contaminait la détection rigStale conçue Phase 5.10.2.
+
+### Cause racine 2 — LWW non-convergent (Phase 7.80.2 limite)
+
+Phase 7.80.2 (livré 2026-05-19 soir) fixait l'écrasement aiCache via
+adopt-en-bloc en introduisant un merge per-songId : *"Pour chaque
+songId, garde la version avec le `sv` (SCORING_VERSION) le plus
+élevé. Égalité ou local-only → keep local."*
+
+Or `sv = 9` partout (V9 verrouillée). Donc quand 2 devices analysent
+indépendamment le même morceau → égalité sv → **keep local des 2
+côtés → divergence permanente**. Le merge LWW ne tranche jamais.
+
+### Fix Phase 7.81 (2 changements couplés)
+
+**Fix A — rigSnapshot scopé au rig du profil actif** :
+
+- `src/app/screens/SongDetailCard.jsx` lignes 81+111 : `computeRigSnapshot(guitars || GUITARS)` au lieu de `computeRigSnapshot(allRigsGuitars || guitars)`.
+- `src/app/screens/ListScreen.jsx` lignes 320+351 : idem.
+- Le prompt `fetchAI` continue à recevoir `allRigsGuitars` (Phase 3.6
+  préservée pour enrichir le contexte IA). Seule la détection stale
+  bascule sur le rig actif (12 guitares Sébastien).
+
+**Fix B — LWW par timestamp** :
+
+- `src/app/utils/ai-helpers.js` `updateAiCache` : stamp `ts: Date.now()`
+  à chaque write. `opts.ts` permet d'override pour les tests.
+- `src/core/state.js` `mergeProfileLWW` section aiCache : LWW par `ts`
+  en priorité. Fallback `sv` pour entries legacy sans ts (rétro-
+  compat Phase 7.80.2). Égalité ts → keep local.
+- `src/main.jsx` syncHash inclut `ts` (2 sites : profileHash +
+  songDbWithProfileCache hash) → push Firestore se déclenche quand
+  seul ts change après un nouveau fetchAI.
+
+### Tests Phase 7.81 (+15 nouveaux Vitest)
+
+`src/app/utils/ai-helpers.test.js` (+8) :
+- `updateAiCache` stamp ts par défaut, opts.ts override, ts par
+  appel.
+- `computeRigSnapshot` ids triés joints par |, falsy → '', scénario
+  bug rig actif vs union all-rigs.
+
+`src/core/state.test.js` (+7) section "Phase 7.81 aiCache LWW par ts" :
+- **Scénario bug** 2 devices analysés indépendamment HB → ts plus
+  récent gagne.
+- ts local plus récent → keep local.
+- Égalité ts → keep local.
+- Local sans ts (legacy) + remote avec ts → remote gagne.
+- Local avec ts + remote sans ts → local gagne.
+- Aucun ts (2 legacy) → fallback sv (Phase 7.80.2 préservée).
+- Priorité ts sur sv (ts local plus récent gagne même si sv remote
+  plus élevé).
+
+1313/1313 tests verts (vs 1298 Phase 7.74.4).
+
+### Architecture livrée Phase 7.81
+
+```
+src/main.jsx                        APP_VERSION 8.14.145 → 8.14.146
+                                    syncHash inclut a.ts (profileHash +
+                                    songDbWithProfileCache hash)
+public/sw.js                        CACHE backline-v245 → backline-v246
+src/app/utils/ai-helpers.js         updateAiCache stamp ts
+src/app/screens/SongDetailCard.jsx  computeRigSnapshot(guitars)
+                                    drop allRigsGuitars (2 sites)
+src/app/screens/ListScreen.jsx      computeRigSnapshot(allGuitars)
+                                    + computeRigSnapshot(guitars)
+                                    drop allRigsGuitars (2 sites)
+src/core/state.js                   mergeProfileLWW aiCache section :
+                                    LWW par ts, fallback sv legacy
+src/app/utils/ai-helpers.test.js    +8 tests Phase 7.81
+src/core/state.test.js              +7 tests Phase 7.81
+```
+
+### Validation post-déploiement (2026-05-19 nuit)
+
+- **Mac + iPhone reload PWA 2× → v8.14.146 actif** ✅
+- **Mac : "🔄 Réinitialiser mes analyses" + "🤖 Analyser/MAJ 29"**
+  sur setlist Arthur & Seb → 26 analyses réussies + 3 skips Gemini
+  (JSON parsing erreurs non-déterministes : Smoke on the Water,
+  Calling Elvis, 3e). Pushs WITH aiCache 393 → 616 KB, sous
+  SAFE_LIMIT 980 KB ✅
+- **iPhone reload → pull → convergence parfaite** :
+  - Mac    : 32 aiCache entries, 26 with ts
+  - iPhone : 32 aiCache entries, 26 with ts (identique ✅)
+  - 6 entries sans ts = morceaux dans setlists autres qu'Arthur &
+    Seb, non touchés par invalidation. Fonctionnent en fallback sv.
+- **Validation visuelle Hells Bells + Mountain Climbing** :
+  vues Mac et iPhone identiques (mêmes ref_amp, preset_ann,
+  preset_plug) ✅
+
+### Effet attendu pour les futurs cas
+
+- **rigSnapshot stable** : pollution myGuitars cross-profile (Phase
+  7.74.x) sur Bruno/Francisco/Arthur ne déclenchera plus de
+  rigStale faux positif sur Sébastien (et vice-versa).
+- **Convergence garantie** : 2 devices qui analysent indépendamment
+  le même morceau convergeront en pull (le ts récent gagne).
+- **Cohabitation legacy** : entries pré-7.81 sans ts continuent de
+  fonctionner via fallback sv (jamais convergent si égalité sv,
+  mais au moins pas écrasés). Régénérés naturellement à la prochaine
+  analyse → ts présent → LWW propre.
+
+### Dette résiduelle Phase 7.81
+
+- **3 skips Gemini** (Smoke on the Water, Calling Elvis, 3e) :
+  réponses JSON cassées non parsables par `safeParseJSON`. À
+  relancer via "🤖 Analyser/MAJ 3" — Gemini répondra probablement
+  correctement à un nouveau fetch.
+- **6 entries sans ts résiduelles** : non bloquant, fonctionnent en
+  fallback sv. Si jamais ces morceaux divergent (peu probable car
+  pas re-fetchés indépendamment), un seul re-Analyser/MAJ ajoutera
+  ts.
+- **Pas de migration one-shot des aiCache pré-7.81** : décision
+  délibérée pour éviter de coder une migration jetable. Coût :
+  re-fetchAI naturel à l'ouverture de chaque morceau dont le
+  rigSnapshot diverge du nouveau format. Acceptable vu Gemini free
+  tier.
+
+---
+
+## État précédent (2026-05-19 nuit, Phase 7.74.4 livrée — fix pattern swap cg_*→standard + language delta 60s)
 
 **Backline v8.14.145 / SW backline-v245 / STATE_VERSION 10 / 1298 tests verts.**
 
