@@ -326,7 +326,50 @@ saveToFirestore, etc.) :
 | 7.52.11 | Toggle perdus pendant 3s post-pull | `justPulledRef` bloque tout | `lastPulledHashRef` distingue user vs pull |
 | 7.52.12 | Push annulé par cleanup useEffect | clearTimeout dans cleanup + lastSyncHashRef updated avant push | Update dans `.then()` + retire cleanup |
 | 7.52.14 | Demo Setlist polluée locale écrasait snapshot | Merge avec `!existingIds.has` | Force override par id |
+| 7.74 | Pollution profile cross-mélange (myGuitars drop, banks corrompues, setlists dupliquées) | 4 causes : (1) stamp `lastModified` manquant sur 4 call sites (MesAppareilsTab toggle device, ProfilesAdmin password+rename, ProfileTab delete custom guitar) ; (2) `mergeProfilesLWW` adoptait remote en bloc sans per-field LWW ; (3) aucun garde-fou contre les drops massifs ; (4) `mergeSetlistsLWW` ne dédupliquait pas par name+profileIds divergents | (1) helper `stampedProfileUpdate` + fix 4 sites ; (2) `mergeProfileLWW` per-field ; (3) defense : block adoption si drop ≥3 guitares ou language conflict <5s ; (4) `dedupSetlists({mergeAcrossProfiles:true})` automatique au merge |
 
 Chaque ligne représente une régression réelle vécue en prod. La
 prochaine session doit s'assurer qu'aucun fix ne ré-introduit un cas
 ci-dessus.
+
+## Phase 7.74 — invariants ajoutés (2026-05-19)
+
+### Règle 1 : `lastModified` obligatoire sur tout write de profile
+
+Tout call site qui mute un `profile.X` (myGuitars, customPacks, banks,
+language, etc.) DOIT stamper `lastModified: Date.now()` sur le profil
+modifié. Sinon le merge LWW perd l'update à la prochaine sync.
+
+Helper standard : **`stampedProfileUpdate(profiles, profileId, partial)`**
+dans `core/state.js`. Force le stamp même si l'appelant l'omet.
+
+Exception : `loginHistory` est stampé via `recordLogin` (helper dédié).
+Pas besoin d'appeler `stampedProfileUpdate` pour les logins (déjà géré).
+
+### Règle 2 : `mergeProfileLWW` est per-field, pas en bloc
+
+L'ancien `mergeProfilesLWW` (pluriel) faisait un adopt-en-bloc du
+profil remote si `remote.lastModified > local.lastModified`. Refacto
+Phase 7.74 : `mergeProfileLWW` (singulier) merge per-field avec garde-fous :
+
+- `myGuitars` : adopt remote SAUF si drop ≥3 guitares (pollution
+  cross-profil détectée) → keep local
+- `language` : keep local si delta stamp <5s (anti-cycle)
+- `customGuitars` : union par id, remote overwrite sur conflit
+- `customPacks` : union par name, remote overwrite
+- Autres champs (banks, enabledDevices, etc.) : adopt en bloc
+
+### Règle 3 : `mergeSetlistsLWW` dedup automatiquement
+
+Après le merge LWW per-id classique, appliquer `dedupSetlists(out,
+{mergeAcrossProfiles: true})` pour fusionner les doublons par name
+(profileIds union, songIds union, garde celle avec le plus de songs).
+Stamp `lastModified` sur le survivant si fusion effective → propage le
+clean via sync.
+
+### Règle 4 : Debug forensique
+
+Activer `window.__BACKLINE_MERGE_DEBUG = true` dans la console pour
+voir les logs `[merge-defense] <profileId> SUSPECT <field> ...` à
+chaque merge qui déclenche un garde-fou. Utile pour catcher une
+pollution active en prod.

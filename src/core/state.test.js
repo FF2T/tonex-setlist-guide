@@ -12,8 +12,9 @@ import {
   isDemoProfile, isDemoMode, loadDemoSnapshot, buildDemoSnapshot,
   wrapDemoGuard, stripDemoProfiles, stripDemoFromSetlists,
   gcTombstones,
-  mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
+  mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW, mergeProfileLWW,
   mergeToneNetPresetsLWW,
+  stampedProfileUpdate,
   ensureProfileV10, ensureProfilesV10, migrateV9toV10, getProfileAiCache,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,
@@ -2910,5 +2911,188 @@ describe('isAdminAsMode (Phase 7.63)', () => {
   test('profiles null/undefined → false', () => {
     expect(isAdminAsMode(null, 'bruno', 'sebastien')).toBe(false);
     expect(isAdminAsMode(undefined, 'bruno', 'sebastien')).toBe(false);
+  });
+});
+
+// ─── Phase 7.74 Couche 1 — stampedProfileUpdate ────────────────────────
+describe('stampedProfileUpdate — Phase 7.74 Couche 1', () => {
+  test('stamp lastModified forcé sur le profil cible', () => {
+    const before = Date.now() - 10000;
+    const profiles = { seb: { id: 'seb', name: 'Sébastien', lastModified: before } };
+    const out = stampedProfileUpdate(profiles, 'seb', { name: 'Seb renamed' });
+    expect(out.seb.name).toBe('Seb renamed');
+    expect(out.seb.lastModified).toBeGreaterThan(before);
+    expect(out.seb.lastModified).toBeGreaterThanOrEqual(Date.now() - 100);
+  });
+
+  test('partial fonction (prev) → résolu avec stamp', () => {
+    const profiles = { seb: { id: 'seb', myGuitars: ['a', 'b'] } };
+    const out = stampedProfileUpdate(profiles, 'seb', (cur) => ({
+      myGuitars: [...cur.myGuitars, 'c'],
+    }));
+    expect(out.seb.myGuitars).toEqual(['a', 'b', 'c']);
+    expect(typeof out.seb.lastModified).toBe('number');
+  });
+
+  test('profileId inexistant → no-op (profiles inchangé)', () => {
+    const profiles = { seb: { id: 'seb' } };
+    const out = stampedProfileUpdate(profiles, 'unknown', { name: 'X' });
+    expect(out).toBe(profiles);
+  });
+
+  test('partial null/undefined → no-op', () => {
+    const profiles = { seb: { id: 'seb' } };
+    expect(stampedProfileUpdate(profiles, 'seb', null)).toBe(profiles);
+    expect(stampedProfileUpdate(profiles, 'seb', undefined)).toBe(profiles);
+    expect(stampedProfileUpdate(profiles, 'seb', () => null)).toBe(profiles);
+  });
+
+  test('immutabilité : profiles original non muté', () => {
+    const profiles = { seb: { id: 'seb', name: 'Old' } };
+    const orig = profiles.seb;
+    stampedProfileUpdate(profiles, 'seb', { name: 'New' });
+    expect(profiles.seb).toBe(orig); // référence identique
+    expect(profiles.seb.name).toBe('Old');
+  });
+});
+
+// ─── Phase 7.74 Couche 2+3 — mergeProfileLWW per-field ────────────────
+describe('mergeProfileLWW — Phase 7.74 Couche 2 (per-field) + 3 (defense)', () => {
+  test('remote plus ancien → keep local entier', () => {
+    const local = { id: 'seb', lastModified: 2000, name: 'Local' };
+    const remote = { id: 'seb', lastModified: 1000, name: 'Remote' };
+    const out = mergeProfileLWW(local, remote);
+    expect(out).toBe(local);
+  });
+
+  test('remote plus récent, pas de drop suspect → adopt remote', () => {
+    const local = { id: 'seb', lastModified: 1000, myGuitars: ['a', 'b'], language: 'fr' };
+    const remote = { id: 'seb', lastModified: 2000, myGuitars: ['a', 'b', 'c'], language: 'fr' };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.myGuitars).toEqual(['a', 'b', 'c']);
+    expect(out.lastModified).toBe(2000);
+  });
+
+  test('SCÉNARIO BUG SÉBASTIEN : remote drop ≥3 guitares → keep local', () => {
+    // Sébastien Mac a 5 guitares, remote essaye d'écraser avec
+    // seulement 2 (pollution cross-profil typique).
+    const local = {
+      id: 'sebastien',
+      lastModified: 1000,
+      myGuitars: ['lp60', 'sg61', 'es335', 'strat61', 'tele63'],
+    };
+    const remote = {
+      id: 'sebastien',
+      lastModified: 2000,
+      myGuitars: ['sire_t7', 'sire_t3'], // pollution Francisco
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.myGuitars).toEqual(['lp60', 'sg61', 'es335', 'strat61', 'tele63']);
+  });
+
+  test('drop modéré (1 guitare) → adopt remote (pas suspect)', () => {
+    const local = { id: 'seb', lastModified: 1000, myGuitars: ['a', 'b', 'c', 'd'] };
+    const remote = { id: 'seb', lastModified: 2000, myGuitars: ['a', 'b', 'c'] };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.myGuitars).toEqual(['a', 'b', 'c']);
+  });
+
+  test('language conflict short delta < 5s → keep local', () => {
+    const local = { id: 'seb', lastModified: 1000, language: 'fr' };
+    const remote = { id: 'seb', lastModified: 3000, language: 'en' }; // delta 2s
+    const out = mergeProfileLWW(local, remote);
+    expect(out.language).toBe('fr');
+  });
+
+  test('language conflict long delta > 5s → adopt remote', () => {
+    const local = { id: 'seb', lastModified: 1000, language: 'fr' };
+    const remote = { id: 'seb', lastModified: 10000, language: 'en' }; // delta 9s
+    const out = mergeProfileLWW(local, remote);
+    expect(out.language).toBe('en');
+  });
+
+  test('customGuitars : union par id, remote overwrite si conflit', () => {
+    const local = {
+      id: 'seb', lastModified: 1000,
+      customGuitars: [{ id: 'a', name: 'Local A' }, { id: 'b', name: 'Local B' }],
+    };
+    const remote = {
+      id: 'seb', lastModified: 2000,
+      customGuitars: [{ id: 'b', name: 'Remote B' }, { id: 'c', name: 'Remote C' }],
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.customGuitars).toHaveLength(3);
+    const byId = Object.fromEntries(out.customGuitars.map((g) => [g.id, g]));
+    expect(byId.a.name).toBe('Local A');
+    expect(byId.b.name).toBe('Remote B'); // remote overwrite
+    expect(byId.c.name).toBe('Remote C');
+  });
+
+  test('customPacks : union par name, remote overwrite si conflit', () => {
+    const local = {
+      id: 'seb', lastModified: 1000,
+      customPacks: [{ name: 'Pack A', presets: [{ name: 'p1' }] }],
+    };
+    const remote = {
+      id: 'seb', lastModified: 2000,
+      customPacks: [{ name: 'Pack A', presets: [{ name: 'p1' }, { name: 'p2' }] }, { name: 'Pack B' }],
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.customPacks).toHaveLength(2);
+    const byName = Object.fromEntries(out.customPacks.map((p) => [p.name, p]));
+    expect(byName['Pack A'].presets).toHaveLength(2);
+    expect(byName['Pack B']).toBeTruthy();
+  });
+
+  test('local null → retourne remote', () => {
+    const remote = { id: 'seb', lastModified: 1000, name: 'Remote' };
+    expect(mergeProfileLWW(null, remote)).toBe(remote);
+  });
+
+  test('remote null → retourne local', () => {
+    const local = { id: 'seb', lastModified: 1000, name: 'Local' };
+    expect(mergeProfileLWW(local, null)).toBe(local);
+  });
+});
+
+// ─── Phase 7.74 Couche 4 — dedup intégré au mergeSetlistsLWW ──────────
+describe('mergeSetlistsLWW — Phase 7.74 Couche 4 dedup intégré', () => {
+  test('doublons name+profileIds divergents → fusion auto', () => {
+    // Cas Sébastien : "Cours Franck B" présent 2x avec profileIds
+    // divergents (sebastien vs sebastien+franck). dedupSetlists
+    // mergeAcrossProfiles fusionne.
+    const local = [
+      { id: 'sl1', name: 'Cours Franck B', profileIds: ['sebastien'], songIds: ['s1', 's2'], lastModified: 1000 },
+    ];
+    const remote = [
+      { id: 'sl2', name: 'Cours Franck B', profileIds: ['sebastien', 'franck'], songIds: ['s2', 's3'], lastModified: 1500 },
+    ];
+    const out = mergeSetlistsLWW(local, remote, {});
+    expect(out).toHaveLength(1); // dedup fusionné
+    // Le survivant a les songIds + profileIds union
+    const survivor = out[0];
+    expect(survivor.songIds).toEqual(expect.arrayContaining(['s1', 's2', 's3']));
+    expect(survivor.profileIds).toEqual(expect.arrayContaining(['sebastien', 'franck']));
+  });
+
+  test('pas de doublon → retourne le merge LWW standard sans modif', () => {
+    const local = [{ id: 'sl1', name: 'Setlist A', profileIds: ['seb'], songIds: ['s1'], lastModified: 1000 }];
+    const remote = [{ id: 'sl2', name: 'Setlist B', profileIds: ['seb'], songIds: ['s2'], lastModified: 2000 }];
+    const out = mergeSetlistsLWW(local, remote, {});
+    expect(out).toHaveLength(2);
+  });
+
+  test('stamp lastModified du survivant si fusion (propage le clean via sync)', () => {
+    const before = Date.now() - 60000;
+    const local = [
+      { id: 'sl1', name: 'A', profileIds: ['seb'], songIds: ['s1'], lastModified: before },
+    ];
+    const remote = [
+      { id: 'sl2', name: 'A', profileIds: ['seb'], songIds: ['s2'], lastModified: before + 1000 },
+    ];
+    const out = mergeSetlistsLWW(local, remote, {});
+    expect(out).toHaveLength(1);
+    // Survivant a stamp récent
+    expect(out[0].lastModified).toBeGreaterThan(before + 5000);
   });
 });

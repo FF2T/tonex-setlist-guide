@@ -746,7 +746,160 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-19, session 16+ phases livrées — UX refonte profil/admin)
+## État actuel (2026-05-19, session 17 phases livrées — UX refonte profil/admin + fix sync robustesse)
+
+**Backline v8.14.129 / SW backline-v229 / STATE_VERSION 10 / 1220 tests verts.**
+
+### Phase 7.74 — Fix cause racine pollution profile cross-mélange (v8.14.129)
+
+Bug observé en prod plusieurs fois sur 7 jours (incident 2026-05-18) :
+myGuitars perdait des entries Sébastien + gagnait des entries
+Francisco (sire_t7/t3), language reset, banksAnn corrompu, setlists
+dupliquées. Les protections défensives Phase 7.59 (snapshots manuels
++ sanity check au boot) ne détectaient pas le bug — il se manifeste
+PENDANT l'usage, pas au load.
+
+**Audit H1 (4 sites coupables identifiés)** : call sites onProfiles/
+setProfiles qui oubliaient `lastModified: Date.now()`. Conséquence :
+le merge LWW perd l'update si un autre device push entretemps avec
+stamp récent.
+
+| Site | Action | Criticité |
+|---|---|---|
+| `ProfilesAdmin.jsx:47` | Change password admin | 🔴 |
+| `ProfilesAdmin.jsx:55` | Rename profile admin | 🟠 |
+| `ProfileTab.jsx:52` | Delete custom guitar de tous profils | 🔴 |
+| `MesAppareilsTab.jsx:25-31` | Toggle device → enabledDevices | 🔴 (cause probable banks corrompues) |
+
+**Fix en 4 couches** (toutes livrées) :
+
+#### Couche 1 — Helper `stampedProfileUpdate` + fix stamps manquants
+
+Helper pur dans `core/state.js` qui force `lastModified: Date.now()`
+sur le profil cible. Signature : `stampedProfileUpdate(profiles,
+profileId, partial)` où `partial` est objet ou fonction `(cur) =>
+partial`. Idempotent, immutable, null-safe.
+
+Les 4 sites coupables refactorisés pour utiliser le helper (sauf
+ProfileTab.jsx:52 qui est un cas multi-profil — boucle inline avec
+stamp ciblé : ne stamp QUE les profils qui avaient effectivement
+la guitare à drop, évite la saturation Firestore + conflicts LWW).
+
+#### Couche 2 — `mergeProfileLWW` (singulier) per-field
+
+Refacto `mergeProfilesLWW` (pluriel) : au lieu d'adopt-en-bloc du
+profil remote, délègue à `mergeProfileLWW` (singulier) qui merge
+per-field :
+
+- **myGuitars** : adopt remote (avec garde-fou Couche 3)
+- **language** : adopt remote (avec garde-fou Couche 3)
+- **customGuitars** : union par id, remote overwrite sur conflit
+- **customPacks** : union par name, remote overwrite
+- **banksAnn, banksPlug, enabledDevices, availableSources,
+  aiProvider, recoMode, guitarBias, tmpPatches, loginHistory,
+  editedGuitars** : adopt remote en bloc (champs atomiques)
+
+#### Couche 3 — Defense block adoption suspecte + logs forensique
+
+Garde-fous dans `mergeProfileLWW` :
+
+- **Drop myGuitars suspect** : si remote drop ≥3 guitares (ou >50%
+  du local) → keep local. Cas Sébastien Mac : 5 guitares locales vs
+  remote `['sire_t7', 'sire_t3']` (pollution Francisco) → drop 5
+  guitares détecté → keep local préservé.
+- **Language conflict short delta** : si remote.language ≠
+  local.language ET delta stamp <5s → keep local. Anti-cycle (user
+  ne change pas sa langue 2× en 5s).
+
+Logs forensique via `window.__BACKLINE_MERGE_DEBUG = true` :
+```
+[merge-defense] sebastien SUSPECT myGuitars drop : remote drops 5 guitares (lp60,sg61,es335,strat61,tele63) — keeping local
+```
+
+#### Couche 4 — Dedup setlists aggressif automatique au merge
+
+`mergeSetlistsLWW` applique désormais `dedupSetlists(out,
+{mergeAcrossProfiles: true})` AUTOMATIQUEMENT après le LWW per-id.
+Cas Sébastien observé : "Cours Franck B" avec id sl1 et profileIds
+['sebastien'] côté local + même name avec id sl2 et profileIds
+['sebastien', 'franck'] côté remote → fusion auto en une setlist
+unique avec profileIds union + songIds union, songs préservés.
+
+Stamp `lastModified` automatique sur les setlists qui ont absorbé
+une autre (songIds.length ou profileIds.length augmenté) → propage
+le clean via sync.
+
+Plus besoin de bouton manuel "Fusionner setlists doublons" dans
+MaintenanceTab (Phase 5.4) — fait au merge.
+
+### Tests Phase 7.74 (+18 nouveaux Vitest)
+
+- `stampedProfileUpdate` × 5 : stamp forcé, partial fonction, no-op
+  si profileId inexistant, no-op si partial null, immutabilité.
+- `mergeProfileLWW` × 10 : remote ancien → keep local, remote récent
+  pas suspect → adopt, scénario bug Sébastien (drop 5 guitares →
+  keep local), drop modéré → adopt, language short delta → keep
+  local, language long delta → adopt, customGuitars union, customPacks
+  union, local null, remote null.
+- `mergeSetlistsLWW` Couche 4 × 3 : doublons name+profileIds divergents
+  → fusion auto, pas de doublon → unchanged, stamp lastModified sur
+  fusion.
+
+1220/1220 verts (1202 + 18).
+
+### Architecture livrée Phase 7.74
+
+```
+src/main.jsx                            APP_VERSION 8.14.128 → 8.14.129
+public/sw.js                            CACHE backline-v228 → backline-v229
+src/core/state.js                       +stampedProfileUpdate helper
+                                        +mergeProfileLWW (singulier)
+                                        mergeProfilesLWW (pluriel) délègue
+                                        mergeSetlistsLWW : dedup aggressif
+                                        intégré au retour
+src/core/state.test.js                  +18 tests Phase 7.74
+docs/SYNC.md                            +section Phase 7.74 invariants
+                                        + entry historique régressions
+src/app/screens/ProfilesAdmin.jsx       Fix stamps password + rename
+src/app/screens/ProfileTab.jsx          Fix stamp delete custom guitar
+                                        (multi-profil, ciblé sur ceux
+                                        qui avaient la guitare)
+src/app/screens/MesAppareilsTab.jsx     Fix stamp toggle device
+                                        (suspect H1 critique)
+```
+
+### Conséquences Phase 7.74
+
+- **1220/1220 tests verts** (+18 nouveaux).
+- **Pas de bump STATE_VERSION** (changements purement merge-side,
+  schéma identique).
+- **Pas de migration localStorage**.
+- **Bundle** ~2428 KB (peu de delta).
+- **Cohabitation pré-7.74 / post-7.74** : un device pré-7.74 qui
+  push sans stamp peut encore polluer. Mais l'autre device post-7.74
+  qui pull bénéficie des garde-fous Couche 3 (drop suspect détecté
+  → keep local). Donc effet bénéfique unilatéral dès le premier
+  device upgradé.
+
+### Dette résiduelle Phase 7.74
+
+- **Instrumentation forensique laissée active** : `window.__BACKLINE_
+  MERGE_DEBUG = true` permet de catch en live un cas de pollution
+  active. À garder 1-2 semaines en observation puis évaluer si on
+  laisse en permanence.
+- **`stampedProfileUpdate` non câblé sur main.jsx existant** : les
+  call sites main.jsx (setProfileField, setSongAiCache, etc.) sont
+  déjà OK (stampent inline). Pas urgent de migrer vers le helper.
+- **Test de garde structurelle** (audit grep automatisé qui détecte
+  un futur `setProfiles` introduit sans stamp) : non implémenté
+  Phase 7.74. À ajouter si nouvelle régression observée.
+- **Phase 7.74 ne touche PAS `mergeSongDbPreservingLocalAiCache`** :
+  le merge songDb a sa propre logique Phase 5.7.1. Pas inclus dans
+  le scope.
+
+---
+
+## État précédent (2026-05-19 après-midi, session 16+ phases — UX refonte profil/admin)
 
 **Backline v8.14.128 / SW backline-v228 / STATE_VERSION 10 / 1202 tests verts.**
 

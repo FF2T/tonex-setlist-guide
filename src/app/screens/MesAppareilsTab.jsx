@@ -9,6 +9,7 @@
 import React from 'react';
 import { t } from '../../i18n/index.js';
 import { getAllDevices } from '../../devices/registry.js';
+import { stampedProfileUpdate } from '../../core/state.js';
 
 function MesAppareilsTab({ profile, profiles, onProfiles, activeProfileId }) {
   const allDevices = getAllDevices();
@@ -22,13 +23,10 @@ function MesAppareilsTab({ profile, profiles, onProfiles, activeProfileId }) {
       next.add(id);
     }
     const arr = allDevices.filter((d) => next.has(d.id)).map((d) => d.id);
-    onProfiles((p) => ({
-      ...p,
-      [activeProfileId]: {
-        ...p[activeProfileId],
-        enabledDevices: arr,
-      },
-    }));
+    // Phase 7.74 — stamp obligatoire (bug critique : sans stamp, le
+    // toggle device peut être écrasé par un autre device sync ; cause
+    // probable du symptôme "banks corrompus" rapporté 2026-05-18).
+    onProfiles((p) => stampedProfileUpdate(p, activeProfileId, { enabledDevices: arr }));
   };
   return (
     <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 16 }}>

@@ -6,7 +6,7 @@
 
 import React, { useState } from 'react';
 import { t, tFormat, getLocale } from '../../i18n/index.js';
-import { makeDefaultProfile, isTrusted, setTrusted } from '../../core/state.js';
+import { makeDefaultProfile, isTrusted, setTrusted, stampedProfileUpdate } from '../../core/state.js';
 import { hashPassword } from '../../core/crypto-utils.js';
 
 function ProfilesAdmin({ profiles, onProfiles }) {
@@ -44,7 +44,8 @@ function ProfilesAdmin({ profiles, onProfiles }) {
   const savePwd = async (id) => {
     // Phase 7.28 — hash le nouveau password avant stockage.
     const hashed = await hashPassword(editPwdVal);
-    onProfiles((p) => ({ ...p, [id]: { ...p[id], password: hashed } }));
+    // Phase 7.74 — stampedProfileUpdate force lastModified pour la sync LWW.
+    onProfiles((p) => stampedProfileUpdate(p, id, { password: hashed }));
     setTrusted(id, false);
     setEditPwdId(null); setEditPwdVal('');
   };
@@ -52,7 +53,8 @@ function ProfilesAdmin({ profiles, onProfiles }) {
   const forgetDevice = (id) => { setTrusted(id, false); setTrustTick((t) => t + 1); };
   const saveName = (id) => {
     if (!editNameVal.trim()) return;
-    onProfiles((p) => ({ ...p, [id]: { ...p[id], name: editNameVal.trim() } }));
+    // Phase 7.74 — stamp obligatoire.
+    onProfiles((p) => stampedProfileUpdate(p, id, { name: editNameVal.trim() }));
     setEditNameId(null); setEditNameVal('');
   };
   const inp = { background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '6px 10px', fontSize: 12, boxSizing: 'border-box' };

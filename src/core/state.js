@@ -630,7 +630,32 @@ function mergeSetlistsLWW(localSetlists, remoteSetlists, mergedDeletedMap) {
     if (tombstoneTs >= remoteTs) continue;
     out.push(remoteSl);
   }
-  return out;
+  // Phase 7.74 Couche 4 — Dedup aggressif AUTOMATIQUE après le merge LWW
+  // per-id. Le LWW dedupe par id mais pas par (name+profileIds différents).
+  // Cas observé : Mac et iPhone ont chacun une setlist "Cours Franck B"
+  // avec des ids différents mais le même name. Après merge LWW per-id,
+  // les deux survivent côte à côte → doublon visible côté user.
+  // dedupSetlists({mergeAcrossProfiles:true}) Phase 5.4 fusionne par
+  // name uniquement, union des profileIds, garde celle avec le plus
+  // de songs. Stamp lastModified sur le survivant pour propager le merge.
+  const deduped = dedupSetlists(out, { mergeAcrossProfiles: true });
+  // Si dedup a effectivement fusionné, stamp les survivants pour que
+  // la sync propage le clean. dedupSetlists ne stamp pas par défaut
+  // (mode pure helper). On stamp ici uniquement les setlists modifiées
+  // (différentes de leur version d'origine dans `out`).
+  if (deduped !== out && deduped.length !== out.length) {
+    const ts = Date.now();
+    return deduped.map((sl) => {
+      // Si la setlist a un songIds ou profileIds plus grand que la
+      // version d'origine (= elle a absorbé une autre), stamp.
+      const orig = out.find((o) => o.id === sl.id);
+      if (!orig) return { ...sl, lastModified: ts };
+      const grew = (sl.songIds || []).length > (orig.songIds || []).length
+        || (sl.profileIds || []).length > (orig.profileIds || []).length;
+      return grew ? { ...sl, lastModified: ts } : sl;
+    });
+  }
+  return deduped;
 }
 
 // Phase 7.53.1 — Merge LWW per-item pour shared.toneNetPresets.
@@ -695,6 +720,140 @@ function mergeToneNetPresetsLWW(localPresets, remotePresets) {
 // Le callback `applySecrets` (optionnel) est appliqué sur les profils
 // remote adoptés (pour préserver aiKeys/password locaux côté caller).
 // Tous les profils sortants passent par ensureProfileV7 pour heal.
+// Phase 7.74 Couche 1 — Helper pour update profil avec stamp obligatoire.
+//
+// Bug récurrent observé 2026-05-18 : plusieurs call sites onProfiles/
+// setProfiles oubliaient `lastModified: Date.now()`. Conséquence : le
+// merge LWW perd l'update si un autre device push entretemps avec stamp
+// récent (par exemple un toggle device, un rename profile, un changement
+// password admin).
+//
+// Sites coupables identifiés Phase 7.74 audit H1 :
+//   - ProfilesAdmin.jsx:47 (change password admin)
+//   - ProfilesAdmin.jsx:55 (rename profile admin)
+//   - ProfileTab.jsx:52 (delete custom guitar de tous profils)
+//   - MesAppareilsTab.jsx:25-31 (toggle enabledDevices)
+//
+// Helper pur qui :
+//  1. Lit le profil cible dans `profiles[profileId]`
+//  2. Applique `partial` (peut être objet ou fonction `(prev) => partial`)
+//  3. Force `lastModified: Date.now()` même si l'appelant l'a omis
+//  4. Retourne le nouveau profiles object (immutable)
+//
+// Si `profileId` est absent du store, retourne profiles inchangé.
+// Si `partial` est une fonction qui renvoie null/undefined → no-op.
+function stampedProfileUpdate(profiles, profileId, partial) {
+  if (!profiles || typeof profiles !== 'object' || !profileId) return profiles;
+  const cur = profiles[profileId];
+  if (!cur) return profiles;
+  const resolved = typeof partial === 'function' ? partial(cur) : partial;
+  if (resolved == null || typeof resolved !== 'object') return profiles;
+  return {
+    ...profiles,
+    [profileId]: { ...cur, ...resolved, lastModified: Date.now() },
+  };
+}
+
+// Phase 7.74 Couche 2 — merge LWW per-field pour les champs critiques
+// d'un profile (vs ancien adopt-en-bloc qui causait des pollutions
+// cross-mélange).
+//
+// Champs critiques avec garde-fous Couche 3 (drop massif détecté) :
+//  - myGuitars : adopt remote uniquement si pas de drop suspect
+//  - language : keep local si delta stamp < 5s (anti-cycle short delta)
+//
+// Champs adopt-en-bloc safe (atomiques, source de vérité unique) :
+//  - banksAnn, banksPlug, enabledDevices : adopt remote si plus récent
+//  - aiCache : déjà géré par mergeSongDbPreservingLocalAiCache + Phase
+//    7.54 per-profile
+//  - availableSources, aiProvider, recoMode, guitarBias, theme :
+//    adopt si plus récent (champs simples)
+//  - customGuitars : union par id (LWW remote gagne si conflict)
+//  - customPacks : union par name (remote gagne si conflict)
+//  - tmpPatches : adopt en bloc (objet imbriqué)
+//  - loginHistory : adopt en bloc (cap 10 entries)
+//  - editedGuitars : adopt en bloc
+//
+// Champs préservés (jamais propagés via Firestore, locaux uniquement) :
+//  - password, aiKeys, isDemo, id, name, isAdmin (gérés via applySecrets)
+//
+// Si remote.lastModified <= local.lastModified, on garde local tel quel
+// (le local est déjà à jour ou plus récent).
+//
+// `options.debug = true` active console.warn forensique pour observer
+// les décisions de merge (cf Couche 3 défense ultime).
+function mergeProfileLWW(local, remote, options = {}) {
+  // Cas dégénérés : 1 seul des deux présent
+  if (!local && !remote) return null;
+  if (!local) return remote;
+  if (!remote) return local;
+  const lts = typeof local.lastModified === 'number' ? local.lastModified : 0;
+  const rts = typeof remote.lastModified === 'number' ? remote.lastModified : 0;
+  // Si remote plus ancien ou égal → keep local entier (rien à fusionner).
+  if (rts <= lts) return local;
+  // Sinon : remote plus récent → on construit un merge per-field.
+  const debug = options.debug === true || (typeof window !== 'undefined' && window.__BACKLINE_MERGE_DEBUG === true);
+  const debugLog = (msg, data) => {
+    if (debug && typeof console !== 'undefined' && console.warn) {
+      console.warn('[merge-defense]', local.id || '?', msg, data || '');
+    }
+  };
+
+  // Base : champs adopt-en-bloc (banks, enabledDevices, devices,
+  // availableSources, aiProvider, recoMode, guitarBias, tmpPatches,
+  // loginHistory, editedGuitars). On part de remote pour ces champs.
+  const merged = { ...remote };
+
+  // ── myGuitars : Couche 3 defense — block adoption si drop suspect ──
+  // Si remote drop ≥ 3 guitares (ou plus de 50% des guitares locales),
+  // c'est probablement une pollution cross-profil. Keep local.
+  const localGuitars = Array.isArray(local.myGuitars) ? local.myGuitars : [];
+  const remoteGuitars = Array.isArray(remote.myGuitars) ? remote.myGuitars : [];
+  if (localGuitars.length > 0) {
+    const dropped = localGuitars.filter((g) => !remoteGuitars.includes(g));
+    const tooManyDropped = dropped.length >= 3 || (dropped.length / localGuitars.length) > 0.5;
+    if (tooManyDropped) {
+      debugLog(`SUSPECT myGuitars drop : remote drops ${dropped.length} guitares (${dropped.join(',')}) — keeping local`, { local: localGuitars, remote: remoteGuitars });
+      merged.myGuitars = localGuitars;
+    } else {
+      merged.myGuitars = remoteGuitars;
+    }
+  } else {
+    merged.myGuitars = remoteGuitars;
+  }
+
+  // ── language : keep local si delta stamp < 5s (anti-cycle, le user
+  //    n'a pas le temps de changer la langue 2× en 5s) ──
+  if (local.language && remote.language && local.language !== remote.language) {
+    if (rts - lts < 5000) {
+      debugLog(`SUSPECT language conflict short delta (${rts - lts}ms) : ${local.language} → ${remote.language} — keeping local`, { local: local.language, remote: remote.language });
+      merged.language = local.language;
+    }
+  }
+
+  // ── customGuitars : union par id, LWW remote gagne si conflit ──
+  const localCG = Array.isArray(local.customGuitars) ? local.customGuitars : [];
+  const remoteCG = Array.isArray(remote.customGuitars) ? remote.customGuitars : [];
+  const cgById = {};
+  for (const g of localCG) { if (g && g.id) cgById[g.id] = g; }
+  for (const g of remoteCG) { if (g && g.id) cgById[g.id] = g; } // remote overwrite
+  merged.customGuitars = Object.values(cgById);
+
+  // ── customPacks : union par name (les noms sont uniques per profil) ──
+  const localCP = Array.isArray(local.customPacks) ? local.customPacks : [];
+  const remoteCP = Array.isArray(remote.customPacks) ? remote.customPacks : [];
+  const cpByName = {};
+  for (const pk of localCP) { if (pk && pk.name) cpByName[pk.name] = pk; }
+  for (const pk of remoteCP) { if (pk && pk.name) cpByName[pk.name] = pk; } // remote overwrite
+  merged.customPacks = Object.values(cpByName);
+
+  // Stamp lastModified = max des deux (pour que la prochaine sync
+  // détecte cet état comme à jour).
+  merged.lastModified = Math.max(lts, rts);
+
+  return merged;
+}
+
 function mergeProfilesLWW(localProfiles, remoteProfiles, options = {}) {
   const local = localProfiles && typeof localProfiles === 'object' ? localProfiles : {};
   const remote = remoteProfiles && typeof remoteProfiles === 'object' ? remoteProfiles : {};
@@ -705,14 +864,11 @@ function mergeProfilesLWW(localProfiles, remoteProfiles, options = {}) {
     const lp = local[id];
     const rp = remote[id];
     if (lp && rp) {
-      const lts = typeof lp.lastModified === 'number' ? lp.lastModified : 0;
-      const rts = typeof rp.lastModified === 'number' ? rp.lastModified : 0;
-      if (rts > lts) {
-        const adopted = applySecrets ? applySecrets({ [id]: rp })[id] : rp;
-        out[id] = ensureProfileV10(adopted);
-      } else {
-        out[id] = ensureProfileV10(lp);
-      }
+      // Phase 7.74 — Per-field merge via mergeProfileLWW (singulier).
+      // Remplace l'ancien adopt-en-bloc qui causait des pollutions.
+      const adoptedRemote = applySecrets ? applySecrets({ [id]: rp })[id] : rp;
+      const merged = mergeProfileLWW(lp, adoptedRemote, options);
+      out[id] = ensureProfileV10(merged || lp);
     } else if (lp) {
       out[id] = ensureProfileV10(lp);
     } else if (rp) {
@@ -1933,8 +2089,9 @@ export {
   isDemoProfile, isDemoMode, loadDemoSnapshot, buildDemoSnapshot,
   wrapDemoGuard, stripDemoProfiles, stripDemoFromSetlists,
   gcTombstones,
-  mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
+  mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW, mergeProfileLWW,
   mergeToneNetPresetsLWW,
+  stampedProfileUpdate,
   ensureProfileV10, ensureProfilesV10, migrateV9toV10, getProfileAiCache,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,

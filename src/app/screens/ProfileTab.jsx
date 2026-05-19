@@ -49,7 +49,24 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
   };
   const removeCustomGuitar = (id) => {
     onCustomGuitars((prev) => (prev || []).filter((g) => g.id !== id));
-    onProfiles((p) => { const n = { ...p }; for (const pid in n) { n[pid] = { ...n[pid], myGuitars: (n[pid].myGuitars || []).filter((x) => x !== id) }; } return n; });
+    // Phase 7.74 — Stamp lastModified sur les profils QUI AVAIENT
+    // effectivement la guitare (sinon on stampait gratuitement tous
+    // les profils et on saturait Firestore + risque de conflits LWW
+    // multi-profil).
+    onProfiles((p) => {
+      const n = {};
+      const ts = Date.now();
+      for (const pid in p) {
+        const cur = p[pid];
+        const hadIt = (cur.myGuitars || []).includes(id);
+        if (hadIt) {
+          n[pid] = { ...cur, myGuitars: cur.myGuitars.filter((x) => x !== id), lastModified: ts };
+        } else {
+          n[pid] = cur; // pas de mutation, pas de stamp inutile
+        }
+      }
+      return n;
+    });
   };
   const startEditGuitar = (g, isCustom) => {
     const edits = profile.editedGuitars || {};
