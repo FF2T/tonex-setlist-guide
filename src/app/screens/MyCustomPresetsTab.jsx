@@ -25,7 +25,34 @@ import React, { useState, useMemo } from 'react';
 import { t } from '../../i18n/index.js';
 import { PRESET_CATALOG_MERGED } from '../../core/catalog.js';
 import { inferPresetInfo } from '../utils/infer-preset.js';
+import { STYLE_SCORES } from '../utils/detect-preset-metadata.js';
 import { cleanUsages } from './ToneNetTab.jsx';
+
+// Phase 7.69.13 — Niveaux qualitatifs pour la saisie des scores de
+// compatibilité par micro. 4 niveaux (Médiocre/Moyen/Bon/Excellent)
+// correspondent à des valeurs canoniques 50/75/85/95. Les valeurs
+// non canoniques (ex: STYLE_SCORES.metal SC=60) sont mappées via
+// les ranges au render — cliquer un bouton snap à la value canonique.
+const SCORE_LEVELS = [
+  { value: 50, label: 'Médiocre', range: [0, 60] },
+  { value: 75, label: 'Moyen', range: [60, 80] },
+  { value: 85, label: 'Bon', range: [80, 90] },
+  { value: 95, label: 'Excellent', range: [90, 101] },
+];
+
+function getLevelForScore(score) {
+  const n = Number(score);
+  if (!Number.isFinite(n)) return SCORE_LEVELS[1]; // fallback Moyen
+  return SCORE_LEVELS.find((lv) => n >= lv.range[0] && n < lv.range[1]) || SCORE_LEVELS[1];
+}
+
+// Couleur du niveau (cohérence visuelle entre micros).
+function getLevelColor(level) {
+  if (level.value === 50) return 'var(--red)';
+  if (level.value === 75) return 'var(--yellow)';
+  if (level.value === 85) return 'var(--accent)';
+  return 'var(--green)';
+}
 
 // Liste fermée des valeurs `creator` possibles. Auto-détection via
 // regex sur le nom mais le user peut overrider. Décision Phase 7.69 :
@@ -83,6 +110,9 @@ const STYLE_OPTIONS = ['blues', 'rock', 'hard_rock', 'jazz', 'metal', 'pop'];
 const GAIN_OPTIONS = ['low', 'mid', 'high'];
 
 function emptyForm() {
+  // Phase 7.69.13 — Pré-saisie A : scores depuis STYLE_SCORES['rock']
+  // (style par défaut). Recalculés à chaque changement de style.
+  const defaultScores = STYLE_SCORES.rock || { HB: 75, SC: 75, P90: 75 };
   return {
     name: '',
     creator: '',
@@ -90,9 +120,9 @@ function emptyForm() {
     gain: 'mid',
     style: 'rock',
     channel: '',
-    scoreHB: 75,
-    scoreSC: 75,
-    scoreP90: 75,
+    scoreHB: defaultScores.HB,
+    scoreSC: defaultScores.SC,
+    scoreP90: defaultScores.P90,
     usages: [],
   };
 }
@@ -195,11 +225,33 @@ function MyCustomPresetsTab({ profile, onProfiles, activeProfileId, songDb, inp 
       if (!f.amp) {
         const info = inferPresetInfo(newName);
         if (info?.amp) next.amp = info.amp;
-        if (info?.style && f.style === 'rock') next.style = info.style;
+        if (info?.style && f.style === 'rock') {
+          next.style = info.style;
+          // Phase 7.69.13 — recalc scores depuis le nouveau style.
+          const s = STYLE_SCORES[info.style];
+          if (s) { next.scoreHB = s.HB; next.scoreSC = s.SC; next.scoreP90 = s.P90; }
+        }
         if (info?.gain && f.gain === 'mid') next.gain = info.gain;
       }
       return next;
     });
+  };
+
+  // Phase 7.69.13 — Au changement de style, recalc scores via STYLE_SCORES.
+  // Le user peut quand même override en cliquant un bouton niveau ensuite.
+  const onStyleChange = (newStyle) => {
+    setForm((f) => {
+      const next = { ...f, style: newStyle };
+      const s = STYLE_SCORES[newStyle];
+      if (s) { next.scoreHB = s.HB; next.scoreSC = s.SC; next.scoreP90 = s.P90; }
+      return next;
+    });
+  };
+
+  // Phase 7.69.13 — Set un score à la valeur canonique d'un niveau
+  // (Médiocre/Moyen/Bon/Excellent → 50/75/85/95).
+  const setScoreLevel = (key, levelValue) => {
+    setForm((f) => ({ ...f, [key]: levelValue }));
   };
 
   const addUsage = () => {
@@ -359,6 +411,8 @@ function MyCustomPresetsTab({ profile, onProfiles, activeProfileId, songDb, inp 
                       form={form}
                       setForm={setForm}
                       onNameChange={onNameChange}
+                      onStyleChange={onStyleChange}
+                      setScoreLevel={setScoreLevel}
                       knownAmps={knownAmps}
                       artistList={artistList}
                       titleList={titleList}
@@ -387,6 +441,8 @@ function MyCustomPresetsTab({ profile, onProfiles, activeProfileId, songDb, inp 
             form={form}
             setForm={setForm}
             onNameChange={onNameChange}
+            onStyleChange={onStyleChange}
+            setScoreLevel={setScoreLevel}
             knownAmps={knownAmps}
             artistList={artistList}
             titleList={titleList}
@@ -415,7 +471,8 @@ function MyCustomPresetsTab({ profile, onProfiles, activeProfileId, songDb, inp 
 // Formulaire CRUD preset Phase 7.69 — extrait pour partage entre
 // édition existante et création new.
 function PresetForm({
-  form, setForm, onNameChange, knownAmps, artistList, titleList,
+  form, setForm, onNameChange, onStyleChange, setScoreLevel,
+  knownAmps, artistList, titleList,
   addUsage, removeUsage, updateUsageArtist, addSongToUsage, removeSongFromUsage,
   onSave, onCancel, inp,
 }) {
@@ -471,7 +528,11 @@ function PresetForm({
           </div>
           <div style={{ flex: '1 1 120px' }}>
             <label style={{ fontSize: 11, color: 'var(--text-sec)', marginBottom: 3, display: 'block' }}>{t('mycustompresets.field-style', 'Style')}</label>
-            <select value={form.style} onChange={(e) => set('style', e.target.value)} style={{ ...inp, width: '100%', fontSize: 12 }}>
+            <select
+              value={form.style}
+              onChange={(e) => (onStyleChange ? onStyleChange(e.target.value) : set('style', e.target.value))}
+              style={{ ...inp, width: '100%', fontSize: 12 }}
+            >
               {STYLE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
@@ -488,25 +549,8 @@ function PresetForm({
           />
         </div>
 
-        {/* Scores HB / SC / P90 */}
-        <div>
-          <label style={{ fontSize: 11, color: 'var(--text-sec)', marginBottom: 3, display: 'block' }}>{t('mycustompresets.field-scores', 'Scores de compatibilité (0-100)')}</label>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {[['HB', 'scoreHB'], ['SC', 'scoreSC'], ['P90', 'scoreP90']].map(([label, key]) => (
-              <div key={key} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center' }}>{label}</span>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={form[key]}
-                  onChange={(e) => set(key, e.target.value)}
-                  style={{ ...inp, width: '100%', fontSize: 12, textAlign: 'center' }}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* Scores HB / SC / P90 — Phase 7.69.13 niveaux qualitatifs */}
+        <ScoreLevelsRow form={form} set={set} setScoreLevel={setScoreLevel} inp={inp}/>
 
         {/* Usages */}
         <div>
@@ -573,6 +617,88 @@ function PresetForm({
           <button onClick={onCancel} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>{t('mycustompresets.cancel', 'Annuler')}</button>
           <button onClick={onSave} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{t('mycustompresets.save', 'Sauvegarder')}</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Phase 7.69.13 — Composant ScoreLevelsRow : 3 lignes (HB/SC/P90) avec
+// 4 boutons niveaux (Médiocre/Moyen/Bon/Excellent = 50/75/85/95). Le
+// score actuel highlight le bouton dont la range matche. Toggle "Avancé"
+// pour saisie 0-100 fine (power users).
+function ScoreLevelsRow({ form, set, setScoreLevel, inp }) {
+  const [advanced, setAdvanced] = useState(false);
+  const rows = [
+    ['HB', 'scoreHB', t('mycustompresets.score-hb', 'Humbuckers')],
+    ['SC', 'scoreSC', t('mycustompresets.score-sc', 'Single coils')],
+    ['P90', 'scoreP90', t('mycustompresets.score-p90', 'P90')],
+  ];
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+        <label style={{ fontSize: 11, color: 'var(--text-sec)' }}>
+          {t('mycustompresets.field-scores-qual', 'Compatibilité par type de micro')}
+        </label>
+        <button
+          onClick={() => setAdvanced((a) => !a)}
+          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 10, textDecoration: 'underline', cursor: 'pointer', padding: 0 }}
+        >
+          {advanced ? t('mycustompresets.scores-simple', '← Mode simple') : t('mycustompresets.scores-advanced', 'Mode avancé (0-100) →')}
+        </button>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {rows.map(([key, formKey, label]) => {
+          const current = form[formKey];
+          const activeLevel = getLevelForScore(current);
+          return (
+            <div key={formKey} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 11, color: 'var(--text)', fontWeight: 600, width: 90 }}>
+                {label}
+              </span>
+              {advanced ? (
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={current}
+                  onChange={(e) => set(formKey, parseInt(e.target.value, 10) || 0)}
+                  style={{ ...inp, width: 80, fontSize: 12, textAlign: 'center' }}
+                />
+              ) : (
+                <div style={{ display: 'flex', gap: 4, flex: 1, flexWrap: 'wrap' }}>
+                  {SCORE_LEVELS.map((lv) => {
+                    const isActive = lv.value === activeLevel.value;
+                    const color = getLevelColor(lv);
+                    return (
+                      <button
+                        key={lv.value}
+                        onClick={() => setScoreLevel(formKey, lv.value)}
+                        style={{
+                          flex: 1,
+                          background: isActive ? color : 'var(--a4)',
+                          border: isActive ? `1px solid ${color}` : '1px solid var(--a8)',
+                          color: isActive ? 'var(--tolex-900)' : 'var(--text-sec)',
+                          borderRadius: 'var(--r-sm)',
+                          padding: '4px 6px',
+                          fontSize: 10,
+                          fontWeight: isActive ? 700 : 500,
+                          cursor: 'pointer',
+                          minWidth: 60,
+                        }}
+                        title={`${lv.label} (${lv.value})`}
+                      >
+                        {lv.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <span style={{ fontSize: 9, color: 'var(--text-muted)', width: 30, textAlign: 'right' }}>
+                {current}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
