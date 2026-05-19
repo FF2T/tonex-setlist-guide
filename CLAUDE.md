@@ -746,9 +746,9 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-19 fin de soirée, 30+ phases livrées — UX curation complète + JSON Maintenance + wrapper logger)
+## État actuel (2026-05-19 fin de soirée, 30+ phases livrées — UX curation complète + JSON Maintenance + wrapper logger + fix sync aiCache)
 
-**Backline v8.14.143 / SW backline-v243 / STATE_VERSION 10 / 1281 tests verts.**
+**Backline v8.14.144 / SW backline-v244 / STATE_VERSION 10 / 1289 tests verts.**
 
 ### Session 2026-05-19 fin de soirée — 11 phases supplémentaires (suite Phase 7.74.x du matin)
 
@@ -766,7 +766,8 @@ phases livrées en cascade fin de journée :
 | 7.78.1 | 8.14.140 | Réintègre Sauvegarde/Restauration JSON globale dans ⚙️ Admin → Maintenance (oubli Phase 7.73.1) |
 | 7.74.5 | 8.14.141 | Wrapper console persistant pour surveillance pollution myGuitars (`localStorage.__backline_persist_logs`) |
 | 7.79 | 8.14.142 | Pastille curation cliquable + modale info/édition usages (BankEditor + SongDetailCard) |
-| 7.79.2 | 8.14.143 | **Section "🎯 Usages curés" inline dans PresetDetailInline + bouton "💡 Reprendre morceaux mythiques de l'ampli" pour curation en 1 clic** |
+| 7.79.2 | 8.14.143 | Section "🎯 Usages curés" inline dans PresetDetailInline + bouton "💡 Reprendre morceaux mythiques de l'ampli" pour curation en 1 clic |
+| **7.80.2** | **8.14.144** | **Fix critique sync aiCache Mac↔iPhone : merge per-songId dans mergeProfileLWW** |
 
 ### Phase 7.75 — Consolidation Mes appareils (v8.14.135)
 
@@ -947,24 +948,23 @@ ouvre la modale, MAIS quand le drawer est expand (click sur slot ou
 sélection preset Explorer), tout est inline directement. Le user
 peut curer sans modale superposée.
 
-### Phase 7.80 (à investiguer 2026-05-19) — 2 dettes critiques notées
+### Phase 7.80 (notée 2026-05-19) — Dettes critiques
 
-1. **Revue UX/UI responsive complète** — audit systématique sur
-   iPhone (PWA installée) + iPad portrait/paysage + Chrome DevTools
-   responsive mode. Symptômes ponctuels observés : header tronqué
-   iPhone, overflow inputs, modales scroll mobile. Effort ~6-10h
-   audit + 10-15h fixes.
+1. **Phase 7.80.1 — Revue UX/UI responsive complète** (à investiguer)
+   — audit systématique sur iPhone (PWA installée) + iPad portrait/
+   paysage + Chrome DevTools responsive mode. Symptômes ponctuels
+   observés : header tronqué iPhone, overflow inputs, modales scroll
+   mobile. Effort ~6-10h audit + 10-15h fixes.
 
-2. **Sync analyses IA Mac ↔ iPhone défectueuse** — Sébastien rapporte
-   que les analyses IA calculées sur Mac ne descendent pas sur iPhone
-   (et vice-versa), il doit relancer le calcul sur chaque device.
-   Phase 7.54 (aiCache per-profile) était censée résoudre ça. À
-   investiguer : strip aiCache au push (Phase 7.58), merge LWW
-   per-field (Phase 7.74 Couche 2 — `profile.aiCache` adopté ?),
-   stamp `lastModified` manquant sur `setSongAiCache`, `syncHash`
-   inclut-il `profile.aiCache` ? Effort ~2-4h investigation + fix.
-
-Cf section "Idées en attente" pour le diagnostic détaillé en 6 étapes.
+2. **Phase 7.80.2 — Fix sync aiCache Mac ↔ iPhone** ✅ **LIVRÉ 2026-05-19 soir (v8.14.144)**
+   — Cause racine identifiée : `mergeProfileLWW` (state.js:805) faisait
+   `merged = { ...remote }` adopt-en-bloc, qui écrasait `profile.aiCache`
+   local avec un remote vide quand `remote.lastModified > local.lastModified`.
+   Phase 7.74 Couche 2 avait ajouté un merge per-field pour myGuitars/
+   language/customGuitars/customPacks mais avait oublié aiCache.
+   Fix : merge per-songId avec sv (SCORING_VERSION) le plus élevé qui
+   gagne (égalité → keep local). Union complète des analyses cross-device.
+   8 tests Vitest ajoutés. Cf entrée détaillée en haut "Phase 7.80.2".
 
 ### Surveillance pollution myGuitars (3e occurrence 2026-05-19)
 
@@ -981,16 +981,60 @@ Si re-occurrence avec log forensique → **Phase 7.74.4 ciblée**
 (~1h dev) : étendre la défense au pattern "drop 1 `cg_*` + add 1
 `cg_*` d'un autre profil" = swap suspect cross-profil.
 
+### Phase 7.80.2 — Fix sync aiCache Mac ↔ iPhone (v8.14.144)
+
+**Bug critique identifié 2026-05-19 soir** : analyses IA calculées
+sur Mac ne descendaient pas sur iPhone et vice-versa. Sébastien
+devait relancer le calcul sur chaque device. Très embêtant.
+
+**Cause racine** (`src/core/state.js:805` `mergeProfileLWW`) :
+```js
+if (rts <= lts) return local;
+const merged = { ...remote };  // ← adopt en bloc !
+```
+
+Quand `remote.lastModified > local.lastModified`, le merge adoptait
+**TOUT l'objet remote**, incluant `aiCache`. Puis override per-field
+uniquement pour `myGuitars` / `language` / `customGuitars` /
+`customPacks` (Phase 7.74 Couche 2). `aiCache` était oublié →
+adopté en bloc → écrasement possible.
+
+**Scénario qui cassait** :
+1. Mac : analyse IA → `setSongAiCache` stamp `profile.lastModified=T1`
+2. Mac push à Firestore avec `aiCache` plein
+3. iPhone : toggle un truc → re-stamp `lastModified=T2 > T1` → push
+   avec `aiCache` vide localement
+4. Mac pull → `rts > lts` → `merged.aiCache = {}` (vide) ← **PERTE**
+
+**Fix Phase 7.80.2** : merge per-songId pour `aiCache`. Pour chaque
+song présent dans local OU remote, garde la version avec le `sv`
+(SCORING_VERSION) le plus élevé. Égalité ou local-only → keep
+local. Remote-only → adopt remote. **Union complète des analyses
+cross-device.**
+
+8 tests Vitest dans `state.test.js` :
+- Scénario bug Mac↔iPhone reproduit
+- Local vide + remote plein → adopt remote
+- Conflit sv → sv le plus élevé gagne
+- Égalité sv → keep local
+- Union per-songId (Mac analyse A + iPhone analyse B → 2 conservées)
+- Remote plus ancien → return local entier (rien à merger)
+- aiCache absent → mergedAi = {}
+- aiCache null défensif
+
+**Pas de bump STATE_VERSION** (correction logique pure).
+
 ### Récap fin de session 2026-05-19 fin de journée
 
 | Métrique | Valeur |
 |---|---|
-| Phases livrées (session matinée + soirée) | 30+ phases |
-| Tests Vitest | 1281/1281 verts |
-| Versions déployées | v8.14.133 → v8.14.143 (11 releases) |
-| Dettes notées à investiguer | Phase 7.80 (2 items) |
+| Phases livrées (session matinée + soirée) | 30+ phases dont 12 nouvelles soir |
+| Tests Vitest | 1289/1289 verts |
+| Versions déployées | v8.14.133 → v8.14.144 (12 releases) |
+| Dettes notées | Phase 7.80.1 (responsive) ⏳ / 7.80.2 ✅ livré |
 | Couverture catalog factory | 0% unknown sur Pedal v2 + Anniversary + Plug ✅ |
 | Surveillance pollution active | Mac ✅ / iPhone à activer |
+| **Bug bloquant fixé soir** | **Sync analyses IA Mac↔iPhone** ✅ |
 
 ---
 
