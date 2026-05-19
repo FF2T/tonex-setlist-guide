@@ -19,4 +19,21 @@ const APP_NAME = 'Backline';
 const APP_TAGLINE = 'Le guide intelligent pour tes pédales et amplis modélisés';
 const APP_SHORT_NAME = 'Backline';
 
-export { APP_NAME, APP_TAGLINE, APP_SHORT_NAME };
+// Phase 7.73.0 — Formulaire Tally pour les feedbacks beta-testeurs.
+// Champs cachés pré-remplis via URL params : profile_name + app_version
+// (Tally les expose comme champs cachés natifs).
+const TALLY_FEEDBACK_URL = 'https://tally.so/r/xXR1G5';
+
+/**
+ * Construit l'URL Tally avec pré-remplissage des champs cachés.
+ * @param {string} profileName - Nom du profil actif (pour réponse perso)
+ * @param {string} appVersion - Version Backline (debug)
+ */
+function buildFeedbackUrl(profileName, appVersion) {
+  const url = new URL(TALLY_FEEDBACK_URL);
+  if (profileName) url.searchParams.set('profile_name', profileName);
+  if (appVersion) url.searchParams.set('app_version', appVersion);
+  return url.toString();
+}
+
+export { APP_NAME, APP_TAGLINE, APP_SHORT_NAME, TALLY_FEEDBACK_URL, buildFeedbackUrl };

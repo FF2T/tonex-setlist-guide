@@ -15,6 +15,7 @@ import { updateAiCache } from '../utils/ai-helpers.js';
 import { fetchAI } from '../utils/fetchAI.js';
 import { setSharedGeminiKey } from '../utils/shared-key.js';
 import { hashPassword, verifyPassword, isPasswordLegacy } from '../../core/crypto-utils.js';
+import { buildFeedbackUrl } from '../../core/branding.js';
 import Breadcrumb from '../components/Breadcrumb.jsx';
 import BankEditor from '../components/BankEditor.jsx';
 import ProfileTab from './ProfileTab.jsx';
@@ -433,6 +434,14 @@ function MonProfilScreen({
       {/* Phase 7.72 — Tab Profils migré dans AdminScreen. */}
       <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--a8)', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <button onClick={() => { if (typeof window.setShowOnboarding === 'function') window.setShowOnboarding(true); else { const e = new CustomEvent('showOnboarding'); window.dispatchEvent(e); } }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>Aide</button>
+        {/* Phase 7.73.0 — Bouton feedback Tally. Pré-rempli avec
+            profile_name + app_version. Ouvre dans un nouvel onglet. */}
+        <a
+          href={buildFeedbackUrl(profile?.name, (typeof window !== 'undefined' && window.__BACKLINE_APP_VERSION) || '')}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}
+        >💬 Envoyer un feedback</a>
         <button onClick={() => { location.reload(true); }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>Mise à jour</button>
         {onLogout && <button onClick={onLogout} style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '8px 16px', fontSize: 12, cursor: 'pointer', marginLeft: 'auto' }}>Se déconnecter</button>}
       </div>
