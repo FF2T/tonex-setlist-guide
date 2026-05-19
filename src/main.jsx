@@ -82,7 +82,7 @@ import {
   applySecrets,
   isDemoMode, isDemoProfile, loadDemoSnapshot, wrapDemoGuard,
   createManualSnapshot, listManualSnapshots, restoreManualSnapshot, deleteManualSnapshot,
-  validateProfileGuitars,
+  validateProfileGuitars, repairProfileGuitarsOrphans,
 } from './core/state.js';
 import {
   SOURCE_LABELS, SOURCE_DESCRIPTIONS, SOURCE_BADGES, SOURCE_INFO,
@@ -267,7 +267,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.131";
+const APP_VERSION = "8.14.132";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -930,6 +930,26 @@ function App() {
     setSetlists(result.setlistUpdater);
     console.log("[migration] Imported " + result.newSongs.length + " new songs. Created: " + result.createNames.join(", ") + ". Merged into Ma Setlist: " + result.mergeNames.join(", "));
   }, [firestoreLoaded]);
+
+  // Phase 7.74.2 — Auto-repair orphans myGuitars au boot post-Firestore.
+  // Si profile.myGuitars contient un id qui n'est NI dans GUITARS, NI
+  // dans shared.customGuitars, NI dans profile.customGuitars → c'est
+  // un orphelin historique (probably guitare custom supprimée/re-créée
+  // avec nouvel id). On le drop + stamp lastModified pour propager le
+  // clean via sync. Gate firestoreLoaded pour éviter les faux positifs
+  // (cas où customGuitars sera disponible au pull). Run une seule fois
+  // par session (ref pour anti-rerun).
+  const repairRanRef = useRef(false);
+  useEffect(() => {
+    if (!firestoreLoaded || repairRanRef.current) return;
+    repairRanRef.current = true;
+    const stateLike = { profiles, shared: { customGuitars } };
+    const { state: cleaned, repairs } = repairProfileGuitarsOrphans(stateLike, GUITARS);
+    if (repairs.length > 0) {
+      console.warn('[backline-repair-7.74.2] Orphan guitars detected and removed:', repairs);
+      setProfiles(cleaned.profiles);
+    }
+  }, [firestoreLoaded]);  // eslint-disable-line react-hooks/exhaustive-deps
 
 
   // Save secrets (aiKeys, passwords) to separate localStorage key — never synced

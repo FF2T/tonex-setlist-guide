@@ -3103,6 +3103,98 @@ describe('mergeProfileLWW — Phase 7.74 Couche 2 (per-field) + 3 (defense)', ()
   });
 });
 
+describe('repairProfileGuitarsOrphans — Phase 7.74.2', () => {
+  // Helper pour import
+  let repairFn;
+  beforeEach(async () => {
+    const mod = await import('./state.js');
+    repairFn = mod.repairProfileGuitarsOrphans;
+  });
+
+  test('SCÉNARIO BUG SÉBASTIEN : id fantôme cg_xxx absent partout → drop', () => {
+    const state = {
+      profiles: {
+        sebastien: {
+          id: 'sebastien',
+          name: 'Sébastien',
+          myGuitars: ['lp60', 'cg_1778885069427'], // cg_1778885069427 ghost
+          customGuitars: [],
+          lastModified: 1000,
+        },
+      },
+      shared: {
+        customGuitars: [{ id: 'cg_1779120397266', name: 'Tele 51' }], // l'id réel
+      },
+    };
+    const catalog = [{ id: 'lp60', name: 'Les Paul' }];
+    const result = repairFn(state, catalog);
+    expect(result.repairs).toHaveLength(1);
+    expect(result.repairs[0].removed).toEqual(['cg_1778885069427']);
+    expect(result.state.profiles.sebastien.myGuitars).toEqual(['lp60']);
+    expect(result.state.profiles.sebastien.lastModified).toBeGreaterThan(1000);
+  });
+
+  test('id standard catalog → conservé', () => {
+    const state = {
+      profiles: { seb: { id: 'seb', myGuitars: ['lp60', 'sg61'], customGuitars: [] } },
+      shared: { customGuitars: [] },
+    };
+    const catalog = [{ id: 'lp60' }, { id: 'sg61' }];
+    const result = repairFn(state, catalog);
+    expect(result.repairs).toEqual([]);
+    expect(result.state).toBe(state); // référence identique si pas de repair
+  });
+
+  test('id dans shared.customGuitars → conservé', () => {
+    const state = {
+      profiles: { seb: { id: 'seb', myGuitars: ['cg_real'], customGuitars: [] } },
+      shared: { customGuitars: [{ id: 'cg_real' }] },
+    };
+    const result = repairFn(state, []);
+    expect(result.repairs).toEqual([]);
+  });
+
+  test('id dans profile.customGuitars legacy → conservé', () => {
+    const state = {
+      profiles: { seb: { id: 'seb', myGuitars: ['cg_legacy'], customGuitars: [{ id: 'cg_legacy' }] } },
+      shared: {},
+    };
+    const result = repairFn(state, []);
+    expect(result.repairs).toEqual([]);
+  });
+
+  test('aucun profil → pas de repair', () => {
+    expect(repairFn({}, []).repairs).toEqual([]);
+    expect(repairFn(null, []).repairs).toEqual([]);
+  });
+
+  test('immutabilité : state original non muté', () => {
+    const state = {
+      profiles: { seb: { id: 'seb', myGuitars: ['orphan'], customGuitars: [], lastModified: 1000 } },
+      shared: {},
+    };
+    const orig = state.profiles.seb;
+    repairFn(state, []);
+    expect(state.profiles.seb).toBe(orig);
+    expect(state.profiles.seb.myGuitars).toEqual(['orphan']);
+  });
+
+  test('plusieurs profils avec orphans : repair indépendant', () => {
+    const state = {
+      profiles: {
+        seb: { id: 'seb', myGuitars: ['lp60', 'orphan_a'], customGuitars: [], lastModified: 1000 },
+        bruno: { id: 'bruno', myGuitars: ['sg61', 'orphan_b'], customGuitars: [], lastModified: 1000 },
+      },
+      shared: {},
+    };
+    const catalog = [{ id: 'lp60' }, { id: 'sg61' }];
+    const result = repairFn(state, catalog);
+    expect(result.repairs).toHaveLength(2);
+    expect(result.state.profiles.seb.myGuitars).toEqual(['lp60']);
+    expect(result.state.profiles.bruno.myGuitars).toEqual(['sg61']);
+  });
+});
+
 describe('mergeProfilesLWW — Phase 7.74.1 calcul otherProfilesGuitarsByProfile', () => {
   test('passe correctement otherProfilesGuitars au merge per-field', () => {
     const local = {

@@ -1795,6 +1795,63 @@ function deleteManualSnapshot(id) {
 // guitars.js metadata).
 //
 // Retourne array de warnings { profileId, profileName, orphanIds }.
+// Phase 7.74.2 — Repair des orphans myGuitars.
+//
+// `validateProfileGuitars` (Phase 7.59-B) ne fait que LOG les orphans
+// au boot pour diagnostic. Le user a observé un cas concret 2026-05-19 :
+// `profile.myGuitars` contenait `cg_1778885069427` mais cette guitare
+// n'existait nulle part (ni catalog standard, ni shared.customGuitars,
+// ni profile.customGuitars). C'est un orphelin historique (probably
+// guitare custom supprimée et re-créée avec un nouvel id) qui survit
+// silencieusement dans myGuitars → UI affiche "rien" pour ce slot.
+//
+// Helper qui retire ces orphans + stamp lastModified pour propager
+// le clean via sync. Appliqué AU BOOT après le 1er pull Firestore
+// (gate firestoreLoaded dans main.jsx) pour éviter les faux positifs
+// (cas où customGuitars sera disponible une fois le pull terminé).
+//
+// Différence vs validateProfileGuitars : ce helper DROPPE aussi les
+// ids `cg_*` qui ne sont nulle part (vs validateProfileGuitars qui
+// les considère "soft orphans légitimes" — c'était trop permissif,
+// Phase 7.74.2 force la rigueur).
+//
+// Retourne { state, repairs } :
+//  - state : nouveau state avec profiles nettoyés (immutable, ===
+//    input state si aucun repair)
+//  - repairs : Array<{profileId, profileName, removed: string[]}>
+function repairProfileGuitarsOrphans(state, guitarsCatalog) {
+  if (!state || !state.profiles) return { state, repairs: [] };
+  const sharedCustomIds = new Set((state.shared?.customGuitars || []).map((g) => g.id));
+  const catalogIds = new Set((guitarsCatalog || []).map((g) => g.id));
+  const repairs = [];
+  let mutated = false;
+  const nextProfiles = {};
+  for (const [pid, p] of Object.entries(state.profiles)) {
+    if (!p || !Array.isArray(p.myGuitars)) {
+      nextProfiles[pid] = p;
+      continue;
+    }
+    const profileCustomIds = new Set((p.customGuitars || []).map((g) => g.id));
+    const orphans = [];
+    const cleanMyGuitars = [];
+    for (const gid of p.myGuitars) {
+      if (catalogIds.has(gid)) { cleanMyGuitars.push(gid); continue; }
+      if (sharedCustomIds.has(gid)) { cleanMyGuitars.push(gid); continue; }
+      if (profileCustomIds.has(gid)) { cleanMyGuitars.push(gid); continue; }
+      orphans.push(gid);
+    }
+    if (orphans.length > 0) {
+      mutated = true;
+      nextProfiles[pid] = { ...p, myGuitars: cleanMyGuitars, lastModified: Date.now() };
+      repairs.push({ profileId: pid, profileName: p.name || pid, removed: orphans });
+    } else {
+      nextProfiles[pid] = p;
+    }
+  }
+  if (!mutated) return { state, repairs: [] };
+  return { state: { ...state, profiles: nextProfiles }, repairs };
+}
+
 function validateProfileGuitars(state, guitarsCatalog) {
   if (!state || !state.profiles) return [];
   const sharedCustomIds = new Set((state.shared?.customGuitars || []).map((g) => g.id));
@@ -2160,7 +2217,7 @@ export {
   loadState, saveState, persistState,
   autoBackup, listBackups, restoreBackup, clearBackups, isQuotaError,
   createManualSnapshot, listManualSnapshots, restoreManualSnapshot, deleteManualSnapshot,
-  validateProfileGuitars,
+  validateProfileGuitars, repairProfileGuitarsOrphans,
   loadSecrets, saveSecrets,
   loadTrusted, isTrusted, setTrusted,
   getAllRigsGuitars,
