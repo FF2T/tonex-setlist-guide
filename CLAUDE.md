@@ -746,7 +746,255 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-19, session 20 phases livrées — UX refonte + sync robustesse + régression auto-repair contenue)
+## État actuel (2026-05-19 fin de soirée, 30+ phases livrées — UX curation complète + JSON Maintenance + wrapper logger)
+
+**Backline v8.14.143 / SW backline-v243 / STATE_VERSION 10 / 1281 tests verts.**
+
+### Session 2026-05-19 fin de soirée — 11 phases supplémentaires (suite Phase 7.74.x du matin)
+
+Suite à la session du matin (7.74.x sync robustesse + régression
+auto-repair contenue, cf section "État précédent"), 11 nouvelles
+phases livrées en cascade fin de journée :
+
+| Phase | Version | Sujet |
+|---|---|---|
+| 7.75 | 8.14.135 | Consolidation 4 tabs → 1 "Mes appareils" avec sections collapsables par device |
+| 7.75.1 | 8.14.137 | Fix double-rendering banks tables dans Mes appareils (gated `!compact` + `restrictToDevice`) |
+| 7.76 | 8.14.137 | Labels Sources nettoyés (studios par nom commercial, note "tous les packs ne sont pas encore intégrés") |
+| 7.77 | 8.14.138 | Bouton "🔴 Résoudre les inconnus (N)" user — modale 5 actions (remap/manual/add/skip/clear) |
+| 7.78 | 8.14.139 | Bouton "🟠 Curer les non-curés (N)" admin MVP — modale 2 sections (éditables custom/ToneNET + read-only catalog statique) |
+| 7.78.1 | 8.14.140 | Réintègre Sauvegarde/Restauration JSON globale dans ⚙️ Admin → Maintenance (oubli Phase 7.73.1) |
+| 7.74.5 | 8.14.141 | Wrapper console persistant pour surveillance pollution myGuitars (`localStorage.__backline_persist_logs`) |
+| 7.79 | 8.14.142 | Pastille curation cliquable + modale info/édition usages (BankEditor + SongDetailCard) |
+| 7.79.2 | 8.14.143 | **Section "🎯 Usages curés" inline dans PresetDetailInline + bouton "💡 Reprendre morceaux mythiques de l'ampli" pour curation en 1 clic** |
+
+### Phase 7.75 — Consolidation Mes appareils (v8.14.135)
+
+**Avant** : 4 onglets séparés (Mes appareils toggle + 🎛 Pedale + 🎛
+Anniversary + 🔌 Plug + 🎚️ TMP) = fouillis dans MonProfilScreen.
+
+**Après** : un seul onglet "📱 Mes appareils" qui contient :
+- Section 1 — Toggle des devices (déjà avant)
+- Section 2 — Pour chaque device activé, une **section collapsable**
+  avec BankEditor + CSV compact (ExportImportScreen `compact={true}`) +
+  TMP Browser. Warning si Pedal + Anniversary tous deux activés
+  (partagent `banksAnn`).
+
+Net : passage de 11 onglets (7 pour non-admin) à 7 onglets.
+
+### Phase 7.75.1 — Fix double-rendering banks tables (v8.14.137)
+
+Bug rapporté par dump DOM : dans MesAppareilsTab consolidé Phase 7.75,
+chaque section device affichait **2 tables read-only des banks**
+(Anniversary + Plug) PLUS le BankEditor interactif. Cause :
+`ExportImportScreen` rendait inconditionnellement un tableau read-only
+lignes 564-583 (legacy code de l'écran standalone).
+
+Fix : gating `!compact` + filtre `restrictToDevice` ('ann' ou 'plug')
+pour cacher les tables read-only en mode compact MesAppareilsTab.
+
+### Phase 7.76 — Labels Sources nettoyés (v8.14.137)
+
+Sources renommées dans `core/sources.js` pour citer les studios par
+leur nom commercial sans précision "64 packs / standalone" (mouvant) :
+
+| Avant | Après |
+|---|---|
+| TSR — Pack 64 Studio Rats | The Studio Rats |
+| ML — ML Sound Lab Essentials | ML Sound Lab |
+| AA — Amalgam Audio (standalone) | Amalgam Audio |
+| JS — Jason Sadites (standalone) | Jason Sadites |
+| TJ — Tone Junkie TV (standalone) | Tone Junkie TV |
+| WT — Worship Tutorials (standalone) | Worship Tutorials |
+| Galtone — Galtone (standalone) | Galtone |
+
+Descriptions partagent toutes la même note "(tous les packs ne sont
+pas encore intégrés dans Backline)" pour clarifier la couverture
+partielle. SOURCE_INFO révisé idem.
+
+### Phase 7.77 — Résoudre les inconnus côté user (v8.14.138)
+
+Bouton **"🔴 Résoudre (N)"** dans le header de chaque section device
+de Mes appareils. N = count des presets unknown (status='unknown',
+fallback `guessPresetInfo`) dans les banks du device.
+
+Modale `ResolveUnknownsModal` réutilise la mécanique éprouvée Phase
+7.69.x (import CSV unknowns) mais scopée sur les banks installées.
+5 actions par preset :
+- **Remapper** vers une fuzzy suggestion (`findCatalogSuggestions`)
+- **Rechercher dans le catalog** (datalist autocomplete ~1028 noms)
+- **Ajouter comme custom** (push dans `profile.customPacks["Mes presets"]`)
+- **Laisser tel quel** (slot inchangé, preset reste 🔴)
+- **Vider le slot** (action explicite)
+
+Helper pur `detectUnknownsInBanks(banks)` + `applyResolutionsToBanks(banks, resolutions)`
+dans `src/core/preset-curation.js`. 18 tests Vitest.
+
+Bonus livré : **test régression Phase 7.77** `src/audit-factory-curation.test.js`
+qui vérifie que **aucun preset factory (Pedal v2, Anniversary, Plug)
+n'est en 🔴 unknown**. Cohérence catalog verrouillée (à la livraison
+Phase 7.77 : Pedal v2 150 known + Anniversary 119 known + 31 curated-admin
+Phase 7.52 + Plug 30 known).
+
+### Phase 7.78 — Curer les non-curés côté admin MVP (v8.14.139)
+
+Bouton **"🟠 Curer (N)"** admin only dans le header de chaque section
+device. N = count des presets `status='known'` (catalog entry mais sans
+`usages`) dans les banks du device.
+
+Modale `CurateNonCuratedModal` avec 2 sections :
+- **✏️ Éditables (custom + ToneNET)** : form usages `[{artist, songs?}]`
+  par preset, datalist artist+song depuis songDb. Save → update
+  `profile.customPacks` (custom) ou `shared.toneNetPresets` (ToneNET)
+  + stamp lastModified pour LWW Firestore.
+- **📦 Catalogs statiques (TSR/ML/AA/JS/TJ/WT/Galtone/Anniversary/Factory/...)** :
+  read-only avec note "édite le source code (Phase 11 future :
+  Studio-driven enrichment)".
+
+Helper pur `detectAllNonCurated(banks)` qui retourne `{name, src, editable}`
++ `EDITABLE_SOURCES = new Set(['custom', 'ToneNET'])`. 6 tests Vitest.
+
+### Phase 7.78.1 — Réintègre Sauvegarde JSON dans Maintenance (v8.14.140)
+
+**Bug** : Phase 7.73.1 avait retiré le tab "📋 Export / Import" de Mon
+Profil avec la promesse "JSON full state reste accessible via ⚙️
+Admin → Maintenance" — mais jamais câblé. Conséquence : impossible
+de faire une sauvegarde complète JSON depuis l'UI depuis Phase 7.73.1.
+
+**Fix** : section "💾 Sauvegarde complète (JSON)" en tête de
+MaintenanceTab avec 2 boutons :
+- ⬇ Exporter JSON (full state : setlists + songDb + banks + profiles)
+- 📂 Importer JSON (avec confirmation, REMPLACE tout le state local)
+
+Câblé via props `fullState` + `onImportState` propagés
+main.jsx → AdminScreen → MaintenanceTab.
+
+### Phase 7.74.5 — Wrapper console persistant intégré (v8.14.141)
+
+Helper `merge-debug-logger.js` installé au boot main.jsx. No-op si
+`localStorage.__backline_persist_logs` absent. Si activé :
+- Wrappe `console.warn` / `console.log` au boot (idempotent).
+- Pour chaque msg contenant `[merge*` ou `SUSPECT`, persiste dans
+  `localStorage.__backline_merge_logs` (max 50 entries, FIFO).
+- Active aussi `window.__BACKLINE_MERGE_DEBUG = true`.
+- Expose `window.__getMergeDebugLogs()` et `window.__clearMergeDebugLogs()`.
+
+Activation user :
+```js
+localStorage.__backline_persist_logs = 'true';
+// Puis reload. Plus besoin de re-coller le wrapper à chaque reload.
+```
+
+12 tests Vitest. Utilisé pour surveiller la pollution myGuitars
+récurrente (3e occurrence observée 2026-05-19 — swap 1↔1 cg_*
+non détecté par Couche 3 Phase 7.74).
+
+### Phase 7.79 — Pastille cliquable + modale curation (v8.14.142)
+
+Nouveau composant partagé `<CurationDot>` : pastille curation 6×6 px
+cliquable avec tooltip enrichi.
+
+Nouvelle modale `<PresetCurationModal>` unifiée (mode view/edit
+inline) :
+- Mode "view" : status (🔴/🟠/🔵) + amp/gain/style/scores/pack/usages
+- Bouton "✏️ Modifier" admin only sur custom/ToneNET → toggle vers
+  mode "edit" inline (form usages identique à 🟠 Curer)
+- Save → update `profile.customPacks` ou `shared.toneNetPresets`
+- Catalog statique : bouton désactivé + note Phase 11
+
+Intégration : BankEditor (Mes appareils) + SongDetailCard (vue
+dépliée setlist). Click pastille → modale.
+
+### Phase 7.79.2 — Section usages inline dans PresetDetailInline (v8.14.143)
+
+**Insight user 2026-05-19 soir** : *"pourquoi cliquer sur la modale
+et ne pas intégrer un encart dans la vue du preset, d'autant plus
+qu'il y a déjà des infos type morceaux mythiques qui pourraient
+alimenter le curage"*.
+
+`PresetDetailInline` (le drawer expandable rendu dans BankEditor +
+Explorer + JamScreen) affichait déjà une section **"🎵 Morceaux
+mythiques — registre [gain]"** (depuis Phase ancienne) qui filtre
+les `refs` de l'ampli depuis `data_context.js` selon le gain du
+preset. Format : `[{a: artiste, t: [titres]}]` = **exactement la
+structure des `usages`** !
+
+Sous-composant `<UsagesSection>` ajouté dans PresetDetailInline :
+- Section "🎯 Usages curés (preset)" en lecture (read-only par défaut)
+- Bouton "✏️ Modifier" admin only sur custom/ToneNET (toggle inline,
+  pas de modale)
+- Form usages avec datalist artist+song depuis songDb
+- **Bouton "💡 Reprendre les morceaux mythiques de l'ampli (N artistes)"**
+  qui pré-remplit le form en 1 clic depuis `ctx.refs` (data_context.js
+  déjà filtrés par gain). Curation 10× plus rapide qu'à la main.
+- Merge intelligent : si artist déjà présent dans le draft, fusion
+  des songs sans doublon.
+
+Helper centralisé `saveUsagesForPreset(name, usages, ctx)` dans
+`core/preset-curation.js` qui route automatiquement selon `entry.src`
+(custom → profile.customPacks, ToneNET → shared.toneNetPresets) avec
+stamp lastModified profil/preset pour LWW Firestore. Réutilisé par
+PresetCurationModal Phase 7.79 + BankEditor + PresetBrowser.
+
+Surfaces livrées Phase 7.79.2 :
+- **BankEditor** (Mes appareils, drawer slot) ✅ `onSaveUsages` câblé
+- **PresetBrowser** (Explorer, fiche détail) ✅ `onSaveUsages` câblé
+- **JamScreen** — `onSaveUsages` non propagé → mode lecture seule
+  (acceptable, le user ne cure pas depuis Jam)
+
+UX cohérente cross-écrans : la pastille curation cliquable Phase 7.79
+ouvre la modale, MAIS quand le drawer est expand (click sur slot ou
+sélection preset Explorer), tout est inline directement. Le user
+peut curer sans modale superposée.
+
+### Phase 7.80 (à investiguer 2026-05-19) — 2 dettes critiques notées
+
+1. **Revue UX/UI responsive complète** — audit systématique sur
+   iPhone (PWA installée) + iPad portrait/paysage + Chrome DevTools
+   responsive mode. Symptômes ponctuels observés : header tronqué
+   iPhone, overflow inputs, modales scroll mobile. Effort ~6-10h
+   audit + 10-15h fixes.
+
+2. **Sync analyses IA Mac ↔ iPhone défectueuse** — Sébastien rapporte
+   que les analyses IA calculées sur Mac ne descendent pas sur iPhone
+   (et vice-versa), il doit relancer le calcul sur chaque device.
+   Phase 7.54 (aiCache per-profile) était censée résoudre ça. À
+   investiguer : strip aiCache au push (Phase 7.58), merge LWW
+   per-field (Phase 7.74 Couche 2 — `profile.aiCache` adopté ?),
+   stamp `lastModified` manquant sur `setSongAiCache`, `syncHash`
+   inclut-il `profile.aiCache` ? Effort ~2-4h investigation + fix.
+
+Cf section "Idées en attente" pour le diagnostic détaillé en 6 étapes.
+
+### Surveillance pollution myGuitars (3e occurrence 2026-05-19)
+
+Pattern observé : swap 1↔1 `cg_*` entre Sébastien et un profil
+beta-tester (Francisco). Tele 51 perdue + Sire T3 (Francisco's
+guitare) gagnée. Phase 7.74 Couche 3 (defense drop ≥3) inopérante
+sur ce pattern car drop = 1.
+
+Wrapper console persistant Phase 7.74.5 activé sur Mac
+(`localStorage.__backline_persist_logs = 'true'`). À activer aussi
+sur iPhone via Safari Mac → Develop → iPhone.
+
+Si re-occurrence avec log forensique → **Phase 7.74.4 ciblée**
+(~1h dev) : étendre la défense au pattern "drop 1 `cg_*` + add 1
+`cg_*` d'un autre profil" = swap suspect cross-profil.
+
+### Récap fin de session 2026-05-19 fin de journée
+
+| Métrique | Valeur |
+|---|---|
+| Phases livrées (session matinée + soirée) | 30+ phases |
+| Tests Vitest | 1281/1281 verts |
+| Versions déployées | v8.14.133 → v8.14.143 (11 releases) |
+| Dettes notées à investiguer | Phase 7.80 (2 items) |
+| Couverture catalog factory | 0% unknown sur Pedal v2 + Anniversary + Plug ✅ |
+| Surveillance pollution active | Mac ✅ / iPhone à activer |
+
+---
+
+## État précédent (2026-05-19 matinée, session 20 phases livrées — UX refonte + sync robustesse + régression auto-repair contenue)
 
 **Backline v8.14.133 / SW backline-v233 / STATE_VERSION 10 / 1242 tests verts.**
 
