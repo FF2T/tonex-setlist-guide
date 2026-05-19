@@ -267,7 +267,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.132";
+const APP_VERSION = "8.14.133";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -931,18 +931,29 @@ function App() {
     console.log("[migration] Imported " + result.newSongs.length + " new songs. Created: " + result.createNames.join(", ") + ". Merged into Ma Setlist: " + result.mergeNames.join(", "));
   }, [firestoreLoaded]);
 
-  // Phase 7.74.2 — Auto-repair orphans myGuitars au boot post-Firestore.
-  // Si profile.myGuitars contient un id qui n'est NI dans GUITARS, NI
-  // dans shared.customGuitars, NI dans profile.customGuitars → c'est
-  // un orphelin historique (probably guitare custom supprimée/re-créée
-  // avec nouvel id). On le drop + stamp lastModified pour propager le
-  // clean via sync. Gate firestoreLoaded pour éviter les faux positifs
-  // (cas où customGuitars sera disponible au pull). Run une seule fois
-  // par session (ref pour anti-rerun).
+  // Phase 7.74.2 — DÉSACTIVÉ 2026-05-19 suite à régression critique.
+  // Le helper droppait les guitares custom d'autres profils (Francisco,
+  // Arthur, Emmanuel, Bruno) car leur metadata vit per-profile sur le
+  // device d'origine et n'est pas connue côté Sébastien Mac. Phase 7.59.1
+  // avait correctement identifié ces cg_* comme "soft orphans légitimes"
+  // → Phase 7.74.2 était trop strict.
+  //
+  // Pour réactiver en mode opt-in (debug only) :
+  //   window.__BACKLINE_AUTO_REPAIR_GUITARS = true; location.reload();
+  //
+  // Phase 7.74.3 future : approche plus rigoureuse via union de TOUTES
+  // les customGuitars connues (tous profils + shared) — mais limite
+  // intrinsèque : la metadata d'une custom guitar peut vivre uniquement
+  // sur son device d'origine et ne JAMAIS être disponible côté Sébastien.
+  // Donc auto-repair structurellement risqué. Repair manuel via snippet
+  // console reste la voie sûre.
   const repairRanRef = useRef(false);
   useEffect(() => {
     if (!firestoreLoaded || repairRanRef.current) return;
     repairRanRef.current = true;
+    if (typeof window === 'undefined' || window.__BACKLINE_AUTO_REPAIR_GUITARS !== true) {
+      return; // OPT-IN ONLY
+    }
     const stateLike = { profiles, shared: { customGuitars } };
     const { state: cleaned, repairs } = repairProfileGuitarsOrphans(stateLike, GUITARS);
     if (repairs.length > 0) {
