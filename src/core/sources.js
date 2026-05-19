@@ -137,6 +137,11 @@ function getSourceInfo(entry) {
   if (entry.src === 'custom' && entry.pack) {
     return { icon: base.icon, label: `Custom — ${entry.pack}` };
   }
+  // Phase 7.69.8 — Admin packs : afficher le nom du pack peu importe la
+  // source (AA/JS/TJ/ML/WT/Galtone/ToneNET) pour traçabilité.
+  if (entry.adminPack && entry.pack) {
+    return { icon: base.icon, label: `${base.label} — ${entry.pack}` };
+  }
   return base;
 }
 

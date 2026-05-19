@@ -25,11 +25,11 @@ export function inferPresetInfo(presetName) {
       [/\b(princeton)\b/, 'Fender Princeton'],
       [/\b(bassman)\b/, 'Fender Tweed Bassman'],
       [/\b(super\s?reverb)\b/, 'Fender Twin Silverface'],
-      [/\b(jcm\s?800|jcm800)\b/, 'Marshall JCM800'],
-      [/\b(jcm\s?900|jcm900)\b/, 'Marshall JCM900'],
-      [/\b(jtm\s?45|jtm45)\b/, 'Marshall JTM45'],
-      [/\b(silver\s?jubilee|2555)\b/, 'Marshall Silver Jubilee'],
-      [/\b(superlead|super\s?lead|1959)\b/, 'Marshall SL800'],
+      [/\b(jcm\s?800|jcm800|mars\s?800sl|mars\s?800|marshall\s?800|m800)\b/, 'Marshall JCM800'],
+      [/\b(jcm\s?900|jcm900|mars\s?900|marshall\s?900|m900)\b/, 'Marshall JCM900'],
+      [/\b(jtm\s?45|jtm45|mars\s?jtm|marshall\s?jtm)\b/, 'Marshall JTM45'],
+      [/\b(silver\s?jubilee|2555|mars\s?jubilee|marshall\s?jubilee)\b/, 'Marshall Silver Jubilee'],
+      [/\b(superlead|super\s?lead|1959|mars\s?plexi|marshall\s?plexi|plexi)\b/, 'Marshall SL800'],
       [/\b(dual\s?rec|recto|rectifier)\b/, 'Mesa Rectifier'],
       [/\b(mark\s?(iv|4|iic|2c))\b/, 'Mesa Mark IV'],
       [/\b(5150|evh|block\s?letter)\b/, 'Peavey 5150'],
@@ -89,6 +89,12 @@ export function inferPresetInfo(presetName) {
   else if (/\bblues\b/.test(n)) style = 'blues';
   else if (/\bjazz\b/.test(n)) style = 'jazz';
   else if (/\bfunk\b|\bpop\b/.test(n)) style = 'pop';
-  const finalAmp = (detectedAmp && detectedAmp !== presetName) ? detectedAmp : '';
+  // Phase 7.69.8 — fix: utiliser AMP_TAXONOMY comme garde au lieu de
+  // detectedAmp !== presetName. L'ancien check stripait l'amp légitime
+  // quand le nom du preset coïncidait avec le nom canonique de l'amp
+  // (ex: "Marshall JCM800" → match pattern → detectedAmp = "Marshall JCM800"
+  // → detectedAmp === presetName → finalAmp = ''). Le bon contrat :
+  // un amp est valide ssi présent dans AMP_TAXONOMY.
+  const finalAmp = (detectedAmp && AMP_TAXONOMY[detectedAmp]) ? detectedAmp : '';
   return { amp: finalAmp, gain, style, channel };
 }
