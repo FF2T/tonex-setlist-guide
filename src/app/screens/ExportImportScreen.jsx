@@ -10,7 +10,7 @@ import React, { useState, useRef } from 'react';
 import { t, tFormat } from '../../i18n/index.js';
 import { CC, CL } from '../utils/ui-constants.js';
 import { downloadFile, generateCSV, exportJSON, parseCSV } from '../utils/csv-helpers.js';
-import { findCatalogEntry } from '../../core/catalog.js';
+import { findCatalogEntry, findCatalogSuggestions } from '../../core/catalog.js';
 import Breadcrumb from '../components/Breadcrumb.jsx';
 import { inferCreator } from './MyCustomPresetsTab.jsx';
 import { inferPresetInfo } from '../utils/infer-preset.js';
@@ -52,9 +52,13 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
   const [toast, setToast] = useState(null);
   // Phase 7.69 — Modale presets inconnus.
   // unknownPresets : Array<string> liste des noms à choisir
-  // unknownChoices : { [name]: 'add' | 'skip' }
+  // unknownChoices : { [name]: 'add' | 'skip' | 'remap' }
+  // unknownSuggestions : { [name]: catalogName } — top match fuzzy via
+  // findCatalogSuggestions Phase 7.69.5. Si présent, choix 'remap'
+  // disponible et default.
   const [unknownPresets, setUnknownPresets] = useState(null);
   const [unknownChoices, setUnknownChoices] = useState({});
+  const [unknownSuggestions, setUnknownSuggestions] = useState({});
   const csvRef = useRef(null);
   const jsonRef = useRef(null);
   const flash = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
@@ -77,9 +81,21 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
         // ce qu'il veut faire de chaque nom non référencé.
         const unknowns = detectUnknownPresets(p);
         if (unknowns.length > 0) {
-          // Default : tout "add" si onAddCustomPresets dispo, sinon tout "skip"
+          // Phase 7.69.5 — pré-calcul top suggestion fuzzy par preset
+          // inconnu. Si match catalog ≥0.7 token-set ratio → option
+          // 'remap' default. Sinon → 'add' si callback dispo, sinon 'skip'.
+          const suggestions = {};
           const choices = {};
-          unknowns.forEach((name) => { choices[name] = onAddCustomPresets ? 'add' : 'skip'; });
+          unknowns.forEach((name) => {
+            const matches = findCatalogSuggestions(name);
+            if (matches.length > 0) {
+              suggestions[name] = matches[0].name;
+              choices[name] = 'remap';
+            } else {
+              choices[name] = onAddCustomPresets ? 'add' : 'skip';
+            }
+          });
+          setUnknownSuggestions(suggestions);
           setUnknownChoices(choices);
           setUnknownPresets(unknowns);
           setImportData(p); // garde le data en attente pour finalisation après choix
@@ -101,6 +117,9 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
     if (!unknownPresets || !importData) return;
     const toAdd = unknownPresets.filter((name) => unknownChoices[name] === 'add');
     const toSkip = unknownPresets.filter((name) => unknownChoices[name] === 'skip');
+    const toRemap = unknownPresets.filter((name) =>
+      unknownChoices[name] === 'remap' && unknownSuggestions[name],
+    );
     // 1. Push les "add" comme customs avec defaults raisonnables
     if (toAdd.length > 0 && typeof onAddCustomPresets === 'function') {
       const newPresets = toAdd.map((name) => {
@@ -118,15 +137,20 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
       });
       onAddCustomPresets(newPresets);
     }
-    // 2. Remplace les "skip" par "" dans importData
-    if (toSkip.length > 0) {
+    // 2. Phase 7.69.5 — Remap : remplace les noms par leur catalog match
+    //    + Skip : remplace par "" dans importData. Une seule passe.
+    if (toSkip.length > 0 || toRemap.length > 0) {
       const skipSet = new Set(toSkip);
+      const remapMap = {};
+      toRemap.forEach((name) => { remapMap[name] = unknownSuggestions[name]; });
       const nextImportData = { ann: {}, plug: {} };
       ['ann', 'plug'].forEach((k) => {
         Object.entries(importData[k] || {}).forEach(([bank, slots]) => {
           const nextSlots = { ...slots };
           ['A', 'B', 'C'].forEach((slot) => {
-            if (skipSet.has(nextSlots[slot])) nextSlots[slot] = '';
+            const v = nextSlots[slot];
+            if (skipSet.has(v)) nextSlots[slot] = '';
+            else if (remapMap[v]) nextSlots[slot] = remapMap[v];
           });
           nextImportData[k][bank] = nextSlots;
         });
@@ -136,11 +160,13 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
     // 3. Ferme la modale
     setUnknownPresets(null);
     setUnknownChoices({});
+    setUnknownSuggestions({});
   };
 
   const cancelUnknownModal = () => {
     setUnknownPresets(null);
     setUnknownChoices({});
+    setUnknownSuggestions({});
     setImportData(null);
   };
   const handleJSONFile = (e) => {
@@ -222,12 +248,25 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-sec)', marginBottom: 10 }}>
               {onAddCustomPresets
-                ? t('export.unknown-hint', 'Ces presets ne sont ni dans le catalog ToneX standard, ni dans tes presets persos. Choisis ce qu\'on en fait :')
+                ? t('export.unknown-hint-remap', 'Ces presets ne matchent pas le catalog. Quand une suggestion est trouvée, tu peux Remapper (recommandé), sinon Ajouter comme preset perso ou Laisser le slot vide.')
                 : t('export.unknown-hint-noadmin', 'Ces presets ne sont ni dans le catalog ToneX standard, ni dans tes presets persos. Ils seront marqués comme "laisser vide" dans les banks.')}
             </div>
-            {/* Boutons groupés batch (Phase 7.69) */}
+            {/* Boutons groupés batch (Phase 7.69 + 7.69.5) */}
             {onAddCustomPresets && (
-              <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+                {Object.keys(unknownSuggestions).length > 0 && (
+                  <button
+                    onClick={() => {
+                      const all = { ...unknownChoices };
+                      Object.keys(unknownSuggestions).forEach((n) => { all[n] = 'remap'; });
+                      setUnknownChoices(all);
+                    }}
+                    style={{ background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.35)', color: 'var(--green)', borderRadius: 'var(--r-sm)', padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                    title={t('export.unknown-all-remap-hint', 'Remappe tous les presets avec une suggestion catalog vers leur nom officiel')}
+                  >
+                    {tFormat('export.unknown-all-remap', { n: Object.keys(unknownSuggestions).length }, 'Tout remapper ({n})')}
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     const all = {};
@@ -251,25 +290,37 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
               {unknownPresets.map((name) => {
                 const choice = unknownChoices[name] || 'skip';
                 const creator = inferCreator(name);
+                const suggestion = unknownSuggestions[name];
                 return (
-                  <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 6px', background: 'var(--a4)', borderRadius: 'var(--r-sm)' }}>
-                    <div style={{ flex: 1, minWidth: 0, fontSize: 11 }}>
-                      <span style={{ color: 'var(--text)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block', maxWidth: '100%', whiteSpace: 'nowrap' }}>{name}</span>
-                      {creator && (
-                        <span style={{ marginLeft: 6, fontSize: 9, background: 'var(--a7)', color: 'var(--text-muted)', borderRadius: 'var(--r-sm)', padding: '1px 5px' }}>{creator}</span>
+                  <div key={name} style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '4px 6px', background: 'var(--a4)', borderRadius: 'var(--r-sm)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ flex: 1, minWidth: 0, fontSize: 11 }}>
+                        <span style={{ color: 'var(--text)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block', maxWidth: '100%', whiteSpace: 'nowrap' }}>{name}</span>
+                        {creator && (
+                          <span style={{ marginLeft: 6, fontSize: 9, background: 'var(--a7)', color: 'var(--text-muted)', borderRadius: 'var(--r-sm)', padding: '1px 5px' }}>{creator}</span>
+                        )}
+                      </div>
+                      {onAddCustomPresets ? (
+                        <select
+                          value={choice}
+                          onChange={(e) => setUnknownChoices((c) => ({ ...c, [name]: e.target.value }))}
+                          style={{ fontSize: 10, padding: '2px 4px', background: 'var(--bg-elev-1)', color: 'var(--text)', border: '1px solid var(--a10)', borderRadius: 'var(--r-sm)', cursor: 'pointer' }}
+                        >
+                          {suggestion && <option value="remap">{t('export.unknown-remap', 'Remapper')}</option>}
+                          <option value="add">{t('export.unknown-add', 'Ajouter')}</option>
+                          <option value="skip">{t('export.unknown-skip', 'Laisser vide')}</option>
+                        </select>
+                      ) : (
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t('export.unknown-skip', 'Laisser vide')}</span>
                       )}
                     </div>
-                    {onAddCustomPresets ? (
-                      <select
-                        value={choice}
-                        onChange={(e) => setUnknownChoices((c) => ({ ...c, [name]: e.target.value }))}
-                        style={{ fontSize: 10, padding: '2px 4px', background: 'var(--bg-elev-1)', color: 'var(--text)', border: '1px solid var(--a10)', borderRadius: 'var(--r-sm)', cursor: 'pointer' }}
-                      >
-                        <option value="add">{t('export.unknown-add', 'Ajouter')}</option>
-                        <option value="skip">{t('export.unknown-skip', 'Laisser vide')}</option>
-                      </select>
-                    ) : (
-                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t('export.unknown-skip', 'Laisser vide')}</span>
+                    {/* Phase 7.69.5 — Affiche la suggestion en sous-ligne pour
+                        montrer la cible du remap. Visible même quand le
+                        user choisit "Ajouter" / "Laisser vide" (info latérale). */}
+                    {suggestion && (
+                      <div style={{ fontSize: 10, color: choice === 'remap' ? 'var(--green)' : 'var(--text-muted)', paddingLeft: 10 }}>
+                        → <span style={{ fontWeight: choice === 'remap' ? 600 : 400 }}>{suggestion}</span>
+                      </div>
                     )}
                   </div>
                 );

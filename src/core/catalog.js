@@ -136,4 +136,100 @@ function normalizePresetName(n){
   }
 })();
 
-export { PRESET_CATALOG_MERGED, findCatalogEntry, guessPresetInfo, normalizePresetName };
+// Phase 7.69.5 — Suggestions fuzzy pour remapper un nom CSV inconnu
+// vers un preset existant du catalog. Algo : strip prefix pack + alias
+// expansion + token-set ratio ≥ threshold. Évite d'ajouter un custom
+// alors qu'un alias existe déjà.
+
+// Préfixes de packs à strip avant tokenize. "TSR " / "TSR-" / "AA "
+// etc. ne doivent pas peser dans le ratio (le user peut omettre le
+// préfixe dans son CSV).
+const PACK_PREFIXES = ['tsr', 'aa', 'ml', 'js', 'tj', 'wt', 'galtone', 'tonenet'];
+
+// Aliases bi-directionnels : expand vers la forme longue avant tokenize.
+// Ex: "dlx" → "deluxe" pour matcher "Bumble Deluxe Cln 1" ↔ "TSR Bumble
+// DLX CLN 1". Liste extensible si nouveaux cas remontent.
+const PRESET_ALIASES = [
+  [/\bdlx\b/g, 'deluxe'],
+  [/\bcln\b/g, 'clean'],
+  [/\bclr\b/g, 'clean'],
+  [/\bdrv\b/g, 'drive'],
+  [/\bod\b/g, 'overdrive'],
+  [/\bch\b/g, 'channel'],
+  [/\bchnl\b/g, 'channel'],
+  [/\bchanl?\b/g, 'channel'],
+  [/\bld\b/g, 'lead'],
+  [/\bfman\b/g, 'fender'],
+  [/\bmars\b/g, 'marshall'],
+  [/\bmesa\b/g, 'mesa'],
+];
+
+// Stopwords purs (mots qui n'aident pas à différencier).
+const STOPWORDS = new Set(['the', 'a', 'an', 'and', '&', '+']);
+
+function expandAliases(name) {
+  let s = name.toLowerCase();
+  for (const [re, replacement] of PRESET_ALIASES) {
+    s = s.replace(re, replacement);
+  }
+  return s;
+}
+
+function stripPackPrefix(normalized) {
+  // Retire le premier token s'il est un préfixe pack. Idempotent
+  // (ne strip qu'une fois — ex: "tsr aa foo" → "aa foo" mais c'est
+  // un cas dégénéré pas vu en pratique).
+  const tokens = normalized.split(' ');
+  if (tokens.length > 0 && PACK_PREFIXES.includes(tokens[0])) {
+    return tokens.slice(1).join(' ');
+  }
+  return normalized;
+}
+
+function tokenizeForMatch(name) {
+  const expanded = expandAliases(name);
+  const normalized = normalizePresetName(expanded);
+  const stripped = stripPackPrefix(normalized);
+  const tokens = stripped.split(' ').filter((t) => t && !STOPWORDS.has(t));
+  return new Set(tokens);
+}
+
+/**
+ * findCatalogSuggestions(name, options) → Array<{name, src, score, entry}>
+ *
+ * Retourne les meilleurs candidats catalog qui matchent fuzzy le nom
+ * donné. Score = |intersection| / max(|setA|, |setB|).
+ *
+ * Options:
+ *   threshold (default 0.7) : score min pour inclure dans les suggestions
+ *   max (default 3) : nombre max de suggestions retournées
+ *   excludeGuessed (default true) : skip les entries "guessed: true"
+ *
+ * Tri : score décroissant, tiebreak nom alpha.
+ */
+function findCatalogSuggestions(name, options = {}) {
+  const { threshold = 0.7, max = 3, excludeGuessed = true } = options;
+  if (!name || typeof name !== 'string') return [];
+  const tokensA = tokenizeForMatch(name);
+  if (tokensA.size === 0) return [];
+  const candidates = [];
+  for (const [key, entry] of Object.entries(PRESET_CATALOG_MERGED)) {
+    if (!entry || (excludeGuessed && entry.guessed)) continue;
+    if (key === name) continue; // exclu : c'est lui-même
+    const tokensB = tokenizeForMatch(key);
+    if (tokensB.size === 0) continue;
+    let common = 0;
+    for (const t of tokensA) { if (tokensB.has(t)) common++; }
+    const score = common / Math.max(tokensA.size, tokensB.size);
+    if (score >= threshold) {
+      candidates.push({ name: key, src: entry.src, score, entry });
+    }
+  }
+  candidates.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return a.name.localeCompare(b.name);
+  });
+  return candidates.slice(0, max);
+}
+
+export { PRESET_CATALOG_MERGED, findCatalogEntry, guessPresetInfo, normalizePresetName, findCatalogSuggestions };

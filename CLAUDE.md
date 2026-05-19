@@ -8701,6 +8701,52 @@ profile {
 
 ## Idées en attente (proposées, pas encore validées)
 
+### Phase 7.70 (proposée 2026-05-19) — Code couleur curation preset dans BankEditor
+
+**Contexte** : Phase 7.69.x a livré le workflow d'import CSV avec
+modale presets inconnus. Sébastien a constaté que la vue BankEditor
+(Mon Profil → 🎛 Pedale / Ann / Plug) ne distingue pas visuellement
+les presets selon leur statut de curation. Difficile de savoir d'un
+coup d'œil : ce slot est-il bien renseigné côté metadata IA, ou
+juste un nom brut sans pin direct possible ?
+
+**Taxonomie en 4 catégories** (5e prévue Phase 11) :
+
+| État | Couleur | Critère technique | Sémantique |
+|------|---------|-------------------|------------|
+| 🔴 Inconnu | rouge wine | `!entry \|\| entry.guessed === true` | Scoring V9 dégradé (fallback `guessPresetInfo` heuristique). Pas de pin IA possible. |
+| 🟠 Connu non curated | brass clair / jaune | `entry && !entry.guessed && !entry.usages?.length` | Scoring V9 OK (amp/gain/style/scores) mais pas de pin direct artiste/morceau. |
+| 🟢 Curated admin | vert accent | `entry.usages?.length > 0` ET `src` ∈ {Factory, FactoryV1, Anniversary, PlugFactory, TSR, ML} | Catalog statique curé par Sébastien. Pin direct IA PRIORITÉ 1. |
+| 🔵 Curated perso | bleu/cyan | `entry.usages?.length > 0` ET `src === 'custom'` | Custom user enrichi Phase 7.69. Pin direct IA. |
+| 🟣 Curated studio (Phase 11) | violet brass | nouveau flag `entry.curatedBy === 'studio'` | Quand TSR/ML/AA enrichira eux-mêmes. Inactif Phase 7.70. |
+
+**3 décisions design retenues** (à valider au moment de coder) :
+- ToneNET (`src === 'ToneNET'`) : traité comme **curated perso**
+  si `usages?.length > 0`, sinon **connu non curated**. C'est le
+  user qui les saisit/tague via tab ToneNET (Phase 7.53).
+- Custom sans usages : traité comme **connu non curated**. La
+  curation = `usages` set, point.
+- Slot vide (`bank[slot] === ''`) : **pas de pastille**.
+
+**Scope** :
+- Phase 7.70 : `BankEditor.jsx` uniquement (pastille 6×6px + tooltip
+  hover avec label de la catégorie).
+- Phase 7.70.1 (optionnel) : étendre à `ListScreen` vue dépliée.
+
+**Implémentation** :
+- Helper pur `getPresetCurationStatus(name)` dans
+  `src/core/catalog.js` → `'unknown' | 'known' | 'curated-admin' | 'curated-perso'`.
+- Constante `CURATION_COLORS` (tokens.css ou module React partagé).
+- ~6 tests Vitest sur le helper.
+
+**Effort estimé** : ~1-2h dev.
+
+**Décision actuelle** : design validé 2026-05-19 par Sébastien,
+implémentation reportée à plus tard. À activer quand un autre
+chantier prioritaire (Phase 8 pédales / Phase 9 knob settings /
+Phase 11 studios) n'est pas en cours, ou si Sébastien remonte
+explicitement le besoin pendant un test BankEditor.
+
 ### Phase 8 (validée 2026-05-17 — 2 signaux indépendants Francisco) — Recommandation pédales modélisées
 
 **Status mis à jour 2026-05-17 soir** : promue de mention diffuse
