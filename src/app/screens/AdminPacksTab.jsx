@@ -22,20 +22,26 @@ import React, { useState, useMemo } from 'react';
 import { t, tFormat } from '../../i18n/index.js';
 import { parsePackListing } from '../utils/parse-pack-listing.js';
 import { detectPresetMetadata, findDuplicates } from '../utils/detect-preset-metadata.js';
+import { enrichPackWithAI } from '../utils/enrich-pack-ai.js';
+import { getSharedGeminiKey } from '../utils/shared-key.js';
 import { PRESET_CATALOG_MERGED, findCatalogEntry } from '../../core/catalog.js';
 import { SOURCE_IDS, SOURCE_LABELS } from '../../core/sources.js';
 
 const STYLE_OPTIONS = ['blues', 'rock', 'hard_rock', 'jazz', 'metal', 'pop'];
 const GAIN_OPTIONS = ['low', 'mid', 'high'];
 
-function AdminPacksTab({ adminPacks, onAdminPacks, profile, inp }) {
+function AdminPacksTab({ adminPacks, onAdminPacks, profile, inp, aiKeys, aiProvider }) {
   const [showImport, setShowImport] = useState(false);
   const [listing, setListing] = useState('');
   const [packName, setPackName] = useState('');
   const [source, setSource] = useState('TSR');
-  const [parsed, setParsed] = useState(null); // { archiveName, presets: [...metadata] }
+  const [parsed, setParsed] = useState(null); // { archiveName, presets: [...metadata], ampContext? }
   const [skipNames, setSkipNames] = useState(new Set());
-  const [editKey, setEditKey] = useState(null); // pack id en édition liste
+  const [editKey, setEditKey] = useState(null);
+  // Phase 7.69.9 — enrichissement IA optionnel après le parse local.
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(null);
+  const [aiEnriched, setAiEnriched] = useState(false); // flag : a-t-on lancé l'enrichissement IA
 
   const handleParse = () => {
     const result = parsePackListing(listing);
@@ -84,6 +90,53 @@ function AdminPacksTab({ adminPacks, onAdminPacks, profile, inp }) {
     setParsed(null);
     setSkipNames(new Set());
     setShowImport(false);
+    setAiLoading(false);
+    setAiError(null);
+    setAiEnriched(false);
+  };
+
+  // Phase 7.69.9 — enrichissement IA. Envoie la liste des noms parsés
+  // à Gemini en 1 appel batch. Écrase parsed.presets avec la metadata
+  // reçue (amp/gain/style/channel/scores + usages) et stocke ampContext
+  // au niveau du pack pour utilisation par PresetBrowser.
+  const enrichWithAI = async () => {
+    if (!parsed) return;
+    const key = aiKeys?.gemini || getSharedGeminiKey() || aiKeys?.anthropic;
+    if (!key) {
+      setAiError(t('adminpacks.ai-error-key', 'Clé API absente — configure-la dans 🔑 Clé API.'));
+      return;
+    }
+    const provider = (aiKeys?.gemini || getSharedGeminiKey()) ? 'gemini' : 'anthropic';
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const names = parsed.presets.map((p) => p.name);
+      const result = await enrichPackWithAI(names, packName.trim() || parsed.archiveName || 'Pack', source, {
+        aiKey: key,
+        aiProvider: provider,
+      });
+      // Merge result.presets sur parsed.presets (par nom). Si un preset
+      // de result n'est pas trouvé en local, on l'ignore. Si un preset
+      // local n'est pas dans result, on garde sa metadata héritée.
+      const byName = {};
+      result.presets.forEach((p) => { byName[p.name] = p; });
+      const merged = parsed.presets.map((p) => {
+        const ai = byName[p.name];
+        if (!ai) return p;
+        // Garde le creator detecté localement (regex) si l'IA ne le set pas
+        return {
+          ...p,
+          ...ai,
+          creator: p.creator || ai.creator || '',
+        };
+      });
+      setParsed({ ...parsed, presets: merged, ampContext: result.ampContext });
+      setAiEnriched(true);
+    } catch (err) {
+      setAiError(err.message || 'Erreur IA');
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   const createPack = () => {
@@ -101,6 +154,10 @@ function AdminPacksTab({ adminPacks, onAdminPacks, profile, inp }) {
       name: packName.trim(),
       source,
       presets: kept,
+      // Phase 7.69.9 — ampContext généré par l'IA si enrichissement
+      // a été lancé. Lu par PresetBrowser pour afficher emoji/refs/desc
+      // de chaque ampli du pack (cohérence avec PacksTab Vision IA).
+      ampContext: parsed.ampContext || {},
       createdBy: profile?.id || 'unknown',
       createdAt: Date.now(),
       lastModified: Date.now(),
@@ -224,9 +281,32 @@ function AdminPacksTab({ adminPacks, onAdminPacks, profile, inp }) {
                 </div>
               </div>
 
-              <div style={{ fontSize: 11, color: 'var(--text-sec)', marginBottom: 6 }}>
-                {tFormat('adminpacks.preview-summary', { count: parsed.presets.length, skipped: skipNames.size }, '{count} preset(s) détecté(s), {skipped} skippé(s) (déjà dans le catalog)')}
+              <div style={{ fontSize: 11, color: 'var(--text-sec)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ flex: 1 }}>
+                  {tFormat('adminpacks.preview-summary', { count: parsed.presets.length, skipped: skipNames.size }, '{count} preset(s) détecté(s), {skipped} skippé(s) (déjà dans le catalog)')}
+                  {aiEnriched && <span style={{ marginLeft: 6, color: 'var(--green)', fontSize: 10, fontWeight: 600 }}>✨ Enrichi IA</span>}
+                </span>
+                {/* Phase 7.69.9 — bouton enrichissement IA. Recommandé
+                    avant la création pour amp/gain/style/scores/usages
+                    précis + ampContext (descriptions amps pour Explorer). */}
+                <button
+                  onClick={enrichWithAI}
+                  disabled={aiLoading}
+                  style={{ background: aiEnriched ? 'var(--green-bg)' : 'var(--brass-300)', border: aiEnriched ? '1px solid var(--green-border)' : 'none', color: aiEnriched ? 'var(--green)' : 'var(--tolex-900)', borderRadius: 'var(--r-sm)', padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: aiLoading ? 'wait' : 'pointer' }}
+                  title={t('adminpacks.ai-enrich-hint', 'Demander à Gemini d\'inférer amp/gain/style/scores + descriptions amps pour Explorer')}
+                >
+                  {aiLoading
+                    ? '⏳ ' + t('adminpacks.ai-loading', 'Enrichissement…')
+                    : aiEnriched
+                      ? '✨ ' + t('adminpacks.ai-redo', 'Re-enrichir IA')
+                      : '🤖 ' + t('adminpacks.ai-enrich', 'Enrichir avec Gemini')}
+                </button>
               </div>
+              {aiError && (
+                <div style={{ fontSize: 11, color: 'var(--red)', background: 'rgba(239,68,68,0.1)', padding: '4px 8px', borderRadius: 'var(--r-sm)', marginBottom: 6 }}>
+                  ⚠️ {aiError}
+                </div>
+              )}
 
               {/* Tableau aperçu — édition inline metadata */}
               <div style={{ maxHeight: 320, overflowY: 'auto', background: 'var(--a3)', borderRadius: 'var(--r-md)', padding: 6, marginBottom: 10 }}>

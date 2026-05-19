@@ -150,7 +150,7 @@ function MonProfilScreen({
       {tab === 'sources' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="sources"/>}
       {tab === 'custompacks' && <MyCustomPresetsTab profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId} songDb={songDb} inp={inp}/>}
       {profile.isAdmin && tab === 'alluserpresets' && <AllUserPresetsTab profiles={profiles} onProfiles={onProfiles} songDb={songDb} inp={inp}/>}
-      {profile.isAdmin && tab === 'adminpacks' && <AdminPacksTab adminPacks={adminPacks} onAdminPacks={onAdminPacks} profile={profile} inp={inp}/>}
+      {profile.isAdmin && tab === 'adminpacks' && <AdminPacksTab adminPacks={adminPacks} onAdminPacks={onAdminPacks} profile={profile} inp={inp} aiKeys={aiKeys} aiProvider={aiProvider}/>}
       {profile.isAdmin && tab === 'tonenet' && <ToneNetTab toneNetPresets={toneNetPresets} onToneNetPresets={onToneNetPresets} inp={inp} songDb={songDb}/>}
       {tab === 'setlists' && <div>
         <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>{setlists.length} setlist{setlists.length > 1 ? 's' : ''}</div>
