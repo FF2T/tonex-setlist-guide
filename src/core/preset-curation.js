@@ -133,6 +133,61 @@ function detectAllNonCurated(banks) {
   return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/**
+ * Phase 7.79.2 — Helper centralisé pour persister les usages d'un preset.
+ * Route automatiquement selon entry.src :
+ *   - 'custom'  → modifie profile.customPacks[].presets[].usages
+ *                (stamp profile.lastModified pour LWW Firestore)
+ *   - 'ToneNET' → modifie shared.toneNetPresets[].usages
+ *                (stamp toneNetPreset.lastModified per-item LWW Phase 7.53.1)
+ *
+ * Si usages=undefined, retire le champ usages de l'entry (curation vidée).
+ *
+ * @param {string} presetName
+ * @param {Array<{artist, songs?}>|undefined} usages
+ * @param {Object} ctx
+ *   - findEntry: (name) => entry|null (fourni par caller pour éviter import circulaire)
+ *   - activeProfileId: string
+ *   - onProfiles: setter
+ *   - onToneNetPresets: setter (optionnel pour custom-only)
+ */
+function saveUsagesForPreset(presetName, usages, ctx) {
+  if (!presetName || !ctx) return;
+  const { findEntry, activeProfileId, onProfiles, onToneNetPresets } = ctx;
+  const entry = typeof findEntry === 'function' ? findEntry(presetName) : null;
+  if (!entry || entry.guessed) return;
+
+  if (entry.src === 'custom' && typeof onProfiles === 'function' && activeProfileId) {
+    onProfiles((p) => {
+      const cur = p[activeProfileId];
+      if (!cur) return p;
+      const packs = (cur.customPacks || []).map((pack) => ({
+        ...pack,
+        presets: (pack.presets || []).map((pr) => {
+          if (pr.name !== presetName) return pr;
+          if (!usages) {
+            const { usages: _, ...rest } = pr;
+            return rest;
+          }
+          return { ...pr, usages };
+        }),
+      }));
+      return { ...p, [activeProfileId]: { ...cur, customPacks: packs, lastModified: Date.now() } };
+    });
+  } else if (entry.src === 'ToneNET' && typeof onToneNetPresets === 'function') {
+    onToneNetPresets((prev) => (prev || []).map((tp) => {
+      if (tp.name !== presetName) return tp;
+      const stamped = { ...tp, lastModified: Date.now() };
+      if (!usages) {
+        const { usages: _, ...rest } = stamped;
+        return rest;
+      }
+      return { ...stamped, usages };
+    }));
+  }
+  // Autres sources (catalog statique) : no-op silencieux. Phase 11 future.
+}
+
 export {
   detectPresetsByStatus,
   detectUnknownsInBanks,
@@ -140,4 +195,5 @@ export {
   detectAllNonCurated,
   EDITABLE_SOURCES,
   applyResolutionsToBanks,
+  saveUsagesForPreset,
 };

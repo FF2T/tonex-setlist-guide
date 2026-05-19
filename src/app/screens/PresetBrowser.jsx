@@ -10,8 +10,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { t, tFormat, tPlural } from '../../i18n/index.js';
 import { GUITARS } from '../../core/guitars.js';
-import { normalizePresetName } from '../../core/catalog.js';
+import { normalizePresetName, findCatalogEntry } from '../../core/catalog.js';
 import { SOURCE_LABELS } from '../../core/sources.js';
+import { cleanUsages } from './ToneNetTab.jsx';
 import {
   computePickupScore, computeGuitarScoreV2, getGainRange, gainToNumeric,
 } from '../../core/scoring/index.js';
@@ -85,9 +86,235 @@ function findAmpContext(ampName, ctxMap) {
 
 // Fiche détaillée d'un preset : infos ampli, style/gain, morceaux
 // mythiques filtrés par registre de gain (clean/heavy tracks), guitares
+// Phase 7.79.2 — Section "🎯 Usages curés" inline avec édition toggle.
+// Affiche les usages [{artist, songs?}] du catalog entry. Bouton
+// "✏️ Modifier" (admin only sur custom/ToneNET) bascule en mode édition
+// inline directement dans le drawer (pas de modale). Bouton "💡 Reprendre
+// les morceaux mythiques de l'ampli" copie les refs ampli (déjà filtrés
+// par gain) dans le form en 1 clic pour curation rapide.
+//
+// Props :
+//   - presetName: string
+//   - ampRefs: [{a, t}] refs ampli depuis findAmpContext (filtrés par gain)
+//   - isAdmin: boolean
+//   - songDb: songs[] pour datalist artist+song
+//   - onSaveUsages: (presetName, usages|undefined) => void
+//     usages=undefined ⇒ retirer le champ usages de l'entry.
+//     Si non fourni (callers JamScreen, etc.), le composant reste en mode
+//     lecture seule (pas de bouton Modifier).
+const EDITABLE_SOURCES_INLINE = new Set(['custom', 'ToneNET']);
+function UsagesSection({ presetName, ampRefs, isAdmin, songDb, onSaveUsages, sectionStyle, sectionTitle }) {
+  const entry = useMemo(() => findCatalogEntry(presetName), [presetName]);
+  const editable = !!entry && !entry.guessed && EDITABLE_SOURCES_INLINE.has(entry.src) && isAdmin && typeof onSaveUsages === 'function';
+  const existingUsages = Array.isArray(entry?.usages) ? entry.usages : [];
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState(() => existingUsages.map((u) => ({
+    artist: u.artist || '',
+    songs: Array.isArray(u.songs) ? [...u.songs] : [],
+  })));
+  const [songDrafts, setSongDrafts] = useState({});
+
+  // Reset draft si on switch de preset
+  useEffect(() => {
+    setIsEditing(false);
+    setDraft(existingUsages.map((u) => ({
+      artist: u.artist || '',
+      songs: Array.isArray(u.songs) ? [...u.songs] : [],
+    })));
+    setSongDrafts({});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presetName]);
+
+  const artistList = useMemo(() => {
+    const set = new Set();
+    (songDb || []).forEach((s) => { if (s.artist) set.add(s.artist); });
+    return Array.from(set).sort();
+  }, [songDb]);
+
+  const songList = useMemo(() => {
+    const set = new Set();
+    (songDb || []).forEach((s) => { if (s.title) set.add(s.title); });
+    return Array.from(set).sort();
+  }, [songDb]);
+
+  const fillFromAmpRefs = () => {
+    if (!Array.isArray(ampRefs) || ampRefs.length === 0) return;
+    // Fusionne ampRefs ({a, t}) avec draft existant ({artist, songs}).
+    // Si artist déjà présent, merge les songs sans doublon.
+    setDraft((prev) => {
+      const byArtist = new Map(prev.map((u) => [u.artist, u]));
+      ampRefs.forEach((r) => {
+        const a = r.a || '';
+        if (!a) return;
+        const existing = byArtist.get(a);
+        const newSongs = Array.isArray(r.t) ? r.t : [];
+        if (existing) {
+          byArtist.set(a, { artist: a, songs: Array.from(new Set([...(existing.songs || []), ...newSongs])) });
+        } else {
+          byArtist.set(a, { artist: a, songs: [...newSongs] });
+        }
+      });
+      return Array.from(byArtist.values());
+    });
+  };
+
+  const flushDrafts = (raw) => raw.map((u, idx) => {
+    const dr = (songDrafts[idx] || '').trim();
+    if (!dr) return u;
+    return { ...u, songs: Array.from(new Set([...(u.songs || []), dr])) };
+  });
+
+  const handleSave = () => {
+    const flushed = flushDrafts(draft);
+    const cleaned = cleanUsages(flushed);
+    onSaveUsages(presetName, cleaned);
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    setDraft(existingUsages.map((u) => ({
+      artist: u.artist || '',
+      songs: Array.isArray(u.songs) ? [...u.songs] : [],
+    })));
+    setSongDrafts({});
+    setIsEditing(false);
+  };
+
+  // Si pas d'usages ET pas éditable → ne rien afficher (section inutile)
+  if (existingUsages.length === 0 && !editable) return null;
+
+  const inp = {
+    background: 'var(--bg-elev-1)', color: 'var(--text)',
+    border: '1px solid var(--a10)', borderRadius: 'var(--r-sm)',
+    padding: '4px 6px', flex: 1, fontSize: 12,
+  };
+
+  return (
+    <div style={sectionStyle}>
+      {sectionTitle('🎯', t('usages.section', 'Usages curés (preset)'))}
+      {!isEditing && (
+        <>
+          {existingUsages.length === 0 ? (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+              {t('usages.empty', 'Aucun usage artiste/morceau enregistré.')}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {existingUsages.map((u, idx) => (
+                <div key={idx} style={{ fontSize: 11 }}>
+                  <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>• {u.artist}</span>
+                  {Array.isArray(u.songs) && u.songs.length > 0 && (
+                    <span style={{ color: 'var(--text-dim)' }}> — {u.songs.join(', ')}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {editable && (
+            <button
+              onClick={() => setIsEditing(true)}
+              style={{ marginTop: 8, background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-sm)', padding: '4px 10px', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}
+            >
+              ✏️ {existingUsages.length === 0 ? t('usages.curate', 'Curer ce preset') : t('usages.edit', 'Modifier ces usages')}
+            </button>
+          )}
+        </>
+      )}
+      {isEditing && (
+        <>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6 }}>
+            {entry.src === 'custom'
+              ? t('usages.edit-hint-custom', 'Persisté dans tes presets persos (profile.customPacks).')
+              : t('usages.edit-hint-tonenet', 'Persisté dans le catalog ToneNET partagé (shared.toneNetPresets).')}
+          </div>
+          {Array.isArray(ampRefs) && ampRefs.length > 0 && (
+            <button
+              onClick={fillFromAmpRefs}
+              style={{ marginBottom: 8, background: 'rgba(218,165,32,0.15)', border: '1px solid rgba(218,165,32,0.4)', color: 'var(--brass-300)', borderRadius: 'var(--r-sm)', padding: '5px 10px', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}
+              title={t('usages.fill-from-amp-hint', 'Copie les artistes/morceaux mythiques de l\'ampli (filtrés par gain) dans ton form. Tu peux ensuite ajuster.')}
+            >
+              💡 {tFormat('usages.fill-from-amp', { n: ampRefs.length }, 'Reprendre les morceaux mythiques de l\'ampli ({n} artistes)')}
+            </button>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {draft.map((u, idx) => (
+              <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 4, background: 'var(--a3)', borderRadius: 'var(--r-sm)', padding: 6 }}>
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                  <input
+                    placeholder={t('usages.artist', 'Artiste')}
+                    list="usages-artist-dl"
+                    value={u.artist}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setDraft((prev) => prev.map((x, i) => i === idx ? { ...x, artist: v } : x));
+                    }}
+                    style={inp}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => { setDraft((prev) => prev.filter((_, i) => i !== idx)); setSongDrafts({}); }}
+                    style={{ background: 'var(--red-bg)', border: 'none', borderRadius: 'var(--r-sm)', padding: '4px 8px', fontSize: 10, color: 'var(--danger, #ef4444)', cursor: 'pointer' }}
+                  >✕</button>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
+                  {(u.songs || []).map((song, si) => (
+                    <span key={si} style={{ background: 'var(--accent-soft)', color: 'var(--accent)', fontSize: 10, padding: '2px 6px', borderRadius: 'var(--r-sm)', display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+                      {song}
+                      <button
+                        type="button"
+                        onClick={() => setDraft((prev) => prev.map((x, i) => i === idx ? { ...x, songs: (x.songs || []).filter((_, j) => j !== si) } : x))}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--accent)', fontSize: 10, cursor: 'pointer', padding: 0 }}
+                      >×</button>
+                    </span>
+                  ))}
+                  <input
+                    placeholder={t('usages.song-add', '+ Morceau (Enter)')}
+                    list="usages-song-dl"
+                    value={songDrafts[idx] || ''}
+                    onChange={(e) => setSongDrafts((prev) => ({ ...prev, [idx]: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const v = (songDrafts[idx] || '').trim();
+                        if (!v) return;
+                        setDraft((prev) => prev.map((x, i) => i === idx ? { ...x, songs: Array.from(new Set([...(x.songs || []), v])) } : x));
+                        setSongDrafts((prev) => ({ ...prev, [idx]: '' }));
+                      }
+                    }}
+                    style={{ ...inp, flex: 1, minWidth: 110, fontSize: 11 }}
+                  />
+                </div>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => setDraft((prev) => [...prev, { artist: '', songs: [] }])}
+              style={{ background: 'transparent', border: '1px dashed var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: 6, fontSize: 11, cursor: 'pointer', width: '100%' }}
+            >+ {t('usages.add-artist', 'Ajouter un artiste')}</button>
+          </div>
+          <datalist id="usages-artist-dl">
+            {artistList.map((a) => <option key={a} value={a}/>)}
+          </datalist>
+          <datalist id="usages-song-dl">
+            {songList.map((s) => <option key={s} value={s}/>)}
+          </datalist>
+          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+            <button onClick={handleCancel} style={{ flex: 1, background: 'var(--a7)', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+              {t('usages.cancel', 'Annuler')}
+            </button>
+            <button onClick={handleSave} style={{ flex: 2, background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-sm)', padding: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+              {t('usages.save', 'Enregistrer →')}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // adaptées scorées par computePickupScore + computeGuitarScoreV2.
 // Utilisé par PresetBrowser (via PresetList) et JamScreen (via JamPresetItem).
-function PresetDetailInline({ name, info, banksAnn, banksPlug, presetContext, guitars }) {
+function PresetDetailInline({ name, info, banksAnn, banksPlug, presetContext, guitars, isAdmin, songDb, onSaveUsages }) {
   const ctx = findAmpContext(info.amp, presetContext || PRESET_CONTEXT);
   const annLoc = findInBanks(name, banksAnn);
   const plugLoc = findInBanks(name, banksPlug);
@@ -188,6 +415,16 @@ function PresetDetailInline({ name, info, banksAnn, banksPlug, presetContext, gu
           </div>
         </div>
       )}
+      {/* Phase 7.79.2 — Section usages curés + édition inline */}
+      <UsagesSection
+        presetName={name}
+        ampRefs={filteredRefs}
+        isAdmin={isAdmin}
+        songDb={songDb}
+        onSaveUsages={onSaveUsages}
+        sectionStyle={sectionStyle}
+        sectionTitle={sectionTitle}
+      />
       <div style={sectionStyle}>
         {sectionTitle('🎸', 'Guitares adaptees')}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -204,7 +441,7 @@ function PresetDetailInline({ name, info, banksAnn, banksPlug, presetContext, gu
   );
 }
 
-function PresetList({ filtered, selected, setSelected, banksAnn, banksPlug, fullCatalog, filterSrcs, filterPacks, togglePack, setFilterPacks, mergedContext, guitars }) {
+function PresetList({ filtered, selected, setSelected, banksAnn, banksPlug, fullCatalog, filterSrcs, filterPacks, togglePack, setFilterPacks, mergedContext, guitars, isAdmin, songDb, onSaveUsages }) {
   const [shown, setShown] = useState(PRESET_PAGE_SIZE);
   useEffect(() => setShown(PRESET_PAGE_SIZE), [filtered, filterPacks]);
 
@@ -263,7 +500,7 @@ function PresetList({ filtered, selected, setSelected, banksAnn, banksPlug, full
                   {['HB', 'SC', 'P90'].map((gt) => { const sc = computePickupScore(info.style, getGainRange(gainToNumeric(info.gain)), gt); return <span key={gt} style={{ fontSize: 9, color: scoreColor(sc), fontWeight: 700, background: scoreBg(sc), borderRadius: 'var(--r-sm)', padding: '1px 4px' }}>{sc}</span>; })}
                 </div>
               </div>
-              {isSel && <PresetDetailInline name={name} info={info} banksAnn={banksAnn} banksPlug={banksPlug} presetContext={mergedContext} guitars={guitars}/>}
+              {isSel && <PresetDetailInline name={name} info={info} banksAnn={banksAnn} banksPlug={banksPlug} presetContext={mergedContext} guitars={guitars} isAdmin={isAdmin} songDb={songDb} onSaveUsages={onSaveUsages}/>}
             </div>
           );
         })}
@@ -331,7 +568,7 @@ function familyForAmp(amp, brand) {
   return name || base || 'Autre';
 }
 
-function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, guitars, toneNetPresets }) {
+function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, guitars, toneNetPresets, isAdmin, songDb, onSaveUsages }) {
   const [soundProfile, setSoundProfile] = useState('all');
   const [filterBrand, setFilterBrand] = useState('');
   const [filterModel, setFilterModel] = useState('');
@@ -484,7 +721,7 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
             <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>{randomPick.name}</span>
             <button onClick={() => setRandomPick(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 14 }}>✕</button>
           </div>
-          <PresetDetailInline name={randomPick.name} info={randomPick.info} banksAnn={banksAnn} banksPlug={banksPlug} presetContext={mergedContext} guitars={guitars}/>
+          <PresetDetailInline name={randomPick.name} info={randomPick.info} banksAnn={banksAnn} banksPlug={banksPlug} presetContext={mergedContext} guitars={guitars} isAdmin={isAdmin} songDb={songDb} onSaveUsages={onSaveUsages}/>
         </div>
       )}
 
@@ -575,7 +812,7 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
         </div>
       )}
       {hasFilter && (filterModel || search.trim() || !filterBrand) && filtered.length === 0 && <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-dim)', fontSize: 13 }}>{t('preset-browser.no-match', 'Aucun preset ne correspond à ces critères.')}</div>}
-      {hasFilter && (filterModel || search.trim() || !filterBrand) && filtered.length > 0 && <PresetList filtered={filtered} selected={selected} setSelected={setSelected} banksAnn={banksAnn} banksPlug={banksPlug} fullCatalog={fullCatalog} filterSrcs={[]} filterPacks={filterPacks} togglePack={togglePack} setFilterPacks={setFilterPacks} mergedContext={mergedContext} guitars={guitars}/>}
+      {hasFilter && (filterModel || search.trim() || !filterBrand) && filtered.length > 0 && <PresetList filtered={filtered} selected={selected} setSelected={setSelected} banksAnn={banksAnn} banksPlug={banksPlug} fullCatalog={fullCatalog} filterSrcs={[]} filterPacks={filterPacks} togglePack={togglePack} setFilterPacks={setFilterPacks} mergedContext={mergedContext} guitars={guitars} isAdmin={isAdmin} songDb={songDb} onSaveUsages={onSaveUsages}/>}
     </div>
   );
 }

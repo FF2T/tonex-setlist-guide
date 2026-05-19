@@ -8,6 +8,7 @@
 import React, { useState } from 'react';
 import { t } from '../../i18n/index.js';
 import { findCatalogEntry } from '../../core/catalog.js';
+import { saveUsagesForPreset } from '../../core/preset-curation.js';
 import { CC } from '../utils/ui-constants.js';
 import PresetSearchModal from './PresetSearchModal.jsx';
 import FuzzyPresetMatch from './FuzzyPresetMatch.jsx';
@@ -104,7 +105,17 @@ function BankEditor({ banks, onBanks, color, maxBanks, startBank, factoryBanks, 
           </div>
           {selectedPreset && selectedPreset.bank === k && <div style={{ marginTop: 6, animation: 'slideDown .2s ease-out' }}>
             {selInfo ? <div>
-              <PresetDetailInline name={selectedPreset.name} info={selInfo} banksAnn={banks} banksPlug={banks}/>
+              <PresetDetailInline
+                name={selectedPreset.name} info={selInfo}
+                banksAnn={banks} banksPlug={banks}
+                isAdmin={isAdmin} songDb={songDb}
+                onSaveUsages={(n, u) => saveUsagesForPreset(n, u, {
+                  findEntry: findCatalogEntry,
+                  activeProfileId,
+                  onProfiles,
+                  onToneNetPresets,
+                })}
+              />
               <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                 <button onClick={() => { setEditingPreset({ bank: k, slot: selectedPreset.slot }); setSelectedPreset(null); }} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '5px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>{t('bank-editor.edit', 'Modifier')}</button>
                 <button onClick={() => setSelectedPreset(null)} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>{t('bank-editor.close', 'Fermer')}</button>
