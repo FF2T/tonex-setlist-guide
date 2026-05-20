@@ -746,7 +746,146 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-20 midi, Phase 7.82.1 livrée — patch démo locale + 🎤 ListScreen)
+## État actuel (2026-05-20 après-midi, Phase 7.84 livrée — i18n Explorer + 167 desc ampli EN)
+
+**Backline v8.14.149 / SW backline-v249 / STATE_VERSION 10 / 1323 tests verts.**
+
+### Phase 7.84 — i18n PresetDetailInline + 167 descriptions ampli EN (v8.14.149)
+
+Audit Chrome MCP de la démo EN du 2026-05-20 (v8.14.148) avait
+identifié 3 problèmes Explorer (cf section "Idées en attente" Phase
+7.84 historiquement) :
+1. Fiche capture (`PresetDetailInline`) restait 100% FR en mode EN
+   (titres sections, descriptions ampli, libellés gain/style, badges
+   installation, ~25 strings + 167 desc ampli).
+2. Nom de ZIP brut `📁 TSR-Freeman-BE-DE-idSzii.zip` exposé dans la
+   fiche (plomberie interne).
+3. Scores nus en liste sans en-tête (couplé Phase 7.83).
+
+#### Fix 1 — Wrapping i18n complet PresetBrowser
+
+`src/app/screens/PresetBrowser.jsx` (composant racine + sous-composants
+`PresetDetailInline`, `PresetList`, `UsagesSection` co-localisés) :
+- `useLocale()` ajouté au composant racine → force re-render au switch
+  de langue (pattern Phase 7.36+). Les 51 t() existants ne se
+  re-rendraient pas sans ce hook (bug latent).
+- ~30 nouvelles clés EN + ES ajoutées (`preset-detail.*`,
+  `preset-list.*`, `usages.*`). Les ~12 clés `usages.*` de la
+  `UsagesSection` (déjà appelées par t() mais sans entrées en.js/es.js)
+  sont enfin présentes.
+- Constantes locales `STYLE_LABELS` / `GAIN_LABELS` / `GAIN_SHORT` /
+  `GAIN_STYLES` / `presetChar` regex output (~7 catégories) → toutes
+  wrappées via t().
+- Titres sections ("Infos ampli / preset", "Style & gain", "Morceaux
+  mythiques — registre {register}", "Guitares adaptées") → t() /
+  tFormat().
+- Badges installation ("📦 Banque {bank}{slot}", "📦 Non installé",
+  pareil Plug) → tFormat() / t().
+- `PresetList` : "Modèle d'ampli", "Tous ({count})", "{count} preset(s)
+  — clique pour voir la fiche" (tPlural), "Voir {n} de plus ({remaining}
+  restants)" (tFormat).
+
+#### Fix 2 — Descriptions ampli EN (data_context.js)
+
+Choix utilisateur explicite 2026-05-20 : **traduire EN seulement,
+documenter ES en dette**.
+
+`src/data/data_context.js` `PRESET_CONTEXT` : champ `desc_en` ajouté à
+chacune des **167 entries** ampli (Marshall, Fender, Vox, Mesa, Dumble,
+Bogner, Soldano, Friedman, Diesel, ENGL, EVH, Peavey, Roland, Hiwatt,
+Orange, Matchless, Cornford, Dr. Z, Music Man, Trainwreck, Tone King,
+Mezzabarba, Two Rock, Carr, Benson, Bad Cat, Suhr, PRS, Sons, Talon,
+Ironlung, ZWREK, Amp Nation, D13, Reinhardt, Rouge Plate, Laney
+Supergroup/AOR/Lionheart/etc., 16 pédales standalone, etc.).
+
+Volume : ~167 traductions de prose technique guitare (~50 mots
+chacune en moyenne). Conservation des refs/emoji/desc FR intacts.
+
+Lookup côté UI dans `PresetDetailInline` ligne ~386 :
+```js
+const loc = getLocale();
+const desc = (loc === 'en' && ctx?.desc_en) ? ctx.desc_en : ctx?.desc;
+```
+Si `desc_en` absent (cas où une futur entry n'aurait pas été traduite)
+→ fallback FR. ES → fallback FR par défaut (dette).
+
+#### Fix 3 — Masquer le ZIP brut
+
+`src/app/screens/PresetBrowser.jsx` ligne 383 : retrait du span
+`📁 TSR-Freeman-BE-DE-idSzii.zip`. Redondant avec `info.pack` span
+ligne 382, exposait du nom de fichier interne (plomberie).
+Import `TSR_PACK_ZIPS` retiré (plus utilisé).
+
+#### Problème 3 — reporté à Phase 7.83
+
+Pas de tooltip "HB · SC · P90" ajouté sur les scores nus en liste.
+Sera traité par Phase 7.83 (compatibilité guitare 3 niveaux qualitatifs)
+qui suit immédiatement Phase 7.84.
+
+### Architecture livrée Phase 7.84
+
+```
+src/main.jsx                              APP_VERSION 8.14.148 → 8.14.149
+public/sw.js                              CACHE backline-v248 → backline-v249
+src/app/screens/PresetBrowser.jsx         +useLocale + getLocale imports
+                                          retrait import TSR_PACK_ZIPS
+                                          PresetBrowser +useLocale() racine
+                                          PresetDetailInline :
+                                          +constantes wrappées t()
+                                          +presetChar wrap t()
+                                          +section titles via t()/tFormat
+                                          +badges install via tFormat/t
+                                          +span ZIP brut retiré
+                                          +lookup desc/desc_en selon locale
+                                          PresetList :
+                                          +"Modèle d'ampli", "Tous (N)"
+                                          +"{count} presets — clique" tPlural
+                                          +"Voir N de plus" tFormat
+src/data/data_context.js                  PRESET_CONTEXT : +desc_en sur
+                                          167 entries (toutes)
+src/i18n/en.js                            +~33 clés preset-detail.* +
+                                          ~4 preset-list.* + ~13 usages.*
+src/i18n/es.js                            +mêmes ~50 clés en ES
+```
+
+### Conséquences Phase 7.84
+
+- **1323/1323 tests verts** (aucune régression, aucun nouveau test —
+  la suite Vitest ne couvre pas l'UI Explorer en détail).
+- Bundle 2481.35 → 2514.87 KB (+33.5 KB) :
+  - ~5 KB pour le wrapping i18n + lookup desc_en
+  - ~28 KB pour les 167 descriptions EN
+  - ~50 nouvelles clés EN+ES (~7 KB)
+  Acceptable, compromis sur la fluidité fiche EN avant Mail 3 Paul.
+- **Pas de bump STATE_VERSION** (purement UI + data additive).
+- **Pas de migration localStorage**.
+- **Cohabitation** : un visiteur FR voit exactement ce qu'il voyait
+  avant Phase 7.84 (les descs FR + libellés t() FR identiques).
+  Un visiteur EN voit désormais la fiche entièrement en EN. Un
+  visiteur ES voit la structure ES (titres sections, libellés,
+  badges) mais les descriptions ampli restent FR (dette).
+- **Bug latent corrigé** : avant Phase 7.84, les 51 t() existants de
+  PresetBrowser ne se re-rendaient pas au switch de langue (pas de
+  `useLocale()`). Le hook est désormais en place.
+- **Mail 3 Paul Drew TSR** : prêt à envoyer (l'audit Explorer EN qui
+  était le dernier blocker est résolu).
+
+### Dette résiduelle Phase 7.84
+
+- **Descriptions ampli ES non traduites** : 167 entries fallback FR
+  en mode ES. À traduire si beta hispanophone (Francisco) consulte
+  Explorer en pratique. ~3-4h prose dédiée.
+- **JamScreen utilise PresetDetailInline** : pas de `useLocale()`
+  dans JamScreen non plus → bug latent si user switch langue depuis
+  JamScreen. Fix trivial (1 ligne) à faire si rapporté.
+- **2 résidus i18n mineurs Phase 7.82** toujours en attente :
+  `<html lang>` non synchronisé + `APP_TAGLINE` modale d'intro non
+  wrappée. Cosmétique.
+- **Bug #6 (preset Live absent)** : toujours reporté hors démo.
+
+---
+
+## État précédent (2026-05-20 midi, Phase 7.82.1 livrée — patch démo locale + 🎤 ListScreen)
 
 **Backline v8.14.148 / SW backline-v248 / STATE_VERSION 10 / 1323 tests verts.**
 
@@ -843,8 +982,32 @@ src/app/screens/ListScreen.jsx     gate !isDemo sur bouton 🎤
 - Pas de migration localStorage.
 - **Mail 3 Paul Drew enfin débloqué** (vrai cette fois).
 
+### Validation audit démo EN — Chrome MCP 2026-05-20 (v8.14.148)
+
+Re-audit de la démo publique en anglais après livraison Phase 7.82.1 :
+- **Bug #0 confirmé corrigé** ✅ : `mybackline.app/?demo=1` avec
+  `localStorage.backline_locale='en'` rend la démo en anglais, modale
+  d'intro SplashPopup comprise. Le profil démo bundlé n'écrase plus la
+  langue du visiteur.
+- **Fix 2 confirmé complet** ✅ : le bouton 🎤 mode scène est masqué à
+  la fois sur HomeScreen ET dans la barre du sélecteur de setlist
+  (ListScreen) en mode démo.
+- **Strings #1-5 confirmés traduits** ✅ (footer Mon Profil, "Bridge
+  pickup", "8 songs", "Edit setlist", empty state Live).
+
 ### Dette résiduelle Phase 7.82 + 7.82.1
 
+- **2 résidus i18n mineurs relevés à l'audit 2026-05-20** (non
+  bloquants) :
+  - `<html lang>` non synchronisé : l'attribut `lang` de `<html>`
+    reste `"fr"` même quand l'UI rend en EN. Cosmétique (lecteurs
+    d'écran / SEO), pas visible utilisateur. À synchroniser sur le
+    locale effectif dans `setLocale` / `getLocale`.
+  - Tagline modale d'intro non wrappée i18n : *"Le guide intelligent
+    pour tes pédales et amplis modélisés"* (constante `APP_TAGLINE`
+    de `core/branding.js`) reste FR dans le SplashPopup même en EN.
+    Visible par un visiteur anglophone dès la modale. Une ligne à
+    traduire (ou variante par locale dans branding.js).
 - **Bug #6 (preset Live absent)** : reporté hors démo (mode scène
   désactivé en démo via Fix 2). Reste à investiguer pour les vrais
   profils si reporté en pratique. Hypothèse : `ToneXLiveBlock` lit
@@ -9941,6 +10104,132 @@ Phase 7.82 livrée 2026-05-20 v8.14.147 : Bug #0 (locale démo) fixé,
 mode scène désactivé en démo, strings #1-5 wrappés, fix `tPlural`
 format plat (cause racine #3). Bug #6 reporté hors démo. Mail 3 Paul
 Drew débloqué.
+
+### Phase 7.84 — ✅ LIVRÉE 2026-05-20 (v8.14.149) — Explorer i18n + 167 desc ampli EN
+
+Voir section "État actuel (2026-05-20 après-midi)" en haut de CLAUDE.md
+pour le détail. Wrapping i18n PresetBrowser/PresetDetailInline/PresetList,
+167 desc_en ajoutées dans data_context.js, ZIP brut masqué. Problème 3
+(scores nus) reporté Phase 7.83.
+
+**Notes design conservées pour référence** :
+
+### Phase 7.84 (contexte design — livrée) — Explorer : i18n PresetDetailInline + polish fiche capture
+
+**Contexte** : audit Chrome MCP de la démo EN du 2026-05-20 (v8.14.148),
+en ouvrant une fiche capture TSR dans Explorer (search "Friedman" →
+"TSR - Freeman BE DE - High Gain"). Le **catalogage lui-même est
+exact et respectueux** (nom de capture fidèle, ampli correctement
+identifié, description d'ampli connaisseuse, regroupement par ampli
+source correct). Mais 3 problèmes d'affichage relevés, à corriger
+avant tout showcase Explorer à un créateur de packs anglophone
+(Paul Drew TSR, ou cible Phase 11).
+
+#### Problème 1 (le plus gros) — fiche Explorer entièrement en français
+
+Le composant `PresetDetailInline` (la fiche dépliée d'une capture
+dans Explorer, BankEditor, JamScreen) **reste 100% en français en
+mode EN**. Constaté en mode démo EN : titres de sections "INFOS
+AMPLI / PRESET", "STYLE & GAIN", "MORCEAUX MYTHIQUES — REGISTRE
+LEAD / HIGH GAIN", "GUITARES ADAPTÉES" ; descriptions d'ampli
+("Le Friedman BE-100 (Brown Eye) est un modern classic…") ;
+libellés gain/style ; boutons "Non installé". Aussi : les en-têtes
+de l'écran Explorer lui-même — "MODÈLE D'AMPLI" et "N PRESETS —
+CLIQUE POUR VOIR LA FICHE" — restent FR.
+
+Le haut d'Explorer (catégories "Clean sounds", etc.) est bien
+traduit, mais dès qu'on creuse (browse par ampli + fiche capture)
+c'est un mur de français. Un visiteur anglophone qui explore
+— et un créateur curieux ira voir comment SES captures sont
+présentées — tombe sur une fiche FR. Ce n'est pas du catalogage
+irrespectueux, c'est une dette i18n, mais ça fait paraître
+l'Explorer inachevé. **Nettement plus gros que les résidus i18n
+notés en dette Phase 7.82** (`<html lang>`, `APP_TAGLINE`).
+
+Action : wrapper `t()` sur `PresetDetailInline` + les en-têtes de
+`PresetBrowser`/Explorer. Volume : ~20-30 clés EN/ES. Les
+descriptions d'ampli (issues de `data_context.js`) sont un cas à
+part — soit les traduire, soit accepter qu'elles restent FR (gros
+volume de prose). À trancher.
+
+#### Problème 2 (mineur) — nom de ZIP brut exposé
+
+La fiche capture affiche "📄 TSR-Freeman-BE-DE-idSzii.zip" — le
+nom de fichier ZIP interne du pack (avec suffixe hash). Plomberie
+interne visible. Soit le masquer, soit afficher un libellé propre
+(nom de pack commercial). Cohérent avec Phase 7.76 (labels Sources
+nettoyés).
+
+#### Problème 3 (mineur) — scores non labellisés en liste
+
+Dans les rangées de la liste Explorer, le triplet de scores coloré
+(ex. "92 60 72") s'affiche **sans en-tête** → peut se lire comme
+une note de qualité de la capture. Dans la fiche dépliée c'est
+clair (section "Guitares adaptées" + jauges + %), mais pas dans la
+liste. Ajouter un libellé discret (ex. "HB · SC · P90" en en-tête
+de colonne) ou un tooltip. Couplé naturellement à Phase 7.83
+ci-dessous (qui supprime carrément les scores nus au profit de
+catégories).
+
+**Effort estimé Phase 7.84** : ~2-3h (le gros est le wrapping i18n
+de PresetDetailInline). Pas de bump STATE_VERSION. Priorité : à
+faire avant d'inviter un créateur anglophone à explorer Explorer
+en profondeur (Phase 11). Non bloquant pour le Mail 3 Paul (qui
+reste un "30s look" sur le Home).
+
+### Phase 7.83 (proposée 2026-05-20) — Compatibilité guitare qualitative 3 niveaux dans Explorer
+
+**Contexte** : la section "🎸 Guitares adaptées" de la fiche capture
+Explorer (et le dropdown `GuitarSelect`) affiche chaque guitare avec
+un **score brut en %** (84%, 64%, 52%, 51%, 50%, 49%…) + jauge,
+trié décroissant.
+
+**Problème** : le score brut suggère une précision que le scoring
+V9 heuristique n'a pas — afficher "Strat Pro II 51%" vs "Strat 61
+50%" laisse croire à un classement signifiant entre deux Strat
+single-coil alors que c'est du bruit. Et "64%" ne dit pas à
+l'utilisateur quoi faire : la cible (guitariste amateur un peu
+perdu, type Francisco) ne sait pas si 64% est bon ou mauvais.
+
+**Précédent interne** : Phase 7.69.13 a déjà introduit des "scores
+compatibilité qualitatifs (4 niveaux)" — mais uniquement dans
+l'éditeur de presets custom. Phase 7.83 étend la même logique
+qualitative à l'affichage Explorer (cohérent, pas un nouveau
+paradigme — aligner le nombre de niveaux serait idéal).
+
+**Design proposé** :
+- **3 niveaux** (4 réintroduit la granularité ; 2 perd le coup de
+  projecteur "match parfait"). Nommage à trancher, garder le 3e
+  niveau neutre/positif (pas "les moins adaptées" déprimant) :
+  - Set musical : 🟢 Mariage parfait · 🟡 Bon match · 🟠 Compromis
+  - Set sobre : 🟢 Idéal · 🟡 Adapté · 🟠 Dépannage
+- **Format** : sections groupées avec un en-tête par niveau, les
+  guitares listées dessous (plus scannable qu'un badge par ligne
+  pour la cible).
+- **Retirer le % de la vue par défaut**, garder pastille couleur
+  (+ jauge éventuelle). Optionnel : révéler le % au tap/survol
+  pour les power-users.
+- **Caveat** : un seuil dur garde l'arbitraire 59%/61%, juste
+  caché derrière un mot — mais 3 buckets absorbent le bruit et un
+  mot ne donne pas l'illusion de mesure. Calibrer les seuils sur
+  la **distribution réelle du catalog**, pas un exemple isolé.
+
+**Bénéfice double** : (1) plus actionnable pour l'utilisateur
+cible ; (2) désamorce le risque "score nu lu comme une note de
+qualité" côté créateur de packs (un label "Compromis" se lit comme
+un conseil de fit, "49%" comme une note — cf Phase 7.84 problème 3).
+
+**Périmètre** : contextes liste-de-guitares — section "Guitares
+adaptées" d'Explorer (`PresetDetailInline`) + probablement le
+dropdown `GuitarSelect`. Le "Compatibility: 87%" de la fiche
+morceau (un seul chiffre, une seule guitare) est un autre contexte,
+moins prioritaire. **Pas de bump SCORING_VERSION** — le scoring V9
+reste inchangé, c'est purement une couche d'affichage qui bucketise
+les scores existants.
+
+**Effort estimé** : ~3-4h (helper de bucketisation + UI sections
+groupées + nommage i18n FR/EN/ES + calibration des seuils). Idéal
+à coupler avec Phase 7.84 (les deux touchent `PresetDetailInline`).
 
 ### Phase 7.79.3 (validée 2026-05-19 soir, à livrer) — Cascade 3 niveaux user > studio > backline > default
 

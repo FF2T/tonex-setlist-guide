@@ -8,7 +8,7 @@
 // afficher le détail d'un preset jam-pick.
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { t, tFormat, tPlural } from '../../i18n/index.js';
+import { t, tFormat, tPlural, useLocale, getLocale } from '../../i18n/index.js';
 import { GUITARS } from '../../core/guitars.js';
 import { normalizePresetName, findCatalogEntry } from '../../core/catalog.js';
 import { SOURCE_LABELS } from '../../core/sources.js';
@@ -23,7 +23,6 @@ import {
   ANNIVERSARY_CATALOG,
 } from '../../data/data_catalogs.js';
 import { PRESET_CONTEXT } from '../../data/data_context.js';
-import { TSR_PACK_ZIPS } from '../../data/tsr-packs.js';
 import { findInBanks } from '../utils/preset-helpers.js';
 import { scoreColor, scoreBg } from '../components/score-utils.js';
 
@@ -321,13 +320,28 @@ function PresetDetailInline({ name, info, banksAnn, banksPlug, presetContext, gu
   const allGuitars = guitars || GUITARS;
   const sectionStyle = { background: 'var(--a3)', border: '1px solid var(--a7)', borderRadius: 'var(--r-lg)', padding: '10px 12px', marginBottom: 8 };
   const sectionTitle = (icon, label) => <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>{icon} {label}</div>;
-  const STYLE_LABELS = { blues: 'Blues', rock: 'Rock', hard_rock: 'Hard Rock', jazz: 'Jazz', metal: 'Metal', pop: 'Pop' };
-  const GAIN_LABELS = { low: 'Low gain — Clean / Edge of breakup', mid: 'Mid gain — Crunch / Drive', high: 'High gain — Lead / Saturé' };
-  const GAIN_SHORT = { low: 'Clean', mid: 'Crunch / Drive', high: 'Lead / High gain' };
+  const STYLE_LABELS = {
+    blues: t('preset-detail.style.blues', 'Blues'),
+    rock: t('preset-detail.style.rock', 'Rock'),
+    hard_rock: t('preset-detail.style.hard-rock', 'Hard Rock'),
+    jazz: t('preset-detail.style.jazz', 'Jazz'),
+    metal: t('preset-detail.style.metal', 'Metal'),
+    pop: t('preset-detail.style.pop', 'Pop'),
+  };
+  const GAIN_LABELS = {
+    low: t('preset-detail.gain.low', 'Low gain — Clean / Edge of breakup'),
+    mid: t('preset-detail.gain.mid', 'Mid gain — Crunch / Drive'),
+    high: t('preset-detail.gain.high', 'High gain — Lead / Saturé'),
+  };
+  const GAIN_SHORT = {
+    low: t('preset-detail.gain-short.low', 'Clean'),
+    mid: t('preset-detail.gain-short.mid', 'Crunch / Drive'),
+    high: t('preset-detail.gain-short.high', 'Lead / High gain'),
+  };
   const GAIN_STYLES = {
-    low: { primary: ['blues', 'jazz', 'pop', 'rock'], desc: 'Son clean : ideal pour blues, jazz, pop, rock rythmique' },
-    mid: { primary: ['rock', 'blues', 'hard_rock'], desc: 'Son crunch/drive : ideal pour rock, blues-rock, hard rock' },
-    high: { primary: ['hard_rock', 'metal', 'rock'], desc: 'Son sature : ideal pour hard rock, metal, rock lead' },
+    low: { primary: ['blues', 'jazz', 'pop', 'rock'], desc: t('preset-detail.gain-desc.low', 'Son clean : idéal pour blues, jazz, pop, rock rythmique') },
+    mid: { primary: ['rock', 'blues', 'hard_rock'], desc: t('preset-detail.gain-desc.mid', 'Son crunch/drive : idéal pour rock, blues-rock, hard rock') },
+    high: { primary: ['hard_rock', 'metal', 'rock'], desc: t('preset-detail.gain-desc.high', 'Son saturé : idéal pour hard rock, metal, rock lead') },
   };
   const gainStyles = GAIN_STYLES[info.gain] || GAIN_STYLES.mid;
   const CLEAN_TRACKS = ['gravity', 'waiting on the world', 'sultans of swing', 'romeo', 'juliet', 'wonderful tonight', 'tears in heaven', 'blackbird', 'dust in the wind', 'stairway', 'hotel california intro', 'wish you were here', 'under the bridge', 'hallelujah', 'the thrill is gone', 'truckin'];
@@ -350,13 +364,13 @@ function PresetDetailInline({ name, info, banksAnn, banksPlug, presetContext, gu
   };
   const nameLower = name.toLowerCase();
   const presetChar =
-    (/\bclean\b|\bclr\b|\bcln\b/i.test(nameLower)) ? 'Clean — Son clair, dynamique, expressif'
-      : (/\bedge\b|\beob\b|\bbreakup\b/i.test(nameLower)) ? 'Edge of breakup — A la limite de la saturation, très dynamique'
-        : (/\bcrunch\b|\bgrit\b/i.test(nameLower)) ? 'Crunch — Saturation légère, réactif au toucher'
-          : (/\bdrive\b|\bod\b|\boverdrive\b/i.test(nameLower)) ? 'Drive — Saturation moyenne, sustain musical'
-            : (/\blead\b|\bsolo\b/i.test(nameLower)) ? 'Lead — Saturation prononcée, sustain long pour solos'
-              : (/\bhigh.?gain\b|\bfull.?beans\b|\bdimed\b|\bmax\b/i.test(nameLower)) ? 'High gain — Saturation maximale, mur de son'
-                : (/\bboost\b|\bklon\b|\bts\b|\btube.?screamer\b|\brodent\b|\bmuff\b|\bfuzz\b/i.test(nameLower)) ? 'Boost / Pedale — Son avec pedale de drive en amont'
+    (/\bclean\b|\bclr\b|\bcln\b/i.test(nameLower)) ? t('preset-detail.char.clean', 'Clean — Son clair, dynamique, expressif')
+      : (/\bedge\b|\beob\b|\bbreakup\b/i.test(nameLower)) ? t('preset-detail.char.edge', 'Edge of breakup — À la limite de la saturation, très dynamique')
+        : (/\bcrunch\b|\bgrit\b/i.test(nameLower)) ? t('preset-detail.char.crunch', 'Crunch — Saturation légère, réactif au toucher')
+          : (/\bdrive\b|\bod\b|\boverdrive\b/i.test(nameLower)) ? t('preset-detail.char.drive', 'Drive — Saturation moyenne, sustain musical')
+            : (/\blead\b|\bsolo\b/i.test(nameLower)) ? t('preset-detail.char.lead', 'Lead — Saturation prononcée, sustain long pour solos')
+              : (/\bhigh.?gain\b|\bfull.?beans\b|\bdimed\b|\bmax\b/i.test(nameLower)) ? t('preset-detail.char.high-gain', 'High gain — Saturation maximale, mur de son')
+                : (/\bboost\b|\bklon\b|\bts\b|\btube.?screamer\b|\brodent\b|\bmuff\b|\bfuzz\b/i.test(nameLower)) ? t('preset-detail.char.boost', 'Boost / Pédale — Son avec pédale de drive en amont')
                   : null;
   const filteredRefs = filterRefs(ctx?.refs);
   const guitarScores = allGuitars.map((g) => {
@@ -368,7 +382,7 @@ function PresetDetailInline({ name, info, banksAnn, banksPlug, presetContext, gu
   return (
     <div style={{ background: 'var(--bg-elev-1)', border: '1px solid var(--a7)', borderRadius: '0 0 9px 9px', padding: 12, marginTop: -1, animation: 'slideDown .2s ease-out', display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div style={sectionStyle}>
-        {sectionTitle('🔊', 'Infos ampli / preset')}
+        {sectionTitle('🔊', t('preset-detail.section.amp-info', 'Infos ampli / preset'))}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-bright)', marginBottom: 2 }}>{ctx?.emoji && <span style={{ marginRight: 4 }}>{ctx.emoji}</span>}{info.amp}</div>
@@ -380,22 +394,29 @@ function PresetDetailInline({ name, info, banksAnn, banksPlug, presetContext, gu
           {info.src && <span style={{ fontSize: 9, color: 'var(--text-muted)', background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '2px 6px', fontWeight: 600 }}>{SOURCE_LABELS[info.src] || info.src}</span>}
           {info.cab && <span style={{ fontSize: 9, color: 'var(--text-muted)', background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '2px 6px' }}>🔈 {info.cab}</span>}
           {info.pack && <span style={{ fontSize: 9, color: 'var(--text-muted)', background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '2px 6px' }}>{info.pack}</span>}
-          {info.pack && TSR_PACK_ZIPS[info.pack] && <span style={{ fontSize: 9, color: 'var(--text-dim)' }}>📁 {TSR_PACK_ZIPS[info.pack]}.zip</span>}
+          {/* Phase 7.84 — span ZIP brut TSR_PACK_ZIPS retiré (redondant avec info.pack, paraissait plomberie au visiteur). */}
         </div>
         {info.comment && <div style={{ fontSize: 10, color: 'var(--text-sec)', fontStyle: 'italic', marginBottom: 6 }}>{info.comment}</div>}
-        {ctx?.desc && <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.5 }}>{ctx.desc}</div>}
-        {!ctx?.desc && <div style={{ fontSize: 11, color: 'var(--text-dim)', fontStyle: 'italic' }}>{t('preset-browser.no-desc', 'Pas de description disponible pour cet ampli.')}</div>}
+        {(() => {
+          // Phase 7.84 — Si locale EN et desc_en disponible, l'utiliser. Sinon fallback FR.
+          // Dette : desc_en absent pour la majorité des amplis (~167), à compléter progressivement.
+          // ES reste FR-fallback (dette explicite Phase 7.84).
+          const loc = getLocale();
+          const desc = (loc === 'en' && ctx?.desc_en) ? ctx.desc_en : ctx?.desc;
+          if (desc) return <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.5 }}>{desc}</div>;
+          return <div style={{ fontSize: 11, color: 'var(--text-dim)', fontStyle: 'italic' }}>{t('preset-browser.no-desc', 'Pas de description disponible pour cet ampli.')}</div>;
+        })()}
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 6 }}>
           {annLoc
-            ? <span style={{ fontSize: 10, color: 'var(--green)', background: 'var(--green-bg)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-md)', padding: '3px 8px', fontWeight: 600 }}>📦 Banque {annLoc.bank}{annLoc.slot}</span>
-            : <span style={{ fontSize: 10, color: 'var(--text-dim)', background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '3px 8px' }}>📦 Non installe</span>}
+            ? <span style={{ fontSize: 10, color: 'var(--green)', background: 'var(--green-bg)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-md)', padding: '3px 8px', fontWeight: 600 }}>📦 {tFormat('preset-detail.installed-pedal', { bank: annLoc.bank, slot: annLoc.slot }, 'Banque {bank}{slot}')}</span>
+            : <span style={{ fontSize: 10, color: 'var(--text-dim)', background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '3px 8px' }}>📦 {t('preset-detail.not-installed', 'Non installé')}</span>}
           {plugLoc
-            ? <span style={{ fontSize: 10, color: 'var(--green)', background: 'var(--green-bg)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-md)', padding: '3px 8px', fontWeight: 600 }}>🔌 Banque {plugLoc.bank}{plugLoc.slot}</span>
-            : <span style={{ fontSize: 10, color: 'var(--text-dim)', background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '3px 8px' }}>🔌 Non installe</span>}
+            ? <span style={{ fontSize: 10, color: 'var(--green)', background: 'var(--green-bg)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-md)', padding: '3px 8px', fontWeight: 600 }}>🔌 {tFormat('preset-detail.installed-plug', { bank: plugLoc.bank, slot: plugLoc.slot }, 'Banque {bank}{slot}')}</span>
+            : <span style={{ fontSize: 10, color: 'var(--text-dim)', background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '3px 8px' }}>🔌 {t('preset-detail.not-installed', 'Non installé')}</span>}
         </div>
       </div>
       <div style={sectionStyle}>
-        {sectionTitle('🎛', 'Style & gain')}
+        {sectionTitle('🎛', t('preset-detail.section.style-gain', 'Style & gain'))}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div style={{ fontSize: 11, color: 'var(--text-sec)' }}><span style={{ color: 'var(--text-muted)', fontSize: 10 }}>{t('preset-browser.gain', 'Gain')}</span> <span style={{ fontWeight: 600 }}>{GAIN_LABELS[info.gain] || info.gain}</span></div>
           <div style={{ fontSize: 11, color: 'var(--text-sec)' }}><span style={{ color: 'var(--text-muted)', fontSize: 10 }}>{t('preset-browser.style', 'Style catalogue')}</span> <span style={{ fontWeight: 600 }}>{STYLE_LABELS[info.style] || info.style}</span></div>
@@ -404,7 +425,7 @@ function PresetDetailInline({ name, info, banksAnn, banksPlug, presetContext, gu
       </div>
       {filteredRefs && filteredRefs.length > 0 && (
         <div style={sectionStyle}>
-          {sectionTitle('🎵', 'Morceaux mythiques — registre ' + GAIN_SHORT[info.gain])}
+          {sectionTitle('🎵', tFormat('preset-detail.section.iconic-songs', { register: GAIN_SHORT[info.gain] }, 'Morceaux mythiques — registre {register}'))}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             {filteredRefs.map((r) => (
               <div key={r.a} style={{ fontSize: 11, color: 'var(--text-sec)' }}>
@@ -426,7 +447,7 @@ function PresetDetailInline({ name, info, banksAnn, banksPlug, presetContext, gu
         sectionTitle={sectionTitle}
       />
       <div style={sectionStyle}>
-        {sectionTitle('🎸', 'Guitares adaptees')}
+        {sectionTitle('🎸', t('preset-detail.section.suitable-guitars', 'Guitares adaptées'))}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {guitarScores.map((g) => (
             <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
@@ -467,16 +488,16 @@ function PresetList({ filtered, selected, setSelected, banksAnn, banksPlug, full
         const chipStyle = (on) => ({ fontSize: 10, fontWeight: on ? 700 : 500, color: on ? 'var(--accent)' : 'var(--text-sec)', background: on ? 'var(--accent-bg)' : 'var(--a3)', border: on ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '4px 8px', cursor: 'pointer' });
         return (
           <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 6 }}>Modèle d'ampli</div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 6 }}>{t('preset-list.amp-model', 'Modèle d\'ampli')}</div>
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-              <button onClick={() => setFilterPacks([])} style={chipStyle(filterPacks.length === 0)}>Tous ({filtered.length})</button>
+              <button onClick={() => setFilterPacks([])} style={chipStyle(filterPacks.length === 0)}>{tFormat('preset-list.all-count', { count: filtered.length }, 'Tous ({count})')}</button>
               {subPacks.slice(0, 20).map(([amp, count]) => { const on = filterPacks.includes(amp); return <button key={amp} onClick={() => togglePack(amp)} style={chipStyle(on)}>{amp} ({count})</button>; })}
             </div>
           </div>
         );
       })()}
       <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 8 }}>
-        {displayFiltered.length} preset{displayFiltered.length > 1 ? 's' : ''} — clique pour voir la fiche
+        {tPlural('preset-list.count-click', displayFiltered.length, {}, { one: '1 preset — clique pour voir la fiche', other: '{count} presets — clique pour voir la fiche' })}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
         {visible.map(([name, info]) => {
@@ -508,7 +529,7 @@ function PresetList({ filtered, selected, setSelected, banksAnn, banksPlug, full
       {remaining > 0 && (
         <button onClick={() => setShown((s) => s + PRESET_PAGE_SIZE)}
           style={{ width: '100%', marginTop: 10, background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-lg)', padding: '10px', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
-          Voir {Math.min(remaining, PRESET_PAGE_SIZE)} de plus ({remaining} restants)
+          {tFormat('preset-list.show-more', { n: Math.min(remaining, PRESET_PAGE_SIZE), remaining }, 'Voir {n} de plus ({remaining} restants)')}
         </button>
       )}
     </div>
@@ -569,6 +590,7 @@ function familyForAmp(amp, brand) {
 }
 
 function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, guitars, toneNetPresets, isAdmin, songDb, onSaveUsages }) {
+  useLocale(); // Phase 7.84 — re-render au switch de langue (force refresh des sous-composants)
   const [soundProfile, setSoundProfile] = useState('all');
   const [filterBrand, setFilterBrand] = useState('');
   const [filterModel, setFilterModel] = useState('');
