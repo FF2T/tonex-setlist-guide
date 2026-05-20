@@ -53,6 +53,7 @@ import {
   PRESET_CATALOG_MERGED, findCatalogEntry, guessPresetInfo, normalizePresetName,
 } from './core/catalog.js';
 import { saveUsagesForPreset, removeUsagesOverride } from './core/preset-curation.js';
+import { mergeUsagesOverridesLWW } from './core/usages-cascade.js';
 import {
   SCORING_VERSION, SCORING_WEIGHTS,
   BASE_SCORES, GUITAR_PROFILES, STYLE_COMPATIBILITY, GAIN_RANGES,
@@ -276,7 +277,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.152";
+const APP_VERSION = "8.14.153";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -1099,6 +1100,10 @@ function App() {
       +":"+JSON.stringify(p.guitarBias||{})
       +":"+(p.language||'')                      // Phase 7.49 — i18n per-profile
       +":"+Object.keys(p.aiCache||{}).slice().sort().join(',')+":"+Object.values(p.aiCache||{}).map(a=>(a?.sv||0)+'|'+(a?.rigSnapshot||'')+'|'+(a?.gId||'')+'|'+(a?.ts||0)).join('!')  // Phase 7.54 + 7.81 — aiCache per-profile, ts pour propager LWW
+      // Phase 7.79.3c — usagesOverrides per-profile : sync via push profil
+      // habituel. Hash basé sur (name, lastModified, usages?null|len) pour
+      // détecter add/remove/modify et déclencher le push.
+      +":"+Object.entries(p.usagesOverrides||{}).map(([n,o])=>n+'|'+(o?.lastModified||0)+'|'+(o?.usages===null?'NULL':Array.isArray(o?.usages)?o.usages.length:'NA')).sort().join('!')
     ).join('|');
     const syncHash=[
       // Phase 7.54 — Hash basé sur songDbWithProfileCache (aiCache résolu
@@ -1110,6 +1115,9 @@ function App() {
       Object.keys(deletedSetlistIds||{}).slice().sort().join(','),
       // Phase 7.69.7 — hash adminPacks pour déclencher sync sur modif
       (adminPacks||[]).map(pk=>(pk.id||'')+':'+(pk.lastModified||0)+':'+((pk.presets||[]).length)).join('|'),
+      // Phase 7.79.3c — hash shared.usagesOverrides + studioUsages (niveau 2/3 cascade)
+      Object.entries(sharedUsagesOverrides||{}).map(([n,o])=>n+'|'+(o?.lastModified||0)+'|'+(o?.usages===null?'NULL':Array.isArray(o?.usages)?o.usages.length:'NA')).sort().join('!'),
+      Object.entries(sharedStudioUsages||{}).map(([n,o])=>n+'|'+(o?.lastModified||0)+'|'+(o?.curatedBy||'')+'|'+(o?.usages===null?'NULL':Array.isArray(o?.usages)?o.usages.length:'NA')).sort().join('!'),
       profileHash,
       activeProfileId,
       theme,
@@ -1127,7 +1135,10 @@ function App() {
     const state={
       version:STATE_VERSION,
       activeProfileId,
-      shared:{songDb,theme,setlists,customGuitars,toneNetPresets,deletedSetlistIds,adminPacks,lastModified:lastSharedModRef.current},
+      // Phase 7.79.3c — shared.usagesOverrides + studioUsages persistés
+      // dans localStorage + push Firestore. Le profile.usagesOverrides est
+      // déjà dans `profiles` via le useState standard.
+      shared:{songDb,theme,setlists,customGuitars,toneNetPresets,deletedSetlistIds,adminPacks,usagesOverrides:sharedUsagesOverrides,studioUsages:sharedStudioUsages,lastModified:lastSharedModRef.current},
       profiles,
     };
     // Phase 7.51.3 — mode démo : ne JAMAIS persister le snapshot in-memory
@@ -1269,6 +1280,21 @@ function App() {
         if(!local || (pk.lastModified||0)>=(local.lastModified||0)) byId[pk.id]=pk;
       });
       const merged=Object.values(byId);
+      if(JSON.stringify(merged)===JSON.stringify(prev))return prev;
+      return merged;
+    });
+    // Phase 7.79.3c — Merge shared.usagesOverrides + studioUsages per-item LWW.
+    // Pattern identique à mergeToneNetPresetsLWW (Phase 7.53.1). Pas de
+    // tombstones v1 — pour retirer un override on écrit { usages: null }
+    // (override "vide explicite") via removeUsagesOverride côté UI, qui
+    // DELETE l'entry localement et la LWW propage le delete au prochain push.
+    if(data.shared.usagesOverrides!==undefined) setSharedUsagesOverrides(prev=>{
+      const merged=mergeUsagesOverridesLWW(prev,data.shared.usagesOverrides);
+      if(JSON.stringify(merged)===JSON.stringify(prev))return prev;
+      return merged;
+    });
+    if(data.shared.studioUsages!==undefined) setSharedStudioUsages(prev=>{
+      const merged=mergeUsagesOverridesLWW(prev,data.shared.studioUsages);
       if(JSON.stringify(merged)===JSON.stringify(prev))return prev;
       return merged;
     });

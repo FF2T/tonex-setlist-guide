@@ -746,7 +746,162 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-20 soir, Phase 7.79.3b livrée — Routing saveUsagesForPreset 4 niveaux + UI badges + bouton Restaurer)
+## État actuel (2026-05-20 soir, Phase 7.79.3c livrée — Sync Firestore cascade complète multi-device)
+
+**Backline v8.14.153 / SW backline-v253 / STATE_VERSION 10 / 1379 tests verts.**
+
+### Phase 7.79.3c — Sync Firestore cascade (v8.14.153)
+
+Troisième et dernière sous-phase de la cascade 4 niveaux usages.
+Phase 7.79.3a a livré les helpers purs, Phase 7.79.3b le routing + UI.
+Phase 7.79.3c rend la cascade **multi-device** via la sync Firestore +
+localStorage.
+
+#### Persistance localStorage
+
+`state.shared` étendu avec deux nouveaux champs (additifs, pas de bump
+STATE_VERSION) :
+- `shared.usagesOverrides: {[name]: {usages, lastModified}}` (niveau 3)
+- `shared.studioUsages: {[name]: {usages, lastModified, curatedBy}}` (niveau 2, slot Phase 11)
+
+Les useState `sharedUsagesOverrides` + `sharedStudioUsages` initialisés
+depuis `initDefault.shared?.usagesOverrides || {}` au load (Phase 7.79.3b
+déjà câblé). Persistés via le `persistState` standard à chaque mutation.
+
+`profile.usagesOverrides` (niveau 1) est inclus automatiquement dans le
+`profiles` du state (déjà sync via push profil habituel Phase 5.7 LWW).
+
+#### Push Firestore
+
+Aucune modif requise dans `firestore.js` : le `prep()` sérialise tout
+`state` via `JSON.parse(JSON.stringify(...))`, les nouveaux champs
+sont donc inclus automatiquement.
+
+#### syncHash étendu
+
+`main.jsx` syncHash inclut désormais 3 nouvelles dimensions :
+- **profileHash** : `profile.usagesOverrides` entries → `name|lastModified|usages.length-or-NULL`
+- **syncHash global** : `shared.usagesOverrides` + `shared.studioUsages`
+  (avec `curatedBy` pour studio)
+
+Sans ces hashes, le push Firestore ne se déclenche pas après une modif
+locale (bug latent Phase 7.46 — corrigé pour les autres champs). Le
+format "NULL" vs "len-N" permet de distinguer un override actif d'un
+override vide explicite (cf Phase 7.79.3a cascade docstring).
+
+#### Pull Firestore — merge LWW
+
+`applyRemoteData` étendu avec 2 nouveaux merges per-item LWW (pattern
+Phase 7.53.1 `mergeToneNetPresetsLWW`) :
+
+```js
+if(data.shared.usagesOverrides!==undefined) setSharedUsagesOverrides(prev=>{
+  const merged=mergeUsagesOverridesLWW(prev,data.shared.usagesOverrides);
+  if(JSON.stringify(merged)===JSON.stringify(prev))return prev;
+  return merged;
+});
+if(data.shared.studioUsages!==undefined) setSharedStudioUsages(prev=>{
+  const merged=mergeUsagesOverridesLWW(prev,data.shared.studioUsages);
+  if(JSON.stringify(merged)===JSON.stringify(prev))return prev;
+  return merged;
+});
+```
+
+Le helper `mergeUsagesOverridesLWW` (Phase 7.79.3a, 10 tests Vitest
+dédiés) :
+- Présent des 2 côtés → garde plus grand `lastModified` (égalité → keep local)
+- Local-only → keep local
+- Remote-only → adopt remote
+
+Les overrides vides explicites (`{ usages: null, lastModified }`)
+survivent au merge → la cascade lit bien "vide explicite" sur tous
+les devices.
+
+`profile.usagesOverrides` (niveau 1, per-profile) est mergé automatiquement
+via `mergeProfilesLWW` Phase 5.7 (LWW per-profile par `profile.lastModified`).
+Pas besoin de merge per-item séparé : les overrides perso changent
+avec le profil entier.
+
+### Architecture livrée Phase 7.79.3c
+
+```
+src/main.jsx                              APP_VERSION 8.14.152 → 8.14.153
+                                          +import mergeUsagesOverridesLWW
+                                          profileHash +usagesOverrides
+                                          syncHash +sharedUsagesOverrides
+                                          +sharedStudioUsages
+                                          state.shared +usagesOverrides
+                                          +studioUsages
+                                          applyRemoteData : merge LWW
+                                          per-item pour les 2 maps shared
+public/sw.js                              CACHE backline-v252 → backline-v253
+```
+
+### Conséquences Phase 7.79.3c — Cascade 4 niveaux opérationnelle
+
+- **1379/1379 tests verts** (aucun nouveau test — la sync est testée
+  indirectement par `mergeUsagesOverridesLWW` qui a 10 tests Phase 7.79.3a).
+- Bundle 2523.72 → 2525.07 KB (+1.35 KB pour hashes + merges).
+- **Pas de bump STATE_VERSION** : le schéma étendu est additif
+  (`shared.usagesOverrides` et `studioUsages` sont des champs optionnels,
+  initialisés à `{}` si absents). Un client pré-7.79.3 reçoit un state
+  v10 avec ces champs → ignore silencieusement (`useState(initDefault.shared
+  ?.usagesOverrides || {})` retourne `{}` vide).
+- **Cohabitation pré/post-7.79.3** safe : un client pré-7.79.3 qui
+  pousse à Firestore n'inclut pas ces champs → `data.shared.usagesOverrides
+  === undefined` côté client 7.79.3 → branche skip dans applyRemoteData
+  → les overrides locaux survivent.
+- **Effet utilisateur multi-device** :
+  - Admin Sébastien curé un preset TSR depuis son Mac via "Modifier" :
+    écrit dans `shared.usagesOverrides`, sync Firestore en ~5s,
+    propage à tous les profils + tous les devices.
+  - Bruno cure un preset TSR perso depuis iPhone via "Modifier" :
+    écrit dans `profile.usagesOverrides`, sync Firestore via push profil,
+    propage à ses propres autres devices (mais invisible aux autres
+    profils → privacy respectée).
+  - Bruno restaure la version par défaut : DELETE entry de la map →
+    LWW propage le delete au prochain push (l'absence d'entry tombe
+    sur la cascade niveau suivant).
+
+### Phase 7.79.3 — Cascade 4 niveaux COMPLÈTE
+
+Récap :
+- **Phase 7.79.3a** ✅ Helpers purs cascade + extension findCatalogEntry
+- **Phase 7.79.3b** ✅ Routing saveUsagesForPreset 4 niveaux + UI badges
+- **Phase 7.79.3c** ✅ Sync Firestore cascade complète
+
+**Préparation Phase 11 Studio-driven** : `shared.studioUsages` est un slot
+prêt à recevoir des overrides de pack creators partenaires (TSR, ML,
+Galtone, etc.). La cascade le lit déjà entre user (niv 1) et backline
+(niv 3). Quand Phase 11 démarre, il suffit d'ajouter un compte studio
++ une UI dédiée pour écrire dans `studioUsages` — l'infrastructure
+cascade est déjà là.
+
+### Dette résiduelle Phase 7.79.3
+
+- **PresetCurationModal pas étendu** : la modale dédiée (utilisée par
+  BankEditor au click pastille curation) n'a pas reçu le routing 4
+  niveaux. À évaluer en pratique : reste-t-elle utile vs UsagesSection
+  inline qui couvre déjà le besoin ? Si jugée redondante, à supprimer.
+  Si gardée, même travail que Phase 7.79.3b sur UsagesSection.
+- **Tests E2E multi-device** : non couvert. Test manuel à faire au
+  retour Sébastien :
+  1. Mac admin : Mon Profil → Mes appareils → ouvrir une fiche preset
+     TSR → Modifier → ajouter un usage → Enregistrer → vérifier badge
+     "⚙️ Backline" affiché
+  2. iPhone (ou autre profil) : reload → vérifier que l'usage curé est
+     visible avec badge "⚙️ Backline"
+  3. iPhone (non-admin) : Modifier → ajouter un usage perso → vérifier
+     badge "👤 Toi" (override perso visible que par soi)
+  4. Cliquer "🔄 Restaurer la version par défaut" → vérifier que la
+     fiche revient au niveau cascade suivant (Backline ou Catalog)
+- **Charge curation admin** : si Sébastien cure 50 presets TSR/AA/JS
+  via shared.usagesOverrides, ça représente ~50 entries × ~200 octets
+  = 10 KB additionnel par push Firestore. Marge confortable.
+
+---
+
+## État précédent (2026-05-20 soir, Phase 7.79.3b livrée — Routing saveUsagesForPreset 4 niveaux + UI badges + bouton Restaurer)
 
 **Backline v8.14.152 / SW backline-v252 / STATE_VERSION 10 / 1379 tests verts.**
 
@@ -10647,7 +10802,21 @@ les scores existants.
 groupées + nommage i18n FR/EN/ES + calibration des seuils). Idéal
 à coupler avec Phase 7.84 (les deux touchent `PresetDetailInline`).
 
-### Phase 7.79.3 (validée 2026-05-19 soir, à livrer) — Cascade 3 niveaux user > studio > backline > default
+### Phase 7.79.3 — ✅ LIVRÉE 2026-05-20 (v8.14.151 → 8.14.153, 3 sous-phases)
+
+Cascade 4 niveaux usages livrée en 3 sous-phases :
+- **Phase 7.79.3a** (v8.14.151) — Helpers purs cascade + extension findCatalogEntry
+- **Phase 7.79.3b** (v8.14.152) — Routing saveUsagesForPreset 4 niveaux + UI badges + bouton Restaurer
+- **Phase 7.79.3c** (v8.14.153) — Sync Firestore (push profile.usagesOverrides via push profil habituel,
+  merge per-item LWW shared.usagesOverrides au pull) + syncHash + propagation multi-device
+
+Voir section "État actuel" pour le détail technique. 44 tests Vitest
+dédiés (28 cascade + 16 routing). `shared.studioUsages` est un slot
+prêt pour Phase 11 Studio-driven.
+
+**Notes design conservées pour référence** :
+
+### Phase 7.79.3 (contexte design — livrée) — Cascade 3 niveaux user > studio > backline > default
 
 **Contexte** : Phase 7.78 + 7.79 + 7.79.2 livrent la curation runtime
 **uniquement** pour custom + ToneNET (`EDITABLE_SOURCES = {'custom',
