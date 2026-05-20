@@ -746,7 +746,175 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-20 soir, Phase 7.79.3a livrée — Helpers cascade usages 4 niveaux + extension findCatalogEntry)
+## État actuel (2026-05-20 soir, Phase 7.79.3b livrée — Routing saveUsagesForPreset 4 niveaux + UI badges + bouton Restaurer)
+
+**Backline v8.14.152 / SW backline-v252 / STATE_VERSION 10 / 1379 tests verts.**
+
+### Phase 7.79.3b — Routing étendu + UI cascade (v8.14.152)
+
+Deuxième sous-phase de la cascade 4 niveaux (cf Phase 7.79.3a pour les
+helpers purs). 7.79.3b livre le routing `saveUsagesForPreset` étendu,
+l'UI badges + boutons cascade dans UsagesSection (PresetBrowser +
+BankEditor), et la synchronisation `window._usagesCascadeState` au boot
++ chaque mutation. **Fonctionnel local-only** : les overrides sont
+écrits dans le state in-memory et persistés dans localStorage (via
+useState standard), mais pas encore syncés vers Firestore — c'est
+Phase 7.79.3c qui finalisera.
+
+#### Routing `saveUsagesForPreset` étendu (preset-curation.js)
+
+L'API précédente Phase 7.79.2 (ctx avec `findEntry`, `activeProfileId`,
+`onProfiles`, `onToneNetPresets`) gagne 2 nouveaux paramètres :
+- **`isAdmin`** : booléen pour décider profile vs shared sur catalog statique
+- **`onShared`** : setter qui prend un reducer `(sh) => sh'` pour
+  shared.usagesOverrides (Phase 7.79.3c câblera la sync Firestore)
+
+Branches de routing (en ordre de priorité) :
+1. `entry.src === 'custom'` → `profile.customPacks[].presets[].usages` (Phase 7.69 inchangé)
+2. `entry.src === 'ToneNET'` → `shared.toneNetPresets[].usages` (Phase 7.53 inchangé)
+3. **Catalog statique + isAdmin** → `shared.usagesOverrides[name]` (niveau 3, visible tous users)
+4. **Catalog statique + !isAdmin** → `profile.usagesOverrides[name]` (niveau 1, visible user seul)
+
+Pour les niveaux 3-4, écriture au format `{ usages, lastModified }` :
+- `usages: [...]` → override actif
+- `usages: null` → override "vide explicite" (stoppe la cascade,
+  masque les usages du catalog)
+
+#### Nouveau helper `removeUsagesOverride(name, ctx)`
+
+Pour le bouton "Restaurer la version par défaut" — DELETE complètement
+l'entry de la map (vs `saveUsagesForPreset(name, undefined)` qui écrit
+`{ usages: null }`). La cascade reprend alors au niveau suivant. No-op
+si `entry.src` ∈ {'custom', 'ToneNET'} (pas concerné par la cascade,
+ces sources stockent leurs usages dans la donnée elle-même).
+
+#### Tests Vitest preset-curation (+16 nouveaux)
+
+- `saveUsagesForPreset routing étendu` × 9 : rétro-compat custom/ToneNET,
+  catalog+admin → shared, catalog+!admin → profile, usages=undefined →
+  `{ usages: null }`, admin sans onShared no-op, guessed=true no-op,
+  findEntry null no-op, ctx null no-op
+- `removeUsagesOverride` × 7 : admin→shared delete, !admin→profile
+  delete, no-op si pas d'override, custom/ToneNET → no-op (cascade ne
+  s'applique pas), guessed/null findEntry no-op
+
+Total préset-curation : 24 (existants) + 16 (nouveaux) = 40 tests verts.
+
+#### UI UsagesSection — Badge source + Bouton Restaurer
+
+Dans `src/app/screens/PresetBrowser.jsx`, le composant `UsagesSection` :
+
+- **Badge source au titre section** selon `entry._usagesSource`
+  (annoté par Phase 7.79.3a findCatalogEntry) :
+  - 👤 Toi (user override perso, visible que par lui)
+  - 🏷️ Studio ({curatedBy}) — Phase 11 future
+  - ⚙️ Backline (admin override partagé)
+  - (Pas de badge si `_usagesSource === 'default'` ou absent — c'est
+    le catalog brut)
+
+- **Logique `editable` étendue** : avant 7.79.3b, seul `custom`/`ToneNET`
+  + isAdmin pouvaient cliquer "Modifier". Désormais TOUS les users
+  peuvent éditer TOUTE entry non-guessed. Le routing décide où sauver.
+
+- **Nouveau bouton "🔄 Restaurer la version par défaut"** — affiché si :
+  - `entry._usagesSource === 'user'` (user retire son override perso)
+  - OU `entry._usagesSource === 'backline'` ET isAdmin (admin retire
+    son admin override)
+  - Sinon caché.
+
+- **Hint d'édition adapté** selon entry.src + isAdmin pour clarifier
+  où sera persisté l'override (custom → profile.customPacks, ToneNET
+  → shared.toneNetPresets, catalog+admin → shared.usagesOverrides,
+  catalog+user → profile.usagesOverrides).
+
+13 nouvelles clés EN+ES (`cascade.source-user`, `.source-studio`,
+`.source-studio-by`, `.source-backline`, `.source-*-tooltip`, `.restore`,
+`.restore-tooltip`, `.edit-hint-user`, `.edit-hint-admin`).
+
+#### Câblage main.jsx + chain props
+
+- **Nouveau state** `sharedUsagesOverrides` (niveau 3) et
+  `sharedStudioUsages` (niveau 2, slot Phase 11) en `useState`.
+- **`useEffect` sync `window._usagesCascadeState`** au boot et à
+  chaque mutation. findCatalogEntry (Phase 7.79.3a) lit ce state pour
+  appliquer la cascade.
+- **PresetBrowser** (route `screen === 'explore'`) : prop
+  `onSaveUsages` étendue avec `isAdmin` + `onShared` adapter (forme
+  fonctionnelle setState pour éviter closures stales). Prop
+  `onRemoveOverride` ajoutée.
+- **BankEditor** : nouvelle prop `onSharedUsagesOverrides` propagée
+  depuis MonProfilScreen → MesAppareilsTab. Passée au PresetDetailInline
+  pour câbler `onSaveUsages` + `onRemoveOverride`.
+
+### Architecture livrée Phase 7.79.3b
+
+```
+src/main.jsx                              APP_VERSION 8.14.151 → 8.14.152
+                                          +import removeUsagesOverride
+                                          +state sharedUsagesOverrides
+                                          +state sharedStudioUsages (slot Phase 11)
+                                          +useEffect sync window._usagesCascadeState
+                                          PresetBrowser onSaveUsages étendu
+                                          + onRemoveOverride câblé
+                                          MonProfilScreen +onSharedUsagesOverrides
+public/sw.js                              CACHE backline-v251 → backline-v252
+src/core/preset-curation.js               saveUsagesForPreset +isAdmin +onShared
+                                          (4 branches routing)
+                                          +removeUsagesOverride helper
+src/core/preset-curation.test.js          +16 tests (9 saveUsagesForPreset
+                                          étendu + 7 removeUsagesOverride)
+src/app/screens/PresetBrowser.jsx         UsagesSection :
+                                          +editable ouvert à tous catalog non-guessed
+                                          +renderSourceBadge (badge cascade)
+                                          +bouton "Restaurer" conditionnel
+                                          +hint d'édition adapté src/isAdmin
+src/app/components/BankEditor.jsx         +import removeUsagesOverride
+                                          +prop onSharedUsagesOverrides
+                                          PresetDetailInline reçoit onSaveUsages
+                                          étendu + onRemoveOverride
+src/app/screens/MesAppareilsTab.jsx       +prop onSharedUsagesOverrides
+                                          propagée à 3× BankEditor
+src/app/screens/MonProfilScreen.jsx       +prop onSharedUsagesOverrides
+                                          propagée à MesAppareilsTab
+src/i18n/en.js                            +cascade.* (12 clés)
+src/i18n/es.js                            +cascade.* (12 clés)
+```
+
+### Conséquences Phase 7.79.3b
+
+- **1379/1379 tests verts** (+16 nouveaux préset-curation).
+- Bundle 2517.05 → 2523.72 KB (+6.67 KB pour UI + setters + i18n).
+- Pas de bump STATE_VERSION (additif, fallback gracieux quand cascade
+  state absent ou champs profile/shared absents).
+- Pas de migration localStorage (les nouveaux champs `profile.usagesOverrides`
+  et `shared.usagesOverrides` sont initialisés à `{}` au load via
+  `useState(initDefault.shared?.usagesOverrides || {})`).
+- **Effet utilisateur immédiat** : l'admin peut désormais cliquer
+  "Modifier" sur n'importe quelle capture TSR/AA/JS/etc. depuis
+  Explorer ou BankEditor pour ajouter/modifier des usages → écrit
+  dans `shared.usagesOverrides` → visible immédiatement dans toutes
+  les fiches via la cascade. Un beta-tester non-admin peut faire
+  pareil en perso (sa version override). Phase 7.79.3c ajoute la
+  sync Firestore pour propager entre devices.
+
+### Dette résiduelle Phase 7.79.3b → 7.79.3c
+
+- **Pas encore syncé Firestore** : les overrides sont en localStorage
+  local seul. Multi-device ne propage pas. Phase 7.79.3c câble :
+  - push `profile.usagesOverrides` via push profil habituel (Phase 5.7
+    LWW per-profile)
+  - pull `shared.usagesOverrides` via merge per-item LWW
+    (`mergeUsagesOverridesLWW` Phase 7.79.3a)
+  - syncHash étendu pour inclure `profile.usagesOverrides`
+- **PresetCurationModal pas étendu** : la modale `PresetCurationModal`
+  (utilisée par BankEditor au click pastille curation) n'a pas reçu
+  le routing étendu Phase 7.79.3b. À évaluer : reste-t-elle utile en
+  pratique ou rendue obsolète par UsagesSection inline ? Si gardée,
+  même travail (props + branche routing). Non bloquant pour 7.79.3c.
+
+---
+
+## État précédent (2026-05-20 soir, Phase 7.79.3a livrée — Helpers cascade usages 4 niveaux + extension findCatalogEntry)
 
 **Backline v8.14.151 / SW backline-v251 / STATE_VERSION 10 / 1363 tests verts.**
 

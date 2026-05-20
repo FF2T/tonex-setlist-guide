@@ -8,7 +8,7 @@
 import React, { useState } from 'react';
 import { t } from '../../i18n/index.js';
 import { findCatalogEntry } from '../../core/catalog.js';
-import { saveUsagesForPreset } from '../../core/preset-curation.js';
+import { saveUsagesForPreset, removeUsagesOverride } from '../../core/preset-curation.js';
 import { CC } from '../utils/ui-constants.js';
 import PresetSearchModal from './PresetSearchModal.jsx';
 import FuzzyPresetMatch from './FuzzyPresetMatch.jsx';
@@ -16,7 +16,7 @@ import CurationDot from './CurationDot.jsx';
 import PresetCurationModal from './PresetCurationModal.jsx';
 import { PresetDetailInline } from '../screens/PresetBrowser.jsx';
 
-function BankEditor({ banks, onBanks, color, maxBanks, startBank, factoryBanks, factoryBanksByVersion, defaultFactoryVersion, toneNetPresets, onToneNetPresets, profile, onProfiles, activeProfileId, songDb, isAdmin }) {
+function BankEditor({ banks, onBanks, color, maxBanks, startBank, factoryBanks, factoryBanksByVersion, defaultFactoryVersion, toneNetPresets, onToneNetPresets, profile, onProfiles, activeProfileId, songDb, isAdmin, onSharedUsagesOverrides }) {
   const start = startBank || 0;
   const max = maxBanks || 50;
   const [confirmReset, setConfirmReset] = useState(false);
@@ -112,8 +112,19 @@ function BankEditor({ banks, onBanks, color, maxBanks, startBank, factoryBanks, 
                 onSaveUsages={(n, u) => saveUsagesForPreset(n, u, {
                   findEntry: findCatalogEntry,
                   activeProfileId,
+                  isAdmin,
                   onProfiles,
                   onToneNetPresets,
+                  // Phase 7.79.3b — onShared pour router catalogs statiques en mode admin
+                  onShared: onSharedUsagesOverrides || undefined,
+                })}
+                // Phase 7.79.3b — bouton "Restaurer" pour retirer un override cascade
+                onRemoveOverride={(n) => removeUsagesOverride(n, {
+                  findEntry: findCatalogEntry,
+                  activeProfileId,
+                  isAdmin,
+                  onProfiles,
+                  onShared: onSharedUsagesOverrides || undefined,
                 })}
               />
               <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>

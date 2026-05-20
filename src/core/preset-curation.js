@@ -134,26 +134,37 @@ function detectAllNonCurated(banks) {
 }
 
 /**
- * Phase 7.79.2 — Helper centralisé pour persister les usages d'un preset.
- * Route automatiquement selon entry.src :
- *   - 'custom'  → modifie profile.customPacks[].presets[].usages
- *                (stamp profile.lastModified pour LWW Firestore)
- *   - 'ToneNET' → modifie shared.toneNetPresets[].usages
- *                (stamp toneNetPreset.lastModified per-item LWW Phase 7.53.1)
+ * Phase 7.79.2 + 7.79.3b — Helper centralisé pour persister les usages
+ * d'un preset. Route automatiquement selon entry.src et isAdmin :
  *
- * Si usages=undefined, retire le champ usages de l'entry (curation vidée).
+ *   1. entry.src === 'custom'           → profile.customPacks[].presets[].usages
+ *                                         (stamp profile.lastModified, LWW Firestore)
+ *   2. entry.src === 'ToneNET'          → shared.toneNetPresets[].usages
+ *                                         (stamp item.lastModified, per-item LWW Phase 7.53.1)
+ *   3. catalog statique + isAdmin       → shared.usagesOverrides[name]    (Phase 7.79.3b)
+ *                                         niveau 3 cascade — visible tous users
+ *   4. catalog statique + !isAdmin      → profile.usagesOverrides[name]   (Phase 7.79.3b)
+ *                                         niveau 1 cascade — visible user seul
+ *
+ * Si usages=undefined, retire le champ usages de l'entry. Pour les niveaux
+ * 3 et 4 (cascade), on écrit { usages: null, lastModified } pour signaler
+ * un "override vide explicite" qui stoppe la cascade et masque les usages
+ * du catalog. Pour DELETE complètement l'override (et reprendre la cascade
+ * au niveau suivant), utiliser removeUsagesOverride.
  *
  * @param {string} presetName
  * @param {Array<{artist, songs?}>|undefined} usages
  * @param {Object} ctx
- *   - findEntry: (name) => entry|null (fourni par caller pour éviter import circulaire)
- *   - activeProfileId: string
- *   - onProfiles: setter
+ *   - findEntry:        (name) => entry|null (fourni par caller pour éviter import circulaire)
+ *   - activeProfileId:  string
+ *   - isAdmin:          boolean (Phase 7.79.3b — décide profile vs shared sur catalog statique)
+ *   - onProfiles:       setter
  *   - onToneNetPresets: setter (optionnel pour custom-only)
+ *   - onShared:         setter shared (Phase 7.79.3b — pour shared.usagesOverrides)
  */
 function saveUsagesForPreset(presetName, usages, ctx) {
   if (!presetName || !ctx) return;
-  const { findEntry, activeProfileId, onProfiles, onToneNetPresets } = ctx;
+  const { findEntry, activeProfileId, isAdmin, onProfiles, onToneNetPresets, onShared } = ctx;
   const entry = typeof findEntry === 'function' ? findEntry(presetName) : null;
   if (!entry || entry.guessed) return;
 
@@ -174,7 +185,10 @@ function saveUsagesForPreset(presetName, usages, ctx) {
       }));
       return { ...p, [activeProfileId]: { ...cur, customPacks: packs, lastModified: Date.now() } };
     });
-  } else if (entry.src === 'ToneNET' && typeof onToneNetPresets === 'function') {
+    return;
+  }
+
+  if (entry.src === 'ToneNET' && typeof onToneNetPresets === 'function') {
     onToneNetPresets((prev) => (prev || []).map((tp) => {
       if (tp.name !== presetName) return tp;
       const stamped = { ...tp, lastModified: Date.now() };
@@ -184,8 +198,75 @@ function saveUsagesForPreset(presetName, usages, ctx) {
       }
       return { ...stamped, usages };
     }));
+    return;
   }
-  // Autres sources (catalog statique) : no-op silencieux. Phase 11 future.
+
+  // Phase 7.79.3b — catalog statique (TSR/AA/JS/TJ/WT/Galtone/ML/Anniversary/
+  // Factory/FactoryV1/PlugFactory). Route vers le bon niveau de cascade :
+  //   - isAdmin → shared.usagesOverrides (niveau 3, visible tous users)
+  //   - !isAdmin → profile.usagesOverrides (niveau 1, visible user seul)
+  const stampedEntry = {
+    usages: usages || null, // null = override vide explicite (stop cascade)
+    lastModified: Date.now(),
+  };
+  if (isAdmin && typeof onShared === 'function') {
+    onShared((sh) => {
+      const map = { ...(sh?.usagesOverrides || {}) };
+      map[presetName] = stampedEntry;
+      return { ...sh, usagesOverrides: map, lastModified: Date.now() };
+    });
+  } else if (!isAdmin && typeof onProfiles === 'function' && activeProfileId) {
+    onProfiles((p) => {
+      const cur = p[activeProfileId];
+      if (!cur) return p;
+      const map = { ...(cur.usagesOverrides || {}) };
+      map[presetName] = stampedEntry;
+      return { ...p, [activeProfileId]: { ...cur, usagesOverrides: map, lastModified: Date.now() } };
+    });
+  }
+  // Sinon (admin sans onShared, ou non-admin sans onProfiles) : no-op silencieux.
+}
+
+/**
+ * Phase 7.79.3b — Retire complètement un override d'usages d'un preset
+ * catalog statique. Différent de saveUsagesForPreset(name, undefined) qui
+ * écrit { usages: null } (= "override vide explicite"). Ici on DELETE
+ * l'entry de la map → la cascade reprend au niveau suivant.
+ *
+ * Routing similaire à saveUsagesForPreset :
+ *   - isAdmin  → delete shared.usagesOverrides[name]
+ *   - !isAdmin → delete profile.usagesOverrides[name]
+ *
+ * No-op si l'entry source est custom/ToneNET (pas de cascade pour ces
+ * sources, leur "usages" est dans la donnée elle-même).
+ *
+ * @param {string} presetName
+ * @param {Object} ctx — même shape que saveUsagesForPreset
+ */
+function removeUsagesOverride(presetName, ctx) {
+  if (!presetName || !ctx) return;
+  const { findEntry, activeProfileId, isAdmin, onProfiles, onShared } = ctx;
+  const entry = typeof findEntry === 'function' ? findEntry(presetName) : null;
+  if (!entry || entry.guessed) return;
+  if (entry.src === 'custom' || entry.src === 'ToneNET') return; // pas concerné par la cascade
+
+  if (isAdmin && typeof onShared === 'function') {
+    onShared((sh) => {
+      const map = { ...(sh?.usagesOverrides || {}) };
+      if (!(presetName in map)) return sh; // no-op si pas d'override
+      delete map[presetName];
+      return { ...sh, usagesOverrides: map, lastModified: Date.now() };
+    });
+  } else if (!isAdmin && typeof onProfiles === 'function' && activeProfileId) {
+    onProfiles((p) => {
+      const cur = p[activeProfileId];
+      if (!cur) return p;
+      const map = { ...(cur.usagesOverrides || {}) };
+      if (!(presetName in map)) return p; // no-op si pas d'override
+      delete map[presetName];
+      return { ...p, [activeProfileId]: { ...cur, usagesOverrides: map, lastModified: Date.now() } };
+    });
+  }
 }
 
 export {
@@ -196,4 +277,5 @@ export {
   EDITABLE_SOURCES,
   applyResolutionsToBanks,
   saveUsagesForPreset,
+  removeUsagesOverride,
 };

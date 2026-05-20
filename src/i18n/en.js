@@ -480,6 +480,19 @@ const en = {
   'preset-browser.page-title': '🎛️ Explore presets',
   'preset-browser.what-sound': 'What sound are you looking for?',
 
+  // cascade (Phase 7.79.3 — usages cascade source badges + actions)
+  'cascade.source-user': 'You',
+  'cascade.source-studio': 'Studio',
+  'cascade.source-studio-by': 'Studio ({studio})',
+  'cascade.source-backline': 'Backline',
+  'cascade.source-user-tooltip': 'Personal override — only visible to you, highest priority.',
+  'cascade.source-studio-tooltip': 'Curated by the pack creator (Phase 11).',
+  'cascade.source-backline-tooltip': 'Curated by Backline admin — visible to all users.',
+  'cascade.restore': 'Restore default version',
+  'cascade.restore-tooltip': 'Removes your override and falls back to the next cascade level (Backline or Catalog).',
+  'cascade.edit-hint-user': 'Saved as your personal override (only visible to you, takes priority over Backline and Catalog levels).',
+  'cascade.edit-hint-admin': 'Saved in the shared Backline catalog (visible to all profiles, cascade level 3).',
+
   // compat (Phase 7.83 — qualitative compatibility buckets)
   'compat.ideal-match': '🟢 Perfect match',
   'compat.good-match': '🟡 Good match',

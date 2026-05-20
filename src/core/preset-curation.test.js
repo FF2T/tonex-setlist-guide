@@ -8,6 +8,8 @@ import {
   detectAllNonCurated,
   EDITABLE_SOURCES,
   applyResolutionsToBanks,
+  saveUsagesForPreset,
+  removeUsagesOverride,
 } from './preset-curation.js';
 
 // Noms catalog "known" connus → status='known' (sans usages).
@@ -204,5 +206,215 @@ describe('detectAllNonCurated', () => {
   test('slots vides ou non-string → ignorés', () => {
     const banks = { 1: { A: '', B: null, C: undefined } };
     expect(detectAllNonCurated(banks)).toEqual([]);
+  });
+});
+
+// Phase 7.79.3b — saveUsagesForPreset routing étendu (4 niveaux)
+describe('saveUsagesForPreset routing étendu (Phase 7.79.3b)', () => {
+  // Helper : capture l'appel et stocke le reducer pour le rejouer
+  function captureSetter() {
+    const calls = [];
+    const setter = (reducer) => { calls.push(reducer); };
+    setter.calls = calls;
+    return setter;
+  }
+
+  test('src=custom → onProfiles avec customPacks (rétro-compat)', () => {
+    const onProfiles = captureSetter();
+    saveUsagesForPreset('MyCustom', [{ artist: 'A' }], {
+      findEntry: () => ({ src: 'custom', guessed: false }),
+      activeProfileId: 'p1',
+      onProfiles,
+      onShared: captureSetter(),
+    });
+    expect(onProfiles.calls).toHaveLength(1);
+    const result = onProfiles.calls[0]({ p1: { customPacks: [{ name: 'P', presets: [{ name: 'MyCustom' }] }] } });
+    expect(result.p1.customPacks[0].presets[0].usages).toEqual([{ artist: 'A' }]);
+    expect(typeof result.p1.lastModified).toBe('number');
+  });
+
+  test('src=ToneNET → onToneNetPresets (rétro-compat)', () => {
+    const onToneNetPresets = captureSetter();
+    saveUsagesForPreset('MyTN', [{ artist: 'A' }], {
+      findEntry: () => ({ src: 'ToneNET', guessed: false }),
+      onToneNetPresets,
+    });
+    expect(onToneNetPresets.calls).toHaveLength(1);
+    const result = onToneNetPresets.calls[0]([{ name: 'MyTN' }]);
+    expect(result[0].usages).toEqual([{ artist: 'A' }]);
+    expect(typeof result[0].lastModified).toBe('number');
+  });
+
+  test('catalog statique + admin → shared.usagesOverrides', () => {
+    const onShared = captureSetter();
+    saveUsagesForPreset('TSR Mars 800SL', [{ artist: 'Iron Maiden' }], {
+      findEntry: () => ({ src: 'TSR', guessed: false }),
+      isAdmin: true,
+      onShared,
+    });
+    expect(onShared.calls).toHaveLength(1);
+    const result = onShared.calls[0]({ usagesOverrides: {} });
+    expect(result.usagesOverrides['TSR Mars 800SL'].usages).toEqual([{ artist: 'Iron Maiden' }]);
+    expect(typeof result.usagesOverrides['TSR Mars 800SL'].lastModified).toBe('number');
+    expect(typeof result.lastModified).toBe('number');
+  });
+
+  test('catalog statique + non-admin → profile.usagesOverrides', () => {
+    const onProfiles = captureSetter();
+    saveUsagesForPreset('TSR Mars 800SL', [{ artist: 'Slash' }], {
+      findEntry: () => ({ src: 'TSR', guessed: false }),
+      isAdmin: false,
+      activeProfileId: 'bruno',
+      onProfiles,
+    });
+    expect(onProfiles.calls).toHaveLength(1);
+    const result = onProfiles.calls[0]({ bruno: {} });
+    expect(result.bruno.usagesOverrides['TSR Mars 800SL'].usages).toEqual([{ artist: 'Slash' }]);
+    expect(typeof result.bruno.usagesOverrides['TSR Mars 800SL'].lastModified).toBe('number');
+    expect(typeof result.bruno.lastModified).toBe('number');
+  });
+
+  test('catalog statique + usages=undefined → écrit { usages: null } (override vide explicite)', () => {
+    const onProfiles = captureSetter();
+    saveUsagesForPreset('AA MRSH JT50', undefined, {
+      findEntry: () => ({ src: 'Anniversary', guessed: false }),
+      isAdmin: false,
+      activeProfileId: 'bruno',
+      onProfiles,
+    });
+    const result = onProfiles.calls[0]({ bruno: {} });
+    expect(result.bruno.usagesOverrides['AA MRSH JT50'].usages).toBe(null);
+  });
+
+  test('catalog statique + admin sans onShared → no-op silencieux', () => {
+    const onProfiles = captureSetter();
+    saveUsagesForPreset('TSR Mars 800SL', [{ artist: 'X' }], {
+      findEntry: () => ({ src: 'TSR', guessed: false }),
+      isAdmin: true,
+      onProfiles, // ignoré car admin va vers onShared
+    });
+    expect(onProfiles.calls).toHaveLength(0);
+  });
+
+  test('entry.guessed=true → no-op (preset inconnu pas enrichissable)', () => {
+    const onShared = captureSetter();
+    const onProfiles = captureSetter();
+    saveUsagesForPreset('Random Unknown', [{ artist: 'X' }], {
+      findEntry: () => ({ src: 'ToneNET', guessed: true }),
+      isAdmin: true,
+      onShared,
+      onProfiles,
+    });
+    expect(onShared.calls).toHaveLength(0);
+    expect(onProfiles.calls).toHaveLength(0);
+  });
+
+  test('findEntry retourne null → no-op', () => {
+    const onShared = captureSetter();
+    saveUsagesForPreset('Whatever', [{ artist: 'X' }], {
+      findEntry: () => null,
+      isAdmin: true,
+      onShared,
+    });
+    expect(onShared.calls).toHaveLength(0);
+  });
+
+  test('ctx vide ou name vide → no-op', () => {
+    const onShared = captureSetter();
+    saveUsagesForPreset(null, [{ artist: 'X' }], { findEntry: () => ({ src: 'TSR' }), onShared });
+    saveUsagesForPreset('Name', [{ artist: 'X' }], null);
+    expect(onShared.calls).toHaveLength(0);
+  });
+});
+
+describe('removeUsagesOverride (Phase 7.79.3b)', () => {
+  function captureSetter() {
+    const calls = [];
+    const setter = (reducer) => { calls.push(reducer); };
+    setter.calls = calls;
+    return setter;
+  }
+
+  test('admin → delete shared.usagesOverrides[name]', () => {
+    const onShared = captureSetter();
+    removeUsagesOverride('TSR Mars 800SL', {
+      findEntry: () => ({ src: 'TSR', guessed: false }),
+      isAdmin: true,
+      onShared,
+    });
+    const result = onShared.calls[0]({
+      usagesOverrides: { 'TSR Mars 800SL': { usages: [{ artist: 'X' }], lastModified: 100 } },
+    });
+    expect('TSR Mars 800SL' in result.usagesOverrides).toBe(false);
+    expect(typeof result.lastModified).toBe('number');
+  });
+
+  test('non-admin → delete profile.usagesOverrides[name]', () => {
+    const onProfiles = captureSetter();
+    removeUsagesOverride('TSR Mars 800SL', {
+      findEntry: () => ({ src: 'TSR', guessed: false }),
+      isAdmin: false,
+      activeProfileId: 'bruno',
+      onProfiles,
+    });
+    const result = onProfiles.calls[0]({
+      bruno: { usagesOverrides: { 'TSR Mars 800SL': { usages: [{ artist: 'X' }] } } },
+    });
+    expect('TSR Mars 800SL' in result.bruno.usagesOverrides).toBe(false);
+  });
+
+  test('no-op si entry pas dans la map (pas d\'override actif)', () => {
+    const onShared = captureSetter();
+    removeUsagesOverride('TSR Mars 800SL', {
+      findEntry: () => ({ src: 'TSR', guessed: false }),
+      isAdmin: true,
+      onShared,
+    });
+    const result = onShared.calls[0]({ usagesOverrides: {} });
+    // Le reducer doit retourner sh tel quel
+    expect(result).toEqual({ usagesOverrides: {} });
+  });
+
+  test('src=custom → no-op (cascade ne s\'applique pas)', () => {
+    const onShared = captureSetter();
+    const onProfiles = captureSetter();
+    removeUsagesOverride('MyCustom', {
+      findEntry: () => ({ src: 'custom', guessed: false }),
+      isAdmin: true,
+      onShared,
+      onProfiles,
+    });
+    expect(onShared.calls).toHaveLength(0);
+    expect(onProfiles.calls).toHaveLength(0);
+  });
+
+  test('src=ToneNET → no-op (cascade ne s\'applique pas)', () => {
+    const onShared = captureSetter();
+    removeUsagesOverride('MyTN', {
+      findEntry: () => ({ src: 'ToneNET', guessed: false }),
+      isAdmin: true,
+      onShared,
+    });
+    expect(onShared.calls).toHaveLength(0);
+  });
+
+  test('entry.guessed=true → no-op', () => {
+    const onShared = captureSetter();
+    removeUsagesOverride('Random', {
+      findEntry: () => ({ src: 'TSR', guessed: true }),
+      isAdmin: true,
+      onShared,
+    });
+    expect(onShared.calls).toHaveLength(0);
+  });
+
+  test('findEntry null → no-op', () => {
+    const onShared = captureSetter();
+    removeUsagesOverride('X', {
+      findEntry: () => null,
+      isAdmin: true,
+      onShared,
+    });
+    expect(onShared.calls).toHaveLength(0);
   });
 });

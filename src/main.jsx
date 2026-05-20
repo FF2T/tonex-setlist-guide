@@ -52,7 +52,7 @@ import { INIT_SETLISTS } from './core/setlists.js';
 import {
   PRESET_CATALOG_MERGED, findCatalogEntry, guessPresetInfo, normalizePresetName,
 } from './core/catalog.js';
-import { saveUsagesForPreset } from './core/preset-curation.js';
+import { saveUsagesForPreset, removeUsagesOverride } from './core/preset-curation.js';
 import {
   SCORING_VERSION, SCORING_WEIGHTS,
   BASE_SCORES, GUITAR_PROFILES, STYLE_COMPATIBILITY, GAIN_RANGES,
@@ -276,7 +276,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.151";
+const APP_VERSION = "8.14.152";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -505,6 +505,16 @@ function App() {
   // par tous les profils via leur toggle Sources existant (TSR / AA /
   // ML / JS / TJ / WT / Galtone / ToneNET selon la source choisie).
   const [adminPacks, setAdminPacks] = useState(initDefault.shared?.adminPacks || []);
+  // Phase 7.79.3b — shared.usagesOverrides : niveau 3 de la cascade
+  // d'overrides d'usages (cf src/core/usages-cascade.js). Écrit par l'admin
+  // depuis UsagesSection sur un catalog statique → visible par tous les
+  // profils via la cascade. Sync Firestore en Phase 7.79.3c (merge per-item
+  // LWW pattern Phase 7.53.1). Slot { [presetName]: { usages, lastModified } }.
+  const [sharedUsagesOverrides, setSharedUsagesOverrides] = useState(initDefault.shared?.usagesOverrides || {});
+  // Phase 7.79.3b — shared.studioUsages : niveau 2 de la cascade (slot Phase 11).
+  // Non écrit par Backline V1 mais lu par findCatalogEntry pour préparer
+  // le routing studio-driven (cf "Idées en attente" Phase 11).
+  const [sharedStudioUsages, setSharedStudioUsages] = useState(initDefault.shared?.studioUsages || {});
   // Sync ToneNET presets to global lookup for findCatalogEntry
   useEffect(()=>{
     var lookup={};
@@ -517,6 +527,19 @@ function App() {
     });
     window._toneNetLookup=lookup;
   },[toneNetPresets]);
+
+  // Phase 7.79.3b — Sync de l'état cascade vers window._usagesCascadeState
+  // utilisé par findCatalogEntry pour résoudre la cascade 4 niveaux. Doit
+  // être mis à jour au boot ET à chaque mutation de profile.usagesOverrides /
+  // shared.usagesOverrides / shared.studioUsages.
+  useEffect(()=>{
+    if(typeof window==='undefined') return;
+    window._usagesCascadeState = {
+      profileOv: profile?.usagesOverrides || {},
+      studioOv: sharedStudioUsages || {},
+      backlineOv: sharedUsagesOverrides || {},
+    };
+  },[profile?.usagesOverrides, sharedStudioUsages, sharedUsagesOverrides]);
 
   // Sync ToneNET presets into global catalog for scoring engine (useMemo = synchronous, runs before child useMemos)
   useMemo(()=>{
@@ -1564,10 +1587,45 @@ function App() {
   var screenContent=null;
   if(screen==="viewprofile"&&profile?.isAdmin&&viewProfileId&&profiles[viewProfileId]) screenContent=<ViewProfileScreen profile={profiles[viewProfileId]} onBack={()=>setScreen("list")} onNavigate={setScreen}/>;
   else if(screen==="exportimport") screenContent=<ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("profile")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/>;
-  else if(screen==="profile") screenContent=<MonProfilScreen songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} onDeletedSetlistIds={setDeletedSetlistIds} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={effectiveGuitarBias} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} adminPacks={adminPacks} onAdminPacks={setAdminPacks} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");sessionStorage.removeItem(ADMIN_ORIGIN_KEY);setScreen("pick");}} MaintenanceTabComponent={MaintenanceTab} onSaveSharedKey={saveSharedKey}/>;
+  else if(screen==="profile") screenContent=<MonProfilScreen songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} onDeletedSetlistIds={setDeletedSetlistIds} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={effectiveGuitarBias} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} adminPacks={adminPacks} onAdminPacks={setAdminPacks} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");sessionStorage.removeItem(ADMIN_ORIGIN_KEY);setScreen("pick");}} MaintenanceTabComponent={MaintenanceTab} onSaveSharedKey={saveSharedKey}
+    onSharedUsagesOverrides={(reducer)=>setSharedUsagesOverrides((prevMap)=>{const sh={usagesOverrides:prevMap};const next=reducer(sh);return next?.usagesOverrides||{};})}
+  />;
   else if(screen==="setlists") screenContent=<SetlistsScreen songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} mySongIds={mySongIds} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onProfiles={setProfiles} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets}/>;
   else if(screen==="jam") screenContent=<div><Breadcrumb crumbs={[{label:t("nav.home","Accueil"),screen:"list"},{label:t("nav.jam","Jammer")}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>{t("jam.page-title","🎲 Jammer")}</div><JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources} profile={profile}/></div>;
-  else if(screen==="explore") screenContent=<div><Breadcrumb crumbs={[{label:t("nav.home","Accueil"),screen:"list"},{label:t("nav.explore","Explorer")}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>{t("preset-browser.page-title","🎛️ Explorer les presets")}</div><PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={profile.customPacks} guitars={allGuitars} toneNetPresets={toneNetPresets} isAdmin={isAdmin} songDb={songDb} onSaveUsages={(name,usages)=>saveUsagesForPreset(name,usages,{findEntry:findCatalogEntry,activeProfileId,onProfiles:setProfiles,onToneNetPresets:setToneNetPresets})}/></div>;
+  else if(screen==="explore") screenContent=<div><Breadcrumb crumbs={[{label:t("nav.home","Accueil"),screen:"list"},{label:t("nav.explore","Explorer")}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>{t("preset-browser.page-title","🎛️ Explorer les presets")}</div><PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={profile.customPacks} guitars={allGuitars} toneNetPresets={toneNetPresets} isAdmin={isAdmin} songDb={songDb}
+    onSaveUsages={(name,usages)=>{
+      // Phase 7.79.3b — ctx étendu pour router custom/ToneNET/catalog statique
+      // selon entry.src + isAdmin. cf src/core/preset-curation.js.
+      saveUsagesForPreset(name, usages, {
+        findEntry: findCatalogEntry,
+        activeProfileId,
+        isAdmin,
+        onProfiles: setProfiles,
+        onToneNetPresets: setToneNetPresets,
+        // Adapter : saveUsagesForPreset attend onShared(reducer(sh) => sh').
+        // On compose un sh partiel à la volée avec la forme fonctionnelle
+        // de setSharedUsagesOverrides pour éviter les closures stales.
+        onShared: (reducer) => setSharedUsagesOverrides((prevMap) => {
+          const sh = { usagesOverrides: prevMap };
+          const next = reducer(sh);
+          return next?.usagesOverrides || {};
+        }),
+      });
+    }}
+    onRemoveOverride={(name)=>{
+      removeUsagesOverride(name, {
+        findEntry: findCatalogEntry,
+        activeProfileId,
+        isAdmin,
+        onProfiles: setProfiles,
+        onShared: (reducer) => setSharedUsagesOverrides((prevMap) => {
+          const sh = { usagesOverrides: prevMap };
+          const next = reducer(sh);
+          return next?.usagesOverrides || {};
+        }),
+      });
+    }}
+  /></div>;
   else if(screen==="optimizer"&&isAdmin) screenContent=<BankOptimizerScreen songDb={songDbWithProfileCache} setlists={mySetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} allGuitars={allGuitars} availableSources={availableSources} onNavigate={setScreen} profile={profile}/>;
   // Phase 7.72 — Écran ⚙️ Admin séparé, gated isAdmin (URL hack defense).
   else if(screen==="admin"&&isAdmin) screenContent=<AdminScreen profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} allSetlists={setlists} onSetlists={setSetlists} onDeletedSetlistIds={setDeletedSetlistIds} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} onSaveSharedKey={saveSharedKey} guitarBias={effectiveGuitarBias} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} adminPacks={adminPacks} onAdminPacks={setAdminPacks} MaintenanceTabComponent={MaintenanceTab} fullState={fullState} onImportState={onImportState} onBack={()=>setScreen("list")} onNavigate={setScreen}/>;

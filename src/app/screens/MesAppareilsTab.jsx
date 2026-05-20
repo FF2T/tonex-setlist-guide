@@ -55,6 +55,7 @@ function MesAppareilsTab({
   songDb,
   fullState, onImportState,
   onNavigate,
+  onSharedUsagesOverrides, // Phase 7.79.3b — propagé à BankEditor
 }) {
   const isAdmin = !!profile?.isAdmin;
   const allDevices = getAllDevices();
@@ -248,6 +249,7 @@ function MesAppareilsTab({
             onToneNetPresets={onToneNetPresets}
             profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId}
             songDb={songDb} isAdmin={isAdmin}
+            onSharedUsagesOverrides={onSharedUsagesOverrides}
             factoryBanksByVersion={[
               { id: 'v2', label: t('bank-editor.firmware-v2', 'Firmware v2 (2025/04/03)'), banks: FACTORY_BANKS_PEDALE_V2 },
               { id: 'v1', label: t('bank-editor.firmware-v1', 'Firmware v1 (historique)'), banks: FACTORY_BANKS_PEDALE_V1 },
@@ -282,6 +284,7 @@ function MesAppareilsTab({
             onToneNetPresets={onToneNetPresets}
             profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId}
             songDb={songDb} isAdmin={isAdmin}
+            onSharedUsagesOverrides={onSharedUsagesOverrides}
           />
         </>
       );
@@ -306,6 +309,7 @@ function MesAppareilsTab({
             onToneNetPresets={onToneNetPresets}
             profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId}
             songDb={songDb} isAdmin={isAdmin}
+            onSharedUsagesOverrides={onSharedUsagesOverrides}
           />
         </>
       );

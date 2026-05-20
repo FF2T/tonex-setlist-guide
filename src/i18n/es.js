@@ -478,6 +478,19 @@ const es = {
   'preset-browser.page-title': '🎛️ Explorar presets',
   'preset-browser.what-sound': '¿Qué sonido buscas?',
 
+  // cascade (Phase 7.79.3 — fuente de usages en cascada)
+  'cascade.source-user': 'Tú',
+  'cascade.source-studio': 'Studio',
+  'cascade.source-studio-by': 'Studio ({studio})',
+  'cascade.source-backline': 'Backline',
+  'cascade.source-user-tooltip': 'Anulación personal — solo visible para ti, prioridad máxima.',
+  'cascade.source-studio-tooltip': 'Curado por el creador del pack (Fase 11).',
+  'cascade.source-backline-tooltip': 'Curado por el admin de Backline — visible para todos.',
+  'cascade.restore': 'Restaurar versión predeterminada',
+  'cascade.restore-tooltip': 'Elimina tu anulación y vuelve al siguiente nivel de la cascada (Backline o Catálogo).',
+  'cascade.edit-hint-user': 'Guardado como tu anulación personal (solo visible para ti, prioritaria sobre los niveles Backline y Catálogo).',
+  'cascade.edit-hint-admin': 'Guardado en el catálogo Backline compartido (visible para todos los perfiles, nivel cascada 3).',
+
   // compat (Phase 7.83 — niveles de compatibilidad cualitativos)
   'compat.ideal-match': '🟢 Combinación perfecta',
   'compat.good-match': '🟡 Buena combinación',

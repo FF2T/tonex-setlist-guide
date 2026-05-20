@@ -98,14 +98,33 @@ function findAmpContext(ampName, ctxMap) {
 //   - isAdmin: boolean
 //   - songDb: songs[] pour datalist artist+song
 //   - onSaveUsages: (presetName, usages|undefined) => void
-//     usages=undefined ⇒ retirer le champ usages de l'entry.
+//     usages=undefined ⇒ retirer le champ usages (custom/ToneNET) ou écrire
+//     { usages: null } (catalog statique = override vide explicite).
 //     Si non fourni (callers JamScreen, etc.), le composant reste en mode
 //     lecture seule (pas de bouton Modifier).
-const EDITABLE_SOURCES_INLINE = new Set(['custom', 'ToneNET']);
-function UsagesSection({ presetName, ampRefs, isAdmin, songDb, onSaveUsages, sectionStyle, sectionTitle }) {
+//   - onRemoveOverride: (presetName) => void (Phase 7.79.3b)
+//     Pour retirer un override de la cascade et reprendre le niveau suivant.
+//     Disponible uniquement quand entry._usagesSource ∈ {'user', 'backline'}.
+//
+// Phase 7.79.3b — édition étendue à TOUS les catalog non-guessed :
+//   - custom/ToneNET : édition perso comme avant (Phase 7.79.2)
+//   - catalog statique (TSR/AA/JS/...) :
+//     - non-admin → écrit dans profile.usagesOverrides (visible user seul)
+//     - admin → écrit dans shared.usagesOverrides (visible tous users)
+//   - guessed=true (preset inconnu) → pas éditable (saveUsagesForPreset no-op)
+function UsagesSection({ presetName, ampRefs, isAdmin, songDb, onSaveUsages, onRemoveOverride, sectionStyle, sectionTitle }) {
   const entry = useMemo(() => findCatalogEntry(presetName), [presetName]);
-  const editable = !!entry && !entry.guessed && EDITABLE_SOURCES_INLINE.has(entry.src) && isAdmin && typeof onSaveUsages === 'function';
+  // Phase 7.79.3b — éditable pour TOUTES les sources non-guessed.
+  // Le routing user/admin est géré côté saveUsagesForPreset (Phase 7.79.3b).
+  const editable = !!entry && !entry.guessed && typeof onSaveUsages === 'function';
   const existingUsages = Array.isArray(entry?.usages) ? entry.usages : [];
+  // Phase 7.79.3b — source de cascade pour affichage badge + condition Restaurer.
+  const usagesSource = entry?._usagesSource || null;
+  const usagesCuratedBy = entry?._usagesCuratedBy || null;
+  // Bouton "Restaurer" disponible si l'user voit son propre override
+  // ('user' visible que par lui) ou si admin voit un override Backline.
+  const canRemoveOverride = !!entry && !entry.guessed && typeof onRemoveOverride === 'function' &&
+    (usagesSource === 'user' || (usagesSource === 'backline' && isAdmin));
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(() => existingUsages.map((u) => ({
     artist: u.artist || '',
@@ -188,9 +207,33 @@ function UsagesSection({ presetName, ampRefs, isAdmin, songDb, onSaveUsages, sec
     padding: '4px 6px', flex: 1, fontSize: 12,
   };
 
+  // Phase 7.79.3b — Badge source de la cascade. Helper inline pour
+  // éviter de surcharger l'export i18n.
+  const renderSourceBadge = () => {
+    if (!usagesSource || usagesSource === 'default') return null;
+    const labels = {
+      user: { emoji: '👤', label: t('cascade.source-user', 'Toi'), color: '#7dd3fc', bg: 'rgba(125,211,252,0.15)' },
+      studio: { emoji: '🏷️', label: usagesCuratedBy ? tFormat('cascade.source-studio-by', { studio: usagesCuratedBy }, 'Studio ({studio})') : t('cascade.source-studio', 'Studio'), color: '#1e40af', bg: 'rgba(30,64,175,0.15)' },
+      backline: { emoji: '⚙️', label: t('cascade.source-backline', 'Backline'), color: '#3b82f6', bg: 'rgba(59,130,246,0.15)' },
+    };
+    const lvl = labels[usagesSource];
+    if (!lvl) return null;
+    return (
+      <span
+        title={t(`cascade.source-${usagesSource}-tooltip`, '')}
+        style={{ marginLeft: 8, fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 'var(--r-sm)', color: lvl.color, background: lvl.bg, display: 'inline-flex', alignItems: 'center', gap: 3 }}
+      >
+        {lvl.emoji} {lvl.label}
+      </span>
+    );
+  };
+
   return (
     <div style={sectionStyle}>
-      {sectionTitle('🎯', t('usages.section', 'Usages curés (preset)'))}
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
+        {sectionTitle('🎯', t('usages.section', 'Usages curés (preset)'))}
+        {renderSourceBadge()}
+      </div>
       {!isEditing && (
         <>
           {existingUsages.length === 0 ? (
@@ -209,22 +252,40 @@ function UsagesSection({ presetName, ampRefs, isAdmin, songDb, onSaveUsages, sec
               ))}
             </div>
           )}
-          {editable && (
-            <button
-              onClick={() => setIsEditing(true)}
-              style={{ marginTop: 8, background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-sm)', padding: '4px 10px', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}
-            >
-              ✏️ {existingUsages.length === 0 ? t('usages.curate', 'Curer ce preset') : t('usages.edit', 'Modifier ces usages')}
-            </button>
-          )}
+          {/* Phase 7.79.3b — Boutons d'action : Modifier + Restaurer (si applicable) */}
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+            {editable && (
+              <button
+                onClick={() => setIsEditing(true)}
+                style={{ background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-sm)', padding: '4px 10px', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}
+              >
+                ✏️ {existingUsages.length === 0 ? t('usages.curate', 'Curer ce preset') : t('usages.edit', 'Modifier ces usages')}
+              </button>
+            )}
+            {canRemoveOverride && (
+              <button
+                onClick={() => onRemoveOverride(presetName)}
+                title={t('cascade.restore-tooltip', 'Retire ton override et reprend le niveau de cascade suivant (Backline ou Catalog).')}
+                style={{ background: 'var(--a7)', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '4px 10px', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}
+              >
+                🔄 {t('cascade.restore', 'Restaurer la version par défaut')}
+              </button>
+            )}
+          </div>
         </>
       )}
       {isEditing && (
         <>
+          {/* Phase 7.79.3b — hint adapté selon entry.src + isAdmin pour informer
+              clairement l'user où sera persisté son override. */}
           <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 6 }}>
             {entry.src === 'custom'
               ? t('usages.edit-hint-custom', 'Persisté dans tes presets persos (profile.customPacks).')
-              : t('usages.edit-hint-tonenet', 'Persisté dans le catalog ToneNET partagé (shared.toneNetPresets).')}
+              : entry.src === 'ToneNET'
+              ? t('usages.edit-hint-tonenet', 'Persisté dans le catalog ToneNET partagé (shared.toneNetPresets).')
+              : isAdmin
+              ? t('cascade.edit-hint-admin', 'Persisté dans le catalog Backline partagé (visible par tous les profils, niveau cascade 3).')
+              : t('cascade.edit-hint-user', 'Persisté dans ton override perso (visible uniquement par toi, prioritaire sur les niveaux Backline et Catalog).')}
           </div>
           {Array.isArray(ampRefs) && ampRefs.length > 0 && (
             <button
