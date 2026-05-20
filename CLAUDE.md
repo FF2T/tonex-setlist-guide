@@ -746,7 +746,97 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-20 fin d'après-midi, Phase 7.83 livrée — compat guitare qualitative 3 niveaux)
+## État actuel (2026-05-20 soir, Phase 7.79.3a livrée — Helpers cascade usages 4 niveaux + extension findCatalogEntry)
+
+**Backline v8.14.151 / SW backline-v251 / STATE_VERSION 10 / 1363 tests verts.**
+
+### Phase 7.79.3a — Helpers cascade usages (v8.14.151)
+
+Première sous-phase de la cascade 4 niveaux validée 2026-05-19 soir
+(cf "Idées en attente" Phase 7.79.3 historique). 7.79.3a livre les
+helpers purs + l'extension `findCatalogEntry` qui lit la cascade.
+Inert tant que `window._usagesCascadeState` n'est pas posé par main.jsx
+(Phase 7.79.3c). Aucune régression : si pas de cascade state, comportement
+identique à avant. **Phase 7.79.3b** (UI + routing) et **7.79.3c** (sync
+Firestore + cabling main.jsx) suivent dans la foulée.
+
+#### Helper pur `src/core/usages-cascade.js`
+
+- **`resolveUsagesCascade(name, state)`** → `{ usages, source, curatedBy? }`
+  - 4 niveaux de priorité : `profileOv` > `studioOv` > `backlineOv` > `catalogEntry.usages`
+  - `state` accepte les 3 maps d'overrides + l'entry catalog brute
+  - Override "vide explicite" (`usages: null`) STOP la cascade et retourne
+    `null` — intentionnel : l'user a le dernier mot, sa "désactivation"
+    écrase un niveau studio/backline/catalog
+  - `source` ∈ {'user', 'studio', 'backline', 'default', null}
+  - Defensive : inputs invalides → `{ usages: null, source: null }`
+
+- **`mergeUsagesOverridesLWW(local, remote)`** : merge per-item LWW pour
+  sync Firestore (pattern Phase 7.53.1 toneNetPresets) :
+  - Présent des 2 côtés → garde plus grand `lastModified` (égalité → keep local)
+  - Local-only → keep local
+  - Remote-only → adopt remote
+  - Override vide (`usages: null`) survit au merge (sa stamp gagne LWW si
+    plus récente que le remote qui a des usages : []) → la cascade lira
+    bien "vide explicite" sur tous les devices
+
+- **`getUsageOverride(map, name)`** : lookup defensive sur map d'overrides.
+
+28 tests Vitest dédiés (`usages-cascade.test.js`) :
+- `getUsageOverride` × 4 : null safety, name vide, présent/absent
+- `resolveUsagesCascade` × 11 : chaque niveau gagne, override vide explicite
+  stoppe la cascade, entry sans usages, defensives inputs invalides,
+  catalog usages non-Array, niveau présent sans champ usages → skip
+- `mergeUsagesOverridesLWW` × 10 : local/remote plus récent, égalité,
+  unions, ts manquant fallback 0, null/undefined inputs, override vide
+  propagé
+- Scénarios bout-en-bout × 3 : user > backline > catalog, sync 2 devices
+  keys distinctes, sync conflit même preset
+
+#### Extension `findCatalogEntry` dans `src/core/catalog.js`
+
+- Split `_findCatalogEntryRaw` (lookup catalog brut sans cascade) +
+  `findCatalogEntry` (applique cascade via `_applyUsagesCascade`).
+- `_applyUsagesCascade` lit `window._usagesCascadeState` si présent et
+  appelle `resolveUsagesCascade` pour résoudre les usages selon les 4
+  niveaux. Annote l'entry avec `_usagesSource` ('user'|'studio'|'backline'|
+  'default') et `_usagesCuratedBy` (pour studio Phase 11).
+- **Rétro-compat garantie** : si pas de `window._usagesCascadeState`
+  (Vitest, SSR, app pré-7.79.3), `findCatalogEntry` retourne l'entry
+  brute exactement comme avant. Aucun call site existant n'a besoin
+  d'être modifié.
+
+### Architecture livrée Phase 7.79.3a
+
+```
+src/main.jsx                              APP_VERSION 8.14.150 → 8.14.151
+public/sw.js                              CACHE backline-v250 → backline-v251
+src/core/usages-cascade.js                NOUVEAU — getUsageOverride,
+                                          resolveUsagesCascade,
+                                          mergeUsagesOverridesLWW
+src/core/usages-cascade.test.js           NOUVEAU — 28 tests
+src/core/catalog.js                       +import resolveUsagesCascade
+                                          +_applyUsagesCascade helper
+                                          split findCatalogEntry en
+                                          _findCatalogEntryRaw (interne)
+                                          + findCatalogEntry (wrapper
+                                          avec cascade)
+```
+
+### Conséquences Phase 7.79.3a (seul, sans 7.79.3b/c)
+
+- **1363/1363 tests verts** (+28 nouveaux).
+- Pas de bump STATE_VERSION (additif, optional, fallback gracieux).
+- Pas de migration localStorage.
+- **Effet utilisateur immédiat : aucun**. Phase 7.79.3a est de la
+  plomberie pour Phase 7.79.3b (UI) et 7.79.3c (sync). Aucune cascade
+  state n'est exposée par main.jsx en 7.79.3a → `findCatalogEntry`
+  se comporte exactement comme avant.
+- Bundle TBD (build à la fin de 7.79.3c).
+
+---
+
+## État précédent (2026-05-20 fin d'après-midi, Phase 7.83 livrée — compat guitare qualitative 3 niveaux)
 
 **Backline v8.14.150 / SW backline-v250 / STATE_VERSION 10 / 1335 tests verts.**
 

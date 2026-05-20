@@ -13,13 +13,50 @@ import {
 } from '../data/data_catalogs.js';
 import { PRESET_CATALOG_FULL } from '../data/preset_catalog_full.js';
 import { ANNIVERSARY_PREMIUM_CATALOG } from '../data/anniversary-premium-catalog.js';
+import { resolveUsagesCascade } from './usages-cascade.js';
 
 // Cherche un preset dans le catalogue par nom exact puis fuzzy.
 // Phase 7.52 : ANNIVERSARY_PREMIUM_CATALOG est spread APRÈS ANNIVERSARY_CATALOG
 // pour override les 150 entrées legacy (mêmes clés, metadata curées :
 // packName, character, stomp, scores curés un à un, usages artiste/morceau).
 const PRESET_CATALOG_MERGED = {...PRESET_CATALOG_FULL, ...TSR_PACK_CATALOG, ...ANNIVERSARY_CATALOG, ...ANNIVERSARY_PREMIUM_CATALOG, ...FACTORY_CATALOG, ...PLUG_FACTORY_CATALOG, ...PRESET_CATALOG};
-function findCatalogEntry(name){
+
+// Phase 7.79.3a — applique la cascade d'overrides d'usages si elle est
+// exposée sur window._usagesCascadeState. Retourne l'entry enrichie d'un
+// champ `_usagesSource` ('user'|'studio'|'backline'|'default') pour que
+// l'UI puisse afficher le badge approprié. Le champ `usages` de l'entry
+// peut aussi être null si l'user a explicitement vidé l'override.
+//
+// Si pas de cascade state (Vitest, SSR, ou app pré-7.79.3) → no-op,
+// l'entry catalog brute est retournée tel quel (rétro-compat).
+function _applyUsagesCascade(name, entry) {
+  if (typeof window === 'undefined') return entry;
+  const state = window._usagesCascadeState;
+  if (!state || typeof state !== 'object') return entry;
+  const resolved = resolveUsagesCascade(name, {
+    profileOv: state.profileOv,
+    studioOv: state.studioOv,
+    backlineOv: state.backlineOv,
+    catalogEntry: entry,
+  });
+  // Pas d'override actif et pas de usages catalog → entry inchangée
+  if (resolved.source === null && (!entry || !entry.usages)) return entry;
+  // Source 'default' → on retourne l'entry telle quelle (les usages
+  // viennent déjà du catalog). On annote quand même _usagesSource.
+  const enriched = entry ? { ...entry } : {};
+  if (resolved.source && resolved.source !== 'default') {
+    // Override actif → remplace usages (peut être null = "vide explicite")
+    enriched.usages = resolved.usages;
+  }
+  enriched._usagesSource = resolved.source || 'default';
+  if (resolved.curatedBy) enriched._usagesCuratedBy = resolved.curatedBy;
+  return enriched;
+}
+
+// Lookup catalog brut, sans appliquer la cascade. Utilisé en interne par
+// findCatalogEntry (qui ajoute la cascade) et exposé pour tests/cases
+// très spécifiques.
+function _findCatalogEntryRaw(name){
   if(!name) return null;
   if(PRESET_CATALOG_MERGED[name]) return PRESET_CATALOG_MERGED[name];
   // Chercher dans les presets ToneNET saisis par l'utilisateur
@@ -56,6 +93,31 @@ function findCatalogEntry(name){
   }
   // Preset inconnu (ToneNET, custom) — deviner les caractéristiques depuis le nom
   return guessPresetInfo(name);
+}
+
+// Phase 7.79.3a — findCatalogEntry applique la cascade d'usages
+// (profile.usagesOverrides > shared.studioUsages > shared.usagesOverrides
+// > catalog.entry.usages) sur le résultat brut. La cascade est lue depuis
+// window._usagesCascadeState qui doit être maintenu à jour par l'App au
+// boot et à chaque mutation (Phase 7.79.3c).
+//
+// Si aucune cascade state n'est exposée (Vitest, SSR, app pré-7.79.3),
+// le comportement est identique à _findCatalogEntryRaw (rétro-compat).
+//
+// Effet sur les entries retournées :
+//   - Sans override actif : entry inchangée
+//   - Avec override 'user'/'studio'/'backline' : entry.usages remplacé
+//     (peut être null si override "vide explicite") + flag _usagesSource
+//   - Avec override de tout niveau matche default : entry inchangée
+//     mais _usagesSource='default' ajouté pour cohérence
+//
+// Les entries 'guessed' (fallback guessPresetInfo) reçoivent aussi la
+// cascade — un user peut tagger des usages sur un preset que findCatalogEntry
+// n'a pas trouvé dans le catalog (cas rare mais valide).
+function findCatalogEntry(name){
+  const raw = _findCatalogEntryRaw(name);
+  if (!raw) return null;
+  return _applyUsagesCascade(name, raw);
 }
 function guessPresetInfo(name){
   if(!name) return null;
