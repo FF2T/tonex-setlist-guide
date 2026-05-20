@@ -746,7 +746,120 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-20 matin, Phase 7.82 livrée — fixes i18n mode démo + désactivation mode scène en démo)
+## État actuel (2026-05-20 midi, Phase 7.82.1 livrée — patch démo locale + 🎤 ListScreen)
+
+**Backline v8.14.148 / SW backline-v248 / STATE_VERSION 10 / 1323 tests verts.**
+
+### Phase 7.82.1 — Patch démo locale + 🎤 ListScreen (v8.14.148)
+
+Suite Phase 7.82 livrée le matin (v8.14.147), Sébastien a constaté 2
+choses lors du re-audit Chrome MCP :
+
+1. **Bug #0 persistait** : démo démarrait toujours en FR malgré
+   l'override Phase 7.82 dans `enterDemoMode`.
+2. **Désactivation mode scène incomplète** : Phase 7.82 masquait le
+   CTA HomeScreen mais le bouton 🎤 dans la barre du sélecteur de
+   setlist (ListScreen) restait actif.
+
+#### Fix 1 — Bug #0 (cause racine = cache `_cachedLocale` figé)
+
+**Diagnostic** : Phase 7.82 utilisait `getLocale()` dans
+`enterDemoMode`. Mais `getLocale()` retourne `_cachedLocale` en
+priorité (Phase 7.41), figé au premier appel. Quand le visiteur
+arrive sur `?demo=1` :
+1. App mount → `useLocale()` à la racine appelle `getLocale()` →
+   lit localStorage → pose `_cachedLocale = 'fr'` (ou autre)
+2. useEffect auto-login → `enterDemoMode()` → `getLocale()` retourne
+   le `_cachedLocale` figé, pas forcément aligné sur le locale réel
+   que le visiteur exprime (LandingScreen sélecteur, localStorage
+   posé manuellement, etc.)
+3. `demoProfile.language = _cachedLocale` → potentiellement faux
+
+**Fix Phase 7.82.1** dans `src/i18n/index.js` — 2 nouveaux helpers :
+
+- **`detectFreshLocale()`** : re-lit `localStorage[backline_locale]`
+  + fallback `navigator.language` sans toucher au cache module.
+  Garantie de refléter la réalité actuelle, pas une valeur figée.
+- **`forceDemoLocale(loc)`** : bascule l'i18n module
+  (`_cachedLocale` + `_activeProfileLanguage` + clear `_tCache` +
+  notify listeners) SANS déclencher `_profileLanguageUpdater` (qui
+  écrirait dans `profile.language` → push Firestore via le profil
+  curateur source).
+
+Dans `src/main.jsx` `enterDemoMode` :
+```js
+const currentLocale = detectFreshLocale();
+forceDemoLocale(currentLocale);
+const demoProfile = { ...snap.profile, language: currentLocale };
+```
+
+`forceDemoLocale` est appelé AVANT `_setProfilesRaw` →
+`setActiveProfileId` pour que les composants déjà mounted
+(LandingScreen → modale d'intro juste après navigation) reflètent
+immédiatement le bon locale, sans attendre que `bindActiveProfile`
+se déclenche au re-render React.
+
+#### Fix 2 — Gate `!isDemo` sur 🎤 ListScreen
+
+`src/app/screens/ListScreen.jsx:414` : ajout du gate `!isDemo` sur
+le bouton 🎤 (data-testid="list-screen-live"). Cohérence avec le
+CTA HomeScreen masqué Phase 7.82. Le visiteur démo ne peut plus
+entrer en LiveScreen (et donc plus tomber sur le bug #6 reporté).
+
+#### Tests Vitest (+10 nouveaux)
+
+`src/i18n/i18n.test.jsx` :
+- **tPlural format plat × 1** (cohérent Phase 7.82 fix Bug #3) :
+  `'list.songs-count'` retourne "1 song"/"5 songs" en EN, idem ES.
+- **detectFreshLocale × 4** : localStorage prioritaire, fallback
+  navigator.language, valeur invalide ignorée, bypass cache module.
+- **forceDemoLocale × 5** : bascule getLocale, notifie listeners,
+  ne déclenche PAS `_profileLanguageUpdater`, no-op si identique,
+  rejette locales non supportés.
+
+1323/1323 tests verts (1313 Phase 7.82 + 10 Phase 7.82.1).
+
+### Architecture livrée Phase 7.82.1
+
+```
+src/main.jsx                       APP_VERSION 8.14.147 → 8.14.148
+                                   +import detectFreshLocale, forceDemoLocale
+                                   enterDemoMode : remplace getLocale() par
+                                   detectFreshLocale() + forceDemoLocale()
+public/sw.js                       CACHE backline-v247 → backline-v248
+src/i18n/index.js                  +detectFreshLocale export (bypass cache)
+                                   +forceDemoLocale export (bascule module
+                                   sans toucher au profil curateur)
+src/i18n/i18n.test.jsx             +10 tests Phase 7.82 + 7.82.1
+src/app/screens/ListScreen.jsx     gate !isDemo sur bouton 🎤
+                                   (cohérence Phase 7.82 HomeScreen)
+```
+
+### Conséquences Phase 7.82.1
+
+- 1323/1323 tests verts ✅
+- Bundle 2481.11 → 2481.35 KB (+0.24 KB pour 2 helpers + 10 tests).
+- Pas de bump STATE_VERSION.
+- Pas de migration localStorage.
+- **Mail 3 Paul Drew enfin débloqué** (vrai cette fois).
+
+### Dette résiduelle Phase 7.82 + 7.82.1
+
+- **Bug #6 (preset Live absent)** : reporté hors démo (mode scène
+  désactivé en démo via Fix 2). Reste à investiguer pour les vrais
+  profils si reporté en pratique. Hypothèse : `ToneXLiveBlock` lit
+  `song?.aiCache?.result?.[device.presetResultKey]?.label` — vérifier
+  que `aiC.preset_ann` / `preset_plug` sont bien remplis par
+  `enrichAIResult` au moment du render Live (pas seulement par
+  `findInBanks` qui matche par installation).
+- **Phase 7.80.1** (audit responsive iPhone/iPad) toujours en
+  attente. Effort 6-10h audit + 10-15h fixes.
+- **Phase 7.79.3** (cascade 3 niveaux user > studio > backline >
+  default) validée 2026-05-19 mais reportée. Effort ~5h.
+
+---
+
+## État précédent (2026-05-20 matin, Phase 7.82 livrée — fixes i18n mode démo + désactivation mode scène en démo)
 
 **Backline v8.14.147 / SW backline-v247 / STATE_VERSION 10 / 1313 tests verts.**
 

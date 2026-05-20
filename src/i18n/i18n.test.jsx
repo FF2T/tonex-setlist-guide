@@ -21,7 +21,7 @@ const lsShim = {
 };
 vi.stubGlobal('localStorage', lsShim);
 
-const { t, tFormat, tPlural, getLocale, setLocale, SUPPORTED_LOCALES, subscribeLocale } = await import('./index.js');
+const { t, tFormat, tPlural, getLocale, setLocale, SUPPORTED_LOCALES, subscribeLocale, detectFreshLocale, forceDemoLocale, setProfileLanguageUpdater } = await import('./index.js');
 
 beforeEach(() => {
   try { localStorage.removeItem('backline_locale'); } catch (e) {}
@@ -177,5 +177,88 @@ describe('tPlural', () => {
   it('merge params au remplacement', () => {
     setLocale('fr');
     expect(tPlural('x.y', 3, { name: 'Bruno' }, { one: '{name} a 1 morceau', other: '{name} a {count} morceaux' })).toBe('Bruno a 3 morceaux');
+  });
+
+  // Phase 7.82 — Bug #3 fix : tPlural lit aussi le format plat des
+  // dicts en.js/es.js (avant Phase 7.82, seul le format imbriqué via
+  // split('.').reduce était essayé, donc 'list.songs-count' tombait
+  // sur le fallback FR inline même en EN).
+  it('lit le format plat des dicts (en/es) pour les keys avec point', () => {
+    setLocale('en');
+    expect(tPlural('list.songs-count', 1, {}, { one: '1 morceau', other: '{count} morceaux' })).toBe('1 song');
+    expect(tPlural('list.songs-count', 5, {}, { one: '1 morceau', other: '{count} morceaux' })).toBe('5 songs');
+    setLocale('es');
+    expect(tPlural('list.songs-count', 1, {}, { one: '1 morceau', other: '{count} morceaux' })).toBe('1 canción');
+    expect(tPlural('list.songs-count', 8, {}, { one: '1 morceau', other: '{count} morceaux' })).toBe('8 canciones');
+  });
+});
+
+// Phase 7.82.1 — Bug #0 fix : detectFreshLocale lit toujours
+// localStorage + navigator.language sans dépendre du cache module, et
+// forceDemoLocale bascule l'i18n module sans déclencher
+// _profileLanguageUpdater (qui écrirait dans le profil curateur).
+describe('detectFreshLocale (Phase 7.82.1)', () => {
+  it('retourne le locale stocké dans localStorage si valide', () => {
+    localStorage.setItem('backline_locale', 'es');
+    expect(detectFreshLocale()).toBe('es');
+  });
+
+  it('fallback navigator.language si localStorage vide', () => {
+    localStorage.removeItem('backline_locale');
+    // jsdom par défaut : navigator.language = 'en-US'
+    expect(detectFreshLocale()).toBe('en');
+  });
+
+  it('ignore un localStorage avec valeur invalide', () => {
+    localStorage.setItem('backline_locale', 'jp');
+    // tombe sur navigator.language detection
+    expect(detectFreshLocale()).toBe('en');
+  });
+
+  it('bypass le cache module : retourne la valeur localStorage actuelle même si le cache pointait autre chose', () => {
+    setLocale('fr'); // pose _cachedLocale='fr'
+    localStorage.setItem('backline_locale', 'es');
+    // detectFreshLocale ignore le cache et relit localStorage
+    expect(detectFreshLocale()).toBe('es');
+  });
+});
+
+describe('forceDemoLocale (Phase 7.82.1)', () => {
+  it('bascule getLocale immédiatement', () => {
+    setLocale('fr');
+    forceDemoLocale('en');
+    expect(getLocale()).toBe('en');
+  });
+
+  it('notifie les listeners subscribeLocale', () => {
+    setLocale('fr');
+    let received = null;
+    const unsub = subscribeLocale((l) => { received = l; });
+    forceDemoLocale('es');
+    expect(received).toBe('es');
+    unsub();
+  });
+
+  it('NE déclenche PAS _profileLanguageUpdater (pas d\'écriture profil curateur)', () => {
+    let updaterCalled = false;
+    setProfileLanguageUpdater(() => { updaterCalled = true; });
+    forceDemoLocale('en');
+    expect(updaterCalled).toBe(false);
+    setProfileLanguageUpdater(null);
+  });
+
+  it('no-op si locale identique au state courant', () => {
+    setLocale('en');
+    let calls = 0;
+    const unsub = subscribeLocale(() => { calls += 1; });
+    forceDemoLocale('en');
+    expect(calls).toBe(0);
+    unsub();
+  });
+
+  it('rejette les locales non supportés', () => {
+    setLocale('fr');
+    forceDemoLocale('jp');
+    expect(getLocale()).toBe('fr');
   });
 });

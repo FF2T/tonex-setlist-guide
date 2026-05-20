@@ -411,7 +411,12 @@ function ListScreen({
           <option value="">{tFormat('list.all-songs', { count: mySongIds ? songDb.filter((s) => mySongIds.has(s.id)).length : songDb.length }, 'Tous les morceaux ({count})')}</option>
           {setlists.map((sl) => <option key={sl.id} value={sl.id}>{sl.name} ({sl.songIds.length})</option>)}
         </select>
-        {typeof onLive === 'function' && activeSongs.length > 0 && <button data-testid="list-screen-live" onClick={() => onLive(activeSlId || null)} title={t('list.live-mode', 'Mode scène plein écran')} style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-md)', padding: '8px 10px', fontSize: 13, cursor: 'pointer', flexShrink: 0, fontWeight: 700 }}>🎤</button>}
+        {/* Phase 7.82.1 — Désactive le 🎤 Live mode en profil démo
+            (la Phase 7.82 ne masquait que le CTA HomeScreen, ce bouton
+            de la barre Setlists restait actif → le visiteur démo pouvait
+            quand même entrer en LiveScreen et tomber sur le bug #6
+            "preset not determined"). Cohérence avec HomeScreen. */}
+        {typeof onLive === 'function' && !isDemo && activeSongs.length > 0 && <button data-testid="list-screen-live" onClick={() => onLive(activeSlId || null)} title={t('list.live-mode', 'Mode scène plein écran')} style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-md)', padding: '8px 10px', fontSize: 13, cursor: 'pointer', flexShrink: 0, fontWeight: 700 }}>🎤</button>}
         <button onClick={() => setEditingSetlists(!editingSetlists)} style={{ background: editingSetlists ? 'var(--accent-bg)' : 'var(--a5)', border: '1px solid ' + (editingSetlists ? 'var(--accent-border)' : 'var(--a10)'), color: editingSetlists ? 'var(--accent)' : 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '8px 10px', fontSize: 11, cursor: 'pointer', flexShrink: 0 }}>{editingSetlists ? '✕' : '✏️'}</button>
       </div>
       {editingSetlists && (

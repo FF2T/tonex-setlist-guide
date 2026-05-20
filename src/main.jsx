@@ -47,7 +47,7 @@ import LiveScreen from './app/screens/LiveScreen.jsx';
 import { exportSetlistPdf } from './app/screens/SetlistPdfExport.js';
 import { APP_NAME, APP_TAGLINE } from './core/branding.js';
 import BacklineIcon from './app/components/BacklineIcon.jsx';
-import { useLocale, t, bindActiveProfile, setProfileLanguageUpdater, getLocale } from './i18n/index.js';
+import { useLocale, t, bindActiveProfile, setProfileLanguageUpdater, getLocale, detectFreshLocale, forceDemoLocale } from './i18n/index.js';
 import { INIT_SETLISTS } from './core/setlists.js';
 import {
   PRESET_CATALOG_MERGED, findCatalogEntry, guessPresetInfo, normalizePresetName,
@@ -276,7 +276,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.147";
+const APP_VERSION = "8.14.148";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -624,15 +624,18 @@ function App() {
   const enterDemoMode = useCallback(() => {
     const snap = loadDemoSnapshot();
     if (!snap || !snap.profile) { console.warn('[demo] Snapshot invalide'); return; }
-    // Phase 7.82 — Bug #0 : override la langue du profil démo avec le
-    // locale courant détecté (LandingScreen / localStorage / navigator)
-    // au lieu du 'fr' hardcodé hérité du curateur via buildDemoSnapshot.
-    // Sans ça, un visiteur anglophone qui clique "Try the demo" voit la
-    // modale d'intro + bandeau + nav en français car bindActiveProfile
-    // (déclenché par setActiveProfileId('demo') ci-dessous) écrase
-    // _activeProfileLanguage avec snap.profile.language='fr'. Conséquence
-    // funnel : tout visiteur EN/ES tombe en démo FR sans signal préalable.
-    const currentLocale = getLocale();
+    // Phase 7.82.1 — Bug #0 (suite Phase 7.82) : Phase 7.82 utilisait
+    // getLocale() qui pouvait retourner _cachedLocale figé au boot
+    // (LandingScreen rendu avant que le visiteur ait choisi sa langue).
+    // detectFreshLocale() re-lit localStorage + navigator.language
+    // directement, bypass cache. forceDemoLocale() bascule l'i18n module
+    // (_cachedLocale + _activeProfileLanguage + clear memo + notify
+    // listeners) AVANT le re-render React, pour que les composants
+    // déjà mounted reflètent le bon locale immédiatement (sinon
+    // bindActiveProfile ne se déclenche qu'au re-render suivant et la
+    // modale d'intro SplashPopup peut flash en FR).
+    const currentLocale = detectFreshLocale();
+    forceDemoLocale(currentLocale);
     const demoProfile = { ...snap.profile, language: currentLocale };
     _setProfilesRaw(prev => ({ ...prev, [demoProfile.id]: demoProfile }));
     // Phase 7.52.14 — FORCE l'override par id : si une setlist du snapshot

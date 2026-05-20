@@ -68,6 +68,35 @@ export function setProfileLanguageUpdater(updater) {
   _profileLanguageUpdater = typeof updater === 'function' ? updater : null;
 }
 
+// Phase 7.82.1 — detectFreshLocale : re-détecte le locale "frais" sans
+// toucher au cache module. Phase 7.82 utilisait getLocale() dans
+// enterDemoMode mais _cachedLocale peut être figé sur une mauvaise
+// valeur (LandingScreen monté avant que le visiteur n'ait choisi sa
+// langue, ou cache stale). detectFreshLocale lit toujours localStorage
+// + navigator.language sans dépendre du cache.
+export function detectFreshLocale() {
+  try {
+    const stored = (typeof localStorage !== 'undefined') ? localStorage.getItem(LOCALE_KEY) : null;
+    if (stored && SUPPORTED_IDS.has(stored)) return stored;
+  } catch (e) {}
+  return detectBrowserLocale();
+}
+
+// Phase 7.82.1 — forceDemoLocale : force le locale module (cache +
+// active profile language + invalide cache memo + notify listeners)
+// SANS déclencher _profileLanguageUpdater (qui écrirait dans
+// profile.language → Firestore via le profil curateur). Utilisé par
+// enterDemoMode pour basculer l'i18n vers le locale du visiteur avant
+// d'injecter le profil démo, sans modifier le profil source.
+export function forceDemoLocale(loc) {
+  if (!SUPPORTED_IDS.has(loc)) return;
+  if (_activeProfileLanguage === loc && _cachedLocale === loc) return;
+  _activeProfileLanguage = loc;
+  _cachedLocale = loc;
+  _tCache.clear();
+  listeners.forEach((cb) => { try { cb(loc); } catch (e) {} });
+}
+
 export function getLocale() {
   if (_activeProfileLanguage) return _activeProfileLanguage;
   if (_cachedLocale !== null) return _cachedLocale;
