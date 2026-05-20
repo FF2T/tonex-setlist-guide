@@ -443,6 +443,11 @@ function guitarChoiceFeedback(g,aiC,cotEntry){
   return parts.length?parts.join(" · "):profile.desc;
 }
 
+// Phase 7.82 — Bug #2 ("Micro chevalet" en EN dans SETTINGS — MY PICK) :
+// localGuitarSettings retourne désormais un objet structuré avec des
+// clés i18n + fallbacks FR au lieu d'une string FR brute. Les appelants
+// UI (HomeScreen.SongDetailCard) composent le rendu avec t() et un
+// template localisé (`{pickup} · Tone {tone} · Volume {volume}{mismatch}`).
 function localGuitarSettings(g,aiC){
   if(!g||!aiC) return null;
   const profile=findGuitarProfile(g.id)||{};
@@ -452,18 +457,20 @@ function localGuitarSettings(g,aiC){
   const gainRange=getGainRange(targetGain);
   const wantedPickup=aiC.pickup_preference;
   const style=aiC.song_style;
-  // Position des micros
-  let pickupAdvice;
+  // Position des micros — clé i18n + fallback FR.
+  let pickupKey, pickupFallback;
   if(gainRange==="clean"||style==="jazz"){
-    pickupAdvice=pickupType==="SC"?"Micro manche (pos. 5)":"Micro manche";
+    if(pickupType==="SC"){ pickupKey="pickup.neck-pos5"; pickupFallback="Micro manche (pos. 5)"; }
+    else { pickupKey="pickup.neck"; pickupFallback="Micro manche"; }
   }else if(gainRange==="high_gain"||style==="metal"||style==="hard_rock"){
-    pickupAdvice="Micro chevalet";
+    pickupKey="pickup.bridge"; pickupFallback="Micro chevalet";
   }else if(gainRange==="drive"||style==="rock"){
-    pickupAdvice=pickupType==="SC"?"Chevalet ou intermediaire (pos. 4)":"Micro chevalet";
+    if(pickupType==="SC"){ pickupKey="pickup.bridge-or-pos4"; pickupFallback="Chevalet ou intermediaire (pos. 4)"; }
+    else { pickupKey="pickup.bridge"; pickupFallback="Micro chevalet"; }
   }else{ // crunch / blues
-    if(pickupType==="SC") pickupAdvice="Position intermediaire (2 ou 4) ou manche";
-    else if(pickupType==="P90") pickupAdvice="Au choix selon attaque";
-    else pickupAdvice="Manche pour rondeur, chevalet pour mordant";
+    if(pickupType==="SC"){ pickupKey="pickup.middle-or-neck"; pickupFallback="Position intermediaire (2 ou 4) ou manche"; }
+    else if(pickupType==="P90"){ pickupKey="pickup.choice-attack"; pickupFallback="Au choix selon attaque"; }
+    else { pickupKey="pickup.neck-or-bridge"; pickupFallback="Manche pour rondeur, chevalet pour mordant"; }
   }
   // Tone
   let tone;
@@ -474,15 +481,15 @@ function localGuitarSettings(g,aiC){
   else tone="7-9";
   // Volume
   const volume=gainRange==="clean"?"7-9":"10";
-  // Hint si la guitare ne correspond pas au pickup ideal
-  let mismatchHint="";
+  // Hint si la guitare ne correspond pas au pickup ideal — clé i18n + fallback FR.
+  let mismatchKey=null, mismatchFallback="";
   if(wantedPickup&&wantedPickup!=="any"&&wantedPickup!==pickupType){
-    if(wantedPickup==="HB"&&pickupType==="SC") mismatchHint=" — l'ideal serait un humbucker, baisse le tone pour epaissir";
-    else if(wantedPickup==="SC"&&pickupType==="HB") mismatchHint=" — l'ideal serait un single coil, split le HB si possible";
-    else if(wantedPickup==="P90") mismatchHint=" — l'ideal serait un P90 (mordant)";
-    else if(pickupType==="P90"&&wantedPickup==="HB") mismatchHint=" — pour plus de chaleur, monte le volume";
+    if(wantedPickup==="HB"&&pickupType==="SC"){ mismatchKey="pickup.mismatch.hb-sc"; mismatchFallback=" — l'ideal serait un humbucker, baisse le tone pour epaissir"; }
+    else if(wantedPickup==="SC"&&pickupType==="HB"){ mismatchKey="pickup.mismatch.sc-hb"; mismatchFallback=" — l'ideal serait un single coil, split le HB si possible"; }
+    else if(wantedPickup==="P90"){ mismatchKey="pickup.mismatch.p90"; mismatchFallback=" — l'ideal serait un P90 (mordant)"; }
+    else if(pickupType==="P90"&&wantedPickup==="HB"){ mismatchKey="pickup.mismatch.p90-hb"; mismatchFallback=" — pour plus de chaleur, monte le volume"; }
   }
-  return `${pickupAdvice} · Tone ${tone} · Volume ${volume}${mismatchHint}`;
+  return { pickupKey, pickupFallback, tone, volume, mismatchKey, mismatchFallback };
 }
 
 export {

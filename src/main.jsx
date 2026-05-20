@@ -47,7 +47,7 @@ import LiveScreen from './app/screens/LiveScreen.jsx';
 import { exportSetlistPdf } from './app/screens/SetlistPdfExport.js';
 import { APP_NAME, APP_TAGLINE } from './core/branding.js';
 import BacklineIcon from './app/components/BacklineIcon.jsx';
-import { useLocale, t, bindActiveProfile, setProfileLanguageUpdater } from './i18n/index.js';
+import { useLocale, t, bindActiveProfile, setProfileLanguageUpdater, getLocale } from './i18n/index.js';
 import { INIT_SETLISTS } from './core/setlists.js';
 import {
   PRESET_CATALOG_MERGED, findCatalogEntry, guessPresetInfo, normalizePresetName,
@@ -276,7 +276,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.146";
+const APP_VERSION = "8.14.147";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -624,7 +624,17 @@ function App() {
   const enterDemoMode = useCallback(() => {
     const snap = loadDemoSnapshot();
     if (!snap || !snap.profile) { console.warn('[demo] Snapshot invalide'); return; }
-    _setProfilesRaw(prev => ({ ...prev, [snap.profile.id]: snap.profile }));
+    // Phase 7.82 — Bug #0 : override la langue du profil démo avec le
+    // locale courant détecté (LandingScreen / localStorage / navigator)
+    // au lieu du 'fr' hardcodé hérité du curateur via buildDemoSnapshot.
+    // Sans ça, un visiteur anglophone qui clique "Try the demo" voit la
+    // modale d'intro + bandeau + nav en français car bindActiveProfile
+    // (déclenché par setActiveProfileId('demo') ci-dessous) écrase
+    // _activeProfileLanguage avec snap.profile.language='fr'. Conséquence
+    // funnel : tout visiteur EN/ES tombe en démo FR sans signal préalable.
+    const currentLocale = getLocale();
+    const demoProfile = { ...snap.profile, language: currentLocale };
+    _setProfilesRaw(prev => ({ ...prev, [demoProfile.id]: demoProfile }));
     // Phase 7.52.14 — FORCE l'override par id : si une setlist du snapshot
     // a le même id qu'une setlist existante en local (héritage historique
     // du curateur), on remplace par la version snapshot fraîche. Sans
@@ -670,9 +680,9 @@ function App() {
       const kept = (prev || []).filter(s => !snapIds.has(s.id));
       return [...kept, ...(snap.songs || [])];
     });
-    setActiveProfileId(snap.profile.id);
+    setActiveProfileId(demoProfile.id);
     setScreen('list');
-    console.log('[demo] Entered demo mode with snapshot', { setlists: snap.setlists?.length || 0, songs: snap.songs?.length || 0 });
+    console.log('[demo] Entered demo mode with snapshot', { setlists: snap.setlists?.length || 0, songs: snap.songs?.length || 0, locale: currentLocale });
   }, []);
 
   // Phase 7.49 — i18n per-profile : binder le profil actif et l'updater

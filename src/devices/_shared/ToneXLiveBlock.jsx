@@ -16,6 +16,7 @@
 // installer) → message "non installé" + nom du preset.
 
 import React from 'react';
+import { t } from '../../i18n/index.js';
 
 // Cherche un preset par nom dans une structure { [bankNumber]: { A, B, C } }.
 function findPresetLocation(name, banks) {
@@ -59,7 +60,7 @@ function makeToneXLiveBlock(device) {
             <div style={{ fontSize: 9, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: 0.5 }}>
               {device.label}
             </div>
-            <div>Pas de preset déterminé pour ce morceau.</div>
+            <div>{t('tonex-live.no-preset', 'Pas de preset déterminé pour ce morceau.')}</div>
           </div>
         </div>
       );

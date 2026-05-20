@@ -168,7 +168,24 @@ export function tFormat(key, params, fallback) {
 export function tPlural(key, n, params, fallbacks) {
   const locale = getLocale();
   const dict = DICTS[locale] || DICTS.fr;
-  const node = key.split('.').reduce((acc, k) => (acc && acc[k] !== undefined) ? acc[k] : undefined, dict);
+  // Phase 7.82 — Bug #3 ("8 morceaux" en EN) : tPlural cherchait
+  // uniquement le format imbriqué via split('.').reduce. Les dicts
+  // en.js/es.js sont en format plat (la clé entière "list.songs-count"
+  // est une key directe) → lookup undefined → fallback inline FR
+  // utilisé même en EN. Cohérence avec lookup() qui essaie d'abord
+  // le format plat puis l'imbriqué.
+  let node;
+  if (dict && Object.prototype.hasOwnProperty.call(dict, key)) {
+    node = dict[key];
+  } else {
+    node = key.split('.').reduce((acc, k) => (acc && acc[k] !== undefined) ? acc[k] : undefined, dict);
+  }
+  // Fallback locale FR si pas trouvé dans EN/ES (mêmes règles que t()).
+  if (node === undefined && locale !== 'fr') {
+    const frDict = DICTS.fr;
+    if (frDict && Object.prototype.hasOwnProperty.call(frDict, key)) node = frDict[key];
+    else node = key.split('.').reduce((acc, k) => (acc && acc[k] !== undefined) ? acc[k] : undefined, frDict);
+  }
   const variant = n === 1 ? 'one' : 'other';
   let template;
   if (node && typeof node === 'object' && node[variant] !== undefined) template = node[variant];

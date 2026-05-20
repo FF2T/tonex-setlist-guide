@@ -757,6 +757,36 @@ const es = {
   'view-profile.pedal-std': 'Pedal ToneX Standard',
   'view-profile.plug-banks': 'Bancos del Plug (10)',
   'view-profile.read-only': 'Configuración en solo lectura',
+
+  // Phase 7.82 — i18n fixes (footer Mon Profil, pickup advice,
+  // setlist edit, ToneXLiveBlock empty state, tone/volume labels).
+  'profile.footer-help': 'Ayuda',
+  'profile.footer-feedback': '💬 Enviar feedback',
+  'profile.footer-update': 'Actualizar',
+  'profile.footer-logout': 'Cerrar sesión',
+
+  'home.song.tone-label': 'Tono',
+  'home.song.volume-label': 'Volumen',
+  'song-detail.tone-label': 'Tono',
+  'song-detail.volume-label': 'Volumen',
+
+  'pickup.neck': 'Pastilla mástil',
+  'pickup.neck-pos5': 'Pastilla mástil (pos. 5)',
+  'pickup.bridge': 'Pastilla puente',
+  'pickup.bridge-or-pos4': 'Puente o intermedia (pos. 4)',
+  'pickup.middle-or-neck': 'Intermedia (pos. 2 o 4) o mástil',
+  'pickup.choice-attack': 'A tu elección según el ataque',
+  'pickup.neck-or-bridge': 'Mástil para calidez, puente para mordiente',
+  'pickup.mismatch.hb-sc': ' — lo ideal sería una humbucker, baja el tono para engrosar',
+  'pickup.mismatch.sc-hb': ' — lo ideal sería una single coil, splitea la HB si puedes',
+  'pickup.mismatch.p90': ' — lo ideal sería una P90 (mordiente)',
+  'pickup.mismatch.p90-hb': ' — para más calidez, sube el volumen',
+
+  'list.edit-songs': '✏️ Editar setlist',
+  'list.edit-done': '✅ Terminar',
+  'list.edit-setlist-title': 'Modo edición: retira canciones de la setlist (no toca la base global)',
+
+  'tonex-live.no-preset': 'Ningún preset determinado para esta canción.',
 };
 
 export default es;

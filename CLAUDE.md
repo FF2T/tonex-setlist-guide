@@ -746,7 +746,179 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-19 nuit++, Phase 7.81 livrée — fix divergence aiCache Mac↔iPhone)
+## État actuel (2026-05-20 matin, Phase 7.82 livrée — fixes i18n mode démo + désactivation mode scène en démo)
+
+**Backline v8.14.147 / SW backline-v247 / STATE_VERSION 10 / 1313 tests verts.**
+
+### Phase 7.82 — Fixes i18n démo + mode scène off démo (v8.14.147)
+
+Audit Chrome MCP de la démo publique en anglais (2026-05-19) avant
+envoi du Mail 3 à Paul Drew (qui propose précisément le lien démo) :
+6 problèmes dont 1 bloquant. Tous fixés dans cette release sauf
+Bug #6 (preset LiveBlock manquant — neutralisé en démo via Décision
+mode scène off, à corriger séparément pour les vrais profils).
+
+#### Bug #0 (root, bloquant Mail 3) — démo démarrait toujours en FR
+
+**Cause racine** : le profil démo bundlé (`src/data/demo-profile.json`)
+a `profile.language = 'fr'` hérité du curateur. À l'entrée en mode
+démo, `bindActiveProfile` (déclenché par `setActiveProfileId('demo')`)
+écrasait `_activeProfileLanguage` avec `'fr'` → `getLocale()` ignorait
+le locale détecté de la LandingScreen → UI 100% FR pour tout visiteur
+EN/ES, à commencer par la modale d'intro (SplashPopup).
+
+**Fix Option B** dans `src/main.jsx` `enterDemoMode` (ligne ~628) :
+```js
+const currentLocale = getLocale();
+const demoProfile = { ...snap.profile, language: currentLocale };
+_setProfilesRaw(prev => ({ ...prev, [demoProfile.id]: demoProfile }));
+// ...
+setActiveProfileId(demoProfile.id);
+```
+
+Lit le locale courant (priorité `_activeProfileLanguage` > localStorage
+> `navigator.language`) avant d'injecter le profil démo. Respecte le
+choix du visiteur fait sur la LandingScreen. `getLocale` ajouté aux
+imports i18n.
+
+#### Désactivation CTA Mode scène en profil démo (validée 2026-05-19)
+
+Décision Sébastien : *"je pense qu'il faut désactiver le mode scène
+en profil démo, ça n'apporte pas grand chose et c'est un territoire
+de bugs potentiels"*. `HomeScreen.jsx` IIFE Live ligne ~467 :
+```jsx
+if (isDemo) return null;
+```
+Neutralise bugs #5 (i18n empty state) et #6 (preset Live absent
+Back in Black / The Thrill Is Gone) côté démo. Le visiteur découvre
+l'app, il n'est pas sur scène. Le bug #6 reste à investiguer pour
+les vrais profils (preset résolu via une guitare sélectionnée non
+pré-assignée dans le contexte Live démo).
+
+#### Bug #1 — Footer Mon Profil 4 strings wrappées
+
+`MonProfilScreen.jsx` lignes 404-414. 4 strings FR hardcodées
+wrappées via `t()` :
+- "Aide" → `profile.footer-help` (EN "Help" / ES "Ayuda")
+- "💬 Envoyer un feedback" → `profile.footer-feedback`
+- "Mise à jour" → `profile.footer-update`
+- "Se déconnecter" → `profile.footer-logout`
+
+#### Bug #2 — "Micro chevalet" dans SETTINGS — MY PICK
+
+Cause : `localGuitarSettings` (`core/scoring/guitar.js`) retournait
+une string FR composée non wrappable côté UI. Refactor : retourne
+désormais un objet structuré `{pickupKey, pickupFallback, tone,
+volume, mismatchKey, mismatchFallback}`. Les 2 call sites
+(HomeScreen.jsx:659 + SongDetailCard.jsx:402) composent le texte
+final avec `t(pickupKey, pickupFallback)` + format
+`{pickup} · Tone {tone} · Volume {volume}{mismatch}`.
+
+11 nouvelles clés EN/ES :
+- `pickup.neck` / `.neck-pos5` / `.bridge` / `.bridge-or-pos4`
+- `pickup.middle-or-neck` / `.choice-attack` / `.neck-or-bridge`
+- `pickup.mismatch.hb-sc` / `.sc-hb` / `.p90` / `.p90-hb`
+- `home.song.tone-label` + `volume-label`, idem `song-detail.*`
+
+#### Bug #3 — "8 morceaux" en EN (cause racine = `tPlural` bug)
+
+**Cause racine identifiée** : `tPlural` (`i18n/index.js`) cherchait
+uniquement le format imbriqué via `key.split('.').reduce(...)`. Les
+dicts en.js/es.js sont en format **plat** (la clé entière
+`'list.songs-count'` est une key directe). Lookup undefined →
+fallback inline FR utilisé même en EN. Affecte potentiellement
+TOUS les `tPlural` du projet, pas que ce site.
+
+Fix dans `i18n/index.js` (cohérent avec `lookup()`) :
+```js
+let node;
+if (dict && Object.prototype.hasOwnProperty.call(dict, key)) {
+  node = dict[key];
+} else {
+  node = key.split('.').reduce(...);
+}
+// + fallback FR si pas trouvé en EN/ES
+```
+
+#### Bug #4 — "Éditer la setlist" + clés `list.edit-*`
+
+Les clés étaient déjà wrappées dans `ListScreen.jsx` mais
+manquantes dans en.js/es.js. Ajoutées :
+- `list.edit-songs` (EN "✏️ Edit setlist")
+- `list.edit-done` (EN "✅ Done")
+- `list.edit-setlist-title` (EN tooltip)
+
+#### Bug #5 — "Pas de preset déterminé" wrappé
+
+`src/devices/_shared/ToneXLiveBlock.jsx:62` : wrap via
+`t('tonex-live.no-preset', 'Pas de preset déterminé pour ce morceau.')`.
+Import `t` ajouté. Test `ToneXLiveBlock.test.jsx` ajusté pour ne
+plus dépendre du texte exact (assertion data-testid seule) — évite
+de casser selon le locale détecté par jsdom.
+
+#### Bug #6 (reporté, hors démo) — preset Live manquant
+
+`ToneXLiveBlock` affiche "no preset determined" pour Back in Black
++ The Thrill Is Gone alors que ces morceaux ont un preset visible
+en vue Setlists. Cause probable : le LiveBlock résout via une
+guitare sélectionnée pour le morceau, et aucune n'est pré-assignée
+dans le contexte Live démo. **Neutralisé en démo** via désactivation
+mode scène (Décision Phase 7.82). À investiguer séparément pour
+les vrais profils si l'utilisateur reporte le bug en pratique.
+
+### Architecture livrée Phase 7.82
+
+```
+src/main.jsx                                APP_VERSION 8.14.146 → 8.14.147
+                                            +import getLocale d'i18n
+                                            enterDemoMode override
+                                            profile.language
+public/sw.js                                CACHE backline-v246 → backline-v247
+src/i18n/index.js                           tPlural supporte format plat
+                                            + fallback FR (Bug #3 root)
+src/i18n/en.js                              +20 clés Phase 7.82
+src/i18n/es.js                              +20 clés Phase 7.82
+src/app/screens/MonProfilScreen.jsx         4 strings footer wrappées
+src/app/screens/HomeScreen.jsx              gate isDemo sur CTA Live
+                                            composition i18n localGuitarSettings
+src/app/screens/SongDetailCard.jsx          composition i18n localGuitarSettings
+src/core/scoring/guitar.js                  localGuitarSettings retourne
+                                            objet structuré
+src/devices/_shared/ToneXLiveBlock.jsx      wrap empty state
+src/devices/_shared/ToneXLiveBlock.test.jsx assertion data-testid seule
+```
+
+### Conséquences Phase 7.82
+
+- **1313/1313 tests verts** (aucune régression structurelle).
+- **Bundle** 2360 → 2481 KB (+121 KB pour traductions + refactor —
+  prévu).
+- **Pas de bump STATE_VERSION** (purement i18n + UI).
+- **Pas de migration localStorage**.
+- **Cohabitation pré/post-7.82** : un visiteur démo qui avait
+  réussi à passer en EN manuellement via Mon Profil → Affichage
+  voit désormais l'EN par défaut. Pas de friction observable.
+- **Mail 3 Paul Drew débloqué** : peut être envoyé.
+
+### Dette résiduelle Phase 7.82
+
+- **Bug #6 (preset Live)** : à corriger pour les vrais profils si
+  reporté. Investigation : `ToneXLiveBlock` lit
+  `song?.aiCache?.result?.[device.presetResultKey]?.label` — à
+  vérifier que le preset est bien résolu côté démo curé.
+- **Audit responsive iPhone/iPad** (Phase 7.80.1) toujours en
+  attente. Bouton OK SongSearchBar déborde 393px iPhone, version
+  AppHeader tronquée, layout iPad "desktop tassé". Phase 7.80.1
+  ~6-10h audit + 10-15h fixes.
+- **Other tPlural sites** : le fix de Bug #3 corrige potentiellement
+  d'autres compteurs ailleurs (deletes confirms, analyze count,
+  empty-setlist-confirm). Pas de régression observée — la majorité
+  utilisait déjà `count` interpolation depuis le fallback inline FR
+  donc le rendu était cosmétiquement OK.
+
+---
+
+## État précédent (2026-05-19 nuit++, Phase 7.81 livrée — fix divergence aiCache Mac↔iPhone)
 
 **Backline v8.14.146 / SW backline-v246 / STATE_VERSION 10 / 1313 tests verts.**
 
@@ -9648,6 +9820,14 @@ profile {
   passer en stale-while-revalidate sur le HTML.
 
 ## Idées en attente (proposées, pas encore validées)
+
+### Phase 7.82 — ✅ LIVRÉE 2026-05-20 (cf section "État actuel" en haut)
+
+Audit Chrome MCP démo en EN livré 2026-05-19, 6 problèmes identifiés.
+Phase 7.82 livrée 2026-05-20 v8.14.147 : Bug #0 (locale démo) fixé,
+mode scène désactivé en démo, strings #1-5 wrappés, fix `tPlural`
+format plat (cause racine #3). Bug #6 reporté hors démo. Mail 3 Paul
+Drew débloqué.
 
 ### Phase 7.79.3 (validée 2026-05-19 soir, à livrer) — Cascade 3 niveaux user > studio > backline > default
 

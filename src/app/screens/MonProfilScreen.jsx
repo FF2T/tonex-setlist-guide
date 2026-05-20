@@ -401,7 +401,7 @@ function MonProfilScreen({
           via DeviceCSVPanel ci-dessus dans les tabs pedale/ann/plug). */}
       {/* Phase 7.72 — Tab Profils migré dans AdminScreen. */}
       <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--a8)', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-        <button onClick={() => { if (typeof window.setShowOnboarding === 'function') window.setShowOnboarding(true); else { const e = new CustomEvent('showOnboarding'); window.dispatchEvent(e); } }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>Aide</button>
+        <button onClick={() => { if (typeof window.setShowOnboarding === 'function') window.setShowOnboarding(true); else { const e = new CustomEvent('showOnboarding'); window.dispatchEvent(e); } }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>{t('profile.footer-help', 'Aide')}</button>
         {/* Phase 7.73.0 — Bouton feedback Tally. Pré-rempli avec
             profile_name + app_version. Ouvre dans un nouvel onglet. */}
         <a
@@ -409,9 +409,9 @@ function MonProfilScreen({
           target="_blank"
           rel="noopener noreferrer"
           style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}
-        >💬 Envoyer un feedback</a>
-        <button onClick={() => { location.reload(true); }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>Mise à jour</button>
-        {onLogout && <button onClick={onLogout} style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '8px 16px', fontSize: 12, cursor: 'pointer', marginLeft: 'auto' }}>Se déconnecter</button>}
+        >{t('profile.footer-feedback', '💬 Envoyer un feedback')}</a>
+        <button onClick={() => { location.reload(true); }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>{t('profile.footer-update', 'Mise à jour')}</button>
+        {onLogout && <button onClick={onLogout} style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '8px 16px', fontSize: 12, cursor: 'pointer', marginLeft: 'auto' }}>{t('profile.footer-logout', 'Se déconnecter')}</button>}
       </div>
     </div>
   );

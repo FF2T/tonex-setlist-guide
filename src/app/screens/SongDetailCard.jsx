@@ -399,7 +399,16 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           </div>
           {g && chosenGuitarScore && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 3, marginLeft: 24 }}>{t('song-detail.compat', 'Compatibilité :')} <b style={{ color: scoreColor(chosenGuitarScore) }}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated && <span style={{ marginLeft: 6, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>{t('song-detail.estimated', '(estimé)')}</span>}</div>}
           {g && aiC && (() => { const fb = guitarChoiceFeedback(g, aiC, chosenGuitarCot); const fbText = fb ? getLocalizedText(fb, locale) : null; return fbText ? <div style={{ fontSize: 10, color: 'var(--text-sec)', marginTop: 3, marginLeft: 24, lineHeight: 1.4 }}>{fbText}</div> : null; })()}
-          {g && aiC && (() => { const s = localGuitarSettings(g, aiC); return s ? <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)', marginTop: 5, marginLeft: 24 }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.settings', 'Réglages :')}</b> {s}</div> : null; })()}
+          {g && aiC && (() => {
+            // Phase 7.82 — localGuitarSettings retourne un objet structuré ;
+            // composition i18n côté UI (Bug #2 "Micro chevalet" en EN).
+            const s = localGuitarSettings(g, aiC);
+            if (!s) return null;
+            const pickupTxt = t(s.pickupKey, s.pickupFallback);
+            const mismatchTxt = s.mismatchKey ? t(s.mismatchKey, s.mismatchFallback) : '';
+            const text = `${pickupTxt} · ${t('song-detail.tone-label', 'Tone')} ${s.tone} · ${t('song-detail.volume-label', 'Volume')} ${s.volume}${mismatchTxt}`;
+            return <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)', marginTop: 5, marginLeft: 24 }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.settings', 'Réglages :')}</b> {text}</div>;
+          })()}
         </div>
         <div style={{ marginBottom: 12, marginLeft: 24 }}>
           <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{t('song-detail.mode-label', 'Mode IA pour ce morceau')} {song.recoMode ? <span style={{ color: 'var(--accent)' }}>{t('song-detail.mode-override', '· override')}</span> : <span style={{ color: 'var(--text-dim)' }}>{tFormat('song-detail.mode-inherited', { mode: profile?.recoMode || 'balanced' }, '· profil ({mode})')}</span>}</div>

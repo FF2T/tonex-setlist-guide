@@ -465,6 +465,14 @@ function HomeScreen({
             <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 16, textAlign: 'center' }}>{t('home.title-question', 'Quel morceau veux-tu jouer ?')}</div>
 
             {typeof onLive === 'function' && (() => {
+              // Phase 7.82 — Désactive le CTA Mode scène en profil démo.
+              // Décision 2026-05-19 : "ça n'apporte pas grand chose et
+              // c'est un territoire de bugs potentiels" (bug #5 i18n +
+              // bug #6 preset absent du LiveBlock pour Back in Black /
+              // The Thrill Is Gone). Le visiteur démo découvre l'app,
+              // il n'est pas sur scène. Bugs #5 et #6 restent à fixer
+              // séparément pour les vrais profils.
+              if (isDemo) return null;
               const liveSl = (setlists || []).find((s) => s.songIds && s.songIds.length > 0)
                 || (allSetlists || []).find((s) => s.songIds && s.songIds.length > 0 && (!s.profileIds || s.profileIds.length === 0));
               if (!liveSl) return null;
@@ -648,7 +656,16 @@ function HomeScreen({
                           <button onClick={() => setShowGuitarPick((p) => !p)} style={{ fontSize: 10, background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '3px 8px', cursor: 'pointer' }}>{t('home.song.change', 'Changer')}</button>
                         </div>
                         {selectedGuitar && chosenGuitarScore && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>{t('home.song.compat', 'Compatibilité :')} <b style={{ color: scoreColor(chosenGuitarScore) }}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated && <span style={{ marginLeft: 6, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>{t('home.song.estimated', '(estimé)')}</span>}</div>}
-                        {selectedGuitar && (() => { const s = localGuitarSettings(selectedGuitar, songResult); return s ? <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)', marginBottom: 4 }}><b style={{ color: 'var(--text-muted)' }}>{t('home.song.settings', 'Réglages :')}</b> {s}</div> : null; })()}
+                        {selectedGuitar && (() => {
+                          // Phase 7.82 — localGuitarSettings retourne un objet
+                          // structuré ; composition i18n côté UI.
+                          const s = localGuitarSettings(selectedGuitar, songResult);
+                          if (!s) return null;
+                          const pickupTxt = t(s.pickupKey, s.pickupFallback);
+                          const mismatchTxt = s.mismatchKey ? t(s.mismatchKey, s.mismatchFallback) : '';
+                          const text = `${pickupTxt} · ${t('home.song.tone-label', 'Tone')} ${s.tone} · ${t('home.song.volume-label', 'Volume')} ${s.volume}${mismatchTxt}`;
+                          return <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)', marginBottom: 4 }}><b style={{ color: 'var(--text-muted)' }}>{t('home.song.settings', 'Réglages :')}</b> {text}</div>;
+                        })()}
                         {showGuitarPick && (
                           <div style={{ marginBottom: 8, background: 'var(--a4)', borderRadius: 'var(--r-md)', padding: 10 }}>
                             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>

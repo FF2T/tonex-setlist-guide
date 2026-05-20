@@ -88,7 +88,10 @@ describe('makeToneXLiveBlock — render', () => {
       <ToneXLiveBlock song={song} _guitar={null} _profile={null} banksAnn={banksAnn} banksPlug={{}}/>,
     );
     expect(container.querySelector('[data-testid="tonex-live-block-empty-tonex-pedal"]')).not.toBeNull();
-    expect(container.textContent).toContain('Pas de preset déterminé');
+    // Phase 7.82 — le texte du message empty est wrappé i18n
+    // ('tonex-live.no-preset'). On vérifie juste la présence du data-testid
+    // pour ne pas dépendre de la locale détectée par jsdom (en-US → "No
+    // preset determined…" / fr → "Pas de preset déterminé…").
   });
 });
 

@@ -759,6 +759,36 @@ const en = {
   'view-profile.pedal-std': 'ToneX Standard Pedal',
   'view-profile.plug-banks': 'Plug Banks (10)',
   'view-profile.read-only': 'Read-only configuration',
+
+  // Phase 7.82 — i18n fixes (footer Mon Profil, pickup advice,
+  // setlist edit, ToneXLiveBlock empty state, tone/volume labels).
+  'profile.footer-help': 'Help',
+  'profile.footer-feedback': '💬 Send feedback',
+  'profile.footer-update': 'Update',
+  'profile.footer-logout': 'Log out',
+
+  'home.song.tone-label': 'Tone',
+  'home.song.volume-label': 'Volume',
+  'song-detail.tone-label': 'Tone',
+  'song-detail.volume-label': 'Volume',
+
+  'pickup.neck': 'Neck pickup',
+  'pickup.neck-pos5': 'Neck pickup (pos. 5)',
+  'pickup.bridge': 'Bridge pickup',
+  'pickup.bridge-or-pos4': 'Bridge or intermediate (pos. 4)',
+  'pickup.middle-or-neck': 'Middle (pos. 2 or 4) or neck',
+  'pickup.choice-attack': 'Your choice depending on attack',
+  'pickup.neck-or-bridge': 'Neck for warmth, bridge for bite',
+  'pickup.mismatch.hb-sc': ' — a humbucker would be ideal, lower the tone to thicken',
+  'pickup.mismatch.sc-hb': ' — a single coil would be ideal, split the HB if possible',
+  'pickup.mismatch.p90': ' — a P90 would be ideal (bite)',
+  'pickup.mismatch.p90-hb': ' — for more warmth, raise the volume',
+
+  'list.edit-songs': '✏️ Edit setlist',
+  'list.edit-done': '✅ Done',
+  'list.edit-setlist-title': 'Edit mode: remove songs from the setlist (does not touch the global library)',
+
+  'tonex-live.no-preset': 'No preset determined for this song.',
 };
 
 export default en;
