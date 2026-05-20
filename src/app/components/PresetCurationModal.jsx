@@ -1,25 +1,31 @@
-// src/app/components/PresetCurationModal.jsx — Phase 7.79.
+// src/app/components/PresetCurationModal.jsx — Phase 7.79 + 7.79.3 (refactor cascade).
 //
 // Modale unifiée info preset + édition usages inline.
 //
 // Mode "view" (default) :
 //   - Affiche status + amp/gain/style/scores + usages + pack
-//   - Bouton "✏️ Modifier" si entry éditable (src ∈ {custom, ToneNET})
-//     ET isAdmin → bascule en mode "edit" inline
-//   - Catalog statique : bouton désactivé + note "édite le code source"
+//   - Badge source cascade (👤 Toi / 🏷️ Studio / ⚙️ Backline) si override
+//     actif (Phase 7.79.3 — annoté par findCatalogEntry via window._usagesCascadeState)
+//   - Bouton "✏️ Modifier" sur toutes les sources catalog non-guessed
+//     (Phase 7.79.3 — étendu depuis custom/ToneNET admin-only à TOUS les
+//     catalog statiques avec routing user vs admin)
+//   - Bouton "🔄 Restaurer la version par défaut" si override actif
+//     (cascade reprend au niveau suivant)
 //
 // Mode "edit" :
 //   - Form usages [{artist, songs?}] (réutilise pattern Phase 7.78)
-//   - Save → update profile.customPacks ou shared.toneNetPresets
-//     avec stamp lastModified (LWW Firestore)
+//   - Save → route via saveUsagesForPreset selon entry.src + isAdmin :
+//       custom → profile.customPacks (rétro-compat)
+//       ToneNET → shared.toneNetPresets (rétro-compat)
+//       catalog + admin → shared.usagesOverrides (cascade niveau 3)
+//       catalog + !admin → profile.usagesOverrides (cascade niveau 1)
 //   - Cancel → revient en mode view sans appliquer
 
 import React, { useState, useMemo } from 'react';
 import { t, tFormat } from '../../i18n/index.js';
 import { findCatalogEntry, getPresetCurationStatus, CURATION_COLORS, getCurationLabel } from '../../core/catalog.js';
+import { saveUsagesForPreset, removeUsagesOverride } from '../../core/preset-curation.js';
 import { cleanUsages } from '../screens/ToneNetTab.jsx';
-
-const EDITABLE_SOURCES = new Set(['custom', 'ToneNET']);
 
 const STATUS_ICONS = {
   unknown: '🔴',
@@ -35,12 +41,22 @@ function PresetCurationModal({
   songDb,
   profile, onProfiles, activeProfileId,
   toneNetPresets, onToneNetPresets,
+  onSharedUsagesOverrides, // Phase 7.79.3 — pour router catalog statique admin → shared
   onClose,
 }) {
   const entry = useMemo(() => findCatalogEntry(presetName), [presetName]);
   const status = useMemo(() => getPresetCurationStatus(presetName), [presetName]);
   const colors = status ? CURATION_COLORS[status] : null;
-  const editable = !!entry && !entry.guessed && EDITABLE_SOURCES.has(entry.src) && isAdmin;
+  // Phase 7.79.3 — édition étendue à TOUTES les sources non-guessed.
+  // Le routing custom/ToneNET/catalog statique est géré par saveUsagesForPreset
+  // (preset-curation.js). Avant 7.79.3 c'était limité à custom/ToneNET + isAdmin.
+  const editable = !!entry && !entry.guessed;
+  // Phase 7.79.3 — source de cascade pour badge + condition Restaurer.
+  const usagesSource = entry?._usagesSource || null;
+  const usagesCuratedBy = entry?._usagesCuratedBy || null;
+  // Bouton "Restaurer" : user voit son propre override OU admin voit override Backline.
+  const canRemoveOverride = !!entry && !entry.guessed &&
+    (usagesSource === 'user' || (usagesSource === 'backline' && isAdmin));
 
   const [mode, setMode] = useState('view');
   const [usages, setUsages] = useState(() => {
@@ -74,40 +90,34 @@ function PresetCurationModal({
     if (!entry) return;
     const flushed = flushDrafts(usages);
     const cleaned = cleanUsages(flushed); // undefined si tout vide
-
-    if (entry.src === 'custom') {
-      // Update profile.customPacks[].presets[].usages
-      onProfiles((p) => {
-        const cur = p[activeProfileId];
-        if (!cur) return p;
-        const packs = (cur.customPacks || []).map((pack) => ({
-          ...pack,
-          presets: (pack.presets || []).map((pr) => {
-            if (pr.name !== presetName) return pr;
-            if (!cleaned) {
-              const { usages: _, ...rest } = pr;
-              return rest;
-            }
-            return { ...pr, usages: cleaned };
-          }),
-        }));
-        return { ...p, [activeProfileId]: { ...cur, customPacks: packs, lastModified: Date.now() } };
-      });
-    } else if (entry.src === 'ToneNET' && typeof onToneNetPresets === 'function') {
-      // Update shared.toneNetPresets[].usages
-      onToneNetPresets((prev) => {
-        return (prev || []).map((tp) => {
-          if (tp.name !== presetName) return tp;
-          const stamped = { ...tp, lastModified: Date.now() };
-          if (!cleaned) {
-            const { usages: _, ...rest } = stamped;
-            return rest;
-          }
-          return { ...stamped, usages: cleaned };
-        });
-      });
-    }
+    // Phase 7.79.3 — Refactor : délégue au helper centralisé qui route
+    // selon entry.src + isAdmin (4 branches). Avant 7.79.3 la modale
+    // inlinait la logique pour custom/ToneNET seulement.
+    saveUsagesForPreset(presetName, cleaned, {
+      findEntry: findCatalogEntry,
+      activeProfileId,
+      isAdmin,
+      onProfiles,
+      onToneNetPresets,
+      onShared: onSharedUsagesOverrides || undefined,
+    });
     setMode('view');
+  };
+
+  // Phase 7.79.3 — Bouton "Restaurer la version par défaut" : DELETE
+  // l'override de la cascade pour que le niveau suivant (Backline ou
+  // Catalog) reprenne. No-op pour custom/ToneNET (pas concernés par
+  // la cascade — leur usages est dans la donnée elle-même).
+  const handleRestoreDefault = () => {
+    removeUsagesOverride(presetName, {
+      findEntry: findCatalogEntry,
+      activeProfileId,
+      isAdmin,
+      onProfiles,
+      onShared: onSharedUsagesOverrides || undefined,
+    });
+    // Pas de setMode('view') ici — on est déjà en view. Le badge cascade
+    // sera mis à jour au prochain render (cascade resolve via window state).
   };
 
   if (!entry) {
@@ -121,13 +131,34 @@ function PresetCurationModal({
     );
   }
 
+  // Phase 7.79.3 — Badge source de la cascade. Affiché à côté du status
+  // de curation pour montrer d'où viennent les usages affichés.
+  const renderCascadeBadge = () => {
+    if (!usagesSource || usagesSource === 'default') return null;
+    const labels = {
+      user: { emoji: '👤', label: t('cascade.source-user', 'Toi'), color: '#7dd3fc', bg: 'rgba(125,211,252,0.15)' },
+      studio: { emoji: '🏷️', label: usagesCuratedBy ? tFormat('cascade.source-studio-by', { studio: usagesCuratedBy }, 'Studio ({studio})') : t('cascade.source-studio', 'Studio'), color: '#1e40af', bg: 'rgba(30,64,175,0.15)' },
+      backline: { emoji: '⚙️', label: t('cascade.source-backline', 'Backline'), color: '#3b82f6', bg: 'rgba(59,130,246,0.15)' },
+    };
+    const lvl = labels[usagesSource];
+    if (!lvl) return null;
+    return (
+      <span
+        style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 'var(--r-sm)', color: lvl.color, background: lvl.bg, display: 'inline-flex', alignItems: 'center', gap: 3 }}
+      >
+        {lvl.emoji} {lvl.label}
+      </span>
+    );
+  };
+
   const renderViewMode = () => (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 18 }}>{STATUS_ICONS[status] || ''}</span>
         <span style={{ fontSize: 13, fontWeight: 700, color: colors?.dot || 'var(--text)' }}>
           {getCurationLabel(status)}
         </span>
+        {renderCascadeBadge()}
       </div>
       <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 12, wordBreak: 'break-word' }}>{presetName}</div>
 
@@ -167,16 +198,29 @@ function PresetCurationModal({
         </div>
       )}
 
-      {!editable && status === 'known' && (
+      {/* Phase 7.79.3 — la note "édite le code source" est obsolète :
+          tout catalog statique est éditable via la cascade désormais.
+          On garde uniquement une note pour les entries 'guessed' (inconnu). */}
+      {!editable && entry?.guessed && (
         <div style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: 10 }}>
-          {t('preset-modal.readonly-note', 'Preset du catalog statique. Pour ajouter des usages, édite le code source (data_catalogs.js, etc.) ou attends Phase 11 (Studio-driven enrichment).')}
+          {t('preset-modal.guessed-note', 'Preset inconnu (fallback heuristique). Ajoute-le aux banks ou à customPacks pour l\'enrichir.')}
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {editable && (
           <button onClick={() => setMode('edit')} style={btnPrimary}>
             ✏️ {t('preset-modal.edit', 'Modifier')}
+          </button>
+        )}
+        {/* Phase 7.79.3 — Bouton Restaurer si override actif visible-by-user */}
+        {canRemoveOverride && (
+          <button
+            onClick={handleRestoreDefault}
+            title={t('cascade.restore-tooltip', 'Retire ton override et reprend le niveau de cascade suivant (Backline ou Catalog).')}
+            style={btnSecondary}
+          >
+            🔄 {t('cascade.restore', 'Restaurer la version par défaut')}
           </button>
         )}
         <button onClick={onClose} style={editable ? btnSecondary : { ...btnPrimary, flex: 1 }}>
@@ -194,7 +238,15 @@ function PresetCurationModal({
       </div>
       <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4, wordBreak: 'break-word' }}>{presetName}</div>
       <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 10 }}>
-        {entry.src === 'custom' ? t('preset-modal.edit-hint-custom', 'Persisté dans tes presets persos (profile.customPacks).') : t('preset-modal.edit-hint-tonenet', 'Persisté dans le catalog ToneNET partagé (shared.toneNetPresets).')}
+        {/* Phase 7.79.3 — hint adapté selon entry.src + isAdmin pour informer
+            clairement l'user où sera persisté son override (4 cas). */}
+        {entry.src === 'custom'
+          ? t('preset-modal.edit-hint-custom', 'Persisté dans tes presets persos (profile.customPacks).')
+          : entry.src === 'ToneNET'
+          ? t('preset-modal.edit-hint-tonenet', 'Persisté dans le catalog ToneNET partagé (shared.toneNetPresets).')
+          : isAdmin
+          ? t('cascade.edit-hint-admin', 'Persisté dans le catalog Backline partagé (visible par tous les profils, niveau cascade 3).')
+          : t('cascade.edit-hint-user', 'Persisté dans ton override perso (visible uniquement par toi, prioritaire sur les niveaux Backline et Catalog).')}
       </div>
 
       <div style={{ maxHeight: 320, overflowY: 'auto', marginBottom: 10 }}>

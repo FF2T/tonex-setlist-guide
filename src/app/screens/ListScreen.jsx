@@ -67,6 +67,7 @@ function ListScreen({
   availableSources, activeProfileId, profiles, profile, onProfiles, guitarBias,
   onTmpPatchOverride, onLive,
   toneNetPresets, onToneNetPresets,
+  onSharedUsagesOverrides, // Phase 7.79.3 — propagé à SongDetailCard → PresetCurationModal
 }) {
   const [activeSlId, setActiveSlId] = useState(setlists[0]?.id || null);
   const activeSl = activeSlId ? setlists.find((s) => s.id === activeSlId) : null;
@@ -751,7 +752,7 @@ function ListScreen({
                     onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-dim)'; }}
                   >🗑️</button>}
                 </div>
-                {isExpanded && <SongDetailCard song={s} banksAnn={banksAnn} banksPlug={banksPlug} onBanksAnn={onBanksAnn} onBanksPlug={onBanksPlug} onClose={() => setExpandedId(null)} guitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} savedGuitarId={activeSl?.guitars?.[s.id]} onGuitarChange={(songId, gId) => { if (activeSlId) onSetlists((p) => p.map((sl) => sl.id === activeSlId ? { ...sl, guitars: { ...(sl.guitars || {}), [songId]: gId } } : sl)); }} aiProvider={aiProvider} aiKeys={aiKeys} onSongDb={onSongDb} onAiCacheUpdate={onAiCacheUpdate} profile={profile} guitarBias={guitarBias} onTmpPatchOverride={onTmpPatchOverride} songDb={songDb} onProfiles={onProfiles} activeProfileId={activeProfileId} toneNetPresets={toneNetPresets} onToneNetPresets={onToneNetPresets}/>}
+                {isExpanded && <SongDetailCard song={s} banksAnn={banksAnn} banksPlug={banksPlug} onBanksAnn={onBanksAnn} onBanksPlug={onBanksPlug} onClose={() => setExpandedId(null)} guitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} savedGuitarId={activeSl?.guitars?.[s.id]} onGuitarChange={(songId, gId) => { if (activeSlId) onSetlists((p) => p.map((sl) => sl.id === activeSlId ? { ...sl, guitars: { ...(sl.guitars || {}), [songId]: gId } } : sl)); }} aiProvider={aiProvider} aiKeys={aiKeys} onSongDb={onSongDb} onAiCacheUpdate={onAiCacheUpdate} profile={profile} guitarBias={guitarBias} onTmpPatchOverride={onTmpPatchOverride} songDb={songDb} onProfiles={onProfiles} activeProfileId={activeProfileId} toneNetPresets={toneNetPresets} onToneNetPresets={onToneNetPresets} onSharedUsagesOverrides={onSharedUsagesOverrides}/>}
               </div>
             </div>
           );

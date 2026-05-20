@@ -153,6 +153,16 @@ public/
   syncHash Phase 7.46, le merge LWW, et l'historique des 9
   régressions vécues en prod (à ne pas reproduire).
 
+- **`docs/CASCADE.md`** ⚠️ — Cascade d'overrides d'usages 4 niveaux
+  (Phase 7.79.3, livrée 2026-05-20). **À lire avant de toucher à
+  `findCatalogEntry`, `saveUsagesForPreset`, `removeUsagesOverride`,
+  `mergeUsagesOverridesLWW`, ou au pipeline
+  `window._usagesCascadeState`.** Documente les 4 niveaux (user >
+  studio > backline > default catalog), le pattern "override vide
+  explicite" (`usages: null`), le routing custom/ToneNET vs catalog
+  statique, et 5 pièges classiques. Slot Phase 11 Studio-driven déjà
+  câblé (niveau 2).
+
 ## Style de code
 
 - Composants fonctionnels avec hooks. Pas de classes.
@@ -746,7 +756,132 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-20 soir, bonus i18n livrés — html lang sync + APP_TAGLINE localisé + JamScreen useLocale)
+## État actuel (2026-05-20 nuit, Phase 7.79.3 solidification — PresetCurationModal cascade + 13 tests E2E + docs/CASCADE.md)
+
+**Backline v8.14.155 / SW backline-v255 / STATE_VERSION 10 / 1392 tests verts.**
+
+### Phase 7.79.3 solidification — PresetCurationModal + tests E2E + doc (v8.14.155)
+
+Phase 7.79.3 (cascade 4 niveaux) livrée 7.79.3a/b/c. Cette solidification
+boucle les dettes résiduelles identifiées + ajoute des garde-fous tests
++ documente le système complet pour les futures sessions.
+
+#### PresetCurationModal refactor cascade
+
+La modale `PresetCurationModal` (déclenchée par click sur la pastille
+CurationDot dans BankEditor et SongDetailCard) n'avait pas reçu le
+routing 4 niveaux Phase 7.79.3b. Refactor en parité avec UsagesSection
+(PresetBrowser) :
+- Édition étendue à TOUS les catalog non-guessed (avant : custom/ToneNET +
+  isAdmin uniquement)
+- Badge source cascade (`👤 Toi` / `🏷️ Studio` / `⚙️ Backline`) à côté
+  du status de curation
+- Bouton "🔄 Restaurer la version par défaut" si `_usagesSource ∈
+  {'user', 'backline'+admin}`
+- `handleSave` refactor : délègue à `saveUsagesForPreset` (Phase 7.79.3b)
+  au lieu d'inliner la logique custom/ToneNET → routing automatique 4
+  branches
+- Hint mode édition adapté selon `entry.src` + `isAdmin` (4 cas)
+- Nouvelle prop `onSharedUsagesOverrides` propagée à travers la chain :
+  - main.jsx → SetlistsScreen → ListScreen → SongDetailCard → PresetCurationModal
+  - main.jsx → MonProfilScreen → MesAppareilsTab → BankEditor → PresetCurationModal
+
+#### Tests E2E cascade (`usages-cascade.integration.test.js`)
+
+13 tests d'intégration end-to-end qui simulent des scénarios complets
+au lieu de tester les helpers en isolation :
+
+- **Cascade end-to-end** (6) : état initial sans override, admin écrit
+  Backline override, user perso écrase Backline, bouton Restaurer DELETE
+  user → cascade reprend à Backline, override vide explicite stop cascade,
+  admin retire Backline → catalog default
+- **Sync Firestore LWW bout-en-bout** (4) : 2 devices keys distinctes →
+  union, même preset conflit → plus récent gagne, override vide explicite
+  plus récent → propagé, égalité ts → keep local
+- **Préparation Phase 11** (2) : studio override gagne sur Backline,
+  hiérarchie complète user > studio > backline > catalog
+- **Sécurité isolation** (1) : user A perso → user B ne voit pas
+
+**Détail technique** : les tests `.test.js` tournent en env Node (pas
+jsdom), donc `findCatalogEntry._applyUsagesCascade` early-return car
+`typeof window === 'undefined'`. Solution : `beforeAll` stubbe
+`globalThis.window = {}` pour activer la cascade pendant les tests.
+
+#### Documentation `docs/CASCADE.md`
+
+Nouveau doc de référence (~250 lignes, aux côtés de SCORING.md + SYNC.md) :
+- Pourquoi la cascade (motivation Phase 7.79.3)
+- Schéma ASCII des 4 niveaux + règle "override vide explicite"
+- Architecture (3 fichiers clés + pipeline runtime)
+- Routing `saveUsagesForPreset` (table 4 branches)
+- Sync Firestore + LWW merge per-item
+- 4 cas d'usage typiques (admin curé, user perso, Restaurer, Phase 11)
+- **5 pièges à éviter** : modifier findCatalogEntry sans cascade, oublier
+  sync window state, confondre usages:undefined vs usages:null vs DELETE,
+  routing custom/ToneNET vs catalog statique, tests Node vs jsdom
+- Tests de référence + lien Phase 11
+
+Référencé dans CLAUDE.md section "Docs additionnelles" avec ⚠️ "À lire
+avant de toucher à la cascade".
+
+### Architecture livrée solidification
+
+```
+src/main.jsx                                APP_VERSION 8.14.154 → 8.14.155
+public/sw.js                                CACHE backline-v254 → backline-v255
+                                            +propage onSharedUsagesOverrides
+                                            à SetlistsScreen (depuis
+                                            screen==='setlists')
+src/app/components/PresetCurationModal.jsx  Refactor cascade : édition
+                                            ouverte à tous catalog
+                                            non-guessed, badge source,
+                                            bouton Restaurer, handleSave
+                                            via saveUsagesForPreset,
+                                            hint adapté isAdmin
+                                            +import removeUsagesOverride
+                                            +prop onSharedUsagesOverrides
+src/app/components/BankEditor.jsx           passe onSharedUsagesOverrides
+                                            à PresetCurationModal
+src/app/screens/SongDetailCard.jsx          +prop onSharedUsagesOverrides
+                                            +passe à PresetCurationModal
+src/app/screens/ListScreen.jsx              +prop onSharedUsagesOverrides
+                                            +propage à SongDetailCard
+src/app/screens/SetlistsScreen.jsx          +prop onSharedUsagesOverrides
+                                            +propage à ListScreen
+src/core/usages-cascade.integration.test.js NOUVEAU — 13 tests E2E
+                                            (window stub pour env Node)
+docs/CASCADE.md                             NOUVEAU — doc de référence
+CLAUDE.md                                   référence docs/CASCADE.md
+```
+
+### Conséquences solidification
+
+- **1392/1392 tests verts** (+13 nouveaux intégration cascade).
+- Bundle 2525.55 → 2526.88 KB (+1.33 KB pour PresetCurationModal refactor).
+- Pas de bump STATE_VERSION (pas de schéma changé).
+- **PresetCurationModal et UsagesSection en parité fonctionnelle** :
+  les 2 chemins UI (click pastille CurationDot vs drawer expand BankEditor)
+  offrent désormais la même expérience cascade.
+- **Tests E2E** : garde-fou contre régressions futures du système
+  cascade (modification de findCatalogEntry, du routing, etc.).
+- **docs/CASCADE.md** : prévention des 5 pièges classiques pour les
+  prochains touches au système.
+
+### Dette résiduelle solidification
+
+- **Tombstones pour `shared.usagesOverrides`** : pas de mécanisme v1.
+  Pour DELETE complètement un override Backline, on fait
+  `removeUsagesOverride` qui DELETE l'entry. Mais si un autre device
+  pre-7.79.3 ou un device offline depuis longtemps a encore l'entry
+  côté sa map, le merge LWW peut ressusciter l'override. Acceptable
+  v1 (suppression d'overrides rare). Phase ultérieure si rapporté.
+- **Pas de UI pour Phase 11 studios** : `shared.studioUsages` est un
+  slot ready-to-write mais aucune UI/account studio n'existe. Phase 11
+  complète quand TSR/JS/TJ/etc. acceptent de participer.
+
+---
+
+## État précédent (2026-05-20 soir, bonus i18n livrés — html lang sync + APP_TAGLINE localisé + JamScreen useLocale)
 
 **Backline v8.14.154 / SW backline-v254 / STATE_VERSION 10 / 1379 tests verts.**
 

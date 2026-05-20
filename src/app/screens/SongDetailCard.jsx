@@ -45,7 +45,7 @@ import GuitarSelect from '../components/GuitarSelect.jsx';
 import PBlock from '../components/PBlock.jsx';
 import FeedbackPanel from '../components/FeedbackPanel.jsx';
 
-function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, onClose, guitars, allRigsGuitars, availableSources, savedGuitarId, onGuitarChange, aiProvider, aiKeys, onSongDb, onAiCacheUpdate, profile, guitarBias, onTmpPatchOverride, songDb, onProfiles, activeProfileId, toneNetPresets, onToneNetPresets }) {
+function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, onClose, guitars, allRigsGuitars, availableSources, savedGuitarId, onGuitarChange, aiProvider, aiKeys, onSongDb, onAiCacheUpdate, profile, guitarBias, onTmpPatchOverride, songDb, onProfiles, activeProfileId, toneNetPresets, onToneNetPresets, onSharedUsagesOverrides }) {
   // Phase 7.54 — Helper interne : écrit aiCache via onAiCacheUpdate
   // (profile.aiCache) si disponible, sinon fallback onSongDb (shared).
   // Pour les invalidations (value=null), utilise aussi onAiCacheUpdate
@@ -654,6 +654,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           activeProfileId={activeProfileId}
           toneNetPresets={toneNetPresets}
           onToneNetPresets={onToneNetPresets}
+          onSharedUsagesOverrides={onSharedUsagesOverrides}
           onClose={() => setCurationModalPreset(null)}
         />
       )}

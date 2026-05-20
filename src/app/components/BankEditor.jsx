@@ -154,6 +154,7 @@ function BankEditor({ banks, onBanks, color, maxBanks, startBank, factoryBanks, 
           activeProfileId={activeProfileId}
           toneNetPresets={toneNetPresets}
           onToneNetPresets={onToneNetPresets}
+          onSharedUsagesOverrides={onSharedUsagesOverrides}
           onClose={() => setModalPresetName(null)}
         />
       )}
