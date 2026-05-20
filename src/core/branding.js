@@ -19,6 +19,20 @@ const APP_NAME = 'Backline';
 const APP_TAGLINE = 'Le guide intelligent pour tes pédales et amplis modélisés';
 const APP_SHORT_NAME = 'Backline';
 
+// Phase 7.84 dette → bonus Phase 7.79.3 — Tagline localisée pour la
+// modale d'intro (SplashPopup) et autres sites EN/ES où l'APP_TAGLINE
+// brut était affiché en FR pour les visiteurs non-francophones.
+// Fallback FR si locale inconnu.
+const APP_TAGLINE_BY_LOCALE = {
+  fr: APP_TAGLINE,
+  en: 'The intelligent guide for your modeled pedals and amps',
+  es: 'La guía inteligente para tus pedales y amplificadores modelados',
+};
+
+function getAppTagline(locale) {
+  return APP_TAGLINE_BY_LOCALE[locale] || APP_TAGLINE;
+}
+
 // Phase 7.73.0 — Formulaire Tally pour les feedbacks beta-testeurs.
 // Champs cachés pré-remplis via URL params : profile_name + app_version
 // (Tally les expose comme champs cachés natifs).
@@ -36,4 +50,4 @@ function buildFeedbackUrl(profileName, appVersion) {
   return url.toString();
 }
 
-export { APP_NAME, APP_TAGLINE, APP_SHORT_NAME, TALLY_FEEDBACK_URL, buildFeedbackUrl };
+export { APP_NAME, APP_TAGLINE, APP_TAGLINE_BY_LOCALE, getAppTagline, APP_SHORT_NAME, TALLY_FEEDBACK_URL, buildFeedbackUrl };

@@ -746,7 +746,90 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-20 soir, Phase 7.79.3c livrée — Sync Firestore cascade complète multi-device)
+## État actuel (2026-05-20 soir, bonus i18n livrés — html lang sync + APP_TAGLINE localisé + JamScreen useLocale)
+
+**Backline v8.14.154 / SW backline-v254 / STATE_VERSION 10 / 1379 tests verts.**
+
+### Bonus — Résidus i18n Phase 7.82 + JamScreen useLocale (v8.14.154)
+
+Trois quick wins enchaînés après livraison Phase 7.79.3 :
+
+#### 1. `<html lang>` synchronisé avec le locale effectif
+
+Dette résiduelle Phase 7.82 documentée le 2026-05-20 (audit Chrome MCP
+démo EN) : l'attribut `lang` de `<html>` restait toujours `"fr"` même
+quand l'UI rendait en EN. Cosmétique (lecteurs d'écran, SEO) mais pas
+propre. Fix dans `src/i18n/index.js` :
+
+- `setLocale(loc)` : pose `document.documentElement.lang = loc` après
+  écriture localStorage. Guard `typeof document !== 'undefined'` pour
+  Vitest/SSR.
+- `forceDemoLocale(loc)` : pareil (cas du mode démo qui bascule sans
+  passer par setLocale).
+- **Init module-level** : à l'import de `i18n/index.js`, `<html lang>`
+  est posé à `getLocale()` pour le 1er render. Garantit que les
+  lecteurs d'écran voient le bon lang dès le boot, sans attendre un
+  switch.
+
+#### 2. `APP_TAGLINE` localisé pour modale d'intro + onboarding
+
+Dette résiduelle Phase 7.82 (item 2) : la constante `APP_TAGLINE` de
+`core/branding.js` ("Le guide intelligent pour tes pédales et amplis
+modélisés") était affichée en FR brut dans le SplashPopup et
+l'OnboardingWizard, même en mode EN. Visible par un visiteur
+anglophone dès la modale.
+
+Fix `core/branding.js` : nouveau mapping `APP_TAGLINE_BY_LOCALE` :
+- FR : "Le guide intelligent pour tes pédales et amplis modélisés" (conservé)
+- EN : "The intelligent guide for your modeled pedals and amps"
+- ES : "La guía inteligente para tus pedales y amplificadores modelados"
+
+Nouveau helper `getAppTagline(locale)` qui retourne la version locale
+(fallback FR si locale inconnu). HomeScreen.jsx import + 2 sites mis
+à jour (SplashPopup ligne 179, OnboardingWizard ligne 217). Le re-render
+au switch de langue est garanti via `useLocale()` au composant parent.
+
+#### 3. `useLocale` ajouté à JamScreen
+
+Dette résiduelle Phase 7.84 (item 2) : JamScreen utilise `t()` /
+`tFormat()` mais n'a pas `useLocale()` au mount → ne se re-render pas
+au switch de langue. Bug latent si visiteur switch FR↔EN depuis
+JamScreen. Fix : 1 ligne `useLocale()` au début de la fonction
+`JamScreen`. Cohérent avec le pattern Phase 7.36+ déjà appliqué
+à HomeScreen, MonProfilScreen, SongDetailCard, ThanksScreen, etc.
+
+### Architecture livrée bonus
+
+```
+src/main.jsx                    APP_VERSION 8.14.153 → 8.14.154
+public/sw.js                    CACHE backline-v253 → backline-v254
+src/i18n/index.js               setLocale + forceDemoLocale : sync
+                                document.documentElement.lang. Init
+                                module-level : pose lang au boot.
+src/core/branding.js            +APP_TAGLINE_BY_LOCALE (FR/EN/ES)
+                                +getAppTagline(locale) helper
+                                +exports
+src/app/screens/HomeScreen.jsx  +import getLocale +getAppTagline
+                                2 sites APP_TAGLINE → getAppTagline(getLocale())
+                                (SplashPopup + OnboardingWizard)
+src/app/screens/JamScreen.jsx   +import useLocale +useLocale() en tête
+                                de la fonction JamScreen
+```
+
+### Conséquences bonus
+
+- **1379/1379 tests verts** (aucun nouveau, aucune régression).
+- Bundle 2525.07 → 2525.55 KB (+0.48 KB pour les nouveaux helpers
+  + 2 traductions + appel useLocale).
+- Pas de bump STATE_VERSION (purement i18n + DOM).
+- **Effet utilisateur** :
+  - Visiteur anglophone : tagline modale d'intro désormais en EN.
+  - `<html lang>` correctement annoté → meilleur SEO + accessibilité.
+  - JamScreen suit le switch de langue sans reload nécessaire.
+
+---
+
+## État précédent (2026-05-20 soir, Phase 7.79.3c livrée — Sync Firestore cascade complète multi-device)
 
 **Backline v8.14.153 / SW backline-v253 / STATE_VERSION 10 / 1379 tests verts.**
 

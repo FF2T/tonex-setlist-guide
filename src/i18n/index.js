@@ -94,6 +94,10 @@ export function forceDemoLocale(loc) {
   _activeProfileLanguage = loc;
   _cachedLocale = loc;
   _tCache.clear();
+  // Phase 7.84 dette → bonus — sync <html lang> en mode démo aussi.
+  if (typeof document !== 'undefined' && document.documentElement) {
+    try { document.documentElement.lang = loc; } catch (e) {}
+  }
   listeners.forEach((cb) => { try { cb(loc); } catch (e) {} });
 }
 
@@ -129,6 +133,12 @@ export function setLocale(loc) {
     try { _profileLanguageUpdater(loc); } catch (e) {}
   }
   try { localStorage.setItem(LOCALE_KEY, loc); } catch (e) {}
+  // Phase 7.84 dette → bonus Phase 7.79.3 — sync <html lang> avec le locale
+  // effectif. Cosmétique (a11y / SEO / lecteurs d'écran). Pas indispensable
+  // mais propre. Guard typeof pour SSR/Vitest.
+  if (typeof document !== 'undefined' && document.documentElement) {
+    try { document.documentElement.lang = loc; } catch (e) {}
+  }
   listeners.forEach((cb) => { try { cb(loc); } catch (e) {} });
 }
 
@@ -145,6 +155,13 @@ export function useLocale() {
   const [loc, setLoc] = useState(getLocale());
   useEffect(() => subscribeLocale((next) => setLoc(next)), []);
   return loc;
+}
+
+// Phase 7.84 dette → bonus Phase 7.79.3 — sync <html lang> initial au
+// module-load. Garantit que les lecteurs d'écran et SEO voient le bon
+// lang attribute dès le 1er render, sans attendre un setLocale().
+if (typeof document !== 'undefined' && document.documentElement) {
+  try { document.documentElement.lang = getLocale(); } catch (e) {}
 }
 
 function lookup(key, locale) {

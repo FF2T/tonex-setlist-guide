@@ -10,7 +10,7 @@
 // helper local — il n'est utilisé que par JamScreen.
 
 import React, { useState, useMemo } from 'react';
-import { t, tFormat } from '../../i18n/index.js';
+import { t, tFormat, useLocale } from '../../i18n/index.js';
 import { GUITARS } from '../../core/guitars.js';
 import { findCatalogEntry, PRESET_CATALOG_MERGED } from '../../core/catalog.js';
 import { computeFinalScore } from '../../core/scoring/index.js';
@@ -116,6 +116,7 @@ function JamPresetItem({ p, rank, isSelected, onSelect, banksAnn, banksPlug, gui
 }
 
 function JamScreen({ banksAnn, banksPlug, allGuitars, availableSources, profile }) {
+  useLocale(); // Phase 7.84 dette → bonus 7.79.3 — re-render au switch de langue
   const enabledDevices = getActiveDevicesForRender(profile);
   const hasPedalDevice = enabledDevices.some((d) => d.deviceKey === 'ann');
   const hasPlugDevice = enabledDevices.some((d) => d.deviceKey === 'plug');

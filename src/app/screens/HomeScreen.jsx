@@ -10,8 +10,8 @@
 // Les valeurs comparées à des outputs IA ('Aucun effet') restent FR.
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { t, tFormat, useLocale } from '../../i18n/index.js';
-import { APP_NAME, APP_TAGLINE } from '../../core/branding.js';
+import { t, tFormat, useLocale, getLocale } from '../../i18n/index.js';
+import { APP_NAME, APP_TAGLINE, getAppTagline } from '../../core/branding.js';
 import { getSongInfo } from '../../core/songs.js';
 import {
   findGuitarByAIName, findCotEntryForGuitar, localGuitarSongScore,
@@ -176,7 +176,8 @@ function SplashPopup({ onClose }) {
       <div style={{ background: 'var(--bg-card)', borderRadius: 'var(--r-xl)', padding: '32px 24px', maxWidth: 420, width: '100%', position: 'relative', boxShadow: 'var(--shadow-lg)', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
         <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}><BacklineIcon size={56} color="var(--brass-300)"/></div>
         <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>{APP_NAME}</div>
-        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16 }}>{APP_TAGLINE}</div>
+        {/* Phase 7.84 dette → bonus 7.79.3 — tagline localisée EN/ES (cf core/branding.js getAppTagline) */}
+        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16 }}>{getAppTagline(getLocale())}</div>
         <div style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600, fontStyle: 'italic', marginBottom: 16, padding: '12px 16px', background: 'var(--accent-bg)', borderRadius: 'var(--r-lg)', border: '1px solid var(--accent-border)' }}>
           {t('home.splash.quote', '"Quel preset charger pour ce morceau, avec cette guitare ?"')}
         </div>
@@ -214,7 +215,7 @@ function OnboardingWizard({ onClose, onProfile }) {
       <div style={{ textAlign: 'center' }}>
         <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center' }}><BacklineIcon size={64} color="var(--brass-300)"/></div>
         <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-2xl)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 10 }}>{APP_NAME}</div>
-        <div style={{ fontSize: 15, color: 'var(--text-sec)', lineHeight: 1.6, marginBottom: 24 }}>{APP_TAGLINE} {t('home.onboarding.tagline-extra', '— quel preset charger pour chaque morceau, avec ta guitare.')}</div>
+        <div style={{ fontSize: 15, color: 'var(--text-sec)', lineHeight: 1.6, marginBottom: 24 }}>{getAppTagline(getLocale())} {t('home.onboarding.tagline-extra', '— quel preset charger pour chaque morceau, avec ta guitare.')}</div>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 2, textAlign: 'left', padding: '18px 20px', background: 'var(--a3)', borderRadius: 'var(--r-xl)' }}>
           <div style={{ fontWeight: 700, marginBottom: 6, color: 'var(--text-sec)', fontSize: 14 }}>{t('home.onboarding.in-3min', 'En 3 minutes tu pourras :')}</div>
           <div>{t('home.onboarding.feat-search', '🔍 Chercher un morceau et obtenir le preset idéal')}</div>
