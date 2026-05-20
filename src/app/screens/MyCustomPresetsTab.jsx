@@ -27,31 +27,32 @@ import { PRESET_CATALOG_MERGED } from '../../core/catalog.js';
 import { inferPresetInfo } from '../utils/infer-preset.js';
 import { STYLE_SCORES } from '../utils/detect-preset-metadata.js';
 import { cleanUsages } from './ToneNetTab.jsx';
+import { bucketizeScore, COMPAT_LEVELS } from '../../core/scoring/compat-buckets.js';
 
-// Phase 7.69.13 — Niveaux qualitatifs pour la saisie des scores de
-// compatibilité par micro. 4 niveaux (Médiocre/Moyen/Bon/Excellent)
-// correspondent à des valeurs canoniques 50/75/85/95. Les valeurs
-// non canoniques (ex: STYLE_SCORES.metal SC=60) sont mappées via
-// les ranges au render — cliquer un bouton snap à la value canonique.
+// Phase 7.69.13 (origine) — Niveaux qualitatifs pour la saisie des
+// scores de compatibilité par micro.
+//
+// Phase 7.83 (2026-05-20) — Aligné sur les 3 niveaux musicaux
+// communs au projet : 🟢 Mariage parfait (≥75) · 🟡 Bon match (≥55) ·
+// 🟠 Compromis (<55). Valeurs canoniques 85/65/40 (au cœur de chaque
+// range). Cliquer un bouton snap à la valeur canonique du niveau.
 const SCORE_LEVELS = [
-  { value: 50, label: 'Médiocre', range: [0, 60] },
-  { value: 75, label: 'Moyen', range: [60, 80] },
-  { value: 85, label: 'Bon', range: [80, 90] },
-  { value: 95, label: 'Excellent', range: [90, 101] },
+  { value: 40, levelId: 'compromise' },
+  { value: 65, levelId: 'good' },
+  { value: 85, levelId: 'ideal' },
 ];
 
+// Détermine quel SCORE_LEVELS correspond à un score donné (via bucket).
 function getLevelForScore(score) {
-  const n = Number(score);
-  if (!Number.isFinite(n)) return SCORE_LEVELS[1]; // fallback Moyen
-  return SCORE_LEVELS.find((lv) => n >= lv.range[0] && n < lv.range[1]) || SCORE_LEVELS[1];
+  const bucket = bucketizeScore(score);
+  return SCORE_LEVELS.find((lv) => lv.levelId === bucket.id) || SCORE_LEVELS[1];
 }
 
-// Couleur du niveau (cohérence visuelle entre micros).
-function getLevelColor(level) {
-  if (level.value === 50) return 'var(--red)';
-  if (level.value === 75) return 'var(--yellow)';
-  if (level.value === 85) return 'var(--accent)';
-  return 'var(--green)';
+// Label localisé pour un niveau, partagé avec PresetBrowser (Phase 7.83).
+function getLevelLabel(levelId) {
+  if (levelId === 'ideal') return t('compat.ideal-match', '🟢 Mariage parfait');
+  if (levelId === 'good') return t('compat.good-match', '🟡 Bon match');
+  return t('compat.compromise', '🟠 Compromis');
 }
 
 // Liste fermée des valeurs `creator` possibles. Auto-détection via
@@ -666,12 +667,14 @@ function ScoreLevelsRow({ form, set, setScoreLevel, inp }) {
                 />
               ) : (
                 <div style={{ display: 'flex', gap: 4, flex: 1, flexWrap: 'wrap' }}>
+                  {/* Phase 7.83 — 3 niveaux qualitatifs alignés sur PresetBrowser */}
                   {SCORE_LEVELS.map((lv) => {
-                    const isActive = lv.value === activeLevel.value;
-                    const color = getLevelColor(lv);
+                    const isActive = lv.levelId === activeLevel.levelId;
+                    const color = COMPAT_LEVELS[lv.levelId].color;
+                    const label = getLevelLabel(lv.levelId);
                     return (
                       <button
-                        key={lv.value}
+                        key={lv.levelId}
                         onClick={() => setScoreLevel(formKey, lv.value)}
                         style={{
                           flex: 1,
@@ -685,9 +688,9 @@ function ScoreLevelsRow({ form, set, setScoreLevel, inp }) {
                           cursor: 'pointer',
                           minWidth: 60,
                         }}
-                        title={`${lv.label} (${lv.value})`}
+                        title={`${label} (${lv.value})`}
                       >
-                        {lv.label}
+                        {label}
                       </button>
                     );
                   })}

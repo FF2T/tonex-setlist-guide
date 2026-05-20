@@ -478,6 +478,12 @@ const es = {
   'preset-browser.page-title': '🎛️ Explorar presets',
   'preset-browser.what-sound': '¿Qué sonido buscas?',
 
+  // compat (Phase 7.83 — niveles de compatibilidad cualitativos)
+  'compat.ideal-match': '🟢 Combinación perfecta',
+  'compat.good-match': '🟡 Buena combinación',
+  'compat.compromise': '🟠 Compromiso',
+  'compat.score-tooltip': 'Puntuación: {score}%',
+
   // preset-detail (Phase 7.84)
   'preset-detail.style.blues': 'Blues',
   'preset-detail.style.rock': 'Rock',
@@ -514,6 +520,7 @@ const es = {
   'preset-list.all-count': 'Todos ({count})',
   'preset-list.count-click': { one: '1 preset — toca para ver la ficha', other: '{count} presets — toca para ver la ficha' },
   'preset-list.show-more': 'Ver {n} más ({remaining} restantes)',
+  'preset-list.pickup-header': 'HB · SC · P90',
 
   // usages (Phase 7.84 — UsagesSection)
   'usages.section': 'Usos curados (preset)',

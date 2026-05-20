@@ -17,6 +17,7 @@ import {
   computePickupScore, computeGuitarScoreV2, getGainRange, gainToNumeric,
 } from '../../core/scoring/index.js';
 import { findGuitarProfile } from '../../core/scoring/guitar.js';
+import { bucketizeScore, groupByBucket, COMPAT_LEVELS } from '../../core/scoring/compat-buckets.js';
 import { PRESET_CATALOG_FULL } from '../../data/preset_catalog_full.js';
 import {
   PRESET_CATALOG, FACTORY_CATALOG, PLUG_FACTORY_CATALOG, TSR_PACK_CATALOG,
@@ -24,7 +25,6 @@ import {
 } from '../../data/data_catalogs.js';
 import { PRESET_CONTEXT } from '../../data/data_context.js';
 import { findInBanks } from '../utils/preset-helpers.js';
-import { scoreColor, scoreBg } from '../components/score-utils.js';
 
 const PRESET_PAGE_SIZE = 30;
 
@@ -448,15 +448,49 @@ function PresetDetailInline({ name, info, banksAnn, banksPlug, presetContext, gu
       />
       <div style={sectionStyle}>
         {sectionTitle('🎸', t('preset-detail.section.suitable-guitars', 'Guitares adaptées'))}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {guitarScores.map((g) => (
-            <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
-              <span style={{ fontWeight: 600, color: 'var(--text-bright)', flex: 1 }}>{g.name} <span style={{ fontSize: 9, color: 'var(--text-dim)' }}>({g.type})</span></span>
-              <div style={{ width: 60, height: 4, background: 'var(--a8)', borderRadius: 'var(--r-xs)', overflow: 'hidden', flexShrink: 0 }}><div style={{ width: `${g.score}%`, height: '100%', background: scoreColor(g.score), borderRadius: 'var(--r-xs)' }}/></div>
-              <span style={{ fontSize: 10, fontWeight: 700, color: scoreColor(g.score), width: 32, textAlign: 'right', flexShrink: 0 }}>{g.score}%</span>
+        {/* Phase 7.83 — Buckets qualitatifs 3 niveaux (Mariage parfait / Bon match / Compromis)
+            au lieu de scores % bruts. Le % reste accessible via title HTML pour power-users. */}
+        {(() => {
+          const grouped = groupByBucket(guitarScores);
+          const BUCKET_LABELS = {
+            ideal: t('compat.ideal-match', '🟢 Mariage parfait'),
+            good: t('compat.good-match', '🟡 Bon match'),
+            compromise: t('compat.compromise', '🟠 Compromis'),
+          };
+          const sectionsToRender = ['ideal', 'good', 'compromise'].filter((k) => grouped[k].length > 0);
+          if (sectionsToRender.length === 0) return null;
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {sectionsToRender.map((key) => {
+                const lvl = COMPAT_LEVELS[key];
+                return (
+                  <div key={key}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: lvl.color, marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>
+                      {BUCKET_LABELS[key]} <span style={{ color: 'var(--text-dim)', fontWeight: 500 }}>({grouped[key].length})</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {grouped[key].map((g) => (
+                        <div
+                          key={g.id}
+                          title={tFormat('compat.score-tooltip', { score: g.score }, 'Score : {score}%')}
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}
+                        >
+                          <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: lvl.color, flexShrink: 0 }}/>
+                          <span style={{ fontWeight: 600, color: 'var(--text-bright)', flex: 1 }}>
+                            {g.name} <span style={{ fontSize: 9, color: 'var(--text-dim)' }}>({g.type})</span>
+                          </span>
+                          <div style={{ width: 60, height: 4, background: 'var(--a8)', borderRadius: 'var(--r-xs)', overflow: 'hidden', flexShrink: 0 }}>
+                            <div style={{ width: `${g.score}%`, height: '100%', background: lvl.color, borderRadius: 'var(--r-xs)' }}/>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          ))}
-        </div>
+          );
+        })()}
       </div>
     </div>
   );
@@ -496,8 +530,14 @@ function PresetList({ filtered, selected, setSelected, banksAnn, banksPlug, full
           </div>
         );
       })()}
-      <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 8 }}>
-        {tPlural('preset-list.count-click', displayFiltered.length, {}, { one: '1 preset — clique pour voir la fiche', other: '{count} presets — clique pour voir la fiche' })}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>
+          {tPlural('preset-list.count-click', displayFiltered.length, {}, { one: '1 preset — clique pour voir la fiche', other: '{count} presets — clique pour voir la fiche' })}
+        </div>
+        {/* Phase 7.83 — en-tête colonne compatibilité par type de pickup */}
+        <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', letterSpacing: 'var(--tracking-wider)', textTransform: 'uppercase' }}>
+          {t('preset-list.pickup-header', 'HB · SC · P90')}
+        </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
         {visible.map(([name, info]) => {
@@ -517,8 +557,19 @@ function PresetList({ filtered, selected, setSelected, banksAnn, banksPlug, full
                     {plugLoc && <span style={{ fontSize: 9, color: 'var(--accent)', background: 'rgba(165,180,252,0.1)', borderRadius: 'var(--r-sm)', padding: '1px 5px', fontWeight: 700 }}>🔌{plugLoc.bank}{plugLoc.slot}</span>}
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 3, alignItems: 'center', flexShrink: 0 }}>
-                  {['HB', 'SC', 'P90'].map((gt) => { const sc = computePickupScore(info.style, getGainRange(gainToNumeric(info.gain)), gt); return <span key={gt} style={{ fontSize: 9, color: scoreColor(sc), fontWeight: 700, background: scoreBg(sc), borderRadius: 'var(--r-sm)', padding: '1px 4px' }}>{sc}</span>; })}
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
+                  {/* Phase 7.83 — pastilles couleur qualitatives (sans chiffre visible). Score brut révélé au hover via title HTML. */}
+                  {['HB', 'SC', 'P90'].map((gt) => {
+                    const sc = computePickupScore(info.style, getGainRange(gainToNumeric(info.gain)), gt);
+                    const lvl = bucketizeScore(sc);
+                    return (
+                      <span
+                        key={gt}
+                        title={`${gt} — ${sc}%`}
+                        style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: lvl.color, border: `1px solid ${lvl.borderColor}`, flexShrink: 0 }}
+                      />
+                    );
+                  })}
                 </div>
               </div>
               {isSel && <PresetDetailInline name={name} info={info} banksAnn={banksAnn} banksPlug={banksPlug} presetContext={mergedContext} guitars={guitars} isAdmin={isAdmin} songDb={songDb} onSaveUsages={onSaveUsages}/>}

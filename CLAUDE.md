@@ -746,7 +746,153 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-20 après-midi, Phase 7.84 livrée — i18n Explorer + 167 desc ampli EN)
+## État actuel (2026-05-20 fin d'après-midi, Phase 7.83 livrée — compat guitare qualitative 3 niveaux)
+
+**Backline v8.14.150 / SW backline-v250 / STATE_VERSION 10 / 1335 tests verts.**
+
+### Phase 7.83 — Compatibilité guitare qualitative 3 niveaux (v8.14.150)
+
+Audit Chrome MCP démo EN du 2026-05-20 (cf Phase 7.84) avait identifié
+en problème 3 que les scores nus (84%, 64%, 52%, 49%…) suggèrent une
+précision que le scoring V9 heuristique n'a pas, et ne disent pas au
+visiteur quoi faire d'un "64%". Phase 7.83 bucketise en 3 niveaux
+qualitatifs musicaux.
+
+#### Helper pur — `src/core/scoring/compat-buckets.js`
+
+- `bucketizeScore(score)` → `{id, emoji, threshold, color, bgColor, borderColor}`.
+  Defensive : null/undefined/NaN/non-number → fallback 'compromise'.
+- `groupByBucket(items)` → `{ideal, good, compromise}` en préservant
+  l'ordre relatif d'origine au sein de chaque groupe.
+- `COMPAT_LEVELS` : 3 niveaux exposés en constants pour réutilisation.
+- **Seuils** validés Sébastien 2026-05-20 : 🟢 ideal (≥ 75) ·
+  🟡 good (≥ 55) · 🟠 compromise (< 55).
+- **Nommage musical** (choix UX) :
+  - FR : 🟢 Mariage parfait · 🟡 Bon match · 🟠 Compromis
+  - EN : 🟢 Perfect match · 🟡 Good match · 🟠 Compromise
+  - ES : 🟢 Combinación perfecta · 🟡 Buena combinación · 🟠 Compromiso
+
+12 tests Vitest dédiés (`compat-buckets.test.js`) : boundary seuils,
+fallback defensive, ordre groupByBucket, structure COMPAT_LEVELS.
+
+#### Refactor PresetBrowser — section "Guitares adaptées" en sections groupées
+
+Avant Phase 7.83, la fiche dépliée affichait chaque guitare avec :
+`[nom (type)] [jauge 60×4 couleur scoreColor] [score%]` listés par
+ordre décroissant. Après : 3 sections empilées (Mariage parfait / Bon
+match / Compromis) avec en-tête coloré, dot 8×8 + nom (type) + jauge
+60×4 dans la couleur du bucket. Score brut accessible via `title` HTML
+("Score : 87%") pour power-users qui veulent creuser.
+
+Sections vides (count=0) sont skippées → si toutes les guitares
+matchent en "Mariage parfait", on n'affiche pas d'en-tête "🟠 Compromis"
+inutile.
+
+#### Refactor PresetBrowser — liste presets : pastilles HB/SC/P90 sans chiffre
+
+Avant : 3 pastilles colorées chiffrées `[92] [60] [72]` collées au bord
+droit de chaque ligne preset, **sans en-tête** → se lisait comme une
+note de qualité de la capture. Bruno avait remonté le doute.
+
+Après :
+- En-tête colonne `HB · SC · P90` ajouté à droite au-dessus de la
+  liste (font-mono, 9px, uppercase, dim) → clarifie ce que sont
+  ces 3 valeurs.
+- 3 petits dots 10×10 colorés par bucket (sans chiffre visible).
+  Title HTML `"HB — 92%"` au hover pour le détail brut.
+- `scoreColor` / `scoreBg` import retiré (plus utilisé dans
+  PresetBrowser après le refactor).
+
+#### Aligner Phase 7.69.13 (MyCustomPresetsTab) sur 3 niveaux
+
+Phase 7.69.13 (déc. 2024) avait introduit **4 niveaux** dans l'éditeur
+de presets custom (Médiocre 50 / Moyen 75 / Bon 85 / Excellent 95).
+Choix utilisateur 2026-05-20 : aligner sur les 3 niveaux Phase 7.83
+pour cohérence cross-app.
+
+`src/app/screens/MyCustomPresetsTab.jsx` :
+- Import `bucketizeScore` + `COMPAT_LEVELS` depuis compat-buckets.
+- `SCORE_LEVELS` 4 entrées → 3 entrées avec valeurs canoniques
+  recalibrées : `compromise: 40` / `good: 65` / `ideal: 85`. Ces
+  valeurs tombent au cœur de chaque range (vs anciens 50/75/85/95
+  qui chevauchaient les seuils).
+- `getLevelForScore` délègue à `bucketizeScore`.
+- `getLevelColor` supprimé → la couleur vient désormais de
+  `COMPAT_LEVELS[levelId].color`.
+- Nouveau helper `getLevelLabel(levelId)` qui retourne la string
+  i18n localisée (réutilise les clés `compat.*` de Phase 7.83).
+- Rendu boutons : itère sur 3 SCORE_LEVELS, snap au value canonique
+  au click, label localisé i18n FR/EN/ES.
+
+Aucun test Vitest sur MyCustomPresetsTab ne touchait à `SCORE_LEVELS`
+ou `getLevelForScore` (suite vérifie `inferCreator`, `flattenPresets`,
+etc.). Refactor safe.
+
+### Architecture livrée Phase 7.83
+
+```
+src/main.jsx                                APP_VERSION 8.14.149 → 8.14.150
+public/sw.js                                CACHE backline-v249 → backline-v250
+src/core/scoring/compat-buckets.js          NOUVEAU — bucketizeScore +
+                                            groupByBucket + COMPAT_LEVELS
+src/core/scoring/compat-buckets.test.js     NOUVEAU — 12 tests
+src/app/screens/PresetBrowser.jsx           +import bucketizeScore/groupByBucket/
+                                            COMPAT_LEVELS ; retrait scoreColor/Bg
+                                            section "Guitares adaptées" :
+                                            sections groupées par bucket +
+                                            % en title HTML uniquement
+                                            liste presets :
+                                            en-tête colonne HB·SC·P90 +
+                                            dots colorés sans chiffre +
+                                            title hover "HB — 87%"
+src/app/screens/MyCustomPresetsTab.jsx      SCORE_LEVELS 4→3 niveaux
+                                            +getLevelLabel via t() partagé
+                                            getLevelColor → COMPAT_LEVELS[].color
+src/i18n/en.js                              +compat.ideal-match, .good-match,
+                                            .compromise, .score-tooltip
+                                            +preset-list.pickup-header
+src/i18n/es.js                              +mêmes 5 clés en ES
+```
+
+### Conséquences Phase 7.83
+
+- **1335/1335 tests verts** (+12 nouveaux compat-buckets).
+- Bundle 2514.87 → 2517.05 KB (+2.18 KB pour helper + i18n +
+  refactor sections).
+- **Pas de bump SCORING_VERSION** (couche d'affichage pure, V9
+  reste inchangé).
+- **Pas de migration localStorage**.
+- Cohérence cross-app : MyCustomPresetsTab + PresetBrowser
+  partagent désormais les mêmes 3 niveaux + labels i18n.
+- **Effet utilisateur** : un visiteur démo qui ouvre Explorer →
+  ampli → fiche capture voit désormais "🟢 Mariage parfait
+  (3) · Strat 61, Tele 63, Strat Pro II" au lieu de
+  "Strat 61 92%, Tele 63 87%, Strat Pro II 85%, LP60 71%, …".
+  Plus actionnable pour le débutant, désamorce le risque
+  "score nu lu comme une note de qualité" côté créateurs de packs.
+
+### Dette résiduelle Phase 7.83
+
+- **GuitarSelect dropdown** : hors scope Phase 7.83 (n'affichait
+  pas de % à la base, juste ★ binaire dans la liste des options).
+  Pourrait ajouter une pastille couleur par option à l'avenir si
+  utile.
+- **Compatibility 87% de la fiche morceau** : un seul chiffre,
+  un seul contexte — moins prioritaire, pas inclus. À envisager
+  si retour beta.
+- **Calibration empirique des seuils** : les seuils 75/55 sont
+  basés sur intuition + précédent Phase 7.69.13. Pas calibré
+  sur la distribution réelle du catalog actuel. Si retour
+  utilisateur "trop de Compromis" ou "pas assez de Mariage
+  parfait", ajuster `COMPAT_LEVELS.ideal.threshold` et/ou
+  `COMPAT_LEVELS.good.threshold`.
+- **Le scoring V9 brut reste accessible via title HTML** —
+  intentionnel (power-users + diagnostic). Si on veut vraiment
+  cacher les % bruts, supprimer ces title attributes.
+
+---
+
+## État précédent (2026-05-20 après-midi, Phase 7.84 livrée — i18n Explorer + 167 desc ampli EN)
 
 **Backline v8.14.149 / SW backline-v249 / STATE_VERSION 10 / 1323 tests verts.**
 
@@ -10177,7 +10323,19 @@ faire avant d'inviter un créateur anglophone à explorer Explorer
 en profondeur (Phase 11). Non bloquant pour le Mail 3 Paul (qui
 reste un "30s look" sur le Home).
 
-### Phase 7.83 (proposée 2026-05-20) — Compatibilité guitare qualitative 3 niveaux dans Explorer
+### Phase 7.83 — ✅ LIVRÉE 2026-05-20 (v8.14.150) — Compatibilité guitare qualitative 3 niveaux
+
+Voir section "État actuel (2026-05-20 fin d'après-midi)" en haut de
+CLAUDE.md pour le détail. Helper bucketizeScore + groupByBucket,
+refactor PresetBrowser section "Guitares adaptées" en sections
+groupées, refactor liste presets pastilles HB/SC/P90 sans chiffre +
+en-tête colonne, aligned MyCustomPresetsTab sur 3 niveaux. 12 tests
+Vitest. Nommage musical "Mariage parfait / Bon match / Compromis"
+choisi vs sobre.
+
+**Notes design conservées pour référence** :
+
+### Phase 7.83 (contexte design — livrée) — Compatibilité guitare qualitative 3 niveaux dans Explorer
 
 **Contexte** : la section "🎸 Guitares adaptées" de la fiche capture
 Explorer (et le dropdown `GuitarSelect`) affiche chaque guitare avec

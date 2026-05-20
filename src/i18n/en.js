@@ -480,6 +480,12 @@ const en = {
   'preset-browser.page-title': '🎛️ Explore presets',
   'preset-browser.what-sound': 'What sound are you looking for?',
 
+  // compat (Phase 7.83 — qualitative compatibility buckets)
+  'compat.ideal-match': '🟢 Perfect match',
+  'compat.good-match': '🟡 Good match',
+  'compat.compromise': '🟠 Compromise',
+  'compat.score-tooltip': 'Score: {score}%',
+
   // preset-detail (Phase 7.84)
   'preset-detail.style.blues': 'Blues',
   'preset-detail.style.rock': 'Rock',
@@ -516,6 +522,7 @@ const en = {
   'preset-list.all-count': 'All ({count})',
   'preset-list.count-click': { one: '1 preset — click to see the details', other: '{count} presets — click to see the details' },
   'preset-list.show-more': 'Show {n} more ({remaining} remaining)',
+  'preset-list.pickup-header': 'HB · SC · P90',
 
   // usages (Phase 7.84 — UsagesSection)
   'usages.section': 'Curated usages (preset)',
