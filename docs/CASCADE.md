@@ -198,15 +198,40 @@ Si tu as besoin du catalog brut sans la cascade (rare, debugging),
 exporter et utiliser `_findCatalogEntryRaw` (pas exporté pour
 l'instant, à exposer si vrai besoin).
 
-### Piège 2 : oublier de sync `window._usagesCascadeState`
+### Piège 2 : ordre du `useEffect` sync vs déclaration `profile` ⚠
 
-Le `useEffect` de main.jsx (~ligne 533) doit poser
-`window._usagesCascadeState` à chaque mutation des 3 maps. Si on ajoute
+Le `useEffect` qui sync `window._usagesCascadeState` référence
+`profile?.usagesOverrides` dans son deps array. Le deps array d'un
+useEffect est **évalué synchroneusement à chaque render** — donc
+il DOIT être placé APRÈS la déclaration `const profile = profiles
+[activeProfileId]` dans main.jsx App().
+
+**Bug réel survenu** (commits Phase 7.79.3b → v8.14.155, hotfix
+v8.14.156) : le useEffect avait été ajouté ligne ~533, mais
+`const profile = ...` est ligne ~580. Conséquence en runtime :
+`ReferenceError: Cannot access 'profile' before initialization`
+(TDZ — Temporal Dead Zone) → React mount échoue → **écran noir
+sur mybackline.app**, console minifiée affichant `Cannot access
+'D' before initialization`.
+
+Tests Vitest n'ont rien vu car ils testent les helpers purs, pas
+l'init React App. Le minifier Vite/Rollup n'a pas détecté la TDZ
+(elle est runtime-only).
+
+**Règle** : tout `useEffect`/`useMemo` qui référence `profile`
+(ou autre const dérivé) dans son deps array DOIT être placé après
+la déclaration. Vérifier l'ordre à chaque nouveau hook ajouté
+dans App().
+
+### Piège 3 : oublier de sync `window._usagesCascadeState`
+
+Le `useEffect` de main.jsx doit poser `window._usagesCascadeState`
+à chaque mutation des 3 maps. Si on ajoute
 un nouveau setter qui mute `profile.usagesOverrides` sans déclencher
 ce useEffect (deps array correct), la cascade ne se met pas à jour →
 `findCatalogEntry` retourne du contenu stale.
 
-### Piège 3 : `usages: undefined` ≠ `usages: null`
+### Piège 4 : `usages: undefined` ≠ `usages: null`
 
 - `saveUsagesForPreset(name, undefined, ctx)` sur catalog statique →
   écrit `{ usages: null, lastModified }` (override vide explicite, STOP
@@ -217,7 +242,7 @@ ce useEffect (deps array correct), la cascade ne se met pas à jour →
 Ne pas confondre. L'UI "🔄 Restaurer" doit toujours appeler
 `removeUsagesOverride`, jamais `saveUsagesForPreset` avec undefined.
 
-### Piège 4 : routing custom/ToneNET vs catalog statique
+### Piège 5 : routing custom/ToneNET vs catalog statique
 
 `saveUsagesForPreset` route automatiquement selon `entry.src`. Mais les
 sources custom/ToneNET stockent leur `usages` DANS la donnée
@@ -228,7 +253,7 @@ pas dans la cascade. Donc pour ces sources :
 - Le bouton "🔄 Restaurer" est caché (canRemoveOverride=false)
 - `removeUsagesOverride` est no-op pour custom/ToneNET
 
-### Piège 5 : tests Node vs jsdom
+### Piège 6 : tests Node vs jsdom
 
 `_applyUsagesCascade` early-return si `typeof window === 'undefined'`.
 Les tests `.test.js` tournent en env Node (pas jsdom). Pour tester

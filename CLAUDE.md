@@ -160,7 +160,7 @@ public/
   `window._usagesCascadeState`.** Documente les 4 niveaux (user >
   studio > backline > default catalog), le pattern "override vide
   explicite" (`usages: null`), le routing custom/ToneNET vs catalog
-  statique, et 5 pièges classiques. Slot Phase 11 Studio-driven déjà
+  statique, et 6 pièges classiques. Slot Phase 11 Studio-driven déjà
   câblé (niveau 2).
 
 ## Style de code
@@ -756,7 +756,68 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-20 nuit, Phase 7.79.3 solidification — PresetCurationModal cascade + 13 tests E2E + docs/CASCADE.md)
+## État actuel (2026-05-21 matin, hotfix v8.14.156 — TDZ ReferenceError écran noir corrigé)
+
+**Backline v8.14.156 / SW backline-v256 / STATE_VERSION 10 / 1392 tests verts.**
+
+### Hotfix v8.14.156 — Écran noir mybackline.app (TDZ Phase 7.79.3b)
+
+**Bug critique reporté par Sébastien 2026-05-21 matin** : `mybackline.app`
+affiche un écran noir, console montre `Cannot access 'D' before
+initialization` (D = identifiant minifié). React mount échoue.
+
+**Cause racine** : le `useEffect` qui sync `window._usagesCascadeState`
+(introduit Phase 7.79.3b livré v8.14.152) référence `profile?.usagesOverrides`
+dans son deps array. **Le deps array est évalué synchroneusement à chaque
+render**, mais le useEffect avait été placé ligne ~533, AVANT la déclaration
+`const profile = profiles[activeProfileId]` ligne ~580 → TDZ
+(Temporal Dead Zone) ReferenceError au 1er render → React mount crash.
+
+**Pourquoi pas détecté avant** :
+- Tests Vitest testent les helpers purs (`resolveUsagesCascade`,
+  `saveUsagesForPreset`, etc.), pas l'init React App de main.jsx
+- Build Vite minifie sans détecter la TDZ (erreur runtime-only)
+- Le bug existe depuis v8.14.152 mais s'est manifesté seulement
+  en prod sur device Sébastien (probablement masqué localement par
+  HMR Vite dev qui ne déclenche pas les mêmes paths d'init)
+
+**Fix** : déplace le useEffect APRÈS la déclaration `const profile = ...`.
+Commentaire WARNING ajouté à l'emplacement d'origine pour éviter ré-introduction.
+
+**Documenté dans `docs/CASCADE.md` piège #2** (nouveau) : "ordre du useEffect
+sync vs déclaration profile ⚠". Mention explicite : tout `useEffect`/`useMemo`
+qui référence `profile` dans son deps array DOIT être après la déclaration.
+
+### Architecture livrée hotfix
+
+```
+src/main.jsx              APP_VERSION 8.14.155 → 8.14.156
+                          useEffect cascade déplacé après const profile
+                          +commentaire WARNING à l'emplacement d'origine
+public/sw.js              CACHE backline-v255 → backline-v256
+docs/CASCADE.md           +Piège #2 (TDZ profile)
+                          renumérotation 3→4, 4→5, 5→6
+```
+
+### Conséquences hotfix
+
+- **1392/1392 tests verts** (aucune logique changée, juste réordonnancement).
+- Bundle identique (2526.88 KB).
+- Pas de bump STATE_VERSION.
+- **Production restorée** : v8.14.156 corrige l'écran noir. User doit
+  faire hard reload (Cmd+Shift+R) ou Unregister SW v255 cassé pour
+  bypasser le cache stale.
+
+### Leçon prise
+
+Tests Vitest ne couvraient pas le smoke-test mount React. Ajout
+possible Phase ultérieure : test minimal qui import main.jsx + App
+component et vérifie que le mount ne throw pas. Coût ~30 min, valeur
+préventive importante.
+
+---
+
+## État précédent (2026-05-20 nuit, Phase 7.79.3 solidification — PresetCurationModal cascade + 13 tests E2E + docs/CASCADE.md)
 
 **Backline v8.14.155 / SW backline-v255 / STATE_VERSION 10 / 1392 tests verts.**
 
@@ -816,7 +877,7 @@ Nouveau doc de référence (~250 lignes, aux côtés de SCORING.md + SYNC.md) :
 - Routing `saveUsagesForPreset` (table 4 branches)
 - Sync Firestore + LWW merge per-item
 - 4 cas d'usage typiques (admin curé, user perso, Restaurer, Phase 11)
-- **5 pièges à éviter** : modifier findCatalogEntry sans cascade, oublier
+- **6 pièges à éviter** : modifier findCatalogEntry sans cascade, oublier
   sync window state, confondre usages:undefined vs usages:null vs DELETE,
   routing custom/ToneNET vs catalog statique, tests Node vs jsdom
 - Tests de référence + lien Phase 11
@@ -864,7 +925,7 @@ CLAUDE.md                                   référence docs/CASCADE.md
   offrent désormais la même expérience cascade.
 - **Tests E2E** : garde-fou contre régressions futures du système
   cascade (modification de findCatalogEntry, du routing, etc.).
-- **docs/CASCADE.md** : prévention des 5 pièges classiques pour les
+- **docs/CASCADE.md** : prévention des 6 pièges classiques pour les
   prochains touches au système.
 
 ### Dette résiduelle solidification
@@ -1094,7 +1155,7 @@ Récap :
 + 13 intégration `usages-cascade.integration.test.js`), routing étendu
 sur 4 branches via `saveUsagesForPreset`, UI cascade en parité sur les
 2 chemins (UsagesSection drawer + PresetCurationModal pastille), sync
-multi-device LWW per-item, doc de référence avec 5 pièges à éviter.
+multi-device LWW per-item, doc de référence avec 6 pièges à éviter.
 
 **Préparation Phase 11 Studio-driven** : `shared.studioUsages` est un slot
 prêt à recevoir des overrides de pack creators partenaires (TSR, ML,
