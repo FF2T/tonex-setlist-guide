@@ -21,6 +21,7 @@
 | 4 | 2026-05-19 | Sébastien | `myGuitars` | Idem (résidu pollution iPhone) | 7.74.4 idem |
 | 5 | 2026-05-20 | Sébastien | `banksAnn` | Slot 23C vidé + 18C Supergroupbass remplacé | — (cause trouvée #6) |
 | 6 | **2026-05-21** | **Sébastien** | **`banksAnn` + `banksPlug` + `language`** | 79/150 slots Ann + 7/30 Plug révertés vers une version périmée, langue FR→EN, propagé Mac+iPhone | **✅ CAUSE RACINE TROUVÉE → Phase 7.74.7** |
+| 7 | **2026-05-21** | **Sébastien** | **`banksAnn` + `banksPlug`** | ~79 slots Ann + 7 slots Plug révertés, propagé Mac↔iPhone — MALGRÉ le fix 7.74.7 déployé (v8.14.157) | **✅ 2e CAUSE RACINE TROUVÉE → Phase 7.74.8** |
 
 **Pattern commun** : le profil Sébastien (admin) perd des données qui
 sont remplacées par celles d'un autre profil (Francisco, Bruno, curateur
@@ -274,6 +275,52 @@ l'admin-switch. (H1 « race condition LWW + stamp » est la plus proche.)
 2. Log forensique `[merge-defense] SUSPECT banksAnn/Plug mass-change`
    dans `mergeProfileLWW` (≥10 slots adoptés en bloc) — log seul.
 3. Tests Vitest + `docs/SYNC.md` section « Phase 7.74.7 ».
+
+### Session 2 — 2026-05-21 (occurrence #7, capture live Chrome MCP)
+
+**2e cause racine identifiée — le fix 7.74.7 était incomplet.**
+
+Occurrence #7 survenue le 2026-05-21 (banques Anniversary + Plug
+révertées) **alors que v8.14.157 — le fix 7.74.7 — était bien déployée
+et active** sur les appareils. La conclusion de Session 1 (« recordLogin
+= cause racine ») était donc partielle.
+
+**Test décisif** (capture live via Chrome MCP, sans jouer les variantes
+A/B/C/D) : un simple rechargement de `mybackline.app` re-stampe
+`profile.sebastien.lastModified` à l'heure du boot — vérifié
+`17:21:01` → reload → `17:30:24`. Reproductible à 100 %.
+
+**Constats** :
+- `appVersion` = 8.14.157 confirmée → le fix `recordLogin` tourne bien,
+  `loginHistory` n'est plus touché au reload (dernier login 15:38,
+  inchangé sur les reloads suivants).
+- Pourtant `seb.lastModified` = heure du boot à chaque reload.
+- Aucun log `[merge-defense]` au boot incriminé : le Mac gagne le LWW
+  (son `lastModified` est le plus récent des 7 profils) → il n'adopte
+  jamais, il **impose** ses banques corrompues à Firestore + iPhone.
+
+**2e cause racine** : `loadState()` appelle `_runFullChain()` même sur
+un state déjà-v10. `_runFullChain` exécute `migrateV9toV10()`, qui
+re-stampe `profiles[activeId].lastModified = Date.now()`
+**inconditionnellement** (bloc copie aiCache→profil actif), qu'une
+migration réelle ait lieu ou non. Amplificateur plus systématique que
+`recordLogin` : 100 % des boots vs seulement les logins.
+
+**Fix livré — Phase 7.74.8** (v8.14.158) :
+1. `migrateV9toV10` : flag `cacheMigrated` → `lastModified` re-stampé
+   uniquement si une entrée aiCache est réellement déplacée
+   shared→profile. State déjà-v10 stable → `lastModified` préservé.
+2. 4 tests Vitest dédiés (`state.test.js`) + `docs/SYNC.md` section
+   « Phase 7.74.8 ».
+3. Banques de Sébastien restaurées depuis `ToneX_Anniversary_ref.csv` +
+   `ToneX_Plug_ref.csv` (capture Chrome MCP, push Firestore confirmé).
+
+**Dette résiduelle** : `setSongAiCache` (main.jsx) stampe encore
+`profile.lastModified` sur une écriture aiCache réelle (fetchAI,
+feedback, rescore). Amplificateur mineur (ne tourne pas à chaque boot).
+Fix de fond possible : merger l'aiCache per-songId même dans la branche
+`rts <= lts` de `mergeProfileLWW` (l'aiCache s'auto-arbitre déjà par son
+`ts` per-entry, Phase 7.81) puis retirer ce stamp. Reporté.
 
 ## Liens
 

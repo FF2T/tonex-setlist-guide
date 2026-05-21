@@ -756,7 +756,89 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-21, Phase 7.74.7 — cause racine pollution profile + smoke test mount)
+## État actuel (2026-05-21 soir, Phase 7.74.8 — 2e cause racine pollution profile : migrateV9toV10 re-stamp)
+
+**Backline v8.14.158 / SW backline-v258 / STATE_VERSION 10 / 1408 tests verts.**
+
+### Phase 7.74.8 — `migrateV9toV10` ne re-stampe plus `lastModified` à chaque boot (v8.14.158)
+
+7e occurrence de la pollution profile observée 2026-05-21 (banques
+Anniversary ~79 slots + Plug 7 slots de Sébastien révertées vers une
+version périmée, propagées Mac↔iPhone) — **alors que le fix Phase
+7.74.7 était déployé et actif** (v8.14.157 confirmée sur les
+appareils). La cause racine de Session 1 (`recordLogin`) n'était qu'un
+amplificateur sur deux.
+
+**2e cause racine** (capture forensique live via Chrome MCP) : un
+simple rechargement re-stampe `profile.sebastien.lastModified` à
+l'heure du boot — reproductible à 100 % des reloads. `loadState()`
+appelle `_runFullChain()` **même sur un state déjà-v10** (`state.js` :
+`if (d.version === STATE_VERSION) return _runFullChain(d)` — les
+migrations sont idempotentes, elles servent aussi à heal des profils
+incomplets). `_runFullChain` exécute donc `migrateV9toV10()` à chaque
+chargement, et celui-ci re-stampait `profiles[activeId].lastModified =
+Date.now()` **inconditionnellement** (dans le bloc qui copie l'aiCache
+vers le profil actif), qu'une migration réelle ait lieu ou non.
+Amplificateur plus systématique que `recordLogin` : 100 % des boots
+vs seulement les logins.
+
+**Fix livré** :
+- `migrateV9toV10` : flag `cacheMigrated` qui passe à `true` uniquement
+  quand une entrée aiCache est réellement déplacée shared→profile. Le
+  stamp devient `lastModified: cacheMigrated ? Date.now() :
+  curProfile.lastModified`. Sur un state déjà-v10 stable (cas de 100 %
+  des reloads) → `lastModified` préservé → un reload ne fait plus
+  « gagner » l'appareil au LWW.
+- 4 tests Vitest (`state.test.js`) : state déjà-v10 stable → préserve,
+  migration aiCache réelle → re-stampe, song hors setlists du profil
+  actif → préserve, double passage idempotent → préserve.
+- `docs/SYNC.md` (section Phase 7.74.8 + ligne table régressions) et
+  `docs/INVESTIGATION_POLLUTION_PROFILE.md` (occurrence #7 + Session 2)
+  mis à jour.
+
+**Restauration des banques** : les banques de Sébastien (Anniversary
+50 + Plug 10) ont été restaurées depuis `ToneX_Anniversary_ref.csv` +
+`ToneX_Plug_ref.csv` via capture Chrome MCP — push Firestore (`PATCH
+/sync/state`) confirmé 200.
+
+### Architecture livrée Phase 7.74.8
+
+```
+src/main.jsx              APP_VERSION 8.14.157 → 8.14.158
+public/sw.js              CACHE backline-v257 → backline-v258
+src/core/state.js         migrateV9toV10 : flag cacheMigrated, stamp
+                          lastModified conditionnel
+src/core/state.test.js    +4 tests Phase 7.74.8
+docs/SYNC.md              +section Phase 7.74.8 + ligne table régressions
+docs/INVESTIGATION_POLLUTION_PROFILE.md  +occurrence #7 + Session 2
+```
+
+### Conséquences Phase 7.74.8
+
+- **1408 tests verts** (1404 baseline + 4 Phase 7.74.8).
+- Pas de bump STATE_VERSION (logique de migration pure).
+- Pas de migration localStorage.
+- **Effet** : un reload ne re-stampe plus le profil actif. Un appareil
+  au contenu périmé ne peut plus regagner le LWW à chaque ouverture et
+  propager son état stale. Combiné à Phase 7.74.7 (recordLogin), les
+  deux amplificateurs de la pollution profile sont neutralisés.
+- Le déploiement sur `main` reste à faire (build + push).
+
+### Dette résiduelle Phase 7.74.8
+
+- `setSongAiCache` (main.jsx) stampe encore `profile.lastModified` sur
+  une écriture aiCache réelle (fetchAI / feedback / rescore). Reste un
+  amplificateur mineur — il ne tourne PAS à chaque boot (contrairement
+  à `migrateV9toV10`). Fix de fond possible : merger l'aiCache
+  per-songId même dans la branche `rts <= lts` de `mergeProfileLWW`
+  (l'aiCache s'auto-arbitre déjà par son `ts` per-entry, Phase 7.81),
+  puis retirer ce stamp. Reporté.
+- Test manuel multi-device recommandé après déploiement : recharger
+  Mac + iPhone plusieurs fois, vérifier qu'aucune banque ne bouge.
+
+---
+
+## État précédent (2026-05-21, Phase 7.74.7 — cause racine pollution profile + smoke test mount)
 
 **Backline v8.14.157 / SW backline-v257 / STATE_VERSION 10 / 1404 tests verts.**
 

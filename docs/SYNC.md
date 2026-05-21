@@ -329,6 +329,7 @@ saveToFirestore, etc.) :
 | 7.74 | Pollution profile cross-mélange (myGuitars drop, banks corrompues, setlists dupliquées) | 4 causes : (1) stamp `lastModified` manquant sur 4 call sites (MesAppareilsTab toggle device, ProfilesAdmin password+rename, ProfileTab delete custom guitar) ; (2) `mergeProfilesLWW` adoptait remote en bloc sans per-field LWW ; (3) aucun garde-fou contre les drops massifs ; (4) `mergeSetlistsLWW` ne dédupliquait pas par name+profileIds divergents | (1) helper `stampedProfileUpdate` + fix 4 sites ; (2) `mergeProfileLWW` per-field ; (3) defense : block adoption si drop ≥3 guitares ou language conflict <5s ; (4) `dedupSetlists({mergeAcrossProfiles:true})` automatique au merge |
 
 | 7.74.7 | Pollution profile récurrente (6 occurrences) — `banksAnn`/`banksPlug` révertés vers une version périmée, propagés à tous les appareils | `recordLogin` re-stampait `lastModified=Date.now()` à CHAQUE boot/login. Un login ne change aucune donnée mais le stamp rendait le profil « le plus récent » → un appareil au contenu périmé, simplement rechargé, gagnait le LWW et propageait son état stale. `banksAnn`/`banksPlug` adoptés en bloc sans défense ni log → corruption invisible | `recordLogin` → `appendLoginEntry` (n'stampe plus `lastModified`) ; log forensique `[merge-defense] SUSPECT banksAnn/Plug mass-change` quand ≥10 slots adoptés en bloc |
+| 7.74.8 | Pollution profile **occurrence #7** — banques Anniversary (~79 slots) + Plug (7 slots) révertées, propagées Mac↔iPhone, MALGRÉ le fix 7.74.7 déployé (v8.14.157) | `migrateV9toV10` — appelé par `_runFullChain` à CHAQUE chargement, même sur un state déjà-v10 — re-stampait `profile.lastModified=Date.now()` **inconditionnellement** sur le profil actif. `recordLogin` n'était qu'un amplificateur parmi deux ; celui-ci tourne à 100 % des boots | `migrateV9toV10` : flag `cacheMigrated`, ne stamper `lastModified` que si une migration aiCache shared→profile réelle a lieu |
 
 Chaque ligne représente une régression réelle vécue en prod. La
 prochaine session doit s'assurer qu'aucun fix ne ré-introduit un cas
@@ -378,6 +379,57 @@ modification de données utilisateur** (login, activité, marqueur UI)
 ne DOIT PAS stamper `lastModified`. Le stamp est réservé aux vraies
 mutations de contenu (banks, guitares, presets, langue…) — sinon le
 LWW devient aveugle au contenu.
+
+## Phase 7.74.8 — `migrateV9toV10` ne re-stampe plus `lastModified` à chaque boot (2026-05-21)
+
+### Occurrence #7 — le fix 7.74.7 était incomplet
+
+Phase 7.74.7 a corrigé `recordLogin`. Mais une **7e occurrence** est
+survenue le 2026-05-21 (banques Anniversary + Plug de Sébastien
+révertées), avec v8.14.157 confirmée active sur les appareils. Test
+décisif en capture live : un simple rechargement re-stampe
+`profile.sebastien.lastModified` à l'heure du boot — reproductible à
+100 % des reloads.
+
+### La cause racine restante
+
+`loadState()` appelle `_runFullChain()` **même quand le state est déjà
+en v10** (`state.js` : `if (d.version === STATE_VERSION) return
+_runFullChain(d)` — les migrations sont idempotentes et servent aussi à
+heal d'éventuels profils incomplets). `_runFullChain` exécute donc
+`migrateV9toV10()` à chaque chargement. Et `migrateV9toV10`, dans le
+bloc qui copie l'aiCache vers le profil actif, faisait :
+
+```js
+[activeId]: { ...profiles[activeId], aiCache: newProfileCache, lastModified: Date.now() }
+```
+
+→ le profil actif est re-stampé `Date.now()` à **chaque ouverture de
+l'app**, qu'une migration ait réellement eu lieu ou non. C'était le 2e
+amplificateur de la pollution — plus systématique que `recordLogin`
+(100 % des boots, vs seulement les logins).
+
+### Le fix
+
+`migrateV9toV10` : un flag `cacheMigrated` passe à `true` uniquement
+quand une entrée aiCache est réellement déplacée shared→profile. Le
+stamp devient conditionnel :
+
+```js
+lastModified: cacheMigrated ? Date.now() : curProfile.lastModified
+```
+
+Sur un state déjà-v10 stable (cas de 100 % des reloads), `cacheMigrated`
+est `false` → `lastModified` préservé → un reload ne fait plus « gagner »
+l'appareil au LWW.
+
+### Invariant renforcé
+
+L'invariant 7.74.7 vaut **aussi pour les migrations**. `_runFullChain`
+tourne à chaque chargement (y compris sur un state déjà à jour) pour
+heal des profils incomplets — ces passes idempotentes ne DOIVENT JAMAIS
+stamper `lastModified`. Seule une transformation de données réelle le
+peut.
 
 ## Phase 7.74 — invariants ajoutés (2026-05-19)
 

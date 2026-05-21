@@ -2753,6 +2753,81 @@ describe('migrateV9toV10 — Phase 7.54', () => {
     // Phase 7.54.1 — shared.aiCache toujours droppé en v10
     expect(v10.shared.songDb[0].aiCache).toBeNull();
   });
+
+  // ── Phase 7.74.8 — POLLUTION PROFILE occurrence #7 ──
+  // migrateV9toV10 tourne à CHAQUE boot (_runFullChain est appelé même
+  // sur un state déjà-v10). Il ne doit re-stamper lastModified que si une
+  // migration aiCache réelle a lieu — sinon un simple reload fait
+  // gratuitement « gagner » le profil actif au LWW et propage son état
+  // (banques potentiellement corrompues) aux autres appareils.
+  test('Phase 7.74.8 — state déjà-v10 stable : lastModified PRÉSERVÉ (pas de re-stamp)', () => {
+    const STALE = 1700000000000;
+    const v10input = {
+      version: 10,
+      activeProfileId: 'sebastien',
+      shared: {
+        songDb: [{ id: 's1', aiCache: null }],
+        setlists: [{ id: 'sl1', songIds: ['s1'], profileIds: ['sebastien'] }],
+      },
+      profiles: {
+        sebastien: { id: 'sebastien', lastModified: STALE, aiCache: { s1: { sv: 9 } } },
+      },
+    };
+    const out = migrateV9toV10(v10input);
+    expect(out.profiles.sebastien.lastModified).toBe(STALE);
+  });
+
+  test('Phase 7.74.8 — migration aiCache réelle (shared→profile) : lastModified RE-STAMPÉ', () => {
+    const before = Date.now();
+    const v9 = {
+      version: 9,
+      activeProfileId: 'sebastien',
+      shared: {
+        songDb: [{ id: 's1', aiCache: { sv: 9, result: { cot_step1: 'fr' } } }],
+        setlists: [{ id: 'sl1', songIds: ['s1'], profileIds: ['sebastien'] }],
+      },
+      profiles: { sebastien: { id: 'sebastien', lastModified: 1700000000000, aiCache: {} } },
+    };
+    const out = migrateV9toV10(v9);
+    expect(out.profiles.sebastien.aiCache.s1).toBeDefined();
+    expect(out.profiles.sebastien.lastModified).toBeGreaterThanOrEqual(before);
+  });
+
+  test('Phase 7.74.8 — shared aiCache présent mais song hors setlists du profil actif : pas de migration → lastModified préservé', () => {
+    const STALE = 1700000000000;
+    const v10input = {
+      version: 10,
+      activeProfileId: 'sebastien',
+      shared: {
+        songDb: [{ id: 's3', aiCache: { sv: 9 } }],
+        setlists: [{ id: 'sl2', songIds: ['s3'], profileIds: ['bruno'] }],
+      },
+      profiles: {
+        sebastien: { id: 'sebastien', lastModified: STALE, aiCache: {} },
+        bruno: { id: 'bruno', lastModified: STALE, aiCache: {} },
+      },
+    };
+    const out = migrateV9toV10(v10input);
+    expect(out.profiles.sebastien.lastModified).toBe(STALE);
+  });
+
+  test('Phase 7.74.8 — double passage idempotent : le 2e run préserve lastModified', () => {
+    const v9 = {
+      version: 9,
+      activeProfileId: 'sebastien',
+      shared: {
+        songDb: [{ id: 's1', aiCache: { sv: 9 } }],
+        setlists: [{ id: 'sl1', songIds: ['s1'], profileIds: ['sebastien'] }],
+      },
+      profiles: { sebastien: { id: 'sebastien', lastModified: 1700000000000, aiCache: {} } },
+    };
+    const run1 = migrateV9toV10(v9);
+    const lm1 = run1.profiles.sebastien.lastModified;
+    // 2e run : shared.aiCache déjà droppé + profile.aiCache déjà plein
+    // → cacheMigrated false → lastModified inchangé (cas de tout reload).
+    const run2 = migrateV9toV10(run1);
+    expect(run2.profiles.sebastien.lastModified).toBe(lm1);
+  });
 });
 
 describe('getProfileAiCache — Phase 7.54', () => {

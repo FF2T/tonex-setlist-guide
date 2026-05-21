@@ -536,6 +536,10 @@ function migrateV9toV10(state) {
   // Trade-off accepté : si un autre profil se connecte sur ce device,
   // ses analyses doivent re-fetcher (pas dispo localement avant sync).
   // En pratique : rare. Compromise vs blocage permanent du sync.
+  // Phase 7.74.8 — `cacheMigrated` : passe à true uniquement si la
+  // migration déplace réellement au moins un aiCache shared→profile.
+  // Sert à décider si on re-stampe `lastModified` (cf bloc plus bas).
+  let cacheMigrated = false;
   const newProfileCache = activeId && profiles[activeId]
     ? { ...(profiles[activeId].aiCache || {}) }
     : {};
@@ -549,15 +553,36 @@ function migrateV9toV10(state) {
       const sharedSv = typeof s.aiCache.sv === 'number' ? s.aiCache.sv : 0;
       if (sharedSv > existingSv) {
         newProfileCache[s.id] = s.aiCache;
+        cacheMigrated = true;
       }
     }
     // Drop shared.aiCache pour toutes les songs (legacy obsolète en v10).
     return { ...s, aiCache: null };
   });
   if (activeId && profiles[activeId]) {
+    const curProfile = profiles[activeId];
     out.profiles = {
       ...profiles,
-      [activeId]: { ...profiles[activeId], aiCache: newProfileCache, lastModified: Date.now() },
+      [activeId]: {
+        ...curProfile,
+        aiCache: newProfileCache,
+        // Phase 7.74.8 — POLLUTION PROFILE occurrence #7.
+        // Ne re-stamper `lastModified` QUE si la migration a réellement
+        // déplacé un aiCache shared→profile. `_runFullChain` (donc
+        // `migrateV9toV10`) tourne à CHAQUE chargement de l'app, même
+        // sur un state déjà-v10 (loadState: `version === STATE_VERSION
+        // → _runFullChain`). Re-stamper inconditionnellement à chaque
+        // boot rendait gratuitement le profil actif « le plus récent »
+        // pour le LWW : un appareil au contenu périmé (banques
+        // corrompues) gagnait tous les merges et propageait son état
+        // stale (Mac → Firestore → iPhone). C'était le 2e amplificateur
+        // de la pollution profile — Phase 7.74.7 n'avait corrigé que
+        // `recordLogin`. Sur un state déjà-v10 stable (cas de 100% des
+        // reloads), `cacheMigrated` est false → on préserve le
+        // `lastModified` existant → un reload ne fait plus « gagner »
+        // l'appareil. Cf docs/SYNC.md « Phase 7.74.8 ».
+        lastModified: cacheMigrated ? Date.now() : curProfile.lastModified,
+      },
     };
   }
   out.shared = { ...(state.shared || {}), songDb: newSongDb };
