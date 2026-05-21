@@ -761,7 +761,200 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-21 soir, Phase 7.74.8 — 2e cause racine pollution profile : migrateV9toV10 re-stamp)
+## État actuel (2026-05-21 soir, Phase 7.85 close — Demo EN audit fixes Chop Suey)
+
+**Backline v8.14.159 / SW backline-v259 / STATE_VERSION 10 / 1408 tests verts.**
+
+### Phase 7.85 — 4 bloqueurs + bonus sur fiche démo EN Chop Suey (v8.14.159)
+
+Audit Chrome MCP de `mybackline.app/?demo=1` en EN sur la fiche
+morceau « Chop Suey! » (System of a Down) — la carte exacte que le
+Mail 3 à Paul Drew (co-fondateur TSR) invite à ouvrir. 4 défauts
+visibles + 1 bonus. Tous corrigés en 4 commits atomiques.
+
+#### Bloqueur 1 — `guitarChoiceFeedback` retournait du FR concaténé
+
+Section « SETTINGS — MY PICK » de la fiche dépliée, sous « Compatibility:
+84% (estimated) » : la ligne de raison affichait « ✓ micros HB
+adaptés au morceau, à l'aise en drive » en FR brut dans l'UI EN.
+
+Cause : `guitarChoiceFeedback` (`src/core/scoring/guitar.js:417`)
+construisait la string par concaténation de fragments FR codés en
+dur (`"micros "+g.type+" adaptés au morceau"`, `"à l'aise en "+gain`).
+Quand `cotEntry.reason` (objet trilingue de l'aiCache) était absent,
+le fallback pros/cons partait en FR. `getLocalizedText` (Phase 7.39)
+laisse les strings legacy passer telles quelles → leak FR en EN.
+
+Fix Phase 7.85 pattern Phase 7.82 (`localGuitarSettings`) : la
+fonction pure retourne désormais un objet structuré poly­morphe :
+- `{kind:'ai', reason: {fr,en,es}}` — path principal (inchangé)
+- `{kind:'tokens', pros:[...], cons:[...]}` — fallback profil-based
+  (le cas du bug). Chaque token : `{key, fallback, params}`.
+- `{kind:'desc', desc: string}` — fallback ultime sur `profile.desc`
+  (FR-only, dette mineure).
+
+L'UI (`SongDetailCard:401`) compose via `tFormat` selon `kind`. 1
+seul call site → refacto safe.
+
+6 nouvelles clés i18n FR/EN/ES (`guitar-feedback.*`) :
+- `pickup-match` : "micros {type} adaptés au morceau" / "{type}
+  pickups suit the track" / "pastillas {type} adecuadas para el tema"
+- `pickup-mismatch` (type+pref)
+- `style-excellent` / `style-unnatural` ({style})
+- `gain-comfortable` / `gain-uncomfortable` ({gain})
+
+Placeholders `{type}` (HB/SC/P90), `{style}`, `{gain}` injectés
+littéralement — termes techniques universels FR/EN/ES.
+
+#### Bloqueur 2 — `Banque 37A` au lieu de `Bank 37A`
+
+Bloc « Best installed presets for SG 61 » en bas de la fiche EN :
+badge "Banque 37A" en FR alors qu'ailleurs dans la même carte
+"Bank 37A" était déjà correct.
+
+Cause : `PBlock.jsx:78` avait `"Banque {bank}{slot}"` hardcodé en
+dur. Le composant `PBlock` est le rendu unifié des slots
+installés pour chaque device dans la section "Best installed".
+
+Fix : wrap via `tFormat('pblock.installed-bank', {bank, slot},
+'Banque {bank}{slot}')`. EN: `Bank {bank}{slot}` / ES: `Banco
+{bank}{slot}`.
+
+Dette signalée hors scope : PBlock contient encore plusieurs strings
+FR hardcodées non wrappées (`À installer`, `↑ meilleur choix`,
+`★ top dispo`, `✦ adapté`, `→ Remplace`, `↑ Meilleur dispo`,
+`Source non dispo`). À traiter Phase ultérieure si retours user.
+
+#### Bloqueur 3 — `guitar_reason` Chop Suey contredit la reco effective
+
+Section « IDEAL RECOMMENDATION » disait « The Les Paul provides the
+harmonic density and punch needed for the Drop C tuned riffs… »
+mais la guitare réellement recommandée (★ « Optimal choice » + badge
+vue repliée) est la Gibson SG Standard '61.
+
+Cause racine : `enrichAIResult` applique le boost family-match Phase
+7.64 sur l'aiCache. Pour Chop Suey, `ref_guitar = "Ibanez Iceman /
+Gibson SG"` → family `sg` → la SG Standard 61 reçoit +15 (92+15→99
+clamp) et passe devant la Les Paul Standard 60 (95). `ideal_guitar`
+est updaté vers SG, MAIS `guitar_reason` (généré par l'IA au prompt-
+time, avant le post-process) reste inchangé → prose LP périmée.
+
+Phénomène général : tout cas où le post-processing reordonne
+`cot_step2_guitars` + change `ideal_guitar` sans toucher la prose
+`guitar_reason`. Signalé en dette pour Phase ultérieure (refacto
+de la logique d'affichage non triviale, à valider avec retour user).
+
+Fix Phase 7.85 (pattern Phase 7.52.16 Hotel California) : pour le
+snapshot démo, corriger directement `guitar_reason` (FR+EN+ES) du
+c_1779040659179 aiCache (`result` + `bestByGuitar['']` +
+`bestByGuitar['lp60']`) pour parler de la SG, en cohérence avec :
+- ref_guitar : "Ibanez Iceman / Gibson SG"
+- cot_step4_score.history.reason : "Daron Malakian primarily uses
+  humbucker-equipped guitars (Ibanez Iceman, Gibson SG)"
+- ideal_guitar effectif après boost : "SG Standard 61 (HB)"
+
+**Audit des 7 autres morceaux du snapshot** effectué : seul Chop
+Suey était incohérent.
+
+| Morceau | ref_guitar family | ideal post-boost | guitar_reason | OK ? |
+|---|---|---|---|---|
+| Back in Black | sg | SG Ebony | SG | ✓ |
+| Thrill Is Gone | es335 | ES-335 | ES-335 | ✓ |
+| Smoke on the Water | strat | Strat 61 | Stratocaster | ✓ |
+| Hotel California | telecaster | Tele 1951 | 1951 Telecaster | ✓ |
+| Pride and Joy | strat | Strat 61 | Stratocaster | ✓ |
+| **Chop Suey!** | **sg** | **SG 61** | **Les Paul** | **❌ fixé** |
+| Schism | (no ref) → other | LP (no boost) | Les Paul | ✓ |
+| Help the Poor | other | ES-335 | ES-335 | ✓ |
+
+#### Bloqueur 4 — TSR pack avec `.zip` + guillemets FR
+
+Section « CATALOG ALTERNATIVES » de la fiche : la capture TSR
+s'affichait « 📦 The Studio Rats — « Mesa Boogie IIC+.zip » » avec
+guillemets français + nom de fichier interne. Les captures ML Sound
+Lab s'affichaient proprement « 🎚 ML Sound Lab » à côté. Sensible
+car c'est le pack d'un créateur qu'on va solliciter via le Mail 3.
+
+Cause : `getSourceInfo` (`src/core/sources.js:140`) avait un format
+spécifique TSR avec `« ${pack}.zip »`. Phase 7.84 avait retiré le
+ZIP brut de l'Explorer (PresetDetailInline) pour la même raison
+("paraissait plomberie au visiteur") mais le format TSR de
+`getSourceInfo` était resté FR-ish.
+
+Fix : aligner sur le pattern des branches `custom` (`Custom — ${pack}`)
+et `adminPack` (`${base.label} — ${pack}`) : `The Studio Rats —
+${entry.pack}`. Pas d'i18n nécessaire (proper noun + séparateur
+universel).
+
+#### Bonus — Espace manquant avant `(estimated)`
+
+« Compatibility: 84%(estimated) » sans espace visible. Le
+`marginLeft: 6` sur le span le rendait visuellement trop tight.
+
+Fix : ajout `{' '}` explicite entre `</b>` et le span sur
+`SongDetailCard:400` et `HomeScreen:659`. Belt-and-suspenders avec
+le marginLeft : 6px CSS + ~3px du space char = séparation visible.
+
+### Architecture livrée Phase 7.85
+
+```
+src/main.jsx                            APP_VERSION 8.14.158 → 8.14.159
+public/sw.js                            CACHE backline-v258 → backline-v259
+src/core/scoring/guitar.js              guitarChoiceFeedback refacto
+                                        retour {kind, pros, cons, desc}
+src/app/screens/SongDetailCard.jsx      consume via tFormat composition
+                                        +{' '} bonus space avant (estimated)
+src/app/screens/HomeScreen.jsx          +{' '} bonus space avant (estimated)
+src/app/components/PBlock.jsx           wrap "Banque" via tFormat
+                                        +import tFormat
+src/core/sources.js                     getSourceInfo TSR : drop .zip + « »
+src/i18n/en.js                          +7 clés (guitar-feedback.* x6,
+                                        pblock.installed-bank)
+src/i18n/es.js                          +7 clés (idem ES)
+src/data/demo-profile.json              Chop Suey c_1779040659179 :
+                                        guitar_reason FR/EN/ES SG-coherent
+                                        (3 emplacements identiques :
+                                        result + bestByGuitar[''] +
+                                        bestByGuitar['lp60'])
+```
+
+### Conséquences Phase 7.85
+
+- **1408/1408 tests verts** (aucune régression, aucun nouveau test
+  Vitest — refacto pure helper + UI compose).
+- Bundle 2534 → 2533 KB (–1 KB, slight reduction).
+- Pas de bump STATE_VERSION (additif UI + data uniquement).
+- Pas de migration localStorage.
+- **Démo EN Chop Suey désormais cohérente bout en bout** : prose
+  cohérente avec la SG, badge banque traduit, label TSR propre, FR
+  scoring concaténé éliminé. Mail 3 Paul peut être envoyé sans
+  embarras sur la fiche citée.
+
+### Dette résiduelle Phase 7.85
+
+- **PBlock strings FR résiduelles** (À installer, ↑ meilleur choix,
+  ★ top dispo, ✦ adapté, → Remplace, Meilleur dispo, Source non
+  dispo) : à wrapper i18n si retours user. Hors scope (1 string
+  demandée par Sébastien).
+- **Phénomène général guitar_reason périmé après family boost** :
+  signalé. Solutions possibles à instruction :
+  1. Le post-process Phase 7.64 invalide aussi `guitar_reason` à
+     0 si la guitare change → l'UI affiche cot_step2_guitars[0].reason
+     à la place. Refacto modéré.
+  2. Ou au prompt-time, demander à l'IA de générer guitar_reason
+     pour CHAQUE entrée cot_step2_guitars (pas seulement la top),
+     puis sélection à l'affichage. Plus coûteux en tokens.
+  Reporter Phase ultérieure si signal user.
+- **`profile.desc` FR-only** dans le 3e fallback de
+  `guitarChoiceFeedback`. Chaque guitare (11 du catalog + customs) a
+  son `desc` en FR. À i18n-iser si signal user — rare en pratique
+  (le fallback se déclenche uniquement quand aucun pros/cons).
+- **Déploiement prod** : à pousser via le workflow git worktree
+  habituel (cf section "Workflow de déploiement" CLAUDE.md).
+
+---
+
+## État précédent (2026-05-21 soir, Phase 7.74.8 — 2e cause racine pollution profile : migrateV9toV10 re-stamp)
 
 **Backline v8.14.158 / SW backline-v258 / STATE_VERSION 10 / 1408 tests verts.**
 
@@ -12323,186 +12516,286 @@ d'implémentation immédiate. À activer quand un beta-testeur (Bruno,
 Arthur, futurs) commence à utiliser activement Backline et que
 Sébastien constate des analyses écrasées.
 
-### Phase 9 (validée 2026-05-18 — 3 signaux indépendants) — Output IA enrichi avec knob settings chiffrés + built-in FX
+### Phase 9 (validée 2026-05-18 — 3 signaux indépendants, V2 design 2026-05-21) — Output IA enrichi avec réglages PRESET complets
 
-**Status mis à jour 2026-05-18** : promue de "2 signaux" à
-**3 signaux indépendants** suite au retour Bruno. 3 utilisateurs
-distincts demandent explicitement des fonctionnalités cohérentes
-sur l'enrichissement de l'output IA :
+**Status** : 3 signaux indépendants user (Ok_Ask2411 peer-builder
+2026-05-15 + Francisco 2026-05-17 EQ chiffrée + Bruno 2026-05-18
+built-in FX). Cf BETA_TESTING.md sections 2 et 7.
 
-1. **Ok_Ask2411 peer-builder** (2026-05-15) : a démontré son outil
-   "Gear Assistant" qui retourne knob settings chiffrés en table
-   (Gain 6.2, Bass 4.5, Mid 7.0, Treble 5.3, Presence 4.7, Volume
-   6.0) + section "ONE TWEAK TO FIX IT" conditionnelle. Cf
-   BETA_TESTING.md section 2 Ok_Ask2411.
+**Revirement de design 2026-05-21** : la version V1 documentée
+ici parlait de "knob settings de la capture" — formulation
+incorrecte. **La capture (TONE MODEL) est une boîte noire
+immuable** fournie par un studio/créateur. Ce qui est ajustable
+par l'utilisateur, c'est tout ce qui vient **autour** dans le
+PRESET TONEX. Distinction officielle du manuel
+`tone_models/TONEX_Pedal_User_Manual_French.pdf` :
 
-2. **Francisco beta-tester** (2026-05-17 soir) : *"Otro punto
-   importante es la recomendación de la ecualización del amplificador,
-   cada grupo tiene su sonido del amplificador ajustando graves,
-   medios y agudos. Yo he probado con la IA y si que te puede
-   recomendar como tienes que ajustar cada tono, al igual que el
-   gain."* — demande explicite knob settings chiffrés vs le
-   `settings_preset` prose actuel.
+> *"Les TONEX PRESETS se composent des effets suivants, permettant
+> de modifier n'importe quel TONE MODEL : Noise Gate, Compresseur,
+> Modulation, TONE MODEL, EQ, Delay, Reverb."* (page 6)
 
-3. **Bruno beta-tester** (2026-05-18 matin) : *"est ce que l'IA a
-   connaissance des effets appliqués aux preset et les inclut dans
-   son raisonnement ou bien elle raisonne uniquement sur l'amp et
-   le cab + stomp ?"* — pointe explicitement le **manque d'intégration
-   des built-in FX (Noise Gate, Modulation, Delay, Reverb) dans le
-   scoring**. Bruno a observé que pour For Whom the Bell Tolls
-   (thrash), l'IA a proposé `DR VX30` (Vox AC30) qui a "modulation
-   et reverb très marquées" — totalement inadapté au profil sonore
-   sec du thrash Metallica. C'est exactement le sous-bug Phase 9.2
-   (FX params générés par l'IA) documenté ci-dessous.
+Confirmé Sébastien 2026-05-21 : **Pedal classique, Anniversary,
+Plug, One, One+ partagent les mêmes capacités de réglage preset**.
+Phase 9 vise donc un design unifié, pas device-specific.
 
-**Conclusion** : 3 utilisateurs indépendants (peer-builder + beta-
-tester débutant-intermédiaire + beta-tester metal/punk
-intermédiaire-avancé) ont identifié des features cohérentes de
-l'enrichissement output IA. Signal très fort, validation cross-
-profil. Phase 9 monte en priorité confirmée.
+#### Chaîne PRESET officielle (manuel page 21)
 
-**Timing** : Phase 7.65 (Fix A vue repliée filtre rig actif, P0
-Bruno) livrée 2026-05-18. À intégrer ensuite **après Phase 7.61**
-(rename guitares + fix ellipses) + **Phase 7.64** (bonus family
-match Strat/Tele/LP). Donc Phase 9 livrée probably fin mai / début
-juin si bandwidth.
-Bruno étant le 3e signal explicite sur l'output enrichi (et
-particulièrement sur les built-in FX), priorisation possible de
-sous-phase 9.2 (FX params générés) avant 9.1 (knob settings) si
-on veut adresser son cas For Whom the Bell Tolls (où le FX
-mismatch a immédiatement fait sortir Bruno de l'illusion "ça
-marche").
+```
+Input
+  → TRIM IN (global)
+  → NOISE-GATE (PRE par défaut, déplaçable POST)
+  → COMPRESSOR (PRE/POST)
+  → MODULATION (PRE/POST)
+  → DELAY (PRE/POST)
+  → TONE EQ (PRE/POST)
+  → ▓▓ TONE MODEL AMP ▓▓     ← BOÎTE NOIRE (capture immuable)
+  → ▓▓ TONE MODEL CAB ▓▓     ← bypass possible
+  → REVERB (POST AMP / LAST)
+  → MASTER VOLUME (preset)
+  → MAIN VOL (global)
+  → Output
+```
 
-**Détails techniques originaux conservés ci-dessous (cf "Idées
-en attente" historique)** :
+L'IA ne touche **jamais** aux internals de la capture. Elle génère
+des recommandations pour ce qui est user-configurable :
 
+**Niveau 1 — Boutons physiques (accès direct face avant)**
+| Bouton | Range |
+|---|---|
+| GAIN | 0-10 (gain d'entrée du TONE MODEL) |
+| BASS / MID / TREBLE | 0-10 (EQ shelf/bell post-AMP) |
+| VOLUME | 0-10 (volume preset) |
 
+**Niveau 2 — ALT (encoder PARAMETER maintenu, label vert ALT)**
+| Bouton ALT | Range |
+|---|---|
+| REVERB MIX | 0-100% |
+| COMPRESSOR THRESHLD | 0 à -40 dB |
+| NOISE-GATE THRESHLD | -100 à 0 dB |
+| PRESENCE | 0-10 |
+| DEPTH (PROFONDEUR) | 0-10 |
 
-**Contexte** : un peer-builder Reddit (Ok_Ask2411, 2026-05-15) a
-partagé l'output complet de son "Gear Assistant" appliqué à
-*"Panama strat shawbucker"* (Van Halen). Format remarquablement
-structuré qui dépasse Backline sur 4 dimensions concrètes. Détails
-dans `BETA_TESTING.md` section 2 (entrée Ok_Ask2411 mise à jour
-2026-05-15).
+**Niveau 3 — Paramètres complémentaires (menus profonds)**
+- **TONE MODEL** : MODEL.VOL (0-10), MODEL.MIX (0-100% dry/wet)
+- **GATE** : POWER, RELEASE (5-500ms), DEPTH (-20 à -100dB), POSITION (PRE/POST)
+- **COMP** : POWER, GAIN (-30 à +10dB), ATTACK (1-51ms), POSITION (PRE/POST)
+- **EQ avancé** : BASS HZ (75-600), MID Q (0.2-3.0), MID HZ (150-5000), TRBL HZ (1000-4000), POSITION (PRE/POST)
+- **VIR** (si cab = VIR cabinet, optionnel power-user) : RESO (0-10), MIC1/2 (COND/DYN/RBN) avec X/Z (0-10), BLEND (-100% à +100%)
+- **MOD** : POWER, TYPE (5 : Chorus/Tremolo/Phaser/Flanger/Rotary), POSITION (PRE/POST), sub-params par type :
+  - CHORUS : SYNC, RATE (0.10-10 Hz), DEPTH (0-100%), LEVEL (0-10)
+  - TREMOLO : SYNC, RATE, SHAPE (0-10), SPREAD (0-100%), LEVEL
+  - PHASER : SYNC, RATE, DEPTH, LEVEL
+  - FLANGER : SYNC, RATE, DEPTH, FEEDBACK (0-100%), LEVEL
+  - ROTARY : SYNC, SPEED (0-400 RPM), RADIUS (0-300 mm), SPREAD, LEVEL
+- **DELAY** : POWER, TYPE (2 : Digital/Tape), POSITION, TIME (0-1000 ms), FEEDBACK (0-100%), MODE (Normal/Ping.Pong), MIX (0-100%)
+- **REVERB** : POWER, TYPE (6 : Spring 1-4 / Room / Plate), POSITION (POST AMP / LAST), TIME (0-10), PRE.DELAY (0-500 ms), COLOR (-10 à +10), MIX (0-100%)
 
-**4 features à reprendre**, indépendantes les unes des autres
-(peuvent être livrées en sous-phases 9.1 / 9.2 / 9.3 / 9.4) :
+**Niveau 4 — Config PRESET (toggles structurels)**
+- AMP active/bypass (rare, mais possible)
+- CAB active/bypass ← **critique pour le contexte d'écoute** (cf Phase 10)
+- EXT.CTRL on/off, EXT.LEARN on/off
 
-#### 9.1 — Knob settings en table chiffrée
+**Niveau 5 — Config GLOBALE (par device, pas par preset)** — hors scope Phase 9
+- TRIM IN (-15 à +15 dB), MAIN VOL (-40 à +3 dB), BPM (40-240)
 
-Aujourd'hui : champ `settings_preset` (objet trilingue `{fr, en, es}`)
-en prose. Exemple : *"Pousse les médiums vers 6-7, garde les
-basses à 4 pour le côté scooped."* Lecture humaine OK mais pas
-machine-friendly et pas chiffré.
+#### Couplage avec Phase 10 (cab_enabled selon contexte d'écoute)
 
-Cible : ajouter au prompt IA une demande de table JSON structurée :
+Le toggle `CAB active/bypass` n'est pas un choix esthétique : il
+dépend strictement du **contexte d'utilisation** (Phase 10) :
+- **Casque** : CAB activé obligatoire (sinon bouillie aiguë).
+- **Enceinte FRFR** (Headrush, Friedman ASM, Powercab+, ToneX Cab) :
+  CAB activé obligatoire (l'enceinte est neutre).
+- **Système de sonorisation / table de mixage / DI** : CAB activé
+  (mixage attend du signal cabbed).
+- **Ampli de puissance + cab physique guitare** (ex. Sébastien
+  Marshall SV20h + SV112) : CAB **bypassé** obligatoire (sinon
+  double filtrage cab = son boueux/criard).
+
+Phase 10 pose `profile.outputContext ∈ {headphone, frfr, pa, ampWithCab, ampNoCab}`
+et `song.outputContext` override par morceau. Phase 9.1 consomme
+ce contexte dans le prompt → l'IA sort `cab_enabled: true/false`
+cohérent. Phase 10 d'abord (~3h) → Phase 9.1 ensuite (~4h).
+
+#### 5 sous-phases proposées
+
+**Phase 9.1 — MVP "table chiffrée" (Niveau 1 + 2 + cab_enabled)**
+
+L'IA retourne un objet JSON couvrant les 5 boutons principaux +
+5 boutons ALT + `cab_enabled`. C'est ce qui est accessible sans
+appuyer sur PARAMETER. Format proche Ok_Ask2411 :
 
 ```json
-"settings_knobs": {
-  "gain":     { "value": 6.2, "scale": "0-10", "why": "..." },
-  "bass":     { "value": 4.5, "scale": "0-10", "why": "..." },
-  "mid":      { "value": 7.0, "scale": "0-10", "why": "..." },
-  "treble":   { "value": 5.3, "scale": "0-10", "why": "..." },
-  "presence": { "value": 4.7, "scale": "0-10", "why": "..." },
-  "volume":   { "value": 6.0, "scale": "0-10", "why": "..." }
+"preset_settings_v1": {
+  "cab_enabled": true,
+  "main": {
+    "gain": 6.2,             // 0-10
+    "bass": 4.5,
+    "mid": 7.0,
+    "treble": 5.3,
+    "volume": 6.0
+  },
+  "alt": {
+    "presence": 4.7,         // 0-10
+    "depth": 5.0,            // 0-10
+    "reverb_mix": 16,        // 0-100%
+    "comp_threshold": -18,   // 0 à -40 dB
+    "gate_threshold": -56    // -100 à 0 dB
+  },
+  "why": { "fr": "...", "en": "...", "es": "..." }
 }
 ```
 
-UI : nouvelle sous-section "🎛️ Réglages knobs" sous le preset reco,
-table 6 lignes (parameter / value / why). Conserver `settings_preset`
-prose en parallèle ou le remplacer (à trancher selon retour UX).
+UI : nouvelle sous-section "🎛️ Réglages pédale" sous le preset
+reco, table 11 lignes (param / value / why globale). Conserver
+`settings_preset` prose en parallèle pour transition douce.
 
-**Coût** : +20 lignes prompt, +1 sous-composant UI, +1 champ aiCache
-schéma. Pas de bump STATE_VERSION (additif optionnel).
+**Effort** : ~3-4h dev (prompt + UI + validation clamp + tests
+Vitest). Couvre 90% du besoin pour 95% des morceaux.
 
-#### 9.2 — Built-in FX params générés par l'IA
+**Phase 9.2 — FX blocks détaillés (Niveau 3)**
 
-Aujourd'hui : Backline ne génère aucun setting de Noise Gate, Reverb,
-Delay côté ToneX (que des recos preset). L'utilisateur configure ces
-FX à la main.
-
-Cible : ajouter au prompt :
+L'IA pilote on/off + type + sub-params des blocs Mod/Delay/Reverb/Gate/Comp.
+Réponse directe au feedback Bruno (For Whom the Bell Tolls = Mod
+OFF + Reverb mix bas + Gate threshold élevé).
 
 ```json
-"fx_settings": {
-  "noise_gate": { "threshold": -48, "release": 140, "depth": -75, "enabled": true },
-  "reverb":     { "type": "Plate", "time": 1.8, "predelay": 18, "color": 52, "mix": 16 },
-  "delay":      { "type": "Analog", "time": 320, "feedback": 20, "mix": 14 }
+"fx_blocks": {
+  "noise_gate": { "enabled": true,  "threshold": -56, "release": 140, "depth": -75, "position": "PRE" },
+  "compressor": { "enabled": false, "threshold": -18, "gain": 0, "attack": 10, "position": "PRE" },
+  "modulation": { "enabled": false, "type": "CHORUS", "position": "POST", "rate": 1.5, "depth": 30, "level": 5 },
+  "delay":      { "enabled": false, "type": "TAPE",   "position": "POST", "time": 320, "feedback": 20, "mode": "NORMAL", "mix": 14 },
+  "reverb":     { "enabled": true,  "type": "PLATE",  "position": "LAST", "time": 4.5, "pre_delay": 18, "color": 2, "mix": 16 }
 }
 ```
 
-UI : 3 nouvelles sous-sections compactes sous le bloc preset. Les
-params suivent la convention ToneX hardware (dB, ms, %).
+UI : 5 sections expandables sous "🎛️ Réglages pédale", state on/off
+visible, params en mode dépliable. Validation côté JS : clamp dans
+les ranges + reject types hors enum.
 
-**Coût** : +30 lignes prompt, +3 sous-composants UI. Risque
-hallucination IA modérée (les unités ToneX réelles doivent être
-listées explicitement dans le prompt).
+**Effort** : ~4-5h dev (prompt extension lourd + UI + helper de
+validation des ranges). À livrer après retour user sur 9.1.
 
-#### 9.3 — Section "ONE TWEAK TO FIX IT" conditionnelle
+**Phase 9.3 — EQ avancé + TONE MODEL fine-tuning**
 
-Aujourd'hui : aucun ajustement empirique post-écoute n'est suggéré.
+```json
+"eq_advanced": {
+  "bass_hz": 100,            // 75-600
+  "mid_q": 1.0,              // 0.2-3.0
+  "mid_hz": 800,             // 150-5000
+  "treble_hz": 2500,         // 1000-4000
+  "position": "POST"         // PRE/POST
+},
+"tone_model_fine": {
+  "model_vol": 7.5,          // 0-10 (volume du TONE MODEL AMP)
+  "model_mix": 100           // 0-100% dry/wet, rarement <100
+}
+```
 
-Cible : ajouter un champ aiCache :
+UI : section pliée par défaut "EQ avancé (power-user)". À activer
+si retour user power-user explicite. VIR mic placement skip v1
+(trop niche).
+
+**Effort** : ~2h dev. Optionnel.
+
+**Phase 9.4 — "ONE TWEAK TO FIX IT" (section pédagogique)**
+
+Section pliée par défaut, expandable sur scène pour ajustement
+empirique post-écoute :
 
 ```json
 "tweaks": [
-  { "if": "too_bright",        "do": "Presence -0.5 to -1.0" },
-  { "if": "too_dark",          "do": "Treble +0.5" },
-  { "if": "too_boomy",         "do": "Bass -0.5" },
-  { "if": "buried_in_mix",     "do": "Mid +0.5" },
-  { "if": "too_fizzy",         "do": "Presence -0.5 + Gain -0.3" },
-  { "if": "not_tight_enough",  "do": "Gain -0.5 + Gate threshold up" }
+  { "symptom_fr": "trop brillant sur FRFR",  "symptom_en": "too bright on FRFR",  "fix": "Treble -0.5 + Presence -0.3" },
+  { "symptom_fr": "trop sombre sur cab",     "symptom_en": "too dark on cab",     "fix": "Treble +0.5 + Presence +0.3" },
+  { "symptom_fr": "noyé dans le mix groupe", "symptom_en": "buried in band mix",  "fix": "Mid +0.5 + Volume +0.3" },
+  { "symptom_fr": "trop boomy",              "symptom_en": "too boomy",           "fix": "Bass -0.5 + Depth -0.3" },
+  { "symptom_fr": "trop fizzy high gain",    "symptom_en": "too fizzy on HG",     "fix": "Presence -0.5 + Gain -0.3" },
+  { "symptom_fr": "pas assez tight",         "symptom_en": "not tight enough",    "fix": "Gain -0.3 + Gate threshold -10dB" }
 ]
 ```
 
-UI : section pliée par défaut "🔧 Si ça ne sonne pas tout à fait
-juste...", expand → 6 lignes "Si X → Fais Y". Réutilisable en
-répétition / sur scène.
+UI : section "🔧 Si ça ne sonne pas tout à fait juste..." pliée
+par défaut. 6-8 lignes "Si X → Fais Y". Réutilisable en répétition
+ou live.
 
-**Coût** : +15 lignes prompt, +1 sous-composant UI. Trivial à
-implémenter, gros impact perçu.
+**Effort** : ~2h dev. Ratio impact/effort élevé.
 
-#### 9.4 — Pickup choice + Playing technique
-
-Aujourd'hui : Backline propose `ideal_guitar` mais ne précise pas
-quel pickup utiliser (manche/centre/chevalet, tap coil, etc.) ni
-quel style de picking convient au morceau.
-
-Cible : ajouter au prompt :
+**Phase 9.5 — Pickup + Playing technique (orthogonal pédale)**
 
 ```json
 "playing_hints": {
-  "pickup":  "Bridge humbucker",
-  "guitar_volume": "8.5-10",
-  "picking_style": "Aggressive right hand, palm-muted",
-  "tone_pot": "10 (open)",
+  "pickup": "Bridge HB",                    // ou Neck / Middle / Position 2-4
+  "guitar_volume": "8-10",
+  "guitar_tone": "10 (open)",
+  "picking_style_fr": "Attaque agressive, palm-muted",
+  "picking_style_en": "Aggressive right hand, palm-muted",
   "stereo": true
 }
 ```
 
-UI : sous-section "🎸 Conseils de jeu" sous le `ideal_guitar`,
-4-5 lignes max. Compatible avec le `playingTipsBySong` Phase 3.8
-TMP — fusionner si overlap.
+UI : sous-section "🎸 Conseils de jeu" sous `ideal_guitar`.
+Fusionner si overlap avec `playingTipsBySong` Phase 3.8 TMP.
 
-**Coût** : +15 lignes prompt, +1 sous-composant UI. Risque
-hallucination IA sur la position du pickup en fonction de la
-guitare réelle (ex. Strat Shawbucker = HSS, donc bridge=HB ;
-mais pour Tele simple = bridge=SC).
+**Effort** : ~1-2h dev. Risque hallucination IA sur position de
+pickup selon le type de guitare (HSS Strat ≠ SC Tele ≠ HH LP).
+Validation : prompt list explicitement les pickups dispos sur la
+guitare proposée.
 
-**Timing recommandé** : pas avant J+30 post-déploiement. Attendre
-le feedback de Bruno (J+3-5) + Francisco (J+5-10) + Paul (J+10+)
-pour savoir si l'output actuel suffit ou si la demande pour plus
-de détail est explicite. Phase 9 = enrichissement, pas critique.
+#### Décisions de design validées 2026-05-21
 
-**Décision actuelle** : pas implémenté. Idée enregistrée pour
-Phase 9 hypothétique, à activer si :
-1. Au moins 2 beta-testeurs demandent explicitement "plus de
-   détails sur les réglages", OU
-2. Ok_Ask2411 partage son stack et un échange peer-to-peer
-   confirme la valeur du format enrichi.
+1. **Couplage Phase 10 + Phase 9.1** : Phase 10 d'abord (pose
+   `profile.outputContext` + `song.outputContext`) → Phase 9.1
+   consomme ce contexte pour décider `cab_enabled` + adapter les
+   knobs. Le cab on/off n'est pas un choix esthétique, c'est dicté
+   par le matériel d'écoute.
+2. **Pas de bump SCORING_VERSION** : Phase 9 ajoute des champs au
+   prompt et à l'aiCache mais ne change pas le scoring V9. Les
+   aiCache existants peuvent manquer ces champs → fallback UI
+   gracieux (CTA "lance une nouvelle analyse").
+3. **Coût Gemini acceptable** : prompt + output 9.1 alourdissent
+   la requête de ~50-100 tokens (~$0.0001 par fetch). 9.2 + 9.3
+   ajoutent ~200 tokens. Free tier confortable.
+4. **Validation côté JS** : helper `clampPresetSettings(obj)` qui
+   pour chaque champ vérifie le range officiel et `console.warn`
+   si hors-bornes (Gemini hallucine parfois). 30 min de helper à
+   coupler avec Phase 9.1. Couvre tous les ranges du manuel.
+5. **i18n trilingue dès 9.1** : champ `why` retourné en objet
+   `{fr, en, es}` comme les autres champs prose Phase 7.39.
+   Cohérence + un seul prompt. `tweaks` également trilingues
+   (Phase 9.4).
 
-(cf. BETA_TESTING.md section 2 Ok_Ask2411 pour les détails du
-format observé et la comparaison Backline ↔ Gear Assistant.)
+#### Ordre recommandé d'implémentation
+
+1. **Phase 10 d'abord** (~3h) : pose `profile.outputContext` +
+   override par morceau. Prérequis Phase 9.1.
+2. **Phase 9.1** (~4h) : MVP table chiffrée. Couvre l'essentiel.
+3. **Phase 9.4** (~2h) : "ONE TWEAK TO FIX IT". Ratio
+   impact/effort élevé.
+4. **Phase 9.2** (~5h) : FX blocks détaillés. Attendre retour
+   user sur 9.1 avant.
+5. **Phase 9.5** (~1-2h) : Pickup + playing hints. Bonus.
+6. **Phase 9.3** (~2h) : EQ avancé + TONE MODEL fine. Skip ou
+   plus tard si retour power-user.
+
+**Total Phase 9 complète : ~13-15h** étalées sur plusieurs
+sessions, idéalement avec retour user entre 9.1 et 9.2.
+
+#### Source canonique
+
+Tous les ranges et noms de paramètres viennent du manuel officiel
+`tone_models/TONEX_Pedal_User_Manual_French.pdf` :
+- Page 6 : définition PRESET et chaîne de blocs
+- Page 21 : diagramme flux de signal complet
+- Pages 22-28 : paramètres principaux / ALT / complémentaires
+  avec ranges exacts
+- Page 29 : Config PRESET (AMP/CAB bypass, EXT.CTRL)
+
+Sébastien a confirmé 2026-05-21 que cette documentation s'applique
+identiquement à Plug, Anniversary, One, One+. Pas de scope
+device-specific à prévoir Phase 9.
+
+**Décision actuelle (2026-05-21)** : design V2 validé Sébastien.
+Implémentation reportée — autre urgence prioritaire annoncée.
+À activer quand bandwidth permet.
 
 ### Phase 7.55 (proposée) — Blindage mode démo pour conversion publique
 
