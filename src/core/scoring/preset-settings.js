@@ -91,10 +91,32 @@ function validateTrilingual(why) {
 // - null si `raw` n'est pas un objet ou si tout est invalide
 // - sinon un objet { cab_enabled?, main?, alt?, why? } avec uniquement
 //   les champs validés présents.
+//
+// Phase 10 v3 (2026-05-21 nuit) — cab_enabled force à `true` si présent
+// dans l'input, peu importe sa valeur. Raison : les 3 contextes
+// d'écoute supportés Phase 10 v2 (frfr / headphone / pa) n'ont AUCUN
+// cab physique aval, donc le bloc CAB du firmware ToneX DOIT être
+// activé pour entendre la capture complète (manuel TONEX p.29 :
+// CAB active = bloc CAB du TONE MODEL activé).
+//
+// CAB OFF (bypass) n'a de sens que vers un cab physique guitare —
+// cas retiré Phase 10 v2 (ampWithCab). Si Gemini retourne
+// cab_enabled: false par erreur (heuristique AMP+CAB des prompts
+// antérieurs), on override à true. Si Gemini omet le champ, on
+// préserve le comportement partial (l'UI gère).
+//
+// Phase 10.1 future (reportée) : si on enrichit PRESET_CATALOG_MERGED
+// avec hasCab + on réintroduit ampWithCab, cette logique sera
+// redevenue conditionnelle.
 function clampPresetSettings(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const out = {};
-  if (typeof raw.cab_enabled === 'boolean') out.cab_enabled = raw.cab_enabled;
+  if (typeof raw.cab_enabled === 'boolean') {
+    if (raw.cab_enabled === false) {
+      console.warn('[preset-settings] cab_enabled=false ignoré (Phase 10 v3 : toujours true sur frfr/headphone/pa)');
+    }
+    out.cab_enabled = true;
+  }
   const mainClean = clampGroup('main', raw.main, PRESET_RANGES.main);
   if (mainClean) out.main = mainClean;
   const altClean = clampGroup('alt', raw.alt, PRESET_RANGES.alt);

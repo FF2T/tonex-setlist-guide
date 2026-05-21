@@ -75,9 +75,23 @@ describe('clampPresetSettings — structure globale (Phase 9.1)', () => {
     expect(out).toEqual({ main: { gain: 5 } });
   });
 
-  test('cab_enabled: false préservé explicitement (vs absent)', () => {
+  // Phase 10 v3 — cab_enabled toujours true sur les 3 contextes (frfr/
+  // headphone/pa). Si Gemini retourne false par erreur (heuristique
+  // AMP+CAB pré-Phase 10 v3), on override à true + warn.
+  test('Phase 10 v3 — cab_enabled: false override à true + warn', () => {
     const out = clampPresetSettings({ cab_enabled: false, main: { gain: 5 } });
-    expect(out.cab_enabled).toBe(false);
+    expect(out.cab_enabled).toBe(true);
+    expect(console.warn).toHaveBeenCalledWith(expect.stringMatching(/cab_enabled=false ignoré/));
+  });
+
+  test('Phase 10 v3 — cab_enabled: true préservé tel quel', () => {
+    const out = clampPresetSettings({ cab_enabled: true, main: { gain: 5 } });
+    expect(out.cab_enabled).toBe(true);
+  });
+
+  test('Phase 10 v3 — cab_enabled absent → pas ajouté (preserve partial)', () => {
+    const out = clampPresetSettings({ main: { gain: 5 } });
+    expect(out.cab_enabled).toBeUndefined();
   });
 });
 
@@ -243,8 +257,13 @@ describe('clampPresetSettings — scénarios IA réels (Phase 9.1)', () => {
     expect(console.warn).toHaveBeenCalled();
   });
 
-  test('IA retourne seulement cab_enabled (cas dégénéré contexte change)', () => {
+  test('Phase 10 v3 — IA retourne seulement cab_enabled (override à true)', () => {
     const out = clampPresetSettings({ cab_enabled: false });
-    expect(out).toEqual({ cab_enabled: false });
+    expect(out).toEqual({ cab_enabled: true });
+  });
+
+  test('Phase 10 v3 — IA retourne seulement cab_enabled true (preserved)', () => {
+    const out = clampPresetSettings({ cab_enabled: true });
+    expect(out).toEqual({ cab_enabled: true });
   });
 });

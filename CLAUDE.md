@@ -761,7 +761,123 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-21 nuit++, Phase 10 v2 simplifiée — 5→3 contextes + CAB indépendant)
+## État actuel (2026-05-21 fin de nuit, Phase 10 v3 — cab_enabled toujours true)
+
+**Backline v8.14.162 / SW backline-v262 / STATE_VERSION 10 / 1455 tests verts.**
+
+### Phase 10 v3 — Fix `cab_enabled` toujours true sur 3 contextes (v8.14.162)
+
+Retour user immédiat post-Phase 10 v2 : le badge "CAB OFF" apparaît
+systématiquement dans la table Réglages pédale. **Erreur de raisonnement
+de ma part** dans la consigne IA Phase 10 v2.
+
+**Ce que dit vraiment le firmware TONEX** (manuel p.29) :
+- `CAB active` = bloc CAB du TONE MODEL **activé** → on entend la
+  capture complète (amp + cab modélisé)
+- `CAB bypass` = bloc CAB **désactivé** → on entend seulement
+  l'ampli capturé, sans cab
+
+Sur **FRFR / casque / PA**, il n'y a aucun cab physique aval. Donc
+bypasser le CAB du firmware = signal d'ampli pur sans aucun cab =
+son très sec/criard, **inutilisable**.
+
+CAB OFF (bypass) n'a de sens que vers un cab physique guitare — cas
+`ampWithCab` retiré Phase 10 v2. Sur les 3 contextes restants, **CAB
+doit être ON systématiquement** pour entendre la capture complète.
+
+**Mon erreur Phase 10 v2** : le prompt fetchAI demandait à l'IA de
+retourner `cab_enabled: false` pour les captures AMP+CAB sous prétexte
+de "double-cab à éviter". Faux dans les 3 contextes — le double-cab
+n'existait que dans `ampWithCab` (retiré).
+
+**Fix Phase 10 v3** :
+
+1. **Prompt fetchAI ÉTAPE 7 réécrite** : `cab_enabled` retourne désormais
+   TOUJOURS `true` sur les 3 contextes (frfr/headphone/pa). La règle
+   précise explicitement "pas de cab physique aval = pas de risque
+   de double-cab".
+
+2. **`clampPresetSettings` (helper Phase 9.1)** : si l'input contient
+   `cab_enabled: false`, override à `true` + `console.warn` détaillé.
+   Safety net si Gemini hallucine encore (heuristique AMP+CAB des
+   prompts antérieurs persistant via aiCache).
+
+3. **Badge UI table Réglages pédale** : continue d'afficher "CAB ON"
+   systématiquement. Devient pédagogique — l'utilisateur sait que
+   c'est le bon réglage sur sa pédale.
+
+**Phase 10.1 future (dette signalée)** : si on enrichit
+`PRESET_CATALOG_MERGED` avec flag `hasCab` ET on réintroduit le
+contexte `ampWithCab`, alors `cab_enabled` redevient conditionnel
+(false sur AMP+CAB → ampWithCab, true ailleurs). Reportée si signal
+user.
+
+### Architecture livrée Phase 10 v3
+
+```
+src/main.jsx                            APP_VERSION 8.14.161 → 8.14.162
+public/sw.js                            CACHE backline-v261 → backline-v262
+src/core/scoring/preset-settings.js     clampPresetSettings : override
+                                        cab_enabled false → true + warn
+                                        commentaire Phase 10 v3 détaillé
+src/core/scoring/preset-settings.test.js -1 test obsolète (cab_enabled
+                                        false preserved)
+                                        +3 tests Phase 10 v3 (override
+                                        false→true + warn, true preserved,
+                                        absent preserved)
+                                        adapté "IA retourne seulement
+                                        cab_enabled" : false → true
+src/app/utils/fetchAI.js                ÉTAPE 7 prompt : cab_enabled
+                                        TOUJOURS true (vs conditionnel
+                                        Phase 10 v2). JSON template :
+                                        note explicite "DOIT être true".
+                                        Règles : explication "pas de cab
+                                        physique aval = pas de double-cab".
+```
+
+### Conséquences Phase 10 v3
+
+- **1455/1455 tests verts** (+3 net : 4 nouveaux Phase 10 v3, -1 test
+  obsolète).
+- Bundle ~2549 KB (stable, juste commentaires + 1 ligne logique).
+- **Pas de bump STATE_VERSION** (correctif logique pure).
+- **Effet immédiat post-déploiement** : tout `preset_settings_v1`
+  validé via `enrichAIResult` retournera `cab_enabled: true` ou rien.
+  Les aiCache pré-10 v3 avec `cab_enabled: false` seront overridés
+  au prochain render (idempotent via `_presetSettingsValidated`
+  flag — note : le flag est posé avant le clamp, donc les caches
+  déjà "validés" Phase 10 v2 ne seront PAS re-clamped. À surveiller
+  : si le user voit encore "CAB OFF" sur des morceaux analysés
+  pré-v3, il doit invalider l'aiCache via "🔄 Réinitialiser mes
+  analyses").
+
+### Validation après déploiement
+
+1. Reload PWA Mac (Cmd+Shift+R) → `v8.14.162` dans le header.
+2. Ouvrir une fiche song déjà analysée → si le badge affiche encore
+   "CAB OFF", c'est un cache pré-v3 → "🔄 Réinitialiser mes analyses"
+   Mon Profil → 🎯 Préférences IA → re-fetch.
+3. Au retour de l'IA, vérifier que le badge affiche "CAB ON"
+   systématiquement.
+
+### Dette résiduelle Phase 10 v3
+
+- **Idempotence du `_presetSettingsValidated` flag** : un aiCache
+  pré-v3 marqué `_presetSettingsValidated: true` avec
+  `cab_enabled: false` ne se re-clampe pas au render Phase 10 v3.
+  Solution propre : retirer le flag dans `clampPresetSettings`
+  appelé par `enrichAIResult` quand le `sv` (SCORING_VERSION) ne
+  matche pas ou quand `cab_enabled === false` détecté → force
+  re-clamp. Pas critique : si Sébastien clique "🔄 Réinitialiser
+  mes analyses" Phase 7.33, tous les caches sont vidés et le
+  prochain fetchAI retournera `cab_enabled: true` (prompt Phase 10
+  v3 explicite).
+- Phase 10.1 (`hasCab` catalog) + Phase 10.2 (override par morceau)
+  toujours reportées.
+
+---
+
+## État précédent (2026-05-21 nuit++, Phase 10 v2 simplifiée — 5→3 contextes + CAB indépendant)
 
 **Backline v8.14.161 / SW backline-v261 / STATE_VERSION 10 / 1452 tests verts.**
 
