@@ -330,6 +330,7 @@ saveToFirestore, etc.) :
 
 | 7.74.7 | Pollution profile récurrente (6 occurrences) — `banksAnn`/`banksPlug` révertés vers une version périmée, propagés à tous les appareils | `recordLogin` re-stampait `lastModified=Date.now()` à CHAQUE boot/login. Un login ne change aucune donnée mais le stamp rendait le profil « le plus récent » → un appareil au contenu périmé, simplement rechargé, gagnait le LWW et propageait son état stale. `banksAnn`/`banksPlug` adoptés en bloc sans défense ni log → corruption invisible | `recordLogin` → `appendLoginEntry` (n'stampe plus `lastModified`) ; log forensique `[merge-defense] SUSPECT banksAnn/Plug mass-change` quand ≥10 slots adoptés en bloc |
 | 7.74.8 | Pollution profile **occurrence #7** — banques Anniversary (~79 slots) + Plug (7 slots) révertées, propagées Mac↔iPhone, MALGRÉ le fix 7.74.7 déployé (v8.14.157) | `migrateV9toV10` — appelé par `_runFullChain` à CHAQUE chargement, même sur un state déjà-v10 — re-stampait `profile.lastModified=Date.now()` **inconditionnellement** sur le profil actif. `recordLogin` n'était qu'un amplificateur parmi deux ; celui-ci tourne à 100 % des boots | `migrateV9toV10` : flag `cacheMigrated`, ne stamper `lastModified` que si une migration aiCache shared→profile réelle a lieu |
+| 7.74.9 | Pollution profile **occurrence #8** — `banksAnn` Sébastien réverté (79/150 slots, slot 23C vidé — signature occ #5), Mac ET iPhone corrompus, MALGRÉ 7.74.7 + 7.74.8 déployés (v8.14.162). Forensique : 3 logs `banksAnn mass-change : adoption remote remplace 79 slots` (log seul, pas de blocage) | `mergeProfileLWW` adoptait `banksAnn`/`banksPlug` **en bloc** via `merged={...remote}` dès que `remote.lastModified > local.lastModified`. Or `lastModified` est un timestamp **global au profil** : toute écriture (édition de sources, ouverture d'un morceau via `setSongAiCache` stampant, login, etc.) faisait gagner le LWW à TOUS les champs, banks comprises — y compris quand le device en question n'avait pas touché aux banks. La défense Phase 7.74.7 *détectait* mais ne *bloquait* pas | Timestamp dédié `profile.banksModified`, stampé UNIQUEMENT lors d'une édition réelle de `banksAnn`/`banksPlug` via `setProfileField`. `mergeProfileLWW` adopte les banks remote SEULEMENT si `remote.banksModified > local.banksModified` ; sinon keep local. Bonus hardening : `setSongAiCache` ne stamp plus `lastModified` (le merge aiCache per-songId auto-arbitre déjà via `ts` per-entry), et `mergeProfileLWW` merge l'aiCache même dans la branche `rts <= lts` |
 
 Chaque ligne représente une régression réelle vécue en prod. La
 prochaine session doit s'assurer qu'aucun fix ne ré-introduit un cas
@@ -430,6 +431,93 @@ tourne à chaque chargement (y compris sur un state déjà à jour) pour
 heal des profils incomplets — ces passes idempotentes ne DOIVENT JAMAIS
 stamper `lastModified`. Seule une transformation de données réelle le
 peut.
+
+## Phase 7.74.9 — timestamp dédié aux banks + hardening aiCache (2026-05-21 nuit)
+
+### Occurrence #8 — le canal de propagation lui-même est la cause
+
+Phase 7.74.7 (`recordLogin`) et Phase 7.74.8 (`migrateV9toV10`) ont
+fermé deux **amplificateurs** de re-stamp `lastModified`. Mais
+**occurrence #8** est survenue le 2026-05-21 soir, MALGRÉ v8.14.162 en
+place : `banksAnn` Sébastien réverté (79/150 slots, slot 23C vidé —
+signature occ #5), Mac ET iPhone corrompus.
+
+Capture forensique décisive (`window.__getMergeDebugLogs()`, Mac) :
+3 logs `[merge-defense] sebastien SUSPECT banksAnn mass-change :
+adoption remote remplace 79 slots (log seul, pas de blocage)` aux
+15:52, 16:29 et 20:25. Le log Phase 7.74.7 **détectait** mais ne
+**bloquait pas** — décision explicite à l'époque (« une réorg de
+banques est légitime, bloquer ferait des faux positifs »).
+
+### La cause racine restante
+
+`mergeProfileLWW` (`state.js:830`) adoptait `banksAnn`/`banksPlug` **en
+bloc** via `merged = { ...remote }` dès que `remote.lastModified >
+local.lastModified`. Or `lastModified` est un timestamp **global au
+profil** : n'importe quelle écriture — édition de sources, ouverture
+d'un morceau via `setSongAiCache` stampant (`main.jsx:626`), login,
+toggle device — fait gagner le LWW à **tous** les champs, banks
+comprises. Un appareil qui n'a fait **aucune** édition de banks mais
+a une écriture stampante sur autre chose impose **sa** version des
+banks, même périmée. `myGuitars` a 3 couches de défense ; `banksAnn`/
+`banksPlug` n'en ont aucune — seulement un log.
+
+Les fixes 7.74.7 et 7.74.8 fermaient deux *amplificateurs* de
+re-stamp ; le **canal de propagation** (adoption en bloc des banks
+sur `lastModified` global) restait ouvert.
+
+### Le fix — timestamp dédié `banksModified`
+
+Nouveau champ optionnel `profile.banksModified: number`. **Stampé
+UNIQUEMENT** lors d'une édition réelle de `banksAnn` ou `banksPlug`
+via `setProfileField` (`main.jsx`) :
+
+```js
+if (field === 'banksAnn' || field === 'banksPlug') {
+  next.banksModified = now;
+}
+```
+
+`mergeProfileLWW` adopte les banks remote SEULEMENT si
+`(remote.banksModified || 0) > (local.banksModified || 0)`. Sinon
+keep local. Un appareil qui n'a fait qu'ouvrir des morceaux ou éditer
+ses sources n'écrase plus jamais les banks d'un autre device.
+
+Migration `migrateV10toV11` backfill `banksModified=0` (volontairement
+0, pas `lastModified` — état neutre : tant que personne n'a fait
+d'édition réelle post-migration, aucun appareil n'écrase l'autre ; la
+première vraie édition propage correctement).
+
+Le log forensique du diff de slots est **conservé** mais reformulé :
+`mass-change ADOPTED` vs `mass-change BLOCKED` selon la décision réelle.
+
+### Hardening secondaire — drop stamp lastModified de setSongAiCache
+
+`setSongAiCache` ne stamp plus `lastModified`. Une écriture aiCache
+(ouverture d'un morceau, rescore) n'est pas une « modification du
+profil » au sens LWW per-field — elle se propage déjà via le merge
+aiCache per-songId qui s'auto-arbitre via `ts` per-entry (Phase 7.81).
+
+Conséquence indispensable : `mergeProfileLWW` merge l'aiCache même
+dans la branche `rts <= lts` (qui retournait `local` tel quel). Le
+helper extrait `mergeAiCachePerSongId(local, remote)` retourne
+`{ merged, changed }` ; si `changed=true`, on retourne
+`{ ...local, aiCache: merged }` au lieu de `local`. Sinon, identité.
+Sans ce changement, une analyse faite sur un device ne descendrait
+plus sur l'autre quand `lastModified` n'a pas avancé.
+
+### Invariant renforcé
+
+Les invariants 7.74.7 et 7.74.8 (« seule une transformation de
+données réelle stamp `lastModified` ») étaient nécessaires mais pas
+suffisants. **Nouvel invariant 7.74.9** : **un champ critique
+sensible aux régressions massives doit avoir son propre
+timestamp** — `lastModified` global est trop grossier pour servir de
+critère LWW per-field. La défense « log seul » est inutile sur les
+champs qui ne sont jamais modifiés à grande échelle légitimement
+(les banks sont éditées slot par slot par l'UI, pas 79 slots d'un
+coup) : sur ces champs, bloquer par un timestamp dédié est plus sûr
+qu'observer passer la pollution.
 
 ## Phase 7.74 — invariants ajoutés (2026-05-19)
 

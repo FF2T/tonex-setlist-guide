@@ -761,7 +761,184 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-21 fin de nuit++, Phase 7.86 — Refonte SongDetailCard 3 blocs + why per-knob)
+## État actuel (2026-05-21 nuit, Phase 7.74.9 — Fix pollution profile occurrence #8 : timestamp dédié banks + hardening aiCache)
+
+**Backline v8.14.164 / SW backline-v264 / STATE_VERSION 11 / 1479 tests verts.**
+
+### Phase 7.74.9 — Pollution profile occurrence #8 : timestamp dédié `banksModified` (v8.14.164)
+
+**Bug observé 2026-05-21 soir** : 8e occurrence de la pollution profile.
+Banques Anniversary de Sébastien à nouveau réverties (79/150 slots,
+slot 23C vidé — signature occ #5), Mac ET iPhone corrompus, MALGRÉ
+les fixes 7.74.7 + 7.74.8 déployés en v8.14.162.
+
+**Capture forensique décisive** (`window.__getMergeDebugLogs()`, Mac) :
+3 logs `[merge-defense] sebastien SUSPECT banksAnn mass-change : adoption
+remote remplace 79 slots (log seul, pas de blocage)` aux 15:52, 16:29
+et 20:25. Le log Phase 7.74.7 **détectait** mais ne **bloquait pas** —
+décision explicite à l'époque.
+
+### Cause racine (canal de propagation, pas amplificateur)
+
+`mergeProfileLWW` (`src/core/state.js:830`) adoptait `banksAnn`/
+`banksPlug` **en bloc** via `merged = { ...remote }` dès que
+`remote.lastModified > local.lastModified`. Or `lastModified` est un
+timestamp **global au profil** : toute écriture (édition de sources,
+ouverture d'un morceau via `setSongAiCache` stampant, login, etc.)
+faisait gagner le LWW à TOUS les champs, banks comprises — même
+quand le device n'avait pas touché aux banks (et avait éventuellement
+des banks périmées). `myGuitars` a 3 couches de défense ; `banksAnn`/
+`banksPlug` n'en avaient **aucune** — seulement un log Phase 7.74.7.
+
+Les fixes 7.74.7 (`recordLogin`) et 7.74.8 (`migrateV9toV10`) fermaient
+deux **amplificateurs** de re-stamp `lastModified`, mais le **canal
+de propagation** (adoption en bloc des banks) restait ouvert.
+
+### Fix principal — timestamp dédié aux banks
+
+1. **Schéma v10 → v11** : nouveau champ optionnel
+   `profile.banksModified: number`. STATE_VERSION 10 → 11.
+2. **Migration `migrateV10toV11`** : backfill `banksModified=0` pour
+   tous les profils existants (volontairement 0, pas `lastModified`
+   — état neutre qui ne fait gagner aucun appareil tant que personne
+   n'a fait d'édition réelle post-migration). Idempotente.
+3. **`ensureProfileV11`** : pose `banksModified=0` si absent au pull
+   d'un profil pré-v11. Idempotent.
+4. **Stamp** (`src/main.jsx` `setProfileField`) : quand `field` vaut
+   `'banksAnn'` ou `'banksPlug'`, on stamp `banksModified=Date.now()`
+   en plus de `lastModified`. Seule une édition réelle de banks
+   déclenche le stamp dédié.
+5. **`mergeProfileLWW`** : section banks réécrite. Adopte les banks
+   remote SEULEMENT si `(remote.banksModified || 0) >
+   (local.banksModified || 0)` ; sinon keep local. Le log forensique
+   du diff de slots est conservé mais reformulé (`ADOPTED` vs
+   `BLOCKED` selon la décision réelle). `merged.banksModified =
+   max(lbm, rbm)` pour cohérence avec `lastModified`.
+
+### Hardening secondaire (couplé)
+
+- **`setSongAiCache` ne stamp plus `lastModified`** (`src/main.jsx`).
+  Une écriture aiCache (ouverture d'un morceau, rescore) n'est pas
+  une « modification du profil » au sens LWW per-field — elle se
+  propage déjà via le merge aiCache per-songId qui s'auto-arbitre
+  via `ts` per-entry (Phase 7.81). Stamper `lastModified` ici
+  amplifiait gratuitement le LWW pour tous les autres champs.
+- **`mergeProfileLWW` merge l'aiCache dans les DEUX branches**
+  (rts > lts ET rts <= lts). Helper extrait
+  `mergeAiCachePerSongId(local, remote)` retourne `{ merged,
+  changed }`. Sans ce changement, une nouvelle analyse ne descendrait
+  plus jamais sur l'autre device puisque `setSongAiCache` ne fait
+  plus avancer `lastModified`. Identité préservée quand `changed`
+  est false (pas de clone gratuit).
+
+### Architecture livrée Phase 7.74.9
+
+```
+src/main.jsx                APP_VERSION 8.14.163 → 8.14.164
+                            setProfileField : stamp banksModified
+                              quand field ∈ {banksAnn, banksPlug}
+                            setSongAiCache : retire stamp lastModified
+public/sw.js                CACHE backline-v263 → backline-v264
+src/core/state.js           STATE_VERSION 10 → 11
+                            +ensureProfileV11 / ensureProfilesV11
+                            +migrateV10toV11 (backfill banksModified=0)
+                            +mergeAiCachePerSongId (helper extrait,
+                              utilisé dans les 2 branches LWW)
+                            mergeProfileLWW :
+                              - branche rts<=lts : merge aiCache, sinon
+                                identité local
+                              - banks : LWW dédié via banksModified
+                                (adopt seulement si remote>local)
+                              - log forensique reformulé ADOPTED/BLOCKED
+                            makeDefaultProfile : pose banksModified=0
+                            exports +ensureProfileV11, ensureProfilesV11,
+                              migrateV10toV11
+                            _runFullChain : ajoute migrateV10toV11
+                            loadState : accepte v10 (migrate vers v11)
+src/core/state.test.js      STATE_VERSION attend 11 (vs 10)
+                            buildDemoSnapshot version attend 11
+                            +13 tests Phase 7.74.9 (bank-dedicated LWW
+                              + scénario bug #8 + récupération
+                              + migrateV10toV11 + ensureProfileV11)
+                            test branche rts<=lts adapté (merge aiCache
+                              au lieu de identity-only)
+                            +1 test régression : aiCache identique →
+                              identité local préservée (pas de clone)
+docs/SYNC.md                +section Phase 7.74.9 (canal de propagation
+                              vs amplificateur, fix dédié, invariant)
+                            +ligne table régressions
+docs/INVESTIGATION_POLLUTION_PROFILE.md
+                            Session 3 + occurrence #8 : Phase 7.74.9
+                              marquée ✅ LIVRÉE avec détails
+```
+
+### Conséquences Phase 7.74.9
+
+- **1479/1479 tests verts** (+16 vs baseline 1463 : 13 Phase 7.74.9 +
+  3 adaptations Phase 7.74.7/7.80.2 obsolètes).
+- Bundle 2551 → 2556 KB (+5 KB pour helper + tests + sections doc
+  équivalentes en runtime).
+- **Bump STATE_VERSION 10 → 11** : migration purement additive
+  (`banksModified=0` backfill), idempotente. Aucune donnée
+  utilisateur perdue.
+- **Cohabitation v10/v11** : un device pré-7.74.9 push un state v10
+  (sans `banksModified`) → device post-7.74.9 le pull,
+  `ensureProfileV11` pose `banksModified=0` → asymétrie sûre (le
+  device avec `banksModified > 0` réel — une édition post-fix — gagne
+  contre un device pré-fix qui a `banksModified=0` implicite). Tests
+  Vitest dédiés à ce cas.
+- **Cas-cible attendu post-déploiement** : sur Mac et iPhone tous
+  deux à jour v8.14.164 :
+  1. Sébastien restaure manuellement ses banks Anniversary depuis
+     CSV → `setProfileField('banksAnn', ...)` stamp
+     `banksModified=Date.now()` → push Firestore inclut le nouveau
+     timestamp.
+  2. Sur iPhone (s'il avait des banks périmées avec `banksModified`
+     antérieur ou 0), le pull → `mergeProfileLWW` voit
+     `remote.banksModified > local.banksModified` → adopte les banks
+     fraîches du Mac. Log forensique `ADOPTED 79 slots remplacés`.
+  3. Toute écriture future non-banks (édition de sources, ouverture
+     d'un morceau, login) ne touche plus `banksModified` → ne peut
+     plus faire écraser les banks par une version antérieure même
+     si `lastModified` global est gonflé.
+
+### Validation post-déploiement attendue
+
+1. Reload PWA Mac + iPhone → `v8.14.164` dans le header.
+2. Console : `JSON.parse(localStorage.tonex_guide_v2).profiles.sebastien.banksModified`
+   doit être présent (0 initialement, puis `Date.now()` à la
+   première édition de banks via UI).
+3. Activer wrapper Phase 7.74.5 si pas déjà :
+   `localStorage.__backline_persist_logs = 'true'` + reload.
+4. Faire une édition réelle de bank (BankEditor → modifier 1 slot)
+   → vérifier log `banksAnn mass-change ADOPTED` au prochain pull
+   sur l'autre device.
+5. Surveiller 48-72h. Si aucune nouvelle occurrence du pattern
+   `banksAnn mass-change BLOCKED ... 79 slots`, la pollution est
+   éteinte. Si `BLOCKED` apparaît, c'est exactement ce qu'on veut :
+   la pollution est désormais visible ET stoppée.
+
+### Dette résiduelle Phase 7.74.9
+
+- **Aucun test d'intégration multi-device automatisé** (Vitest pure
+  helpers seulement). Test manuel Mac↔iPhone obligatoire au
+  déploiement.
+- **`stampedProfileUpdate` helper Phase 7.74 Couche 1** : ne stamp
+  pas encore `banksModified` automatiquement. Pas critique : les
+  sites coupables identifiés Phase 7.74 ne touchaient pas aux banks
+  (`MesAppareilsTab` toggle device → `enabledDevices`,
+  `ProfilesAdmin` password/rename, `ProfileTab` delete custom
+  guitar). Si un futur site écrit `banksAnn`/`banksPlug` via
+  `stampedProfileUpdate`, ajouter la même branche conditionnelle.
+- **Invariant à documenter pour les futurs développeurs** : tout
+  champ critique sensible aux régressions massives (banks, settings
+  système, etc.) devrait avoir son propre timestamp dédié, pas se
+  fier au `lastModified` global. Documenté dans `docs/SYNC.md`
+  section « Phase 7.74.9 » invariant final.
+
+---
+
+## État précédent (2026-05-21 fin de nuit++, Phase 7.86 — Refonte SongDetailCard 3 blocs + why per-knob)
 
 **Backline v8.14.163 / SW backline-v263 / STATE_VERSION 10 / 1463 tests verts.**
 

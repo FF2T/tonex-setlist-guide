@@ -11,7 +11,7 @@
 
 ## Historique du bug
 
-5 occurrences documentées :
+8 occurrences documentées :
 
 | # | Date | Profil affecté | Champ corrompu | Symptôme | Phase fix tentative |
 |---|---|---|---|---|---|
@@ -22,6 +22,7 @@
 | 5 | 2026-05-20 | Sébastien | `banksAnn` | Slot 23C vidé + 18C Supergroupbass remplacé | — (cause trouvée #6) |
 | 6 | **2026-05-21** | **Sébastien** | **`banksAnn` + `banksPlug` + `language`** | 79/150 slots Ann + 7/30 Plug révertés vers une version périmée, langue FR→EN, propagé Mac+iPhone | **✅ CAUSE RACINE TROUVÉE → Phase 7.74.7** |
 | 7 | **2026-05-21** | **Sébastien** | **`banksAnn` + `banksPlug`** | ~79 slots Ann + 7 slots Plug révertés, propagé Mac↔iPhone — MALGRÉ le fix 7.74.7 déployé (v8.14.157) | **✅ 2e CAUSE RACINE TROUVÉE → Phase 7.74.8** |
+| 8 | **2026-05-21 soir** | **Sébastien** | **`banksAnn` + `banksPlug`** | 79/150 slots Ann révertés (23C vidé — signature occ #5), Mac ET iPhone corrompus — MALGRÉ 7.74.7 + 7.74.8 déployés (v8.14.162). Forensique : 3× `banksAnn mass-change` adoptés en bloc (15:52, 16:29, 20:25) | **✅ Phase 7.74.9 LIVRÉE (v8.14.164, STATE_VERSION 11) — timestamp dédié `banksModified` + hardening aiCache** |
 
 **Pattern commun** : le profil Sébastien (admin) perd des données qui
 sont remplacées par celles d'un autre profil (Francisco, Bruno, curateur
@@ -321,6 +322,78 @@ feedback, rescore). Amplificateur mineur (ne tourne pas à chaque boot).
 Fix de fond possible : merger l'aiCache per-songId même dans la branche
 `rts <= lts` de `mergeProfileLWW` (l'aiCache s'auto-arbitre déjà par son
 `ts` per-entry, Phase 7.81) puis retirer ce stamp. Reporté.
+
+### Session 3 — 2026-05-21 soir (occurrence #8, capture live Chrome MCP)
+
+**Le canal de propagation lui-même est la cause — pas un amplificateur.**
+
+Occurrence #8 : `banksAnn` Sébastien réverté vers une version périmée
+(slot 23C vidé — signature occ #5), **Mac ET iPhone corrompus**, alors
+que v8.14.162 (7.74.7 + 7.74.8) était bien déployée. L'iPhone était
+corrompu sans avoir été ouvert dans la session : la version périmée
+dormait dans son localStorage / sur Firestore depuis une session
+antérieure.
+
+**Capture forensique décisive** (`window.__getMergeDebugLogs()`, Mac) :
+3 logs `[merge-defense] sebastien SUSPECT banksAnn mass-change :
+adoption remote remplace 79 slots (log seul, pas de blocage)` aux
+15:52, 16:29 et 20:25. Le log Phase 7.74.7 **détecte** mais ne **bloque
+pas** — décision explicite à l'époque (« une réorg de banques est
+légitime, bloquer ferait des faux positifs »).
+
+**Cause racine** : `mergeProfileLWW` (`state.js:830`) adopte `banksAnn`
+/ `banksPlug` **en bloc** (`merged = { ...remote }`) dès que
+`remote.lastModified > local.lastModified`. `myGuitars` a 3 couches de
+défense qui *gardent le local* sur changement suspect ; `banksAnn` /
+`banksPlug` n'en ont aucune — seulement un log. Un appareil dont le
+`lastModified` **global** devient le plus récent — pour n'importe
+quelle raison : édition de sources, écriture aiCache via
+`setSongAiCache` toujours stampante (`main.jsx:626`), etc. — impose
+**toute** sa version des banks, même périmée. 79/150 slots remplacés
+d'un coup n'est jamais une réorg utilisateur, c'est une pollution que
+la défense regarde passer.
+
+Les fixes 7.74.7 (`recordLogin`) et 7.74.8 (`migrateV9toV10`) ont fermé
+deux *amplificateurs* de re-stamp, mais le **canal de propagation**
+(adoption en bloc des banks) est resté ouvert. `lastModified` est un
+timestamp **global au profil** : toute écriture sur n'importe quel
+champ fait « gagner » le LWW à tous les champs, banks comprises.
+
+**Fix retenu — Phase 7.74.9 ✅ LIVRÉE 2026-05-21 nuit (v8.14.164,
+STATE_VERSION 11)** : timestamp dédié aux banks. Nouveau champ
+`profile.banksModified`, stampé UNIQUEMENT lors d'une édition réelle
+de `banksAnn`/`banksPlug` via `setProfileField` (`main.jsx`).
+`mergeProfileLWW` n'adopte les banks remote que si
+`remote.banksModified > local.banksModified` — sinon keep local. Une
+vraie réorg propage normalement ; un appareil qui n'a fait qu'ouvrir
+des morceaux ou éditer ses sources n'écrase plus jamais les banks. Le
+log forensique du diff de slots est conservé mais reformulé
+(`ADOPTED` vs `BLOCKED` selon la décision réelle).
+
+Migration `migrateV10toV11` backfill `banksModified=0` pour tous les
+profils existants (volontairement 0, pas `lastModified` — état neutre
+qui ne fait gagner aucun appareil tant que personne n'a fait d'édition
+réelle post-migration).
+
+**Hardening secondaire livré** : `setSongAiCache` ne stamp plus
+`lastModified` (une écriture aiCache n'est pas une modification du
+profil au sens LWW per-field — l'aiCache s'auto-arbitre déjà via
+`ts` per-entry, Phase 7.81). Conséquence : `mergeProfileLWW` merge
+l'aiCache même dans la branche `rts <= lts` via le helper extrait
+`mergeAiCachePerSongId(local, remote)` qui retourne
+`{ merged, changed }`. Sans ça, une nouvelle analyse ne descendrait
+plus jamais sur l'autre device puisque `setSongAiCache` ne fait plus
+avancer `lastModified`.
+
+Cf `docs/SYNC.md` section « Phase 7.74.9 » pour le détail technique
++ invariants associés. Tests Vitest dédiés dans
+`src/core/state.test.js` : scénario bug #8 reproduit (remote.lastModified
+récent + banksModified égal → banks local préservées) + scénario
+récupération + 9 autres cas.
+
+**Récupération** : Mac + iPhone tous deux corrompus → aucune copie
+saine en mémoire. Restauration depuis snapshot manuel (Phase 7.59) ou
+`ToneX_Anniversary_ref.csv` / `ToneX_Plug_ref.csv`.
 
 ## Liens
 
