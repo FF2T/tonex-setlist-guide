@@ -61,7 +61,7 @@ import {
 import demoSnapshot from '../data/demo-profile.json';
 
 // ─── Versioning + clés localStorage ──────────────────────────────────
-const STATE_VERSION = 10;
+const STATE_VERSION = 11;
 const LOCALE_KEY = 'backline_locale'; // Phase 7.49 — fallback pour migrateV7toV8
 const TOMBSTONE_MAX_AGE_MS = 30 * 24 * 3600 * 1000;
 const LS_KEY = 'tonex_guide_v2';        // nom historique stable
@@ -589,6 +589,57 @@ function migrateV9toV10(state) {
   return out;
 }
 
+// ─── Phase 7.74.9 — v10 → v11 : timestamp dédié aux banks ────────────
+//
+// Contexte : occurrence #8 de la pollution profile (2026-05-21 soir).
+// `mergeProfileLWW` adoptait `banksAnn`/`banksPlug` EN BLOC dès que
+// `remote.lastModified > local.lastModified`. Or `lastModified` est un
+// timestamp **global au profil** : n'importe quelle écriture (édition
+// de sources, ouverture d'un morceau qui déclenche `setSongAiCache`
+// stampant, login, etc.) fait gagner le LWW à TOUS les champs, banks
+// comprises. Un appareil dont le contenu de banks est périmé pouvait
+// donc écraser un autre appareil dont les banks étaient à jour, dès lors
+// qu'il avait stampé son `lastModified` plus récemment pour une raison
+// totalement indépendante.
+//
+// Fix : timestamp dédié `profile.banksModified` stampé UNIQUEMENT lors
+// d'une édition réelle de `banksAnn` ou `banksPlug`. `mergeProfileLWW`
+// adopte les banks remote SEULEMENT si `remote.banksModified >
+// local.banksModified` ; sinon keep local. Une vraie réorg propage
+// normalement ; un reload ou une écriture aiCache n'écrase plus jamais
+// les banks.
+//
+// Backfill volontairement à 0 (pas `lastModified`) : état neutre, tant
+// que personne n'a fait d'édition réelle post-migration, aucun appareil
+// n'écrase l'autre. La première vraie édition (qui stamp `Date.now()`)
+// propage correctement.
+//
+// Idempotente : sur un state déjà v11 avec banksModified présent → no-op.
+
+function ensureProfileV11(profile) {
+  if (!profile) return profile;
+  const v10 = ensureProfileV10(profile);
+  if (typeof v10.banksModified === 'number') return v10;
+  return { ...v10, banksModified: 0 };
+}
+function ensureProfilesV11(profiles) {
+  if (!profiles) return profiles;
+  const out = {};
+  for (const [id, p] of Object.entries(profiles)) {
+    out[id] = ensureProfileV11(p);
+  }
+  return out;
+}
+
+function migrateV10toV11(state) {
+  if (!state) return state;
+  return {
+    ...state,
+    version: 11,
+    profiles: ensureProfilesV11(state.profiles),
+  };
+}
+
 // Phase 7.54 — Helper lookup aiCache (priorité profile.aiCache, fallback
 // shared.songDb[i].aiCache). Exposé pour la dérivation
 // songDbWithProfileCache au niveau App + pour les call sites isolés.
@@ -779,6 +830,60 @@ function stampedProfileUpdate(profiles, profileId, partial) {
   };
 }
 
+// Phase 7.81 + 7.74.9 — Merge aiCache per-songId. Extrait en helper
+// pour pouvoir l'appliquer dans les DEUX branches de `mergeProfileLWW`
+// (rts > lts ET rts <= lts). Pourquoi : `setSongAiCache` ne stamp plus
+// `lastModified` (Phase 7.74.9, anti-pollution profile) — donc un
+// device qui n'a fait QUE des analyses peut avoir rts <= lts vs un
+// remote qui a fait une autre écriture stampante (login, etc.). Sans
+// ce merge dans la branche locale-gagne, ces analyses ne descendraient
+// jamais sur l'autre device.
+//
+// L'aiCache s'auto-arbitre déjà via `ts` per-entry (Phase 7.81). LWW
+// par `ts` ; fallback sv pour les entries legacy.
+//
+// Retourne { merged, changed } : changed=true si le résultat diffère
+// de localAi (utilisé par la branche rts<=lts pour décider si on
+// retourne local tel quel ou local enrichi).
+function mergeAiCachePerSongId(local, remote) {
+  const localAi = (local && typeof local === 'object') ? local : {};
+  const remoteAi = (remote && typeof remote === 'object') ? remote : {};
+  const songIds = new Set([...Object.keys(localAi), ...Object.keys(remoteAi)]);
+  const mergedAi = {};
+  let changed = false;
+  for (const sid of songIds) {
+    const le = localAi[sid];
+    const re = remoteAi[sid];
+    let pick;
+    if (le && re) {
+      const lts = typeof le.ts === 'number' ? le.ts : 0;
+      const rts = typeof re.ts === 'number' ? re.ts : 0;
+      if (lts > 0 || rts > 0) {
+        pick = rts > lts ? re : le;
+      } else {
+        const lsv = typeof le.sv === 'number' ? le.sv : 0;
+        const rsv = typeof re.sv === 'number' ? re.sv : 0;
+        pick = rsv > lsv ? re : le;
+      }
+    } else if (le) {
+      pick = le;
+    } else if (re) {
+      pick = re;
+      changed = true; // remote-only adopté
+    }
+    if (pick) {
+      mergedAi[sid] = pick;
+      if (pick !== localAi[sid]) changed = true;
+    }
+  }
+  // Détecte aussi le cas où local avait des entries qui ne sont pas
+  // dans merged (impossible vu qu'on prend l'union, mais defensive).
+  if (!changed && Object.keys(localAi).length !== Object.keys(mergedAi).length) {
+    changed = true;
+  }
+  return { merged: mergedAi, changed };
+}
+
 // Phase 7.74 Couche 2 — merge LWW per-field pour les champs critiques
 // d'un profile (vs ancien adopt-en-bloc qui causait des pollutions
 // cross-mélange).
@@ -814,8 +919,15 @@ function mergeProfileLWW(local, remote, options = {}) {
   if (!remote) return local;
   const lts = typeof local.lastModified === 'number' ? local.lastModified : 0;
   const rts = typeof remote.lastModified === 'number' ? remote.lastModified : 0;
-  // Si remote plus ancien ou égal → keep local entier (rien à fusionner).
-  if (rts <= lts) return local;
+  // Phase 7.74.9 — Si remote plus ancien ou égal sur lastModified,
+  // on garde local pour TOUS les champs sauf l'aiCache, qui s'auto-
+  // arbitre via ts per-entry et doit pouvoir propager même quand
+  // setSongAiCache ne stamp plus lastModified.
+  if (rts <= lts) {
+    const { merged: mergedAi, changed: aiChanged } = mergeAiCachePerSongId(local.aiCache, remote.aiCache);
+    if (!aiChanged) return local;
+    return { ...local, aiCache: mergedAi };
+  }
   // Sinon : remote plus récent → on construit un merge per-field.
   const debug = options.debug === true || (typeof window !== 'undefined' && window.__BACKLINE_MERGE_DEBUG === true);
   const debugLog = (msg, data) => {
@@ -829,14 +941,24 @@ function mergeProfileLWW(local, remote, options = {}) {
   // loginHistory, editedGuitars). On part de remote pour ces champs.
   const merged = { ...remote };
 
-  // ── banksAnn / banksPlug : adoptés en bloc (via merged = {...remote}).
-  //    Phase 7.74.7 — log forensique si remplacement massif (≥10 slots
-  //    différents du local). PAS de blocage : une vraie réorganisation
-  //    de banques par l'utilisateur est légitime, bloquer ferait des
-  //    faux positifs. Le log (capté par le wrapper persistant Phase
-  //    7.74.5) donne enfin une trace si la pollution recommence sur ces
-  //    champs — invisible jusqu'ici (occurrence #6, 79 slots Anniversary
-  //    + 7 slots Plug révertés sans aucune trace). ──
+  // ── banksAnn / banksPlug : LWW dédié via `banksModified` ──
+  //    Phase 7.74.9 — occurrence #8 a démontré que l'adoption en bloc
+  //    via `merged = { ...remote }` était le canal de propagation de la
+  //    pollution profile. `lastModified` étant global au profil, toute
+  //    écriture (édition de sources, ouverture d'un morceau via
+  //    setSongAiCache, login, etc.) faisait gagner le LWW à TOUS les
+  //    champs, banks comprises — y compris quand le device en question
+  //    n'avait pas touché aux banks (et les avait éventuellement périmées).
+  //
+  //    Fix : adoption des banks UNIQUEMENT si `remote.banksModified >
+  //    local.banksModified`. Sinon keep local. Stamp posé seulement lors
+  //    d'une édition réelle de banks via setProfileField (main.jsx).
+  //
+  //    Phase 7.74.7 log forensique conservé (diff slots) mais reformulé
+  //    pour refléter la décision réelle (adopté vs gardé).
+  const lbm = typeof local.banksModified === 'number' ? local.banksModified : 0;
+  const rbm = typeof remote.banksModified === 'number' ? remote.banksModified : 0;
+  const banksRemoteWins = rbm > lbm;
   for (const bk of ['banksAnn', 'banksPlug']) {
     const lb = local[bk] && typeof local[bk] === 'object' ? local[bk] : {};
     const rb = remote[bk] && typeof remote[bk] === 'object' ? remote[bk] : {};
@@ -848,10 +970,23 @@ function mergeProfileLWW(local, remote, options = {}) {
         if ((ls[slot] || '') !== (rs[slot] || '')) diffSlots++;
       }
     }
-    if (diffSlots >= 10) {
-      debugLog(`SUSPECT ${bk} mass-change : adoption remote remplace ${diffSlots} slots (log seul, pas de blocage)`, { diffSlots });
+    if (banksRemoteWins) {
+      // Adopte remote (déjà dans merged via `{ ...remote }`).
+      if (diffSlots >= 10) {
+        debugLog(`${bk} mass-change ADOPTED : remote.banksModified=${rbm} > local.banksModified=${lbm}, ${diffSlots} slots remplacés`, { diffSlots, lbm, rbm });
+      }
+    } else {
+      // Keep local (override la valeur remote injectée par {...remote}).
+      merged[bk] = lb;
+      if (diffSlots >= 10) {
+        debugLog(`${bk} mass-change BLOCKED : remote.banksModified=${rbm} <= local.banksModified=${lbm}, ${diffSlots} slots préservés en local`, { diffSlots, lbm, rbm });
+      }
     }
   }
+  // Stamp banksModified du merged = max(local, remote) pour que la prochaine
+  // sync n'oscille pas. Cohérent avec le stamp lastModified de la ligne
+  // ~1001 (max des deux).
+  merged.banksModified = Math.max(lbm, rbm);
 
   // ── myGuitars : Couche 3 defense ──
   // 1. Block adoption si drop suspect (≥3 guitares OU >50% local)
@@ -956,45 +1091,10 @@ function mergeProfileLWW(local, remote, options = {}) {
   for (const pk of remoteCP) { if (pk && pk.name) cpByName[pk.name] = pk; } // remote overwrite
   merged.customPacks = Object.values(cpByName);
 
-  // ── aiCache : merge per-songId (Phase 7.81 LWW par ts) ──
-  // Phase 7.80.2 a introduit le merge per-songId pour éviter qu'un device
-  // avec aiCache vide écrase les analyses d'un autre device via adopt-en-
-  // bloc. Mais le tiebreak par `sv` (SCORING_VERSION) ne convergeait pas
-  // quand 2 devices avaient analysé indépendamment le même morceau :
-  // sv = 9 partout → égalité → keep local des 2 côtés → divergence
-  // permanente (cas observé Hells Bells / Mountain Climbing 2026-05-20).
-  //
-  // Phase 7.81 : LWW par `ts` (timestamp posé par updateAiCache au write).
-  // Le device qui a analysé en dernier gagne. Fallback sv pour les entries
-  // legacy sans ts (caches d'avant le déploiement v8.14.146).
-  // Égalité ts (impossible en pratique sauf horloge identique au ms près)
-  // → keep local.
-  const localAi = (local.aiCache && typeof local.aiCache === 'object') ? local.aiCache : {};
-  const remoteAi = (remote.aiCache && typeof remote.aiCache === 'object') ? remote.aiCache : {};
-  const songIds = new Set([...Object.keys(localAi), ...Object.keys(remoteAi)]);
-  const mergedAi = {};
-  for (const sid of songIds) {
-    const le = localAi[sid];
-    const re = remoteAi[sid];
-    if (le && re) {
-      const lts = typeof le.ts === 'number' ? le.ts : 0;
-      const rts = typeof re.ts === 'number' ? re.ts : 0;
-      if (lts > 0 || rts > 0) {
-        // Au moins un des deux a un ts (write post-7.81) → LWW par ts.
-        mergedAi[sid] = rts > lts ? re : le; // égalité ou local plus récent → keep local
-      } else {
-        // Aucun ts (caches legacy 7.80.2-) → fallback sv.
-        const lsv = typeof le.sv === 'number' ? le.sv : 0;
-        const rsv = typeof re.sv === 'number' ? re.sv : 0;
-        mergedAi[sid] = rsv > lsv ? re : le;
-      }
-    } else if (le) {
-      mergedAi[sid] = le;
-    } else if (re) {
-      mergedAi[sid] = re;
-    }
-  }
-  merged.aiCache = mergedAi;
+  // ── aiCache : merge per-songId via helper Phase 7.81 + 7.74.9 ──
+  // Délégué à `mergeAiCachePerSongId` (helper partagé avec la branche
+  // rts <= lts, cf Phase 7.74.9). LWW par `ts` per-entry, fallback sv.
+  merged.aiCache = mergeAiCachePerSongId(local.aiCache, remote.aiCache).merged;
 
   // Stamp lastModified = max des deux (pour que la prochaine sync
   // détecte cet état comme à jour).
@@ -1051,12 +1151,12 @@ function mergeProfilesLWW(localProfiles, remoteProfiles, options = {}) {
       const localGuitarSet = guitarsByProfile[id] || new Set();
       for (const g of localGuitarSet) otherProfilesGuitars.delete(g);
       const merged = mergeProfileLWW(lp, adoptedRemote, { ...options, otherProfilesGuitars });
-      out[id] = ensureProfileV10(merged || lp);
+      out[id] = ensureProfileV11(merged || lp);
     } else if (lp) {
-      out[id] = ensureProfileV10(lp);
+      out[id] = ensureProfileV11(lp);
     } else if (rp) {
       const adopted = applySecrets ? applySecrets({ [id]: rp })[id] : rp;
-      out[id] = ensureProfileV10(adopted);
+      out[id] = ensureProfileV11(adopted);
     }
   }
   return out;
@@ -1242,6 +1342,9 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
       aiKeys: { anthropic: '', gemini: '' },
       loginHistory: [],
       lastModified: Date.now(),
+      // Phase 7.74.9 — timestamp dédié aux banks (0 = neutre, sera
+      // stampé Date.now() à la première édition réelle via setProfileField).
+      banksModified: 0,
       recoMode: 'balanced',
       guitarBias: {},
       // Phase 10 — contexte d'écoute (default 'frfr', cf OUTPUT_CONTEXTS).
@@ -1269,6 +1372,8 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
     aiKeys: { anthropic: '', gemini: '' },
     loginHistory: [],
     lastModified: Date.now(),
+    // Phase 7.74.9 — timestamp dédié aux banks (0 = neutre).
+    banksModified: 0,
     recoMode: 'balanced',
     guitarBias: {},
     // Phase 10 — contexte d'écoute (default 'frfr', cf OUTPUT_CONTEXTS).
@@ -1691,8 +1796,10 @@ function _runFullChain(d) {
   const v9 = migrateV8toV9(migrateV7toV8(migrateV6toV7(migrateV5toV6(migrateV4toV5(migrateV3toV4(d))))));
   // Phase 7.54 — v9 → v10 : aiCache per-profile.
   const v10 = migrateV9toV10(v9);
-  if (v10 && v10.shared && v10.shared.deletedSetlistIds) {
-    v10.shared = { ...v10.shared, deletedSetlistIds: gcTombstones(v10.shared.deletedSetlistIds) };
+  // Phase 7.74.9 — v10 → v11 : timestamp dédié banks.
+  const v11 = migrateV10toV11(v10);
+  if (v11 && v11.shared && v11.shared.deletedSetlistIds) {
+    v11.shared = { ...v11.shared, deletedSetlistIds: gcTombstones(v11.shared.deletedSetlistIds) };
   }
   // Phase 7.52.9 — Heal défensif au load : retire 'demo' des profileIds
   // des setlists non-démo (pollution Firestore historique, cf
@@ -1701,7 +1808,7 @@ function _runFullChain(d) {
   // au boot. Sinon Mac+iPhone stamperaient chacun au boot → loop LWW
   // infinie → sync cassée. Le stamp se fait seulement au push Firestore
   // (saveToFirestore.prep) pour propager le clean correctement.
-  return stripDemoFromSetlists(v10, { stamp: false });
+  return stripDemoFromSetlists(v11, { stamp: false });
 }
 
 function loadState() {
@@ -1710,6 +1817,7 @@ function loadState() {
     if (raw) {
       const d = JSON.parse(raw);
       if (d.version === STATE_VERSION) return _runFullChain(d);
+      if (d.version === 10) return _runFullChain(d);
       if (d.version === 9) return _runFullChain(d);
       if (d.version === 8) return _runFullChain(d);
       if (d.version === 7) return _runFullChain(d);
@@ -2390,6 +2498,7 @@ export {
   mergeToneNetPresetsLWW,
   stampedProfileUpdate,
   ensureProfileV10, ensureProfilesV10, migrateV9toV10, getProfileAiCache,
+  ensureProfileV11, ensureProfilesV11, migrateV10toV11,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,
   toggleSetlistProfile,

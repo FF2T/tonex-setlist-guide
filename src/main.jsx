@@ -277,7 +277,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.163";
+const APP_VERSION = "8.14.164";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -610,10 +610,25 @@ export function App() {
   }, [songDb, profile?.aiCache]);
 
   // Phase 7.54 — Setter aiCache per-profile. Écrit dans profile.aiCache[songId]
-  // au lieu de shared.songDb[i].aiCache. Stamp profile.lastModified pour
-  // propager via Firestore LWW (Phase 5.7).
+  // au lieu de shared.songDb[i].aiCache.
   // `value` peut être null pour invalider (mais on supprime l'entrée pour
   // éviter de polluer le state avec des nulls).
+  //
+  // Phase 7.74.9 — NE STAMP PLUS `lastModified`. Une écriture aiCache
+  // (ouverture d'un morceau, rescore) n'est pas une « modification du
+  // profil » au sens LWW per-field — elle se propage déjà via le merge
+  // aiCache per-songId qui s'auto-arbitre via `ts` per-entry (Phase 7.81).
+  // Stamper `lastModified` ici faisait gagner le LWW à tous les autres
+  // champs (banks, language, sources, etc.) sans raison — c'était l'un
+  // des amplificateurs structurels de la pollution profile (cf
+  // INVESTIGATION_POLLUTION_PROFILE.md Session 3).
+  //
+  // Le syncHash inclut profile.aiCache (Phase 7.46) donc une nouvelle
+  // entrée aiCache déclenche bien un push Firestore sans avoir besoin de
+  // toucher lastModified. Le merge aiCache dans mergeProfileLWW est
+  // appliqué dans les DEUX branches (rts > lts ET rts <= lts) pour que
+  // les nouvelles analyses descendent bien sur les autres devices même
+  // quand lastModified n'a pas changé.
   const setSongAiCache = useCallback((songId, value) => {
     if (!songId || !activeProfileId) return;
     setProfiles((p) => {
@@ -623,7 +638,7 @@ export function App() {
       const nextCache = { ...prevCache };
       if (value === null || value === undefined) delete nextCache[songId];
       else nextCache[songId] = value;
-      return { ...p, [activeProfileId]: { ...cur, aiCache: nextCache, lastModified: Date.now() } };
+      return { ...p, [activeProfileId]: { ...cur, aiCache: nextCache } };
     });
   }, [activeProfileId]);
 
@@ -838,12 +853,21 @@ export function App() {
 
   // Per-profile convenience setters. Phase 5.7 : stamp profile.lastModified
   // au write pour permettre le LWW per-profile côté merge Firestore.
+  // Phase 7.74.9 — stamp aussi `banksModified` quand banksAnn/banksPlug
+  // sont modifiés. Le merge LWW utilise ce timestamp dédié pour décider
+  // d'adopter ou non les banks remote, sans se laisser piéger par un
+  // `lastModified` global gonflé par une autre écriture.
   const setProfileField = (field, value) => {
     setProfiles(p => {
       const cur = p[activeProfileId];
       if (!cur) return p;
       const resolved = typeof value === "function" ? value(cur[field]) : value;
-      return {...p, [activeProfileId]: {...cur, [field]: resolved, lastModified: Date.now()}};
+      const now = Date.now();
+      const next = {...cur, [field]: resolved, lastModified: now};
+      if (field === 'banksAnn' || field === 'banksPlug') {
+        next.banksModified = now;
+      }
+      return {...p, [activeProfileId]: next};
     });
   };
   const setBanksAnn  = v => setProfileField("banksAnn", v);

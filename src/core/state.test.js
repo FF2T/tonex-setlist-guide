@@ -16,6 +16,7 @@ import {
   mergeToneNetPresetsLWW,
   stampedProfileUpdate,
   ensureProfileV10, ensureProfilesV10, migrateV9toV10, getProfileAiCache,
+  ensureProfileV11, ensureProfilesV11, migrateV10toV11,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,
   toggleSetlistProfile,
@@ -31,8 +32,8 @@ import {
 } from './state.js';
 
 describe('STATE_VERSION', () => {
-  test('vaut 9 en Phase 7.51.1 (mode démo, profile.isDemo)', () => {
-    expect(STATE_VERSION).toBe(10);
+  test('vaut 11 en Phase 7.74.9 (timestamp dédié banks)', () => {
+    expect(STATE_VERSION).toBe(11);
   });
 });
 
@@ -2103,7 +2104,7 @@ describe('buildDemoSnapshot (Phase 7.51.4)', () => {
 
   test('format compatible loadDemoSnapshot (version + 4 clés)', () => {
     const snap = buildDemoSnapshot(sampleProfile, sampleSetlists, sampleSongs);
-    expect(snap.version).toBe(10);
+    expect(snap.version).toBe(11);
     expect(snap).toHaveProperty('profile');
     expect(snap).toHaveProperty('setlists');
     expect(snap).toHaveProperty('songs');
@@ -3580,20 +3581,40 @@ describe('mergeProfileLWW — Phase 7.80.2 aiCache per-songId merge', () => {
     expect(Object.keys(out.aiCache).sort()).toEqual(['song_a', 'song_b']);
   });
 
-  test('si remote plus ancien (rts ≤ lts) → return local entier (rien à merger)', () => {
+  test('Phase 7.74.9 — si remote plus ancien (rts ≤ lts) MAIS aiCache divergent → merge aiCache, autres champs locaux préservés', () => {
     const local = {
       id: 'seb', lastModified: 2000, myGuitars: ['lp60'],
-      aiCache: { song_a: { sv: 9, result: { ideal_guitar: 'LP' } } },
+      aiCache: { song_a: { sv: 9, ts: 100, result: { ideal_guitar: 'LP' } } },
+    };
+    const remote = {
+      id: 'seb', lastModified: 1000, myGuitars: ['sg61'],
+      aiCache: { song_b: { sv: 9, ts: 200, result: { ideal_guitar: 'SG' } } },
+    };
+    const out = mergeProfileLWW(local, remote);
+    // Phase 7.74.9 : setSongAiCache ne stamp plus lastModified. Donc un
+    // device qui ne fait QUE des analyses peut avoir rts <= lts vs un
+    // autre device qui a fait une écriture stampante. Les analyses
+    // doivent quand même descendre. Le merge aiCache per-songId est
+    // appliqué ; les autres champs (myGuitars, language, banks…) restent
+    // locaux car rts <= lts.
+    expect(out.myGuitars).toEqual(['lp60']); // local preserved
+    expect(Object.keys(out.aiCache).sort()).toEqual(['song_a', 'song_b']);
+    expect(out.aiCache.song_a.result.ideal_guitar).toBe('LP');
+    expect(out.aiCache.song_b.result.ideal_guitar).toBe('SG');
+  });
+
+  test('Phase 7.74.9 — si remote plus ancien ET aiCache identique → return local identité (pas de clone)', () => {
+    const sharedCache = { song_a: { sv: 9, ts: 100, result: { ideal_guitar: 'LP' } } };
+    const local = {
+      id: 'seb', lastModified: 2000, myGuitars: ['lp60'],
+      aiCache: sharedCache,
     };
     const remote = {
       id: 'seb', lastModified: 1000, myGuitars: ['lp60'],
-      aiCache: { song_b: { sv: 9, result: { ideal_guitar: 'SG' } } },
+      aiCache: sharedCache, // même contenu → no-op
     };
     const out = mergeProfileLWW(local, remote);
-    // Phase 7.80.2 : si rts < lts, on retourne local tel quel (pas de merge)
-    // Donc aiCache = local.aiCache uniquement. C'est OK car local-only sera
-    // re-push à la prochaine modif et iPhone le pull à ce moment-là.
-    expect(out).toBe(local); // identity check (pas de clone)
+    expect(out).toBe(local); // identity check (pas de clone gratuit)
   });
 
   test('aiCache absent des 2 côtés → mergedAi = {}', () => {
@@ -3785,7 +3806,15 @@ describe('appendLoginEntry — Phase 7.74.7 (recordLogin sans re-stamp)', () => 
   });
 });
 
-describe('mergeProfileLWW — Phase 7.74.7 log forensique banks mass-change', () => {
+// ─── Phase 7.74.9 — Bank-dedicated LWW via banksModified ──────────────
+//
+// Occurrence #8 (2026-05-21 soir) : adoption en bloc des banks via
+// merged={...remote} dès que remote.lastModified > local.lastModified.
+// lastModified étant global, toute écriture (sources, aiCache, login)
+// faisait gagner les banks remote — même quand le device en question
+// n'avait pas touché aux banks. Fix : timestamp dédié `banksModified`,
+// stampé UNIQUEMENT lors d'une édition réelle de banks.
+describe('mergeProfileLWW — Phase 7.74.9 bank-dedicated LWW', () => {
   const mkBanks = (n, val) => {
     const o = {};
     for (let i = 0; i < n; i++) o[String(i)] = { cat: '', A: val, B: val, C: val };
@@ -3798,38 +3827,213 @@ describe('mergeProfileLWW — Phase 7.74.7 log forensique banks mass-change', ()
     (c) => c.some((a) => typeof a === 'string' && a.includes('mass-change')),
   );
 
-  test('log SUSPECT banksAnn mass-change quand ≥10 slots diffèrent', () => {
-    const local = { id: 'seb', lastModified: 1000, banksAnn: mkBanks(10, 'OLD') };
-    const remote = { id: 'seb', lastModified: 2000, banksAnn: mkBanks(10, 'NEW') };
+  test('adopte banks remote si remote.banksModified > local.banksModified', () => {
+    const local = {
+      id: 'seb', lastModified: 1000, banksModified: 1000,
+      banksAnn: mkBanks(10, 'OLD'),
+    };
+    const remote = {
+      id: 'seb', lastModified: 2000, banksModified: 2000,
+      banksAnn: mkBanks(10, 'NEW'),
+    };
     const out = mergeProfileLWW(local, remote, { debug: true });
+    expect(out.banksAnn).toEqual(remote.banksAnn); // adopté
+    // log forensique ADOPTED présent
     const w = banksWarns();
     expect(w.length).toBe(1);
-    expect(w[0].some((a) => typeof a === 'string' && a.includes('banksAnn'))).toBe(true);
-    // log SEUL : les banques remote sont bien adoptées (pas de blocage).
+    expect(w[0].some((a) => typeof a === 'string' && a.includes('ADOPTED'))).toBe(true);
+  });
+
+  test('SCÉNARIO BUG #8 — garde banks local si remote.banksModified == local.banksModified (lastModified gonflé par autre écriture)', () => {
+    // Cas observé occurrence #8 : Mac avait fait une écriture autre
+    // (sources, aiCache, login) → lastModified gonflé. Mais banksModified
+    // identique côté Mac et iPhone → les banks iPhone (à jour) sont
+    // préservées au lieu d'être écrasées par la version périmée Mac.
+    const local = {
+      id: 'seb', lastModified: 5000, banksModified: 3000,
+      banksAnn: mkBanks(10, 'FRESH'), // ce qu'on veut préserver
+    };
+    const remote = {
+      id: 'seb', lastModified: 9000, banksModified: 3000, // égal !
+      banksAnn: mkBanks(10, 'STALE'), // version périmée
+    };
+    const out = mergeProfileLWW(local, remote, { debug: true });
+    expect(out.banksAnn).toEqual(local.banksAnn); // local préservé
+    const w = banksWarns();
+    expect(w.length).toBe(1);
+    expect(w[0].some((a) => typeof a === 'string' && a.includes('BLOCKED'))).toBe(true);
+  });
+
+  test('garde banks local si remote.banksModified < local.banksModified', () => {
+    const local = {
+      id: 'seb', lastModified: 1000, banksModified: 5000,
+      banksAnn: mkBanks(10, 'FRESH'),
+    };
+    const remote = {
+      id: 'seb', lastModified: 9000, banksModified: 2000,
+      banksAnn: mkBanks(10, 'STALE'),
+    };
+    const out = mergeProfileLWW(local, remote, { debug: true });
+    expect(out.banksAnn).toEqual(local.banksAnn);
+  });
+
+  test('SCÉNARIO récupération — un device répare ses banks → banksModified frais → l\'autre adopte', () => {
+    // Setup : Mac corrompu (banks STALE, banksModified=3000), iPhone aussi.
+    // User récupère Mac depuis CSV → setProfileField stamp banksModified=Date.now().
+    // Au prochain push, le merge côté iPhone doit adopter les banks Mac.
+    const macBeforeFix = {
+      id: 'seb', lastModified: 5000, banksModified: 3000,
+      banksAnn: mkBanks(10, 'STALE'),
+    };
+    // user reset → setProfileField stamp banksModified=8000
+    const macAfterFix = {
+      id: 'seb', lastModified: 8000, banksModified: 8000,
+      banksAnn: mkBanks(10, 'FIXED'),
+    };
+    // iPhone côté merge : local=stale-as-mac-was, remote=mac-after-fix
+    const out = mergeProfileLWW(macBeforeFix, macAfterFix, { debug: true });
+    expect(out.banksAnn).toEqual(macAfterFix.banksAnn);
+    expect(out.banksModified).toBe(8000);
+  });
+
+  test('banks identiques (même contenu) → garde local sans log de mass-change', () => {
+    const sameBanks = mkBanks(10, 'IDEM');
+    const local = {
+      id: 'seb', lastModified: 1000, banksModified: 1000, banksAnn: sameBanks,
+    };
+    const remote = {
+      id: 'seb', lastModified: 2000, banksModified: 1500, banksAnn: sameBanks,
+    };
+    const out = mergeProfileLWW(local, remote, { debug: true });
+    expect(out.banksAnn).toEqual(sameBanks);
+    expect(banksWarns().length).toBe(0); // 0 diff slots, pas de log
+  });
+
+  test('banks différentes mais peu de slots (<10 diff) → pas de log mass-change quel que soit le winner', () => {
+    const local = {
+      id: 'seb', lastModified: 1000, banksModified: 1000,
+      banksAnn: mkBanks(10, 'SAME'),
+    };
+    const rb = mkBanks(10, 'SAME');
+    rb['0'].A = 'CHANGED';
+    const remote = {
+      id: 'seb', lastModified: 2000, banksModified: 2000, banksAnn: rb,
+    };
+    mergeProfileLWW(local, remote, { debug: true });
+    expect(banksWarns().length).toBe(0); // <10 slots diff
+  });
+
+  test('banksPlug subit la même règle que banksAnn', () => {
+    const local = {
+      id: 'seb', lastModified: 5000, banksModified: 3000,
+      banksPlug: mkBanks(10, 'FRESH'),
+    };
+    const remote = {
+      id: 'seb', lastModified: 9000, banksModified: 3000,
+      banksPlug: mkBanks(10, 'STALE'),
+    };
+    const out = mergeProfileLWW(local, remote, { debug: true });
+    expect(out.banksPlug).toEqual(local.banksPlug);
+  });
+
+  test('merged.banksModified = max(local, remote) après merge (cohérent avec lastModified)', () => {
+    const local = {
+      id: 'seb', lastModified: 1000, banksModified: 3000,
+      banksAnn: mkBanks(2, 'L'),
+    };
+    const remote = {
+      id: 'seb', lastModified: 5000, banksModified: 7000,
+      banksAnn: mkBanks(2, 'R'),
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.banksModified).toBe(7000);
+  });
+
+  test('legacy : banksModified absent des 2 côtés → traité comme 0/0 → keep local (égalité)', () => {
+    const local = { id: 'seb', lastModified: 1000, banksAnn: mkBanks(10, 'L') };
+    const remote = { id: 'seb', lastModified: 2000, banksAnn: mkBanks(10, 'R') };
+    const out = mergeProfileLWW(local, remote);
+    // 0 == 0 → keep local. Un device pré-7.74.9 ne peut donc pas
+    // écraser un device post-7.74.9 — sûr-de-tendre vers l'invariant.
+    expect(out.banksAnn).toEqual(local.banksAnn);
+  });
+
+  test('legacy asymétrique : local sans banksModified (=0) + remote avec banksModified > 0 → remote gagne', () => {
+    const local = { id: 'seb', lastModified: 1000, banksAnn: mkBanks(10, 'L') };
+    const remote = {
+      id: 'seb', lastModified: 2000, banksModified: 5000,
+      banksAnn: mkBanks(10, 'R'),
+    };
+    const out = mergeProfileLWW(local, remote);
     expect(out.banksAnn).toEqual(remote.banksAnn);
   });
+});
 
-  test('pas de log si peu de slots diffèrent (<10)', () => {
-    const local = { id: 'seb', lastModified: 1000, banksAnn: mkBanks(10, 'SAME') };
-    const rb = mkBanks(10, 'SAME');
-    rb['0'].A = 'CHANGED'; // 1 seul slot diff
-    const remote = { id: 'seb', lastModified: 2000, banksAnn: rb };
-    mergeProfileLWW(local, remote, { debug: true });
-    expect(banksWarns().length).toBe(0);
+// ─── Phase 7.74.9 — Migration v10 → v11 (banksModified) ──────────────
+describe('migrateV10toV11 + ensureProfileV11 — Phase 7.74.9', () => {
+  test('migrateV10toV11 backfill banksModified=0 pour profils existants', () => {
+    const v10 = {
+      version: 10,
+      profiles: {
+        seb: { id: 'seb', name: 'Sébastien', isAdmin: true, banksAnn: {} },
+        bruno: { id: 'bruno', name: 'Bruno', isAdmin: false, banksAnn: {} },
+      },
+    };
+    const v11 = migrateV10toV11(v10);
+    expect(v11.version).toBe(11);
+    expect(v11.profiles.seb.banksModified).toBe(0);
+    expect(v11.profiles.bruno.banksModified).toBe(0);
   });
 
-  test('log SUSPECT banksPlug mass-change aussi', () => {
-    const local = { id: 'seb', lastModified: 1000, banksPlug: mkBanks(10, 'OLD') };
-    const remote = { id: 'seb', lastModified: 2000, banksPlug: mkBanks(10, 'NEW') };
-    mergeProfileLWW(local, remote, { debug: true });
-    expect(banksWarns().some((c) => c.some((a) => typeof a === 'string' && a.includes('banksPlug')))).toBe(true);
+  test('migrateV10toV11 préserve banksModified explicite (idempotent)', () => {
+    const v10 = {
+      version: 10,
+      profiles: {
+        seb: { id: 'seb', banksModified: 123456 },
+      },
+    };
+    const v11 = migrateV10toV11(v10);
+    expect(v11.profiles.seb.banksModified).toBe(123456);
   });
 
-  test('pas de log si remote plus ancien (merge court-circuité)', () => {
-    const local = { id: 'seb', lastModified: 2000, banksAnn: mkBanks(10, 'A') };
-    const remote = { id: 'seb', lastModified: 1000, banksAnn: mkBanks(10, 'B') };
-    mergeProfileLWW(local, remote, { debug: true });
-    expect(banksWarns().length).toBe(0);
+  test('migrateV10toV11 idempotent : double passage → no-op stable', () => {
+    const v10 = { version: 10, profiles: { seb: { id: 'seb' } } };
+    const r1 = migrateV10toV11(v10);
+    const r2 = migrateV10toV11(r1);
+    expect(r2.version).toBe(11);
+    expect(r2.profiles.seb.banksModified).toBe(0);
+    expect(r2.profiles.seb).toEqual(r1.profiles.seb);
+  });
+
+  test('migrateV10toV11 sur input null retourne null', () => {
+    expect(migrateV10toV11(null)).toBeNull();
+  });
+
+  test('ensureProfileV11 pose banksModified=0 si absent', () => {
+    const out = ensureProfileV11({ id: 'seb', name: 'Sébastien' });
+    expect(out.banksModified).toBe(0);
+  });
+
+  test('ensureProfileV11 préserve banksModified présent', () => {
+    const out = ensureProfileV11({ id: 'seb', banksModified: 999 });
+    expect(out.banksModified).toBe(999);
+  });
+
+  test('ensureProfileV11 chaîne ensureProfileV10 (aiCache pose)', () => {
+    const out = ensureProfileV11({ id: 'seb' });
+    expect(out.aiCache).toEqual({});
+    expect(out.banksModified).toBe(0);
+  });
+
+  test('ensureProfilesV11 map sur tous les profils', () => {
+    const ps = { seb: { id: 'seb' }, bruno: { id: 'bruno' } };
+    const out = ensureProfilesV11(ps);
+    expect(out.seb.banksModified).toBe(0);
+    expect(out.bruno.banksModified).toBe(0);
+  });
+
+  test('ensureProfileV11 sur null retourne null defensive', () => {
+    expect(ensureProfileV11(null)).toBeNull();
   });
 });
 
