@@ -854,6 +854,14 @@ const es = {
   'pickup.mismatch.p90': ' — lo ideal sería una P90 (mordiente)',
   'pickup.mismatch.p90-hb': ' — para más calidez, sube el volumen',
 
+  // Phase 7.85 — guitarChoiceFeedback tokens.
+  'guitar-feedback.pickup-match': 'pastillas {type} adecuadas para el tema',
+  'guitar-feedback.pickup-mismatch': 'pastillas {type} — el tema pide más bien {pref}',
+  'guitar-feedback.style-excellent': 'excelente afinidad en {style}',
+  'guitar-feedback.style-unnatural': 'poco natural en {style}',
+  'guitar-feedback.gain-comfortable': 'cómoda en {gain}',
+  'guitar-feedback.gain-uncomfortable': 'menos adaptada al registro {gain}',
+
   'list.edit-songs': '✏️ Editar setlist',
   'list.edit-done': '✅ Terminar',
   'list.edit-setlist-title': 'Modo edición: retira canciones de la setlist (no toca la base global)',

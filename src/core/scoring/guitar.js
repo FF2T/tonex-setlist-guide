@@ -414,9 +414,23 @@ function pickTopGuitar(aiC, availableGuitars, _song){
   return scored[0]?.g||null;
 }
 
+// Phase 7.85 — Bloqueur 1 audit démo EN : guitarChoiceFeedback retournait
+// du français concaténé en dur ("micros HB adaptés au morceau", "à l'aise
+// en drive") qui leakait dans l'UI EN (SETTINGS — MY PICK). Refacto vers
+// tokens structurés sur le pattern Phase 7.82 (localGuitarSettings).
+//
+// 3 outcomes possibles :
+//   { kind: 'ai',     reason: {fr,en,es} }      ← cotEntry.reason présent (top path)
+//   { kind: 'tokens', pros: [...], cons: [...] }← fallback profil-based (à composer côté UI via tFormat)
+//   { kind: 'desc',   desc: string }             ← fallback ultime (profile.desc FR uniquement, dette)
+//
+// Chaque token : { key, fallback, params } pour tFormat. Les valeurs de
+// {type}, {pref}, {style}, {gain} sont des termes techniques universels
+// (HB/SC/P90 ; blues/rock/metal ; clean/crunch/drive/high gain) — injectés
+// littéralement sans dictionnaire séparé pour rester simple.
 function guitarChoiceFeedback(g,aiC,cotEntry){
   if(!g||!aiC) return null;
-  if(cotEntry?.reason) return cotEntry.reason;
+  if(cotEntry?.reason) return { kind:'ai', reason: cotEntry.reason };
   var profile=findGuitarProfile(g.id);
   if(!profile) return null;
   var pros=[],cons=[];
@@ -424,23 +438,27 @@ function guitarChoiceFeedback(g,aiC,cotEntry){
   var style=aiC.song_style;
   var gain=getGainRange(typeof aiC.target_gain==="number"?aiC.target_gain:5);
   if(pref&&pref!=="any"){
-    if(pref===g.type) pros.push("micros "+g.type+" adaptés au morceau");
-    else cons.push("micros "+g.type+" — le morceau demande plutôt des "+pref);
+    if(pref===g.type){
+      pros.push({ key:'guitar-feedback.pickup-match', fallback:'micros {type} adaptés au morceau', params:{ type: g.type } });
+    } else {
+      cons.push({ key:'guitar-feedback.pickup-mismatch', fallback:"micros {type} — le morceau demande plutôt des {pref}", params:{ type: g.type, pref } });
+    }
   }
   if(style&&profile.styleMods[style]!=null){
     var sm=profile.styleMods[style];
-    if(sm>=4) pros.push("excellente affinité "+style.replace("_"," "));
-    else if(sm<=-2) cons.push("peu naturelle en "+style.replace("_"," "));
+    var styleDisp=style.replace("_"," ");
+    if(sm>=4) pros.push({ key:'guitar-feedback.style-excellent', fallback:'excellente affinité {style}', params:{ style: styleDisp } });
+    else if(sm<=-2) cons.push({ key:'guitar-feedback.style-unnatural', fallback:'peu naturelle en {style}', params:{ style: styleDisp } });
   }
   if(gain&&profile.gainAffinity[gain]!=null){
     var gm=profile.gainAffinity[gain];
-    if(gm>=3) pros.push("à l'aise en "+gain.replace("_"," "));
-    else if(gm<=-3) cons.push("moins adaptée au registre "+gain.replace("_"," "));
+    var gainDisp=gain.replace("_"," ");
+    if(gm>=3) pros.push({ key:'guitar-feedback.gain-comfortable', fallback:"à l'aise en {gain}", params:{ gain: gainDisp } });
+    else if(gm<=-3) cons.push({ key:'guitar-feedback.gain-uncomfortable', fallback:'moins adaptée au registre {gain}', params:{ gain: gainDisp } });
   }
-  var parts=[];
-  if(pros.length) parts.push("✓ "+pros.join(", "));
-  if(cons.length) parts.push("⚠ "+cons.join(", "));
-  return parts.length?parts.join(" · "):profile.desc;
+  if(pros.length||cons.length) return { kind:'tokens', pros, cons };
+  if(profile.desc) return { kind:'desc', desc: profile.desc };
+  return null;
 }
 
 // Phase 7.82 — Bug #2 ("Micro chevalet" en EN dans SETTINGS — MY PICK) :

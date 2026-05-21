@@ -856,6 +856,15 @@ const en = {
   'pickup.mismatch.p90': ' — a P90 would be ideal (bite)',
   'pickup.mismatch.p90-hb': ' — for more warmth, raise the volume',
 
+  // Phase 7.85 — guitarChoiceFeedback tokens (i18n des justifications "guitar choice").
+  // Termes {type}, {pref}, {style}, {gain} injectés littéralement (HB/SC/P90, blues/rock/etc.).
+  'guitar-feedback.pickup-match': '{type} pickups suit the track',
+  'guitar-feedback.pickup-mismatch': '{type} pickups — track expects {pref}',
+  'guitar-feedback.style-excellent': 'excellent {style} affinity',
+  'guitar-feedback.style-unnatural': 'unnatural in {style}',
+  'guitar-feedback.gain-comfortable': 'comfortable in {gain}',
+  'guitar-feedback.gain-uncomfortable': 'less suited to {gain} register',
+
   'list.edit-songs': '✏️ Edit setlist',
   'list.edit-done': '✅ Done',
   'list.edit-setlist-title': 'Edit mode: remove songs from the setlist (does not touch the global library)',

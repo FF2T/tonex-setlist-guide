@@ -397,8 +397,28 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             <StatusDot score={chosenGuitarScore} ideal={g && ig.includes(gId)} size={10}/>
             <div style={{ flex: 1 }}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/></div>
           </div>
-          {g && chosenGuitarScore && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 3, marginLeft: 24 }}>{t('song-detail.compat', 'Compatibilité :')} <b style={{ color: scoreColor(chosenGuitarScore) }}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated && <span style={{ marginLeft: 6, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>{t('song-detail.estimated', '(estimé)')}</span>}</div>}
-          {g && aiC && (() => { const fb = guitarChoiceFeedback(g, aiC, chosenGuitarCot); const fbText = fb ? getLocalizedText(fb, locale) : null; return fbText ? <div style={{ fontSize: 10, color: 'var(--text-sec)', marginTop: 3, marginLeft: 24, lineHeight: 1.4 }}>{fbText}</div> : null; })()}
+          {g && chosenGuitarScore && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 3, marginLeft: 24 }}>{t('song-detail.compat', 'Compatibilité :')} <b style={{ color: scoreColor(chosenGuitarScore) }}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated && <>{' '}<span style={{ marginLeft: 6, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>{t('song-detail.estimated', '(estimé)')}</span></>}</div>}
+          {g && aiC && (() => {
+            // Phase 7.85 — guitarChoiceFeedback retourne désormais un objet
+            // structuré (ai|tokens|desc) qu'on compose côté UI. Avant 7.85,
+            // les fallbacks pros/cons retournaient des chaînes FR concaténées
+            // visibles en EN/ES (Bloqueur 1 audit démo EN).
+            const fb = guitarChoiceFeedback(g, aiC, chosenGuitarCot);
+            if (!fb) return null;
+            let fbText = null;
+            if (fb.kind === 'ai') fbText = getLocalizedText(fb.reason, locale);
+            else if (fb.kind === 'tokens') {
+              const prosT = (fb.pros || []).map(p => tFormat(p.key, p.params, p.fallback));
+              const consT = (fb.cons || []).map(c => tFormat(c.key, c.params, c.fallback));
+              const parts = [];
+              if (prosT.length) parts.push('✓ ' + prosT.join(', '));
+              if (consT.length) parts.push('⚠ ' + consT.join(', '));
+              fbText = parts.join(' · ');
+            } else if (fb.kind === 'desc') {
+              fbText = fb.desc;
+            }
+            return fbText ? <div style={{ fontSize: 10, color: 'var(--text-sec)', marginTop: 3, marginLeft: 24, lineHeight: 1.4 }}>{fbText}</div> : null;
+          })()}
           {g && aiC && (() => {
             // Phase 7.82 — localGuitarSettings retourne un objet structuré ;
             // composition i18n côté UI (Bug #2 "Micro chevalet" en EN).
