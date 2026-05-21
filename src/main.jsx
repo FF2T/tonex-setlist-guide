@@ -81,7 +81,7 @@ import {
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,
   toggleSetlistProfile,
-  ADMIN_ORIGIN_KEY, recordAdminSwitch, isAdminAsMode,
+  ADMIN_ORIGIN_KEY, recordAdminSwitch, isAdminAsMode, appendLoginEntry,
   getDevicesForRender,
   loadState, saveState, persistState,
   autoBackup, listBackups, restoreBackup, clearBackups,
@@ -277,7 +277,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.156";
+const APP_VERSION = "8.14.157";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -407,7 +407,11 @@ import { prepareNewzikMigration } from './app/utils/newzik-migration.js';
 // ─── App ──────────────────────────────────────────────────────────────────────
 // Fusionne les banks sauvées avec les banks initiales (ajoute les nouvelles sans écraser les modifs utilisateur)
 
-function App() {
+// `export` ajouté pour permettre le test smoke-mount (main.smoke.test.jsx)
+// d'importer { App } et de vérifier que le mount React ne throw pas
+// (filet anti-régression contre les bugs runtime-only type TDZ — cf
+// hotfix v8.14.156 écran noir).
+export function App() {
   // Re-render global de App à chaque setLocale() pour propager le
   // changement de langue à tout l'arbre. Phase 7.36 : aucune string
   // wrappée encore, donc l'effet visible est uniquement le sélecteur
@@ -1395,9 +1399,11 @@ function App() {
   },[firestoreLoaded]);
 
   const recordLogin = id => {
-    // Phase 5.7 : stamp lastModified pour que le LWW per-profile
-    // adopte ce login côté Firestore.
-    setProfiles(p=>{if(!p[id])return p;const h=(p[id].loginHistory||[]).slice();h.unshift(Date.now());if(h.length>5)h.length=5;return{...p,[id]:{...p[id],loginHistory:h,lastModified:Date.now()}};});
+    // Phase 7.74.7 — délègue à appendLoginEntry : ajoute l'entrée dans
+    // loginHistory SANS re-stamper lastModified. Re-stamper à chaque
+    // boot/login était l'amplificateur de la pollution profile (6
+    // occurrences) — cf docs/SYNC.md « Phase 7.74.7 ».
+    setProfiles(p=>appendLoginEntry(p,id));
   };
 
   // Once Firestore loaded, decide initial screen
@@ -1709,4 +1715,10 @@ function App() {
   </div>;
 }
 
-ReactDOM.render(<App/>, document.getElementById("root"));
+// Guard du render module-level : en environnement de test (jsdom sans
+// élément #root), l'import de main.jsx ne doit PAS tenter de monter
+// l'app — main.smoke.test.jsx importe { App } et le monte lui-même.
+// En prod, index.html fournit toujours <div id="root">, comportement
+// strictement inchangé.
+const _rootEl = (typeof document !== 'undefined') ? document.getElementById("root") : null;
+if (_rootEl) ReactDOM.render(<App/>, _rootEl);

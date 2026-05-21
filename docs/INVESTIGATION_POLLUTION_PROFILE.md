@@ -19,7 +19,8 @@
 | 2 | 2026-05-18 | Sébastien | `myGuitars` | Idem | 7.74.2 auto-repair (régression, désactivé) |
 | 3 | 2026-05-19 | Sébastien | `myGuitars` | Swap 1↔1 cg_* avec Francisco | 7.74.4 Couche 4 swap suspect |
 | 4 | 2026-05-19 | Sébastien | `myGuitars` | Idem (résidu pollution iPhone) | 7.74.4 idem |
-| 5 | **2026-05-20** | **Sébastien** | **`banksAnn`** | Slot 23C vidé + 18C Supergroupbass remplacé | **À INVESTIGUER** |
+| 5 | 2026-05-20 | Sébastien | `banksAnn` | Slot 23C vidé + 18C Supergroupbass remplacé | — (cause trouvée #6) |
+| 6 | **2026-05-21** | **Sébastien** | **`banksAnn` + `banksPlug` + `language`** | 79/150 slots Ann + 7/30 Plug révertés vers une version périmée, langue FR→EN, propagé Mac+iPhone | **✅ CAUSE RACINE TROUVÉE → Phase 7.74.7** |
 
 **Pattern commun** : le profil Sébastien (admin) perd des données qui
 sont remplacées par celles d'un autre profil (Francisco, Bruno, curateur
@@ -70,7 +71,8 @@ header → **zéro push/pull Firestore** pendant la session.
 
 Sinon, manuellement :
 ```js
-localStorage.setItem('backline_no_sync', 'true');
+// ⚠ isNoSyncMode() teste === '1' — la valeur DOIT être '1', pas 'true'.
+localStorage.setItem('backline_no_sync', '1');
 location.reload();
 ```
 
@@ -234,12 +236,44 @@ location.reload();
 
 > Section à compléter au fur et à mesure des sessions.
 
-### Session 1 — Date TBD
+### Session 1 — 2026-05-21 (occurrence #6, capture live)
 
-- Variante reproduisant le bug : TBD
-- Logs forensique capturés : TBD
-- Hypothèse confirmée : TBD
-- Phase 7.74.7 fix proposé : TBD
+**Cause racine identifiée — aucune variante n'a eu besoin d'être jouée.**
+La capture forensique de l'occurrence #6 a suffi.
+
+**Constats de la capture** (`localStorage` Mac, profil Sébastien) :
+- `banksAnn` : 79 slots / 150 divergents vs le CSV de référence —
+  réversion en bloc vers une **version périmée** des banques de
+  Sébastien (banks 0-17 d'un ancien layout). `banksPlug` : 7/30.
+- `language` FR → EN. `sebastien.lastModified` = le **plus récent**
+  des 7 profils → un pull Firestore ne pouvait PAS l'avoir corrompu
+  (son local gagne le LWW). Donc : écriture/adoption locale.
+- Les 14 `mergeLogs` du wrapper Phase 7.74.5 dataient tous du 19-20
+  mai (saga `sire_t3/t7`). **Aucun log le jour de l'occurrence #6** :
+  `banksAnn`/`banksPlug` n'ont aucune défense ni log dans
+  `mergeProfileLWW` (adopt-en-bloc) → corruption invisible.
+- Pendant la récupération : Mac corrigé à 11:30, re-corrompu à 11:50.
+  Mac et iPhone re-stampés à 11:50:20 et 11:50:28 sur du contenu
+  corrompu.
+
+**Cause racine confirmée** : `recordLogin` (main.jsx) re-stampait
+`lastModified = Date.now()` à **chaque boot/login**. Un login ne change
+aucune donnée, mais le stamp rendait le profil « le plus récent » au
+LWW. Tout appareil rechargé avec un contenu périmé devenait gagnant et
+propageait son état stale. Les refreshs successifs de l'iPhone
+(corrompu) l'ont re-stampé → il a écrasé la récupération du Mac. C'est
+l'amplificateur commun aux 6 occurrences.
+
+**Hypothèse confirmée** : ni H1/H2/H3/H4 stricto sensu — la cause est
+un re-stamp gratuit à chaque login, indépendant du mode démo et de
+l'admin-switch. (H1 « race condition LWW + stamp » est la plus proche.)
+
+**Fix livré — Phase 7.74.7** (v8.14.157) :
+1. `recordLogin` → `appendLoginEntry` : met à jour `loginHistory` sans
+   toucher `lastModified`.
+2. Log forensique `[merge-defense] SUSPECT banksAnn/Plug mass-change`
+   dans `mergeProfileLWW` (≥10 slots adoptés en bloc) — log seul.
+3. Tests Vitest + `docs/SYNC.md` section « Phase 7.74.7 ».
 
 ## Liens
 

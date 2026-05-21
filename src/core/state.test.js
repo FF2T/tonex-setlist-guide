@@ -19,7 +19,7 @@ import {
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,
   toggleSetlistProfile,
-  recordAdminSwitch, isAdminAsMode,
+  recordAdminSwitch, isAdminAsMode, appendLoginEntry,
   deriveEnabledDevices, makeDefaultProfile,
   getAllRigsGuitars,
   computeGuitarBiasFromFeedback,
@@ -3653,5 +3653,106 @@ describe('mergeProfileLWW — Phase 7.81 aiCache LWW par ts', () => {
     const out = mergeProfileLWW(local, remote);
     // ts local (5000) > ts remote (3000) → keep local
     expect(out.aiCache.hb.result.ref_amp).toBe('A');
+  });
+});
+
+describe('appendLoginEntry — Phase 7.74.7 (recordLogin sans re-stamp)', () => {
+  test('ajoute un timestamp en tête de loginHistory', () => {
+    const before = Date.now();
+    const out = appendLoginEntry({ seb: { id: 'seb', loginHistory: [] } }, 'seb');
+    const h = out.seb.loginHistory;
+    expect(h.length).toBe(1);
+    expect(typeof h[0]).toBe('number');
+    expect(h[0]).toBeGreaterThanOrEqual(before);
+  });
+
+  test('NE re-stampe PAS lastModified (cœur du fix anti-pollution)', () => {
+    const out = appendLoginEntry(
+      { seb: { id: 'seb', lastModified: 111, banksAnn: {}, loginHistory: [] } },
+      'seb',
+    );
+    // lastModified inchangé — un login ne doit pas rendre le profil "le
+    // plus récent" pour le LWW.
+    expect(out.seb.lastModified).toBe(111);
+  });
+
+  test('préserve les entrées existantes (unshift) et cappe à 5', () => {
+    const out = appendLoginEntry(
+      { seb: { id: 'seb', loginHistory: [4, 3, 2, 1, 0] } },
+      'seb',
+    );
+    const h = out.seb.loginHistory;
+    expect(h.length).toBe(5);
+    expect(h[1]).toBe(4); // ancienne tête conservée en 2e position
+    expect(h[4]).toBe(1); // la plus vieille (0) écartée
+  });
+
+  test('initialise loginHistory si absent', () => {
+    const out = appendLoginEntry({ seb: { id: 'seb' } }, 'seb');
+    expect(Array.isArray(out.seb.loginHistory)).toBe(true);
+    expect(out.seb.loginHistory.length).toBe(1);
+  });
+
+  test('no-op si id inexistant ou profiles falsy', () => {
+    const profiles = { seb: { id: 'seb', loginHistory: [] } };
+    expect(appendLoginEntry(profiles, 'inconnu')).toBe(profiles);
+    expect(appendLoginEntry(null, 'seb')).toBe(null);
+    expect(appendLoginEntry(undefined, 'seb')).toBe(undefined);
+  });
+
+  test('immutable : ne mute pas le profiles ni le profil source', () => {
+    const profiles = { seb: { id: 'seb', loginHistory: [9] } };
+    const out = appendLoginEntry(profiles, 'seb');
+    expect(out).not.toBe(profiles);
+    expect(out.seb).not.toBe(profiles.seb);
+    expect(profiles.seb.loginHistory).toEqual([9]); // original intact
+  });
+});
+
+describe('mergeProfileLWW — Phase 7.74.7 log forensique banks mass-change', () => {
+  const mkBanks = (n, val) => {
+    const o = {};
+    for (let i = 0; i < n; i++) o[String(i)] = { cat: '', A: val, B: val, C: val };
+    return o;
+  };
+  let warnSpy;
+  beforeEach(() => { warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {}); });
+  afterEach(() => { warnSpy.mockRestore(); });
+  const banksWarns = () => warnSpy.mock.calls.filter(
+    (c) => c.some((a) => typeof a === 'string' && a.includes('mass-change')),
+  );
+
+  test('log SUSPECT banksAnn mass-change quand ≥10 slots diffèrent', () => {
+    const local = { id: 'seb', lastModified: 1000, banksAnn: mkBanks(10, 'OLD') };
+    const remote = { id: 'seb', lastModified: 2000, banksAnn: mkBanks(10, 'NEW') };
+    const out = mergeProfileLWW(local, remote, { debug: true });
+    const w = banksWarns();
+    expect(w.length).toBe(1);
+    expect(w[0].some((a) => typeof a === 'string' && a.includes('banksAnn'))).toBe(true);
+    // log SEUL : les banques remote sont bien adoptées (pas de blocage).
+    expect(out.banksAnn).toEqual(remote.banksAnn);
+  });
+
+  test('pas de log si peu de slots diffèrent (<10)', () => {
+    const local = { id: 'seb', lastModified: 1000, banksAnn: mkBanks(10, 'SAME') };
+    const rb = mkBanks(10, 'SAME');
+    rb['0'].A = 'CHANGED'; // 1 seul slot diff
+    const remote = { id: 'seb', lastModified: 2000, banksAnn: rb };
+    mergeProfileLWW(local, remote, { debug: true });
+    expect(banksWarns().length).toBe(0);
+  });
+
+  test('log SUSPECT banksPlug mass-change aussi', () => {
+    const local = { id: 'seb', lastModified: 1000, banksPlug: mkBanks(10, 'OLD') };
+    const remote = { id: 'seb', lastModified: 2000, banksPlug: mkBanks(10, 'NEW') };
+    mergeProfileLWW(local, remote, { debug: true });
+    expect(banksWarns().some((c) => c.some((a) => typeof a === 'string' && a.includes('banksPlug')))).toBe(true);
+  });
+
+  test('pas de log si remote plus ancien (merge court-circuité)', () => {
+    const local = { id: 'seb', lastModified: 2000, banksAnn: mkBanks(10, 'A') };
+    const remote = { id: 'seb', lastModified: 1000, banksAnn: mkBanks(10, 'B') };
+    mergeProfileLWW(local, remote, { debug: true });
+    expect(banksWarns().length).toBe(0);
   });
 });

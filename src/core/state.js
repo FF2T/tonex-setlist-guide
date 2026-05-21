@@ -804,6 +804,30 @@ function mergeProfileLWW(local, remote, options = {}) {
   // loginHistory, editedGuitars). On part de remote pour ces champs.
   const merged = { ...remote };
 
+  // ── banksAnn / banksPlug : adoptés en bloc (via merged = {...remote}).
+  //    Phase 7.74.7 — log forensique si remplacement massif (≥10 slots
+  //    différents du local). PAS de blocage : une vraie réorganisation
+  //    de banques par l'utilisateur est légitime, bloquer ferait des
+  //    faux positifs. Le log (capté par le wrapper persistant Phase
+  //    7.74.5) donne enfin une trace si la pollution recommence sur ces
+  //    champs — invisible jusqu'ici (occurrence #6, 79 slots Anniversary
+  //    + 7 slots Plug révertés sans aucune trace). ──
+  for (const bk of ['banksAnn', 'banksPlug']) {
+    const lb = local[bk] && typeof local[bk] === 'object' ? local[bk] : {};
+    const rb = remote[bk] && typeof remote[bk] === 'object' ? remote[bk] : {};
+    let diffSlots = 0;
+    for (const bid of new Set([...Object.keys(lb), ...Object.keys(rb)])) {
+      const ls = lb[bid] || {};
+      const rs = rb[bid] || {};
+      for (const slot of ['A', 'B', 'C']) {
+        if ((ls[slot] || '') !== (rs[slot] || '')) diffSlots++;
+      }
+    }
+    if (diffSlots >= 10) {
+      debugLog(`SUSPECT ${bk} mass-change : adoption remote remplace ${diffSlots} slots (log seul, pas de blocage)`, { diffSlots });
+    }
+  }
+
   // ── myGuitars : Couche 3 defense ──
   // 1. Block adoption si drop suspect (≥3 guitares OU >50% local)
   // 2. Filter orphan-cross-profile (Phase 7.74.1 fix) : si remote
@@ -2253,6 +2277,27 @@ function recordAdminSwitch(profiles, targetId, adminProfile) {
   };
 }
 
+// Phase 7.74.7 — Push un timestamp de login dans loginHistory du profil
+// `id`. Pure : retourne un nouvel objet profiles, ne mute pas l'original.
+//
+// ⚠ Ne touche PAS `lastModified` — c'était le cœur de la pollution
+// profile (6 occurrences, mai 2026). L'ancien `recordLogin` re-stampait
+// `lastModified = Date.now()` à CHAQUE boot/login. Comme un login ne
+// change aucune donnée du profil, ce stamp rendait gratuitement le
+// profil "le plus récent" pour le LWW : un appareil au contenu périmé,
+// simplement rechargé, gagnait le merge et propageait son état stale.
+// loginHistory est exclu du syncHash (Phase 7.46) — il se propage quand
+// un AUTRE champ déclenche un push, jamais tout seul. C'est voulu : un
+// login ne mérite pas un push.
+function appendLoginEntry(profiles, id) {
+  if (!profiles || !profiles[id]) return profiles;
+  const cur = profiles[id];
+  const h = Array.isArray(cur.loginHistory) ? cur.loginHistory.slice() : [];
+  h.unshift(Date.now());
+  if (h.length > 5) h.length = 5;
+  return { ...profiles, [id]: { ...cur, loginHistory: h } };
+}
+
 // True si l'admin est actuellement connecté sur un profil ≠ son propre id.
 // `adminOriginId` vient typiquement de sessionStorage.tonex_admin_origin
 // (posé par switchProfile dans main.jsx). On valide qu'il pointe bien sur
@@ -2267,7 +2312,7 @@ function isAdminAsMode(profiles, activeProfileId, adminOriginId) {
 }
 
 export {
-  ADMIN_ORIGIN_KEY, recordAdminSwitch, isAdminAsMode,
+  ADMIN_ORIGIN_KEY, recordAdminSwitch, isAdminAsMode, appendLoginEntry,
   STATE_VERSION, TOMBSTONE_MAX_AGE_MS,
   LS_KEY, LS_KEY_V1, LS_SECRETS_KEY, LS_TRUSTED_KEY, LS_BACKUP_KEY, MAX_BACKUPS,
   mergeBanks, deriveEnabledDevices, getDevicesForRender,

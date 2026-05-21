@@ -756,7 +756,87 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-21 matin, hotfix v8.14.156 — TDZ ReferenceError écran noir corrigé)
+## État actuel (2026-05-21, Phase 7.74.7 — cause racine pollution profile + smoke test mount)
+
+**Backline v8.14.157 / SW backline-v257 / STATE_VERSION 10 / 1404 tests verts.**
+
+### Phase 7.74.7 — `recordLogin` ne re-stampe plus `lastModified` (v8.14.157)
+
+6e occurrence de la pollution profile observée 2026-05-21 (profil
+Sébastien : 79/150 slots `banksAnn` + 7/30 `banksPlug` révertés vers
+une version périmée, langue FR→EN, propagé Mac+iPhone). La capture
+forensique live a enfin livré la **cause racine**.
+
+**Cause racine** : `recordLogin` (main.jsx) re-stampait
+`lastModified = Date.now()` à **chaque boot/login**. Un login ne change
+aucune donnée, mais le stamp rendait le profil « le plus récent » pour
+le LWW (`mergeProfileLWW` compare `lastModified`). Tout appareil
+rechargé avec un contenu périmé en localStorage devenait gagnant et
+propageait son état stale à tous les autres appareils. C'est
+l'amplificateur commun aux 6 occurrences. `banksAnn`/`banksPlug` sont
+en plus adoptés en bloc dans `mergeProfileLWW` sans défense ni log →
+corruption totalement invisible.
+
+**Fix livré** :
+- `recordLogin` → nouveau helper pur `appendLoginEntry(profiles, id)`
+  (`state.js`) : met à jour `loginHistory` (cap 5) **sans toucher
+  `lastModified`**. Un login n'est plus une « modif » au sens LWW.
+- Log forensique dans `mergeProfileLWW` : `[merge-defense] SUSPECT
+  banksAnn/Plug mass-change` quand l'adoption en bloc remplace ≥10
+  slots. **Log seul, pas de blocage** (une réorg de banques est
+  légitime — bloquer ferait des faux positifs).
+- 12 tests Vitest : `appendLoginEntry` (×6) + log banks mass-change
+  (×4) dans `state.test.js` ; smoke mount (×2, cf ci-dessous).
+- `docs/SYNC.md` : section « Phase 7.74.7 » + ligne au tableau des
+  régressions. `docs/INVESTIGATION_POLLUTION_PROFILE.md` : résultats
+  Session 1 (cause trouvée).
+
+### Smoke test mount React (`src/main.smoke.test.jsx`)
+
+Suite à la leçon du hotfix v8.14.156 (TDZ runtime-only non attrapé par
+Vitest ni le build) : `App` est désormais exporté de `main.jsx`, le
+`ReactDOM.render` de fin de fichier est gardé (`if (#root)`) pour que
+l'import en test ne render pas, et `main.smoke.test.jsx` monte `<App/>`
+dans jsdom et vérifie que le mount ne throw pas. Filet anti-régression
+pour les bugs d'init / d'ordre de déclaration.
+
+### Architecture livrée Phase 7.74.7
+
+```
+src/main.jsx              APP_VERSION 8.14.156 → 8.14.157
+                          recordLogin → appendLoginEntry (no re-stamp)
+                          +export function App + guard render #root
+public/sw.js              CACHE backline-v256 → backline-v257
+src/core/state.js         +appendLoginEntry helper pur
+                          mergeProfileLWW +log forensique banks mass-change
+src/core/state.test.js    +10 tests (appendLoginEntry + log banks)
+src/main.smoke.test.jsx   NOUVEAU — smoke mount React (2 tests)
+docs/SYNC.md              +section Phase 7.74.7 + régression table
+docs/INVESTIGATION_POLLUTION_PROFILE.md  +résultats Session 1
+```
+
+### Conséquences Phase 7.74.7
+
+- **1404 tests verts** (1392 baseline + 10 Phase 7.74.7 + 2 smoke).
+- Pas de bump STATE_VERSION (logique sync pure).
+- Pas de migration localStorage.
+- **Effet** : un reload ne rend plus un appareil « le plus récent ».
+  Un appareil au contenu périmé ne peut plus écraser les autres. La
+  pollution profile ne devrait plus se reproduire.
+- Le déploiement sur `main` reste à faire (build + push).
+
+### Dette résiduelle Phase 7.74.7
+
+- Pas de blocage dur de l'adoption `banksAnn`/`banksPlug` en bloc —
+  choix délibéré (faux positifs sur les réorgs légitimes). Le log
+  forensique suffit ; si une 7e occurrence survient malgré le fix
+  recordLogin, le log donnera la trace pour décider d'un blocage.
+- Test manuel multi-device recommandé après déploiement : recharger
+  Mac + iPhone plusieurs fois, vérifier qu'aucune banque ne bouge.
+
+---
+
+## État précédent (2026-05-21 matin, hotfix v8.14.156 — TDZ ReferenceError écran noir corrigé)
 
 **Backline v8.14.156 / SW backline-v256 / STATE_VERSION 10 / 1392 tests verts.**
 

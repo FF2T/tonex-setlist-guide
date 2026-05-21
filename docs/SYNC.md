@@ -328,9 +328,56 @@ saveToFirestore, etc.) :
 | 7.52.14 | Demo Setlist polluée locale écrasait snapshot | Merge avec `!existingIds.has` | Force override par id |
 | 7.74 | Pollution profile cross-mélange (myGuitars drop, banks corrompues, setlists dupliquées) | 4 causes : (1) stamp `lastModified` manquant sur 4 call sites (MesAppareilsTab toggle device, ProfilesAdmin password+rename, ProfileTab delete custom guitar) ; (2) `mergeProfilesLWW` adoptait remote en bloc sans per-field LWW ; (3) aucun garde-fou contre les drops massifs ; (4) `mergeSetlistsLWW` ne dédupliquait pas par name+profileIds divergents | (1) helper `stampedProfileUpdate` + fix 4 sites ; (2) `mergeProfileLWW` per-field ; (3) defense : block adoption si drop ≥3 guitares ou language conflict <5s ; (4) `dedupSetlists({mergeAcrossProfiles:true})` automatique au merge |
 
+| 7.74.7 | Pollution profile récurrente (6 occurrences) — `banksAnn`/`banksPlug` révertés vers une version périmée, propagés à tous les appareils | `recordLogin` re-stampait `lastModified=Date.now()` à CHAQUE boot/login. Un login ne change aucune donnée mais le stamp rendait le profil « le plus récent » → un appareil au contenu périmé, simplement rechargé, gagnait le LWW et propageait son état stale. `banksAnn`/`banksPlug` adoptés en bloc sans défense ni log → corruption invisible | `recordLogin` → `appendLoginEntry` (n'stampe plus `lastModified`) ; log forensique `[merge-defense] SUSPECT banksAnn/Plug mass-change` quand ≥10 slots adoptés en bloc |
+
 Chaque ligne représente une régression réelle vécue en prod. La
 prochaine session doit s'assurer qu'aucun fix ne ré-introduit un cas
 ci-dessus.
+
+## Phase 7.74.7 — `recordLogin` ne re-stampe plus `lastModified` (2026-05-21)
+
+### La cause racine des 6 occurrences de pollution profile
+
+`recordLogin` (main.jsx), appelé à chaque auto-login au boot, faisait :
+
+```js
+{ ...profile, loginHistory: h, lastModified: Date.now() }
+```
+
+`lastModified` et `loginHistory` sont tous deux **exclus du `syncHash`**
+→ un login seul ne déclenche pas de push. MAIS le `lastModified` frais
+ride sur le prochain push (déclenché par une autre modif) et, surtout,
+fait gagner le LWW : `mergeProfileLWW` compare `lastModified`, donc un
+profil au **contenu inchangé** mais fraîchement re-stampé est traité
+comme « le plus récent ».
+
+Conséquence : tout appareil rechargé avec un contenu périmé en
+localStorage (vieille version des banques, etc.) devient « le plus
+récent » et **propage le périmé** à tous les autres appareils. C'est
+l'amplificateur commun aux 6 occurrences observées (mai 2026).
+
+### Le fix
+
+- **`recordLogin` → `appendLoginEntry(profiles, id)`** (helper pur
+  `state.js`) : ajoute l'entrée dans `loginHistory` (cap 5) **sans
+  toucher `lastModified`**. Un login n'est plus une « modif » au sens
+  LWW. `loginHistory` se propage quand un vrai changement déclenche un
+  push — comportement voulu (Phase 7.46 : un login ne mérite pas un
+  push).
+- **Log forensique banks** dans `mergeProfileLWW` : `banksAnn`/
+  `banksPlug` restent adoptés en bloc (une réorg de banques est
+  légitime, on ne bloque pas pour éviter les faux positifs), mais si
+  l'adoption remplace ≥10 slots, on émet `[merge-defense] SUSPECT
+  banksAnn/Plug mass-change` — capté par le wrapper persistant Phase
+  7.74.5. Jusqu'ici ces champs étaient adoptés sans aucune trace.
+
+### Invariant ajouté
+
+Un helper qui met à jour un profil pour une raison qui **n'est pas une
+modification de données utilisateur** (login, activité, marqueur UI)
+ne DOIT PAS stamper `lastModified`. Le stamp est réservé aux vraies
+mutations de contenu (banks, guitares, presets, langue…) — sinon le
+LWW devient aveugle au contenu.
 
 ## Phase 7.74 — invariants ajoutés (2026-05-19)
 
@@ -343,8 +390,13 @@ modifié. Sinon le merge LWW perd l'update à la prochaine sync.
 Helper standard : **`stampedProfileUpdate(profiles, profileId, partial)`**
 dans `core/state.js`. Force le stamp même si l'appelant l'omet.
 
-Exception : `loginHistory` est stampé via `recordLogin` (helper dédié).
-Pas besoin d'appeler `stampedProfileUpdate` pour les logins (déjà géré).
+Exception : `loginHistory` est mis à jour via `recordLogin` (helper
+dédié → `appendLoginEntry`). **Phase 7.74.7 — `recordLogin` ne stampe
+PLUS `lastModified`** : un login ne change aucune donnée du profil, le
+re-stamper rendait gratuitement le profil « le plus récent » au LWW
+(cf section « Phase 7.74.7 » ci-dessous). `loginHistory` étant exclu du
+`syncHash`, il se propage quand un autre champ déclenche un push — pas
+tout seul, et c'est voulu.
 
 ### Règle 2 : `mergeProfileLWW` est per-field, pas en bloc
 
