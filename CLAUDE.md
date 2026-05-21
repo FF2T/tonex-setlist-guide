@@ -761,7 +761,121 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-21 nuit, Phase 10 + Phase 9.1 livrées — Contexte d'écoute + Réglages pédale chiffrés)
+## État actuel (2026-05-21 nuit++, Phase 10 v2 simplifiée — 5→3 contextes + CAB indépendant)
+
+**Backline v8.14.161 / SW backline-v261 / STATE_VERSION 10 / 1452 tests verts.**
+
+### Phase 10 v2 — Simplification 5→3 contextes (v8.14.161)
+
+Retour utilisateur immédiat après Phase 10 v1 (livrée 2026-05-21 nuit) :
+les options `ampWithCab` ("Ampli + cab guitare physique") et `ampNoCab`
+("Ampli sans cab — FRFR-like") n'arrivent jamais en pratique chez les
+utilisateurs ToneX cibles (Sébastien joue FRFR, ses beta-testeurs aussi).
+Cas marginaux qui polluent l'UX avec des descriptions techniques peu
+compréhensibles.
+
+**Suppression** des 2 valeurs marginales. `OUTPUT_CONTEXTS` passe de
+5 à 3 valeurs :
+- `frfr` : enceinte FRFR neutre amplifiée (default)
+- `headphone` : casque sortie pédale
+- `pa` : système de sonorisation / table de mixage via DI
+
+**Rôle redéfini** : `outputContext` ne dicte plus le toggle CAB. Il
+sert désormais à adapter les **conseils EQ et volume** de l'IA selon
+le rendu attendu :
+- FRFR → restitution fidèle de la capture
+- Casque → modération possible des aigus pour confort prolongé
+- PA → éviter conseils ajoutant trop de basses/réverbération (mix-ready)
+
+**`cab_enabled` du `preset_settings_v1`** (Phase 9.1) reste dans la
+sortie de l'IA mais est désormais dicté par la **CAPTURE choisie**
+(`preset_ann_name` / `preset_plug_name`) :
+- Capture AMP+CAB (cab modélisé inclus) → CAB OFF dans la pédale (sinon
+  double-cab)
+- Capture AMP-only (pas de cab modélisé) → CAB ON dans la pédale (pour
+  fournir la modélisation cab)
+- Indéterminé → CAB ON par défaut
+
+**Helper `shouldCabBeEnabled` supprimé** (n'avait plus de sens vu que
+le cab ne dépend plus du contexte). Tests Vitest correspondants
+retirés (-3) + 1 test ajouté pour validation migration douce : profils
+Phase 10 v1 qui auraient `outputContext: 'ampWithCab'` ou `'ampNoCab'`
+retombent silencieusement sur `'frfr'` au render via
+`getEffectiveOutputContext` (valeur invalide → fallback default).
+
+**Phase 10.1 future (dette signalée, à activer si signal user)** :
+enrichir `PRESET_CATALOG_MERGED` avec flag `hasCab: boolean` par entry.
+Pour Anniversary Phase 7.52 + Factory v2, le PDF officiel le donne
+(`tone_models/`). Pour TSR/AA/JS/TJ/WT/Galtone, curation manuelle
+progressive. Au prompt, l'IA verra `hasCab` à côté du nom des captures
+installées et décidera `cab_enabled` de manière 100% déterministe (vs
+heuristique actuelle). ~3-4h dev + curation.
+
+**Phase 10.2 future (dette signalée)** : override `cab_enabled` par
+morceau dans SongDetailCard (3 boutons `↻ Profil / CAB ON / CAB OFF`)
+si l'utilisateur veut corriger l'IA. À activer si signal user que
+l'IA se trompe régulièrement.
+
+### Architecture livrée Phase 10 v2
+
+```
+src/main.jsx                            APP_VERSION 8.14.160 → 8.14.161
+public/sw.js                            CACHE backline-v260 → backline-v261
+src/core/state.js                       OUTPUT_CONTEXTS 5 → 3 valeurs
+                                        shouldCabBeEnabled SUPPRIMÉ
+                                        getEffectiveOutputContext préservé
+                                        (defensive : valeurs invalides
+                                        ampWithCab/ampNoCab → fallback frfr)
+src/core/state.test.js                  -3 tests shouldCabBeEnabled
+                                        +1 test legacy migration
+                                        (5 verts au lieu de 9)
+src/app/screens/MonProfilScreen.jsx     -2 cards (ampWithCab + ampNoCab)
+                                        +hint expliquant que cab on/off
+                                        n'est pas dicté par ce paramètre
+src/app/screens/SongDetailCard.jsx      -2 boutons override
+                                        +hint mis à jour (EQ/volume, pas cab)
+src/app/utils/fetchAI.js                outputContextLine reformulé :
+                                        n'évoque plus CAB ACTIVATED/BYPASSED
+                                        ÉTAPE 7 : cab_enabled dicté par
+                                        CAPTURE (AMP+CAB → false, AMP-only
+                                        → true), pas par contexte
+src/i18n/en.js, es.js                   -4 clés (ampWithCab/ampNoCab label
+                                        + desc). Adaptation intro/hint
+                                        pour clarifier le rôle 3-valeurs.
+```
+
+### Conséquences Phase 10 v2
+
+- **1452/1452 tests verts** (-2 net : -3 shouldCabBeEnabled, +1 legacy).
+- Bundle 2551 → 2548 KB (-3 KB : moins d'UI + i18n + prompt).
+- **Pas de bump STATE_VERSION** (modif modèle dans la liste autorisée,
+  les valeurs supprimées fallback gracieusement).
+- **Migration douce Phase 10 v1 → v2** : aucune action user requise.
+  Les profils créés Phase 10 v1 avec `outputContext: 'ampWithCab'` ou
+  `'ampNoCab'` voient leur valeur ignorée au render (fallback `frfr`).
+  Pas de migration explicite — `getEffectiveOutputContext` filtre via
+  `OUTPUT_CONTEXTS.includes()`.
+- **UX clarifiée** : 3 cards UI sans jargon technique opaque. Le toggle
+  CAB de la pédale apparaît comme une décision IA pure (table Réglages
+  pédale Phase 9.1) — le user ne se demande plus quel contexte choisir
+  pour le déclencher.
+
+### Validation après déploiement
+
+1. Reload PWA Mac (Cmd+Shift+R) → vérifier `v8.14.161` dans le header.
+2. Mon Profil → 🎯 Préférences IA → section "🔌 Contexte d'écoute" :
+   désormais 3 cards (FRFR / Casque / Sono / Table de mixage). Default
+   FRFR sélectionné.
+3. Ouvrir une fiche song → section "🔌 Sortie audio pour ce morceau"
+   sous Mode IA : 4 boutons (↻ Profil + 3 contexts).
+4. Tester override (ex. `🎧 Casque`) → invalide aiCache → re-fetch.
+5. Au retour de l'IA, la table "🎛️ Réglages pédale" affiche un badge
+   `CAB ON` ou `CAB OFF` (selon la capture choisie, pas selon le
+   contexte d'écoute).
+
+---
+
+## État précédent (2026-05-21 nuit, Phase 10 + Phase 9.1 livrées — Contexte d'écoute + Réglages pédale chiffrés)
 
 **Backline v8.14.160 / SW backline-v260 / STATE_VERSION 10 / 1454 tests verts.**
 

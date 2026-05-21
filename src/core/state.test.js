@@ -27,7 +27,7 @@ import {
   dedupSetlists, dedupSetlistsWithTombstones, setlistDedupKey,
   dedupSongDb,
   autoBackup, listBackups, clearBackups, isQuotaError, persistState,
-  OUTPUT_CONTEXTS, DEFAULT_OUTPUT_CONTEXT, getEffectiveOutputContext, shouldCabBeEnabled,
+  OUTPUT_CONTEXTS, DEFAULT_OUTPUT_CONTEXT, getEffectiveOutputContext,
 } from './state.js';
 
 describe('STATE_VERSION', () => {
@@ -3833,10 +3833,13 @@ describe('mergeProfileLWW — Phase 7.74.7 log forensique banks mass-change', ()
   });
 });
 
-// Phase 10 — Contexte d'écoute
-describe('OUTPUT_CONTEXTS / getEffectiveOutputContext / shouldCabBeEnabled (Phase 10)', () => {
-  test('OUTPUT_CONTEXTS contient les 5 valeurs attendues', () => {
-    expect(OUTPUT_CONTEXTS).toEqual(['headphone', 'frfr', 'pa', 'ampWithCab', 'ampNoCab']);
+// Phase 10 v2 — Contexte d'écoute simplifié (3 valeurs)
+// Décision 2026-05-21 : retiré ampWithCab + ampNoCab (cas marginaux).
+// Le toggle CAB on/off est désormais indépendant du contexte d'écoute,
+// décidé par l'IA selon la capture nommée (Phase 9.1).
+describe('OUTPUT_CONTEXTS / getEffectiveOutputContext (Phase 10 v2)', () => {
+  test('OUTPUT_CONTEXTS contient les 3 valeurs attendues (Phase 10 v2)', () => {
+    expect(OUTPUT_CONTEXTS).toEqual(['headphone', 'frfr', 'pa']);
   });
 
   test('DEFAULT_OUTPUT_CONTEXT vaut frfr', () => {
@@ -3849,9 +3852,9 @@ describe('OUTPUT_CONTEXTS / getEffectiveOutputContext / shouldCabBeEnabled (Phas
     });
 
     test('profile.outputContext utilisé sans override song', () => {
-      expect(getEffectiveOutputContext({ outputContext: 'ampWithCab' }, { outputContext: undefined })).toBe('ampWithCab');
-      expect(getEffectiveOutputContext({ outputContext: 'pa' }, {})).toBe('pa');
-      expect(getEffectiveOutputContext({ outputContext: 'ampNoCab' }, null)).toBe('ampNoCab');
+      expect(getEffectiveOutputContext({ outputContext: 'pa' }, { outputContext: undefined })).toBe('pa');
+      expect(getEffectiveOutputContext({ outputContext: 'headphone' }, {})).toBe('headphone');
+      expect(getEffectiveOutputContext({ outputContext: 'pa' }, null)).toBe('pa');
     });
 
     test('default frfr si profile sans outputContext', () => {
@@ -3871,24 +3874,13 @@ describe('OUTPUT_CONTEXTS / getEffectiveOutputContext / shouldCabBeEnabled (Phas
       expect(getEffectiveOutputContext({ outputContext: 'headphone' }, { outputContext: '' })).toBe('headphone');
       expect(getEffectiveOutputContext({ outputContext: 'pa' }, { outputContext: null })).toBe('pa');
     });
-  });
 
-  describe('shouldCabBeEnabled', () => {
-    test('headphone / frfr / pa / ampNoCab → CAB activated', () => {
-      expect(shouldCabBeEnabled('headphone')).toBe(true);
-      expect(shouldCabBeEnabled('frfr')).toBe(true);
-      expect(shouldCabBeEnabled('pa')).toBe(true);
-      expect(shouldCabBeEnabled('ampNoCab')).toBe(true);
-    });
-
-    test('ampWithCab → CAB bypassed (anti-double-cab)', () => {
-      expect(shouldCabBeEnabled('ampWithCab')).toBe(false);
-    });
-
-    test('contexte inconnu → CAB activated (defensive)', () => {
-      expect(shouldCabBeEnabled('bogus')).toBe(true);
-      expect(shouldCabBeEnabled(null)).toBe(true);
-      expect(shouldCabBeEnabled(undefined)).toBe(true);
+    test('Phase 10 v1 valeurs legacy ampWithCab / ampNoCab → fallback default frfr', () => {
+      // Migration douce : les profils Phase 10 v1 (avant simplification)
+      // qui auraient ces valeurs retombent silencieusement sur 'frfr'.
+      expect(getEffectiveOutputContext({ outputContext: 'ampWithCab' }, null)).toBe('frfr');
+      expect(getEffectiveOutputContext({ outputContext: 'ampNoCab' }, null)).toBe('frfr');
+      expect(getEffectiveOutputContext(null, { outputContext: 'ampWithCab' })).toBe('frfr');
     });
   });
 

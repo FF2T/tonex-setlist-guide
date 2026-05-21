@@ -532,8 +532,6 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
               { id: 'frfr', icon: '📢', label: t('output-context.label.frfr', 'Enceinte FRFR') },
               { id: 'headphone', icon: '🎧', label: t('output-context.label.headphone', 'Casque') },
               { id: 'pa', icon: '🎚️', label: t('output-context.label.pa', 'Sono / Table de mixage') },
-              { id: 'ampWithCab', icon: '🎸', label: t('output-context.label.ampWithCab', 'Ampli + cab guitare physique') },
-              { id: 'ampNoCab', icon: '🔊', label: t('output-context.label.ampNoCab', 'Ampli sans cab (FRFR-like)') },
             ].map(({ id, icon, label }) => {
               const active = (song.outputContext || '') === id;
               return (
@@ -550,7 +548,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
               );
             })}
           </div>
-          <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 3, fontStyle: 'italic' }}>{t('song-detail.output-context-hint', 'Changer le contexte invalide le cache → re-analyse avec cab_enabled / réglages adaptés au matériel d\'écoute.')}</div>
+          <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 3, fontStyle: 'italic' }}>{t('song-detail.output-context-hint', 'Changer le contexte invalide le cache → re-analyse avec réglages adaptés au matériel d\'écoute (EQ, volume).')}</div>
         </div>
         {aiC && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{tFormat('song-detail.best-installed-for', { guitar: g?.short || t('song-detail.this-guitar', 'cette guitare') }, 'Meilleurs presets installes pour {guitar}')}</div>}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

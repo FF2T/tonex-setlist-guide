@@ -2341,24 +2341,28 @@ function isAdminAsMode(profiles, activeProfileId, adminOriginId) {
 }
 
 // Phase 10 (2026-05-21) — Contexte d'écoute par profil + override par
-// morceau. Dicte notamment le toggle `cab_enabled` au prompt IA Phase 9.1
-// (impossible de jouer une capture cabbed sur un cab physique guitare sans
-// double-filtrage cab → bouillie). Identifiants anglais sobres ; labels
-// affichables côté UI via i18n. Default 'frfr' = config la plus courante
-// utilisateurs ToneX (enceinte FRFR neutre type Headrush/Powercab+/ToneX Cab).
+// morceau. 3 valeurs simplifiées : `frfr` / `headphone` / `pa`. Tous
+// impliquent CAB activated (pas de cab physique aval). Le toggle
+// `cab_enabled` de preset_settings_v1 (Phase 9.1) est dicté
+// indépendamment par la CAPTURE choisie (AMP+CAB → CAB off, AMP-only →
+// CAB on), pas par le contexte d'écoute.
 //
-// Mapping context → CAB section conforme au manuel TONEX pages 8-12 :
-//   headphone   → CAB activated (jeu silencieux)
-//   frfr        → CAB activated (FRFR ou enceinte amplifiée)
-//   pa          → CAB activated (DI → sono / table de mixage)
-//   ampWithCab  → CAB bypassed (amp puissance + cab guitare physique)
-//   ampNoCab    → CAB activated (préampli pur / amp avec cab désactivable)
-const OUTPUT_CONTEXTS = ['headphone', 'frfr', 'pa', 'ampWithCab', 'ampNoCab'];
+// Décision design 2026-05-21 (v2) : supprimé `ampWithCab` + `ampNoCab`.
+// Cas marginaux que Sébastien ne rencontre pas en pratique (Sébastien
+// joue FRFR, ses beta-testeurs aussi). Reportée Phase 10.1 future si
+// signal user : enrichir `PRESET_CATALOG_MERGED` avec flag `hasCab` pour
+// que l'IA décide cab_enabled de manière 100% déterministe selon la
+// capture choisie (vs heuristique actuelle).
+//
+// Identifiants anglais sobres ; labels affichables côté UI via i18n.
+// Default 'frfr' = config la plus courante utilisateurs ToneX.
+const OUTPUT_CONTEXTS = ['headphone', 'frfr', 'pa'];
 const DEFAULT_OUTPUT_CONTEXT = 'frfr';
 
 // Pure helper : retourne le contexte effectif pour un morceau donné.
 // Priorité song.outputContext (override) > profile.outputContext > default
-// 'frfr'. Defensive face aux valeurs invalides (legacy / fresh profile).
+// 'frfr'. Defensive face aux valeurs invalides (legacy / fresh profile /
+// migration depuis Phase 10 v1 qui avait ampWithCab/ampNoCab).
 function getEffectiveOutputContext(profile, song) {
   const songCtx = song?.outputContext;
   if (songCtx && OUTPUT_CONTEXTS.includes(songCtx)) return songCtx;
@@ -2367,15 +2371,8 @@ function getEffectiveOutputContext(profile, song) {
   return DEFAULT_OUTPUT_CONTEXT;
 }
 
-// Pure helper : retourne true si le contexte demande CAB activated dans
-// le PRESET. Utilisé par le prompt IA Phase 9.1 pour décider `cab_enabled`
-// et par l'UI pour signaler les conflits CAB.
-function shouldCabBeEnabled(outputContext) {
-  return outputContext !== 'ampWithCab';
-}
-
 export {
-  OUTPUT_CONTEXTS, DEFAULT_OUTPUT_CONTEXT, getEffectiveOutputContext, shouldCabBeEnabled,
+  OUTPUT_CONTEXTS, DEFAULT_OUTPUT_CONTEXT, getEffectiveOutputContext,
   ADMIN_ORIGIN_KEY, recordAdminSwitch, isAdminAsMode, appendLoginEntry,
   STATE_VERSION, TOMBSTONE_MAX_AGE_MS,
   LS_KEY, LS_KEY_V1, LS_SECRETS_KEY, LS_TRUSTED_KEY, LS_BACKUP_KEY, MAX_BACKUPS,

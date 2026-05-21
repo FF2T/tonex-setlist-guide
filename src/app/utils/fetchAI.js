@@ -122,21 +122,22 @@ function fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, fe
   // au lieu de proposer un nom catalog generic ("Marshall JCM800") qui
   // résoudrait sur le mauvais slot.
   const installedSlotsLine = buildInstalledSlotsSection(banksAnn, banksPlug);
-  // Phase 10 — Contexte d'écoute injecté au prompt. Dicte cab_enabled
-  // dans preset_settings_v1 (Phase 9.1) + oriente les recos selon le
-  // matériel réel du user.
+  // Phase 10 v2 — Contexte d'écoute simplifié (3 valeurs). Informe l'IA
+  // du matériel d'écoute pour adapter ses conseils EQ et volume. Le
+  // toggle cab_enabled est désormais indépendant : décidé par l'IA selon
+  // la CAPTURE qu'elle choisit (preset_ann_name / preset_plug_name) —
+  // si la capture inclut un cab modélisé (AMP+CAB) → CAB OFF dans la
+  // pédale, sinon (AMP-only) → CAB ON.
   const outputContextLine = (() => {
     if (!outputContext) return '';
     const map = {
-      headphone:  'casque (CASQUE) — CAB ACTIVATED dans le PRESET',
-      frfr:       'enceinte FRFR neutre (Headrush / Friedman ASM / Powercab+ / ToneX Cab) — CAB ACTIVATED dans le PRESET',
-      pa:         'système de sonorisation ou table de mixage via DI — CAB ACTIVATED dans le PRESET',
-      ampWithCab: 'ampli de puissance + baffle guitare PHYSIQUE (Marshall, Mesa, etc.) — CAB BYPASSED dans le PRESET pour éviter le double filtrage cab',
-      ampNoCab:   'ampli combo avec simulation cab interne désactivable, OU préampli pur — CAB ACTIVATED dans le PRESET',
+      headphone:  'casque (CASQUE), via la sortie casque de la pédale. Conseil d\'EQ : tu peux modérer légèrement les aigus pour le confort d\'écoute prolongée',
+      frfr:       'enceinte FRFR neutre amplifiée (Headrush / Friedman ASM / Powercab+ / ToneX Cab). Restitution fidèle de la capture',
+      pa:         'système de sonorisation ou table de mixage via DI. La table de mixage attend un signal prêt à mixer, donc évite les conseils qui ajoutent trop de basses ou de réverbération',
     };
     const desc = map[outputContext] || '';
     if (!desc) return '';
-    return `\nCONTEXTE D'ÉCOUTE : l'utilisateur joue sur ${desc}. Adapte tes recos en conséquence — notamment cab_enabled dans preset_settings_v1 (étape 7) et les conseils settings_preset (consistance des graves/aigus selon le matériel).`;
+    return `\nCONTEXTE D'ÉCOUTE : l'utilisateur joue sur ${desc}. Adapte tes conseils settings_preset (EQ, volume) en conséquence.`;
   })();
   const gProfiles = guitars.map((x) => {
     const p = findGuitarProfile(x.id);
@@ -197,7 +198,7 @@ La capture (TONE MODEL) est une boîte noire immuable fournie par son créateur.
 Retourne un objet preset_settings_v1 avec les valeurs OPTIMALES pour reproduire le son du morceau sur la guitare et le contexte d'écoute du user. Respecte STRICTEMENT les ranges ci-dessous (toute valeur hors-bornes sera clampée et émettra un warning) :
 
 {
-  "cab_enabled": true OU false,             // dicté par CONTEXTE D'ÉCOUTE (ampWithCab → false, sinon true)
+  "cab_enabled": true OU false,             // selon la CAPTURE choisie : AMP+CAB (cab modélisé inclus) → false (sinon double-cab) ; AMP-only (pas de cab dans la capture) → true. Si tu ne peux pas déterminer, retourne true par défaut.
   "main": {
     "gain":   0 à 10,                       // gain d'entrée du TONE MODEL
     "bass":   0 à 10,                       // EQ shelf basses
@@ -216,7 +217,7 @@ Retourne un objet preset_settings_v1 avec les valeurs OPTIMALES pour reproduire 
 }
 
 Règles :
-- cab_enabled : OBLIGATOIREMENT cohérent avec le CONTEXTE D'ÉCOUTE ci-dessus
+- cab_enabled : indépendant du contexte d'écoute. Détermine selon la CAPTURE choisie (preset_ann_name / preset_plug_name) : si tu sais que la capture inclut un cab modélisé (TONE MODEL type AMP+CAB) → false (pour éviter le double-cab). Si la capture est AMP-only (sans cab modélisé) → true. Indéterminé → true par défaut.
 - Valeurs nominales par défaut : main 5/5/5/5/5, alt 5/5/15/-20/-60 si pas de contrainte spécifique
 - Adapte aux contraintes du morceau : thrash → gate sévère (-50 dB) + reverb_mix bas (<15%) + mid haut ; blues → comp doux + reverb modérée (20-35%) ; clean → volume preset 6-7 + comp doux + mid 5-6
 - Le "why" résume EN UNE OU DEUX PHRASES TRILINGUE les choix faits (ex : "Thrash dry — gate sévère pour les palm mutes, mid scoopé léger, reverb minimale"). Pas une explication par paramètre.

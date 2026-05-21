@@ -865,28 +865,24 @@ const es = {
   // Phase 7.85 — PBlock badge banco.
   'pblock.installed-bank': 'Banco {bank}{slot}',
 
-  // Phase 10 — Contexto de escucha (salida audio).
+  // Phase 10 v2 — Contexto de escucha (3 valores : FRFR / auriculares / PA).
   'profile.output-context.title': '🔌 Contexto de escucha',
-  'profile.output-context.intro': 'Qué equipo usas más a menudo. Decide si la IA activa el bloque CAB del PRESET — importante para evitar el filtrado doble de cab (ampli + cab físico).',
-  'profile.output-context.hint': 'También puedes forzar otro contexto por canción desde la ficha. Cambiar aquí no invalida los cachés existentes — usa "🔄 Restablecer mis análisis" para regenerar.',
+  'profile.output-context.intro': 'Qué equipo usas más a menudo. Afecta los consejos de EQ y volumen de la IA según el rendimiento esperado.',
+  'profile.output-context.hint': 'También puedes forzar otro contexto por canción desde la ficha. Cambiar aquí no invalida los cachés existentes — usa "🔄 Restablecer mis análisis" para regenerar. El toggle CAB ON/OFF del pedal lo decide la IA según la captura elegida, no este ajuste.',
   'profile.reco.mode-hint': 'Este modo se pasa como input en cada llamada de IA. Las canciones ya analizadas conservan su caché hasta la invalidación.',
   'output-context.label.frfr': 'Pantalla FRFR',
   'output-context.label.headphone': 'Auriculares',
   'output-context.label.pa': 'PA / Mesa de mezclas',
-  'output-context.label.ampWithCab': 'Ampli + pantalla guitarra física',
-  'output-context.label.ampNoCab': 'Ampli sin cab (FRFR-like)',
-  'output-context.desc.frfr': 'Pantalla neutra amplificada (Headrush, Friedman ASM, Powercab+, ToneX Cab…). CAB activado en el PRESET.',
-  'output-context.desc.headphone': 'Tocar en silencio por la salida de auriculares del pedal. CAB activado en el PRESET (de lo contrario suena harsh).',
-  'output-context.desc.pa': 'Salida directa por DI a PA, mesa o monitores de estudio. CAB activado en el PRESET (la mezcla espera señal cabbed).',
-  'output-context.desc.ampWithCab': 'Etapa de potencia + pantalla guitarra (Marshall, Mesa, etc.). CAB desactivado en el PRESET para evitar el filtrado doble.',
-  'output-context.desc.ampNoCab': 'Ampli combo con simulación de cab interna desactivable, o previo puro. CAB activado en el PRESET.',
+  'output-context.desc.frfr': 'Pantalla neutra amplificada (Headrush, Friedman ASM, Powercab+, ToneX Cab…). Restitución fiel de la captura.',
+  'output-context.desc.headphone': 'Tocar en silencio por la salida de auriculares del pedal. La IA puede moderar los agudos para el confort de escucha.',
+  'output-context.desc.pa': 'Salida directa por DI a PA, mesa o monitores de estudio. La mesa espera señal lista para mezclar.',
   'song-detail.output-context-label': '🔌 Salida de audio para esta canción',
   'song-detail.output-context-override': '· override',
   'song-detail.output-context-inherited': '· perfil ({context})',
   'song-detail.output-context-profile': 'Perfil',
   'song-detail.output-context-tooltip-profile': 'Hereda del contexto del perfil. Hacer clic invalida la caché de IA para re-fetch con el nuevo contexto.',
   'song-detail.output-context-tooltip-override': 'Override: {label}',
-  'song-detail.output-context-hint': 'Cambiar el contexto invalida la caché → re-análisis con cab_enabled / ajustes adaptados al equipo de escucha.',
+  'song-detail.output-context-hint': 'Cambiar el contexto invalida la caché → re-análisis con ajustes adaptados al equipo de escucha (EQ, volumen).',
 
   // Phase 9.1 — Tabla de ajustes del PRESET.
   'preset-settings.title': '🎛️ Ajustes del pedal',

@@ -278,14 +278,12 @@ function MonProfilScreen({
             au prompt IA Phase 9.1 + adapte les recos selon le matériel
             d'écoute (casque / FRFR / sono / ampli avec ou sans cab). */}
         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginTop: 4, marginBottom: 6 }}>{t('profile.output-context.title', '🔌 Contexte d\'écoute')}</div>
-        <div style={{ fontSize: 12, color: 'var(--text-sec)', marginBottom: 10, lineHeight: 1.5 }}>{t('profile.output-context.intro', 'Sur quel matériel tu joues le plus souvent. Décide si l\'IA active le bloc CAB du PRESET ou non — important pour éviter le double-filtrage cab (ampli + cab physique).')}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-sec)', marginBottom: 10, lineHeight: 1.5 }}>{t('profile.output-context.intro', 'Sur quel matériel tu joues le plus souvent. Affecte les conseils d\'EQ et de volume de l\'IA selon le rendu attendu.')}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
           {[
-            { id: 'frfr', icon: '📢', label: t('output-context.label.frfr', 'Enceinte FRFR'), desc: t('output-context.desc.frfr', 'Enceinte neutre alimentée (Headrush, Friedman ASM, Powercab+, ToneX Cab…). CAB activé dans le PRESET.') },
-            { id: 'headphone', icon: '🎧', label: t('output-context.label.headphone', 'Casque'), desc: t('output-context.desc.headphone', 'Jeu silencieux via la sortie casque de la pédale. CAB activé dans le PRESET (sinon bouillie aiguë).') },
-            { id: 'pa', icon: '🎚️', label: t('output-context.label.pa', 'Sono / Table de mixage'), desc: t('output-context.desc.pa', 'Sortie directe via DI vers PA, table ou monitors studio. CAB activé dans le PRESET (le mixage attend du signal cabbed).') },
-            { id: 'ampWithCab', icon: '🎸', label: t('output-context.label.ampWithCab', 'Ampli + cab guitare physique'), desc: t('output-context.desc.ampWithCab', 'Ampli de puissance + baffle guitare (Marshall, Mesa, etc.). CAB désactivé dans le PRESET pour éviter le double-filtrage.') },
-            { id: 'ampNoCab', icon: '🔊', label: t('output-context.label.ampNoCab', 'Ampli sans cab (FRFR-like)'), desc: t('output-context.desc.ampNoCab', 'Ampli combo dont la simulation cab interne est désactivable, ou préampli pur. CAB activé dans le PRESET.') },
+            { id: 'frfr', icon: '📢', label: t('output-context.label.frfr', 'Enceinte FRFR'), desc: t('output-context.desc.frfr', 'Enceinte neutre alimentée (Headrush, Friedman ASM, Powercab+, ToneX Cab…). Restitution fidèle de la capture.') },
+            { id: 'headphone', icon: '🎧', label: t('output-context.label.headphone', 'Casque'), desc: t('output-context.desc.headphone', 'Jeu silencieux via la sortie casque de la pédale. L\'IA peut moduler les aigus pour le confort d\'écoute.') },
+            { id: 'pa', icon: '🎚️', label: t('output-context.label.pa', 'Sono / Table de mixage'), desc: t('output-context.desc.pa', 'Sortie directe via DI vers PA, table ou monitors studio. Le mixeur attend un signal prêt à mixer.') },
           ].map(({ id, icon, label, desc }) => {
             const active = (profile.outputContext || 'frfr') === id;
             return <button
@@ -307,7 +305,7 @@ function MonProfilScreen({
             </button>;
           })}
         </div>
-        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.5, marginBottom: 16 }}>{t('profile.output-context.hint', 'Tu peux aussi forcer un autre contexte par morceau depuis la fiche song. Changer ici n\'invalide pas les caches existants — utilise "🔄 Réinitialiser mes analyses" pour regenerer.')}</div>
+        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.5, marginBottom: 16 }}>{t('profile.output-context.hint', 'Tu peux aussi forcer un autre contexte par morceau depuis la fiche song. Changer ici n\'invalide pas les caches existants — utilise "🔄 Réinitialiser mes analyses" pour regenerer. Le toggle CAB ON/OFF de la pédale est décidé par l\'IA selon la capture choisie, pas par ce paramètre.')}</div>
 
         {(() => {
           const BIAS_STYLES = [
