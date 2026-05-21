@@ -22,7 +22,7 @@
 // avec src: "custom" toujours + creator séparé.
 
 import React, { useState, useMemo } from 'react';
-import { t } from '../../i18n/index.js';
+import { t, tFormat, useLocale } from '../../i18n/index.js';
 import { PRESET_CATALOG_MERGED } from '../../core/catalog.js';
 import { inferPresetInfo } from '../utils/infer-preset.js';
 import { STYLE_SCORES } from '../utils/detect-preset-metadata.js';
@@ -153,6 +153,9 @@ function flattenPresets(customPacks) {
 //   songDb : pour autocomplete usages
 //   inp : style commun input
 function MyCustomPresetsTab({ profile, onProfiles, activeProfileId, songDb, inp }) {
+  // Phase 7.74.7 — useLocale() : re-render de l'onglet (et de ses
+  // sous-composants PresetForm/ScoreLevelsRow) au switch de langue.
+  useLocale();
   const customPacks = profile?.customPacks || [];
   const flatList = useMemo(() => flattenPresets(customPacks), [customPacks]);
   const [editKey, setEditKey] = useState(null); // 'packIdx:presetIdx' ou 'new'
@@ -347,7 +350,7 @@ function MyCustomPresetsTab({ profile, onProfiles, activeProfileId, songDb, inp 
 
   const deletePreset = (item) => {
     const { preset, packIdx, presetIdx } = item;
-    if (!window.confirm(t('mycustompresets.confirm-delete', `Supprimer le preset "${preset.name}" ?`))) return;
+    if (!window.confirm(tFormat('mycustompresets.confirm-delete', { name: preset.name }, 'Supprimer le preset "{name}" ?'))) return;
     const nextPacks = customPacks
       .map((p, i) => {
         if (i !== packIdx) return p;
