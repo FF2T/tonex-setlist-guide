@@ -761,7 +761,248 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-21 soir, Phase 7.85 close — Demo EN audit fixes Chop Suey)
+## État actuel (2026-05-21 nuit, Phase 10 + Phase 9.1 livrées — Contexte d'écoute + Réglages pédale chiffrés)
+
+**Backline v8.14.160 / SW backline-v260 / STATE_VERSION 10 / 1454 tests verts.**
+
+### Phase 10 — Contexte d'écoute par profil + override par morceau (v8.14.160)
+
+Validation 3 signaux user : Bruno (cab/no-cab par contexte d'écoute,
+2026-05-18), Francisco (knob settings chiffrés, 2026-05-17),
+Ok_Ask2411 (output enrichi, peer-builder 2026-05-15). Couplée à
+Phase 9.1 (Réglages pédale chiffrés) car cab_enabled est dicté par
+le contexte d'écoute.
+
+**Modèle data** (additif, pas de bump STATE_VERSION) :
+- `OUTPUT_CONTEXTS = ['headphone', 'frfr', 'pa', 'ampWithCab', 'ampNoCab']`
+- `DEFAULT_OUTPUT_CONTEXT = 'frfr'` (cas le plus courant utilisateurs
+  ToneX : enceinte FRFR neutre)
+- `profile.outputContext: string` optional, fallback 'frfr' au render
+- `song.outputContext: string` optional, override par morceau
+
+**Mapping context → CAB section** (conforme manuel TONEX p.8-12) :
+| Context | CAB section | Cas type |
+|---|---|---|
+| `headphone` | activated | Casque sortie pédale |
+| `frfr` | activated | FRFR / Powercab+ / ToneX Cab (default) |
+| `pa` | activated | DI → système sono ou table de mixage |
+| `ampWithCab` | bypassed | Amp puissance + cab guitare physique |
+| `ampNoCab` | activated | Amp avec cab désactivable / préampli pur |
+
+**Helpers purs exportés depuis `core/state.js`** :
+- `getEffectiveOutputContext(profile, song)` : priorité song > profile
+  > default. Defensive face aux valeurs invalides.
+- `shouldCabBeEnabled(outputContext)` : true sauf pour 'ampWithCab'.
+
+**UI Mon Profil → 🎯 Préférences IA** : nouvelle section "🔌 Contexte
+d'écoute" avec 5 cards radio (icône + label + description) sur le
+pattern Phase 7.1 recoMode. Default 'frfr'.
+
+**UI SongDetailCard** : override par morceau sous le bloc "Mode IA
+pour ce morceau" Phase 7.3. 6 boutons compacts (↻ Profil + 5
+contexts). Change → invalide aiCache du morceau → re-fetch auto
+avec nouveau contexte + nouveaux cab_enabled / réglages.
+
+**Pas d'invalidation auto** sur changement global
+`profile.outputContext` (volontaire, sinon brutal). User clique
+"🔄 Réinitialiser mes analyses" Phase 7.33 s'il veut tout
+regenerer.
+
+**Tests Phase 10** : 12 nouveaux dans `state.test.js` (OUTPUT_CONTEXTS,
+DEFAULT_OUTPUT_CONTEXT, getEffectiveOutputContext × 7,
+shouldCabBeEnabled × 3, makeDefaultProfile × 1).
+
+### Phase 9.1 — MVP Réglages pédale chiffrés (v8.14.160)
+
+L'IA retourne désormais un objet `preset_settings_v1` validé,
+rendu en table compacte sous le bloc preset reco de la fiche
+morceau.
+
+**Format output IA** :
+```json
+"preset_settings_v1": {
+  "cab_enabled": true,                          // dicté par Phase 10
+  "main": {                                     // 5 boutons face avant
+    "gain": 6.2, "bass": 4.5, "mid": 7.0,
+    "treble": 5.3, "volume": 6.0                // 0-10 chacun
+  },
+  "alt": {                                      // 5 boutons ALT
+    "presence": 4.7, "depth": 5.0,              // 0-10
+    "reverb_mix": 16,                           // 0-100 %
+    "comp_threshold": -18,                      // -40 à 0 dB
+    "gate_threshold": -56                       // -100 à 0 dB
+  },
+  "why": { "fr": "...", "en": "...", "es": "..." }  // 1-2 phrases trilingue
+}
+```
+
+Ranges officiels du manuel TONEX p.22-28. Confirmé Sébastien
+2026-05-21 : les 5 devices ToneX (Pedal classique, Anniversary,
+Plug, One, One+) partagent les mêmes capacités PRESET → design
+unifié, pas device-specific.
+
+**Helper `clampPresetSettings`** (`src/core/scoring/preset-settings.js`,
+nouveau fichier) :
+- PRESET_RANGES const figé (Object.freeze) avec min/max/unit par knob
+- Clamp les valeurs hors-bornes (Gemini hallucine parfois) + warn
+  détaillé
+- Skip silencieusement les champs inconnus / non-numériques / NaN /
+  Infinity
+- Préserve les champs partiels (Gemini peut retourner partial)
+- Retourne null si structure totalement invalide
+- 34 tests Vitest dans `preset-settings.test.js`
+
+**Validation au render via enrichAIResult** (`ai-helpers.js`) :
+- Idempotent via flag `_presetSettingsValidated`
+- preset_settings_v1 invalide → set à null, fallback UI gracieux
+
+**Prompt fetchAI étendu** :
+- Nouveau 12e param `outputContext`
+- Section "CONTEXTE D'ÉCOUTE" injectée avec mapping cab_enabled
+  explicite selon les 5 contexts
+- Nouvelle "ÉTAPE 7 — PARAMÉTRAGE DU PRESET (preset_settings_v1)"
+  avec ranges officiels listés + defaults nominaux + exemples par
+  style (thrash gate sévère, blues comp doux, clean volume 6-7)
+
+**UI table "🎛️ Réglages pédale"** dans SongDetailCard section 3
+(Recommandation idéale), entre le bloc preset reco et settings_preset
+prose :
+- Badge "CAB ON/OFF" en haut à droite (green/yellow)
+- 5 lignes "Boutons principaux" (Gain/Bass/Mid/Treble/Volume) avec
+  /10 scale
+- 5 lignes "Boutons ALT" (Presence/Depth /10 + Reverb mix % +
+  Comp/Gate threshold dB)
+- why trilingue en italique en bas (getLocalizedText)
+- Skip silencieusement si aiCache pré-9.1 (fallback gracieux)
+- settings_preset prose conservé en parallèle pour transition douce
+
+**Call sites fetchAI mis à jour** (10 sites) avec
+`effectiveOutputContext = song.outputContext || profile?.outputContext
+|| 'frfr'` inline :
+- SongDetailCard × 2 (useEffect + rerunWithFeedback)
+- ListScreen × 2 (analyzeMissingAll + improveAll)
+- SetlistsScreen, MaintenanceTab, MonProfilScreen, HomeScreen × 2,
+  AddSongModal
+
+**i18n FR/EN/ES** :
+- Phase 10 : 20 nouvelles clés (profile.output-context.*, output-context.label.*,
+  output-context.desc.*, song-detail.output-context-*)
+- Phase 9.1 : 6 nouvelles clés (preset-settings.* — title, subtitle,
+  cab-on, cab-off, section-main, section-alt). Knob labels en
+  anglais clair (jargon universel).
+
+### Architecture livrée
+
+```
+src/main.jsx                            APP_VERSION 8.14.159 → 8.14.160
+public/sw.js                            CACHE backline-v259 → backline-v260
+src/core/state.js                       +OUTPUT_CONTEXTS, DEFAULT_OUTPUT_CONTEXT
+                                        +getEffectiveOutputContext (pure)
+                                        +shouldCabBeEnabled (pure)
+                                        makeDefaultProfile : pose
+                                          outputContext='frfr'
+src/core/state.test.js                  +12 tests Phase 10
+src/core/scoring/preset-settings.js     NOUVEAU — PRESET_RANGES (manuel TONEX)
+                                        + clampPresetSettings (pure)
+src/core/scoring/preset-settings.test.js NOUVEAU — 34 tests Phase 9.1
+src/core/scoring/index.js               re-export Phase 9.1 helpers
+src/app/utils/fetchAI.js                +12e param outputContext
+                                        +section prompt CONTEXTE D'ÉCOUTE
+                                        +section prompt ÉTAPE 7 + ranges
+                                        +preset_settings_v1 JSON template
+src/app/utils/ai-helpers.js             enrichAIResult valide
+                                        preset_settings_v1 via clampPresetSettings
+src/app/screens/MonProfilScreen.jsx     +section "🔌 Contexte d'écoute"
+                                        (5 cards radio) dans tab reco
+                                        +outputContext propagé fetchAI
+src/app/screens/SongDetailCard.jsx      +override outputContext par morceau
+                                        +sous-section "🎛️ Réglages pédale"
+                                        +outputContext propagé fetchAI (× 2)
+src/app/screens/ListScreen.jsx          +outputContext propagé fetchAI (× 2)
+src/app/screens/SetlistsScreen.jsx      +outputContext propagé fetchAI
+src/app/screens/MaintenanceTab.jsx      +outputContext propagé fetchAI
+src/app/screens/HomeScreen.jsx          +outputContext propagé fetchAI (× 2)
+src/app/components/AddSongModal.jsx     +outputContext default 'frfr'
+src/i18n/en.js                          +26 clés (Phase 10 × 20 + 9.1 × 6)
+src/i18n/es.js                          +26 clés (idem ES)
+```
+
+### Conséquences Phase 10 + 9.1
+
+- **1454/1454 tests verts** (+46 nouveaux : 12 Phase 10 + 34 Phase 9.1).
+- Bundle 2534 → 2552 KB (+18 KB : prompt étendu + UI table + i18n).
+- **Pas de bump STATE_VERSION** (additif profile.outputContext +
+  song.outputContext + aiCache.preset_settings_v1).
+- **Pas de migration localStorage** : profils existants héritent
+  default 'frfr' au render. aiCache pré-9.1 fallback UI gracieux.
+- **Effet immédiat post-déploiement** : prochaine analyse IA
+  (SongDetailCard mount avec rigStale OU "🤖 Analyser/MAJ N" batch)
+  retournera preset_settings_v1. Pour basculer tous les aiCache
+  existants : "🔄 Réinitialiser mes analyses" Mon Profil → Préférences
+  IA (action user).
+
+### Bénéficiaires immédiats
+
+- **Bruno** (metal/punk, ampli + cab guitare physique probable) :
+  peut maintenant signaler `ampWithCab` → IA décide cab_enabled=false
+  + adapte les réglages (pas de double-cab). Phase 9.2 (FX blocks
+  détaillés) traitera son cas For Whom the Bell Tolls (mod/reverb
+  OFF).
+- **Francisco** (FRFR probable, demande knob settings chiffrés
+  explicite 2026-05-17) : table chiffrée + why trilingue répond
+  directement à son besoin.
+- **Paul Drew** (TSR, si réponse positive au Mail 3 envoyé 20:21) :
+  démo publique `?demo=1` affichera désormais la table Réglages
+  pédale sur les morceaux ré-analysés. Atout supplémentaire pour
+  la valeur perçue.
+
+### Dette résiduelle Phase 10 + 9.1
+
+- **Phase 9.2 — FX blocks détaillés** (Noise Gate, Compressor,
+  Modulation, Delay, Reverb avec types + sub-params) : ~4-5h dev.
+  À activer après retour user sur Phase 9.1 MVP. Adresserait
+  directement le cas Bruno For Whom the Bell Tolls.
+- **Phase 9.3 — EQ avancé + TONE MODEL fine** : ~2h dev. Optionnel,
+  power-users.
+- **Phase 9.4 — "ONE TWEAK TO FIX IT"** (section conditionnelle
+  pédagogique) : ~2h dev. Ratio impact/effort élevé selon design V2.
+- **Phase 9.5 — Pickup + playing hints** : ~1-2h dev. Bonus.
+- **settings_preset prose conservé en parallèle** : transition
+  douce. À supprimer Phase ultérieure quand tous les aiCache ont été
+  regenerer avec preset_settings_v1.
+- **Re-analyse manuelle** : Sébastien peut tester sur 1-2 morceaux
+  via SongDetailCard → bouton override outputContext (invalide
+  aiCache du morceau seul) pour valider le format de retour Gemini.
+- **Cohabitation pré-9.1 / post-9.1** : un client pré-9.1 qui pousse
+  son state sans preset_settings_v1 → un client post-9.1 fallback
+  UI sans table (la prose settings_preset reste affichée).
+
+### Validation à faire côté Sébastien
+
+1. Reload PWA Mac (Cmd+Shift+R) → vérifier `v8.14.160` dans le
+   header.
+2. Mon Profil → 🎯 Préférences IA → vérifier nouvelle section
+   "🔌 Contexte d'écoute" avec FRFR par défaut. Toggle un autre
+   context, retour FRFR.
+3. Ouvrir une fiche morceau de ta setlist → "🔌 Sortie audio pour
+   ce morceau" sous Mode IA. Tester l'override (invalide aiCache
+   → re-fetch).
+4. Après re-fetch, vérifier que la nouvelle table "🎛️ Réglages
+   pédale" apparaît sous le bloc preset reco, avec :
+   - Badge CAB ON/OFF cohérent avec le contexte
+   - 5 lignes Boutons principaux + 5 lignes Boutons ALT
+   - why trilingue en bas
+5. Tester sur l'iPhone aussi (sync Firestore propagera profile.outputContext).
+
+### Déploiement Phase 10 + 9.1
+
+À faire via workflow git worktree habituel (5 commits sur
+`refactor-and-tmp` poussés origin, copie dist/* vers main worktree,
+commit + push main).
+
+---
+
+## État précédent (2026-05-21 soir, Phase 7.85 close — Demo EN audit fixes Chop Suey)
 
 **Backline v8.14.159 / SW backline-v259 / STATE_VERSION 10 / 1408 tests verts.**
 
