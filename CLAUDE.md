@@ -1084,25 +1084,44 @@ public/sw.js                              CACHE backline-v252 → backline-v253
 ### Phase 7.79.3 — Cascade 4 niveaux COMPLÈTE
 
 Récap :
-- **Phase 7.79.3a** ✅ Helpers purs cascade + extension findCatalogEntry
-- **Phase 7.79.3b** ✅ Routing saveUsagesForPreset 4 niveaux + UI badges
-- **Phase 7.79.3c** ✅ Sync Firestore cascade complète
+- **Phase 7.79.3a** ✅ Helpers purs cascade + extension findCatalogEntry (v8.14.151)
+- **Phase 7.79.3b** ✅ Routing saveUsagesForPreset 4 niveaux + UI badges + bouton Restaurer (v8.14.152)
+- **Phase 7.79.3c** ✅ Sync Firestore cascade complète multi-device (v8.14.153)
+- **Phase 7.79.3 solidification** ✅ PresetCurationModal cascade (parité
+  UsagesSection) + 13 tests E2E intégration + `docs/CASCADE.md` (v8.14.155)
+
+**Total livré** : 41 tests dédiés cascade (28 unitaires `usages-cascade.test.js`
++ 13 intégration `usages-cascade.integration.test.js`), routing étendu
+sur 4 branches via `saveUsagesForPreset`, UI cascade en parité sur les
+2 chemins (UsagesSection drawer + PresetCurationModal pastille), sync
+multi-device LWW per-item, doc de référence avec 5 pièges à éviter.
 
 **Préparation Phase 11 Studio-driven** : `shared.studioUsages` est un slot
 prêt à recevoir des overrides de pack creators partenaires (TSR, ML,
 Galtone, etc.). La cascade le lit déjà entre user (niv 1) et backline
 (niv 3). Quand Phase 11 démarre, il suffit d'ajouter un compte studio
 + une UI dédiée pour écrire dans `studioUsages` — l'infrastructure
-cascade est déjà là.
+cascade est déjà là. Badge UI "🏷️ Studio (TSR)" déjà câblé Phase 7.79.3b
+(lit `entry._usagesCuratedBy`).
 
-### Dette résiduelle Phase 7.79.3
+### Dette résiduelle Phase 7.79.3 (résolue par solidification ou reportée)
 
-- **PresetCurationModal pas étendu** : la modale dédiée (utilisée par
-  BankEditor au click pastille curation) n'a pas reçu le routing 4
-  niveaux. À évaluer en pratique : reste-t-elle utile vs UsagesSection
-  inline qui couvre déjà le besoin ? Si jugée redondante, à supprimer.
-  Si gardée, même travail que Phase 7.79.3b sur UsagesSection.
-- **Tests E2E multi-device** : non couvert. Test manuel à faire au
+- ~~**PresetCurationModal pas étendu**~~ ✅ **RÉSOLU par solidification
+  2026-05-20** : la modale a été refactor en parité avec UsagesSection
+  (édition tous catalog, badge cascade, bouton Restaurer, handleSave
+  via saveUsagesForPreset). Cf section "Phase 7.79.3 solidification"
+  en tête de CLAUDE.md.
+- ~~**Tests E2E multi-device**~~ ✅ **RÉSOLU par solidification** : 13
+  tests d'intégration end-to-end couvrent cascade + sync LWW +
+  préparation Phase 11 + isolation profils.
+- **Tombstones `shared.usagesOverrides`** (reporté) : pas de mécanisme v1.
+  Si un device offline depuis longtemps a encore une entry localement,
+  le merge LWW peut ressusciter l'override après DELETE. Acceptable v1
+  (suppression rare). Phase ultérieure si rapporté.
+- **UI Phase 11 studios** (reporté) : `shared.studioUsages` est ready-
+  to-write mais aucune UI/account studio n'existe. Phase 11 complète
+  quand TSR/JS/TJ/etc. acceptent de participer (démarche commerciale).
+- **Test manuel multi-device** : non couvert par Vitest. À faire au
   retour Sébastien :
   1. Mac admin : Mon Profil → Mes appareils → ouvrir une fiche preset
      TSR → Modifier → ajouter un usage → Enregistrer → vérifier badge
