@@ -277,7 +277,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.155";
+const APP_VERSION = "8.14.156";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -530,17 +530,13 @@ function App() {
   },[toneNetPresets]);
 
   // Phase 7.79.3b — Sync de l'état cascade vers window._usagesCascadeState
-  // utilisé par findCatalogEntry pour résoudre la cascade 4 niveaux. Doit
-  // être mis à jour au boot ET à chaque mutation de profile.usagesOverrides /
-  // shared.usagesOverrides / shared.studioUsages.
-  useEffect(()=>{
-    if(typeof window==='undefined') return;
-    window._usagesCascadeState = {
-      profileOv: profile?.usagesOverrides || {},
-      studioOv: sharedStudioUsages || {},
-      backlineOv: sharedUsagesOverrides || {},
-    };
-  },[profile?.usagesOverrides, sharedStudioUsages, sharedUsagesOverrides]);
+  // utilisé par findCatalogEntry pour résoudre la cascade 4 niveaux.
+  // ⚠ Bug v8.14.155 → fix v8.14.156 : ce useEffect a été déplacé APRÈS
+  // la déclaration de `profile` (~ligne 580). Avant ça, le deps array
+  // `[profile?.usagesOverrides, ...]` était évalué synchroneusement au
+  // render avant que `const profile = ...` soit déclaré → ReferenceError
+  // TDZ "Cannot access 'D' before initialization" → écran noir au mount.
+  // Cf docs/CASCADE.md piège #2 (sync window state).
 
   // Sync ToneNET presets into global catalog for scoring engine (useMemo = synchronous, runs before child useMemos)
   useMemo(()=>{
@@ -578,6 +574,19 @@ function App() {
 
   // Current profile (derived)
   const profile = profiles[activeProfileId] || Object.values(profiles)[0];
+
+  // Phase 7.79.3b (fix v8.14.156) — Sync window._usagesCascadeState pour
+  // que findCatalogEntry résolve la cascade 4 niveaux. ⚠ DOIT être après
+  // la déclaration `const profile = ...` ci-dessus (deps array évalué
+  // synchroneusement au render → TDZ ReferenceError sinon).
+  useEffect(()=>{
+    if(typeof window==='undefined') return;
+    window._usagesCascadeState = {
+      profileOv: profile?.usagesOverrides || {},
+      studioOv: sharedStudioUsages || {},
+      backlineOv: sharedUsagesOverrides || {},
+    };
+  },[profile?.usagesOverrides, sharedStudioUsages, sharedUsagesOverrides]);
 
   // Phase 7.54 — Dérivation songDb avec aiCache résolu depuis le profil
   // actif. Pour chaque song, si profile.aiCache[song.id] existe → l'utiliser
