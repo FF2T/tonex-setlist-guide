@@ -931,6 +931,42 @@ src/i18n/en.js, es.js                   +10 clés Phase 7.86 (titres
 
 #### Dette résiduelle Phase 7.86
 
+- **Audit tailles de polices et couleurs (Phase 7.87 future)** :
+  audit visuel à mener sur la fiche song dépliée. État actuel hérité
+  de la structure d'avant la refonte (cascade Phase 1 → 7.85, ad-hoc).
+  Choses à challenger :
+  - **Hiérarchie typographique** : actuellement on a fontSize 9 / 10 /
+    11 / 12 / 13 mélangés sans cohérence systémique. La nouvelle
+    structure 3 blocs amplifie la perception de désordre car les
+    sous-titres "PROFIL TONAL" / "SCORING GUITARES" / etc. (10pt
+    mono-uppercase) sont similaires aux titres de blocs 📚/🎯/🎸
+    (aussi 10pt mono-uppercase), brouillant la distinction
+    macro (3 blocs) vs micro (sous-blocs).
+  - **Couleurs sémantiques** : `var(--text)` / `--text-bright` /
+    `--text-sec` / `--text-muted` / `--text-dim` / `--text-tertiary`
+    se mélangent. Difficile de distinguer un titre d'un corps. Le
+    score color (vert/jaune/rouge selon scoring) est OK mais les
+    "couleurs neutres" mériteraient une mini-charte (titre / corps /
+    secondaire / hint).
+  - **Couleurs des badges** (CAB ON/OFF green/yellow, score V9 multi-
+    couleur, Phase 7.83 niveau qualité) : 5+ palettes différentes qui
+    peuvent fatiguer l'œil ou créer de la confusion sur "qu'est-ce
+    qui est important ici ?".
+  - **Densité de l'information** : malgré la refonte 3 blocs, le
+    Bloc 2 reste très dense (scoring guitares + ideal_guitar + preset
+    + alternatives + table Réglages pédale + 2 settings prose). Peut-
+    être qu'il faut envisager des sous-toggles supplémentaires ou un
+    espacement plus aéré.
+
+  Audit à mener avec Sébastien :
+  1. Lister les vraies HIÉRARCHIES (titres bloc / sous-titres / corps
+     gras / corps / annotations).
+  2. Mapper chacune sur une combo (fontSize, fontWeight, color) figée.
+  3. Refactorer SongDetailCard pour utiliser ces tokens partagés.
+  4. Idéalement étendre à HomeScreen + ListScreen vue dépliée pour
+     cohérence cross-écran.
+
+  Effort estimé : ~3-4h audit + ~3-4h refacto.
 - **Table Réglages pédale dans Bloc 2 vs Bloc 3** : design original
   prévoyait Bloc 3 (Mon setup, car dépend du contexte d'écoute). Pour
   cette nuit, restée dans Bloc 2 (Recommandations IA, car c'est de
