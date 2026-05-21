@@ -10954,6 +10954,113 @@ profile {
 
 ## Idées en attente (proposées, pas encore validées)
 
+### Phase 7.74.6 (proposée 2026-05-21) — Pollution profile 5e occurrence étendue à `banksAnn` + investigation cause racine
+
+**Bug observé 2026-05-20 fin d'après-midi par Sébastien** (5e occurrence
+du pattern documenté Phase 7.74.x, mais cette fois sur `banksAnn` au lieu
+de `myGuitars`) :
+
+- Symptôme côté Sébastien (profil admin) :
+  - Slot **23C** Anniversary passe à vide
+  - Slot **18C** "Supergroupbass" remplacé par un autre preset
+- Reconstruction : tentative de récupération via réimport CSV (réussie)
+
+**Déclencheur confirmé** : session Claude Cowork (Sébastien 2026-05-20)
+avec tests fonctionnels intensifs incluant **mode démo + multi-switchs
+profil**. Les manipulations Cowork ont probablement enchaîné :
+1. `enterDemoMode` (charge profil démo + curateur via Phase 7.52.16)
+2. Sortie du mode démo
+3. Switch sur profil curateur `demo_1778839429588` (admin can switch
+   sans password Phase 7.63)
+4. Modifications de `banksAnn` du curateur
+5. Re-switch sur Sébastien admin
+6. Pendant la chaîne push/pull/merge LWW, le bug pollution profile
+   racine (jamais identifié précisément) se manifeste → `banksAnn`
+   Sébastien adopté depuis le profil curateur via merge LWW per-field
+   défaillant → 23C vide + 18C remplacé (les valeurs du curateur)
+
+**Historique pollution profile** :
+- 1ère→4e occurrence (Phase 7.74.x, mai 2026) : `myGuitars` swap
+  entre profils (Sébastien ↔ Francisco/Bruno)
+- Phase 7.74.4 (v8.14.145) : Couche 4 défense "swap suspect
+  cg_*→standard" mais **limitée à `myGuitars`**
+- 5e occurrence (2026-05-20) : **étendue à `banksAnn`** (slot vide
+  + slot remplacé = signature swap)
+
+**Hypothèses cause racine non-investiguées** :
+- Race condition entre `mergeProfileLWW` per-field et stamp
+  `profile.lastModified` au switch profil
+- Stamping incorrect lors du switch admin-as (Phase 7.63) — l'admin
+  modifie le profil curateur, le stamp s'applique-t-il bien ? Ou y a
+  t-il un stamp parasite sur le profil Sébastien d'origine ?
+- Edge case `enterDemoMode` Phase 7.52.14 force override par id qui
+  pourrait pousser un état in-memory incohérent au prochain push
+
+**Plan Phase 7.74.6** :
+
+1. **Étendre Couche 4 défense à `banksAnn` / `banksPlug`** dans
+   `mergeProfileLWW` (`core/state.js`) : si le remote drop ≥N slots
+   non-vides ET add d'autres slots, keep local par défaut (anti-swap
+   suspect). Logique similaire à la défense `cg_*→standard` mais
+   adaptée aux banks (slots A/B/C par bank).
+2. **Investiguer cause racine** : ajouter logs forensique temporaire
+   (`window.__BACKLINE_MERGE_DEBUG = true` déjà existant Phase 7.74,
+   à activer en permanence côté admin Sébastien pendant 1-2 semaines).
+   Capturer les conditions exactes au prochain swap.
+3. **Documenter procédure Cowork** :
+   - Recommander `?beta=1` (mode no-sync Phase 7.25) pour les sessions
+     de test intensif Cowork — zéro push/pull Firestore → aucune
+     pollution possible
+   - OU demander à Cowork de ne pas switcher de profil + de ne pas
+     sortir du mode démo pendant les tests
+
+**Effort estimé** : 2-3h dev Phase 7.74.6 (Couche 4 banks + tests
+Vitest) + 1-2 semaines surveillance forensique avant Phase 7.74.7
+ciblée sur la cause racine si confirmée.
+
+**Priorité** : moyenne. Sébastien a un CSV de secours, pas
+critique immédiat. À activer si :
+- 6e occurrence observée (signal de récidive)
+- Bruno / Francisco / autre beta-tester remontent une pollution
+  similaire
+- Au prochain démarrage de Phase 11 Studios (où les studios pousseront
+  beaucoup de données → augmente la surface de race conditions)
+
+### Dette UX — Dates JJMMAA dans noms de fichiers export
+
+**Demande Sébastien 2026-05-21** : les exports CSV / JSON utilisent
+actuellement le format ISO `YYYY-MM-DD` dans les noms de fichiers
+(ex: `backline_2026-05-21.json`). Sébastien préfère le format français
+court **JJMMAA** (ex: `210526` pour 21 mai 2026), plus pratique pour
+classement chronologique côté Mac.
+
+**Sites concernés** :
+- `src/app/utils/csv-helpers.js` ligne 12 : `exportJSON` →
+  `backline_${new Date().toISOString().slice(0, 10)}.json`
+- À auditer : autres exports CSV (snapshots manuels Phase 7.59-A,
+  Maintenance JSON export, etc.) qui utilisent `new Date()` dans le
+  filename
+
+**Implémentation** :
+```js
+function formatDateJJMMAA(d = new Date()) {
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const aa = String(d.getFullYear()).slice(2);
+  return `${dd}${mm}${aa}`;
+}
+```
+
+Helper à exposer depuis `core/branding.js` ou nouveau `core/date-utils.js`.
+Remplacer tous les `new Date().toISOString().slice(0, 10)` dans les
+filenames d'export par cet helper.
+
+**Effort estimé** : ~30 min (helper + grep/replace des call sites +
+tests Vitest).
+
+**Priorité** : faible. UX confort, pas bloquant. À grignoter
+opportunistment lors d'une prochaine session courte.
+
 ### Phase 7.82 — ✅ LIVRÉE 2026-05-20 (cf section "État actuel" en haut)
 
 Audit Chrome MCP démo en EN livré 2026-05-19, 6 problèmes identifiés.
