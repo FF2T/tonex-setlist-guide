@@ -20,6 +20,7 @@ import {
   STYLE_COMPATIBILITY, computeStyleMatchScore,
 } from './style.js';
 import { computeRefAmpScore } from './amp.js';
+import { PRESET_RANGES, SUPPORTED_LOCALES as PRESET_LOCALES, clampPresetSettings } from './preset-settings.js';
 
 // Pondérations des 5 dimensions
 const SCORING_VERSION=9; // v9: inferGuitarProfile for custom guitars
@@ -100,4 +101,6 @@ export {
   GAIN_RANGES, getGainRange, gainToNumeric, inferGainFromName,
   STYLE_COMPATIBILITY, computeStyleMatchScore,
   computeRefAmpScore,
+  // Phase 9.1 — preset settings (réglages PRESET chiffrés retournés par l'IA)
+  PRESET_RANGES, PRESET_LOCALES, clampPresetSettings,
 };
