@@ -103,7 +103,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
     const historicalFeedback = Array.isArray(song.feedback) && song.feedback.length > 0
       ? song.feedback.map((f) => f.text).filter(Boolean).join('. ')
       : null;
-    fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, allRigsGuitars || guitars, historicalFeedback, null, effectiveRecoMode, guitarBias)
+    fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, allRigsGuitars || guitars, historicalFeedback, null, effectiveRecoMode, guitarBias, song.outputContext || profile?.outputContext || 'frfr')
       .then((r) => {
         setLocalAiResult(r);
         setLocalAiErr(null);
@@ -373,6 +373,70 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                         </div>
                       );
                     })}
+                  </div>
+                );
+              })()}
+              {/* Phase 9.1 — Sous-section "Réglages pédale" : table chiffrée
+                  des 5 main knobs + 5 alt knobs + cab on/off + why
+                  trilingue. Fallback gracieux si aiCache pré-9.1 (pas de
+                  preset_settings_v1) → la section ne s'affiche pas. */}
+              {aiC.preset_settings_v1 && (() => {
+                const ps = aiC.preset_settings_v1;
+                const main = ps.main || {};
+                const alt = ps.alt || {};
+                const fmtNum = (v, decimals = 1) => typeof v === 'number' ? v.toFixed(decimals).replace(/\.0$/, '') : '—';
+                const fmtUnit = (v, unit) => typeof v === 'number' ? `${v.toFixed(unit === '%' ? 0 : 1).replace(/\.0$/, '')}${unit}` : '—';
+                const rowStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 10, padding: '2px 0' };
+                const labelStyle = { color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' };
+                const valueStyle = { color: 'var(--text-bright)', fontFamily: 'var(--font-mono)', fontWeight: 700 };
+                return (
+                  <div style={{ marginTop: 6, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text)' }}>{t('preset-settings.title', '🎛️ Réglages pédale')} <span style={{ fontWeight: 400, fontSize: 9, color: 'var(--text-dim)' }}>{t('preset-settings.subtitle', '(suggérés par l\'IA)')}</span></div>
+                      {typeof ps.cab_enabled === 'boolean' && (
+                        <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 'var(--r-sm)', background: ps.cab_enabled ? 'var(--green-bg)' : 'var(--yellow-bg)', color: ps.cab_enabled ? 'var(--green)' : 'var(--yellow)', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                          {ps.cab_enabled ? t('preset-settings.cab-on', 'CAB ON') : t('preset-settings.cab-off', 'CAB OFF')}
+                        </span>
+                      )}
+                    </div>
+                    {Object.keys(main).length > 0 && (
+                      <>
+                        <div style={{ fontSize: 9, color: 'var(--text-dim)', fontStyle: 'italic', marginTop: 4, marginBottom: 2 }}>{t('preset-settings.section-main', 'Boutons principaux')}</div>
+                        {[
+                          ['gain', 'Gain', '/10'],
+                          ['bass', 'Bass', '/10'],
+                          ['mid', 'Mid', '/10'],
+                          ['treble', 'Treble', '/10'],
+                          ['volume', 'Volume', '/10'],
+                        ].map(([key, label, suffix]) => main[key] !== undefined && (
+                          <div key={key} style={rowStyle}>
+                            <span style={labelStyle}>{label}</span>
+                            <span style={valueStyle}>{fmtNum(main[key])}{suffix}</span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                    {Object.keys(alt).length > 0 && (
+                      <>
+                        <div style={{ fontSize: 9, color: 'var(--text-dim)', fontStyle: 'italic', marginTop: 5, marginBottom: 2 }}>{t('preset-settings.section-alt', 'Boutons ALT (mode avancé)')}</div>
+                        {[
+                          ['presence', 'Presence', '/10', ''],
+                          ['depth', 'Depth', '/10', ''],
+                          ['reverb_mix', 'Reverb mix', '', '%'],
+                          ['comp_threshold', 'Comp threshold', '', 'dB'],
+                          ['gate_threshold', 'Gate threshold', '', 'dB'],
+                        ].map(([key, label, suffix, unit]) => alt[key] !== undefined && (
+                          <div key={key} style={rowStyle}>
+                            <span style={labelStyle}>{label}</span>
+                            <span style={valueStyle}>{unit ? fmtUnit(alt[key], unit) : `${fmtNum(alt[key])}${suffix}`}</span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                    {ps.why && (() => {
+                      const whyTxt = getLocalizedText(ps.why, locale);
+                      return whyTxt ? <div style={{ marginTop: 6, fontSize: 10, color: 'var(--text-sec)', fontStyle: 'italic', lineHeight: 1.4 }}>{whyTxt}</div> : null;
+                    })()}
                   </div>
                 );
               })()}
@@ -673,7 +737,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   setShowFeedback(false); setReloading(true);
                   const prev = aiC;
                   const effectiveRecoMode = song.recoMode || profile?.recoMode || 'balanced';
-                  fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, allRigsGuitars || guitars, fb || null, null, effectiveRecoMode, guitarBias)
+                  fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, allRigsGuitars || guitars, fb || null, null, effectiveRecoMode, guitarBias, song.outputContext || profile?.outputContext || 'frfr')
                     .then((r) => {
                       const pick = mergeBestResults(prev, r);
                       setLocalAiResult(pick);

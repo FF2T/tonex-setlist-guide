@@ -393,7 +393,7 @@ function HomeScreen({
     if (isDemo) return; // Phase 7.51.2 — pas de fetchAI en mode démo
     setSongLoading(true);
     const song = { id: `tmp_${Date.now()}`, title: canonTitle, artist: canonArtist };
-    fetchAI(song, '', banksAnn, banksPlug, aiProvider, aiKeys, allGuitars, null, null, profile?.recoMode || 'balanced', guitarBias)
+    fetchAI(song, '', banksAnn, banksPlug, aiProvider, aiKeys, allGuitars, null, null, profile?.recoMode || 'balanced', guitarBias, profile?.outputContext || 'frfr')
       .then((r) => {
         setSongResult(r); setSongBaseAI(r);
         if (r.ideal_guitar) {
@@ -438,7 +438,7 @@ function HomeScreen({
     const prev = songResult;
     const gId = selectedGuitar?.id || '';
     const song = { id: `tmp_${Date.now()}`, title: confirmedSong.title, artist: confirmedSong.artist };
-    fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, allGuitars, feedback.trim(), null, profile?.recoMode || 'balanced', guitarBias)
+    fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, allGuitars, feedback.trim(), null, profile?.recoMode || 'balanced', guitarBias, profile?.outputContext || 'frfr')
       .then((r) => {
         const pick = mergeBestResults(prev, r);
         setSongResult(pick); setSongBaseAI(pick); setFeedback('');

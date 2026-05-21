@@ -892,6 +892,14 @@ const en = {
   'song-detail.output-context-tooltip-override': 'Override: {label}',
   'song-detail.output-context-hint': 'Changing context invalidates the cache → re-analysis with cab_enabled / settings adapted to listening gear.',
 
+  // Phase 9.1 — Preset settings table (réglages pédale chiffrés).
+  'preset-settings.title': '🎛️ Pedal settings',
+  'preset-settings.subtitle': '(AI suggested)',
+  'preset-settings.cab-on': 'CAB ON',
+  'preset-settings.cab-off': 'CAB OFF',
+  'preset-settings.section-main': 'Main knobs',
+  'preset-settings.section-alt': 'ALT knobs (advanced)',
+
   'list.edit-songs': '✏️ Edit setlist',
   'list.edit-done': '✅ Done',
   'list.edit-setlist-title': 'Edit mode: remove songs from the setlist (does not touch the global library)',

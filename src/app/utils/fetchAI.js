@@ -84,7 +84,7 @@ function buildInstalledSlotsSection(banksAnn, banksPlug) {
   return lines.join('\n');
 }
 
-function fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, feedback, availableSources, recoMode, guitarBias) {
+function fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, feedback, availableSources, recoMode, guitarBias, outputContext) {
   guitars = guitars || GUITARS;
   const g = guitars.find((x) => x.id === gId);
   const gType = g?.type || 'HB';
@@ -122,6 +122,22 @@ function fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, fe
   // au lieu de proposer un nom catalog generic ("Marshall JCM800") qui
   // résoudrait sur le mauvais slot.
   const installedSlotsLine = buildInstalledSlotsSection(banksAnn, banksPlug);
+  // Phase 10 — Contexte d'écoute injecté au prompt. Dicte cab_enabled
+  // dans preset_settings_v1 (Phase 9.1) + oriente les recos selon le
+  // matériel réel du user.
+  const outputContextLine = (() => {
+    if (!outputContext) return '';
+    const map = {
+      headphone:  'casque (CASQUE) — CAB ACTIVATED dans le PRESET',
+      frfr:       'enceinte FRFR neutre (Headrush / Friedman ASM / Powercab+ / ToneX Cab) — CAB ACTIVATED dans le PRESET',
+      pa:         'système de sonorisation ou table de mixage via DI — CAB ACTIVATED dans le PRESET',
+      ampWithCab: 'ampli de puissance + baffle guitare PHYSIQUE (Marshall, Mesa, etc.) — CAB BYPASSED dans le PRESET pour éviter le double filtrage cab',
+      ampNoCab:   'ampli combo avec simulation cab interne désactivable, OU préampli pur — CAB ACTIVATED dans le PRESET',
+    };
+    const desc = map[outputContext] || '';
+    if (!desc) return '';
+    return `\nCONTEXTE D'ÉCOUTE : l'utilisateur joue sur ${desc}. Adapte tes recos en conséquence — notamment cab_enabled dans preset_settings_v1 (étape 7) et les conseils settings_preset (consistance des graves/aigus selon le matériel).`;
+  })();
   const gProfiles = guitars.map((x) => {
     const p = findGuitarProfile(x.id);
     return `- ${x.name} (${x.type}) : ${p ? p.desc : 'profil inconnu'}`;
@@ -132,7 +148,7 @@ Guitare sélectionnée : ${g ? g.name + ' (' + g.type + ')' : 'non précisée'}.
 
 COLLECTION DE GUITARES DISPONIBLES :
 ${gProfiles}
-${feedbackLine}${modeLine}${biasLine}${tmpCatalogLine}${installedSlotsLine}
+${feedbackLine}${modeLine}${biasLine}${tmpCatalogLine}${installedSlotsLine}${outputContextLine}
 INSTRUCTIONS : Tu dois suivre un raisonnement structuré AVANT de donner ta recommandation. Ce raisonnement DOIT apparaître dans le JSON de sortie.
 
 ÉTAPE 1 – PROFIL TONAL DU MORCEAU
@@ -175,6 +191,37 @@ Si une capture des listes "CAPTURES INSTALLÉES" ci-dessus matche le morceau, re
 
 Si AUCUNE des 3 étapes ne donne de match, retourne null pour preset_ann_name et preset_plug_name — le scoring fallback choisira.
 
+ÉTAPE 7 – PARAMÉTRAGE DU PRESET (preset_settings_v1) — IMPORTANT
+La capture (TONE MODEL) est une boîte noire immuable fournie par son créateur. Ce qui est ajustable autour, dans le PRESET TONEX : les EQ post-capture (BASS/MID/TREBLE/PRESENCE/DEPTH), le volume preset, le seuil du compresseur, le seuil du noise gate, le mix de reverb, et l'activation du bloc CAB. Tous identiques sur ToneX Pedal classique, Anniversary, Plug, One, One+.
+
+Retourne un objet preset_settings_v1 avec les valeurs OPTIMALES pour reproduire le son du morceau sur la guitare et le contexte d'écoute du user. Respecte STRICTEMENT les ranges ci-dessous (toute valeur hors-bornes sera clampée et émettra un warning) :
+
+{
+  "cab_enabled": true OU false,             // dicté par CONTEXTE D'ÉCOUTE (ampWithCab → false, sinon true)
+  "main": {
+    "gain":   0 à 10,                       // gain d'entrée du TONE MODEL
+    "bass":   0 à 10,                       // EQ shelf basses
+    "mid":    0 à 10,                       // EQ bell mediums
+    "treble": 0 à 10,                       // EQ shelf aigus
+    "volume": 0 à 10                        // volume du preset
+  },
+  "alt": {
+    "presence":       0 à 10,               // hautes fréquences
+    "depth":          0 à 10,               // basses fréquences (profondeur)
+    "reverb_mix":     0 à 100,              // % mix reverb (0 = sec, 100 = wash)
+    "comp_threshold": -40 à 0,              // dB (0 = off-ish, -20 = compression sensible)
+    "gate_threshold": -100 à 0              // dB (-100 = quasi-off, -50 = gate sévère metal)
+  },
+  "why": {"fr":"...","en":"...","es":"..."} // 1-2 phrases TRILINGUE expliquant les choix
+}
+
+Règles :
+- cab_enabled : OBLIGATOIREMENT cohérent avec le CONTEXTE D'ÉCOUTE ci-dessus
+- Valeurs nominales par défaut : main 5/5/5/5/5, alt 5/5/15/-20/-60 si pas de contrainte spécifique
+- Adapte aux contraintes du morceau : thrash → gate sévère (-50 dB) + reverb_mix bas (<15%) + mid haut ; blues → comp doux + reverb modérée (20-35%) ; clean → volume preset 6-7 + comp doux + mid 5-6
+- Le "why" résume EN UNE OU DEUX PHRASES TRILINGUE les choix faits (ex : "Thrash dry — gate sévère pour les palm mutes, mid scoopé léger, reverb minimale"). Pas une explication par paramètre.
+- Si tu ne peux pas justifier une valeur (incertitude), retourne le default (5/5/5/5/5 + 5/5/15/-20/-60).
+
 CONSIGNE DE PHRASING POUR settings_preset ET settings_guitar
 Le champ "settings_preset" regroupe des conseils de **personnalisation du preset** pour la guitare et le contexte d'écoute de l'utilisateur — PAS des corrections du preset lui-même. Le preset est considéré comme calibré correctement par son créateur (TSR, ML Sound Lab, Galtone, Amalgam, ToneNET community, IK Multimedia factory, etc.).
 
@@ -202,12 +249,13 @@ OUTPUT TRILINGUE — Format des champs texte :
 Les champs marqués "TEXTE TRILINGUE" ci-dessous DOIVENT être un objet à 3 clés {"fr":"...","en":"...","es":"..."} avec la même information traduite dans chaque langue. Garde le sens et le niveau de détail constant entre les 3 versions. Les NOMS PROPRES (noms d'artistes, modèles d'amplis "Marshall JCM800", noms de guitares "Stratocaster '62", titres de morceaux) restent identiques dans les 3 langues. Les autres champs (noms, scores numériques, énums) restent des valeurs scalaires.
 
 Réponds en JSON pur (sans backticks ni markdown) :
-{"cot_step1":{"fr":"3-5 phrases analysant le profil tonal","en":"3-5 sentences analyzing the tonal profile","es":"3-5 frases analizando el perfil tonal"},"cot_step2_guitars":[{"name":"nom exact guitare","score":85,"reason":{"fr":"justification","en":"justification","es":"justificación"}},{"name":"2e guitare","score":75,"reason":{"fr":"...","en":"...","es":"..."}}],"cot_step3_amp":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"cot_step4_score":{"guitar_score":85,"micro":{"score":90,"reason":{"fr":"...","en":"...","es":"..."}},"body":{"score":80,"reason":{"fr":"...","en":"...","es":"..."}},"history":{"score":95,"reason":{"fr":"...","en":"...","es":"..."}},"amp_match":{"score":85,"reason":{"fr":"...","en":"...","es":"..."}}},"song_year":1970,"song_album":"album","song_desc":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"song_key":"Em","song_bpm":120,"song_style":"blues/rock/hard_rock/jazz/metal/pop","target_gain":5,"tonal_school":"fender_clean/marshall_crunch/vox_chime/dumble_smooth/mesa_heavy/hiwatt_clean","pickup_preference":"HB/SC/P90/any","ideal_guitar":"nom complet guitare idéale","guitar_reason":{"fr":"...","en":"...","es":"..."},"settings_preset":{"fr":"conseils","en":"settings","es":"ajustes"},"settings_guitar":{"fr":"conseils de jeu","en":"playing tips","es":"consejos de juego"},"ref_guitarist":"guitariste","ref_guitar":"modèle guitare","ref_amp":"modèle ampli","ref_effects":"effets ou 'Aucun effet'","preset_tmp":"nom exact patch TMP OU null","preset_ann_name":"nom EXACT capture OU null","preset_plug_name":"nom EXACT capture OU null"}
+{"cot_step1":{"fr":"3-5 phrases analysant le profil tonal","en":"3-5 sentences analyzing the tonal profile","es":"3-5 frases analizando el perfil tonal"},"cot_step2_guitars":[{"name":"nom exact guitare","score":85,"reason":{"fr":"justification","en":"justification","es":"justificación"}},{"name":"2e guitare","score":75,"reason":{"fr":"...","en":"...","es":"..."}}],"cot_step3_amp":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"cot_step4_score":{"guitar_score":85,"micro":{"score":90,"reason":{"fr":"...","en":"...","es":"..."}},"body":{"score":80,"reason":{"fr":"...","en":"...","es":"..."}},"history":{"score":95,"reason":{"fr":"...","en":"...","es":"..."}},"amp_match":{"score":85,"reason":{"fr":"...","en":"...","es":"..."}}},"song_year":1970,"song_album":"album","song_desc":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"song_key":"Em","song_bpm":120,"song_style":"blues/rock/hard_rock/jazz/metal/pop","target_gain":5,"tonal_school":"fender_clean/marshall_crunch/vox_chime/dumble_smooth/mesa_heavy/hiwatt_clean","pickup_preference":"HB/SC/P90/any","ideal_guitar":"nom complet guitare idéale","guitar_reason":{"fr":"...","en":"...","es":"..."},"settings_preset":{"fr":"conseils","en":"settings","es":"ajustes"},"settings_guitar":{"fr":"conseils de jeu","en":"playing tips","es":"consejos de juego"},"ref_guitarist":"guitariste","ref_guitar":"modèle guitare","ref_amp":"modèle ampli","ref_effects":"effets ou 'Aucun effet'","preset_tmp":"nom exact patch TMP OU null","preset_ann_name":"nom EXACT capture OU null","preset_plug_name":"nom EXACT capture OU null","preset_settings_v1":{"cab_enabled":true,"main":{"gain":6.2,"bass":4.5,"mid":7.0,"treble":5.3,"volume":6.0},"alt":{"presence":4.7,"depth":5.0,"reverb_mix":16,"comp_threshold":-18,"gate_threshold":-56},"why":{"fr":"...","en":"...","es":"..."}}}
 
 Champs TEXTE TRILINGUE (à fournir en {fr, en, es}) :
 - cot_step1, cot_step3_amp, song_desc, guitar_reason, settings_preset, settings_guitar
 - cot_step2_guitars[].reason
 - cot_step4_score.{micro,body,history,amp_match}.reason
+- preset_settings_v1.why
 
 Champs SCALAIRES (valeur unique, pas d'objet) :
 - song_year (number), song_album (string nom album), song_key (string notation), song_bpm (number)
@@ -217,6 +265,7 @@ Champs SCALAIRES (valeur unique, pas d'objet) :
 - preset_tmp, preset_ann_name, preset_plug_name : noms exacts depuis listes fournies
 - cot_step2_guitars[].name (string), .score (number)
 - cot_step4_score.guitar_score (number), .{micro,body,history,amp_match}.score (number)
+- preset_settings_v1.cab_enabled (boolean), .main.* (number 0-10), .alt.{presence,depth} (number 0-10), .alt.reverb_mix (number 0-100), .alt.comp_threshold (number -40 à 0), .alt.gate_threshold (number -100 à 0)
 
 Contraintes :
 - cot_step2_guitars : guitares UNIQUEMENT dans la collection listée

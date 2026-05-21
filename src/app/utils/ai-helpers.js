@@ -30,6 +30,7 @@ import {
   computeStyleMatchScore, computeRefAmpScore,
   getGainRange, gainToNumeric,
   getGuitarFamily,
+  clampPresetSettings,
 } from '../../core/scoring/index.js';
 
 // Amp aliases : maps des ref_amp libres vers les noms canoniques du
@@ -570,6 +571,18 @@ function enrichAIResult(aiResult, gType, gId, banksAnn, banksPlug, availableSour
       }
     }
     aiResult._familyBoosted = true;
+  }
+
+  // Phase 9.1 — Validation du champ preset_settings_v1 retourné par l'IA.
+  // Clamp les valeurs hors-bornes (Gemini hallucine parfois gain=12 sur
+  // range 0-10, etc.) et warn en console. Le helper preserve les champs
+  // partiels et retourne null si tout est invalide. Idempotent : si déjà
+  // validé (présent comme objet) on ne re-clamp pas. Le champ reste tel
+  // quel si absent (aiCache pré-9.1 → fallback UI gracieux).
+  if (aiResult.preset_settings_v1 !== undefined && !aiResult._presetSettingsValidated) {
+    const clean = clampPresetSettings(aiResult.preset_settings_v1);
+    aiResult.preset_settings_v1 = clean; // null si invalide, sinon objet validé
+    aiResult._presetSettingsValidated = true;
   }
 
   return aiResult;
