@@ -949,8 +949,15 @@ src/data/demo-profile.json              Chop Suey c_1779040659179 :
   `guitarChoiceFeedback`. Chaque guitare (11 du catalog + customs) a
   son `desc` en FR. À i18n-iser si signal user — rare en pratique
   (le fallback se déclenche uniquement quand aucun pros/cons).
-- **Déploiement prod** : à pousser via le workflow git worktree
-  habituel (cf section "Workflow de déploiement" CLAUDE.md).
+
+### Déploiement Phase 7.85 confirmé (2026-05-21 soir)
+
+- `refactor-and-tmp` : 5 commits poussés (`bf287d8..aa50fef`).
+- `main` : commit `7e0b7ad` poussé. GitHub Pages auto-deploy 30-60s.
+- **v8.14.159 / SW backline-v259** live sur `mybackline.app`.
+- Mail 3 à Paul Drew (TSR) débloqué côté technique — la fiche démo
+  EN Chop Suey citée dans le draft est désormais cohérente bout en
+  bout (prose SG, badge Bank, label TSR propre, scoring EN).
 
 ---
 
