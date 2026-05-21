@@ -761,7 +761,213 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-21 fin de nuit, Phase 10 v3 — cab_enabled toujours true)
+## État actuel (2026-05-21 fin de nuit++, Phase 7.86 — Refonte SongDetailCard 3 blocs + why per-knob)
+
+**Backline v8.14.163 / SW backline-v263 / STATE_VERSION 10 / 1463 tests verts.**
+
+### Phase 7.86 — Refonte fiche song 3 blocs + sticky bandeau + why per-knob (v8.14.163)
+
+Retour user 2026-05-21 nuit : la fiche dépliée actuelle est dense et
+mélange recommandations IA théoriques avec custom utilisateur. Refonte
+en 3 blocs distincts + sticky bandeau en tête + explication par
+paramètre de la table Réglages pédale.
+
+#### Structure UI nouvelle
+
+```
+┌─ Sticky bandeau (top) ──────────────────────────────────┐
+│ 🎸 [GuitarSelect]  🔌 [Sortie audio : profil ↻/📢/🎧/🎚️]  💬 │
+└─────────────────────────────────────────────────────────┘
+
+┌─ Bloc 1 — 📚 Infos morceau ─────────────────────────────┐
+│ • Titre, BPM, key, desc, history (factuel)              │
+│ • Profil tonal IA (cot_step1)                           │
+│ • Profil ampli idéal IA (cot_step3_amp)                 │
+└─────────────────────────────────────────────────────────┘
+
+┌─ Bloc 2 — 🎯 Recommandations IA ────────────────────────┐
+│ • Scoring guitares (cot_step2_guitars filtered rig)     │
+│ • Guitare idéale ★ + guitar_reason                      │
+│ • Preset/capture idéal + alternatives catalogue         │
+│ • 🎛️ Table Réglages pédale (Phase 9.1 + value+why)      │
+│   - Why global trilingue                                │
+│   - ▸ Pourquoi ces valeurs ? (toggle replié) — Phase 7.86│
+│ • settings_preset + settings_guitar prose               │
+└─────────────────────────────────────────────────────────┘
+
+┌─ Bloc 3 — 🎸 Mon setup ─────────────────────────────────┐
+│ Sur ta {guitare} : (rappel défense scroll long)         │
+│ • Compatibilité % + raisons + pickup/tone/volume        │
+│ • ▸ Mode reco avancé (toggle replié — Phase 7.3)        │
+│ • Mes presets installés (per device)                    │
+│ • Suggestion amélioration si score < 90%                │
+└─────────────────────────────────────────────────────────┘
+```
+
+#### Changements détaillés
+
+**Sticky bandeau** (nouveau, en tête de fiche, `position: sticky top: 0`) :
+- GuitarSelect (déplacé de section 4)
+- Override outputContext compact 4 boutons (déplacé de section 4)
+- Bouton 💬 feedback toggle (raccourci vers section feedback IA en bas)
+- Reste visible quand on scroll dans la fiche
+
+**Bloc 1 = ancien SECTION 1 enrichi** :
+- Titre renommé "📖 Infos morceau" → "📚 Infos morceau"
+- Ajout `cot_step1` (profil tonal IA) et `cot_step3_amp` (profil ampli IA)
+  en sous-blocs en bas, déplacés depuis l'ancien SECTION 2 (Raisonnement
+  IA pliable)
+
+**SECTION 2 (Raisonnement IA pliable) supprimée** :
+- Son contenu cot_step1/cot_step3 → Bloc 1 (ci-dessus)
+- Son contenu cot_step2_guitars → tête de Bloc 2
+- Le toggle `showCot` state retiré (plus utilisé)
+
+**Bloc 2 = ancien SECTION 3 enrichi** :
+- Titre renommé "Recommandation idéale" → "🎯 Recommandations IA"
+- Ajout `cot_step2_guitars` (scoring) en tête (déplacé de SECTION 2)
+- Le reste inchangé (ideal_guitar, preset, alternatives, settings, table
+  Réglages pédale)
+
+**Bloc 3 = ancien SECTION 4 nettoyé** :
+- Titre renommé "Paramétrage — mon choix" → "🎸 Mon setup"
+- **Retiré** : GuitarSelect (dans sticky), outputContext override (dans
+  sticky), bloc Mode IA boutons direct
+- **Ajouté** : rappel "Sur ta {guitar} :" en tête (utile si sticky scrollé
+  hors vue sur fiche longue)
+- Mode IA Phase 7.3 désormais replié sous toggle "▸ Mode reco avancé"
+  (préserve la fonctionnalité pour power-users, désencombre pour
+  débutants)
+- Le reste inchangé (compat, réglages local, best installed, suggestion
+  amélioration)
+
+#### Schéma preset_settings_v1 étendu
+
+Évolution du format Phase 9.1 (knob = number) vers Phase 7.86
+(knob = `{value, why}`) :
+
+```json
+"preset_settings_v1": {
+  "cab_enabled": true,
+  "main": {
+    "gain":   { "value": 6.2, "why": { "fr":"...", "en":"...", "es":"..." } },
+    "bass":   { "value": 4.5, "why": { ... } },
+    ... (5 main knobs)
+  },
+  "alt": {
+    "presence":       { "value": 4.7, "why": { ... } },
+    ... (5 alt knobs)
+  },
+  "why": { "fr":"résumé global","en":"...","es":"..." }
+}
+```
+
+**Rétro-compat** : `clampPresetSettings` tolère l'ancien format
+(knob = number) et coerce vers `{value: number}`. Les aiCache Phase
+9.1-10 continuent à fonctionner — leur `why` per-knob sera vide, donc
+le toggle "▸ Pourquoi ces valeurs ?" ne s'affiche pas (rien à révéler).
+
+**Toggle UI** "▸ Pourquoi ces valeurs ?" (replié par défaut) : si au
+moins un knob a un why, le bouton apparaît. Click → révèle 1 ligne
+italique sous chaque knob avec son why localisé (fr/en/es).
+
+**Prompt fetchAI étendu** : ÉTAPE 7 réécrite pour demander le nouveau
+format. why per-knob = phrase courte 10-15 mots TRILINGUE. why global
+= résumé 1-2 phrases (conservé en complément).
+
+#### Architecture livrée Phase 7.86
+
+```
+src/main.jsx                            APP_VERSION 8.14.162 → 8.14.163
+public/sw.js                            CACHE backline-v262 → backline-v263
+src/core/scoring/preset-settings.js     +clampKnob helper (rétro-compat
+                                        knob=number ou {value,why})
+                                        clampGroup délègue à clampKnob
+                                        commentaire Phase 7.86
+src/core/scoring/preset-settings.test.js +8 tests Phase 7.86 :
+                                        nouveau format préservé,
+                                        ancien coerce, why per-knob
+                                        valide / invalide / partial,
+                                        hors-bornes nouveau format,
+                                        scénario Chop Suey complet
+src/app/utils/fetchAI.js                ÉTAPE 7 prompt : demande nouveau
+                                        format {value, why} par knob.
+                                        JSON template étendu. Liste
+                                        champs trilingues étendue.
+src/app/screens/SongDetailCard.jsx      Refonte UI 3 blocs :
+                                        - Sticky bandeau (GuitarSelect
+                                          + outputContext + feedback)
+                                        - Bloc 1 enrichi (cot_step1 +
+                                          cot_step3_amp inline)
+                                        - SECTION 2 wrapper supprimé
+                                          (showCot state retiré)
+                                        - Bloc 2 avec scoring guitares
+                                          en tête
+                                        - Bloc 3 nettoyé + rappel guitare
+                                          + Mode IA replié + table
+                                          Réglages pédale avec toggle
+                                          "▸ Pourquoi ces valeurs ?"
+                                        +useState showAdvancedMode +
+                                        showWhyPerKnob
+src/i18n/en.js, es.js                   +10 clés Phase 7.86 (titres
+                                        blocs, toggles repli, rappel
+                                        guitare, sticky feedback tooltip)
+```
+
+#### Conséquences Phase 7.86
+
+- **1463/1463 tests verts** (+8 nouveaux Phase 7.86).
+- Bundle 2551 → 2554 KB (+3 KB : sticky bandeau + toggles + i18n).
+- **Pas de bump STATE_VERSION** (additif UI + schéma additif rétro-compat).
+- **Migration douce aiCache Phase 9.1-10 → Phase 7.86** : `clampKnob`
+  tolère knob=number, coerce vers `{value}`. Pas de why per-knob jusqu'à
+  re-fetch. Le toggle "▸ Pourquoi ces valeurs ?" reste caché si aucun
+  why présent.
+- **Effet immédiat** : prochaine analyse IA d'un morceau (mount fiche
+  + rigStale OU batch "🤖 Analyser/MAJ N") retourne le nouveau format.
+  Sur les fiches existantes pré-7.86, ouvrir la fiche → voir la
+  nouvelle structure 3 blocs immédiatement (UI consomme les aiCache
+  existants). Le toggle why per-knob n'apparaît qu'après re-fetch.
+
+#### Dette résiduelle Phase 7.86
+
+- **Table Réglages pédale dans Bloc 2 vs Bloc 3** : design original
+  prévoyait Bloc 3 (Mon setup, car dépend du contexte d'écoute). Pour
+  cette nuit, restée dans Bloc 2 (Recommandations IA, car c'est de
+  l'output IA prose). Acceptable car le badge CAB et les valeurs
+  dépendent surtout de la capture nommée par l'IA, pas du choix user.
+  À déplacer Phase 7.86.1 si tu préfères.
+- **settings_guitar prose dans Bloc 2 vs Bloc 3** : pareil, restée dans
+  Bloc 2 pour cohérence avec settings_preset. Si tu préfères dans
+  Bloc 3 ("recos de réglage de TA guitare"), déplacement trivial.
+- **`marginLeft: 24` legacy** dans certains sous-blocs de Section 4
+  (anciennement sous GuitarSelect 24px). Plus aligné maintenant. À
+  nettoyer en polish UI.
+- **Tests Vitest manuel UI** : pas de smoke-test mount React de la
+  fiche dépliée. Validation visuelle nécessaire par Sébastien sur
+  mybackline.app après deploy.
+
+### Validation côté Sébastien (post-déploiement)
+
+1. Reload PWA Mac → `v8.14.163` dans header.
+2. Ouvrir une fiche song (n'importe laquelle, par ex. Highway to Hell) :
+   - Sticky bandeau en tête : guitare + sortie audio + 💬
+   - Bloc 1 "📚 Infos morceau" : factuel + cot_step1 + cot_step3_amp
+   - Bloc 2 "🎯 Recommandations IA" : scoring guitares + ideal +
+     preset + alternatives + table Réglages pédale + settings prose
+   - Bloc 3 "🎸 Mon setup" : "Sur ta {guitare} :" + compat + Mode
+     reco avancé (replié) + best installed presets
+3. Click ▸ Mode reco avancé → 4 boutons recoMode apparaissent.
+4. Lancer ré-analyse d'un morceau ("🔄 Réinitialiser mes analyses"
+   sur le profil OU re-fetch via override outputContext) → au
+   retour de l'IA, toggle "▸ Pourquoi ces valeurs ?" apparaît
+   sous la table Réglages pédale (si au moins un knob a un why).
+5. Click ▸ Pourquoi ces valeurs ? → 1 ligne d'explication italique
+   sous chaque knob.
+
+---
+
+## État précédent (2026-05-21 fin de nuit, Phase 10 v3 — cab_enabled toujours true)
 
 **Backline v8.14.162 / SW backline-v262 / STATE_VERSION 10 / 1455 tests verts.**
 

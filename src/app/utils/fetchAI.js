@@ -195,30 +195,39 @@ Si AUCUNE des 3 étapes ne donne de match, retourne null pour preset_ann_name et
 ÉTAPE 7 – PARAMÉTRAGE DU PRESET (preset_settings_v1) — IMPORTANT
 La capture (TONE MODEL) est une boîte noire immuable fournie par son créateur. Ce qui est ajustable autour, dans le PRESET TONEX : les EQ post-capture (BASS/MID/TREBLE/PRESENCE/DEPTH), le volume preset, le seuil du compresseur, le seuil du noise gate, le mix de reverb, et l'activation du bloc CAB. Tous identiques sur ToneX Pedal classique, Anniversary, Plug, One, One+.
 
-Retourne un objet preset_settings_v1 avec les valeurs OPTIMALES pour reproduire le son du morceau sur la guitare et le contexte d'écoute du user. Respecte STRICTEMENT les ranges ci-dessous (toute valeur hors-bornes sera clampée et émettra un warning) :
+Retourne un objet preset_settings_v1 avec les valeurs OPTIMALES pour reproduire le son du morceau sur la guitare et le contexte d'écoute du user. Respecte STRICTEMENT les ranges ci-dessous (toute valeur hors-bornes sera clampée et émettra un warning).
+
+CHAQUE knob doit être un OBJET {value, why} avec :
+- value : nombre dans le range officiel
+- why : objet TRILINGUE {"fr":"...","en":"...","es":"..."} contenant UNE phrase courte (10-15 mots max) expliquant ce choix précis pour ce morceau (Phase 7.86)
 
 {
   "cab_enabled": true,                       // TOUJOURS true sur les 3 contextes d'écoute (frfr/headphone/pa) — pas de cab physique aval, donc le bloc CAB du firmware doit rester ON pour entendre la capture complète. Toute valeur false sera overridée à true côté validation.
   "main": {
-    "gain":   0 à 10,                       // gain d'entrée du TONE MODEL
-    "bass":   0 à 10,                       // EQ shelf basses
-    "mid":    0 à 10,                       // EQ bell mediums
-    "treble": 0 à 10,                       // EQ shelf aigus
-    "volume": 0 à 10                        // volume du preset
+    "gain":   {"value": 0 à 10, "why": {"fr":"...","en":"...","es":"..."}},   // gain d'entrée du TONE MODEL
+    "bass":   {"value": 0 à 10, "why": {...}},                                 // EQ shelf basses
+    "mid":    {"value": 0 à 10, "why": {...}},                                 // EQ bell mediums
+    "treble": {"value": 0 à 10, "why": {...}},                                 // EQ shelf aigus
+    "volume": {"value": 0 à 10, "why": {...}}                                  // volume du preset
   },
   "alt": {
-    "presence":       0 à 10,               // hautes fréquences
-    "depth":          0 à 10,               // basses fréquences (profondeur)
-    "reverb_mix":     0 à 100,              // % mix reverb (0 = sec, 100 = wash)
-    "comp_threshold": -40 à 0,              // dB (0 = off-ish, -20 = compression sensible)
-    "gate_threshold": -100 à 0              // dB (-100 = quasi-off, -50 = gate sévère metal)
+    "presence":       {"value": 0 à 10, "why": {...}},                         // hautes fréquences
+    "depth":          {"value": 0 à 10, "why": {...}},                         // basses fréquences (profondeur)
+    "reverb_mix":     {"value": 0 à 100, "why": {...}},                        // % mix reverb (0 = sec, 100 = wash)
+    "comp_threshold": {"value": -40 à 0, "why": {...}},                        // dB (0 = off-ish, -20 = compression sensible)
+    "gate_threshold": {"value": -100 à 0, "why": {...}}                        // dB (-100 = quasi-off, -50 = gate sévère metal)
   },
-  "why": {"fr":"...","en":"...","es":"..."} // 1-2 phrases TRILINGUE expliquant les choix
+  "why": {"fr":"...","en":"...","es":"..."} // RÉSUMÉ global 1-2 phrases TRILINGUE (en complément des why per-knob)
 }
+
+Exemples de why per-knob (Chop Suey thrash) :
+- gain.why : {"fr":"Mesa déjà saturé, 6.2 préserve la dynamique","en":"Mesa already saturated, 6.2 keeps dynamics","es":"Mesa ya saturado, 6.2 mantiene dinámica"}
+- gate_threshold.why : {"fr":"Palm mutes secs, gate sévère pour silence","en":"Dry palm mutes, severe gate","es":"Palm mutes secos, gate severo"}
 
 Règles :
 - cab_enabled : retourne TOUJOURS true sur les 3 contextes d'écoute (frfr / headphone / pa). Le bloc CAB du firmware ToneX doit rester ON dans tous les cas couverts (pas de cab physique aval = pas de risque de double-cab). Toute valeur false sera overridée à true côté validation JS.
 - Valeurs nominales par défaut : main 5/5/5/5/5, alt 5/5/15/-20/-60 si pas de contrainte spécifique
+- why per-knob : OBLIGATOIRE pour chaque knob. Phrase courte (10-15 mots max) TRILINGUE qui justifie ce choix précis pour ce morceau (pas une phrase générique). Si le knob est sa valeur par défaut, explique pourquoi le défaut convient ici (ex : "Valeur neutre — pas d'ajustement nécessaire pour ce style").
 - Adapte aux contraintes du morceau : thrash → gate sévère (-50 dB) + reverb_mix bas (<15%) + mid haut ; blues → comp doux + reverb modérée (20-35%) ; clean → volume preset 6-7 + comp doux + mid 5-6
 - Le "why" résume EN UNE OU DEUX PHRASES TRILINGUE les choix faits (ex : "Thrash dry — gate sévère pour les palm mutes, mid scoopé léger, reverb minimale"). Pas une explication par paramètre.
 - Si tu ne peux pas justifier une valeur (incertitude), retourne le default (5/5/5/5/5 + 5/5/15/-20/-60).
@@ -250,13 +259,15 @@ OUTPUT TRILINGUE — Format des champs texte :
 Les champs marqués "TEXTE TRILINGUE" ci-dessous DOIVENT être un objet à 3 clés {"fr":"...","en":"...","es":"..."} avec la même information traduite dans chaque langue. Garde le sens et le niveau de détail constant entre les 3 versions. Les NOMS PROPRES (noms d'artistes, modèles d'amplis "Marshall JCM800", noms de guitares "Stratocaster '62", titres de morceaux) restent identiques dans les 3 langues. Les autres champs (noms, scores numériques, énums) restent des valeurs scalaires.
 
 Réponds en JSON pur (sans backticks ni markdown) :
-{"cot_step1":{"fr":"3-5 phrases analysant le profil tonal","en":"3-5 sentences analyzing the tonal profile","es":"3-5 frases analizando el perfil tonal"},"cot_step2_guitars":[{"name":"nom exact guitare","score":85,"reason":{"fr":"justification","en":"justification","es":"justificación"}},{"name":"2e guitare","score":75,"reason":{"fr":"...","en":"...","es":"..."}}],"cot_step3_amp":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"cot_step4_score":{"guitar_score":85,"micro":{"score":90,"reason":{"fr":"...","en":"...","es":"..."}},"body":{"score":80,"reason":{"fr":"...","en":"...","es":"..."}},"history":{"score":95,"reason":{"fr":"...","en":"...","es":"..."}},"amp_match":{"score":85,"reason":{"fr":"...","en":"...","es":"..."}}},"song_year":1970,"song_album":"album","song_desc":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"song_key":"Em","song_bpm":120,"song_style":"blues/rock/hard_rock/jazz/metal/pop","target_gain":5,"tonal_school":"fender_clean/marshall_crunch/vox_chime/dumble_smooth/mesa_heavy/hiwatt_clean","pickup_preference":"HB/SC/P90/any","ideal_guitar":"nom complet guitare idéale","guitar_reason":{"fr":"...","en":"...","es":"..."},"settings_preset":{"fr":"conseils","en":"settings","es":"ajustes"},"settings_guitar":{"fr":"conseils de jeu","en":"playing tips","es":"consejos de juego"},"ref_guitarist":"guitariste","ref_guitar":"modèle guitare","ref_amp":"modèle ampli","ref_effects":"effets ou 'Aucun effet'","preset_tmp":"nom exact patch TMP OU null","preset_ann_name":"nom EXACT capture OU null","preset_plug_name":"nom EXACT capture OU null","preset_settings_v1":{"cab_enabled":true,"main":{"gain":6.2,"bass":4.5,"mid":7.0,"treble":5.3,"volume":6.0},"alt":{"presence":4.7,"depth":5.0,"reverb_mix":16,"comp_threshold":-18,"gate_threshold":-56},"why":{"fr":"...","en":"...","es":"..."}}} (note : cab_enabled DOIT être true)
+{"cot_step1":{"fr":"3-5 phrases analysant le profil tonal","en":"3-5 sentences analyzing the tonal profile","es":"3-5 frases analizando el perfil tonal"},"cot_step2_guitars":[{"name":"nom exact guitare","score":85,"reason":{"fr":"justification","en":"justification","es":"justificación"}},{"name":"2e guitare","score":75,"reason":{"fr":"...","en":"...","es":"..."}}],"cot_step3_amp":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"cot_step4_score":{"guitar_score":85,"micro":{"score":90,"reason":{"fr":"...","en":"...","es":"..."}},"body":{"score":80,"reason":{"fr":"...","en":"...","es":"..."}},"history":{"score":95,"reason":{"fr":"...","en":"...","es":"..."}},"amp_match":{"score":85,"reason":{"fr":"...","en":"...","es":"..."}}},"song_year":1970,"song_album":"album","song_desc":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"song_key":"Em","song_bpm":120,"song_style":"blues/rock/hard_rock/jazz/metal/pop","target_gain":5,"tonal_school":"fender_clean/marshall_crunch/vox_chime/dumble_smooth/mesa_heavy/hiwatt_clean","pickup_preference":"HB/SC/P90/any","ideal_guitar":"nom complet guitare idéale","guitar_reason":{"fr":"...","en":"...","es":"..."},"settings_preset":{"fr":"conseils","en":"settings","es":"ajustes"},"settings_guitar":{"fr":"conseils de jeu","en":"playing tips","es":"consejos de juego"},"ref_guitarist":"guitariste","ref_guitar":"modèle guitare","ref_amp":"modèle ampli","ref_effects":"effets ou 'Aucun effet'","preset_tmp":"nom exact patch TMP OU null","preset_ann_name":"nom EXACT capture OU null","preset_plug_name":"nom EXACT capture OU null","preset_settings_v1":{"cab_enabled":true,"main":{"gain":{"value":6.2,"why":{"fr":"...","en":"...","es":"..."}},"bass":{"value":4.5,"why":{"fr":"...","en":"...","es":"..."}},"mid":{"value":7.0,"why":{"fr":"...","en":"...","es":"..."}},"treble":{"value":5.3,"why":{"fr":"...","en":"...","es":"..."}},"volume":{"value":6.0,"why":{"fr":"...","en":"...","es":"..."}}},"alt":{"presence":{"value":4.7,"why":{"fr":"...","en":"...","es":"..."}},"depth":{"value":5.0,"why":{"fr":"...","en":"...","es":"..."}},"reverb_mix":{"value":16,"why":{"fr":"...","en":"...","es":"..."}},"comp_threshold":{"value":-18,"why":{"fr":"...","en":"...","es":"..."}},"gate_threshold":{"value":-56,"why":{"fr":"...","en":"...","es":"..."}}},"why":{"fr":"...","en":"...","es":"..."}}} (note : cab_enabled DOIT être true ; CHAQUE knob doit avoir value+why trilingue Phase 7.86)
 
 Champs TEXTE TRILINGUE (à fournir en {fr, en, es}) :
 - cot_step1, cot_step3_amp, song_desc, guitar_reason, settings_preset, settings_guitar
 - cot_step2_guitars[].reason
 - cot_step4_score.{micro,body,history,amp_match}.reason
-- preset_settings_v1.why
+- preset_settings_v1.why (résumé global)
+- preset_settings_v1.main.{gain,bass,mid,treble,volume}.why (Phase 7.86 — par knob)
+- preset_settings_v1.alt.{presence,depth,reverb_mix,comp_threshold,gate_threshold}.why (Phase 7.86 — par knob)
 
 Champs SCALAIRES (valeur unique, pas d'objet) :
 - song_year (number), song_album (string nom album), song_key (string notation), song_bpm (number)

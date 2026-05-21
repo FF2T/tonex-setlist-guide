@@ -892,6 +892,17 @@ const es = {
   'preset-settings.section-main': 'Controles principales',
   'preset-settings.section-alt': 'Controles ALT (avanzado)',
 
+  // Phase 7.86 — Refonte SongDetailCard 3 bloques + why per-knob + Modo reco repli
+  'preset-settings.why-per-knob-show': '▸ ¿Por qué estos valores?',
+  'preset-settings.why-per-knob-hide': '▲ Ocultar las explicaciones por parámetro',
+  'song-detail.reco-block': 'Recomendaciones IA',
+  'song-detail.setup-block': 'Mi setup',
+  'song-detail.setup-on-guitar': 'Con tu {guitar}:',
+  'song-detail.advanced-mode-show': '▸ Modo reco avanzado',
+  'song-detail.advanced-mode-hide': '▲ Ocultar el modo reco avanzado',
+  'song-detail.advanced-mode-active': '· {mode} activo',
+  'song-detail.sticky-feedback-tooltip': 'Dar feedback a la IA sobre esta canción',
+
   'list.edit-songs': '✏️ Editar setlist',
   'list.edit-done': '✅ Terminar',
   'list.edit-setlist-title': 'Modo edición: retira canciones de la setlist (no toca la base global)',

@@ -60,6 +60,32 @@ function clampValue(label, value, range) {
   return value;
 }
 
+// Pure helper : valide une entrée knob individuel. Phase 7.86 (2026-05-21)
+// supporte 2 formats :
+// - Ancien (Phase 9.1-10) : knob = number → coerce vers { value: number }
+// - Nouveau (Phase 7.86)  : knob = { value: number, why?: { fr,en,es } }
+// Retourne null si la valeur n'est pas validable, sinon un objet
+// { value, why? } avec value clampé dans son range et why trilingue
+// validé (skip si absent ou invalide).
+function clampKnob(label, knob, range) {
+  if (knob === null || knob === undefined) return null;
+  // Ancien format : nombre direct
+  if (typeof knob === 'number') {
+    const v = clampValue(label, knob, range);
+    return v !== null ? { value: v } : null;
+  }
+  // Nouveau format : objet { value, why? }
+  if (typeof knob === 'object' && !Array.isArray(knob)) {
+    const v = clampValue(label, knob.value, range);
+    if (v === null) return null;
+    const out = { value: v };
+    const whyClean = validateTrilingual(knob.why);
+    if (whyClean) out.why = whyClean;
+    return out;
+  }
+  return null;
+}
+
 // Pure helper : clamp un sous-objet (main ou alt) selon ses ranges.
 // Retourne un nouvel objet contenant uniquement les champs valides
 // présents dans l'input. Skip silencieusement les champs inconnus.
@@ -68,8 +94,8 @@ function clampGroup(label, input, ranges) {
   const out = {};
   for (const key of Object.keys(ranges)) {
     if (key in input) {
-      const v = clampValue(`${label}.${key}`, input[key], ranges[key]);
-      if (v !== null) out[key] = v;
+      const knob = clampKnob(`${label}.${key}`, input[key], ranges[key]);
+      if (knob !== null) out[key] = knob;
     }
   }
   return Object.keys(out).length > 0 ? out : null;

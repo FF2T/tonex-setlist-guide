@@ -64,7 +64,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   const [curationModalPreset, setCurationModalPreset] = useState(null);
   const isAdmin = !!profile?.isAdmin;
   const [showFeedback, setShowFeedback] = useState(false);
-  const [showCot, setShowCot] = useState(false);
+  // Phase 7.86 — toggles repli pour Bloc 2 + Bloc 3
+  const [showAdvancedMode, setShowAdvancedMode] = useState(false);
+  const [showWhyPerKnob, setShowWhyPerKnob] = useState(false);
   const [installTarget, setInstallTarget] = useState(null);
   const [installBank, setInstallBank] = useState({ ann: '', plug: '' });
   const [installSlot, setInstallSlot] = useState({ ann: 'A', plug: 'A' });
@@ -176,9 +178,52 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   return (
     <div className="song-row-detail" style={{ background: 'var(--bg-elev-1)', borderRadius: '0 0 12px 12px', padding: '10px 12px', marginBottom: 8, marginTop: -2, display: 'flex', flexDirection: 'column', gap: 6 }}>
 
-      {/* SECTION 1 : Infos morceau */}
+      {/* Phase 7.86 — Bandeau sticky en tête : guitare choisie + sortie
+          audio + feedback. Reste visible en haut quand on scroll dans la
+          fiche dépliée. Influence les 3 blocs ci-dessous (recos IA + mon
+          setup adaptatifs). */}
+      <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-elev-1)', borderRadius: 'var(--r-md)', border: '1px solid var(--a8)', padding: '8px 10px', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 180 }}>
+          <StatusDot score={chosenGuitarScore} ideal={g && ig.includes(gId)} size={10}/>
+          <div style={{ flex: 1 }}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/></div>
+        </div>
+        {/* Sortie audio override per-morceau — Phase 10. Hint compact, 4 boutons. */}
+        <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', alignItems: 'center' }} title={t('song-detail.output-context-label', '🔌 Sortie audio pour ce morceau')}>
+          {[
+            { id: '', icon: '↻', label: t('song-detail.output-context-profile', 'Profil') },
+            { id: 'frfr', icon: '📢', label: t('output-context.label.frfr', 'Enceinte FRFR') },
+            { id: 'headphone', icon: '🎧', label: t('output-context.label.headphone', 'Casque') },
+            { id: 'pa', icon: '🎚️', label: t('output-context.label.pa', 'Sono / Table de mixage') },
+          ].map(({ id, icon, label }) => {
+            const active = (song.outputContext || '') === id;
+            return (
+              <button key={id || 'profile'}
+                data-testid={`song-output-context-${id || 'profile'}`}
+                onClick={() => {
+                  onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, outputContext: id || undefined } : x));
+                  writeAiCache(null);
+                  setLocalAiResult(null);
+                }}
+                title={id ? tFormat('song-detail.output-context-tooltip-override', { label }, 'Override : {label}') : t('song-detail.output-context-tooltip-profile', 'Hérite du contexte profil.')}
+                style={{ fontSize: 11, lineHeight: 1, padding: '4px 6px', background: active ? 'var(--accent-bg)' : 'var(--a3)', border: active ? '1px solid var(--accent-border)' : '1px solid var(--a8)', color: active ? 'var(--accent)' : 'var(--text-muted)', borderRadius: 'var(--r-sm)', cursor: 'pointer', fontWeight: active ? 700 : 500 }}
+              >{icon}</button>
+            );
+          })}
+        </div>
+        {/* Feedback bouton — scrolle vers la section feedback IA en bas */}
+        {aiC && (
+          <button
+            onClick={() => setShowFeedback((p) => !p)}
+            data-testid="sticky-feedback-toggle"
+            title={t('song-detail.sticky-feedback-tooltip', 'Donner un feedback à l\'IA sur ce morceau')}
+            style={{ fontSize: 11, padding: '5px 8px', background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-sm)', color: 'var(--text-muted)', cursor: 'pointer', fontWeight: 600 }}
+          >💬</button>
+        )}
+      </div>
+
+      {/* Phase 7.86 — Bloc 1 : 📚 Infos morceau (factuel + profil tonal IA + profil ampli IA) */}
       <div style={sectionStyle}>
-        {sectionTitle('📖', t('song-detail.info-section', 'Infos morceau'))}
+        {sectionTitle('📚', t('song-detail.info-section', 'Infos morceau'))}
         {(songInfo.year || songInfo.album || songInfo.key || songInfo.bpm) && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{songInfo.year}{songInfo.album ? ' · ' + songInfo.album : ''}{songInfo.key ? ' · ' + songInfo.key : ''}{songInfo.bpm ? ' · ' + songInfo.bpm + ' BPM' : ''}</div>}
         {/* Phase 7.57 — Éditeur BPM/tonalité retiré.
             L'IA Gemini retourne désormais `song_bpm` et `song_key` fiables
@@ -203,6 +248,20 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             🎸 {hist.guitar} · 🔊 {hist.amp}{(() => { const fx = getLocalizedText(hist.effects, locale); return fx ? ' · 🎚 ' + fx : ''; })()}
           </div>
         )}
+        {/* Phase 7.86 — Bloc 1 — profil tonal + profil ampli IA déplacés
+            ici (auparavant dans SECTION 2 "Raisonnement IA" pliable). */}
+        {aiC?.cot_step1 && (
+          <div style={{ marginTop: 8, background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-tonal', 'Profil tonal')}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{getLocalizedText(aiC.cot_step1, locale)}</div>
+          </div>
+        )}
+        {aiC?.cot_step3_amp && (
+          <div style={{ marginTop: 8, background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-amp', 'Profil ampli')}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{getLocalizedText(aiC.cot_step3_amp, locale)}</div>
+          </div>
+        )}
       </div>
 
       {/* Loading */}
@@ -219,47 +278,31 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
 
       {!reloading && aiC && (() => {
         // Phase 7.65.1 — Filtre strict cot_step2_guitars sur le rig actif
-        // pour la section "Raisonnement IA → Scoring guitares". Phase 3.6
-        // (union all-rigs au prompt) faisait que ce bloc affichait des
-        // guitares d'autres profils (ex. Bruno voyait Strat AM Vintage II
-        // 61 + Les Paul Standard 60, hors rig). Le filtre tombe aussi la
-        // section si toutes les top-N IA sont hors rig.
+        // (Phase 3.6 union all-rigs au prompt peut amener des guitares
+        // d'autres profils, ex. Bruno voyait Strat AM Vintage II 61 hors rig).
         const cotInRig = filterCotGuitarsToRig(aiC.cot_step2_guitars, guitars);
-        const showReasoning = aiC.cot_step1 || cotInRig.length > 0 || aiC.cot_step3_amp;
         return (
         <>
-          {/* SECTION 2 : Raisonnement IA */}
-          {showReasoning && (
-            <div style={sectionStyle}>
-              <div onClick={() => setShowCot((p) => !p)} style={{ cursor: 'pointer', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', display: 'flex', alignItems: 'center', gap: 5, userSelect: 'none' }}>
-                {t('song-detail.reasoning', '🧠 Raisonnement IA')} <span style={{ fontSize: 10, marginLeft: 'auto', fontWeight: 400 }}>{showCot ? '▲' : '▼'}</span>
-              </div>
-              {showCot && (
-                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {aiC.cot_step1 && <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-tonal', 'Profil tonal')}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{getLocalizedText(aiC.cot_step1, locale)}</div>
-                  </div>}
-                  {cotInRig.length > 0 && <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-guitars', 'Scoring guitares')}</div>
-                    {cotInRig.map((gt, i) => <div key={i} style={{ fontSize: 11, color: 'var(--text-sec)', marginBottom: i < cotInRig.length - 1 ? 4 : 0, display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                      <span style={{ fontWeight: 600, color: 'var(--text-bright)', flexShrink: 0 }}>{gt.name}</span>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: scoreColor(gt.score), flexShrink: 0 }}>{gt.score}%</span>
-                      <span style={{ color: 'var(--text-dim)' }}>{getLocalizedText(gt.reason, locale)}</span>
-                    </div>)}
-                  </div>}
-                  {aiC.cot_step3_amp && <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-amp', 'Profil ampli')}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{getLocalizedText(aiC.cot_step3_amp, locale)}</div>
-                  </div>}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* SECTION 3 : Recommandations idéales */}
+          {/* Phase 7.86 — Bloc 2 : 🎯 Recommandations IA. Fusion ancienne SECTION 2
+              (Raisonnement IA pliable) + SECTION 3 (Recommandation idéale).
+              Scoring guitares en tête (déplacé de SECTION 2), puis guitare/preset
+              idéal, alternatives catalogue, settings_preset prose, et toggle
+              Mode reco avancé en bas (replié — Phase 7.3 boutons). */}
           <div style={sectionStyle}>
-            {sectionTitle(<StatusDot score={100} ideal={true} size={10}/>, t('song-detail.reco-ideal', 'Recommandation idéale'))}
+            {sectionTitle('🎯', t('song-detail.reco-block', 'Recommandations IA'))}
+            {/* Scoring guitares — déplacé de SECTION 2 vers tête de Bloc 2 */}
+            {cotInRig.length > 0 && (
+              <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px', marginBottom: 8 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-guitars', 'Scoring guitares')}</div>
+                {cotInRig.map((gt, i) => (
+                  <div key={i} style={{ fontSize: 11, color: 'var(--text-sec)', marginBottom: i < cotInRig.length - 1 ? 4 : 0, display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 600, color: 'var(--text-bright)', flexShrink: 0 }}>{gt.name}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: scoreColor(gt.score), flexShrink: 0 }}>{gt.score}%</span>
+                    <span style={{ color: 'var(--text-dim)' }}>{getLocalizedText(gt.reason, locale)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {displayIdealGuitarName && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
@@ -376,19 +419,54 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   </div>
                 );
               })()}
-              {/* Phase 9.1 — Sous-section "Réglages pédale" : table chiffrée
-                  des 5 main knobs + 5 alt knobs + cab on/off + why
-                  trilingue. Fallback gracieux si aiCache pré-9.1 (pas de
-                  preset_settings_v1) → la section ne s'affiche pas. */}
+              {/* Phase 9.1 + 7.86 — Sous-section "Réglages pédale" : table
+                  des 5 main + 5 alt knobs. Nouveau format Phase 7.86 :
+                  chaque knob = { value, why } trilingue. Le why per-knob
+                  est replié par défaut (toggle "▸ Pourquoi ces valeurs ?")
+                  pour préserver la densité ; le why global reste visible.
+                  Rétro-compat aiCache Phase 9.1-10 : knob=number toléré
+                  côté clampPresetSettings, coerce vers {value}. */}
               {aiC.preset_settings_v1 && (() => {
                 const ps = aiC.preset_settings_v1;
                 const main = ps.main || {};
                 const alt = ps.alt || {};
+                // Phase 7.86 — accès tolérant ancien/nouveau format
+                const getVal = (knob) => {
+                  if (knob === null || knob === undefined) return null;
+                  if (typeof knob === 'number') return knob;
+                  if (typeof knob === 'object' && typeof knob.value === 'number') return knob.value;
+                  return null;
+                };
+                const getWhy = (knob) => {
+                  if (knob && typeof knob === 'object' && knob.why && typeof knob.why === 'object') return knob.why;
+                  return null;
+                };
                 const fmtNum = (v, decimals = 1) => typeof v === 'number' ? v.toFixed(decimals).replace(/\.0$/, '') : '—';
                 const fmtUnit = (v, unit) => typeof v === 'number' ? `${v.toFixed(unit === '%' ? 0 : 1).replace(/\.0$/, '')}${unit}` : '—';
                 const rowStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 10, padding: '2px 0' };
                 const labelStyle = { color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' };
                 const valueStyle = { color: 'var(--text-bright)', fontFamily: 'var(--font-mono)', fontWeight: 700 };
+                const whyRowStyle = { fontSize: 9, color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.4, marginLeft: 8, marginBottom: 4 };
+                const renderKnobRow = ([key, label, suffix, unit], group) => {
+                  const knob = group[key];
+                  const val = getVal(knob);
+                  if (val === null) return null;
+                  const why = getWhy(knob);
+                  const whyTxt = why ? getLocalizedText(why, locale) : null;
+                  return (
+                    <React.Fragment key={key}>
+                      <div style={rowStyle}>
+                        <span style={labelStyle}>{label}</span>
+                        <span style={valueStyle}>{unit ? fmtUnit(val, unit) : `${fmtNum(val)}${suffix}`}</span>
+                      </div>
+                      {showWhyPerKnob && whyTxt && <div style={whyRowStyle}>↳ {whyTxt}</div>}
+                    </React.Fragment>
+                  );
+                };
+                // Phase 7.86 — détecter si au moins un why per-knob existe pour
+                // afficher le toggle "▸ Pourquoi ces valeurs ?". Sinon (aiCache
+                // pré-7.86), pas de toggle (rien à révéler).
+                const hasAnyWhyPerKnob = [...Object.values(main), ...Object.values(alt)].some((k) => getWhy(k));
                 return (
                   <div style={{ marginTop: 6, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
@@ -403,17 +481,12 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                       <>
                         <div style={{ fontSize: 9, color: 'var(--text-dim)', fontStyle: 'italic', marginTop: 4, marginBottom: 2 }}>{t('preset-settings.section-main', 'Boutons principaux')}</div>
                         {[
-                          ['gain', 'Gain', '/10'],
-                          ['bass', 'Bass', '/10'],
-                          ['mid', 'Mid', '/10'],
-                          ['treble', 'Treble', '/10'],
-                          ['volume', 'Volume', '/10'],
-                        ].map(([key, label, suffix]) => main[key] !== undefined && (
-                          <div key={key} style={rowStyle}>
-                            <span style={labelStyle}>{label}</span>
-                            <span style={valueStyle}>{fmtNum(main[key])}{suffix}</span>
-                          </div>
-                        ))}
+                          ['gain', 'Gain', '/10', ''],
+                          ['bass', 'Bass', '/10', ''],
+                          ['mid', 'Mid', '/10', ''],
+                          ['treble', 'Treble', '/10', ''],
+                          ['volume', 'Volume', '/10', ''],
+                        ].map((spec) => renderKnobRow(spec, main))}
                       </>
                     )}
                     {Object.keys(alt).length > 0 && (
@@ -425,18 +498,24 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                           ['reverb_mix', 'Reverb mix', '', '%'],
                           ['comp_threshold', 'Comp threshold', '', 'dB'],
                           ['gate_threshold', 'Gate threshold', '', 'dB'],
-                        ].map(([key, label, suffix, unit]) => alt[key] !== undefined && (
-                          <div key={key} style={rowStyle}>
-                            <span style={labelStyle}>{label}</span>
-                            <span style={valueStyle}>{unit ? fmtUnit(alt[key], unit) : `${fmtNum(alt[key])}${suffix}`}</span>
-                          </div>
-                        ))}
+                        ].map((spec) => renderKnobRow(spec, alt))}
                       </>
                     )}
                     {ps.why && (() => {
                       const whyTxt = getLocalizedText(ps.why, locale);
                       return whyTxt ? <div style={{ marginTop: 6, fontSize: 10, color: 'var(--text-sec)', fontStyle: 'italic', lineHeight: 1.4 }}>{whyTxt}</div> : null;
                     })()}
+                    {hasAnyWhyPerKnob && (
+                      <button
+                        onClick={() => setShowWhyPerKnob((p) => !p)}
+                        data-testid="preset-settings-why-toggle"
+                        style={{ marginTop: 6, fontSize: 10, background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0, fontWeight: 600, textAlign: 'left', width: '100%' }}
+                      >
+                        {showWhyPerKnob
+                          ? t('preset-settings.why-per-knob-hide', '▲ Masquer les explications par paramètre')
+                          : t('preset-settings.why-per-knob-show', '▸ Pourquoi ces valeurs ?')}
+                      </button>
+                    )}
                   </div>
                 );
               })()}
@@ -452,16 +531,22 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         );
       })()}
 
-      {/* SECTION 4 : Paramétrage */}
+      {/* Phase 7.86 — Bloc 3 : 🎸 Mon setup. GuitarSelect + outputContext +
+          feedback déplacés dans sticky bandeau en tête de fiche. Mode IA
+          replié dans Bloc 2 (toggle "▸ Mode reco avancé"). Ce bloc se
+          concentre sur ce que je joue concrètement avec MA guitare choisie
+          et MON contexte d'écoute. */}
       <div style={customSectionStyle}>
-        {sectionTitle('🎛', t('song-detail.params-title', 'Paramétrage — mon choix'))}
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{t('song-detail.guitar-chosen', 'Guitare choisie')}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <StatusDot score={chosenGuitarScore} ideal={g && ig.includes(gId)} size={10}/>
-            <div style={{ flex: 1 }}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/></div>
+        {sectionTitle('🎸', t('song-detail.setup-block', 'Mon setup'))}
+        {/* Rappel guitare choisie (utile si le sticky est scrollé hors vue
+            sur fiche longue). Cliquable pour scroll-to-top retour sticky. */}
+        {g && (
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontStyle: 'italic' }}>
+            {tFormat('song-detail.setup-on-guitar', { guitar: g.name }, 'Sur ta {guitar} :')}
           </div>
-          {g && chosenGuitarScore && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 3, marginLeft: 24 }}>{t('song-detail.compat', 'Compatibilité :')} <b style={{ color: scoreColor(chosenGuitarScore) }}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated && <>{' '}<span style={{ marginLeft: 6, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>{t('song-detail.estimated', '(estimé)')}</span></>}</div>}
+        )}
+        <div style={{ marginBottom: 8 }}>
+          {g && chosenGuitarScore && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 3 }}>{t('song-detail.compat', 'Compatibilité :')} <b style={{ color: scoreColor(chosenGuitarScore) }}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated && <>{' '}<span style={{ marginLeft: 6, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>{t('song-detail.estimated', '(estimé)')}</span></>}</div>}
           {g && aiC && (() => {
             // Phase 7.85 — guitarChoiceFeedback retourne désormais un objet
             // structuré (ai|tokens|desc) qu'on compose côté UI. Avant 7.85,
@@ -494,61 +579,51 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             return <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)', marginTop: 5, marginLeft: 24 }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.settings', 'Réglages :')}</b> {text}</div>;
           })()}
         </div>
-        <div style={{ marginBottom: 12, marginLeft: 24 }}>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{t('song-detail.mode-label', 'Mode IA pour ce morceau')} {song.recoMode ? <span style={{ color: 'var(--accent)' }}>{t('song-detail.mode-override', '· override')}</span> : <span style={{ color: 'var(--text-dim)' }}>{tFormat('song-detail.mode-inherited', { mode: profile?.recoMode || 'balanced' }, '· profil ({mode})')}</span>}</div>
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            {[
-              { id: '', icon: '↻', label: t('song-detail.mode-profile', 'Profil') },
-              { id: 'balanced', icon: '⚖️', label: t('song-detail.mode-balanced', 'Équilibré') },
-              { id: 'faithful', icon: '🎯', label: t('song-detail.mode-faithful', 'Fidèle') },
-              { id: 'interpretation', icon: '🎨', label: t('song-detail.mode-interpretation', 'Interprétation') },
-            ].map(({ id, icon, label }) => {
-              const active = (song.recoMode || '') === id;
-              return (
-                <button key={id || 'profile'}
-                  data-testid={`song-reco-mode-${id || 'profile'}`}
-                  onClick={() => {
-                    // Phase 7.54 — recoMode reste dans song (shared), aiCache va dans profile.
-                    onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, recoMode: id || undefined } : x));
-                    writeAiCache(null);
-                    setLocalAiResult(null);
-                  }}
-                  title={id ? tFormat('song-detail.mode-tooltip-override', { label }, 'Override : {label}') : t('song-detail.mode-tooltip-profile', 'Hérite du mode profil. Cliquer invalide le cache IA pour re-fetcher avec le nouveau mode.')}
-                  style={{ fontSize: 10, fontWeight: active ? 700 : 500, background: active ? 'var(--accent-bg)' : 'var(--a3)', border: active ? '1px solid var(--accent-border)' : '1px solid var(--a8)', color: active ? 'var(--accent)' : 'var(--text-muted)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer' }}
-                >{icon} {label}</button>
-              );
-            })}
-          </div>
-          <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 3, fontStyle: 'italic' }}>{t('song-detail.mode-hint', 'Changer le mode invalide le cache → re-analyse au prochain ouverture du morceau.')}</div>
-        </div>
-        {/* Phase 10 — Override contexte d'écoute par morceau. Change →
-            invalide aiCache (pattern Phase 7.3 recoMode). Le contexte
-            effectif dicte cab_enabled au prompt IA Phase 9.1. */}
-        <div style={{ marginBottom: 12, marginLeft: 24 }}>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{t('song-detail.output-context-label', '🔌 Sortie audio pour ce morceau')} {song.outputContext ? <span style={{ color: 'var(--accent)' }}>{t('song-detail.output-context-override', '· override')}</span> : <span style={{ color: 'var(--text-dim)' }}>{tFormat('song-detail.output-context-inherited', { context: profile?.outputContext || 'frfr' }, '· profil ({context})')}</span>}</div>
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            {[
-              { id: '', icon: '↻', label: t('song-detail.output-context-profile', 'Profil') },
-              { id: 'frfr', icon: '📢', label: t('output-context.label.frfr', 'Enceinte FRFR') },
-              { id: 'headphone', icon: '🎧', label: t('output-context.label.headphone', 'Casque') },
-              { id: 'pa', icon: '🎚️', label: t('output-context.label.pa', 'Sono / Table de mixage') },
-            ].map(({ id, icon, label }) => {
-              const active = (song.outputContext || '') === id;
-              return (
-                <button key={id || 'profile'}
-                  data-testid={`song-output-context-${id || 'profile'}`}
-                  onClick={() => {
-                    onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, outputContext: id || undefined } : x));
-                    writeAiCache(null);
-                    setLocalAiResult(null);
-                  }}
-                  title={id ? tFormat('song-detail.output-context-tooltip-override', { label }, 'Override : {label}') : t('song-detail.output-context-tooltip-profile', 'Hérite du contexte profil. Cliquer invalide le cache IA pour re-fetcher avec le nouveau contexte.')}
-                  style={{ fontSize: 10, fontWeight: active ? 700 : 500, background: active ? 'var(--accent-bg)' : 'var(--a3)', border: active ? '1px solid var(--accent-border)' : '1px solid var(--a8)', color: active ? 'var(--accent)' : 'var(--text-muted)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer' }}
-                >{icon} {label}</button>
-              );
-            })}
-          </div>
-          <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 3, fontStyle: 'italic' }}>{t('song-detail.output-context-hint', 'Changer le contexte invalide le cache → re-analyse avec réglages adaptés au matériel d\'écoute (EQ, volume).')}</div>
+        {/* Phase 7.86 — Bloc Mode reco avancé : repli sous toggle.
+            Préserve la fonctionnalité Phase 7.3 (override recoMode par
+            morceau : balanced / faithful / interpretation) mais cachée
+            par défaut pour désencombrer l'UI débutant. Power-users peuvent
+            déplier pour ajuster. Bloc outputContext supprimé (déplacé
+            dans sticky bandeau en tête de fiche). */}
+        <div style={{ marginBottom: 8 }}>
+          <button
+            onClick={() => setShowAdvancedMode((p) => !p)}
+            data-testid="advanced-mode-toggle"
+            style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0, fontWeight: 600, textAlign: 'left' }}
+          >
+            {showAdvancedMode
+              ? t('song-detail.advanced-mode-hide', '▲ Masquer le mode reco avancé')
+              : t('song-detail.advanced-mode-show', '▸ Mode reco avancé')}
+            {song.recoMode && <span style={{ marginLeft: 6, color: 'var(--text-dim)', fontWeight: 400 }}>{tFormat('song-detail.advanced-mode-active', { mode: song.recoMode }, '· {mode} actif')}</span>}
+          </button>
+          {showAdvancedMode && (
+            <div style={{ marginTop: 6 }}>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{t('song-detail.mode-label', 'Mode IA pour ce morceau')} {song.recoMode ? <span style={{ color: 'var(--accent)' }}>{t('song-detail.mode-override', '· override')}</span> : <span style={{ color: 'var(--text-dim)' }}>{tFormat('song-detail.mode-inherited', { mode: profile?.recoMode || 'balanced' }, '· profil ({mode})')}</span>}</div>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                {[
+                  { id: '', icon: '↻', label: t('song-detail.mode-profile', 'Profil') },
+                  { id: 'balanced', icon: '⚖️', label: t('song-detail.mode-balanced', 'Équilibré') },
+                  { id: 'faithful', icon: '🎯', label: t('song-detail.mode-faithful', 'Fidèle') },
+                  { id: 'interpretation', icon: '🎨', label: t('song-detail.mode-interpretation', 'Interprétation') },
+                ].map(({ id, icon, label }) => {
+                  const active = (song.recoMode || '') === id;
+                  return (
+                    <button key={id || 'profile'}
+                      data-testid={`song-reco-mode-${id || 'profile'}`}
+                      onClick={() => {
+                        onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, recoMode: id || undefined } : x));
+                        writeAiCache(null);
+                        setLocalAiResult(null);
+                      }}
+                      title={id ? tFormat('song-detail.mode-tooltip-override', { label }, 'Override : {label}') : t('song-detail.mode-tooltip-profile', 'Hérite du mode profil. Cliquer invalide le cache IA pour re-fetcher avec le nouveau mode.')}
+                      style={{ fontSize: 10, fontWeight: active ? 700 : 500, background: active ? 'var(--accent-bg)' : 'var(--a3)', border: active ? '1px solid var(--accent-border)' : '1px solid var(--a8)', color: active ? 'var(--accent)' : 'var(--text-muted)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer' }}
+                    >{icon} {label}</button>
+                  );
+                })}
+              </div>
+              <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 3, fontStyle: 'italic' }}>{t('song-detail.mode-hint', 'Changer le mode invalide le cache → re-analyse au prochain ouverture du morceau.')}</div>
+            </div>
+          )}
         </div>
         {aiC && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{tFormat('song-detail.best-installed-for', { guitar: g?.short || t('song-detail.this-guitar', 'cette guitare') }, 'Meilleurs presets installes pour {guitar}')}</div>}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
