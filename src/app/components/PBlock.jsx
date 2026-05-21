@@ -17,6 +17,7 @@ import { scoreColor, scoreLabel, BREAKDOWN_LABELS } from './score-utils.js';
 import { findCatalogEntry } from '../../core/catalog.js';
 import { getInstallRec } from '../utils/preset-helpers.js';
 import { CC, CL } from '../utils/ui-constants.js';
+import { tFormat } from '../../i18n/index.js';
 
 function ScoreWithBreakdown({ score, breakdown, size }) {
   const [open, setOpen] = useState(false);
@@ -75,7 +76,7 @@ function PBlock({ device, emoji, presetName, gType, banks, adapted, gs, bg2, ava
           <div style={{ fontSize: 12, color: 'var(--text-bright)', fontWeight: 600, marginBottom: 4 }}>{displayName}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
             {displayRec.installed
-              ? <span title={`Slot ${displayRec.slot} — ${CL[displayRec.slot]}`} style={{ background: `${CC[displayRec.slot]}18`, color: CC[displayRec.slot], border: `1px solid ${CC[displayRec.slot]}40`, borderRadius: 'var(--r-sm)', padding: '1px 7px', fontSize: 10, fontWeight: 700 }}>Banque {displayRec.bank}{displayRec.slot}</span>
+              ? <span title={`Slot ${displayRec.slot} — ${CL[displayRec.slot]}`} style={{ background: `${CC[displayRec.slot]}18`, color: CC[displayRec.slot], border: `1px solid ${CC[displayRec.slot]}40`, borderRadius: 'var(--r-sm)', padding: '1px 7px', fontSize: 10, fontWeight: 700 }}>{tFormat('pblock.installed-bank', { bank: displayRec.bank, slot: displayRec.slot }, 'Banque {bank}{slot}')}</span>
               : <><span style={{ fontSize: 10, color: 'var(--yellow)', fontWeight: 700 }}>⬇ À installer</span>{entry?.src === 'TSR' && entry.pack && <span style={{ fontSize: 9, color: 'var(--text-dim)' }}>📦 {entry.pack}.zip</span>}</>
             }
             {showBest && <span style={{ fontSize: 9, color: 'var(--green)', fontWeight: 600 }}>↑ meilleur choix</span>}

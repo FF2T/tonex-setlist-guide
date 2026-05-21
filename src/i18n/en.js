@@ -865,6 +865,9 @@ const en = {
   'guitar-feedback.gain-comfortable': 'comfortable in {gain}',
   'guitar-feedback.gain-uncomfortable': 'less suited to {gain} register',
 
+  // Phase 7.85 — PBlock badge banque (Bloqueur 2 audit démo EN : "Banque 37A" en EN).
+  'pblock.installed-bank': 'Bank {bank}{slot}',
+
   'list.edit-songs': '✏️ Edit setlist',
   'list.edit-done': '✅ Done',
   'list.edit-setlist-title': 'Edit mode: remove songs from the setlist (does not touch the global library)',

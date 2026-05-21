@@ -862,6 +862,9 @@ const es = {
   'guitar-feedback.gain-comfortable': 'cómoda en {gain}',
   'guitar-feedback.gain-uncomfortable': 'menos adaptada al registro {gain}',
 
+  // Phase 7.85 — PBlock badge banco.
+  'pblock.installed-bank': 'Banco {bank}{slot}',
+
   'list.edit-songs': '✏️ Editar setlist',
   'list.edit-done': '✅ Terminar',
   'list.edit-setlist-title': 'Modo edición: retira canciones de la setlist (no toca la base global)',
