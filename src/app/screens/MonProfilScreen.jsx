@@ -272,7 +272,43 @@ function MonProfilScreen({
             </button>;
           })}
         </div>
-        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.5, marginBottom: 16 }}>Ce mode est passé en input à chaque appel IA. Les morceaux déjà analysés gardent leur cache jusqu'à invalidation.</div>
+        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.5, marginBottom: 16 }}>{t('profile.reco.mode-hint', 'Ce mode est passé en input à chaque appel IA. Les morceaux déjà analysés gardent leur cache jusqu\'à invalidation.')}</div>
+
+        {/* Phase 10 — Contexte d'écoute (output audio). Dicte cab_enabled
+            au prompt IA Phase 9.1 + adapte les recos selon le matériel
+            d'écoute (casque / FRFR / sono / ampli avec ou sans cab). */}
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginTop: 4, marginBottom: 6 }}>{t('profile.output-context.title', '🔌 Contexte d\'écoute')}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-sec)', marginBottom: 10, lineHeight: 1.5 }}>{t('profile.output-context.intro', 'Sur quel matériel tu joues le plus souvent. Décide si l\'IA active le bloc CAB du PRESET ou non — important pour éviter le double-filtrage cab (ampli + cab physique).')}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+          {[
+            { id: 'frfr', icon: '📢', label: t('output-context.label.frfr', 'Enceinte FRFR'), desc: t('output-context.desc.frfr', 'Enceinte neutre alimentée (Headrush, Friedman ASM, Powercab+, ToneX Cab…). CAB activé dans le PRESET.') },
+            { id: 'headphone', icon: '🎧', label: t('output-context.label.headphone', 'Casque'), desc: t('output-context.desc.headphone', 'Jeu silencieux via la sortie casque de la pédale. CAB activé dans le PRESET (sinon bouillie aiguë).') },
+            { id: 'pa', icon: '🎚️', label: t('output-context.label.pa', 'Sono / Table de mixage'), desc: t('output-context.desc.pa', 'Sortie directe via DI vers PA, table ou monitors studio. CAB activé dans le PRESET (le mixage attend du signal cabbed).') },
+            { id: 'ampWithCab', icon: '🎸', label: t('output-context.label.ampWithCab', 'Ampli + cab guitare physique'), desc: t('output-context.desc.ampWithCab', 'Ampli de puissance + baffle guitare (Marshall, Mesa, etc.). CAB désactivé dans le PRESET pour éviter le double-filtrage.') },
+            { id: 'ampNoCab', icon: '🔊', label: t('output-context.label.ampNoCab', 'Ampli sans cab (FRFR-like)'), desc: t('output-context.desc.ampNoCab', 'Ampli combo dont la simulation cab interne est désactivable, ou préampli pur. CAB activé dans le PRESET.') },
+          ].map(({ id, icon, label, desc }) => {
+            const active = (profile.outputContext || 'frfr') === id;
+            return <button
+              key={id}
+              data-testid={`output-context-${id}`}
+              onClick={() => {
+                onProfiles((p) => ({ ...p, [activeProfileId]: { ...p[activeProfileId], outputContext: id, lastModified: Date.now() } }));
+              }}
+              style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: active ? 'var(--accent-bg)' : 'var(--a3)', border: active ? '1px solid var(--accent-border)' : '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '12px 14px', cursor: 'pointer', textAlign: 'left' }}
+            >
+              <div style={{ width: 18, height: 18, borderRadius: '50%', border: active ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: active ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>{active && <span style={{ color: 'var(--bg)', fontSize: 11, fontWeight: 900 }}>✓</span>}</div>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ fontSize: 13, color: active ? 'var(--text)' : 'var(--text-muted)', fontWeight: active ? 700 : 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>{icon}</span>
+                  <span>{label}</span>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 }}>{desc}</div>
+              </div>
+            </button>;
+          })}
+        </div>
+        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.5, marginBottom: 16 }}>{t('profile.output-context.hint', 'Tu peux aussi forcer un autre contexte par morceau depuis la fiche song. Changer ici n\'invalide pas les caches existants — utilise "🔄 Réinitialiser mes analyses" pour regenerer.')}</div>
+
         {(() => {
           const BIAS_STYLES = [
             { id: 'blues', label: 'Blues' },

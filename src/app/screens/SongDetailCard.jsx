@@ -457,6 +457,37 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           </div>
           <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 3, fontStyle: 'italic' }}>{t('song-detail.mode-hint', 'Changer le mode invalide le cache → re-analyse au prochain ouverture du morceau.')}</div>
         </div>
+        {/* Phase 10 — Override contexte d'écoute par morceau. Change →
+            invalide aiCache (pattern Phase 7.3 recoMode). Le contexte
+            effectif dicte cab_enabled au prompt IA Phase 9.1. */}
+        <div style={{ marginBottom: 12, marginLeft: 24 }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{t('song-detail.output-context-label', '🔌 Sortie audio pour ce morceau')} {song.outputContext ? <span style={{ color: 'var(--accent)' }}>{t('song-detail.output-context-override', '· override')}</span> : <span style={{ color: 'var(--text-dim)' }}>{tFormat('song-detail.output-context-inherited', { context: profile?.outputContext || 'frfr' }, '· profil ({context})')}</span>}</div>
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            {[
+              { id: '', icon: '↻', label: t('song-detail.output-context-profile', 'Profil') },
+              { id: 'frfr', icon: '📢', label: t('output-context.label.frfr', 'Enceinte FRFR') },
+              { id: 'headphone', icon: '🎧', label: t('output-context.label.headphone', 'Casque') },
+              { id: 'pa', icon: '🎚️', label: t('output-context.label.pa', 'Sono / Table de mixage') },
+              { id: 'ampWithCab', icon: '🎸', label: t('output-context.label.ampWithCab', 'Ampli + cab guitare physique') },
+              { id: 'ampNoCab', icon: '🔊', label: t('output-context.label.ampNoCab', 'Ampli sans cab (FRFR-like)') },
+            ].map(({ id, icon, label }) => {
+              const active = (song.outputContext || '') === id;
+              return (
+                <button key={id || 'profile'}
+                  data-testid={`song-output-context-${id || 'profile'}`}
+                  onClick={() => {
+                    onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, outputContext: id || undefined } : x));
+                    writeAiCache(null);
+                    setLocalAiResult(null);
+                  }}
+                  title={id ? tFormat('song-detail.output-context-tooltip-override', { label }, 'Override : {label}') : t('song-detail.output-context-tooltip-profile', 'Hérite du contexte profil. Cliquer invalide le cache IA pour re-fetcher avec le nouveau contexte.')}
+                  style={{ fontSize: 10, fontWeight: active ? 700 : 500, background: active ? 'var(--accent-bg)' : 'var(--a3)', border: active ? '1px solid var(--accent-border)' : '1px solid var(--a8)', color: active ? 'var(--accent)' : 'var(--text-muted)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer' }}
+                >{icon} {label}</button>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 3, fontStyle: 'italic' }}>{t('song-detail.output-context-hint', 'Changer le contexte invalide le cache → re-analyse avec cab_enabled / réglages adaptés au matériel d\'écoute.')}</div>
+        </div>
         {aiC && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{tFormat('song-detail.best-installed-for', { guitar: g?.short || t('song-detail.this-guitar', 'cette guitare') }, 'Meilleurs presets installes pour {guitar}')}</div>}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {getActiveDevicesForRender(profile).map((d) => {

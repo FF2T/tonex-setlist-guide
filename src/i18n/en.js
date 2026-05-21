@@ -868,6 +868,30 @@ const en = {
   // Phase 7.85 — PBlock badge banque (Bloqueur 2 audit démo EN : "Banque 37A" en EN).
   'pblock.installed-bank': 'Bank {bank}{slot}',
 
+  // Phase 10 — Listening context (output audio). Drives cab_enabled in
+  // AI prompt + adapts recs to actual playback gear.
+  'profile.output-context.title': '🔌 Listening context',
+  'profile.output-context.intro': 'What gear you play through most often. Decides whether the AI enables the PRESET\'s CAB block — important to avoid double cab filtering (amp + physical cab).',
+  'profile.output-context.hint': 'You can also force a different context per song from the song card. Changing here does not invalidate existing caches — use "🔄 Reset my analyses" to regenerate.',
+  'profile.reco.mode-hint': 'This mode is passed as input on every AI call. Already-analyzed songs keep their cache until invalidation.',
+  'output-context.label.frfr': 'FRFR cabinet',
+  'output-context.label.headphone': 'Headphones',
+  'output-context.label.pa': 'PA / Mixer',
+  'output-context.label.ampWithCab': 'Amp + physical guitar cab',
+  'output-context.label.ampNoCab': 'Amp without cab (FRFR-like)',
+  'output-context.desc.frfr': 'Neutral powered cabinet (Headrush, Friedman ASM, Powercab+, ToneX Cab…). CAB enabled in the PRESET.',
+  'output-context.desc.headphone': 'Silent playing through the pedal\'s headphone output. CAB enabled in the PRESET (otherwise harsh mess).',
+  'output-context.desc.pa': 'Direct out via DI to PA, mixer or studio monitors. CAB enabled in the PRESET (the mix expects cabbed signal).',
+  'output-context.desc.ampWithCab': 'Power amp + guitar cabinet (Marshall, Mesa, etc.). CAB disabled in the PRESET to avoid double filtering.',
+  'output-context.desc.ampNoCab': 'Combo amp with disable-able internal cab sim, or pure preamp. CAB enabled in the PRESET.',
+  'song-detail.output-context-label': '🔌 Audio output for this song',
+  'song-detail.output-context-override': '· override',
+  'song-detail.output-context-inherited': '· profile ({context})',
+  'song-detail.output-context-profile': 'Profile',
+  'song-detail.output-context-tooltip-profile': 'Inherits from profile context. Clicking invalidates the AI cache to re-fetch with the new context.',
+  'song-detail.output-context-tooltip-override': 'Override: {label}',
+  'song-detail.output-context-hint': 'Changing context invalidates the cache → re-analysis with cab_enabled / settings adapted to listening gear.',
+
   'list.edit-songs': '✏️ Edit setlist',
   'list.edit-done': '✅ Done',
   'list.edit-setlist-title': 'Edit mode: remove songs from the setlist (does not touch the global library)',
