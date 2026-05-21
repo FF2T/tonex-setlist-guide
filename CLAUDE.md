@@ -43,10 +43,15 @@ Phase 7.29) ou `ff2t.github.io/tonex-setlist-guide/` (legacy, toujours OK).
 ## Public et contraintes d'usage
 
 - Utilisateur principal : guitariste blues/rock 70s, ~13 morceaux
-  actifs, 11 guitares dans la collection (LP60, LP P90, SG Ebony,
-  SG 61, ES-335, Strat 61, Strat Pro II, EC Strat, Tele 63, Tele
-  Ultra, Jazzmaster). Profil secondaire : son fils, 12 ans, fan
-  d'AC/DC et BB King, équipement Epiphone + Fender Junior.
+  actifs, 11 guitares dans son rig app (LP60, LP P90, SG Ebony,
+  ES-335, Strat 61, Strat Pro II, EC Strat, Tele 63, Tele Ultra,
+  Jazzmaster, Tele 51 custom). ⚠ La **SG 61** du foyer est sur le
+  profil **d'Arthur** (un seul exemplaire à la maison, qu'Arthur
+  utilise) — elle n'est PAS dans le rig de Sébastien. La défense
+  « orphan-cross-profile » de `mergeProfileLWW` filtre donc
+  légitimement `sg61` de `myGuitars` de Sébastien : ce n'est PAS un
+  bug. Profil secondaire : son fils, 12 ans, fan d'AC/DC et BB King,
+  équipement Epiphone + Fender Junior.
 - Cible matérielle : iPad Pro M4 et iPhone récents en standalone PWA,
   Safari iOS 16+, Chrome desktop. **Doit fonctionner offline** une
   fois installée.
@@ -822,7 +827,9 @@ docs/INVESTIGATION_POLLUTION_PROFILE.md  +occurrence #7 + Session 2
   au contenu périmé ne peut plus regagner le LWW à chaque ouverture et
   propager son état stale. Combiné à Phase 7.74.7 (recordLogin), les
   deux amplificateurs de la pollution profile sont neutralisés.
-- Le déploiement sur `main` reste à faire (build + push).
+- **Déployé en prod** : `main` commit `2249aa0`, v8.14.158 live sur
+  `mybackline.app` (vérifié). Banques de Sébastien restaurées et
+  propagées via Firestore.
 
 ### Dette résiduelle Phase 7.74.8
 
