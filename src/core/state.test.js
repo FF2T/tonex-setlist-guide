@@ -27,6 +27,7 @@ import {
   dedupSetlists, dedupSetlistsWithTombstones, setlistDedupKey,
   dedupSongDb,
   autoBackup, listBackups, clearBackups, isQuotaError, persistState,
+  OUTPUT_CONTEXTS, DEFAULT_OUTPUT_CONTEXT, getEffectiveOutputContext, shouldCabBeEnabled,
 } from './state.js';
 
 describe('STATE_VERSION', () => {
@@ -3829,5 +3830,72 @@ describe('mergeProfileLWW — Phase 7.74.7 log forensique banks mass-change', ()
     const remote = { id: 'seb', lastModified: 1000, banksAnn: mkBanks(10, 'B') };
     mergeProfileLWW(local, remote, { debug: true });
     expect(banksWarns().length).toBe(0);
+  });
+});
+
+// Phase 10 — Contexte d'écoute
+describe('OUTPUT_CONTEXTS / getEffectiveOutputContext / shouldCabBeEnabled (Phase 10)', () => {
+  test('OUTPUT_CONTEXTS contient les 5 valeurs attendues', () => {
+    expect(OUTPUT_CONTEXTS).toEqual(['headphone', 'frfr', 'pa', 'ampWithCab', 'ampNoCab']);
+  });
+
+  test('DEFAULT_OUTPUT_CONTEXT vaut frfr', () => {
+    expect(DEFAULT_OUTPUT_CONTEXT).toBe('frfr');
+  });
+
+  describe('getEffectiveOutputContext', () => {
+    test('song.outputContext override prioritaire', () => {
+      expect(getEffectiveOutputContext({ outputContext: 'frfr' }, { outputContext: 'headphone' })).toBe('headphone');
+    });
+
+    test('profile.outputContext utilisé sans override song', () => {
+      expect(getEffectiveOutputContext({ outputContext: 'ampWithCab' }, { outputContext: undefined })).toBe('ampWithCab');
+      expect(getEffectiveOutputContext({ outputContext: 'pa' }, {})).toBe('pa');
+      expect(getEffectiveOutputContext({ outputContext: 'ampNoCab' }, null)).toBe('ampNoCab');
+    });
+
+    test('default frfr si profile sans outputContext', () => {
+      expect(getEffectiveOutputContext({}, {})).toBe('frfr');
+      expect(getEffectiveOutputContext(null, null)).toBe('frfr');
+    });
+
+    test('valeur invalide song.outputContext → fallback profile', () => {
+      expect(getEffectiveOutputContext({ outputContext: 'pa' }, { outputContext: 'invalid' })).toBe('pa');
+    });
+
+    test('valeur invalide profile.outputContext → fallback default', () => {
+      expect(getEffectiveOutputContext({ outputContext: 'bogus' }, null)).toBe('frfr');
+    });
+
+    test('valeur vide / null song.outputContext → fallback profile', () => {
+      expect(getEffectiveOutputContext({ outputContext: 'headphone' }, { outputContext: '' })).toBe('headphone');
+      expect(getEffectiveOutputContext({ outputContext: 'pa' }, { outputContext: null })).toBe('pa');
+    });
+  });
+
+  describe('shouldCabBeEnabled', () => {
+    test('headphone / frfr / pa / ampNoCab → CAB activated', () => {
+      expect(shouldCabBeEnabled('headphone')).toBe(true);
+      expect(shouldCabBeEnabled('frfr')).toBe(true);
+      expect(shouldCabBeEnabled('pa')).toBe(true);
+      expect(shouldCabBeEnabled('ampNoCab')).toBe(true);
+    });
+
+    test('ampWithCab → CAB bypassed (anti-double-cab)', () => {
+      expect(shouldCabBeEnabled('ampWithCab')).toBe(false);
+    });
+
+    test('contexte inconnu → CAB activated (defensive)', () => {
+      expect(shouldCabBeEnabled('bogus')).toBe(true);
+      expect(shouldCabBeEnabled(null)).toBe(true);
+      expect(shouldCabBeEnabled(undefined)).toBe(true);
+    });
+  });
+
+  test('makeDefaultProfile (admin et non-admin) pose outputContext frfr', () => {
+    const admin = makeDefaultProfile('seb', 'Sébastien', true);
+    const standard = makeDefaultProfile('bruno', 'Bruno', false);
+    expect(admin.outputContext).toBe('frfr');
+    expect(standard.outputContext).toBe('frfr');
   });
 });

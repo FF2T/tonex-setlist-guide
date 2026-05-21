@@ -1244,6 +1244,8 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
       lastModified: Date.now(),
       recoMode: 'balanced',
       guitarBias: {},
+      // Phase 10 — contexte d'écoute (default 'frfr', cf OUTPUT_CONTEXTS).
+      outputContext: DEFAULT_OUTPUT_CONTEXT,
       language: fallbackLang,
       isDemo: false,
     };
@@ -1269,6 +1271,8 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
     lastModified: Date.now(),
     recoMode: 'balanced',
     guitarBias: {},
+    // Phase 10 — contexte d'écoute (default 'frfr', cf OUTPUT_CONTEXTS).
+    outputContext: DEFAULT_OUTPUT_CONTEXT,
     language: fallbackLang,
     isDemo: false,
   };
@@ -2336,7 +2340,42 @@ function isAdminAsMode(profiles, activeProfileId, adminOriginId) {
   return true;
 }
 
+// Phase 10 (2026-05-21) — Contexte d'écoute par profil + override par
+// morceau. Dicte notamment le toggle `cab_enabled` au prompt IA Phase 9.1
+// (impossible de jouer une capture cabbed sur un cab physique guitare sans
+// double-filtrage cab → bouillie). Identifiants anglais sobres ; labels
+// affichables côté UI via i18n. Default 'frfr' = config la plus courante
+// utilisateurs ToneX (enceinte FRFR neutre type Headrush/Powercab+/ToneX Cab).
+//
+// Mapping context → CAB section conforme au manuel TONEX pages 8-12 :
+//   headphone   → CAB activated (jeu silencieux)
+//   frfr        → CAB activated (FRFR ou enceinte amplifiée)
+//   pa          → CAB activated (DI → sono / table de mixage)
+//   ampWithCab  → CAB bypassed (amp puissance + cab guitare physique)
+//   ampNoCab    → CAB activated (préampli pur / amp avec cab désactivable)
+const OUTPUT_CONTEXTS = ['headphone', 'frfr', 'pa', 'ampWithCab', 'ampNoCab'];
+const DEFAULT_OUTPUT_CONTEXT = 'frfr';
+
+// Pure helper : retourne le contexte effectif pour un morceau donné.
+// Priorité song.outputContext (override) > profile.outputContext > default
+// 'frfr'. Defensive face aux valeurs invalides (legacy / fresh profile).
+function getEffectiveOutputContext(profile, song) {
+  const songCtx = song?.outputContext;
+  if (songCtx && OUTPUT_CONTEXTS.includes(songCtx)) return songCtx;
+  const profileCtx = profile?.outputContext;
+  if (profileCtx && OUTPUT_CONTEXTS.includes(profileCtx)) return profileCtx;
+  return DEFAULT_OUTPUT_CONTEXT;
+}
+
+// Pure helper : retourne true si le contexte demande CAB activated dans
+// le PRESET. Utilisé par le prompt IA Phase 9.1 pour décider `cab_enabled`
+// et par l'UI pour signaler les conflits CAB.
+function shouldCabBeEnabled(outputContext) {
+  return outputContext !== 'ampWithCab';
+}
+
 export {
+  OUTPUT_CONTEXTS, DEFAULT_OUTPUT_CONTEXT, getEffectiveOutputContext, shouldCabBeEnabled,
   ADMIN_ORIGIN_KEY, recordAdminSwitch, isAdminAsMode, appendLoginEntry,
   STATE_VERSION, TOMBSTONE_MAX_AGE_MS,
   LS_KEY, LS_KEY_V1, LS_SECRETS_KEY, LS_TRUSTED_KEY, LS_BACKUP_KEY, MAX_BACKUPS,
