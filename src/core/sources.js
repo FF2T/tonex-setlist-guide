@@ -136,8 +136,13 @@ function getSourceInfo(entry) {
   if (!entry || !entry.src) return null;
   const base = SOURCE_INFO[entry.src];
   if (!base) return { icon: '📁', label: String(entry.src) };
+  // Phase 7.85 — Bloqueur 4 audit démo EN : retiré le nom de fichier
+  // ZIP brut + guillemets français « » (plomberie interne, vexant pour
+  // créateur de pack). Aligné sur le pattern des branches custom/adminPack
+  // ci-dessous. Cohérent avec Phase 7.84 PresetDetailInline (Explorer)
+  // qui avait retiré le span ZIP brut pour la même raison.
   if (entry.src === 'TSR' && entry.pack) {
-    return { icon: base.icon, label: `The Studio Rats — « ${entry.pack}.zip »` };
+    return { icon: base.icon, label: `The Studio Rats — ${entry.pack}` };
   }
   if (entry.src === 'custom' && entry.pack) {
     return { icon: base.icon, label: `Custom — ${entry.pack}` };
