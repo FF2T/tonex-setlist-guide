@@ -800,6 +800,17 @@ l'import en test ne render pas, et `main.smoke.test.jsx` monte `<App/>`
 dans jsdom et vérifie que le mount ne throw pas. Filet anti-régression
 pour les bugs d'init / d'ordre de déclaration.
 
+### Traduction onglet « Mes presets custom » (commit `[i18n]`, même release)
+
+Dette i18n Phase 7.69 résorbée : 30 clés `mycustompresets.*` +
+`profile.tab.custom-packs` avaient des fallbacks FR inline mais
+manquaient dans `en.js`/`es.js` → l'onglet restait en français en mode
+EN/ES. 31 clés ajoutées dans les deux dicos. `MyCustomPresetsTab` :
+ajout de `useLocale()` (l'onglet ne se re-rendait pas au switch de
+langue) ; `confirm-delete` passé de `t()` à `tFormat({name})` pour
+garder le nom du preset dans toutes les langues. Livré dans la même
+release v8.14.157 (commit séparé `[i18n]`).
+
 ### Architecture livrée Phase 7.74.7
 
 ```
@@ -813,6 +824,10 @@ src/core/state.test.js    +10 tests (appendLoginEntry + log banks)
 src/main.smoke.test.jsx   NOUVEAU — smoke mount React (2 tests)
 docs/SYNC.md              +section Phase 7.74.7 + régression table
 docs/INVESTIGATION_POLLUTION_PROFILE.md  +résultats Session 1
+src/i18n/en.js            +31 clés mycustompresets.* / tab.custom-packs
+src/i18n/es.js            +31 clés (idem ES)
+src/app/screens/MyCustomPresetsTab.jsx  +useLocale() ; confirm-delete
+                          → tFormat({name})
 ```
 
 ### Conséquences Phase 7.74.7
