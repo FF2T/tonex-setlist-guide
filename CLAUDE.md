@@ -12996,6 +12996,15 @@ Sébastien constate des analyses écrasées.
 
 ### Phase 9 (validée 2026-05-18 — 3 signaux indépendants, V2 design 2026-05-21) — Output IA enrichi avec réglages PRESET complets
 
+> **✅ Phase 9.1 livrée 2026-05-21 nuit (v8.14.160)** — MVP table chiffrée
+> Réglages pédale (5 main + 5 alt + cab_enabled + why trilingue) +
+> helper clampPresetSettings + UI sous le bloc preset reco. Cf section
+> "État actuel" en tête de CLAUDE.md pour le détail.
+>
+> Restent à livrer : 9.2 (FX blocks détaillés ~5h), 9.3 (EQ avancé ~2h),
+> 9.4 (ONE TWEAK ~2h), 9.5 (playing hints ~1-2h). Le design V2 ci-dessous
+> reste la référence pour ces 4 sous-phases.
+
 **Status** : 3 signaux indépendants user (Ok_Ask2411 peer-builder
 2026-05-15 + Francisco 2026-05-17 EQ chiffrée + Bruno 2026-05-18
 built-in FX). Cf BETA_TESTING.md sections 2 et 7.
@@ -13705,6 +13714,16 @@ ToneX user" mené par Claude (Cowork mode). Cf. session du même
 jour pour les screenshots et observations détaillées.
 
 ### Phase 10 (validée 2026-05-18 — 1 signal Bruno) — Preset avec/sans cab × contexte d'écoute
+
+> **✅ Phase 10 livrée 2026-05-21 nuit en 3 itérations (v8.14.160 → 8.14.162)** :
+> - **v1** (8.14.160) : 5 valeurs outputContext (headphone/frfr/pa/ampWithCab/ampNoCab) + dictée cab_enabled selon contexte.
+> - **v2** (8.14.161) : simplifiée à 3 valeurs (suppression ampWithCab + ampNoCab — cas marginaux). cab_enabled dicté par CAPTURE (AMP+CAB → false, AMP-only → true).
+> - **v3** (8.14.162) : fix raisonnement erroné. cab_enabled TOUJOURS true sur les 3 contextes (pas de cab physique aval = bloc CAB firmware doit rester ON pour entendre la capture complète, manuel TONEX p.29).
+>
+> Cf section "État actuel" en tête de CLAUDE.md pour le détail. Le
+> design original ci-dessous est conservé pour mémoire historique
+> et comme base pour Phase 10.1 future si on enrichit
+> `PRESET_CATALOG_MERGED` avec `hasCab` + on réintroduit `ampWithCab`.
 
 **Contexte** : Bruno (beta-tester metal/punk) a rapporté en
 soirée du 2026-05-18, après la livraison Phase 7.65.x :
