@@ -13859,16 +13859,33 @@ Trigger : prioritaire — affecte directement l'expérience principale
 (coût Gemini ×2, friction utilisateur, défaut perçu critique sur
 multi-device).
 
-### Phase 7.73.2 (proposée 2026-05-19, validée Full scope) — Onglet "👤 Mon compte"
+### Phase 7.73.2 (proposée 2026-05-19, Session A LIVRÉE 2026-05-23, Sessions B+C en attente) — Refonte Mon Profil
 
 **Contexte** : Phase 7.72 a séparé Mon Profil / Admin. Phase 7.73.0+.1 ont
-ajouté le bouton feedback Tally + intégré CSV dans device tabs. Reste à
-livrer le tab "👤 Mon compte" qui regroupe Identité + Sécurité + Données +
-Activité + Préférences musicales + Communauté + Aide.
+ajouté le bouton feedback Tally + intégré CSV dans device tabs.
 
 **Validation user 2026-05-19** : Full scope OK sauf "BPM cible préféré"
 et "Tuning par défaut" écartés. Bouton Tally feedback intégré dans
 l'onglet (en plus du footer Phase 7.73.0).
+
+**Structure finale validée 2026-05-23** : pivot vs proposition initiale
+2026-05-19 :
+- Ajout du tab "⚙️ Préférences" séparé (au lieu de tout fourrer dans
+  Mon compte) → 2 tabs distincts au lieu d'1 fourre-tout
+- Renommages "🎸 Guitares" → "🎸 Mes guitares", "📦 Sources" → "📦
+  Mes sources" pour cohérence avec "Mes appareils" / "Mes presets
+  custom"
+
+**Plan de livraison en 3 sessions** :
+
+| Session | Items | Effort | Status |
+|---|---|---|---|
+| **A — Refonte tabs + ⚙️ Préférences** | Tab "⚙️ Préférences" (Affichage + Préférences IA + 🎵 Préférences musicales NOUVEAU) + renommages "Mes guitares"/"Mes sources" + retrait tabs séparés display/reco | ~1h30 | ✅ LIVRÉE 2026-05-23 (v8.14.175) |
+| **B — Cœur Mon compte** | Tab "👤 Mon compte" en premier : Identité (avatar+nom+bio+email) + Sécurité (migration PasswordTab) + Mes données (export/import perso) + retrait tab Password séparé | ~3h | ⏳ Pending |
+| **C — Finitions** | Activité (stats read-only) + Communauté (partages reçus) + Aide (relance tuto + Tally + mailto + version + CHANGELOG) | ~2h | ⏳ Pending |
+
+Cf section "État actuel" pour Session A détaillée. Sections B et C
+documentées ci-dessous.
 
 #### Composant `MonCompteTab.jsx` (premier tab MonProfilScreen)
 
@@ -14582,14 +14599,26 @@ Sébastien constate des analyses écrasées.
 
 ### Phase 9 (validée 2026-05-18 — 3 signaux indépendants, V2 design 2026-05-21) — Output IA enrichi avec réglages PRESET complets
 
-> **✅ Phase 9.1 livrée 2026-05-21 nuit (v8.14.160)** — MVP table chiffrée
-> Réglages pédale (5 main + 5 alt + cab_enabled + why trilingue) +
-> helper clampPresetSettings + UI sous le bloc preset reco. Cf section
-> "État actuel" en tête de CLAUDE.md pour le détail.
+> **✅ Famille Phase 9 CLOSE 2026-05-22 → 2026-05-23**
 >
-> Restent à livrer : 9.2 (FX blocks détaillés ~5h), 9.3 (EQ avancé ~2h),
-> 9.4 (ONE TWEAK ~2h), 9.5 (playing hints ~1-2h). Le design V2 ci-dessous
-> reste la référence pour ces 4 sous-phases.
+> | Sous-phase | Status | Version |
+> |---|---|---|
+> | 9.1 MVP table chiffrée | ✅ | 8.14.160 |
+> | 9.2 N1 FX ON/OFF + type | ✅ | 8.14.172 |
+> | 9.2 N2 sub-params (=9.7) | ✅ | 8.14.173 |
+> | 9.3 EQ avancé 4-bandes | Reporté | — |
+> | 9.4 ONE TWEAK | ✅ + 9.4.1 + 9.4.2 | 8.14.167 |
+> | 9.5 Playing hints | ✅ + 9.5.1 + 9.5.2 | 8.14.169 |
+> | 9.6 Déduplication conseils | ✅ + 9.6.1 + 9.6.2 | 8.14.172 |
+> | 9.7 Refonte UI + sub-params N2 | ✅ | 8.14.173 |
+> | 9.7.1 Honest framing post-capture | ✅ | 8.14.174 |
+> | 9.7.2 Post-process clamp extrêmes | Reporté (si signal user) | — |
+>
+> Cf section "État actuel" en tête de CLAUDE.md pour Phase 7.73.2
+> Session A (2026-05-23) qui suit.
+>
+> Le design V2 ci-dessous reste la référence historique pour les 4
+> sous-phases livrées.
 
 **Status** : 3 signaux indépendants user (Ok_Ask2411 peer-builder
 2026-05-15 + Francisco 2026-05-17 EQ chiffrée + Bruno 2026-05-18
