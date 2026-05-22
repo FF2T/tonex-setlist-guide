@@ -68,6 +68,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   const [showAdvancedMode, setShowAdvancedMode] = useState(false);
   const [showWhyPerKnob, setShowWhyPerKnob] = useState(false);
   const [showTweaks, setShowTweaks] = useState(false);
+  const [showFxWhy, setShowFxWhy] = useState(false);
   const [installTarget, setInstallTarget] = useState(null);
   const [installBank, setInstallBank] = useState({ ann: '', plug: '' });
   const [installSlot, setInstallSlot] = useState({ ann: 'A', plug: 'A' });
@@ -563,12 +564,18 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                               // "Si " ça donne "Si Trop" (FR incorrect).
                               // Acronymes (FRFR, EQ) préservés.
                               const symptomDisplayed = decapitalizeFirst(symptomTxt);
+                              // Phase 9.6.2 — Gemini copie parfois le nom
+                              // de variable JSON avec underscore dans le
+                              // fix ("Reverb_mix +5" au lieu de "Reverb
+                              // mix +5"). On remplace les "_" par des
+                              // espaces dans le format human-friendly.
+                              const fixDisplayed = String(tweak.fix).replace(/_/g, ' ');
                               return (
                                 <div key={idx} style={{ fontSize: 10, lineHeight: 1.4, padding: '3px 6px', background: 'var(--a2)', borderRadius: 'var(--r-sm)' }}>
                                   <span style={{ color: 'var(--text-muted)' }}>{t('tweaks.if', 'Si')} </span>
                                   <span style={{ color: 'var(--text-sec)', fontStyle: 'italic' }}>{symptomDisplayed}</span>
                                   <span style={{ color: 'var(--text-muted)' }}> → </span>
-                                  <span style={{ color: 'var(--text-bright)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{tweak.fix}</span>
+                                  <span style={{ color: 'var(--text-bright)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{fixDisplayed}</span>
                                 </div>
                               );
                             })}
@@ -576,6 +583,66 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                         )}
                       </>
                     )}
+                    {/* Phase 9.2 — Section "🎚 FX Blocks" sous les tweaks.
+                        5 lignes compactes ON/OFF + type pour les blocs
+                        effets du preset TONEX (noise_gate, compressor,
+                        modulation, delay, reverb). Toggle "Pourquoi ces
+                        FX ?" pour révéler les why per-block. Skip si
+                        fx_blocks absent (aiCache pré-9.2). */}
+                    {aiC.fx_blocks && (() => {
+                      const fx = aiC.fx_blocks;
+                      const blocks = [
+                        ['noise_gate', t('fx-blocks.noise-gate', 'Noise Gate')],
+                        ['compressor', t('fx-blocks.compressor', 'Compressor')],
+                        ['modulation', t('fx-blocks.modulation', 'Modulation')],
+                        ['delay', t('fx-blocks.delay', 'Delay')],
+                        ['reverb', t('fx-blocks.reverb', 'Reverb')],
+                      ];
+                      const present = blocks.filter(([key]) => fx[key]);
+                      if (present.length === 0) return null;
+                      const hasAnyWhy = present.some(([key]) => fx[key].why);
+                      return (
+                        <div data-testid="preset-settings-fx-blocks" style={{ marginTop: 6, paddingTop: 6, borderTop: '1px dashed var(--a10)' }}>
+                          <div style={{ fontSize: 9, color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: 3 }}>{t('fx-blocks.section-title', '🎚 Blocs effets')}</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            {present.map(([key, label]) => {
+                              const block = fx[key];
+                              const onLabel = block.enabled ? t('fx-blocks.on', 'ON') : t('fx-blocks.off', 'OFF');
+                              const bgColor = block.enabled ? 'var(--green-bg)' : 'var(--a4)';
+                              const textColor = block.enabled ? 'var(--green)' : 'var(--text-dim)';
+                              const whyTxt = block.why ? getLocalizedText(block.why, locale) : null;
+                              return (
+                                <div key={key}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, padding: '2px 0' }}>
+                                    <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{label}</span>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                      {block.enabled && block.type && (
+                                        <span style={{ fontSize: 9, color: 'var(--text-dim)', fontStyle: 'italic' }}>{block.type}</span>
+                                      )}
+                                      <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 'var(--r-sm)', background: bgColor, color: textColor, fontWeight: 700, fontFamily: 'var(--font-mono)', minWidth: 28, textAlign: 'center' }}>{onLabel}</span>
+                                    </span>
+                                  </div>
+                                  {showFxWhy && whyTxt && (
+                                    <div style={{ fontSize: 9, color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.4, marginLeft: 8, marginBottom: 3 }}>↳ {whyTxt}</div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {hasAnyWhy && (
+                            <button
+                              onClick={() => setShowFxWhy((p) => !p)}
+                              data-testid="preset-settings-fx-why-toggle"
+                              style={{ marginTop: 4, fontSize: 10, background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0, fontWeight: 600, textAlign: 'left', width: '100%' }}
+                            >
+                              {showFxWhy
+                                ? t('fx-blocks.why-hide', '▲ Masquer les explications')
+                                : t('fx-blocks.why-show', '▸ Pourquoi ces FX ?')}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })()}
@@ -612,8 +679,21 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             // structuré (ai|tokens|desc) qu'on compose côté UI. Avant 7.85,
             // les fallbacks pros/cons retournaient des chaînes FR concaténées
             // visibles en EN/ES (Bloqueur 1 audit démo EN).
+            // Phase 9.6.2 (2026-05-22) — si la guitare choisie matche
+            // cot_step2[0] (la top du scoring), sa reason est déjà rendue
+            // dans le Bloc 2 "Scoring guitares". On évite la 3e répétition
+            // ici uniquement pour le kind:'ai' (qui vient justement de cot).
+            // kind:'tokens' (heuristique pros/cons) et kind:'desc' restent
+            // visibles car informations distinctes.
             const fb = guitarChoiceFeedback(g, aiC, chosenGuitarCot);
             if (!fb) return null;
+            if (fb.kind === 'ai') {
+              const stripTypeSuffix = (s) => (s || '').trim().toLowerCase().replace(/\s*\([^)]*\)\s*$/, '').trim();
+              const cotTop = Array.isArray(aiC.cot_step2_guitars) ? aiC.cot_step2_guitars[0] : null;
+              const cotTopName = stripTypeSuffix(cotTop?.name);
+              const chosenName = stripTypeSuffix(g?.name);
+              if (cotTopName && chosenName && cotTopName === chosenName) return null;
+            }
             let fbText = null;
             if (fb.kind === 'ai') fbText = getLocalizedText(fb.reason, locale);
             else if (fb.kind === 'tokens') {

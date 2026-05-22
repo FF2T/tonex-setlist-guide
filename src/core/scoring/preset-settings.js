@@ -185,6 +185,63 @@ function clampPresetSettings(raw) {
   return Object.keys(out).length > 0 ? out : null;
 }
 
+// Phase 9.2 (2026-05-22) — valide la structure d'un objet `fx_blocks`
+// retourné par l'IA. Format Niveau 1 (ON/OFF + type optional) :
+//   {
+//     noise_gate: { enabled: boolean, why?: {fr,en,es} },
+//     compressor: { enabled: boolean, why?: {fr,en,es} },
+//     modulation: { enabled: boolean, type?: MOD_TYPE, why?: {fr,en,es} },
+//     delay:      { enabled: boolean, type?: DELAY_TYPE, why?: {fr,en,es} },
+//     reverb:     { enabled: boolean, type?: REVERB_TYPE, why?: {fr,en,es} }
+//   }
+//
+// Types officiels du manuel TONEX p.22-28 :
+// - MOD_TYPES   : Chorus / Tremolo / Phaser / Flanger / Rotary
+// - DELAY_TYPES : Digital / Tape
+// - REVERB_TYPES: Spring / Plate / Room / Hall / Shimmer
+//
+// Validation conservative : enabled DOIT être boolean (sinon drop le
+// bloc entier). type DOIT être dans l'enum (sinon retire type, garde
+// enabled). why validé via validateTrilingual (skip si invalide).
+// Threshold gate/comp restent dans preset_settings_v1.alt (Phase 9.1) —
+// pas dupliqués ici.
+
+const FX_BLOCK_KEYS = Object.freeze([
+  'noise_gate', 'compressor', 'modulation', 'delay', 'reverb',
+]);
+
+const FX_TYPE_ENUMS = Object.freeze({
+  modulation: Object.freeze(['Chorus', 'Tremolo', 'Phaser', 'Flanger', 'Rotary']),
+  delay: Object.freeze(['Digital', 'Tape']),
+  reverb: Object.freeze(['Spring', 'Plate', 'Room', 'Hall', 'Shimmer']),
+});
+
+function clampFxBlock(key, raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  if (typeof raw.enabled !== 'boolean') return null;
+  const out = { enabled: raw.enabled };
+  const enumList = FX_TYPE_ENUMS[key];
+  if (enumList && typeof raw.type === 'string' && raw.type.trim()) {
+    // Match case-insensitive sur l'enum, retourne la version canonique.
+    const found = enumList.find((t) => t.toLowerCase() === raw.type.trim().toLowerCase());
+    if (found) out.type = found;
+    // Pas de fallback warn (Gemini peut retourner null si pas applicable).
+  }
+  const whyClean = validateTrilingual(raw.why);
+  if (whyClean) out.why = whyClean;
+  return out;
+}
+
+function clampFxBlocks(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const out = {};
+  for (const key of FX_BLOCK_KEYS) {
+    const block = clampFxBlock(key, raw[key]);
+    if (block) out[key] = block;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
 // Phase 9.5 (2026-05-22) — valide la structure d'un objet `playing_hints`
 // retourné par l'IA. Format scalaire (pas trilingue : valeurs courtes
 // universelles, comme les noms de pickup et les ranges) :
@@ -210,4 +267,4 @@ function clampPlayingHints(raw) {
   return Object.keys(out).length > 0 ? out : null;
 }
 
-export { PRESET_RANGES, SUPPORTED_LOCALES, TWEAKS_MAX, clampPresetSettings, clampTweaks, clampPlayingHints };
+export { PRESET_RANGES, SUPPORTED_LOCALES, TWEAKS_MAX, FX_BLOCK_KEYS, FX_TYPE_ENUMS, clampPresetSettings, clampTweaks, clampPlayingHints, clampFxBlocks };

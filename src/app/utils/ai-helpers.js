@@ -32,6 +32,7 @@ import {
   getGuitarFamily,
   clampPresetSettings,
   clampPlayingHints,
+  clampFxBlocks,
 } from '../../core/scoring/index.js';
 
 // Amp aliases : maps des ref_amp libres vers les noms canoniques du
@@ -594,6 +595,16 @@ function enrichAIResult(aiResult, gType, gId, banksAnn, banksPlug, availableSour
     const clean = clampPlayingHints(aiResult.playing_hints);
     aiResult.playing_hints = clean;
     aiResult._playingHintsValidated = true;
+  }
+
+  // Phase 9.2 — Validation du champ fx_blocks retourné par l'IA.
+  // 5 blocs (noise_gate, compressor, modulation, delay, reverb) avec
+  // enabled bool + type optional dans l'enum officiel TONEX. Idempotent
+  // via flag _fxBlocksValidated. Skip si absent (aiCache pré-9.2).
+  if (aiResult.fx_blocks !== undefined && !aiResult._fxBlocksValidated) {
+    const clean = clampFxBlocks(aiResult.fx_blocks);
+    aiResult.fx_blocks = clean;
+    aiResult._fxBlocksValidated = true;
   }
 
   return aiResult;

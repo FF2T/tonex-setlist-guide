@@ -909,6 +909,18 @@ const en = {
   // Phase 9.5 — Playing hints structurés (pickup / volume / tone / stereo)
   'playing-hints.ai-advice': '💡 AI advice:',
   'playing-hints.stereo': '🎚️ STEREO',
+
+  // Phase 9.2 — FX blocks (5 effects : noise_gate / compressor / modulation / delay / reverb)
+  'fx-blocks.section-title': '🎚 Effect blocks',
+  'fx-blocks.noise-gate': 'Noise Gate',
+  'fx-blocks.compressor': 'Compressor',
+  'fx-blocks.modulation': 'Modulation',
+  'fx-blocks.delay': 'Delay',
+  'fx-blocks.reverb': 'Reverb',
+  'fx-blocks.on': 'ON',
+  'fx-blocks.off': 'OFF',
+  'fx-blocks.why-show': '▸ Why these FX?',
+  'fx-blocks.why-hide': '▲ Hide explanations',
   'song-detail.reco-block': 'AI recommendations',
   'song-detail.setup-block': 'My setup',
   'song-detail.setup-on-guitar': 'On your {guitar}:',

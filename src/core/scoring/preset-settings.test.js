@@ -3,7 +3,7 @@
 // champs présents et clamp les hors-bornes (Gemini hallucine parfois).
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
-import { PRESET_RANGES, SUPPORTED_LOCALES, TWEAKS_MAX, clampPresetSettings, clampTweaks, clampPlayingHints } from './preset-settings.js';
+import { PRESET_RANGES, SUPPORTED_LOCALES, TWEAKS_MAX, FX_BLOCK_KEYS, FX_TYPE_ENUMS, clampPresetSettings, clampTweaks, clampPlayingHints, clampFxBlocks } from './preset-settings.js';
 
 describe('PRESET_RANGES (Phase 9.1)', () => {
   test('5 main knobs avec range 0-10', () => {
@@ -610,5 +610,133 @@ describe('clampPlayingHints (Phase 9.5)', () => {
     });
     expect(out.pickup).toBe('Position 4 (Middle+Bridge)');
     expect(out.stereo).toBe(false);
+  });
+});
+
+describe('clampFxBlocks (Phase 9.2 Niveau 1)', () => {
+  test('FX_BLOCK_KEYS contient les 5 blocs attendus', () => {
+    expect(FX_BLOCK_KEYS).toEqual(['noise_gate', 'compressor', 'modulation', 'delay', 'reverb']);
+  });
+
+  test('FX_TYPE_ENUMS conformes manuel TONEX', () => {
+    expect(FX_TYPE_ENUMS.modulation).toEqual(['Chorus', 'Tremolo', 'Phaser', 'Flanger', 'Rotary']);
+    expect(FX_TYPE_ENUMS.delay).toEqual(['Digital', 'Tape']);
+    expect(FX_TYPE_ENUMS.reverb).toEqual(['Spring', 'Plate', 'Room', 'Hall', 'Shimmer']);
+  });
+
+  test('null / undefined / non-object → null', () => {
+    expect(clampFxBlocks(null)).toBe(null);
+    expect(clampFxBlocks(undefined)).toBe(null);
+    expect(clampFxBlocks('foo')).toBe(null);
+    expect(clampFxBlocks([])).toBe(null);
+  });
+
+  test('objet vide → null', () => {
+    expect(clampFxBlocks({})).toBe(null);
+  });
+
+  test('5 blocs complets avec types valides → preserve tout', () => {
+    const input = {
+      noise_gate: { enabled: true },
+      compressor: { enabled: false },
+      modulation: { enabled: false, type: 'Chorus' },
+      delay: { enabled: false, type: 'Tape' },
+      reverb: { enabled: true, type: 'Plate' },
+    };
+    expect(clampFxBlocks(input)).toEqual(input);
+  });
+
+  test('enabled non-boolean → drop le bloc entier', () => {
+    const out = clampFxBlocks({
+      noise_gate: { enabled: 'yes' },
+      reverb: { enabled: true, type: 'Plate' },
+    });
+    expect(out.noise_gate).toBeUndefined();
+    expect(out.reverb).toEqual({ enabled: true, type: 'Plate' });
+  });
+
+  test('type invalide (hors enum) → drop le type mais garde enabled', () => {
+    const out = clampFxBlocks({
+      modulation: { enabled: true, type: 'Univibe' }, // pas dans enum
+    });
+    expect(out.modulation).toEqual({ enabled: true });
+    expect(out.modulation.type).toBeUndefined();
+  });
+
+  test('type case-insensitive matché et renvoyé canonique', () => {
+    const out = clampFxBlocks({
+      reverb: { enabled: true, type: 'plate' }, // minuscule
+      delay: { enabled: true, type: 'TAPE' },   // majuscule
+    });
+    expect(out.reverb.type).toBe('Plate');
+    expect(out.delay.type).toBe('Tape');
+  });
+
+  test('why trilingue préservé', () => {
+    const out = clampFxBlocks({
+      reverb: {
+        enabled: true,
+        type: 'Spring',
+        why: { fr: 'Reverb spring vintage', en: 'Vintage spring reverb', es: 'Reverb spring vintage' },
+      },
+    });
+    expect(out.reverb.why).toEqual({ fr: 'Reverb spring vintage', en: 'Vintage spring reverb', es: 'Reverb spring vintage' });
+  });
+
+  test('why invalide ignorée silencieusement', () => {
+    const out = clampFxBlocks({
+      reverb: { enabled: true, why: 'not-an-object' },
+    });
+    expect(out.reverb).toEqual({ enabled: true });
+    expect(out.reverb.why).toBeUndefined();
+  });
+
+  test('bloc inconnu (eq) ignoré', () => {
+    const out = clampFxBlocks({
+      noise_gate: { enabled: true },
+      eq: { enabled: true, bands: [] }, // pas dans FX_BLOCK_KEYS
+    });
+    expect(out.noise_gate).toEqual({ enabled: true });
+    expect(out.eq).toBeUndefined();
+  });
+
+  test('partial (seulement reverb) → preserve reverb seul', () => {
+    expect(clampFxBlocks({ reverb: { enabled: true, type: 'Hall' } })).toEqual({
+      reverb: { enabled: true, type: 'Hall' },
+    });
+  });
+
+  test('tous les blocs malformés → null', () => {
+    expect(clampFxBlocks({
+      noise_gate: 'on',
+      compressor: { enabled: 1 },
+      modulation: null,
+    })).toBe(null);
+  });
+
+  test('scénario réel (Hells Bells AC/DC, FX dry)', () => {
+    const out = clampFxBlocks({
+      noise_gate: { enabled: false, why: { fr: 'Pas de gate, son dynamique', en: 'No gate, dynamic tone', es: 'Sin gate, tono dinámico' } },
+      compressor: { enabled: false },
+      modulation: { enabled: false },
+      delay: { enabled: false },
+      reverb: { enabled: true, type: 'Spring' },
+    });
+    expect(out.noise_gate.enabled).toBe(false);
+    expect(out.reverb.type).toBe('Spring');
+    expect(out.noise_gate.why.fr).toBe('Pas de gate, son dynamique');
+  });
+
+  test('scénario réel (For Whom the Bell Tolls Metallica, FX OFF sauf reverb)', () => {
+    const out = clampFxBlocks({
+      noise_gate: { enabled: true },
+      compressor: { enabled: false },
+      modulation: { enabled: false },
+      delay: { enabled: false },
+      reverb: { enabled: true, type: 'Plate' },
+    });
+    expect(out.noise_gate.enabled).toBe(true);
+    expect(out.modulation.enabled).toBe(false);
+    expect(out.reverb.type).toBe('Plate');
   });
 });

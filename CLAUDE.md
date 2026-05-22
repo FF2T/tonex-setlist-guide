@@ -761,7 +761,198 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-22 soir, Phase 9.6 — déduplication conseils guitare)
+## État actuel (2026-05-22 nuit, Phase 9.6.2 + 9.2 — finitions famille Phase 9 + FX blocks ON/OFF)
+
+**Backline v8.14.172 / SW backline-v272 / STATE_VERSION 11 / 1542 tests verts.**
+
+### Phase 9.6.2 + 9.2 — fin de la famille Phase 9 (v8.14.172)
+
+3 livraisons dans ce commit :
+
+#### Phase 9.6.1 (hotfix avant) — stripTypeSuffix sur cot_step2 name
+
+(Cf section "État précédent" — appliqué à 8.14.171.) Le check `cotTop?.name`
+matchait pas `displayIdealGuitarName` à cause du suffix "(HB)" / "(SC)"
+ajouté par Gemini. Strip du `\s*\([^)]*\)\s*$` avant comparison.
+
+#### Phase 9.6.2 — Mini-cleanup déduplication
+
+**Fix 1 — "Reverb_mix" → "Reverb mix"** : Gemini copie parfois le nom
+de variable JSON avec underscore dans le `fix` du tweak. Post-process
+inline `String(tweak.fix).replace(/_/g, ' ')` au render. Cosmétique
+pure.
+
+**Fix 2 — Bloc 3 reason masqué si dupliquée avec cot_step2[0]** :
+`guitarChoiceFeedback` retourne `kind: 'ai'` avec la reason du cot
+entry correspondant à la guitare. Si la guitare choisie matche
+`cot_step2[0]?.name` (modulo strip suffix type), la reason est déjà
+rendue dans Bloc 2 → on masque la 3e répétition. Cas `kind: 'tokens'`
+(heuristique pros/cons) et `kind: 'desc'` restent visibles car
+infos distinctes.
+
+#### Phase 9.2 Niveau 1 — FX blocks ON/OFF + type
+
+Adresse le pain point Bruno (For Whom the Bell Tolls : *"est ce que
+l'IA a connaissance des effets appliqués aux preset et les inclut
+dans son raisonnement"*) en exposant l'état des 5 blocs effets du
+preset TONEX (manuel p.22-28).
+
+**Niveau 1 = MVP minimal** : `enabled` boolean + `type` optionnel
+selon enum. Pas de sub-params (rate/depth/time/feedback/mix) — ces
+valeurs détaillées restent dans `preset_settings_v1.alt` Phase 9.1
+(reverb_mix, comp_threshold, gate_threshold) sans duplication.
+
+**Format `aiResult.fx_blocks`** :
+
+```json
+{
+  "noise_gate": { "enabled": boolean,                      "why": {fr,en,es} },
+  "compressor": { "enabled": boolean,                      "why": {fr,en,es} },
+  "modulation": { "enabled": boolean, "type": MOD_TYPE,    "why": {fr,en,es} },
+  "delay":      { "enabled": boolean, "type": DELAY_TYPE,  "why": {fr,en,es} },
+  "reverb":     { "enabled": boolean, "type": REVERB_TYPE, "why": {fr,en,es} }
+}
+```
+
+Enums officiels (`FX_TYPE_ENUMS` exporté) :
+- **MOD_TYPE** : Chorus / Tremolo / Phaser / Flanger / Rotary
+- **DELAY_TYPE** : Digital / Tape
+- **REVERB_TYPE** : Spring / Plate / Room / Hall / Shimmer
+
+**Helper pur `clampFxBlocks(raw)`** dans `preset-settings.js` :
+- `enabled` non-boolean → drop bloc entier
+- `type` hors enum → drop type, garde enabled (match case-insensitive,
+  retourne version canonique)
+- `why` validé via `validateTrilingual` (skip si invalide)
+- Cap : 5 blocs `FX_BLOCK_KEYS` connus, autres ignorés (ex. `eq`)
+
+15 tests Vitest dédiés. Re-export depuis `core/scoring/index.js`.
+Validation au render via `enrichAIResult` + flag `_fxBlocksValidated`
+(pattern Phase 9.1).
+
+**Prompt fetchAI ÉTAPE 7C** : entre ÉTAPE 7B (PLAYING HINTS) et
+CONSIGNE PHRASING. Demande l'état et type pour les 5 blocs + why
+trilingue 10-15 mots par bloc. Règles d'adaptation contextuelle
+(thrash → noise_gate ON, compressor OFF, mod/delay OFF, reverb Plate
+bas ; blues → comp ON, reverb Spring ; ambient → reverb Hall + delay
+Tape ; etc.). Pas de duplication avec gate_threshold / comp_threshold
+qui restent dans alt knobs Phase 9.1.
+
+**UI SongDetailCard** : nouvelle sous-section "🎚 Blocs effets"
+au-dessous des tweaks dans le bloc "🎛️ Réglages pédale". 5 lignes
+compactes `{Label}                    {type?} {ON/OFF badge}`.
+Badge ON (vert) / OFF (gris). Toggle "▸ Pourquoi ces FX ?" pour
+révéler les why per-block (pattern Phase 7.86 + 9.4).
+
+**i18n FR/EN/ES** : 10 nouvelles clés (`fx-blocks.section-title`,
+`.noise-gate`, `.compressor`, `.modulation`, `.delay`, `.reverb`,
+`.on`, `.off`, `.why-show`, `.why-hide`).
+
+### Architecture livrée Phase 9.6.2 + 9.2
+
+```
+src/main.jsx                            APP_VERSION 8.14.171 → 8.14.172
+public/sw.js                            CACHE backline-v271 → backline-v272
+src/core/scoring/preset-settings.js     +FX_BLOCK_KEYS, FX_TYPE_ENUMS
+                                        +clampFxBlock helper interne
+                                        +clampFxBlocks helper exporté
+                                        commentaire docstring étendu
+src/core/scoring/preset-settings.test.js +15 tests Phase 9.2 (enums,
+                                        helper, blocs malformés,
+                                        type case-insensitive,
+                                        scénarios thrash/AC/DC)
+src/core/scoring/index.js               re-export FX_BLOCK_KEYS,
+                                        FX_TYPE_ENUMS, clampFxBlocks
+src/app/utils/ai-helpers.js             +import clampFxBlocks
+                                        enrichAIResult : +validation
+                                        fx_blocks + flag _fxBlocksValidated
+src/app/utils/fetchAI.js                ÉTAPE 7C "FX BLOCKS Niveau 1"
+                                        entre ÉTAPE 7B et CONSIGNE
+                                        PHRASING. Règles adaptation
+                                        contextuelle par style.
+                                        JSON template inline étendu.
+                                        Listes trilingue/scalaires
+                                        étendues.
+src/app/screens/SongDetailCard.jsx      +useState showFxWhy
+                                        +section "🎚 Blocs effets"
+                                        sous tweaks dans bloc
+                                        Réglages pédale
+                                        +Phase 9.6.2 : fix Reverb_mix
+                                        post-process replace _ → space
+                                        +Phase 9.6.2 : masquer fbText
+                                        Bloc 3 si chosenGuitar matche
+                                        cot_step2[0] (kind:'ai' only)
+src/i18n/en.js, es.js                   +10 clés Phase 9.2 (fx-blocks.*)
+```
+
+### Conséquences Phase 9.6.2 + 9.2
+
+- **1542/1542 tests verts** (+15 nouveaux Phase 9.2 sur clampFxBlocks).
+- Bundle 2566 → 2574 KB (+8 KB : helper + tests + UI section + i18n
+  + prompt étendu).
+- **Pas de bump STATE_VERSION** (additif sur aiResult.fx_blocks,
+  rétrocompat aiCache pré-9.2 via skip UI si absent).
+- **Pas de migration localStorage**.
+- **Pas de risque sync** : `fx_blocks` voyage avec `aiCache.result`.
+- **Effet immédiat 9.6.2** (display-side, pas de re-fetch nécessaire) :
+  - "Reverb_mix +5" devient "Reverb mix +5" dans les tweaks
+  - Bloc 3 reason masqué si déjà visible en Bloc 2
+- **Effet 9.2 au re-fetch** : la section "🎚 Blocs effets" apparaît
+  après re-batch d'une setlist. Sans re-fetch, l'aiCache pré-9.2
+  n'a pas `fx_blocks` → section invisible (fallback gracieux).
+
+### Famille Phase 9 — État final
+
+| Sous-phase | Status | Version |
+|---|---|---|
+| 9.1 MVP table chiffrée | ✅ | 8.14.160 |
+| 9.2 FX blocks Niveau 1 (ON/OFF + type) | ✅ | 8.14.172 |
+| 9.2.1 FX blocks Niveau 2 (sub-params) | Reporté (signal user) | — |
+| 9.3 EQ avancé | Reporté (signal power-user) | — |
+| 9.4 ONE TWEAK | ✅ + 9.4.1 + 9.4.2 hotfixes | 8.14.167 |
+| 9.5 Playing hints | ✅ + 9.5.1 + 9.5.2 polish | 8.14.169 |
+| 9.6 Déduplication conseils guitare | ✅ + 9.6.1 + 9.6.2 hotfixes | 8.14.172 |
+
+**Famille Phase 9 close en MVP**. Niveau 2 sub-params (9.2.1) et EQ
+avancé (9.3) reportés selon signal user.
+
+### Validation post-déploiement attendue
+
+1. Reload PWA Mac + iPhone → `v8.14.172`
+2. **Sans re-fetch** : ouvrir Hells Bells :
+   - ✅ Bloc 3 reason "C'est l'instrument indissociable d'Angus..."
+     doit DISPARAÎTRE (déjà dans Bloc 2 scoring)
+   - ✅ Tweak "Reverb_mix +5" doit devenir "Reverb mix +5"
+3. "🔄 Réinitialiser mes analyses" → re-batch
+4. Ré-ouvrir Hells Bells (et 1-2 autres morceaux variés) :
+   - ✅ Section "🎚 Blocs effets" apparaît sous les tweaks dans le
+     bloc Réglages pédale
+   - ✅ Sur AC/DC (Hells Bells) : Noise Gate OFF + Compressor OFF +
+     Mod OFF + Delay OFF + Reverb ON (Spring probable) — son sec
+   - ✅ Sur thrash (For Whom the Bell Tolls) : Noise Gate ON +
+     Compressor OFF + Mod OFF + Delay OFF + Reverb ON (Plate basse)
+   - ✅ Sur blues clean (Thrill is Gone) : Noise Gate OFF +
+     Compressor ON + Mod OFF + Delay OFF + Reverb ON (Spring 20-30%)
+5. Toggle "▸ Pourquoi ces FX ?" → 5 lignes d'explication par bloc
+
+### Dette résiduelle Phase 9.2
+
+- **Niveau 2 sub-params** : Phase 9.2.1 reportée. Bruno demandait
+  surtout la connaissance par l'IA des effets dans son raisonnement
+  (atteint Niveau 1). Si besoin de tunabilité fine (rate Chorus,
+  feedback Delay, color Reverb), Phase 9.2.1 ~4-5h dev.
+- **EQ avancé** : Phase 9.3 reportée. Power-users uniquement (les 4
+  bandes paramétriques `eq` du firmware TONEX). VIR mic placement
+  skip v1. ~2h dev si signal user explicit.
+- **Coordonnance gate/comp threshold** : la consigne prompt suggère
+  cohérence entre `fx_blocks.noise_gate.enabled` et
+  `preset_settings_v1.alt.gate_threshold`. Si Gemini retourne un
+  conflit (gate ON + threshold -100dB = inutile), pas de
+  cross-validation côté helper. Acceptable car cosmétique mineur.
+
+---
+
+## État précédent (2026-05-22 soir, Phase 9.6 — déduplication conseils guitare)
 
 **Backline v8.14.170 / SW backline-v270 / STATE_VERSION 11 / 1527 tests verts.**
 
@@ -2075,10 +2266,10 @@ src/i18n/es.js                          +26 clés (idem ES)
 
 ### Dette résiduelle Phase 10 + 9.1
 
-- **Phase 9.2 — FX blocks détaillés** (Noise Gate, Compressor,
-  Modulation, Delay, Reverb avec types + sub-params) : ~4-5h dev.
-  À activer après retour user sur Phase 9.1 MVP. Adresserait
-  directement le cas Bruno For Whom the Bell Tolls.
+- **Phase 9.2 — FX blocks détaillés** : Niveau 1 ✅ LIVRÉ 2026-05-22
+  (v8.14.172). Niveau 2 (sub-params rate/depth/time/feedback/mix)
+  reporté selon signal user. Cf section "État actuel" en tête de
+  CLAUDE.md.
 - **Phase 9.3 — EQ avancé + TONE MODEL fine** : ~2h dev. Optionnel,
   power-users.
 - **Phase 9.4 — "ONE TWEAK TO FIX IT"** ✅ LIVRÉE 2026-05-22
