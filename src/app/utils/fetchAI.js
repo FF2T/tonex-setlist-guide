@@ -217,12 +217,36 @@ CHAQUE knob doit être un OBJET {value, why} avec :
     "comp_threshold": {"value": -40 à 0, "why": {...}},                        // dB (0 = off-ish, -20 = compression sensible)
     "gate_threshold": {"value": -100 à 0, "why": {...}}                        // dB (-100 = quasi-off, -50 = gate sévère metal)
   },
-  "why": {"fr":"...","en":"...","es":"..."} // RÉSUMÉ global 1-2 phrases TRILINGUE (en complément des why per-knob)
+  "why": {"fr":"...","en":"...","es":"..."}, // RÉSUMÉ global 1-2 phrases TRILINGUE (en complément des why per-knob)
+  "tweaks": [                                // Phase 9.4 — 6 à 8 ajustements empiriques
+    {                                        // post-écoute, SPÉCIFIQUES à ce morceau/style/contexte
+      "symptom": {"fr":"...","en":"...","es":"..."}, // 3-6 mots TRILINGUE
+      "fix": "Treble -0.5 + Presence -0.3"            // 1-2 paramètres, format universel
+    }
+  ]
 }
 
 Exemples de why per-knob (Chop Suey thrash) :
 - gain.why : {"fr":"Mesa déjà saturé, 6.2 préserve la dynamique","en":"Mesa already saturated, 6.2 keeps dynamics","es":"Mesa ya saturado, 6.2 mantiene dinámica"}
 - gate_threshold.why : {"fr":"Palm mutes secs, gate sévère pour silence","en":"Dry palm mutes, severe gate","es":"Palm mutes secos, gate severo"}
+
+CONSIGNE TWEAKS (Phase 9.4) — "ONE TWEAK TO FIX IT"
+Génère 6 à 8 tweaks (ajustements empiriques post-écoute) spécifiques à ce morceau, ce style et ce contexte. Pas une canned list générique — adapte chaque tweak au contexte (gain, style, type de pickup, contexte d'écoute).
+
+Format de chaque tweak :
+- symptom : objet TRILINGUE {"fr":"...","en":"...","es":"..."}. 3-6 mots décrivant un défaut perçu APRÈS écoute (ex : "trop brillant sur FRFR", "noyé dans le mix groupe", "pas assez tight pour les palm mutes", "trop fizzy en high gain", "boomy sur cab guitare", "manque de chaleur dans le solo")
+- fix : STRING courte au format universel "Param ±N" ou "Param ±N + Param ±N" (ex : "Treble -0.5 + Presence -0.3", "Mid +0.5 + Volume +0.3", "Gain -0.3 + Gate threshold -10dB"). Pas de prose, pas de traduction (les noms de paramètres sont universels). Préfère les ajustements par 0.3 ou 0.5 (pas par 1.0 entier — trop brutal).
+
+Adaptation au contexte attendue :
+- thrash/metal high gain → tweaks autour de Gate threshold, Gain, Presence (fizzy)
+- blues clean → tweaks autour de Reverb mix, Comp threshold, Mid
+- FRFR (vs cab physique) → tweaks autour de Treble/Presence (compense l'absence de filtrage cab)
+- pickups SC (vs HB) → tweaks autour de Mid/Volume (compense moins de signal de sortie)
+
+À ÉVITER :
+- Tweaks génériques recyclés (ex : "Si trop brillant → Treble -1" pour TOUS les morceaux sans contexte). Adapte au cas concret.
+- Format prose dans le fix (ex : "Baisse un peu les aigus" — non, écrire "Treble -0.5").
+- Ajustements trop brutaux (-1.0 ou plus). Préfère 0.3-0.5 sauf justification claire.
 
 Règles :
 - cab_enabled : retourne TOUJOURS true sur les 3 contextes d'écoute (frfr / headphone / pa). Le bloc CAB du firmware ToneX doit rester ON dans tous les cas couverts (pas de cab physique aval = pas de risque de double-cab). Toute valeur false sera overridée à true côté validation JS.
@@ -259,7 +283,7 @@ OUTPUT TRILINGUE — Format des champs texte :
 Les champs marqués "TEXTE TRILINGUE" ci-dessous DOIVENT être un objet à 3 clés {"fr":"...","en":"...","es":"..."} avec la même information traduite dans chaque langue. Garde le sens et le niveau de détail constant entre les 3 versions. Les NOMS PROPRES (noms d'artistes, modèles d'amplis "Marshall JCM800", noms de guitares "Stratocaster '62", titres de morceaux) restent identiques dans les 3 langues. Les autres champs (noms, scores numériques, énums) restent des valeurs scalaires.
 
 Réponds en JSON pur (sans backticks ni markdown) :
-{"cot_step1":{"fr":"3-5 phrases analysant le profil tonal","en":"3-5 sentences analyzing the tonal profile","es":"3-5 frases analizando el perfil tonal"},"cot_step2_guitars":[{"name":"nom exact guitare","score":85,"reason":{"fr":"justification","en":"justification","es":"justificación"}},{"name":"2e guitare","score":75,"reason":{"fr":"...","en":"...","es":"..."}}],"cot_step3_amp":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"cot_step4_score":{"guitar_score":85,"micro":{"score":90,"reason":{"fr":"...","en":"...","es":"..."}},"body":{"score":80,"reason":{"fr":"...","en":"...","es":"..."}},"history":{"score":95,"reason":{"fr":"...","en":"...","es":"..."}},"amp_match":{"score":85,"reason":{"fr":"...","en":"...","es":"..."}}},"song_year":1970,"song_album":"album","song_desc":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"song_key":"Em","song_bpm":120,"song_style":"blues/rock/hard_rock/jazz/metal/pop","target_gain":5,"tonal_school":"fender_clean/marshall_crunch/vox_chime/dumble_smooth/mesa_heavy/hiwatt_clean","pickup_preference":"HB/SC/P90/any","ideal_guitar":"nom complet guitare idéale","guitar_reason":{"fr":"...","en":"...","es":"..."},"settings_preset":{"fr":"conseils","en":"settings","es":"ajustes"},"settings_guitar":{"fr":"conseils de jeu","en":"playing tips","es":"consejos de juego"},"ref_guitarist":"guitariste","ref_guitar":"modèle guitare","ref_amp":"modèle ampli","ref_effects":"effets ou 'Aucun effet'","preset_tmp":"nom exact patch TMP OU null","preset_ann_name":"nom EXACT capture OU null","preset_plug_name":"nom EXACT capture OU null","preset_settings_v1":{"cab_enabled":true,"main":{"gain":{"value":6.2,"why":{"fr":"...","en":"...","es":"..."}},"bass":{"value":4.5,"why":{"fr":"...","en":"...","es":"..."}},"mid":{"value":7.0,"why":{"fr":"...","en":"...","es":"..."}},"treble":{"value":5.3,"why":{"fr":"...","en":"...","es":"..."}},"volume":{"value":6.0,"why":{"fr":"...","en":"...","es":"..."}}},"alt":{"presence":{"value":4.7,"why":{"fr":"...","en":"...","es":"..."}},"depth":{"value":5.0,"why":{"fr":"...","en":"...","es":"..."}},"reverb_mix":{"value":16,"why":{"fr":"...","en":"...","es":"..."}},"comp_threshold":{"value":-18,"why":{"fr":"...","en":"...","es":"..."}},"gate_threshold":{"value":-56,"why":{"fr":"...","en":"...","es":"..."}}},"why":{"fr":"...","en":"...","es":"..."}}} (note : cab_enabled DOIT être true ; CHAQUE knob doit avoir value+why trilingue Phase 7.86)
+{"cot_step1":{"fr":"3-5 phrases analysant le profil tonal","en":"3-5 sentences analyzing the tonal profile","es":"3-5 frases analizando el perfil tonal"},"cot_step2_guitars":[{"name":"nom exact guitare","score":85,"reason":{"fr":"justification","en":"justification","es":"justificación"}},{"name":"2e guitare","score":75,"reason":{"fr":"...","en":"...","es":"..."}}],"cot_step3_amp":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"cot_step4_score":{"guitar_score":85,"micro":{"score":90,"reason":{"fr":"...","en":"...","es":"..."}},"body":{"score":80,"reason":{"fr":"...","en":"...","es":"..."}},"history":{"score":95,"reason":{"fr":"...","en":"...","es":"..."}},"amp_match":{"score":85,"reason":{"fr":"...","en":"...","es":"..."}}},"song_year":1970,"song_album":"album","song_desc":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"song_key":"Em","song_bpm":120,"song_style":"blues/rock/hard_rock/jazz/metal/pop","target_gain":5,"tonal_school":"fender_clean/marshall_crunch/vox_chime/dumble_smooth/mesa_heavy/hiwatt_clean","pickup_preference":"HB/SC/P90/any","ideal_guitar":"nom complet guitare idéale","guitar_reason":{"fr":"...","en":"...","es":"..."},"settings_preset":{"fr":"conseils","en":"settings","es":"ajustes"},"settings_guitar":{"fr":"conseils de jeu","en":"playing tips","es":"consejos de juego"},"ref_guitarist":"guitariste","ref_guitar":"modèle guitare","ref_amp":"modèle ampli","ref_effects":"effets ou 'Aucun effet'","preset_tmp":"nom exact patch TMP OU null","preset_ann_name":"nom EXACT capture OU null","preset_plug_name":"nom EXACT capture OU null","preset_settings_v1":{"cab_enabled":true,"main":{"gain":{"value":6.2,"why":{"fr":"...","en":"...","es":"..."}},"bass":{"value":4.5,"why":{"fr":"...","en":"...","es":"..."}},"mid":{"value":7.0,"why":{"fr":"...","en":"...","es":"..."}},"treble":{"value":5.3,"why":{"fr":"...","en":"...","es":"..."}},"volume":{"value":6.0,"why":{"fr":"...","en":"...","es":"..."}}},"alt":{"presence":{"value":4.7,"why":{"fr":"...","en":"...","es":"..."}},"depth":{"value":5.0,"why":{"fr":"...","en":"...","es":"..."}},"reverb_mix":{"value":16,"why":{"fr":"...","en":"...","es":"..."}},"comp_threshold":{"value":-18,"why":{"fr":"...","en":"...","es":"..."}},"gate_threshold":{"value":-56,"why":{"fr":"...","en":"...","es":"..."}}},"why":{"fr":"...","en":"...","es":"..."},"tweaks":[{"symptom":{"fr":"trop brillant sur FRFR","en":"too bright on FRFR","es":"demasiado brillante en FRFR"},"fix":"Treble -0.5 + Presence -0.3"},{"symptom":{"fr":"noyé dans le mix groupe","en":"buried in band mix","es":"enterrado en la mezcla"},"fix":"Mid +0.5 + Volume +0.3"}]}} (note : cab_enabled DOIT être true ; CHAQUE knob doit avoir value+why trilingue Phase 7.86 ; tweaks = 6-8 ajustements empiriques spécifiques au morceau Phase 9.4)
 
 Champs TEXTE TRILINGUE (à fournir en {fr, en, es}) :
 - cot_step1, cot_step3_amp, song_desc, guitar_reason, settings_preset, settings_guitar
@@ -268,6 +292,7 @@ Champs TEXTE TRILINGUE (à fournir en {fr, en, es}) :
 - preset_settings_v1.why (résumé global)
 - preset_settings_v1.main.{gain,bass,mid,treble,volume}.why (Phase 7.86 — par knob)
 - preset_settings_v1.alt.{presence,depth,reverb_mix,comp_threshold,gate_threshold}.why (Phase 7.86 — par knob)
+- preset_settings_v1.tweaks[].symptom (Phase 9.4 — symptom trilingue, fix reste string universelle)
 
 Champs SCALAIRES (valeur unique, pas d'objet) :
 - song_year (number), song_album (string nom album), song_key (string notation), song_bpm (number)
@@ -278,6 +303,7 @@ Champs SCALAIRES (valeur unique, pas d'objet) :
 - cot_step2_guitars[].name (string), .score (number)
 - cot_step4_score.guitar_score (number), .{micro,body,history,amp_match}.score (number)
 - preset_settings_v1.cab_enabled (boolean), .main.* (number 0-10), .alt.{presence,depth} (number 0-10), .alt.reverb_mix (number 0-100), .alt.comp_threshold (number -40 à 0), .alt.gate_threshold (number -100 à 0)
+- preset_settings_v1.tweaks[].fix (string courte, format "Param ±N" ou "Param ±N + Param ±N", universel)
 
 Contraintes :
 - cot_step2_guitars : guitares UNIQUEMENT dans la collection listée

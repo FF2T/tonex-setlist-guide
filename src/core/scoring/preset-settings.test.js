@@ -3,7 +3,7 @@
 // champs présents et clamp les hors-bornes (Gemini hallucine parfois).
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
-import { PRESET_RANGES, SUPPORTED_LOCALES, clampPresetSettings } from './preset-settings.js';
+import { PRESET_RANGES, SUPPORTED_LOCALES, TWEAKS_MAX, clampPresetSettings, clampTweaks } from './preset-settings.js';
 
 describe('PRESET_RANGES (Phase 9.1)', () => {
   test('5 main knobs avec range 0-10', () => {
@@ -353,5 +353,174 @@ describe('clampPresetSettings — scénarios IA réels (Phase 9.1)', () => {
   test('Phase 10 v3 — IA retourne seulement cab_enabled true (preserved)', () => {
     const out = clampPresetSettings({ cab_enabled: true });
     expect(out).toEqual({ cab_enabled: true });
+  });
+});
+
+describe('clampTweaks (Phase 9.4)', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('TWEAKS_MAX constant exposée et = 8', () => {
+    expect(TWEAKS_MAX).toBe(8);
+  });
+
+  test('Array vide → null (rien à préserver)', () => {
+    expect(clampTweaks([])).toBe(null);
+  });
+
+  test('non-Array (object, string, null, undefined) → null', () => {
+    expect(clampTweaks(null)).toBe(null);
+    expect(clampTweaks(undefined)).toBe(null);
+    expect(clampTweaks({})).toBe(null);
+    expect(clampTweaks('foo')).toBe(null);
+  });
+
+  test('tweak complet trilingue + fix string → préservé', () => {
+    const input = [{
+      symptom: { fr: 'trop brillant', en: 'too bright', es: 'demasiado brillante' },
+      fix: 'Treble -0.5 + Presence -0.3',
+    }];
+    expect(clampTweaks(input)).toEqual(input);
+  });
+
+  test('symptom trilingue partiel (fr seul) accepté', () => {
+    const out = clampTweaks([{ symptom: { fr: 'trop sombre' }, fix: 'Treble +0.5' }]);
+    expect(out).toEqual([{ symptom: { fr: 'trop sombre' }, fix: 'Treble +0.5' }]);
+  });
+
+  test('symptom absent → drop entrée', () => {
+    expect(clampTweaks([{ fix: 'Treble +0.5' }])).toBe(null);
+  });
+
+  test('fix absent ou vide ou non-string → drop entrée', () => {
+    expect(clampTweaks([{ symptom: { fr: 'X' } }])).toBe(null);
+    expect(clampTweaks([{ symptom: { fr: 'X' }, fix: '' }])).toBe(null);
+    expect(clampTweaks([{ symptom: { fr: 'X' }, fix: '   ' }])).toBe(null);
+    expect(clampTweaks([{ symptom: { fr: 'X' }, fix: 42 }])).toBe(null);
+    expect(clampTweaks([{ symptom: { fr: 'X' }, fix: null }])).toBe(null);
+  });
+
+  test('fix avec espaces autour → trimmé', () => {
+    const out = clampTweaks([{ symptom: { fr: 'X' }, fix: '  Treble -0.5  ' }]);
+    expect(out[0].fix).toBe('Treble -0.5');
+  });
+
+  test('symptom non-objet (string, null, array) → drop entrée', () => {
+    expect(clampTweaks([{ symptom: 'too bright', fix: 'X' }])).toBe(null);
+    expect(clampTweaks([{ symptom: null, fix: 'X' }])).toBe(null);
+    expect(clampTweaks([{ symptom: ['fr'], fix: 'X' }])).toBe(null);
+  });
+
+  test('symptom trilingue vide ({}) → drop entrée', () => {
+    expect(clampTweaks([{ symptom: {}, fix: 'X' }])).toBe(null);
+  });
+
+  test('mix entrées valides + malformées → garde seulement valides', () => {
+    const out = clampTweaks([
+      { symptom: { fr: 'A' }, fix: 'Fix A' },
+      null,
+      { fix: 'no symptom' },
+      { symptom: { fr: 'B' }, fix: '' },
+      { symptom: { fr: 'C' }, fix: 'Fix C' },
+    ]);
+    expect(out).toEqual([
+      { symptom: { fr: 'A' }, fix: 'Fix A' },
+      { symptom: { fr: 'C' }, fix: 'Fix C' },
+    ]);
+  });
+
+  test(`cap à ${TWEAKS_MAX} items (9e tronqué)`, () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({
+      symptom: { fr: `S${i}` },
+      fix: `Fix ${i}`,
+    }));
+    const out = clampTweaks(many);
+    expect(out).toHaveLength(TWEAKS_MAX);
+    expect(out[0].fix).toBe('Fix 0');
+    expect(out[7].fix).toBe('Fix 7'); // 8 entries kept, indexes 0-7
+  });
+
+  test('entrées Array (au lieu d\'objet) drop', () => {
+    expect(clampTweaks([['fr', 'X']])).toBe(null);
+  });
+
+  test('langue non supportée dans symptom (de) skippée', () => {
+    const out = clampTweaks([{
+      symptom: { fr: 'F', en: 'E', de: 'D' },
+      fix: 'X',
+    }]);
+    expect(out[0].symptom).toEqual({ fr: 'F', en: 'E' });
+  });
+});
+
+describe('clampPresetSettings — tweaks intégrés (Phase 9.4)', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('preset_settings_v1 complet avec tweaks → preserve tweaks', () => {
+    const input = {
+      cab_enabled: true,
+      main: { gain: 6 },
+      tweaks: [
+        {
+          symptom: { fr: 'trop brillant sur FRFR', en: 'too bright on FRFR', es: 'demasiado brillante en FRFR' },
+          fix: 'Treble -0.5 + Presence -0.3',
+        },
+        {
+          symptom: { fr: 'noyé dans le mix', en: 'buried in mix', es: 'enterrado en la mezcla' },
+          fix: 'Mid +0.5 + Volume +0.3',
+        },
+      ],
+    };
+    const out = clampPresetSettings(input);
+    expect(out.tweaks).toEqual(input.tweaks);
+    expect(out.cab_enabled).toBe(true);
+    expect(out.main.gain.value).toBe(6);
+  });
+
+  test('preset_settings_v1 sans tweaks → out.tweaks undefined', () => {
+    const out = clampPresetSettings({ main: { gain: 5 } });
+    expect(out.tweaks).toBeUndefined();
+  });
+
+  test('tweaks vide [] dans input → out.tweaks undefined', () => {
+    const out = clampPresetSettings({ main: { gain: 5 }, tweaks: [] });
+    expect(out.tweaks).toBeUndefined();
+  });
+
+  test('tweaks tous malformés → out.tweaks undefined', () => {
+    const out = clampPresetSettings({
+      main: { gain: 5 },
+      tweaks: [{ fix: 'X' }, { symptom: {} }, null],
+    });
+    expect(out.tweaks).toBeUndefined();
+  });
+
+  test('rétro-compat aiCache pré-Phase 9.4 (pas de tweaks) → fonctionne', () => {
+    // aiCache Phase 9.1-7.86 sans tweaks doit toujours marcher (additif).
+    const input = {
+      cab_enabled: true,
+      main: { gain: { value: 6.2, why: { fr: 'X', en: 'X', es: 'X' } } },
+      why: { fr: 'G', en: 'G', es: 'G' },
+    };
+    const out = clampPresetSettings(input);
+    expect(out.tweaks).toBeUndefined();
+    expect(out.main.gain.value).toBe(6.2);
+  });
+
+  test('preset_settings_v1 avec UNIQUEMENT tweaks (cas dégénéré) → out non-null', () => {
+    const out = clampPresetSettings({
+      tweaks: [{ symptom: { fr: 'X' }, fix: 'Fix' }],
+    });
+    expect(out).not.toBeNull();
+    expect(out.tweaks).toHaveLength(1);
   });
 });

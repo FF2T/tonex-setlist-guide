@@ -67,6 +67,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   // Phase 7.86 — toggles repli pour Bloc 2 + Bloc 3
   const [showAdvancedMode, setShowAdvancedMode] = useState(false);
   const [showWhyPerKnob, setShowWhyPerKnob] = useState(false);
+  const [showTweaks, setShowTweaks] = useState(false);
   const [installTarget, setInstallTarget] = useState(null);
   const [installBank, setInstallBank] = useState({ ann: '', plug: '' });
   const [installSlot, setInstallSlot] = useState({ ann: 'A', plug: 'A' });
@@ -515,6 +516,40 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                           ? t('preset-settings.why-per-knob-hide', '▲ Masquer les explications par paramètre')
                           : t('preset-settings.why-per-knob-show', '▸ Pourquoi ces valeurs ?')}
                       </button>
+                    )}
+                    {/* Phase 9.4 — Section "🔧 Si ça ne sonne pas tout à fait
+                        juste..." repliée par défaut. Liste compacte des
+                        tweaks empiriques post-écoute spécifiques au morceau
+                        (6-8 entrées générées par l'IA selon style/gain/
+                        contexte). Skip si tweaks absent ou vide. */}
+                    {Array.isArray(ps.tweaks) && ps.tweaks.length > 0 && (
+                      <>
+                        <button
+                          onClick={() => setShowTweaks((p) => !p)}
+                          data-testid="preset-settings-tweaks-toggle"
+                          style={{ marginTop: 6, fontSize: 10, background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0, fontWeight: 600, textAlign: 'left', width: '100%' }}
+                        >
+                          {showTweaks
+                            ? tFormat('tweaks.toggle-hide', { count: ps.tweaks.length }, '▲ Masquer les ajustements ({count})')
+                            : tFormat('tweaks.toggle-show', { count: ps.tweaks.length }, '🔧 Si ça ne sonne pas tout à fait juste... ({count})')}
+                        </button>
+                        {showTweaks && (
+                          <div data-testid="preset-settings-tweaks-list" style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            {ps.tweaks.map((tweak, idx) => {
+                              const symptomTxt = getLocalizedText(tweak.symptom, locale);
+                              if (!symptomTxt || !tweak.fix) return null;
+                              return (
+                                <div key={idx} style={{ fontSize: 10, lineHeight: 1.4, padding: '3px 6px', background: 'var(--a2)', borderRadius: 'var(--r-sm)' }}>
+                                  <span style={{ color: 'var(--text-muted)' }}>{t('tweaks.if', 'Si')} </span>
+                                  <span style={{ color: 'var(--text-sec)', fontStyle: 'italic' }}>{symptomTxt}</span>
+                                  <span style={{ color: 'var(--text-muted)' }}> → </span>
+                                  <span style={{ color: 'var(--text-bright)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{tweak.fix}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 );

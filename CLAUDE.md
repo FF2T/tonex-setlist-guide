@@ -761,7 +761,187 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-21 nuit, Phase 7.74.9 — Fix pollution profile occurrence #8 : timestamp dédié banks + hardening aiCache)
+## État actuel (2026-05-22 soir, Phase 9.4 — "ONE TWEAK TO FIX IT" : ajustements empiriques post-écoute)
+
+**Backline v8.14.165 / SW backline-v265 / STATE_VERSION 11 / 1499 tests verts.**
+
+### Phase 9.4 — Section "ONE TWEAK TO FIX IT" (v8.14.165)
+
+Complète la famille Phase 9 (Phase 9.1 MVP table chiffrée livrée
+2026-05-21). Phase 9.4 ajoute une section pédagogique conditionnelle
+de 6-8 ajustements empiriques post-écoute, spécifiques au morceau
+analysé (pas une canned list générique). Pattern inspiré de l'output
+Ok_Ask2411 "Gear Assistant" (peer-builder, retour 2026-05-15).
+
+#### Schéma `preset_settings_v1.tweaks` (additif vs Phase 9.1/7.86)
+
+```json
+"tweaks": [
+  {
+    "symptom": { "fr":"trop brillant sur FRFR", "en":"too bright on FRFR", "es":"demasiado brillante en FRFR" },
+    "fix": "Treble -0.5 + Presence -0.3"
+  },
+  ...
+]
+```
+
+- `symptom` : objet trilingue `{fr, en, es}` validé via
+  `validateTrilingual` (Phase 7.86 helper existant)
+- `fix` : string courte au format universel "Param ±N" ou
+  "Param ±N + Param ±N" (pas de prose, pas de traduction — les noms
+  de paramètres TONEX sont universels)
+- Cap dur 8 items (constant `TWEAKS_MAX` exposé)
+- Drop silencieux des entrées malformées (symptom absent/invalide,
+  fix absent/non-string/vide)
+- Field optionnel sur `preset_settings_v1` → aiCache pré-Phase 9.4
+  continue à fonctionner sans le champ.
+
+#### Helper pur `clampTweaks(raw)`
+
+Nouveau export depuis `src/core/scoring/preset-settings.js`. Retourne
+un tableau d'entrées validées ou `null` si :
+- input n'est pas un Array
+- tous les entries sont malformés
+- array vide après filtrage
+
+Integré dans `clampPresetSettings` (output `out.tweaks` ou
+undefined). 22 nouveaux tests Vitest (clampTweaks isolé + tweaks
+intégrés à preset_settings_v1 complet).
+
+#### Prompt fetchAI ÉTAPE 7 étendu
+
+Ajout d'une section **CONSIGNE TWEAKS (Phase 9.4) — "ONE TWEAK TO
+FIX IT"** qui demande à Gemini 6-8 tweaks adaptés au contexte du
+morceau (style/gain/pickup/contexte d'écoute). Règles explicites :
+- Format symptom trilingue 3-6 mots
+- Format fix universel "Param ±N" (préfère 0.3-0.5, pas 1.0 entier)
+- Adaptation au contexte (thrash → Gate/Gain/Presence ; blues →
+  Reverb/Comp/Mid ; FRFR → Treble/Presence ; pickups SC → Mid/Volume)
+- Anti-générique : pas de canned list recyclée entre morceaux
+
+JSON template inline étendu avec exemples concrets. `tweaks[].symptom`
+ajouté à la liste des champs trilingues. `tweaks[].fix` ajouté à la
+liste des champs scalaires.
+
+#### UI SongDetailCard
+
+Nouvelle section repliée sous le bloc "🎛️ Réglages pédale" (Bloc 2
+Phase 7.86), sous le toggle "▸ Pourquoi ces valeurs ?" :
+
+```
+🔧 Si ça ne sonne pas tout à fait juste... (N)
+  ↓ (au click)
+  ┌─────────────────────────────────────────────┐
+  │ Si trop brillant sur FRFR → Treble -0.5 +   │
+  │                              Presence -0.3   │
+  │ Si noyé dans le mix groupe → Mid +0.5 +     │
+  │                               Volume +0.3    │
+  │ ... (jusqu'à 8 entrées)                      │
+  └─────────────────────────────────────────────┘
+```
+
+- State `showTweaks` (useState false, default replié — préserve la
+  densité visuelle, expose uniquement quand l'utilisateur en a
+  besoin)
+- Skip si `ps.tweaks` absent ou vide (rétro-compat aiCache pré-9.4)
+- Drop entrées invalides au render (symptom localisé absent ou fix vide)
+- Compteur dynamique dans le label du toggle via `tFormat({count})`
+
+#### i18n FR/EN/ES (3 clés)
+
+- `tweaks.toggle-show` : "🔧 Si ça ne sonne pas tout à fait
+  juste... ({count})" / "🔧 If it doesn't sound quite right...
+  ({count})" / "🔧 Si no suena del todo bien... ({count})"
+- `tweaks.toggle-hide` : "▲ Masquer les ajustements ({count})" /
+  "▲ Hide tweaks ({count})" / "▲ Ocultar los ajustes ({count})"
+- `tweaks.if` : "Si" / "If" / "Si"
+
+### Architecture livrée Phase 9.4
+
+```
+src/main.jsx                            APP_VERSION 8.14.164 → 8.14.165
+public/sw.js                            CACHE backline-v264 → backline-v265
+src/core/scoring/preset-settings.js     +TWEAKS_MAX constant (8)
+                                        +clampTweaks helper pur exporté
+                                        clampPresetSettings : +out.tweaks
+                                        commentaire docstring étendu
+src/core/scoring/preset-settings.test.js +22 tests Phase 9.4 :
+                                        clampTweaks isolé (15 cases)
+                                        + tweaks intégrés (7 cases)
+src/app/utils/fetchAI.js                ÉTAPE 7 : +section CONSIGNE
+                                        TWEAKS avec règles d'adaptation
+                                        contextuelle + format fix
+                                        JSON template +tweaks[]
+                                        Listes trilingues/scalaires
+                                        étendues avec tweaks[].symptom
+                                        / .fix
+src/app/screens/SongDetailCard.jsx      +useState showTweaks
+                                        +section ONE TWEAK TO FIX IT
+                                        repliée par défaut, sous le
+                                        toggle why per-knob, dans le
+                                        bloc Réglages pédale
+src/i18n/en.js, es.js                   +3 clés tweaks.* (toggle-show,
+                                        toggle-hide, if)
+```
+
+### Conséquences Phase 9.4
+
+- **1499/1499 tests verts** (+22 nouveaux Phase 9.4 sur preset-settings).
+- Bundle 2556 → 2560 KB (+4 KB pour helper + tests + section UI +
+  i18n + prompt étendu).
+- **Pas de bump STATE_VERSION** (additif sur preset_settings_v1,
+  rétrocompat aiCache pré-9.4 garantie via clampTweaks tolérant à
+  l'absence du champ).
+- **Pas de migration localStorage**.
+- **Effet immédiat post-déploiement** : prochaine analyse IA d'un
+  morceau (mount fiche avec rigStale OU batch "🤖 Analyser/MAJ N")
+  retourne tweaks[]. Sur les fiches existantes pré-9.4, le toggle
+  reste invisible jusqu'au re-fetch (rien à révéler). Pour basculer
+  tous les aiCache : "🔄 Réinitialiser mes analyses" Mon Profil →
+  🎯 Préférences IA (par profil) + re-batch.
+- **Pas de risque sync** : `tweaks[]` voyage avec le reste de
+  `aiCache.result` via push profil habituel (Phase 7.54 per-profile
+  + Phase 7.81 LWW par ts).
+
+### Dette résiduelle Phase 9.4
+
+- **Le respect du format `fix` dépend de Gemini Flash**. Si l'IA
+  retourne de la prose ("Baisse un peu les aigus") au lieu de
+  "Treble -0.5", le helper accepte (fix est juste validé non-vide).
+  Si trop de drift observé, post-processing JS pour normaliser le
+  format pourra être ajouté Phase 9.4.1.
+- **Pas de tests d'intégration "prompt → output"** : on valide le
+  helper et l'UI séparément. Smoke-test manuel post-déploiement
+  obligatoire (ouvrir 2-3 fiches re-analysées, vérifier que les
+  tweaks sont contextuels et pas génériques).
+- **Pas de localisation du `fix`** : le format "Treble -0.5 +
+  Presence -0.3" reste universel. Si un beta-testeur signale que
+  les noms de paramètres en anglais gênent les utilisateurs FR/ES,
+  étendre vers `fix: {fr, en, es}` Phase 9.4.2.
+
+### Validation post-déploiement attendue
+
+1. Reload PWA Mac + iPhone → vérifier `v8.14.165` dans le header.
+2. Ouvrir une fiche song déjà analysée pré-9.4 → vérifier que le
+   bloc "🎛️ Réglages pédale" s'affiche normalement, **sans** le
+   toggle "🔧 Si ça ne sonne pas tout à fait juste..." (rien à
+   révéler tant que pas re-fetché).
+3. Mon Profil → 🎯 Préférences IA → "🔄 Réinitialiser mes analyses"
+   → ouvrir un morceau OU lancer batch "🤖 Analyser/MAJ N".
+4. Au retour de l'IA, vérifier qu'apparaît le toggle "🔧 Si ça ne
+   sonne pas tout à fait juste... (N)" sous "▸ Pourquoi ces
+   valeurs ?".
+5. Click → liste de 6-8 tweaks au format `Si {symptom} →
+   {fix}`. Vérifier que les tweaks sont **spécifiques** au morceau
+   (ex : un morceau metal HG doit parler de Gate threshold + Gain,
+   un blues clean doit parler de Reverb mix + Comp threshold), pas
+   génériques.
+6. Switch de langue → vérifier que les symptoms sont localisés,
+   les fix restent universels ("Treble -0.5 + Presence -0.3").
+
+---
+
+## État précédent (2026-05-21 nuit, Phase 7.74.9 — Fix pollution profile occurrence #8 : timestamp dédié banks + hardening aiCache)
 
 **Backline v8.14.164 / SW backline-v264 / STATE_VERSION 11 / 1479 tests verts.**
 
@@ -1613,8 +1793,8 @@ src/i18n/es.js                          +26 clés (idem ES)
   directement le cas Bruno For Whom the Bell Tolls.
 - **Phase 9.3 — EQ avancé + TONE MODEL fine** : ~2h dev. Optionnel,
   power-users.
-- **Phase 9.4 — "ONE TWEAK TO FIX IT"** (section conditionnelle
-  pédagogique) : ~2h dev. Ratio impact/effort élevé selon design V2.
+- **Phase 9.4 — "ONE TWEAK TO FIX IT"** ✅ LIVRÉE 2026-05-22
+  (v8.14.165). Cf section "État actuel" en tête de CLAUDE.md.
 - **Phase 9.5 — Pickup + playing hints** : ~1-2h dev. Bonus.
 - **settings_preset prose conservé en parallèle** : transition
   douce. À supprimer Phase ultérieure quand tous les aiCache ont été
@@ -13603,7 +13783,14 @@ si retour user power-user explicite. VIR mic placement skip v1
 
 **Effort** : ~2h dev. Optionnel.
 
-**Phase 9.4 — "ONE TWEAK TO FIX IT" (section pédagogique)**
+**Phase 9.4 — "ONE TWEAK TO FIX IT" (section pédagogique) ✅ LIVRÉE 2026-05-22 (v8.14.165)**
+
+Voir section "État actuel" en tête de CLAUDE.md pour le détail.
+Helper `clampTweaks` + 22 tests Vitest + section UI repliée sous
+le toggle "Pourquoi ces valeurs ?" + prompt fetchAI ÉTAPE 7 étendu
+avec consigne 6-8 tweaks adaptés au contexte (style/gain/pickup/
+contexte d'écoute, pas canned list générique) + i18n FR/EN/ES.
+**Notes design conservées pour référence** :
 
 Section pliée par défaut, expandable sur scène pour ajustement
 empirique post-écoute :

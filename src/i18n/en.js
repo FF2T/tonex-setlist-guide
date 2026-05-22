@@ -900,6 +900,11 @@ const en = {
   // Phase 7.86 — Refonte SongDetailCard 3 blocs + why per-knob + Mode reco repli
   'preset-settings.why-per-knob-show': '▸ Why these values?',
   'preset-settings.why-per-knob-hide': '▲ Hide per-parameter explanations',
+
+  // Phase 9.4 — "ONE TWEAK TO FIX IT" : ajustements empiriques post-écoute
+  'tweaks.toggle-show': '🔧 If it doesn\'t sound quite right... ({count})',
+  'tweaks.toggle-hide': '▲ Hide tweaks ({count})',
+  'tweaks.if': 'If',
   'song-detail.reco-block': 'AI recommendations',
   'song-detail.setup-block': 'My setup',
   'song-detail.setup-on-guitar': 'On your {guitar}:',

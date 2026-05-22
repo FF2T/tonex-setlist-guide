@@ -1,4 +1,5 @@
 // src/core/scoring/preset-settings.js — Phase 9.1 (2026-05-21)
+//                                       + Phase 9.4 (2026-05-22)
 // Helper pur de validation des réglages PRESET retournés par l'IA.
 //
 // L'IA retourne un objet `preset_settings_v1` au format :
@@ -6,7 +7,9 @@
 //     cab_enabled: boolean,
 //     main: { gain, bass, mid, treble, volume },        // 5 knobs face avant
 //     alt:  { presence, depth, reverb_mix, comp_threshold, gate_threshold },
-//     why:  { fr, en, es }                              // explication trilingue
+//     why:  { fr, en, es },                             // explication trilingue
+//     tweaks: [{ symptom: {fr,en,es}, fix: string }]    // Phase 9.4 — ajustements
+//                                                       // empiriques post-écoute
 //   }
 //
 // Les ranges officiels viennent du manuel TONEX (pages 22-28) :
@@ -44,6 +47,11 @@ const PRESET_RANGES = Object.freeze({
 });
 
 const SUPPORTED_LOCALES = ['fr', 'en', 'es'];
+
+// Phase 9.4 — cap dur sur le nombre de tweaks (l'IA est guidée vers 6-8
+// dans le prompt mais peut en générer plus si elle hallucine). Au-delà,
+// on tronque silencieusement pour préserver la densité UI.
+const TWEAKS_MAX = 8;
 
 // Pure helper : clamp une valeur numérique dans un range, warn si
 // hors-bornes. Retourne null si la valeur n'est pas un nombre fini.
@@ -113,6 +121,29 @@ function validateTrilingual(why) {
   return Object.keys(out).length > 0 ? out : null;
 }
 
+// Phase 9.4 — valide la structure d'un tableau de tweaks. Chaque entrée :
+//   { symptom: {fr,en,es}, fix: string }
+// - symptom : structure trilingue validée via validateTrilingual
+// - fix     : string non-vide (verbiage technique universel, ex.
+//             "Treble -0.5 + Presence -0.3"). Pas de trilingue car
+//             les noms de paramètres sont universels.
+// Drop silencieusement les entrées malformées. Cap à TWEAKS_MAX items.
+// Retourne null si input n'est pas un Array ou si rien de valide.
+function clampTweaks(raw) {
+  if (!Array.isArray(raw)) return null;
+  const out = [];
+  for (const entry of raw) {
+    if (out.length >= TWEAKS_MAX) break;
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+    const symptom = validateTrilingual(entry.symptom);
+    if (!symptom) continue;
+    const fix = typeof entry.fix === 'string' ? entry.fix.trim() : '';
+    if (!fix) continue;
+    out.push({ symptom, fix });
+  }
+  return out.length > 0 ? out : null;
+}
+
 // Helper principal exporté. Retourne :
 // - null si `raw` n'est pas un objet ou si tout est invalide
 // - sinon un objet { cab_enabled?, main?, alt?, why? } avec uniquement
@@ -149,7 +180,9 @@ function clampPresetSettings(raw) {
   if (altClean) out.alt = altClean;
   const whyClean = validateTrilingual(raw.why);
   if (whyClean) out.why = whyClean;
+  const tweaksClean = clampTweaks(raw.tweaks);
+  if (tweaksClean) out.tweaks = tweaksClean;
   return Object.keys(out).length > 0 ? out : null;
 }
 
-export { PRESET_RANGES, SUPPORTED_LOCALES, clampPresetSettings };
+export { PRESET_RANGES, SUPPORTED_LOCALES, TWEAKS_MAX, clampPresetSettings, clampTweaks };
