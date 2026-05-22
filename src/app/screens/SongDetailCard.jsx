@@ -317,11 +317,17 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   courant : Gemini retourne souvent une reason similaire
                   dans cot_step2[0] (comparatif) et guitar_reason (focus
                   ideal). Cas family boost Phase 7.64 (ideal_guitar ≠
-                  cot_step2[0]) → guitar_reason garde sa valeur ajoutée. */}
+                  cot_step2[0]) → guitar_reason garde sa valeur ajoutée.
+                  Phase 9.6.1 (2026-05-22) — normalisation des names :
+                  cot_step2[0].name vient parfois avec un suffix type
+                  "(HB)" ajouté par Gemini ("Gibson SG Standard Ebony
+                  (HB)") alors que displayIdealGuitarName est sans
+                  suffix. On strip "(...)" à la fin avant comparison. */}
               {aiC.guitar_reason && (() => {
+                const stripTypeSuffix = (s) => (s || '').trim().toLowerCase().replace(/\s*\([^)]*\)\s*$/, '').trim();
                 const cotTop = Array.isArray(aiC.cot_step2_guitars) ? aiC.cot_step2_guitars[0] : null;
-                const cotTopName = (cotTop?.name || '').trim().toLowerCase();
-                const idealName = (displayIdealGuitarName || '').trim().toLowerCase();
+                const cotTopName = stripTypeSuffix(cotTop?.name);
+                const idealName = stripTypeSuffix(displayIdealGuitarName);
                 const isDuplicate = cotTopName && idealName && cotTopName === idealName;
                 if (isDuplicate) return null;
                 return <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: -2, marginBottom: 2 }}>{getLocalizedText(aiC.guitar_reason, locale)}</div>;
