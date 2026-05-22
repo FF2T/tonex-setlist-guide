@@ -36,7 +36,7 @@ import {
   getBestResult, getLocalizedText,
 } from '../utils/ai-helpers.js';
 import { findInBanks } from '../utils/preset-helpers.js';
-import { resolveDisplayGuitar, filterCotGuitarsToRig } from '../utils/display-guitar.js';
+import { resolveDisplayGuitar, filterCotGuitarsToRig, localizePickup, decapitalizeFirst } from '../utils/display-guitar.js';
 import { getActiveDevicesForRender } from '../utils/devices-render.js';
 import { fetchAI } from '../utils/fetchAI.js';
 import { scoreColor } from '../components/score-utils.js';
@@ -538,10 +538,16 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                             {ps.tweaks.map((tweak, idx) => {
                               const symptomTxt = getLocalizedText(tweak.symptom, locale);
                               if (!symptomTxt || !tweak.fix) return null;
+                              // Phase 9.5.2 — decapitalize 1ère lettre du
+                              // symptom : Gemini capitalize chaque symptom
+                              // ("Trop de distorsion") → juxtaposé avec
+                              // "Si " ça donne "Si Trop" (FR incorrect).
+                              // Acronymes (FRFR, EQ) préservés.
+                              const symptomDisplayed = decapitalizeFirst(symptomTxt);
                               return (
                                 <div key={idx} style={{ fontSize: 10, lineHeight: 1.4, padding: '3px 6px', background: 'var(--a2)', borderRadius: 'var(--r-sm)' }}>
                                   <span style={{ color: 'var(--text-muted)' }}>{t('tweaks.if', 'Si')} </span>
-                                  <span style={{ color: 'var(--text-sec)', fontStyle: 'italic' }}>{symptomTxt}</span>
+                                  <span style={{ color: 'var(--text-sec)', fontStyle: 'italic' }}>{symptomDisplayed}</span>
                                   <span style={{ color: 'var(--text-muted)' }}> → </span>
                                   <span style={{ color: 'var(--text-bright)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{tweak.fix}</span>
                                 </div>
@@ -621,7 +627,10 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           {aiC && aiC.playing_hints && (() => {
             const ph = aiC.playing_hints;
             const parts = [];
-            if (ph.pickup) parts.push(ph.pickup);
+            // Phase 9.5.1 — pickup localisé en FR/ES (jargon universel EN
+            // sinon affiché brut "Bridge" à côté du bloc Réglages déjà
+            // traduit "Micro chevalet" — incohérence visuelle).
+            if (ph.pickup) parts.push(localizePickup(ph.pickup, locale));
             if (ph.guitar_tone) parts.push(`${t('song-detail.tone-label', 'Tone')} ${ph.guitar_tone}`);
             if (ph.guitar_volume) parts.push(`${t('song-detail.volume-label', 'Volume')} ${ph.guitar_volume}`);
             if (parts.length === 0 && !ph.stereo) return null;

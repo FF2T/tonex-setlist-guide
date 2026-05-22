@@ -9,7 +9,7 @@
 //   - scénario bug Bruno : "Strat AM Vintage II 61" dans aiC sur rig HB-only
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { resolveDisplayGuitar, filterCotGuitarsToRig } from './display-guitar.js';
+import { resolveDisplayGuitar, filterCotGuitarsToRig, localizePickup, decapitalizeFirst } from './display-guitar.js';
 
 const LP60 = { id: 'lp60', name: 'Les Paul Standard 60', short: 'LP 60', type: 'HB', brand: 'Gibson' };
 const SG61 = { id: 'sg61', name: 'SG Standard 61', short: 'SG 61', type: 'HB', brand: 'Gibson' };
@@ -288,5 +288,93 @@ describe('filterCotGuitarsToRig', () => {
     expect(cotList).toHaveLength(originalLength);
     expect(cotList[0].name).toBe('Les Paul Standard 60');
     expect(cotList[1].name).toBe('Strat AM Vintage II 61');
+  });
+});
+
+describe('localizePickup (Phase 9.5.1)', () => {
+  it('locale "en" → inchangé (jargon universel)', () => {
+    expect(localizePickup('Bridge', 'en')).toBe('Bridge');
+    expect(localizePickup('Position 4 (Middle+Bridge)', 'en')).toBe('Position 4 (Middle+Bridge)');
+  });
+
+  it('locale "fr" → traduction des termes courants', () => {
+    expect(localizePickup('Bridge', 'fr')).toBe('Chevalet');
+    expect(localizePickup('Neck', 'fr')).toBe('Manche');
+    expect(localizePickup('Middle', 'fr')).toBe('Intermédiaire');
+  });
+
+  it('locale "fr" → Position préservé', () => {
+    expect(localizePickup('Position 2', 'fr')).toBe('Position 2');
+    expect(localizePickup('Position 4 (Middle+Bridge)', 'fr')).toBe('Position 4 (Intermédiaire+Chevalet)');
+  });
+
+  it('locale "es" → traduction espagnole', () => {
+    expect(localizePickup('Bridge', 'es')).toBe('Puente');
+    expect(localizePickup('Neck', 'es')).toBe('Mástil');
+    expect(localizePickup('Position 2 (Neck+Middle)', 'es')).toBe('Posición 2 (Mástil+Intermedia)');
+  });
+
+  it('mots composés word-boundary (Neckar ne devient pas Manchear)', () => {
+    expect(localizePickup('Neckar river', 'fr')).toBe('Neckar river');
+    expect(localizePickup('Bridge+Neck (both)', 'fr')).toBe('Chevalet+Manche (both)');
+  });
+
+  it('annotations entre parenthèses préservées si pas de match', () => {
+    expect(localizePickup('Bridge HB', 'fr')).toBe('Chevalet HB');
+  });
+
+  it('null / undefined / non-string → retourné tel quel', () => {
+    expect(localizePickup(null, 'fr')).toBe(null);
+    expect(localizePickup(undefined, 'fr')).toBe(undefined);
+    expect(localizePickup(42, 'fr')).toBe(42);
+  });
+
+  it('string vide → string vide', () => {
+    expect(localizePickup('', 'fr')).toBe('');
+  });
+
+  it('locale non supporté (de) → inchangé', () => {
+    expect(localizePickup('Bridge', 'de')).toBe('Bridge');
+  });
+});
+
+describe('decapitalizeFirst (Phase 9.5.2)', () => {
+  it('mot français capitalisé → lowercase 1er char', () => {
+    expect(decapitalizeFirst('Trop de distorsion sur les accords')).toBe('trop de distorsion sur les accords');
+    expect(decapitalizeFirst('Manque de clarté')).toBe('manque de clarté');
+    expect(decapitalizeFirst('Bas-médiums envahissants')).toBe('bas-médiums envahissants');
+  });
+
+  it('acronyme tout en majuscules ≥ 2 chars → préservé', () => {
+    expect(decapitalizeFirst('FRFR vs cab physique')).toBe('FRFR vs cab physique');
+    expect(decapitalizeFirst('EQ trop scoopée')).toBe('EQ trop scoopée');
+    expect(decapitalizeFirst('DI directe boomy')).toBe('DI directe boomy');
+  });
+
+  it('lettre seule majuscule → lowercase (pas un acronyme)', () => {
+    expect(decapitalizeFirst('A trop de basses')).toBe('a trop de basses');
+  });
+
+  it('mot mixé (Frfr) → lowercase (pas tout en maj)', () => {
+    expect(decapitalizeFirst('Frfr vs cab')).toBe('frfr vs cab');
+  });
+
+  it('déjà en minuscule → inchangé', () => {
+    expect(decapitalizeFirst('trop sec')).toBe('trop sec');
+  });
+
+  it('chaîne vide / null / non-string → retourné tel quel', () => {
+    expect(decapitalizeFirst('')).toBe('');
+    expect(decapitalizeFirst(null)).toBe(null);
+    expect(decapitalizeFirst(undefined)).toBe(undefined);
+    expect(decapitalizeFirst(42)).toBe(42);
+  });
+
+  it('un seul mot français → lowercase', () => {
+    expect(decapitalizeFirst('Boomy')).toBe('boomy');
+  });
+
+  it('un seul mot acronyme → préservé', () => {
+    expect(decapitalizeFirst('FRFR')).toBe('FRFR');
   });
 });

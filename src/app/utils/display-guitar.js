@@ -95,4 +95,71 @@ export function resolveDisplayGuitar(aiC, rigGuitars, options = {}) {
   };
 }
 
+// ─── Phase 9.5.1 — Localisation des noms de pickup ─────────────────────────
+//
+// L'IA retourne `playing_hints.pickup` en anglais (jargon universel : Bridge,
+// Neck, Middle, Position 2, etc.). Mais l'affichage FR/ES gagne à traduire
+// ces termes pour cohérence avec `localGuitarSettings` qui produit déjà
+// "Micro chevalet" / "Micro manche" en FR.
+//
+// Approche conservative : remplacement word-boundary sur les patterns
+// courants. Préserve les annotations entre parenthèses (ex. "Position 4
+// (Middle+Bridge)" → "Position 4 (intermédiaire+chevalet)" en FR).
+// Si aucun pattern ne matche, retourne la string d'origine (le HSS Strat
+// "Position 2-4" ou les setups exotiques restent tels quels).
+
+const PICKUP_DICT = Object.freeze({
+  fr: {
+    Bridge: 'Chevalet',
+    Neck: 'Manche',
+    Middle: 'Intermédiaire',
+    Position: 'Position',
+  },
+  es: {
+    Bridge: 'Puente',
+    Neck: 'Mástil',
+    Middle: 'Intermedia',
+    Position: 'Posición',
+  },
+});
+
+export function localizePickup(name, locale) {
+  if (typeof name !== 'string' || !name) return name;
+  if (locale !== 'fr' && locale !== 'es') return name; // EN : inchangé
+  const dict = PICKUP_DICT[locale];
+  let out = name;
+  // Ordre intentionnel : "Position" en premier (pour ne pas casser "Bridge" /
+  // "Neck" / "Middle" dans "Position 2 (Neck+Middle)"). word-boundary `\b`
+  // protège des sous-chaînes (ex. "Neckar" ne matchera pas "Neck").
+  for (const key of ['Position', 'Bridge', 'Neck', 'Middle']) {
+    out = out.replace(new RegExp(`\\b${key}\\b`, 'g'), dict[key]);
+  }
+  return out;
+}
+
+// ─── Phase 9.5.2 — Decapitalize première lettre d'une string ───────────────
+//
+// L'IA capitalize les symptoms des tweaks comme s'ils étaient des phrases
+// autonomes ("Trop de distorsion", "Manque de clarté"). Concaténés avec
+// le préfixe "Si"/"If"/"Si" dans l'UI, ça donne "Si Trop de..." (FR
+// incorrect). Cette helper lowercase le 1er char SAUF si le 1er mot est
+// un acronyme (tout en majuscules ≥ 2 chars, ex. "FRFR vs cab" → laisse
+// "FRFR" tel quel).
+
+export function decapitalizeFirst(s) {
+  if (typeof s !== 'string' || !s) return s;
+  const firstSpace = s.search(/\s/);
+  const firstWord = firstSpace > 0 ? s.slice(0, firstSpace) : s;
+  // Acronyme : tout en majuscules, ≥ 2 chars, au moins une lettre A-Z.
+  // "FRFR", "EQ", "DI" → préservé. "Trop", "Manque", "A" → decap.
+  if (
+    firstWord.length >= 2 &&
+    firstWord === firstWord.toUpperCase() &&
+    /[A-Z]/.test(firstWord)
+  ) {
+    return s;
+  }
+  return s.charAt(0).toLowerCase() + s.slice(1);
+}
+
 export default resolveDisplayGuitar;
