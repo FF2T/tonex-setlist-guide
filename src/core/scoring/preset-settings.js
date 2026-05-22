@@ -186,25 +186,51 @@ function clampPresetSettings(raw) {
 }
 
 // Phase 9.2 (2026-05-22) — valide la structure d'un objet `fx_blocks`
-// retourné par l'IA. Format Niveau 1 (ON/OFF + type optional) :
+// retourné par l'IA. Phase 9.7 (2026-05-23) étendu avec sub-params
+// par bloc (Niveau 2). Format complet :
 //   {
-//     noise_gate: { enabled: boolean, why?: {fr,en,es} },
-//     compressor: { enabled: boolean, why?: {fr,en,es} },
-//     modulation: { enabled: boolean, type?: MOD_TYPE, why?: {fr,en,es} },
-//     delay:      { enabled: boolean, type?: DELAY_TYPE, why?: {fr,en,es} },
-//     reverb:     { enabled: boolean, type?: REVERB_TYPE, why?: {fr,en,es} }
+//     noise_gate: { enabled: boolean, release?, depth?, why? },
+//     compressor: { enabled: boolean, gain?, attack?, why? },
+//     modulation: { enabled: boolean, type?: MOD_TYPE, why? },  // Niveau 1 only
+//     delay:      { enabled: boolean, type?: DELAY_TYPE, mode?: DELAY_MODE,
+//                   time?, feedback?, mix?, why? },
+//     reverb:     { enabled: boolean, type?: REVERB_TYPE, time?, pre_delay?,
+//                   color?, mix?, why? }
 //   }
 //
 // Types officiels du manuel TONEX p.22-28 :
-// - MOD_TYPES   : Chorus / Tremolo / Phaser / Flanger / Rotary
-// - DELAY_TYPES : Digital / Tape
-// - REVERB_TYPES: Spring / Plate / Room / Hall / Shimmer
+// - MOD_TYPES    : Chorus / Tremolo / Phaser / Flanger / Rotary
+// - DELAY_TYPES  : Digital / Tape
+// - DELAY_MODES  : Normal / Ping.Pong (Phase 9.7)
+// - REVERB_TYPES : Spring 1 / Spring 2 / Spring 3 / Spring 4 / Room / Plate
+//   (Phase 9.7 — retire Hall/Shimmer Niveau 1, ajoute 4 variantes Spring
+//   numérotées conformes firmware)
+//
+// Ranges officiels par sub-param (Phase 9.7 manuel TONEX p.22-28) :
+// - noise_gate.release : 5-500 ms
+// - noise_gate.depth   : -100 à -20 dB
+// - compressor.gain    : -30 à +10 dB
+// - compressor.attack  : 1-51 ms
+// - delay.time         : 0-1000 ms
+// - delay.feedback     : 0-100 %
+// - delay.mix          : 0-100 %
+// - reverb.time        : 0-10 (scale)
+// - reverb.pre_delay   : 0-500 ms
+// - reverb.color       : -10 à +10
+// - reverb.mix         : 0-100 %
+//
+// Note : threshold gate/comp restent dans preset_settings_v1.alt
+// (Phase 9.1) — pas dupliqués ici. L'UI Phase 9.7 les affiche dans la
+// section Effets sous leur bloc respectif (regroupement visuel).
+// reverb_mix existe aussi dans alt (Phase 9.1) ET ici (Phase 9.7) —
+// décision data : on accepte les deux côté validation, l'UI lit
+// uniquement alt.reverb_mix pour la rétro-compat.
 //
 // Validation conservative : enabled DOIT être boolean (sinon drop le
-// bloc entier). type DOIT être dans l'enum (sinon retire type, garde
-// enabled). why validé via validateTrilingual (skip si invalide).
-// Threshold gate/comp restent dans preset_settings_v1.alt (Phase 9.1) —
-// pas dupliqués ici.
+// bloc entier). type/mode DOIT être dans l'enum (sinon retire ce
+// champ, garde enabled). Sub-params hors-bornes → clamp + warn.
+// Sub-params inconnus → skip silencieusement. why validé via
+// validateTrilingual.
 
 const FX_BLOCK_KEYS = Object.freeze([
   'noise_gate', 'compressor', 'modulation', 'delay', 'reverb',
@@ -213,20 +239,62 @@ const FX_BLOCK_KEYS = Object.freeze([
 const FX_TYPE_ENUMS = Object.freeze({
   modulation: Object.freeze(['Chorus', 'Tremolo', 'Phaser', 'Flanger', 'Rotary']),
   delay: Object.freeze(['Digital', 'Tape']),
-  reverb: Object.freeze(['Spring', 'Plate', 'Room', 'Hall', 'Shimmer']),
+  delay_mode: Object.freeze(['Normal', 'Ping.Pong']),
+  reverb: Object.freeze(['Spring 1', 'Spring 2', 'Spring 3', 'Spring 4', 'Room', 'Plate']),
+});
+
+const FX_BLOCK_RANGES = Object.freeze({
+  noise_gate: Object.freeze({
+    release: { min: 5,    max: 500,  unit: 'ms' },
+    depth:   { min: -100, max: -20,  unit: 'dB' },
+  }),
+  compressor: Object.freeze({
+    gain:    { min: -30,  max: 10,   unit: 'dB' },
+    attack:  { min: 1,    max: 51,   unit: 'ms' },
+  }),
+  delay: Object.freeze({
+    time:     { min: 0,   max: 1000, unit: 'ms' },
+    feedback: { min: 0,   max: 100,  unit: '%' },
+    mix:      { min: 0,   max: 100,  unit: '%' },
+  }),
+  reverb: Object.freeze({
+    time:      { min: 0,    max: 10,   unit: '' },
+    pre_delay: { min: 0,    max: 500,  unit: 'ms' },
+    color:     { min: -10,  max: 10,   unit: '' },
+    mix:       { min: 0,    max: 100,  unit: '%' },
+  }),
 });
 
 function clampFxBlock(key, raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   if (typeof raw.enabled !== 'boolean') return null;
   const out = { enabled: raw.enabled };
-  const enumList = FX_TYPE_ENUMS[key];
-  if (enumList && typeof raw.type === 'string' && raw.type.trim()) {
-    // Match case-insensitive sur l'enum, retourne la version canonique.
-    const found = enumList.find((t) => t.toLowerCase() === raw.type.trim().toLowerCase());
+
+  // type enum pour modulation/delay/reverb (case-insensitive matching).
+  const typeEnum = FX_TYPE_ENUMS[key];
+  if (typeEnum && typeof raw.type === 'string' && raw.type.trim()) {
+    const found = typeEnum.find((t) => t.toLowerCase() === raw.type.trim().toLowerCase());
     if (found) out.type = found;
-    // Pas de fallback warn (Gemini peut retourner null si pas applicable).
   }
+
+  // mode enum (Phase 9.7) — delay uniquement (Normal / Ping.Pong).
+  if (key === 'delay' && typeof raw.mode === 'string' && raw.mode.trim()) {
+    const modeEnum = FX_TYPE_ENUMS.delay_mode;
+    const found = modeEnum.find((m) => m.toLowerCase() === raw.mode.trim().toLowerCase());
+    if (found) out.mode = found;
+  }
+
+  // sub-params numériques (Phase 9.7) — clamp dans le range officiel.
+  const ranges = FX_BLOCK_RANGES[key];
+  if (ranges) {
+    for (const paramKey of Object.keys(ranges)) {
+      if (paramKey in raw) {
+        const clamped = clampValue(`fx_blocks.${key}.${paramKey}`, raw[paramKey], ranges[paramKey]);
+        if (clamped !== null) out[paramKey] = clamped;
+      }
+    }
+  }
+
   const whyClean = validateTrilingual(raw.why);
   if (whyClean) out.why = whyClean;
   return out;
@@ -267,4 +335,4 @@ function clampPlayingHints(raw) {
   return Object.keys(out).length > 0 ? out : null;
 }
 
-export { PRESET_RANGES, SUPPORTED_LOCALES, TWEAKS_MAX, FX_BLOCK_KEYS, FX_TYPE_ENUMS, clampPresetSettings, clampTweaks, clampPlayingHints, clampFxBlocks };
+export { PRESET_RANGES, SUPPORTED_LOCALES, TWEAKS_MAX, FX_BLOCK_KEYS, FX_TYPE_ENUMS, FX_BLOCK_RANGES, clampPresetSettings, clampTweaks, clampPlayingHints, clampFxBlocks };

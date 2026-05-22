@@ -510,18 +510,36 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                         ].map((spec) => renderKnobRow(spec, main))}
                       </>
                     )}
-                    {Object.keys(alt).length > 0 && (
-                      <>
-                        <div style={{ fontSize: 9, color: 'var(--text-dim)', fontStyle: 'italic', marginTop: 5, marginBottom: 2 }}>{t('preset-settings.section-alt', 'Boutons ALT (mode avancé)')}</div>
-                        {[
-                          ['presence', 'Presence', '/10', ''],
-                          ['depth', 'Depth', '/10', ''],
-                          ['reverb_mix', 'Reverb mix', '', '%'],
-                          ['comp_threshold', 'Comp threshold', '', 'dB'],
-                          ['gate_threshold', 'Gate threshold', '', 'dB'],
-                        ].map((spec) => renderKnobRow(spec, alt))}
-                      </>
-                    )}
+                    {Object.keys(alt).length > 0 && (() => {
+                      // Phase 9.7 — si fx_blocks présent, on filtre les ALT
+                      // knobs pour ne garder que presence/depth (EQ avancé) :
+                      // gate_threshold, comp_threshold et reverb_mix sont
+                      // déplacés dans la section Effets sous leur bloc
+                      // respectif. Sinon (aiCache pré-9.7), comportement
+                      // Phase 9.1 inchangé (5 ALT en bloc).
+                      const hasFxBlocks = !!aiC.fx_blocks;
+                      const altSpecs = hasFxBlocks
+                        ? [
+                            ['presence', 'Presence', '/10', ''],
+                            ['depth', 'Depth', '/10', ''],
+                          ]
+                        : [
+                            ['presence', 'Presence', '/10', ''],
+                            ['depth', 'Depth', '/10', ''],
+                            ['reverb_mix', 'Reverb mix', '', '%'],
+                            ['comp_threshold', 'Comp threshold', '', 'dB'],
+                            ['gate_threshold', 'Gate threshold', '', 'dB'],
+                          ];
+                      const sectionLabel = hasFxBlocks
+                        ? t('preset-settings.section-eq-advanced', 'EQ avancé')
+                        : t('preset-settings.section-alt', 'Boutons ALT (mode avancé)');
+                      return (
+                        <>
+                          <div style={{ fontSize: 9, color: 'var(--text-dim)', fontStyle: 'italic', marginTop: 5, marginBottom: 2 }}>{sectionLabel}</div>
+                          {altSpecs.map((spec) => renderKnobRow(spec, alt))}
+                        </>
+                      );
+                    })()}
                     {ps.why && (() => {
                       const whyTxt = getLocalizedText(ps.why, locale);
                       return whyTxt ? <div style={{ marginTop: 6, fontSize: 10, color: 'var(--text-sec)', fontStyle: 'italic', lineHeight: 1.4 }}>{whyTxt}</div> : null;
@@ -601,9 +619,57 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                       const present = blocks.filter(([key]) => fx[key]);
                       if (present.length === 0) return null;
                       const hasAnyWhy = present.some(([key]) => fx[key].why);
+                      // Phase 9.7 — récupère les valeurs depuis alt
+                      // (threshold gate/comp, mix reverb) pour les
+                      // afficher SOUS leur bloc respectif quand enabled.
+                      // Format d'un knob alt {value, why?} → on prend
+                      // juste .value, le why per-knob reste accessible
+                      // via le toggle "Pourquoi ces valeurs ?" Phase 7.86.
+                      const altVal = (k) => {
+                        const knob = alt[k];
+                        if (knob === null || knob === undefined) return null;
+                        if (typeof knob === 'number') return knob;
+                        if (typeof knob === 'object' && typeof knob.value === 'number') return knob.value;
+                        return null;
+                      };
+                      const fmt = (n, decimals = 1) => typeof n === 'number' ? n.toFixed(decimals).replace(/\.0$/, '') : null;
+                      // Phase 9.7 — Construit la liste de sub-params à
+                      // afficher pour un bloc donné. Combine threshold
+                      // depuis alt (Phase 9.1) et sub-params depuis
+                      // fx_blocks (Phase 9.7). Format: { label, value }.
+                      const subParamsFor = (key, block) => {
+                        if (!block.enabled) return [];
+                        const out = [];
+                        if (key === 'noise_gate') {
+                          const thr = altVal('gate_threshold');
+                          if (thr !== null) out.push({ label: t('fx-params.threshold', 'Threshold'), value: `${fmt(thr, 0)}dB` });
+                          if (typeof block.release === 'number') out.push({ label: t('fx-params.release', 'Release'), value: `${fmt(block.release, 0)}ms` });
+                          if (typeof block.depth === 'number') out.push({ label: t('fx-params.depth', 'Depth'), value: `${fmt(block.depth, 0)}dB` });
+                        } else if (key === 'compressor') {
+                          const thr = altVal('comp_threshold');
+                          if (thr !== null) out.push({ label: t('fx-params.threshold', 'Threshold'), value: `${fmt(thr, 0)}dB` });
+                          if (typeof block.gain === 'number') out.push({ label: t('fx-params.gain', 'Gain'), value: `${fmt(block.gain, 1)}dB` });
+                          if (typeof block.attack === 'number') out.push({ label: t('fx-params.attack', 'Attack'), value: `${fmt(block.attack, 1)}ms` });
+                        } else if (key === 'delay') {
+                          if (block.mode) out.push({ label: t('fx-params.mode', 'Mode'), value: block.mode });
+                          if (typeof block.time === 'number') out.push({ label: t('fx-params.time', 'Time'), value: `${fmt(block.time, 0)}ms` });
+                          if (typeof block.feedback === 'number') out.push({ label: t('fx-params.feedback', 'Feedback'), value: `${fmt(block.feedback, 0)}%` });
+                          if (typeof block.mix === 'number') out.push({ label: t('fx-params.mix', 'Mix'), value: `${fmt(block.mix, 0)}%` });
+                        } else if (key === 'reverb') {
+                          if (typeof block.time === 'number') out.push({ label: t('fx-params.time', 'Time'), value: fmt(block.time, 1) });
+                          if (typeof block.pre_delay === 'number') out.push({ label: t('fx-params.pre-delay', 'Pre-delay'), value: `${fmt(block.pre_delay, 0)}ms` });
+                          if (typeof block.color === 'number') out.push({ label: t('fx-params.color', 'Color'), value: fmt(block.color, 1) });
+                          // Reverb mix vient de alt.reverb_mix (Phase 9.1)
+                          // en priorité, fallback block.mix (Phase 9.7).
+                          const mix = altVal('reverb_mix');
+                          const mixVal = mix !== null ? mix : (typeof block.mix === 'number' ? block.mix : null);
+                          if (mixVal !== null) out.push({ label: t('fx-params.mix', 'Mix'), value: `${fmt(mixVal, 0)}%` });
+                        }
+                        return out;
+                      };
                       return (
                         <div data-testid="preset-settings-fx-blocks" style={{ marginTop: 6, paddingTop: 6, borderTop: '1px dashed var(--a10)' }}>
-                          <div style={{ fontSize: 9, color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: 3 }}>{t('fx-blocks.section-title', '🎚 Blocs effets')}</div>
+                          <div style={{ fontSize: 9, color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: 3 }}>{t('fx-blocks.section-title', '🎚 Effets')}</div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                             {present.map(([key, label]) => {
                               const block = fx[key];
@@ -611,6 +677,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                               const bgColor = block.enabled ? 'var(--green-bg)' : 'var(--a4)';
                               const textColor = block.enabled ? 'var(--green)' : 'var(--text-dim)';
                               const whyTxt = block.why ? getLocalizedText(block.why, locale) : null;
+                              const subParams = subParamsFor(key, block);
                               return (
                                 <div key={key}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, padding: '2px 0' }}>
@@ -622,6 +689,19 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                                       <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 'var(--r-sm)', background: bgColor, color: textColor, fontWeight: 700, fontFamily: 'var(--font-mono)', minWidth: 28, textAlign: 'center' }}>{onLabel}</span>
                                     </span>
                                   </div>
+                                  {/* Phase 9.7 — sub-params alignés sous
+                                      le bloc si enabled. Format compact
+                                      "Threshold -56dB · Release 140ms · Depth -75dB". */}
+                                  {subParams.length > 0 && (
+                                    <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', lineHeight: 1.5, marginLeft: 8, marginBottom: 2 }}>
+                                      {subParams.map((sp, i) => (
+                                        <span key={i}>
+                                          {i > 0 && <span> · </span>}
+                                          {sp.label} <span style={{ color: 'var(--text-bright)', fontWeight: 600 }}>{sp.value}</span>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
                                   {showFxWhy && whyTxt && (
                                     <div style={{ fontSize: 9, color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.4, marginLeft: 8, marginBottom: 3 }}>↳ {whyTxt}</div>
                                   )}

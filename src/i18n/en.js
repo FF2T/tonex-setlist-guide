@@ -911,7 +911,8 @@ const en = {
   'playing-hints.stereo': '🎚️ STEREO',
 
   // Phase 9.2 — FX blocks (5 effects : noise_gate / compressor / modulation / delay / reverb)
-  'fx-blocks.section-title': '🎚 Effect blocks',
+  // Phase 9.7 — étendu avec sub-params + section retitled to "Effects"
+  'fx-blocks.section-title': '🎚 Effects',
   'fx-blocks.noise-gate': 'Noise Gate',
   'fx-blocks.compressor': 'Compressor',
   'fx-blocks.modulation': 'Modulation',
@@ -921,6 +922,22 @@ const en = {
   'fx-blocks.off': 'OFF',
   'fx-blocks.why-show': '▸ Why these FX?',
   'fx-blocks.why-hide': '▲ Hide explanations',
+
+  // Phase 9.7 — EQ avancé (replaces "Boutons ALT" when fx_blocks present)
+  'preset-settings.section-eq-advanced': 'Advanced EQ',
+
+  // Phase 9.7 — FX sub-params labels (universal short labels)
+  'fx-params.threshold': 'Threshold',
+  'fx-params.release': 'Release',
+  'fx-params.depth': 'Depth',
+  'fx-params.gain': 'Gain',
+  'fx-params.attack': 'Attack',
+  'fx-params.mode': 'Mode',
+  'fx-params.time': 'Time',
+  'fx-params.feedback': 'Feedback',
+  'fx-params.mix': 'Mix',
+  'fx-params.pre-delay': 'Pre-delay',
+  'fx-params.color': 'Color',
   'song-detail.reco-block': 'AI recommendations',
   'song-detail.setup-block': 'My setup',
   'song-detail.setup-on-guitar': 'On your {guitar}:',

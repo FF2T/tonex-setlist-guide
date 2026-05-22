@@ -3,7 +3,7 @@
 // champs présents et clamp les hors-bornes (Gemini hallucine parfois).
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
-import { PRESET_RANGES, SUPPORTED_LOCALES, TWEAKS_MAX, FX_BLOCK_KEYS, FX_TYPE_ENUMS, clampPresetSettings, clampTweaks, clampPlayingHints, clampFxBlocks } from './preset-settings.js';
+import { PRESET_RANGES, SUPPORTED_LOCALES, TWEAKS_MAX, FX_BLOCK_KEYS, FX_TYPE_ENUMS, FX_BLOCK_RANGES, clampPresetSettings, clampTweaks, clampPlayingHints, clampFxBlocks } from './preset-settings.js';
 
 describe('PRESET_RANGES (Phase 9.1)', () => {
   test('5 main knobs avec range 0-10', () => {
@@ -618,10 +618,14 @@ describe('clampFxBlocks (Phase 9.2 Niveau 1)', () => {
     expect(FX_BLOCK_KEYS).toEqual(['noise_gate', 'compressor', 'modulation', 'delay', 'reverb']);
   });
 
-  test('FX_TYPE_ENUMS conformes manuel TONEX', () => {
+  test('FX_TYPE_ENUMS conformes manuel TONEX (Phase 9.7)', () => {
     expect(FX_TYPE_ENUMS.modulation).toEqual(['Chorus', 'Tremolo', 'Phaser', 'Flanger', 'Rotary']);
     expect(FX_TYPE_ENUMS.delay).toEqual(['Digital', 'Tape']);
-    expect(FX_TYPE_ENUMS.reverb).toEqual(['Spring', 'Plate', 'Room', 'Hall', 'Shimmer']);
+    // Phase 9.7 — Reverb enum corrigé : retire Hall/Shimmer, ajoute
+    // 4 variantes Spring numérotées conformes firmware TONEX.
+    expect(FX_TYPE_ENUMS.reverb).toEqual(['Spring 1', 'Spring 2', 'Spring 3', 'Spring 4', 'Room', 'Plate']);
+    // Phase 9.7 — delay mode (Normal / Ping.Pong)
+    expect(FX_TYPE_ENUMS.delay_mode).toEqual(['Normal', 'Ping.Pong']);
   });
 
   test('null / undefined / non-object → null', () => {
@@ -676,7 +680,7 @@ describe('clampFxBlocks (Phase 9.2 Niveau 1)', () => {
     const out = clampFxBlocks({
       reverb: {
         enabled: true,
-        type: 'Spring',
+        type: 'Spring 1',
         why: { fr: 'Reverb spring vintage', en: 'Vintage spring reverb', es: 'Reverb spring vintage' },
       },
     });
@@ -701,9 +705,24 @@ describe('clampFxBlocks (Phase 9.2 Niveau 1)', () => {
   });
 
   test('partial (seulement reverb) → preserve reverb seul', () => {
-    expect(clampFxBlocks({ reverb: { enabled: true, type: 'Hall' } })).toEqual({
-      reverb: { enabled: true, type: 'Hall' },
+    expect(clampFxBlocks({ reverb: { enabled: true, type: 'Room' } })).toEqual({
+      reverb: { enabled: true, type: 'Room' },
     });
+  });
+
+  test('Phase 9.7 — Hall/Shimmer rejetés (retirés de l\'enum)', () => {
+    expect(clampFxBlocks({ reverb: { enabled: true, type: 'Hall' } })).toEqual({
+      reverb: { enabled: true }, // type droppé silencieusement
+    });
+    expect(clampFxBlocks({ reverb: { enabled: true, type: 'Shimmer' } })).toEqual({
+      reverb: { enabled: true },
+    });
+  });
+
+  test('Phase 9.7 — Spring 1/2/3/4 acceptés', () => {
+    for (const t of ['Spring 1', 'Spring 2', 'Spring 3', 'Spring 4']) {
+      expect(clampFxBlocks({ reverb: { enabled: true, type: t } }).reverb.type).toBe(t);
+    }
   });
 
   test('tous les blocs malformés → null', () => {
@@ -720,10 +739,10 @@ describe('clampFxBlocks (Phase 9.2 Niveau 1)', () => {
       compressor: { enabled: false },
       modulation: { enabled: false },
       delay: { enabled: false },
-      reverb: { enabled: true, type: 'Spring' },
+      reverb: { enabled: true, type: 'Spring 2' },
     });
     expect(out.noise_gate.enabled).toBe(false);
-    expect(out.reverb.type).toBe('Spring');
+    expect(out.reverb.type).toBe('Spring 2');
     expect(out.noise_gate.why.fr).toBe('Pas de gate, son dynamique');
   });
 
@@ -738,5 +757,171 @@ describe('clampFxBlocks (Phase 9.2 Niveau 1)', () => {
     expect(out.noise_gate.enabled).toBe(true);
     expect(out.modulation.enabled).toBe(false);
     expect(out.reverb.type).toBe('Plate');
+  });
+});
+
+describe('clampFxBlocks — sub-params Niveau 2 (Phase 9.7)', () => {
+  let warnSpy;
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('FX_BLOCK_RANGES conformes manuel TONEX', () => {
+    expect(FX_BLOCK_RANGES.noise_gate).toMatchObject({
+      release: { min: 5, max: 500, unit: 'ms' },
+      depth: { min: -100, max: -20, unit: 'dB' },
+    });
+    expect(FX_BLOCK_RANGES.compressor).toMatchObject({
+      gain: { min: -30, max: 10, unit: 'dB' },
+      attack: { min: 1, max: 51, unit: 'ms' },
+    });
+    expect(FX_BLOCK_RANGES.delay).toMatchObject({
+      time: { min: 0, max: 1000, unit: 'ms' },
+      feedback: { min: 0, max: 100, unit: '%' },
+      mix: { min: 0, max: 100, unit: '%' },
+    });
+    expect(FX_BLOCK_RANGES.reverb).toMatchObject({
+      time: { min: 0, max: 10 },
+      pre_delay: { min: 0, max: 500, unit: 'ms' },
+      color: { min: -10, max: 10 },
+      mix: { min: 0, max: 100, unit: '%' },
+    });
+  });
+
+  test('noise_gate sub-params in-range préservés', () => {
+    const out = clampFxBlocks({
+      noise_gate: { enabled: true, release: 140, depth: -75 },
+    });
+    expect(out.noise_gate).toEqual({ enabled: true, release: 140, depth: -75 });
+  });
+
+  test('noise_gate sub-params hors-bornes clampés', () => {
+    const out = clampFxBlocks({
+      noise_gate: { enabled: true, release: 800, depth: -10 },
+    });
+    expect(out.noise_gate.release).toBe(500); // max 500
+    expect(out.noise_gate.depth).toBe(-20);   // max -20 (range -100/-20)
+    expect(warnSpy).toHaveBeenCalled();
+  });
+
+  test('compressor sub-params (gain + attack)', () => {
+    const out = clampFxBlocks({
+      compressor: { enabled: true, gain: 5, attack: 10 },
+    });
+    expect(out.compressor).toEqual({ enabled: true, gain: 5, attack: 10 });
+  });
+
+  test('compressor gain hors-bornes négatif clampé', () => {
+    const out = clampFxBlocks({
+      compressor: { enabled: true, gain: -50, attack: 0.5 },
+    });
+    expect(out.compressor.gain).toBe(-30);  // min -30
+    expect(out.compressor.attack).toBe(1);  // min 1
+  });
+
+  test('delay type Digital + mode Normal + sub-params', () => {
+    const out = clampFxBlocks({
+      delay: { enabled: true, type: 'Digital', mode: 'Normal', time: 320, feedback: 25, mix: 14 },
+    });
+    expect(out.delay).toEqual({
+      enabled: true, type: 'Digital', mode: 'Normal',
+      time: 320, feedback: 25, mix: 14,
+    });
+  });
+
+  test('delay type Tape + mode Ping.Pong (Phase 9.7)', () => {
+    const out = clampFxBlocks({
+      delay: { enabled: true, type: 'Tape', mode: 'Ping.Pong', time: 500, feedback: 40, mix: 30 },
+    });
+    expect(out.delay.type).toBe('Tape');
+    expect(out.delay.mode).toBe('Ping.Pong');
+  });
+
+  test('delay mode case-insensitive canonisé', () => {
+    const out = clampFxBlocks({
+      delay: { enabled: true, mode: 'ping.pong' },
+    });
+    expect(out.delay.mode).toBe('Ping.Pong');
+  });
+
+  test('delay mode invalide droppé (keep enabled)', () => {
+    const out = clampFxBlocks({
+      delay: { enabled: true, mode: 'Reverse' }, // pas dans enum
+    });
+    expect(out.delay).toEqual({ enabled: true });
+    expect(out.delay.mode).toBeUndefined();
+  });
+
+  test('delay time hors-bornes (1500ms) clampé à 1000', () => {
+    const out = clampFxBlocks({
+      delay: { enabled: true, time: 1500 },
+    });
+    expect(out.delay.time).toBe(1000);
+  });
+
+  test('reverb full sub-params (type Spring 2 + time + pre_delay + color + mix)', () => {
+    const out = clampFxBlocks({
+      reverb: { enabled: true, type: 'Spring 2', time: 4.5, pre_delay: 18, color: 2, mix: 16 },
+    });
+    expect(out.reverb).toEqual({
+      enabled: true, type: 'Spring 2',
+      time: 4.5, pre_delay: 18, color: 2, mix: 16,
+    });
+  });
+
+  test('reverb color hors-bornes négatif clampé', () => {
+    const out = clampFxBlocks({
+      reverb: { enabled: true, color: -20 },
+    });
+    expect(out.reverb.color).toBe(-10);
+  });
+
+  test('reverb pre_delay hors-bornes positif clampé', () => {
+    const out = clampFxBlocks({
+      reverb: { enabled: true, pre_delay: 900 },
+    });
+    expect(out.reverb.pre_delay).toBe(500);
+  });
+
+  test('sub-param non-numérique skip silencieusement', () => {
+    const out = clampFxBlocks({
+      reverb: { enabled: true, time: 'long', color: 0 },
+    });
+    expect(out.reverb).toEqual({ enabled: true, color: 0 });
+    expect(out.reverb.time).toBeUndefined();
+  });
+
+  test('sub-param inconnu (ex. release sur reverb) ignoré', () => {
+    const out = clampFxBlocks({
+      reverb: { enabled: true, type: 'Plate', release: 200 }, // release n'est pas reverb param
+    });
+    expect(out.reverb).toEqual({ enabled: true, type: 'Plate' });
+    expect(out.reverb.release).toBeUndefined();
+  });
+
+  test('modulation Niveau 1 préservé (pas de sub-params Phase 9.7)', () => {
+    const out = clampFxBlocks({
+      modulation: { enabled: true, type: 'Chorus', rate: 1.5 }, // rate skip (Niveau 1)
+    });
+    expect(out.modulation).toEqual({ enabled: true, type: 'Chorus' });
+    expect(out.modulation.rate).toBeUndefined();
+  });
+
+  test('scénario réel Phase 9.7 (Under Pressure ambient Plate)', () => {
+    const out = clampFxBlocks({
+      noise_gate: { enabled: false },
+      compressor: { enabled: true, gain: 2, attack: 8 },
+      modulation: { enabled: false },
+      delay: { enabled: true, type: 'Tape', mode: 'Normal', time: 380, feedback: 25, mix: 18 },
+      reverb: { enabled: true, type: 'Plate', time: 5.2, pre_delay: 25, color: 1, mix: 22 },
+    });
+    expect(out.delay.mode).toBe('Normal');
+    expect(out.delay.type).toBe('Tape');
+    expect(out.reverb.type).toBe('Plate');
+    expect(out.reverb.color).toBe(1);
+    expect(out.compressor.attack).toBe(8);
   });
 });

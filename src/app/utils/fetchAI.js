@@ -273,38 +273,55 @@ Règles :
 - stereo : false dans 95% des cas. true uniquement si delay stéréo / ambient / dual-amp recommandé pour CE morceau précis.
 - PAS de duplication avec settings_guitar : ce dernier reste la prose contextuelle ("Use neck pickup for verses, switch to bridge for solo"). playing_hints fournit les VALEURS scalaires de référence.
 
-ÉTAPE 7C – FX BLOCKS (Phase 9.2 Niveau 1) — état des blocs effets
-Retourne un objet fx_blocks AVEC LES 5 BLOCS effets de la chaîne preset TONEX (manuel p.22-28). Chaque bloc indique simplement s'il doit être ACTIVÉ ou BYPASSED dans ce preset pour ce morceau, et son type quand applicable. Pas de sub-params (rate, time, mix…) en Niveau 1 — les valeurs détaillées restent dans preset_settings_v1.alt (reverb_mix, comp_threshold, gate_threshold).
+ÉTAPE 7C – FX BLOCKS (Phase 9.2 Niveau 1 + Phase 9.7 Niveau 2) — état + sub-params des blocs effets
+Retourne un objet fx_blocks AVEC LES 5 BLOCS effets de la chaîne preset TONEX (manuel p.22-28). Chaque bloc indique son ÉTAT (enabled bool), son TYPE quand applicable (mod/delay/reverb), et ses SUB-PARAMS numériques quand enabled=true (Phase 9.7). Modulation reste en Niveau 1 (juste enabled + type, pas de sub-params). Threshold gate/comp restent dans preset_settings_v1.alt (Phase 9.1) — pas dupliqués ici.
 
 {
-  "noise_gate": { "enabled": boolean,                     "why": {"fr":"...","en":"...","es":"..."} },
-  "compressor": { "enabled": boolean,                     "why": {...} },
-  "modulation": { "enabled": boolean, "type": MOD_TYPE,   "why": {...} },
-  "delay":      { "enabled": boolean, "type": DELAY_TYPE, "why": {...} },
-  "reverb":     { "enabled": boolean, "type": REVERB_TYPE,"why": {...} }
+  "noise_gate": { "enabled": boolean,                                                       "release": 5-500, "depth": -100 à -20, "why": {"fr":"...","en":"...","es":"..."} },
+  "compressor": { "enabled": boolean,                                                       "gain": -30 à 10, "attack": 1-51,      "why": {...} },
+  "modulation": { "enabled": boolean, "type": MOD_TYPE,                                                                            "why": {...} },
+  "delay":      { "enabled": boolean, "type": DELAY_TYPE, "mode": DELAY_MODE,               "time": 0-1000,   "feedback": 0-100, "mix": 0-100, "why": {...} },
+  "reverb":     { "enabled": boolean, "type": REVERB_TYPE,                                  "time": 0-10,     "pre_delay": 0-500, "color": -10 à 10, "mix": 0-100, "why": {...} }
 }
 
 Types autorisés (enums OFFICIELS manuel TONEX) :
 - MOD_TYPE    ∈ {"Chorus", "Tremolo", "Phaser", "Flanger", "Rotary"}
 - DELAY_TYPE  ∈ {"Digital", "Tape"}
-- REVERB_TYPE ∈ {"Spring", "Plate", "Room", "Hall", "Shimmer"}
+- DELAY_MODE  ∈ {"Normal", "Ping.Pong"} (Phase 9.7 — note le point dans "Ping.Pong")
+- REVERB_TYPE ∈ {"Spring 1", "Spring 2", "Spring 3", "Spring 4", "Room", "Plate"} (Phase 9.7 — 6 variantes officielles firmware, retire Hall/Shimmer)
+
+Sub-params Niveau 2 (Phase 9.7) avec ranges OFFICIELS manuel TONEX p.22-28 :
+- noise_gate.release  : 5-500 ms (temps de fermeture du gate après le seuil)
+- noise_gate.depth    : -100 à -20 dB (atténuation, -100 = total mute, -20 = atténuation douce)
+- compressor.gain     : -30 à +10 dB (gain de sortie post-compression)
+- compressor.attack   : 1-51 ms (temps de réaction, 1 = très agressif, 51 = doux)
+- delay.time          : 0-1000 ms (temps inter-répétitions, ex 320 pour 1/8 dotted @ 120 BPM)
+- delay.feedback      : 0-100 % (nombre de répétitions, 25 = 4-5 reps, 60 = quasi-infini)
+- delay.mix           : 0-100 % (niveau du wet vs dry)
+- reverb.time         : 0-10 (durée queue de reverb, scale relative)
+- reverb.pre_delay    : 0-500 ms (délai avant 1ère réflexion, 0 = collé au signal direct)
+- reverb.color        : -10 à +10 (-10 = sombre/lo-fi, 0 = neutre, +10 = brillant/aérien)
+- reverb.mix          : 0-100 % (niveau wet)
 
 Règles :
 - enabled : true si le bloc est nécessaire pour reproduire le son du morceau, false sinon. Default false (bypass) pour mod/delay (peu de morceaux les utilisent). Default true pour noise_gate sur metal HG, false ailleurs. Reverb généralement true (ajoute de la profondeur), exception morceaux totalement secs.
-- type (mod/delay/reverb uniquement) : retourne null ou omet le champ si enabled=false (pas besoin de type pour un bloc bypassed). Si enabled=true, choisis le type EXACT (case-sensitive — "Chorus" pas "chorus") depuis l'enum.
-- why per-bloc : OBLIGATOIRE. Phrase courte (10-15 mots) TRILINGUE expliquant pourquoi ce bloc est ON ou OFF pour CE morceau. Ex : "Mod OFF — pas d'effet modulation sur ce thrash 80s", "Reverb Plate ON — ajoute de la profondeur au lead chantant".
-- noise_gate.enabled : true sur metal/thrash high gain (palm mutes sèches), false sur blues/clean (laisse respirer la dynamique). Coordonne avec preset_settings_v1.alt.gate_threshold (Phase 9.1) — si gate_threshold ≤ -60dB ET style metal, gate ON.
-- compressor.enabled : true sur funk/clean/country (sustain et égalisation dynamique), false sur rock/metal (préserve la dynamique d'attaque ampli). Coordonne avec preset_settings_v1.alt.comp_threshold.
-- modulation.enabled : RARE. true seulement si le morceau a EXPLICITEMENT du chorus (80s pop, ambient), phaser (funk 70s), rotary (Hammond-like), tremolo (surf, classic rock). Hells Bells = OFF (son sec). The Police "Walking on the Moon" = Chorus ON.
-- delay.enabled : true si le morceau a clairement du delay audible (U2 The Edge = Tape ON, ambient/post-rock = Digital ON). Default false pour le rock classique.
-- reverb.enabled : généralement true. Type adapté : Spring pour blues/rock vintage Fender-like, Plate pour studio/lead, Hall/Room pour ambient/atmospheric, Shimmer pour post-rock/worship modern.
+- type (mod/delay/reverb uniquement) : retourne null ou omet le champ si enabled=false. Si enabled=true, choisis le type EXACT (case-sensitive — "Chorus" pas "chorus") depuis l'enum. Pour reverb, choisis "Spring 1" pour les voicings vintage Fender les plus mid-rich, "Spring 2/3/4" pour des variantes plus brillantes/diffuses, "Room" pour un espace court non-réverbérant, "Plate" pour le studio lush.
+- mode (delay uniquement) : "Normal" = délai standard, "Ping.Pong" = répétitions alternées L/R (rare hors stereo).
+- sub-params (Phase 9.7) : OMETS les sub-params si enabled=false (pas besoin pour un bloc bypassed). Si enabled=true, fournis des valeurs cohérentes au morceau.
+- why per-bloc : OBLIGATOIRE. Phrase courte (10-15 mots) TRILINGUE expliquant pourquoi ce bloc est ON/OFF avec son TYPE et ses sub-params. Ex : "Reverb Plate ON time 5 pre_delay 25 mix 22 — ajoute du studio sans noyer le mix".
+- noise_gate.enabled : true sur metal/thrash high gain. Coordonne avec preset_settings_v1.alt.gate_threshold (Phase 9.1).
+- compressor.enabled : true sur funk/clean/country, false sur rock/metal. Coordonne avec alt.comp_threshold.
+- modulation.enabled : RARE. true seulement si chorus/phaser/rotary/tremolo audible dans le morceau. Hells Bells = OFF, The Police "Walking on the Moon" = Chorus ON.
+- delay.enabled : true si delay audible (U2 = Tape Normal time 380, ambient = Digital long). Default false pour le rock classique.
+- reverb.enabled : généralement true. Type adapté : Spring 1-4 pour blues/rock vintage, Plate pour studio/lead, Room pour ambient court.
 
-Adaptation au contexte attendue :
-- thrash/metal high gain (For Whom the Bell Tolls, Master of Puppets) → noise_gate ON, compressor OFF, mod OFF, delay OFF, reverb Plate basse (mix 5-10%)
-- blues clean (Thrill is Gone, Sunshine of Your Love) → noise_gate OFF, compressor ON, mod OFF (ou Rotary si Hammond-like), delay OFF (ou Tape doux), reverb Spring (mix 20-30%)
-- ambient (Wish You Were Here, post-rock) → noise_gate OFF, compressor ON, mod éventuellement Chorus, delay Tape/Digital ON, reverb Hall/Shimmer (mix 30-40%)
-- classic rock (AC/DC Hells Bells, Highway to Hell) → noise_gate OFF, compressor OFF, mod OFF, delay OFF, reverb Spring basse (mix 5-15%)
-- funk (Get Lucky) → noise_gate OFF, compressor ON, mod éventuellement Phaser, delay OFF, reverb Room basse
+Adaptation au contexte attendue (Phase 9.7 avec sub-params) :
+- thrash/metal high gain (For Whom the Bell Tolls, Master of Puppets) → noise_gate ON (release 80, depth -75), compressor OFF, mod OFF, delay OFF, reverb Plate (time 2.5, pre_delay 12, color -2, mix 8)
+- blues clean (Thrill is Gone, Sunshine of Your Love) → noise_gate OFF, compressor ON (gain 0, attack 15), mod OFF, delay OFF (ou Tape mode Normal time 380 feedback 22 mix 12), reverb Spring 2 (time 4, pre_delay 0, color 1, mix 25)
+- ambient/post-rock (Wish You Were Here) → noise_gate OFF, compressor ON (gain 2, attack 8), mod éventuellement Chorus, delay Tape Normal (time 480 feedback 40 mix 25), reverb Plate (time 7, pre_delay 30, color 2, mix 35)
+- classic rock (AC/DC Hells Bells) → noise_gate OFF, compressor OFF, mod OFF, delay OFF, reverb Spring 2 ou Room (time 2, pre_delay 5, color 0, mix 10)
+- funk (Get Lucky) → noise_gate OFF, compressor ON (gain 3, attack 5), mod éventuellement Phaser, delay OFF, reverb Room (time 1.5, pre_delay 0, color 0, mix 12)
+- worship modern → noise_gate OFF, compressor ON, mod Chorus, delay Digital Normal (time 380 feedback 35 mix 22), reverb Plate (time 6, pre_delay 25, color 3, mix 30)
 
 CONSIGNE DE PHRASING POUR settings_preset ET settings_guitar
 Le champ "settings_preset" regroupe des conseils de **personnalisation du preset** pour la guitare et le contexte d'écoute de l'utilisateur — PAS des corrections du preset lui-même. Le preset est considéré comme calibré correctement par son créateur (TSR, ML Sound Lab, Galtone, Amalgam, ToneNET community, IK Multimedia factory, etc.).
@@ -346,7 +363,7 @@ OUTPUT TRILINGUE — Format des champs texte :
 Les champs marqués "TEXTE TRILINGUE" ci-dessous DOIVENT être un objet à 3 clés {"fr":"...","en":"...","es":"..."} avec la même information traduite dans chaque langue. Garde le sens et le niveau de détail constant entre les 3 versions. Les NOMS PROPRES (noms d'artistes, modèles d'amplis "Marshall JCM800", noms de guitares "Stratocaster '62", titres de morceaux) restent identiques dans les 3 langues. Les autres champs (noms, scores numériques, énums) restent des valeurs scalaires.
 
 Réponds en JSON pur (sans backticks ni markdown) :
-{"cot_step1":{"fr":"3-5 phrases analysant le profil tonal","en":"3-5 sentences analyzing the tonal profile","es":"3-5 frases analizando el perfil tonal"},"cot_step2_guitars":[{"name":"nom exact guitare","score":85,"reason":{"fr":"justification","en":"justification","es":"justificación"}},{"name":"2e guitare","score":75,"reason":{"fr":"...","en":"...","es":"..."}}],"cot_step3_amp":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"cot_step4_score":{"guitar_score":85,"micro":{"score":90,"reason":{"fr":"...","en":"...","es":"..."}},"body":{"score":80,"reason":{"fr":"...","en":"...","es":"..."}},"history":{"score":95,"reason":{"fr":"...","en":"...","es":"..."}},"amp_match":{"score":85,"reason":{"fr":"...","en":"...","es":"..."}}},"song_year":1970,"song_album":"album","song_desc":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"song_key":"Em","song_bpm":120,"song_style":"blues/rock/hard_rock/jazz/metal/pop","target_gain":5,"tonal_school":"fender_clean/marshall_crunch/vox_chime/dumble_smooth/mesa_heavy/hiwatt_clean","pickup_preference":"HB/SC/P90/any","ideal_guitar":"nom complet guitare idéale","guitar_reason":{"fr":"...","en":"...","es":"..."},"settings_preset":{"fr":"conseils","en":"settings","es":"ajustes"},"settings_guitar":{"fr":"conseils de jeu","en":"playing tips","es":"consejos de juego"},"ref_guitarist":"guitariste","ref_guitar":"modèle guitare","ref_amp":"modèle ampli","ref_effects":"effets ou 'Aucun effet'","preset_tmp":"nom exact patch TMP OU null","preset_ann_name":"nom EXACT capture OU null","preset_plug_name":"nom EXACT capture OU null","preset_settings_v1":{"cab_enabled":true,"main":{"gain":{"value":6.2,"why":{"fr":"...","en":"...","es":"..."}},"bass":{"value":4.5,"why":{"fr":"...","en":"...","es":"..."}},"mid":{"value":7.0,"why":{"fr":"...","en":"...","es":"..."}},"treble":{"value":5.3,"why":{"fr":"...","en":"...","es":"..."}},"volume":{"value":6.0,"why":{"fr":"...","en":"...","es":"..."}}},"alt":{"presence":{"value":4.7,"why":{"fr":"...","en":"...","es":"..."}},"depth":{"value":5.0,"why":{"fr":"...","en":"...","es":"..."}},"reverb_mix":{"value":16,"why":{"fr":"...","en":"...","es":"..."}},"comp_threshold":{"value":-18,"why":{"fr":"...","en":"...","es":"..."}},"gate_threshold":{"value":-56,"why":{"fr":"...","en":"...","es":"..."}}},"why":{"fr":"...","en":"...","es":"..."},"tweaks":[{"symptom":{"fr":"trop brillant sur FRFR","en":"too bright on FRFR","es":"demasiado brillante en FRFR"},"fix":"Treble -0.5 + Presence -0.3"},{"symptom":{"fr":"noyé dans le mix groupe","en":"buried in band mix","es":"enterrado en la mezcla"},"fix":"Mid +0.5 + Volume +0.3"}]},"playing_hints":{"pickup":"Bridge","guitar_volume":"8-10","guitar_tone":"10 (open)","stereo":false},"fx_blocks":{"noise_gate":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}},"compressor":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}},"modulation":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}},"delay":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}},"reverb":{"enabled":true,"type":"Spring","why":{"fr":"...","en":"...","es":"..."}}}} (note : cab_enabled DOIT être true ; CHAQUE knob doit avoir value+why trilingue Phase 7.86 ; tweaks = MIN 3 MAX 8 ajustements empiriques spécifiques au morceau Phase 9.4/9.4.1 ; playing_hints = 4 champs scalaires Phase 9.5 ; fx_blocks = 5 blocs effets enabled bool + type enum + why trilingue Phase 9.2)
+{"cot_step1":{"fr":"3-5 phrases analysant le profil tonal","en":"3-5 sentences analyzing the tonal profile","es":"3-5 frases analizando el perfil tonal"},"cot_step2_guitars":[{"name":"nom exact guitare","score":85,"reason":{"fr":"justification","en":"justification","es":"justificación"}},{"name":"2e guitare","score":75,"reason":{"fr":"...","en":"...","es":"..."}}],"cot_step3_amp":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"cot_step4_score":{"guitar_score":85,"micro":{"score":90,"reason":{"fr":"...","en":"...","es":"..."}},"body":{"score":80,"reason":{"fr":"...","en":"...","es":"..."}},"history":{"score":95,"reason":{"fr":"...","en":"...","es":"..."}},"amp_match":{"score":85,"reason":{"fr":"...","en":"...","es":"..."}}},"song_year":1970,"song_album":"album","song_desc":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"song_key":"Em","song_bpm":120,"song_style":"blues/rock/hard_rock/jazz/metal/pop","target_gain":5,"tonal_school":"fender_clean/marshall_crunch/vox_chime/dumble_smooth/mesa_heavy/hiwatt_clean","pickup_preference":"HB/SC/P90/any","ideal_guitar":"nom complet guitare idéale","guitar_reason":{"fr":"...","en":"...","es":"..."},"settings_preset":{"fr":"conseils","en":"settings","es":"ajustes"},"settings_guitar":{"fr":"conseils de jeu","en":"playing tips","es":"consejos de juego"},"ref_guitarist":"guitariste","ref_guitar":"modèle guitare","ref_amp":"modèle ampli","ref_effects":"effets ou 'Aucun effet'","preset_tmp":"nom exact patch TMP OU null","preset_ann_name":"nom EXACT capture OU null","preset_plug_name":"nom EXACT capture OU null","preset_settings_v1":{"cab_enabled":true,"main":{"gain":{"value":6.2,"why":{"fr":"...","en":"...","es":"..."}},"bass":{"value":4.5,"why":{"fr":"...","en":"...","es":"..."}},"mid":{"value":7.0,"why":{"fr":"...","en":"...","es":"..."}},"treble":{"value":5.3,"why":{"fr":"...","en":"...","es":"..."}},"volume":{"value":6.0,"why":{"fr":"...","en":"...","es":"..."}}},"alt":{"presence":{"value":4.7,"why":{"fr":"...","en":"...","es":"..."}},"depth":{"value":5.0,"why":{"fr":"...","en":"...","es":"..."}},"reverb_mix":{"value":16,"why":{"fr":"...","en":"...","es":"..."}},"comp_threshold":{"value":-18,"why":{"fr":"...","en":"...","es":"..."}},"gate_threshold":{"value":-56,"why":{"fr":"...","en":"...","es":"..."}}},"why":{"fr":"...","en":"...","es":"..."},"tweaks":[{"symptom":{"fr":"trop brillant sur FRFR","en":"too bright on FRFR","es":"demasiado brillante en FRFR"},"fix":"Treble -0.5 + Presence -0.3"},{"symptom":{"fr":"noyé dans le mix groupe","en":"buried in band mix","es":"enterrado en la mezcla"},"fix":"Mid +0.5 + Volume +0.3"}]},"playing_hints":{"pickup":"Bridge","guitar_volume":"8-10","guitar_tone":"10 (open)","stereo":false},"fx_blocks":{"noise_gate":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}},"compressor":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}},"modulation":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}},"delay":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}},"reverb":{"enabled":true,"type":"Spring 2","time":2,"pre_delay":5,"color":0,"mix":10,"why":{"fr":"...","en":"...","es":"..."}}}} (note : cab_enabled DOIT être true ; CHAQUE knob doit avoir value+why trilingue Phase 7.86 ; tweaks = MIN 3 MAX 8 ajustements empiriques spécifiques au morceau Phase 9.4/9.4.1 ; playing_hints = 4 champs scalaires Phase 9.5 ; fx_blocks Phase 9.2 N1 + Phase 9.7 N2 = 5 blocs avec enabled bool + type/mode enum + sub-params numériques quand enabled=true + why trilingue par bloc)
 
 Champs TEXTE TRILINGUE (à fournir en {fr, en, es}) :
 - cot_step1, cot_step3_amp, song_desc, guitar_reason, settings_preset, settings_guitar
@@ -370,6 +387,8 @@ Champs SCALAIRES (valeur unique, pas d'objet) :
 - preset_settings_v1.tweaks[].fix (string courte, format "Param ±N" ou "Param ±N + Param ±N", universel)
 - playing_hints.pickup, .guitar_volume, .guitar_tone (strings courtes scalaires, universelles), .stereo (boolean, false par défaut) — Phase 9.5
 - fx_blocks.{noise_gate,compressor,modulation,delay,reverb}.enabled (boolean), .type (string enum, optional pour mod/delay/reverb) — Phase 9.2
+- fx_blocks.delay.mode (string enum "Normal"/"Ping.Pong") — Phase 9.7
+- fx_blocks.noise_gate.{release,depth} (number), .compressor.{gain,attack} (number), .delay.{time,feedback,mix} (number), .reverb.{time,pre_delay,color,mix} (number) — Phase 9.7 sub-params Niveau 2
 
 Contraintes :
 - cot_step2_guitars : guitares UNIQUEMENT dans la collection listée

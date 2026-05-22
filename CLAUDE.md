@@ -761,7 +761,227 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-22 nuit, Phase 9.6.2 + 9.2 — finitions famille Phase 9 + FX blocks ON/OFF)
+## État actuel (2026-05-23 nuit, Phase 9.7 — FX blocks Niveau 2 + refonte section pédale 3 sous-sections)
+
+**Backline v8.14.173 / SW backline-v273 / STATE_VERSION 11 / 1561 tests verts.**
+
+### Phase 9.7 — FX blocks Niveau 2 + regroupement section pédale (v8.14.173)
+
+Constat Sébastien post-Phase 9.2 Niveau 1 sur Hells Bells :
+**incohérence visuelle** entre les "Boutons ALT" et la "Blocs effets" :
+- "Gate threshold -80dB" affiché dans alt knobs
+- MAIS Noise Gate **OFF** dans la section blocs effets
+- Idem pour "Comp threshold 0dB" + Compressor OFF
+
+→ Pollution UI + contradiction perçue. Le user ne sait pas si le gate
+est actif ou pas. Phase 9.7 résout en **regroupant tous les params
+FX par bloc** + en ajoutant les **sub-params Niveau 2** demandés
+par Sébastien.
+
+#### Sub-params Niveau 2 par bloc (manuel TONEX p.22-28)
+
+```
+Noise Gate   : enabled + threshold (depuis alt) + release (5-500ms) + depth (-100/-20dB)
+Compressor   : enabled + threshold (depuis alt) + gain (-30/+10dB) + attack (1-51ms)
+Modulation   : enabled + type (Chorus/Tremolo/Phaser/Flanger/Rotary) — Niveau 1 préservé
+Delay        : enabled + type (Digital/Tape) + mode (Normal/Ping.Pong) + time (0-1000ms) +
+               feedback (0-100%) + mix (0-100%)
+Reverb       : enabled + type (Spring 1/2/3/4/Room/Plate) + time (0-10) +
+               pre_delay (0-500ms) + color (-10/+10) + mix (0-100%, depuis alt.reverb_mix
+               en priorité, fallback fx_blocks.reverb.mix)
+```
+
+**Correction REVERB_TYPES enum** : Phase 9.2 N1 avait `[Spring, Plate,
+Room, Hall, Shimmer]` qui ne correspond pas au firmware. Phase 9.7
+livre les **6 types officiels** : `[Spring 1, Spring 2, Spring 3,
+Spring 4, Room, Plate]`. Hall et Shimmer retirés (les aiCache pré-9.7
+avec ces types les verront droppés silencieusement à la prochaine
+validation — minoritaire).
+
+**Nouveau DELAY_MODE enum** : `[Normal, Ping.Pong]` (le point est
+intentionnel, conforme firmware TONEX).
+
+**Modulation reste en Niveau 1** : pas de sub-params (rate/depth/level)
+ajoutés. Si signal user explicit → Phase 9.7.1 dédié.
+
+#### Architecture data — threshold/mix non-dupliqués
+
+Décision design : **garder gate_threshold + comp_threshold + reverb_mix
+dans `preset_settings_v1.alt` (Phase 9.1)** plutôt que les déplacer
+dans `fx_blocks.*`. Avantages :
+- Rétro-compat totale avec aiCache pré-9.7
+- Pas de migration nécessaire
+- Côté UI Phase 9.7, on **affiche ces 3 valeurs sous leur bloc
+  respectif dans la section Effets** (lecture inter-objets)
+
+Helper `clampFxBlocks` étendu avec `FX_BLOCK_RANGES` (manuel TONEX) :
+clamp chaque sub-param dans son range, drop si hors-format (non-numérique,
+NaN, Infinity), skip champs inconnus. +19 tests Vitest dédiés (sub-params
+in-range/hors-bornes, types valides, scénarios Hells Bells/For Whom the
+Bell Tolls/Under Pressure).
+
+#### UI — refonte section "🎛️ Réglages pédale" en 3 sous-sections
+
+**Avant Phase 9.7** :
+```
+🎛️ Réglages pédale
+├── Boutons principaux (5)
+├── Boutons ALT mode avancé (5 : Presence + Depth + Reverb_mix + Comp_threshold + Gate_threshold)
+└── 🎚 Blocs effets (5 lignes ON/OFF)
+```
+
+**Après Phase 9.7** :
+```
+🎛️ Réglages pédale
+├── Boutons principaux (5 inchangés)
+├── EQ avancé (2 : Presence + Depth) ← filtré si fx_blocks présent
+└── 🎚 Effets (5 blocs avec leurs sub-params dépliés sous le bloc si enabled)
+    ├── Noise Gate    [type? ON/OFF]    Threshold -80dB · Release 140ms · Depth -75dB    ↳ why
+    ├── Compressor    [type? ON/OFF]    Threshold -18dB · Gain 2dB · Attack 10ms          ↳ why
+    ├── Modulation    [type ON/OFF]                                                       ↳ why
+    ├── Delay         [type ON/OFF]     Mode Normal · Time 320ms · Feedback 25% · Mix 14% ↳ why
+    └── Reverb        [type ON/OFF]     Time 5 · Pre-delay 25ms · Color 2 · Mix 16%       ↳ why
+```
+
+**Fallback gracieux** : si `aiC.fx_blocks` absent (aiCache pré-9.2 ou
+pré-9.7), comportement Phase 9.1 préservé (5 ALT knobs en bloc, section
+Effets absente).
+
+#### Prompt fetchAI ÉTAPE 7C étendue (Phase 9.7)
+
+Le prompt demande désormais les sub-params numériques + le `mode`
+delay + types corrigés. Règles d'adaptation par style mises à jour :
+- thrash → noise_gate ON (release 80, depth -75), reverb Plate (time 2.5, pre_delay 12, color -2, mix 8)
+- blues → compressor ON (gain 0, attack 15), reverb Spring 2 (time 4, mix 25)
+- ambient → delay Tape Normal (time 480, feedback 40, mix 25), reverb Plate (time 7, mix 35)
+- classic rock → tous OFF sauf reverb Spring 2/Room basse
+- funk → compressor ON, reverb Room courte
+- worship → chorus, delay Digital, reverb Plate
+
+#### i18n FR/EN/ES (12 nouvelles clés)
+
+- `preset-settings.section-eq-advanced` : "EQ avancé" / "Advanced EQ" / "EQ avanzado"
+- `fx-blocks.section-title` retitré : "🎚 Effets" / "🎚 Effects" / "🎚 Efectos"
+  (avant Phase 9.2 : "🎚 Blocs effets" / "Effect blocks" / "Bloques de efectos")
+- `fx-params.*` : 11 labels universels short (Threshold, Release, Depth,
+  Gain, Attack, Mode, Time, Feedback, Mix, Pre-delay, Color). FR
+  préserve "Gain"/"Mode"/"Time"/"Mix" universels, ES localise
+  Threshold→Umbral, Gain→Ganancia, Attack→Ataque, Mode→Modo,
+  Time→Tiempo, Mix→Mezcla.
+
+### Architecture livrée Phase 9.7
+
+```
+src/main.jsx                            APP_VERSION 8.14.172 → 8.14.173
+public/sw.js                            CACHE backline-v272 → backline-v273
+src/core/scoring/preset-settings.js     FX_TYPE_ENUMS.reverb corrigé
+                                          (Hall/Shimmer retirés, Spring 1-4 + Room + Plate)
+                                        +FX_TYPE_ENUMS.delay_mode (Normal/Ping.Pong)
+                                        +FX_BLOCK_RANGES (sub-params officiels manuel)
+                                        clampFxBlock étendu :
+                                          +clamp sub-params via FX_BLOCK_RANGES
+                                          +mode delay (case-insensitive enum)
+                                        commentaire docstring complet Niveau 2
+src/core/scoring/preset-settings.test.js +19 tests Phase 9.7 :
+                                          - REVERB_TYPES corrigé (Spring 1-4)
+                                          - DELAY_MODES (Normal/Ping.Pong)
+                                          - Sub-params noise_gate/compressor/delay/reverb
+                                          - Hors-bornes clampés, non-numériques skip
+                                          - Modulation Niveau 1 préservé
+                                          - Scénarios réels Hells Bells/Bell Tolls/Under Pressure
+src/core/scoring/index.js               re-export FX_BLOCK_RANGES
+src/app/utils/fetchAI.js                ÉTAPE 7C étendue Niveau 2 :
+                                          ranges officiels manuel TONEX
+                                          listés par sub-param.
+                                          Adaptation contextuelle par style
+                                          avec sub-params suggérés.
+                                        JSON template inline mis à jour
+                                          (reverb Spring 2 avec sub-params).
+                                        Listes trilingue/scalaires étendues.
+src/app/screens/SongDetailCard.jsx      ALT knobs filtré si fx_blocks
+                                          présent (Presence/Depth seuls)
+                                        Section "🎚 Effets" enrichie :
+                                          subParamsFor(key, block) helper
+                                          local qui construit la liste de
+                                          sub-params à afficher en
+                                          combinant alt (threshold/mix) +
+                                          fx_blocks (sub-params Niveau 2).
+                                          Rendu compact "Label1 Val1 · Label2 Val2".
+src/i18n/en.js, es.js                   +12 clés Phase 9.7 (section-eq-advanced,
+                                          fx-params.* × 11)
+```
+
+### Conséquences Phase 9.7
+
+- **1561/1561 tests verts** (+19 nouveaux Phase 9.7 sur clampFxBlocks Niveau 2).
+- Bundle 2574 → 2581 KB (+7 KB : helper étendu + UI sub-params +
+  i18n + prompt).
+- **Pas de bump STATE_VERSION** (additif sur sub-params optionnels
+  fx_blocks, rétrocompat aiCache pré-9.7 garantie).
+- **Pas de migration localStorage**.
+- **Pas de risque sync** : `fx_blocks` voyage avec `aiCache.result`.
+- **Effet immédiat partiel (display-side)** sans re-fetch :
+  - Bloc "Boutons ALT mode avancé" devient "EQ avancé" si fx_blocks
+    présent, filtré à Presence + Depth.
+  - Threshold gate/comp/reverb_mix s'affichent sous leur bloc dans
+    la section Effets (vue regroupée cohérente).
+  - Les aiCache Phase 9.2 N1 (sans sub-params) restent valides : la
+    section Effets reste compacte (ON/OFF + type sans sub-params).
+- **Effet complet au re-fetch** : la section Effets affiche les
+  sub-params numériques fournis par Gemini.
+
+### Famille Phase 9 — État final
+
+| Sous-phase | Status | Version |
+|---|---|---|
+| 9.1 MVP table chiffrée | ✅ | 8.14.160 |
+| 9.2 N1 FX blocks ON/OFF + type | ✅ | 8.14.172 |
+| 9.2 N2 sub-params (= Phase 9.7) | ✅ | 8.14.173 |
+| 9.3 EQ avancé | Reporté (signal power-user) | — |
+| 9.4 ONE TWEAK + hotfixes | ✅ | 8.14.167 |
+| 9.5 Playing hints + polish | ✅ | 8.14.169 |
+| 9.6 Déduplication + hotfixes | ✅ | 8.14.172 |
+| 9.7 FX Niveau 2 + refonte UI 3 sous-sections | ✅ | 8.14.173 |
+
+**Famille Phase 9 close en Niveau 2**. Niveau 3 EQ avancé (Phase 9.3)
+reporté.
+
+### Validation post-déploiement attendue
+
+1. Reload PWA → `v8.14.173`
+2. **Sans re-fetch** : ouvrir Hells Bells (aiCache Phase 9.2 N1) :
+   - ✅ Bloc "Boutons ALT mode avancé" → renommé "EQ avancé"
+   - ✅ Plus que Presence + Depth dans EQ avancé
+   - ✅ Threshold/mix déplacés dans section Effets sous leur bloc
+   - Gate threshold -80dB visible **sous** Noise Gate OFF
+     (cohérent : on voit que le bloc est OFF mais on garde la valeur
+     du threshold qui resterait la valeur cible si on l'activait)
+3. **Avec re-fetch** : "🔄 Réinitialiser mes analyses" + re-batch :
+   - ✅ Sub-params apparaissent pour les blocs ON :
+     - Reverb ON → Type Spring 2 + Time 2 + Pre-delay 5 + Color 0 + Mix 10%
+     - (etc. selon le morceau)
+   - ✅ Si type Hall/Shimmer en cache pré-9.7 → droppé silencieusement
+   - ✅ Delay mode Normal/Ping.Pong respecté
+4. Switch FR/EN/ES → labels sub-params traduits (Threshold/Umbral,
+   Gain/Ganancia, Attack/Ataque, etc.), valeurs numériques universelles
+
+### Dette résiduelle Phase 9.7
+
+- **Modulation Niveau 1** intentionnel (Sébastien a explicitement
+  exclu Mod du Niveau 2). Si signal user pour Chorus rate/depth/level
+  → Phase 9.7.1 dédié, ~30 min.
+- **EQ avancé (Phase 9.3)** : les 4 bandes paramétriques `eq` du
+  firmware TONEX restent non exposées. Power-users uniquement. À
+  activer si demande explicite.
+- **Cohabitation pré-9.7 avec Hall/Shimmer** : un aiCache Phase 9.2
+  N1 avec `type: 'Hall'` verra son `type` droppé au re-clamp
+  Phase 9.7. Le bloc reste `enabled` mais sans type → UI montre
+  "Reverb ON" sans badge type. Cosmétique mineur, se résout au
+  re-fetch.
+
+---
+
+## État précédent (2026-05-22 nuit, Phase 9.6.2 + 9.2 — finitions famille Phase 9 + FX blocks ON/OFF)
 
 **Backline v8.14.172 / SW backline-v272 / STATE_VERSION 11 / 1542 tests verts.**
 

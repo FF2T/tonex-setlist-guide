@@ -20,7 +20,7 @@ import {
   STYLE_COMPATIBILITY, computeStyleMatchScore,
 } from './style.js';
 import { computeRefAmpScore } from './amp.js';
-import { PRESET_RANGES, SUPPORTED_LOCALES as PRESET_LOCALES, FX_BLOCK_KEYS, FX_TYPE_ENUMS, clampPresetSettings, clampPlayingHints, clampFxBlocks } from './preset-settings.js';
+import { PRESET_RANGES, SUPPORTED_LOCALES as PRESET_LOCALES, FX_BLOCK_KEYS, FX_TYPE_ENUMS, FX_BLOCK_RANGES, clampPresetSettings, clampPlayingHints, clampFxBlocks } from './preset-settings.js';
 
 // Pondérations des 5 dimensions
 const SCORING_VERSION=9; // v9: inferGuitarProfile for custom guitars
@@ -106,5 +106,6 @@ export {
   // Phase 9.5 — playing hints (pickup/volume/tone/stereo scalaires)
   clampPlayingHints,
   // Phase 9.2 — fx blocks (noise_gate/compressor/modulation/delay/reverb on-off + type)
-  FX_BLOCK_KEYS, FX_TYPE_ENUMS, clampFxBlocks,
+  // Phase 9.7 — extended with sub-params + REVERB_TYPES corrected
+  FX_BLOCK_KEYS, FX_TYPE_ENUMS, FX_BLOCK_RANGES, clampFxBlocks,
 };
