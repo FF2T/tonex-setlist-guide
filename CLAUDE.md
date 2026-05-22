@@ -761,7 +761,147 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-23 nuit, Phase 9.7 — FX blocks Niveau 2 + refonte section pédale 3 sous-sections)
+## État actuel (2026-05-23 nuit, Phase 9.7.1 — honest framing capture vs réglages post-capture)
+
+**Backline v8.14.174 / SW backline-v274 / STATE_VERSION 11 / 1561 tests verts.**
+
+### Phase 9.7.1 — Honest framing "point de départ" (v8.14.174)
+
+**Question Sébastien** (2026-05-23 post-Phase 9.7) : *"je me demande
+comment l'IA propose les ajustements EQ etc. sachant que la capture
+a probablement déjà des réglages physiques sur l'ampli ?"*
+
+Excellent point conceptuel qui touche au cœur du fonctionnement
+TONEX. Une capture (TONE MODEL) contient déjà FIGÉS les réglages
+physiques de l'ampli original (gain/EQ/presence des potards du vrai
+ampli, type/distance/axis du micro). Le créateur de pack (TSR, AA,
+JS, ML) calibre ces réglages POUR QUE LA CAPTURE SONNE BIEN telle
+quelle. Les boutons preset_settings_v1 Phase 9.1 sont des SETTINGS
+POST-CAPTURE qui s'additionnent par-dessus dans le firmware, ils
+ne touchent PAS aux potards de l'ampli physique.
+
+L'IA Gemini ne connaît PAS le profil tonal interne de la capture
+choisie. Elle propose donc des valeurs en supposant que la capture
+est "neutre", ce qui n'est pas toujours vrai.
+
+#### Mitigation court terme — Honest framing (Phase 9.7.1)
+
+**Prompt fetchAI ÉTAPE 7 étendu** avec un bloc "CONTEXTE CRUCIAL"
+qui explique à Gemini :
+- La capture contient déjà figés les réglages physiques de l'ampli
+- preset_settings_v1 = settings POST-CAPTURE additifs, pas absolus
+- L'IA ne connaît PAS le profil tonal de la capture
+- Conséquence : privilégier des valeurs NEUTRES (5/5/5/5/5) sauf
+  raison spécifique du morceau, éviter les extrêmes
+- Le vrai dialing empirique passe par les tweaks ÉTAPE 7C
+- Rôle de l'IA : poser un POINT DE DÉPART RAISONNABLE, pas
+  reproduire à la perfection (hors de son contrôle)
+
+**UI SongDetailCard** — mention italique discrète juste sous le
+titre "🎛️ Réglages pédale (suggérés par l'IA)" :
+
+> *"Point de départ — la capture intègre déjà les réglages physiques
+> de l'ampli original. Affine à l'oreille avec les ajustements
+> ci-dessous."*
+
+Trilingue FR/EN/ES via nouvelle clé `preset-settings.starting-point`.
+Format : inline, fontSize 9, italique, color text-dim. Pas pliable
+(info importante mais courte).
+
+#### Solution long terme — Phase 11 `tone_profile` per-capture
+
+Documentation détaillée ajoutée dans la section Phase 11 "Idées en
+attente" : enrichir chaque capture du catalog avec un profil tonal
+estimé par son créateur (`mid_character`, `treble_character`,
+`bass_character`, `compression`, `breakup_threshold`,
+`presence_emphasis`). L'IA tient compte du profil pour des recos en
+delta plutôt qu'absolues (Phase 9.7.2 hypothétique).
+
+Seul le créateur du pack peut fournir ces métadonnées (Sébastien ne
+peut pas écouter et catégoriser 600+ captures). D'où l'approche
+Studio-driven Phase 11.
+
+Décision actuelle : design documenté, **pas d'implémentation avant
+Phase 11 globale + signal pilote studio**.
+
+### Architecture livrée Phase 9.7.1
+
+```
+src/main.jsx                            APP_VERSION 8.14.173 → 8.14.174
+public/sw.js                            CACHE backline-v273 → backline-v274
+src/app/utils/fetchAI.js                ÉTAPE 7 : +bloc "CONTEXTE CRUCIAL —
+                                          Capture vs réglages post-capture"
+                                          qui explique à Gemini la limitation
+                                          et oriente vers valeurs neutres
+src/app/screens/SongDetailCard.jsx      +mention italique "Point de départ"
+                                          sous le titre Réglages pédale
+src/i18n/en.js, es.js                   +1 clé preset-settings.starting-point
+                                          (trilingue FR inline + EN + ES)
+CLAUDE.md                               +sous-section "Tone profile per-capture"
+                                          dans Phase 11 Idées en attente :
+                                          schéma data, caractéristiques tonales
+                                          énum, bénéfice IA recos en delta,
+                                          pourquoi Studio-driven viable seul
+                                          chemin, effort estimé
+```
+
+### Conséquences Phase 9.7.1
+
+- **1561/1561 tests verts** (aucun nouveau test, pure modif prompt
+  + UI mention).
+- Bundle 2581 → 2583 KB (+2 KB : prompt étendu + i18n + mention UI).
+- **Pas de bump STATE_VERSION**, pas de migration.
+- **Effet immédiat (display)** : la mention "Point de départ"
+  apparaît sous le titre Réglages pédale sans re-fetch.
+- **Effet au re-fetch** : Gemini suit le nouveau framing et propose
+  des valeurs plus neutres (moins de Mid 7.5 ou Treble 8 absolus
+  sans justification spécifique du morceau).
+
+### Validation post-déploiement attendue
+
+1. Reload PWA → `v8.14.174`
+2. Sans re-fetch : ouvrir n'importe quelle fiche song → vérifier
+   que la mention "Point de départ — la capture intègre déjà les
+   réglages physiques..." apparaît sous le titre Réglages pédale,
+   en italique discrète.
+3. Re-fetch d'un morceau → vérifier que les valeurs proposées
+   restent plus proches de 5/5/5/5/5 (sauf si le morceau a vraiment
+   un profil tonal extrême style thrash ou ambient).
+4. Switch FR/EN/ES → texte localisé OK.
+
+### Dette résiduelle Phase 9.7.1
+
+- **Le respect du framing dépend de Gemini**. Si l'IA continue à
+  proposer des valeurs extrêmes systématiquement, fallback Phase
+  9.7.2 : post-process JS qui plafonne les écarts vs neutre (5)
+  à ±2 sauf raison style spécifique. Coût ~1h dev. À monitorer.
+- **Phase 11 + tone_profile** : solution structurelle long terme.
+  Documentée dans CLAUDE.md "Idées en attente" Phase 11. À activer
+  quand Phase 11 Studio-driven démarre (signal pilote studio
+  partenaire requis, probablement Paul Drew TSR si réponse Mail 3
+  positive).
+
+### Famille Phase 9 — État final définitif
+
+| Sous-phase | Status | Version |
+|---|---|---|
+| 9.1 MVP table chiffrée | ✅ | 8.14.160 |
+| 9.2 N1 FX ON/OFF + type | ✅ | 8.14.172 |
+| 9.2 N2 sub-params (= 9.7) | ✅ | 8.14.173 |
+| 9.3 EQ avancé 4-bandes | Reporté | — |
+| 9.4 ONE TWEAK + hotfixes | ✅ | 8.14.167 |
+| 9.5 Playing hints + polish | ✅ | 8.14.169 |
+| 9.6 Déduplication + hotfixes | ✅ | 8.14.172 |
+| 9.7 Refonte UI + sub-params | ✅ | 8.14.173 |
+| 9.7.1 Honest framing post-capture | ✅ | 8.14.174 |
+| 9.7.2 Post-process clamp extrêmes | Reporté (si signal user) | — |
+
+**Famille Phase 9 close à 100%**. Phase 11 + tone_profile reste
+comme solution structurelle long terme (documentée).
+
+---
+
+## État précédent (2026-05-23 nuit, Phase 9.7 — FX blocks Niveau 2 + refonte section pédale 3 sous-sections)
 
 **Backline v8.14.173 / SW backline-v273 / STATE_VERSION 11 / 1561 tests verts.**
 
@@ -15500,6 +15640,150 @@ BETA_TESTING.md section 2.bis "Autres pack creators") :
 5. Worship Tutorials (WT) — pas prioritaire (0 capture pinnée
    dans la démo actuelle)
 
+#### Tone profile per-capture (Phase 11 + Phase 9 — ajout 2026-05-23)
+
+**Origine** : conversation avec Sébastien 2026-05-23 post-Phase 9.7
+sur les recos EQ. Question fondamentale : *"comment l'IA propose les
+ajustements EQ etc. sachant que la capture a probablement déjà des
+réglages physiques sur l'ampli ?"*
+
+**Limitation actuelle du flow Phase 9** (admise honnêtement) :
+- Une capture TONEX (TONE MODEL AMP+CAB) contient déjà FIGÉS les
+  réglages physiques de l'ampli original au moment de la capture
+  (gain/EQ/presence des potards du vrai ampli, type/distance/axis
+  du micro, position cab). Le créateur de pack a calibré ces
+  réglages POUR QUE LA CAPTURE SONNE BIEN telle quelle — c'est son
+  métier.
+- Les boutons preset_settings_v1 Phase 9.1 (BASS/MID/TREBLE/PRESENCE/
+  DEPTH) sont des SETTINGS POST-CAPTURE qui s'additionnent
+  par-dessus dans le firmware TONEX.
+- L'IA Gemini ne connaît PAS le profil tonal interne de la capture
+  proposée (mid-heavy ? scooped ? compressed déjà ? breakup
+  easy ?). Elle propose donc des valeurs absolues (Mid 7.5, Treble
+  6) en supposant implicitement que la capture est "neutre".
+- En pratique : Mid +7.5 sur une capture déjà mid-rich peut sonner
+  boueux. Treble +6 sur une capture déjà brillante peut sonner
+  agressif.
+
+**Mitigation Phase 9.7.1** (2026-05-23) : honest framing.
+- Prompt ÉTAPE 7 étendu : "tu NE CONNAIS PAS le profil tonal de la
+  capture. Privilégie des valeurs neutres autour de 5/5/5/5/5 sauf
+  raison spécifique du morceau. Évite les extrêmes."
+- UI : note italique sous la table "🎛️ Réglages pédale" : *"Point
+  de départ — la capture intègre déjà les réglages physiques de
+  l'ampli original. Affine à l'oreille avec les ajustements
+  ci-dessous."*
+- Le user comprend que c'est un point de départ + le vrai dialing
+  passe par les tweaks Phase 9.4 (*"si trop boomy → Bass -0.5"*).
+
+**Solution structurelle à long terme — Phase 11 Studio-driven** :
+
+L'IA pourrait proposer des recos "delta" (à partir d'un défaut)
+plutôt qu'absolues SI elle connaissait le profil tonal de chaque
+capture. Seul le créateur du pack a cette info (il connaît ses
+réglages physiques figés). D'où un nouvel axe Phase 11 :
+
+**Schéma data — `tone_profile` per-capture** (ajout au catalog) :
+
+```js
+// Dans PRESET_CATALOG_MERGED ou shared.studioMetadata
+{
+  name: "TSR Mars 800SL Chnl 1 Drive",
+  src: "TSR",
+  // ... champs existants (amp, gain, style, scores HB/SC/P90, usages)
+  tone_profile: {
+    // Profil tonal estimé par le créateur du pack
+    mid_character: 'rich',         // 'scooped' | 'neutral' | 'rich' | 'heavy'
+    treble_character: 'balanced',  // 'dark' | 'balanced' | 'bright' | 'harsh'
+    bass_character: 'tight',       // 'loose' | 'tight' | 'boomy' | 'thunderous'
+    compression: 'breakup',        // 'clean' | 'breakup' | 'compressed' | 'saturated'
+    breakup_threshold: 'medium',   // 'low' | 'medium' | 'high' — vitesse de saturation
+    presence_emphasis: 'medium',   // 'low' | 'medium' | 'high'
+    // Métadonnées optionnelles
+    physical_settings_at_capture: {
+      gain: 6,
+      bass: 4,
+      mid: 5,
+      treble: 7,
+      presence: 6,
+      // ... potards réels du moment de la capture (info informationnelle)
+    },
+    curated_by: 'paul_drew_tsr',
+    confidence: 'high',  // 'self_attested' | 'high' | 'medium' | 'low'
+  }
+}
+```
+
+**Caractéristiques tonales à capturer** (valeurs énum, simples à
+remplir pour un créateur) :
+- `mid_character` : scooped / neutral / rich / heavy
+- `treble_character` : dark / balanced / bright / harsh
+- `bass_character` : loose / tight / boomy / thunderous
+- `compression` : clean / breakup / compressed / saturated
+- `breakup_threshold` : low (sature tôt) / medium / high (clean longtemps)
+- `presence_emphasis` : low / medium / high
+
+**Bénéfice pour l'IA (Phase 9.7.2 hypothétique)** :
+
+Le prompt fetchAI reçoit le `tone_profile` de la capture choisie (preset_ann_name / preset_plug_name) et peut alors proposer des recos en delta :
+
+| Si la capture est… | L'IA propose pour Mid |
+|---|---|
+| `mid_character: 'scooped'` (vintage Plexi) | Mid 7.5 (compense pour percer le mix) |
+| `mid_character: 'rich'` (JCM800 modifié) | Mid 5 (neutre, ne sur-charge pas) |
+| `mid_character: 'heavy'` (Mesa) | Mid 4 (cut pour ouvrir le spectre) |
+
+Idem pour treble/bass/compression. Les recos deviennent **réellement contextuelles** au profil de la capture choisie.
+
+**Pourquoi Phase 11 Studio-driven est le seul chemin viable** :
+
+1. **Seul le créateur connaît ses réglages physiques** : analyser
+   un ML model TONEX pour en déduire ces caractéristiques est
+   théoriquement possible (FFT + tests) mais demandé un effort
+   d'ingénierie disproportionné (et chaque firmware update peut
+   changer le format des ML models).
+2. **Curation manuelle Sébastien hors-scale** : Sébastien ne peut
+   pas écouter et catégoriser les 600+ captures de son catalog.
+   Le créateur fait ça en 10 minutes par pack (il connaît).
+3. **Alignement d'intérêts** : un pack creator (TSR, AA) qui
+   enrichit ses captures avec `tone_profile` voit ses presets
+   recommandés plus précisément → plus d'achats. Win-win.
+4. **Slot prévu Phase 11** : `shared.studioMetadata` peut étendre
+   l'infrastructure existante `shared.studioUsages` (Phase 7.79.3)
+   pour porter aussi `tone_profile`. Pas de nouveau schéma à
+   inventer.
+
+**Effort estimé** (Phase 11 + Phase 9.7.2) :
+
+- **Phase 11 — Schéma tone_profile** : ~1h (étendre clampStudioMetadata
+  ou nouveau clampToneProfile + tests + sync).
+- **Phase 11 — UI studio creator pour saisir tone_profile** : ~3-4h
+  (form Mon Profil studio account avec 6 dropdowns énum).
+- **Phase 9.7.2 — IA recos en delta** : ~2h (prompt étendu pour lire
+  tone_profile de la capture choisie + adapter les recos).
+- **Curation initiale** : 5-10 min par pack × 50 packs majeurs =
+  4-8h de travail créateurs (distribué). Sébastien peut amorcer en
+  curant les Anniversary Premium (150 captures déjà documentées
+  dans son code).
+
+**Total Backline dev** : ~6-7h. Curation = travail des studios
+partenaires.
+
+**Quand activer** :
+- **Pas avant Phase 11 globale** (compte studio + UI dédiée). On
+  ne peut pas demander à Paul Drew d'enrichir 64 packs sans
+  infrastructure.
+- **Pré-requis** : au moins 1 studio partenaire actif (Paul Drew
+  TSR le plus probable). Sans pilote, pas de signal de validation
+  côté créateur.
+- **Activation conditionnelle Phase 9.7.2** : seulement si le
+  pilote Studio-driven montre que le créateur accepte de fournir
+  `tone_profile` en plus des usages.
+
+**Décision actuelle (2026-05-23)** : design documenté. Pas
+d'implémentation avant Phase 11 globale + signal pilote studio.
+Phase 9.7.1 honest framing (livré 2026-05-23) suffit en attendant.
+
 #### Synergies avec phases existantes
 
 Phase 11 connecte avec plusieurs travaux déjà en cours :
@@ -15519,6 +15803,10 @@ Phase 11 connecte avec plusieurs travaux déjà en cours :
 - **Phase 9** (knob settings chiffrés + FX intégrés) : les
   studios peuvent aussi enrichir les knob settings de chaque
   preset. Doublement valuable.
+- **Phase 9.7.1** (honest framing point de départ — livré
+  2026-05-23) : mitigation court terme. Phase 11 + `tone_profile`
+  = solution structurelle long terme. Cf section "Tone profile
+  per-capture" ci-dessus.
 - **BETA_TESTING.md section 2.bis** (stratégie d'extension
   autres pack creators) : Phase 11 est l'opérationnalisation
   technique de ce qui est déjà documenté commercialement.

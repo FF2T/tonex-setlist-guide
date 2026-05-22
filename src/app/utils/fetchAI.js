@@ -195,7 +195,18 @@ Si AUCUNE des 3 étapes ne donne de match, retourne null pour preset_ann_name et
 ÉTAPE 7 – PARAMÉTRAGE DU PRESET (preset_settings_v1) — IMPORTANT
 La capture (TONE MODEL) est une boîte noire immuable fournie par son créateur. Ce qui est ajustable autour, dans le PRESET TONEX : les EQ post-capture (BASS/MID/TREBLE/PRESENCE/DEPTH), le volume preset, le seuil du compresseur, le seuil du noise gate, le mix de reverb, et l'activation du bloc CAB. Tous identiques sur ToneX Pedal classique, Anniversary, Plug, One, One+.
 
-Retourne un objet preset_settings_v1 avec les valeurs OPTIMALES pour reproduire le son du morceau sur la guitare et le contexte d'écoute du user. Respecte STRICTEMENT les ranges ci-dessous (toute valeur hors-bornes sera clampée et émettra un warning).
+CONTEXTE CRUCIAL — Capture vs réglages post-capture (Phase 9.7.1) :
+La capture TONEX (TONE MODEL AMP+CAB) contient DÉJÀ FIGÉS les réglages physiques de l'ampli original AU MOMENT de la capture (potards de gain/bass/mid/treble/presence du vrai ampli physique, type/distance/axis du micro, position du cab, etc.). Le créateur de pack (TSR, AA, JS, etc.) a calibré ces réglages POUR QUE LA CAPTURE SONNE BIEN telle quelle — c'est son métier.
+
+Les boutons preset_settings_v1 que tu retournes sont des SETTINGS POST-CAPTURE qui s'additionnent ou compensent PAR-DESSUS la capture, dans le firmware TONEX. Ils ne touchent PAS aux potards de l'ampli physique (gravés dans le ML model).
+
+Tu NE CONNAIS PAS le profil tonal interne de la capture choisie (mid-heavy ? scooped ? bright ? compressed déjà ?). Donc :
+- Privilégie des valeurs de POINT DE DÉPART NEUTRES proches du défaut (5/5/5/5/5 pour main, 5/5/15/-20/-60 pour alt) sauf si le morceau requiert clairement un boost ou cut spécifique (ex : mid pop-funk +1, gate metal sévère).
+- Évite les valeurs extrêmes (ex : Mid 9, Treble 9, Bass 1) qui supposent que la capture est neutre alors qu'elle est déjà typée par son créateur.
+- Le user affinera à l'oreille via les tweaks (ÉTAPE 7C — "Si trop boomy → Bass -0.5"). C'est là que se fait le vrai dialing empirique.
+- Ton rôle : poser un POINT DE DÉPART RAISONNABLE adapté au style/contexte d'écoute/guitare, pas reproduire à la perfection le son original (qui dépend de la capture choisie, hors de ton contrôle).
+
+Retourne un objet preset_settings_v1 avec les valeurs POINT DE DÉPART pour reproduire le son du morceau sur la guitare et le contexte d'écoute du user. Respecte STRICTEMENT les ranges ci-dessous (toute valeur hors-bornes sera clampée et émettra un warning).
 
 CHAQUE knob doit être un OBJET {value, why} avec :
 - value : nombre dans le range officiel

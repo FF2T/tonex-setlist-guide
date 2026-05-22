@@ -921,6 +921,11 @@ const es = {
   // Phase 9.7 — EQ avanzado (reemplaza "Boutons ALT" cuando fx_blocks presente)
   'preset-settings.section-eq-advanced': 'EQ avanzado',
 
+  // Phase 9.7.1 — Nota "punto de partida" : la captura ya incluye los
+  // ajustes físicos del amplificador original. Evita la lectura "valores
+  // absolutos perfectos" y orienta hacia el ajuste empírico.
+  'preset-settings.starting-point': 'Punto de partida — la captura ya incluye los ajustes físicos del amplificador original. Afina al oído con los ajustes a continuación.',
+
   // Phase 9.7 — Etiquetas sub-params FX (universal short labels)
   'fx-params.threshold': 'Umbral',
   'fx-params.release': 'Release',

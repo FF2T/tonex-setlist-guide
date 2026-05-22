@@ -498,6 +498,14 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                         </span>
                       )}
                     </div>
+                    {/* Phase 9.7.1 — note "point de départ" : la capture
+                        TONEX contient déjà figés les réglages physiques
+                        de l'ampli original. Les valeurs ci-dessous sont
+                        des post-capture additifs, à affiner à l'oreille
+                        via les tweaks. */}
+                    <div style={{ fontSize: 9, color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.4, marginBottom: 5 }}>
+                      {t('preset-settings.starting-point', 'Point de départ — la capture intègre déjà les réglages physiques de l\'ampli original. Affine à l\'oreille avec les ajustements ci-dessous.')}
+                    </div>
                     {Object.keys(main).length > 0 && (
                       <>
                         <div style={{ fontSize: 9, color: 'var(--text-dim)', fontStyle: 'italic', marginTop: 4, marginBottom: 2 }}>{t('preset-settings.section-main', 'Boutons principaux')}</div>
