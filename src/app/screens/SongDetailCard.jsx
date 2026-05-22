@@ -312,7 +312,20 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   {idealGuitarScore && <b style={{ color: scoreColor(idealGuitarScore), flexShrink: 0 }}>{idealGuitarScore}%</b>}
                 </div>
               )}
-              {aiC.guitar_reason && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: -2, marginBottom: 2 }}>{getLocalizedText(aiC.guitar_reason, locale)}</div>}
+              {/* Phase 9.6 (2026-05-22) — masquer guitar_reason quand il
+                  duplique cot_step2_guitars[0].reason. C'est le cas
+                  courant : Gemini retourne souvent une reason similaire
+                  dans cot_step2[0] (comparatif) et guitar_reason (focus
+                  ideal). Cas family boost Phase 7.64 (ideal_guitar ≠
+                  cot_step2[0]) → guitar_reason garde sa valeur ajoutée. */}
+              {aiC.guitar_reason && (() => {
+                const cotTop = Array.isArray(aiC.cot_step2_guitars) ? aiC.cot_step2_guitars[0] : null;
+                const cotTopName = (cotTop?.name || '').trim().toLowerCase();
+                const idealName = (displayIdealGuitarName || '').trim().toLowerCase();
+                const isDuplicate = cotTopName && idealName && cotTopName === idealName;
+                if (isDuplicate) return null;
+                return <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: -2, marginBottom: 2 }}>{getLocalizedText(aiC.guitar_reason, locale)}</div>;
+              })()}
               {displayTopPreset && getActiveDevicesForRender(profile).some((d) => d.deviceKey === 'ann' || d.deviceKey === 'plug') && (() => {
                 const displayPresetName = displayTopPreset.label;
                 const idealScore = displayTopPreset.score || 0;
@@ -609,9 +622,15 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             }
             return fbText ? <div style={{ fontSize: 10, color: 'var(--text-sec)', marginTop: 3, marginLeft: 24, lineHeight: 1.4 }}>{fbText}</div> : null;
           })()}
-          {g && aiC && (() => {
+          {g && aiC && !aiC.playing_hints && (() => {
             // Phase 7.82 — localGuitarSettings retourne un objet structuré ;
             // composition i18n côté UI (Bug #2 "Micro chevalet" en EN).
+            // Phase 9.6 (2026-05-22) — gated par !aiC.playing_hints : si l'IA
+            // a fourni des playing_hints (Phase 9.5), le bloc "💡 Conseil IA"
+            // ci-dessous prend le relais avec des valeurs contextuelles au
+            // morceau. Le bloc "Réglages" local n'apparaît plus qu'en
+            // fallback pour les aiCache pré-9.5 (ou si l'IA n'a pas
+            // retourné playing_hints valide).
             const s = localGuitarSettings(g, aiC);
             if (!s) return null;
             const pickupTxt = t(s.pickupKey, s.pickupFallback);

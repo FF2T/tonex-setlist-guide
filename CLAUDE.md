@@ -761,7 +761,139 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-22 soir, Phase 9.5 — playing hints structurés (pickup / volume / tone / stereo))
+## État actuel (2026-05-22 soir, Phase 9.6 — déduplication conseils guitare)
+
+**Backline v8.14.170 / SW backline-v270 / STATE_VERSION 11 / 1527 tests verts.**
+
+### Phase 9.6 — Déduplication conseils guitare (v8.14.170)
+
+Constat post-déploiement Phase 9.5 (Hells Bells) par Sébastien :
+**3 blocs UI parlaient du pickup / tone / volume** :
+1. "Réglages : Micro chevalet · Tone 7-9 · Volume 10"
+   (`localGuitarSettings` heuristique)
+2. "💡 Conseil IA : Chevalet · Tone 10 (open) · Volume 8-10"
+   (`playing_hints` IA Phase 9.5)
+3. Prose `settings_guitar` : *"Utilise le micro chevalet... baisse à
+   7-8 pour l'intro..."*
+
+→ Triple redondance bruyante. Aussi observé : bloc `guitar_reason`
+dupliquait souvent `cot_step2_guitars[0].reason` (même guitare top).
+
+#### 3 changements concrets
+
+**1. UI : masquer le bloc "Réglages" local quand `playing_hints` présent**
+
+`SongDetailCard` Bloc 3 : `localGuitarSettings` était toujours rendu.
+Désormais gated `!aiC.playing_hints` → fallback gracieux pour les
+aiCache pré-9.5 (qui n'ont pas de playing_hints), masqué pour les
+re-fetchés Phase 9.5+. Au render, on a soit le bloc local (legacy)
+soit le bloc "💡 Conseil IA" (Phase 9.5), jamais les deux.
+
+**2. UI : masquer `guitar_reason` quand il duplique cot_step2[0]**
+
+`SongDetailCard` Bloc 2 : check `displayIdealGuitarName ===
+cot_step2_guitars[0].name` (case-insensitive trim). Si match (cas
+courant) → masque `guitar_reason` (déjà couvert par la 1ère entrée
+du scoring). Si diffère (cas family boost Phase 7.64 où l'ideal
+remonte par boost +15 et change la top) → affiche `guitar_reason`
+qui apporte alors une valeur contextuelle.
+
+Pas de modif prompt — effet immédiat post-déploiement sur les
+aiCache existants.
+
+**3. Prompt fetchAI : recadrer `settings_guitar`**
+
+Nouvelle section "CONSIGNE DE PHRASING POUR settings_guitar (Phase
+9.6 — déduplication)". Interdit explicitement la répétition des
+valeurs scalaires déjà couvertes par `playing_hints` (pickup,
+guitar_volume, guitar_tone) :
+
+À FAIRE :
+- Décrire les TRANSITIONS de section (verse→chorus→solo, intro→riff)
+- Conseils de TECHNIQUE de jeu : palm muting, attaque médiator,
+  bends, vibrato, slides, hammer-ons, contrôle dynamique
+- Conseils contextuels guitare spécifiques (technique de pouce,
+  médiator plus dur, etc.)
+
+À ÉVITER ABSOLUMENT :
+- Répéter les valeurs déjà dans playing_hints ("utilise le micro
+  chevalet", "volume à 10", "tone à 10") → redondance bruyante
+- Indiquer une valeur scalaire fixe (pickup, volume, tone) sans
+  qu'elle soit en transition/contextuelle au cours du morceau
+
+Effet : nécessite re-fetch pour bénéficier (le prompt influence
+l'output IA, pas les aiCache existants).
+
+### Architecture livrée Phase 9.6
+
+```
+src/main.jsx                            APP_VERSION 8.14.169 → 8.14.170
+public/sw.js                            CACHE backline-v269 → backline-v270
+src/app/screens/SongDetailCard.jsx      +gate !aiC.playing_hints sur
+                                          le bloc "Réglages :" local
+                                        +check displayIdealGuitarName
+                                          === cot_step2[0]?.name avant
+                                          rendu guitar_reason
+src/app/utils/fetchAI.js                CONSIGNE DE PHRASING
+                                          settings_guitar étendue :
+                                          interdit répétition
+                                          pickup/volume/tone,
+                                          focus transitions/techniques
+```
+
+### Conséquences Phase 9.6
+
+- **1527/1527 tests verts** (aucun nouveau, modif UI + prompt purement
+  display/prompt-side).
+- Bundle 2564 → 2566 KB (+2 KB commentaires + consigne prompt étendue).
+- **Pas de bump STATE_VERSION**, **pas de migration**.
+- **Effet partiel immédiat** (sans re-fetch) :
+  - Masquage du bloc "Réglages :" local pour aiCache post-9.5 (qui
+    ont déjà playing_hints) ✅
+  - Masquage de guitar_reason si match avec cot_step2[0] ✅
+- **Effet complet au re-fetch** :
+  - `settings_guitar` ne répète plus les valeurs scalaires (Gemini
+    suit la nouvelle consigne)
+  - Focus prose sur les transitions et techniques
+
+### Validation post-déploiement attendue
+
+1. Reload PWA → `v8.14.170`
+2. Ouvrir Hells Bells (déjà analysé Phase 9.5) :
+   - ✅ Le bloc "Réglages : Micro chevalet · Tone 7-9 · Volume 10"
+     doit DISPARAÎTRE (playing_hints présent)
+   - ✅ Le bloc "💡 Conseil IA : Chevalet · Tone 10 (open) ·
+     Volume 8-10" reste seul
+   - Le bloc "Guitare Gibson SG Standard Ebony 99% — guitar_reason"
+     devrait être MASQUÉ (cot_step2[0] = Gibson SG → match)
+3. Lancer une ré-analyse via "🔄 Réinitialiser mes analyses"
+4. À l'arrivée du nouveau résultat, vérifier que la prose
+   "Guitare : ..." (settings_guitar) ne mentionne PLUS le pickup
+   ou les valeurs de volume/tone, mais parle de transitions
+   ("baisse à 7 pour l'intro, remonte à 10 pour le riff") ou
+   techniques (palm muting, attaque)
+5. Test sur un morceau metal/thrash → vérifier que settings_guitar
+   parle de palm muting + attaque + chord work, pas de "Use bridge
+   pickup volume 10"
+
+### Dette résiduelle Phase 9.6
+
+- **Le respect du recadrage prompt dépend de Gemini Flash**. Si
+  l'IA continue à inclure "Utilise le micro chevalet" en redondance,
+  fallback : post-process JS qui détecte les patterns
+  pickup/volume/tone dans settings_guitar et les strip. ~30 min
+  Phase 9.6.1.
+- **Bloc "Guitare {nom}" sans guitar_reason** quand match → reste
+  affiché juste avec le score (peu informatif). Acceptable car
+  les détails sont déjà dans le scoring cot_step2 juste au-dessus.
+- **Possibilité future Phase 9.7** : retirer carrément `guitar_reason`
+  du prompt (tokens économisés ~50-100/fetch) et masquer le bloc
+  entièrement. Acceptable si on confirme que le cas family boost
+  est marginal (déjà rare en pratique).
+
+---
+
+## État précédent (2026-05-22 soir, Phase 9.5 — playing hints structurés (pickup / volume / tone / stereo))
 
 **Backline v8.14.168 / SW backline-v268 / STATE_VERSION 11 / 1510 tests verts.**
 

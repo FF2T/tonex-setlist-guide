@@ -286,6 +286,19 @@ Le champ "settings_preset" regroupe des conseils de **personnalisation du preset
 - "Le preset manque de chaleur" / "trop scoopé" / "trop fort en aigus" (critique directe)
 - Toute formulation qui pourrait être lue comme un défaut du capture par son créateur.
 
+CONSIGNE DE PHRASING POUR settings_guitar (Phase 9.6 — déduplication)
+Le champ "settings_guitar" est de la PROSE complémentaire à playing_hints (qui contient déjà les valeurs nominales scalaires pickup/guitar_volume/guitar_tone). Il NE DOIT PAS répéter ces valeurs.
+
+À FAIRE :
+- Décrire les TRANSITIONS de section (ex : "baisse le volume guitare à 7 pour l'intro puis remonte à 10 pour le riff", "switche du micro manche au chevalet pour le solo")
+- Conseils de TECHNIQUE de jeu : palm muting, attaque médiator (proche chevalet vs proche manche), bends, vibrato, slides, hammer-ons, contrôle dynamique
+- Conseils contextuels guitare spécifiques (ex : "joue les cordes graves avec le pouce pour adoucir l'attaque", "utilise un médiator plus dur pour gagner en mordant")
+
+À ÉVITER ABSOLUMENT :
+- Répéter les valeurs déjà dans playing_hints : "utilise le micro chevalet", "volume à 10", "tone ouvert à 10" (ces valeurs SONT DÉJÀ affichées en chiffres juste au-dessus dans l'UI → redondance bruyante)
+- Indiquer une valeur scalaire fixe (pickup, volume, tone) sans qu'elle soit en transition/contextuelle au cours du morceau
+- Corrections de la guitare elle-même ("la guitare manque de…")
+
 Idem pour "settings_guitar" : ce sont des conseils de jeu et d'utilisation des contrôles guitare (volume, tone, micros, attaque, palm muting…), pas des corrections de la guitare elle-même.
 
 CONSIGNE DE REGISTRE (Phase 7.50) — IMPÉRATIVE :
