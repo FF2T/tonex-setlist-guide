@@ -3,7 +3,7 @@
 // champs présents et clamp les hors-bornes (Gemini hallucine parfois).
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
-import { PRESET_RANGES, SUPPORTED_LOCALES, TWEAKS_MAX, clampPresetSettings, clampTweaks } from './preset-settings.js';
+import { PRESET_RANGES, SUPPORTED_LOCALES, TWEAKS_MAX, clampPresetSettings, clampTweaks, clampPlayingHints } from './preset-settings.js';
 
 describe('PRESET_RANGES (Phase 9.1)', () => {
   test('5 main knobs avec range 0-10', () => {
@@ -522,5 +522,93 @@ describe('clampPresetSettings — tweaks intégrés (Phase 9.4)', () => {
     });
     expect(out).not.toBeNull();
     expect(out.tweaks).toHaveLength(1);
+  });
+});
+
+describe('clampPlayingHints (Phase 9.5)', () => {
+  test('full hints valides → preserve tous champs', () => {
+    const out = clampPlayingHints({
+      pickup: 'Bridge HB',
+      guitar_volume: '8-10',
+      guitar_tone: '10 (open)',
+      stereo: true,
+    });
+    expect(out).toEqual({
+      pickup: 'Bridge HB',
+      guitar_volume: '8-10',
+      guitar_tone: '10 (open)',
+      stereo: true,
+    });
+  });
+
+  test('null / undefined / non-object → null', () => {
+    expect(clampPlayingHints(null)).toBe(null);
+    expect(clampPlayingHints(undefined)).toBe(null);
+    expect(clampPlayingHints('foo')).toBe(null);
+    expect(clampPlayingHints(42)).toBe(null);
+    expect(clampPlayingHints([])).toBe(null);
+  });
+
+  test('objet vide → null', () => {
+    expect(clampPlayingHints({})).toBe(null);
+  });
+
+  test('partial (juste pickup) → preserve pickup seul', () => {
+    expect(clampPlayingHints({ pickup: 'Neck' })).toEqual({ pickup: 'Neck' });
+  });
+
+  test('strings avec espaces → trim', () => {
+    const out = clampPlayingHints({
+      pickup: '  Bridge  ',
+      guitar_tone: ' 7-9 ',
+    });
+    expect(out).toEqual({ pickup: 'Bridge', guitar_tone: '7-9' });
+  });
+
+  test('strings vides ou whitespace-only → drop', () => {
+    expect(clampPlayingHints({ pickup: '', guitar_tone: '   ' })).toBe(null);
+    const partial = clampPlayingHints({ pickup: 'Bridge', guitar_tone: '' });
+    expect(partial).toEqual({ pickup: 'Bridge' });
+  });
+
+  test('valeurs non-string ignorées', () => {
+    const out = clampPlayingHints({
+      pickup: 42,
+      guitar_volume: { value: '8' },
+      guitar_tone: 'OK',
+      stereo: true,
+    });
+    expect(out).toEqual({ guitar_tone: 'OK', stereo: true });
+  });
+
+  test('stereo non-boolean → drop (truthy / falsy non-bool ignorés)', () => {
+    expect(clampPlayingHints({ pickup: 'Neck', stereo: 'yes' })).toEqual({ pickup: 'Neck' });
+    expect(clampPlayingHints({ pickup: 'Neck', stereo: 1 })).toEqual({ pickup: 'Neck' });
+    expect(clampPlayingHints({ pickup: 'Neck', stereo: null })).toEqual({ pickup: 'Neck' });
+  });
+
+  test('stereo: false preservé (différent de stereo absent)', () => {
+    const out = clampPlayingHints({ pickup: 'Neck', stereo: false });
+    expect(out).toEqual({ pickup: 'Neck', stereo: false });
+  });
+
+  test('champ inconnu (picking_style) ignoré silencieusement', () => {
+    const out = clampPlayingHints({
+      pickup: 'Bridge',
+      picking_style: 'Aggressive', // exclu Phase 9.5 (settings_guitar prose suffit)
+    });
+    expect(out).toEqual({ pickup: 'Bridge' });
+    expect(out.picking_style).toBeUndefined();
+  });
+
+  test('scénario réel (Under Pressure ES-335)', () => {
+    const out = clampPlayingHints({
+      pickup: 'Position 4 (Middle+Bridge)',
+      guitar_volume: '8-10',
+      guitar_tone: '7-9',
+      stereo: false,
+    });
+    expect(out.pickup).toBe('Position 4 (Middle+Bridge)');
+    expect(out.stereo).toBe(false);
   });
 });

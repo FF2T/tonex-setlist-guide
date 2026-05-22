@@ -905,6 +905,10 @@ const en = {
   'tweaks.toggle-show': '🔧 If it doesn\'t sound quite right... ({count})',
   'tweaks.toggle-hide': '▲ Hide tweaks ({count})',
   'tweaks.if': 'If',
+
+  // Phase 9.5 — Playing hints structurés (pickup / volume / tone / stereo)
+  'playing-hints.ai-advice': '💡 AI advice:',
+  'playing-hints.stereo': '🎚️ STEREO',
   'song-detail.reco-block': 'AI recommendations',
   'song-detail.setup-block': 'My setup',
   'song-detail.setup-on-guitar': 'On your {guitar}:',

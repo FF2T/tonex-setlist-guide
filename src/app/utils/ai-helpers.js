@@ -31,6 +31,7 @@ import {
   getGainRange, gainToNumeric,
   getGuitarFamily,
   clampPresetSettings,
+  clampPlayingHints,
 } from '../../core/scoring/index.js';
 
 // Amp aliases : maps des ref_amp libres vers les noms canoniques du
@@ -583,6 +584,16 @@ function enrichAIResult(aiResult, gType, gId, banksAnn, banksPlug, availableSour
     const clean = clampPresetSettings(aiResult.preset_settings_v1);
     aiResult.preset_settings_v1 = clean; // null si invalide, sinon objet validé
     aiResult._presetSettingsValidated = true;
+  }
+
+  // Phase 9.5 — Validation du champ playing_hints retourné par l'IA.
+  // Champs scalaires courts (pickup, guitar_volume, guitar_tone, stereo).
+  // Mêmes garanties que preset_settings_v1 : idempotent via flag, preserve
+  // partial, null si invalide, fallback UI gracieux si absent.
+  if (aiResult.playing_hints !== undefined && !aiResult._playingHintsValidated) {
+    const clean = clampPlayingHints(aiResult.playing_hints);
+    aiResult.playing_hints = clean;
+    aiResult._playingHintsValidated = true;
   }
 
   return aiResult;

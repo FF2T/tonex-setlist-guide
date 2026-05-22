@@ -185,4 +185,29 @@ function clampPresetSettings(raw) {
   return Object.keys(out).length > 0 ? out : null;
 }
 
-export { PRESET_RANGES, SUPPORTED_LOCALES, TWEAKS_MAX, clampPresetSettings, clampTweaks };
+// Phase 9.5 (2026-05-22) — valide la structure d'un objet `playing_hints`
+// retourné par l'IA. Format scalaire (pas trilingue : valeurs courtes
+// universelles, comme les noms de pickup et les ranges) :
+//   {
+//     pickup: string,         // "Bridge", "Neck", "Position 2-4", "Middle+Bridge"...
+//     guitar_volume: string,  // "8-10", "10 (full)", "5-7"...
+//     guitar_tone: string,    // "10 (open)", "7-9", "5-7"...
+//     stereo: boolean         // true si setup stereo recommandé (rare)
+//   }
+// Tous champs optionnels (preserve partial). Strings vides/non-strings
+// → drop. Stereo non-boolean → drop. Retourne null si tout vide.
+//
+// picking_style est volontairement EXCLU : déjà couvert par
+// settings_guitar (prose trilingue). Pas de duplication.
+function clampPlayingHints(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const out = {};
+  for (const key of ['pickup', 'guitar_volume', 'guitar_tone']) {
+    const v = raw[key];
+    if (typeof v === 'string' && v.trim()) out[key] = v.trim();
+  }
+  if (typeof raw.stereo === 'boolean') out.stereo = raw.stereo;
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+export { PRESET_RANGES, SUPPORTED_LOCALES, TWEAKS_MAX, clampPresetSettings, clampTweaks, clampPlayingHints };

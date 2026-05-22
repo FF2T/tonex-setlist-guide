@@ -900,6 +900,10 @@ const es = {
   'tweaks.toggle-show': '🔧 Si no suena del todo bien... ({count})',
   'tweaks.toggle-hide': '▲ Ocultar los ajustes ({count})',
   'tweaks.if': 'Si',
+
+  // Phase 9.5 — Playing hints estructurados (pickup / volume / tone / stereo)
+  'playing-hints.ai-advice': '💡 Consejo IA:',
+  'playing-hints.stereo': '🎚️ STEREO',
   'song-detail.reco-block': 'Recomendaciones IA',
   'song-detail.setup-block': 'Mi setup',
   'song-detail.setup-on-guitar': 'Con tu {guitar}:',

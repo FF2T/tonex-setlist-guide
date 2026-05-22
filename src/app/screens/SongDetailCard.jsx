@@ -613,6 +613,30 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             const text = `${pickupTxt} · ${t('song-detail.tone-label', 'Tone')} ${s.tone} · ${t('song-detail.volume-label', 'Volume')} ${s.volume}${mismatchTxt}`;
             return <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)', marginTop: 5, marginLeft: 24 }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.settings', 'Réglages :')}</b> {text}</div>;
           })()}
+          {/* Phase 9.5 — playing_hints structurés (pickup / volume / tone /
+              stereo) générés par l'IA, complémentaires à localGuitarSettings
+              ci-dessus qui sont des valeurs heuristiques locales. Affiche un
+              second bloc "💡 Conseil IA" si présent. Skip si absent (aiCache
+              pré-9.5 → rendu inchangé). */}
+          {aiC && aiC.playing_hints && (() => {
+            const ph = aiC.playing_hints;
+            const parts = [];
+            if (ph.pickup) parts.push(ph.pickup);
+            if (ph.guitar_tone) parts.push(`${t('song-detail.tone-label', 'Tone')} ${ph.guitar_tone}`);
+            if (ph.guitar_volume) parts.push(`${t('song-detail.volume-label', 'Volume')} ${ph.guitar_volume}`);
+            if (parts.length === 0 && !ph.stereo) return null;
+            const text = parts.join(' · ');
+            return (
+              <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)', marginTop: 3, marginLeft: 24 }}>
+                <b style={{ color: 'var(--text-muted)' }}>{t('playing-hints.ai-advice', '💡 Conseil IA :')}</b> {text}
+                {ph.stereo === true && (
+                  <span style={{ marginLeft: 6, padding: '1px 5px', borderRadius: 'var(--r-sm)', background: 'var(--brass-bg)', color: 'var(--brass)', fontSize: 9, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                    {t('playing-hints.stereo', '🎚️ STEREO')}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
         </div>
         {/* Phase 7.86 — Bloc Mode reco avancé : repli sous toggle.
             Préserve la fonctionnalité Phase 7.3 (override recoMode par

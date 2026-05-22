@@ -761,7 +761,163 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-22 soir, Phase 9.4 — "ONE TWEAK TO FIX IT" : ajustements empiriques post-écoute)
+## État actuel (2026-05-22 soir, Phase 9.5 — playing hints structurés (pickup / volume / tone / stereo))
+
+**Backline v8.14.168 / SW backline-v268 / STATE_VERSION 11 / 1510 tests verts.**
+
+### Phase 9.5 — Playing hints structurés (v8.14.168)
+
+Suite à Phase 9.4 stabilisée (avec hotfixes 9.4.1 prompt MIN 3 + 9.4.2
+maxOutputTokens 4096 → 8192), Phase 9.5 complète la famille Phase 9
+avec des conseils de jeu **structurés et scalaires**. Inspiré
+directement de l'output Ok_Ask2411 "Gear Assistant" (peer-builder
+2026-05-15 : pickup choice + guitar volume + picking style + stereo).
+
+#### Schéma `playing_hints` (additif sur `aiResult`, pas sur preset_settings_v1)
+
+```json
+"playing_hints": {
+  "pickup": "Bridge",                  // ou "Neck", "Position 4 (Middle+Bridge)", "Bridge+Neck"...
+  "guitar_volume": "8-10",             // range plutôt que valeur unique
+  "guitar_tone": "10 (open)",          // pareil
+  "stereo": false                       // true rare (delay ping-pong, ambient, dual-amp)
+}
+```
+
+- **4 champs scalaires courts** : pas trilingue (les noms de pickup,
+  les ranges et les flags bool sont universels). Évite la duplication
+  avec `settings_guitar` prose trilingue.
+- **Tous optionnels** : `clampPlayingHints` preserve partial.
+- **picking_style volontairement EXCLU** : déjà couvert par
+  `settings_guitar` (prose nuancée "Use neck pickup for verses,
+  switch to bridge for solo"). Pas de duplication.
+
+#### Helper pur `clampPlayingHints(raw)`
+
+Dans `src/core/scoring/preset-settings.js`. Drop silencieux des
+strings vides/non-strings, stereo non-boolean ignoré, retourne null
+si tout vide. 11 tests Vitest dédiés (full / partial / null /
+edge cases). Re-export depuis `src/core/scoring/index.js`.
+
+#### Validation au render via `enrichAIResult`
+
+Cabled dans `src/app/utils/ai-helpers.js` après la validation
+`preset_settings_v1`. Flag `_playingHintsValidated` pour idempotence
+(même pattern Phase 9.1).
+
+#### Prompt fetchAI étendu
+
+Nouvelle ÉTAPE 7B "PLAYING HINTS" dans le prompt, juste après ÉTAPE 7
+preset_settings_v1. Demande explicite des 4 champs + règles
+d'adaptation au type de guitare (Strat 5-positions vs LP 3-positions
+vs HSS vs P-90), range plutôt que valeur unique, stereo:false par
+défaut (true seulement si réellement justifié). JSON template inline
++ listes scalaires étendues.
+
+#### UI SongDetailCard — Bloc 3 "Mon setup"
+
+Nouveau bloc "💡 Conseil IA :" inséré juste sous le bloc "Réglages :"
+existant (qui vient de `localGuitarSettings` heuristique local).
+Format : `💡 Conseil IA : Position 4 (Middle+Bridge) · Tone 7-9 ·
+Volume 8-10`. Si `stereo === true`, badge brass "🎚️ STEREO" en
+fin de ligne. Skip silencieux si `playing_hints` absent (rétro-
+compat aiCache pré-9.5 → bloc invisible).
+
+**Note de design** : on conserve `localGuitarSettings` (heuristique
+local, instantané) ET `playing_hints` IA (contextuel au morceau)
+côte à côte plutôt que remplacement. Permet de comparer "défaut
+guitar-only" vs "spécifique pour ce morceau". Si le user veut juste
+le quick start, il lit le 1er bloc ; si il veut creuser, le 2e.
+
+#### i18n FR/EN/ES (2 clés)
+
+- `playing-hints.ai-advice` : "💡 Conseil IA :" / "💡 AI advice:" /
+  "💡 Consejo IA:"
+- `playing-hints.stereo` : "🎚️ STEREO" (identique 3 langues, label
+  universel)
+
+### Architecture livrée Phase 9.5
+
+```
+src/main.jsx                            APP_VERSION 8.14.167 → 8.14.168
+public/sw.js                            CACHE backline-v267 → backline-v268
+src/core/scoring/preset-settings.js     +clampPlayingHints helper pur
+                                        export
+src/core/scoring/preset-settings.test.js +11 tests Phase 9.5 (full,
+                                        partial, null, trim, strings
+                                        vides, non-string, stereo
+                                        non-bool, champ inconnu)
+src/core/scoring/index.js               re-export clampPlayingHints
+src/app/utils/ai-helpers.js             enrichAIResult :
+                                          +validation playing_hints
+                                          via clampPlayingHints
+                                          + flag _playingHintsValidated
+src/app/utils/fetchAI.js                ÉTAPE 7B nouvelle section
+                                        "PLAYING HINTS" entre ÉTAPE 7
+                                        et CONSIGNE DE PHRASING.
+                                        JSON template inline étendu
+                                        avec playing_hints au niveau
+                                        root (pas dans preset_settings_v1).
+                                        Liste scalaires étendue.
+src/app/screens/SongDetailCard.jsx      +bloc "💡 Conseil IA" inséré
+                                        sous "Réglages :" dans Bloc 3
+                                        Mon setup. Skip si playing_hints
+                                        absent. Badge STEREO optionnel.
+src/i18n/en.js, es.js                   +2 clés Phase 9.5
+                                        (playing-hints.ai-advice + .stereo)
+```
+
+### Conséquences Phase 9.5
+
+- **1510/1510 tests verts** (+11 nouveaux Phase 9.5 sur clampPlayingHints).
+- Bundle 2560 → 2564 KB (+4 KB pour helper + tests + UI + i18n +
+  prompt étendu).
+- **Pas de bump STATE_VERSION** (additif sur aiResult.playing_hints,
+  rétrocompat garantie via skip UI si absent).
+- **Pas de migration localStorage**.
+- **Pas de risque sync** : `playing_hints` voyage avec le reste de
+  `aiCache.result`.
+- **Effet immédiat** : prochaine analyse IA d'un morceau retourne
+  playing_hints. Sur les fiches existantes pré-9.5, le bloc
+  "💡 Conseil IA" reste invisible jusqu'au re-fetch. Pour basculer
+  tous les aiCache : "🔄 Réinitialiser mes analyses" Mon Profil →
+  🎯 Préférences IA (par profil) + re-batch.
+
+### Dette résiduelle Phase 9.5
+
+- **Pas d'override par utilisateur** : si l'utilisateur n'aime pas
+  le pickup proposé par l'IA, il peut juste le voir comme un conseil
+  contextuel (pas appliqué automatiquement). Phase 9.5.1 si signal
+  user pourrait ajouter un toggle "✓ Appliquer ce conseil" qui
+  cascade dans le bloc Réglages localGuitarSettings.
+- **`stereo: true` est très rare en pratique** : Gemini ne devrait
+  l'activer que sur des morceaux ambient / delay ping-pong / dual-
+  amp explicit. À monitorer en pratique (post-déploiement) si l'IA
+  abuse du flag.
+- **Pas de tests UI smoke** sur le bloc 💡 Conseil IA. Le test
+  unitaire couvre seulement le helper.
+
+### Validation post-déploiement attendue
+
+1. Reload PWA Mac + iPhone → vérifier `v8.14.168`.
+2. Ouvrir une fiche song déjà analysée pré-9.5 → bloc "💡 Conseil
+   IA" doit être ABSENT (rien à révéler tant que pas re-fetché).
+3. "🔄 Réinitialiser mes analyses" + re-batch.
+4. Ouvrir un morceau → bloc "💡 Conseil IA : {pickup} · Tone {x} ·
+   Volume {y}" doit apparaître **sous** le bloc "Réglages : ..."
+   existant.
+5. Vérifier que les valeurs sont **adaptées à la guitare proposée** :
+   - Stratocaster → mention "Position 2/4" possible
+   - LP/SG → "Neck" ou "Bridge"
+   - Tele → "Neck" ou "Bridge" (pas Position 2-4 — Tele à 3 positions)
+6. Sur un morceau ambient / delay ping-pong (rare), vérifier que
+   badge "🎚️ STEREO" apparaît.
+7. Switch FR / EN / ES → label "💡 Conseil IA" se localise, les
+   valeurs scalaires (pickup, tone, volume) restent universelles.
+
+---
+
+## État précédent (2026-05-22 soir, Phase 9.4 — "ONE TWEAK TO FIX IT" : ajustements empiriques post-écoute)
 
 **Backline v8.14.165 / SW backline-v265 / STATE_VERSION 11 / 1499 tests verts.**
 
@@ -1795,7 +1951,8 @@ src/i18n/es.js                          +26 clés (idem ES)
   power-users.
 - **Phase 9.4 — "ONE TWEAK TO FIX IT"** ✅ LIVRÉE 2026-05-22
   (v8.14.165). Cf section "État actuel" en tête de CLAUDE.md.
-- **Phase 9.5 — Pickup + playing hints** : ~1-2h dev. Bonus.
+- **Phase 9.5 — Pickup + playing hints** ✅ LIVRÉE 2026-05-22
+  (v8.14.168). Cf section "État actuel" en tête de CLAUDE.md.
 - **settings_preset prose conservé en parallèle** : transition
   douce. À supprimer Phase ultérieure quand tous les aiCache ont été
   regenerer avec preset_settings_v1.
@@ -13812,7 +13969,13 @@ ou live.
 
 **Effort** : ~2h dev. Ratio impact/effort élevé.
 
-**Phase 9.5 — Pickup + Playing technique (orthogonal pédale)**
+**Phase 9.5 — Pickup + Playing technique (orthogonal pédale) ✅ LIVRÉE 2026-05-22 (v8.14.168)**
+
+Voir section "État actuel" en tête de CLAUDE.md. Format final livré :
+4 champs scalaires (`pickup`, `guitar_volume`, `guitar_tone`,
+`stereo`), pas trilingue (universels). `picking_style` exclu pour
+éviter duplication avec `settings_guitar` prose trilingue.
+**Design original conservé pour référence** :
 
 ```json
 "playing_hints": {
