@@ -46,7 +46,11 @@ function MonProfilScreen({
   onSharedUsagesOverrides, // Phase 7.79.3b — propagé vers MesAppareilsTab → BankEditor
 }) {
   const locale = useLocale();
-  const [tab, setTab] = useState(initTab || 'profile');
+  // Phase 7.73.2 — Rétrocompat initTab : les tabs 'display' et 'reco'
+  // n'existent plus séparément, ils sont fusionnés dans 'preferences'.
+  // Si un caller passe encore 'display' ou 'reco', on redirige.
+  const normalizedInitTab = (initTab === 'display' || initTab === 'reco') ? 'preferences' : initTab;
+  const [tab, setTab] = useState(normalizedInitTab || 'profile');
   const [newSlName, setNewSlName] = useState('');
   const [editSlId, setEditSlId] = useState(null);
   const [editSlName, setEditSlName] = useState('');
@@ -117,9 +121,12 @@ function MonProfilScreen({
       <Breadcrumb crumbs={[{ label: t('common.home', 'Accueil'), screen: 'list' }, { label: t('profile.title-short', 'Mon profil') }]} onNavigate={onNavigate}/>
       <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 16 }}>{t('profile.title', '👤 Mon profil')}</div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        {!isDemo && tabBtn('profile', t('profile.tab.guitars', '🎸 Guitares'))}
+        {/* Phase 7.73.2 — Renommages "Guitares" → "Mes guitares" /
+            "Sources" → "Mes sources" pour cohérence avec "Mes appareils"
+            / "Mes presets custom". */}
+        {!isDemo && tabBtn('profile', t('profile.tab.guitars', '🎸 Mes guitares'))}
         {!isDemo && tabBtn('devices', t('profile.tab.devices', '📱 Mes appareils'))}
-        {!isDemo && tabBtn('sources', t('profile.tab.sources', '📦 Sources'))}
+        {!isDemo && tabBtn('sources', t('profile.tab.sources', '📦 Mes sources'))}
         {/* Phase 7.67 — Tab "📦 Mes presets custom" accessible à TOUS
             les profils (non-admin inclus) pour documenter customPacks
             personnels avec metadata enrichie + usages artistes. */}
@@ -128,8 +135,10 @@ function MonProfilScreen({
             Accessible via le bouton "⚙️ Admin" dans la nav. */}
         {/* Phase 7.75 — Tabs pedale/ann/plug/tmp consolidés dans Mes
             appareils (sections collapsables par device activé). */}
-        {tabBtn('display', t('profile.tab.display', '🎨 Affichage'))}
-        {!isDemo && tabBtn('reco', t('profile.tab.reco', '🎯 Préférences IA'))}
+        {/* Phase 7.73.2 — Tabs "🎨 Affichage" + "🎯 Préférences IA"
+            fusionnés dans le nouveau tab "⚙️ Préférences" (3 sous-
+            sections : Affichage + Préférences IA + Préférences musicales). */}
+        {tabBtn('preferences', t('profile.tab.preferences', '⚙️ Préférences'))}
         {!isDemo && tabBtn('password', t('profile.tab.password', '🔐 Mot de passe'))}
         {/* Phase 7.72 — Tabs Clé API + Maintenance migrés dans Admin séparé. */}
         {/* Phase 7.67 — Export/Import ouvert aux non-admins. Les setters
@@ -207,8 +216,14 @@ function MonProfilScreen({
           <button onClick={addSongToDb} disabled={!newSongTitle.trim()} style={{ width: '100%', background: newSongTitle.trim() ? 'var(--accent)' : 'var(--bg-elev-3)', color: 'var(--text)', border: 'none', borderRadius: 'var(--r-md)', padding: '9px', fontSize: 13, fontWeight: 600, cursor: newSongTitle.trim() ? 'pointer' : 'not-allowed' }}>Ajouter à la base</button>
         </div>
       </div>}
-      {tab === 'display' && <div>
-        <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 16 }}>{t('profile.display.intro', 'Apparence de l\'application.')}</div>
+      {tab === 'preferences' && <div>
+        <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 16 }}>{t('preferences.intro', 'Tes préférences d\'utilisation de l\'app.')}</div>
+
+        {/* Phase 7.73.2 — Section 1 : Affichage (ex-tab "display" Phase 7.36) */}
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginTop: 4, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span>🎨</span><span>{t('preferences.section-display', 'Affichage')}</span>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 10 }}>{t('profile.display.intro', 'Apparence de l\'application.')}</div>
         <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>{t('profile.display.theme', 'Thème')}</div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -239,12 +254,12 @@ function MonProfilScreen({
             })}
           </div>
         </div>
-      </div>}
-      {/* Phase 7.75 — Tabs pedale/ann/plug/tmp consolidés dans MesAppareilsTab.
-          Le tab 'devices' (Mes appareils) rend désormais aussi les BankEditor
-          + TmpBrowser + CSV compact pour chaque device activé. */}
-      {tab === 'password' && <PasswordTab profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp}/>}
-      {tab === 'reco' && <div>
+
+        {/* Phase 7.73.2 — Section 2 : Préférences IA (ex-tab "reco" Phase 7.1) */}
+        <hr style={{ border: 'none', borderTop: '1px solid var(--a10)', margin: '20px 0 16px 0' }} />
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginTop: 4, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span>🎯</span><span>{t('preferences.section-ai', 'Préférences IA')}</span>
+        </div>
         <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>{t('profile.reco.intro', 'Comment l\'IA propose les recommandations.')}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
           {[
@@ -430,6 +445,64 @@ function MonProfilScreen({
             style={{ background: 'var(--wine-400)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
           >🗑 Invalider tous les caches IA</button>
         </div>}
+
+        {/* Phase 7.73.2 — Section 3 : Préférences musicales (NOUVEAU).
+            Multi-select des styles préférés du user. Soft hint orientatif
+            pour les recommandations IA (pas de logique de scoring encore
+            câblée — Phase 7.73.2.1 future si signal user). Stocké dans
+            profile.preferredStyles: string[]. Additif, pas STATE_VERSION. */}
+        <hr style={{ border: 'none', borderTop: '1px solid var(--a10)', margin: '20px 0 16px 0' }} />
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginTop: 4, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span>🎵</span><span>{t('preferences.section-musical-styles', 'Préférences musicales')}</span>
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>{t('preferences.musical-styles-intro', 'Styles que tu joues le plus souvent. Sert d\'indication contextuelle pour l\'IA.')}</div>
+        <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 14, marginBottom: 16 }}>
+          {(() => {
+            const STYLES = [
+              { id: 'blues', label: t('preferences.musical-styles.blues', 'Blues'), icon: '🎤' },
+              { id: 'rock', label: t('preferences.musical-styles.rock', 'Rock'), icon: '🎸' },
+              { id: 'hard_rock', label: t('preferences.musical-styles.hard-rock', 'Hard rock'), icon: '🤘' },
+              { id: 'jazz', label: t('preferences.musical-styles.jazz', 'Jazz'), icon: '🎷' },
+              { id: 'metal', label: t('preferences.musical-styles.metal', 'Metal'), icon: '💀' },
+              { id: 'pop', label: t('preferences.musical-styles.pop', 'Pop'), icon: '🎵' },
+            ];
+            const selected = Array.isArray(profile.preferredStyles) ? profile.preferredStyles : [];
+            const toggleStyle = (id) => {
+              onProfiles((p) => {
+                const cur = p[activeProfileId]; if (!cur) return p;
+                const prev = Array.isArray(cur.preferredStyles) ? cur.preferredStyles : [];
+                const next = prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id];
+                return { ...p, [activeProfileId]: { ...cur, preferredStyles: next, lastModified: Date.now() } };
+              });
+            };
+            return (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {STYLES.map(({ id, label, icon }) => {
+                  const active = selected.includes(id);
+                  return (
+                    <button
+                      key={id}
+                      data-testid={`musical-style-${id}`}
+                      onClick={() => toggleStyle(id)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        background: active ? 'var(--accent-bg)' : 'var(--a5)',
+                        border: active ? '1px solid var(--border-accent)' : '1px solid var(--a10)',
+                        color: active ? 'var(--accent)' : 'var(--text-sec)',
+                        borderRadius: 'var(--r-md)', padding: '8px 14px',
+                        fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      }}
+                    >
+                      <span>{icon}</span><span>{label}</span>
+                      {active && <span style={{ color: 'var(--accent)', fontSize: 11, fontWeight: 900 }}>✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
+          <div style={{ fontSize: 10, color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.5, marginTop: 10 }}>{t('preferences.musical-styles-hint', 'Tu peux sélectionner plusieurs styles. Information indicative pour l\'IA, pas de filtre strict.')}</div>
+        </div>
       </div>}
       {/* Phase 7.72 — Tabs Clé API + Maintenance migrés dans AdminScreen.
           Phase 7.73.1 — Tab Export/Import inline retiré (CSV par device

@@ -761,7 +761,154 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-23 nuit, Phase 9.7.1 — honest framing capture vs réglages post-capture)
+## État actuel (2026-05-23 nuit, Phase 7.73.2 Session A — Refonte Mon Profil avec tab ⚙️ Préférences)
+
+**Backline v8.14.175 / SW backline-v275 / STATE_VERSION 11 / 1561 tests verts.**
+
+### Phase 7.73.2 Session A — Refonte tabs Mon Profil (v8.14.175)
+
+Première session du chantier Phase 7.73.2 (validée 2026-05-19,
+implémentée 2026-05-23). Structure consolidée des tabs de Mon Profil
+avec création d'un tab **"⚙️ Préférences"** fusionné + renommages
+de cohérence.
+
+#### Changements UI
+
+**Tabs avant Session A (10 tabs visibles selon device+admin)** :
+1. 🎸 Guitares
+2. 📱 Mes appareils
+3. 📦 Sources
+4. 📦 Mes presets custom
+5. 🎨 Affichage
+6. 🎯 Préférences IA
+7. 🔐 Mot de passe
+
+**Tabs après Session A (8 tabs)** :
+1. 🎸 **Mes guitares** ← renommé
+2. 📱 Mes appareils
+3. 📦 **Mes sources** ← renommé
+4. 📦 Mes presets custom
+5. **⚙️ Préférences** ← NOUVEAU (fusionne Affichage + Préférences IA + Préférences musicales)
+6. 🔐 Mot de passe
+
+**Tab "⚙️ Préférences"** contient 3 sous-sections empilées avec
+séparateurs horizontaux (`<hr/>`) :
+
+1. **🎨 Affichage** : thème (sombre/clair) + langue (FR/EN/ES) —
+   contenu identique à l'ancien tab Phase 7.36
+2. **🎯 Préférences IA** : recoMode (Équilibré/Fidèle/Interprétation)
+   + outputContext (FRFR/Casque/PA) + guitarBias par style +
+   "🔄 Réinitialiser mes analyses" + bouton admin "🗑 Invalider tous
+   les caches IA" — contenu identique à l'ancien tab Phase 7.1
+3. **🎵 Préférences musicales** (NOUVEAU) : multi-select des styles
+   préférés du user (Blues / Rock / Hard rock / Jazz / Metal / Pop)
+   avec boutons toggle. Stocké dans `profile.preferredStyles:
+   string[]`. Indicatif pour l'IA, pas de filtre strict.
+
+#### Rétrocompat initTab
+
+Le prop `initTab` (passé depuis main.jsx via `setScreen` /
+`onNavigate`) accepte encore `'display'` ou `'reco'` comme valeurs
+historiques : normalisation inline dans `MonProfilScreen` qui
+redirige vers `'preferences'`. Évite les régressions navigation
+depuis bookmarks / sessionStorage tonex_active_tab si elles
+existent.
+
+#### Schéma data — additif
+
+Ajout du champ optionnel `profile.preferredStyles: string[]`
+(ex. `['blues', 'rock']`). Default `undefined` ou tableau vide.
+
+**Pas de bump STATE_VERSION** (purement additif, retro-compat OK
+via Array.isArray check).
+
+### Architecture livrée Session A
+
+```
+src/main.jsx                            APP_VERSION 8.14.174 → 8.14.175
+public/sw.js                            CACHE backline-v274 → backline-v275
+src/app/screens/MonProfilScreen.jsx     +normalizedInitTab (rétrocompat
+                                          'display'/'reco' → 'preferences')
+                                        tabBtn list : retire display/reco,
+                                          ajoute preferences, renomme
+                                          guitars → "Mes guitares",
+                                          sources → "Mes sources"
+                                        Bloc {tab === 'display' && …} +
+                                          {tab === 'reco' && …} fusionnés
+                                          en {tab === 'preferences' && …}
+                                          avec 3 sous-sections (séparateurs
+                                          <hr/>, headers fontSize 14)
+                                        +section 3 "Préférences musicales" :
+                                          multi-select 6 styles avec
+                                          toggle boutons + état actif
+                                          ✓ accent. Stocké dans
+                                          profile.preferredStyles.
+src/i18n/en.js, es.js                   profile.tab.guitars : "My guitars"
+                                          / "Mis guitarras"
+                                        profile.tab.sources : "My sources"
+                                          / "Mis fuentes"
+                                        +profile.tab.preferences : "⚙️
+                                          Preferences" / "Preferencias"
+                                        +preferences.* (intro, section-*,
+                                          musical-styles-*, 6 styles labels)
+                                        ~16 nouvelles clés × 2 langues
+```
+
+### Conséquences Session A
+
+- **1561/1561 tests verts** (aucun nouveau test, refacto UI pure).
+- Bundle 2583 KB stable (compensation ajouts/retraits).
+- **Pas de bump STATE_VERSION**, **pas de migration**.
+- **Cohérence renommages** : "Mes guitares" + "Mes appareils" +
+  "Mes sources" + "Mes presets custom" + "Mon compte" (à venir
+  Session B).
+- **Fenêtre 1h30 respectée**.
+
+### Validation post-déploiement attendue
+
+1. Reload PWA → `v8.14.175`
+2. Mon Profil :
+   - ✅ Tabs renommés "Mes guitares" et "Mes sources"
+   - ✅ Plus de tabs séparés "🎨 Affichage" et "🎯 Préférences IA"
+   - ✅ Nouveau tab "⚙️ Préférences" au milieu de la liste
+3. Cliquer "⚙️ Préférences" :
+   - ✅ 3 sous-sections empilées avec séparateurs
+   - 🎨 Affichage en haut (thème + langue)
+   - 🎯 Préférences IA au milieu (recoMode + outputContext + guitarBias + Réinitialiser caches)
+   - 🎵 Préférences musicales en bas (NOUVEAU : 6 boutons toggle styles)
+4. Toggle un style (ex. "Rock") → vérifier que :
+   - L'état actif s'affiche (vert + ✓)
+   - `JSON.parse(localStorage.tonex_guide_v2).profiles.{id}.preferredStyles`
+     contient `['rock']`
+5. Switch FR/EN/ES → tous les labels traduits
+
+### Prochaines sessions Phase 7.73.2
+
+**Session B (cœur Mon compte)** : Identité + Sécurité (migration
+PasswordTab) + Mes données + retrait tab Password. ~3h.
+
+**Session C (finitions)** : Activité + Communauté + Aide. ~2h.
+
+Cf design CLAUDE.md "Idées en attente" Phase 7.73.2 pour le
+détail des sections restantes.
+
+### Dette résiduelle Session A
+
+- **`profile.preferredStyles` non câblé au prompt IA** : actuellement
+  stocké mais pas envoyé à Gemini. Phase 7.73.2.1 ajoutera une ligne
+  au prompt fetchAI ("PRÉFÉRENCES MUSICALES USER : tu joues
+  principalement {styles}, hint contextuel pour l'IA"). ~30 min,
+  reporté Session B ou C selon priorité.
+- **Pas de sync Firestore explicit pour `preferredStyles`** : le
+  champ est inclus dans le push profil habituel (LWW Phase 5.7),
+  donc déjà sync. Mais syncHash main.jsx Phase 7.46 ne contient
+  pas ce champ → un changement isolé `preferredStyles` ne
+  déclenche pas le push. À ajouter au profileHash. ~5 min,
+  Session B.
+
+---
+
+## État précédent (2026-05-23 nuit, Phase 9.7.1 — honest framing capture vs réglages post-capture)
 
 **Backline v8.14.174 / SW backline-v274 / STATE_VERSION 11 / 1561 tests verts.**
 
