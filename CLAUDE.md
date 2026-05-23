@@ -761,7 +761,220 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-23 nuit, Phase 7.73.2 Session A — Refonte Mon Profil avec tab ⚙️ Préférences)
+## État actuel (2026-05-23 matin, Phase 7.73.2 Session B + Bonus — Tab 👤 Mon compte + preferredStyles au prompt)
+
+**Backline v8.14.176 / SW backline-v276 / STATE_VERSION 11 / 1561 tests verts.**
+
+### Phase 7.73.2 Session B — Tab "👤 Mon compte" (v8.14.176)
+
+Deuxième session du chantier Phase 7.73.2 (Session A 2026-05-23 nuit
+livrait le tab ⚙️ Préférences + renommages). Session B livre le **cœur
+de la refonte** : nouveau tab "👤 Mon compte" en première position
+avec 3 sections empilées.
+
+#### Composant `MonCompteSection` (inline dans MonProfilScreen.jsx)
+
+**Section 1 — 👤 Identité** :
+- **Avatar** : upload via `image-resize.js` (Phase 7.29.9) → data-URL
+  JPEG 240px max, qualité 0.85, ~30 KB. Affichage circulaire 64×64
+  avec border. Si pas d'avatar → cercle avec initiale du nom. Boutons
+  "📷 Changer / Ajouter un avatar" + "Retirer" (avec confirm). Validation
+  type image + size 5 MB max avant resize.
+- **Nom** : édition inline (display normal + bouton "Modifier" qui
+  bascule en input). Save par Enter ou bouton ✓, cancel par Escape ou
+  ✕. Stamp `lastModified`.
+- **Bio courte** : textarea ≤200 chars, 2 lignes, save au blur.
+- **Email** (optionnel) : input `type=email` avec autocomplete=email,
+  save au blur. Pour récup password future ou contact admin.
+- **Badges read-only** : ★ ADMIN (si `profile.isAdmin`) + 🎬 DEMO (si
+  `profile.isDemo`). Pas de badge BETA (champ pas dans le schéma).
+
+**Section 2 — 🔐 Sécurité** :
+- Réutilise le composant `PasswordTab` existant (Phase 7.35) : change
+  password current+next+confirm via WebCrypto (Phase 7.28) +
+  historique de connexion (5 dernières entries au format dual
+  timestamp/admin_switch Phase 7.63).
+- **Trusted devices** (nouvelle sous-section) : affiche le statut
+  trusted/non-trusted DU profil actif sur CE device (via `isTrusted`
+  de `core/state.js`). Si trusted → bouton wine "🔒 Révoquer pour cet
+  appareil" avec confirm + `setTrusted(id, false)`. Hint explicatif
+  "la confiance est locale à cet appareil (pas synchronisée)".
+
+**Section 3 — 💾 Mes données** :
+- **Export JSON perso** : génère un payload filtré au profil actif
+  (profile + customPacks + customGuitars + banksAnn/Plug +
+  toneNetPresets perso + aiCache + setlists où `profileIds` inclut
+  moi). Inclut format version `mon-compte-export-v1`. Nom de fichier
+  `backline_{name}_DDMMAA.json` (format date court FR).
+- **Réinitialiser mon profil** : action destructive avec confirm
+  détaillé. Vide rig + customs + banks + setlists solo + aiCache +
+  guitarBias + preferredStyles. Garde nom + email + bio + avatar +
+  password + loginHistory. Les setlists multi-profileIds restent
+  intactes (seul le user actif est concerné).
+
+#### Tab order et rétrocompat
+
+**Avant Session B (8 tabs)** : Mes guitares · Mes appareils · Mes
+sources · Mes presets custom · ⚙️ Préférences
+
+**Après Session B (8 tabs, ordre réorganisé)** :
+1. **👤 Mon compte** ← NOUVEAU premier tab
+2. 🎸 Mes guitares
+3. 📱 Mes appareils
+4. 📦 Mes sources
+5. 📦 Mes presets custom
+6. ⚙️ Préférences
+7. (devices selon enabledDevices)
+8. (TMP si activé)
+
+Le tab "🔐 Mot de passe" séparé n'existait déjà plus (le rendu avait
+été retiré lors d'une refonte précédente, on a juste nettoyé le tabBtn).
+
+**Default tab** : passé de `'profile'` à `'monCompte'` — le user
+arrive maintenant directement sur Mon compte au lieu de Mes guitares.
+
+**Rétrocompat `initTab`** : si caller passe encore `'password'` →
+redirigé vers `'monCompte'`. Pareil pour `'display'`/`'reco'` →
+`'preferences'` (déjà fait Session A).
+
+### Bonus livré en même temps Session B
+
+**Bonus.1 — `preferredStyles` câblé au prompt fetchAI** :
+Phase 7.73.2 Session A avait ajouté le multi-select Styles préférés
+mais le champ n'était pas envoyé à Gemini. Maintenant `fetchAI(...)`
+accepte un 13e param `preferredStyles` et injecte dans le prompt :
+
+> *"PRÉFÉRENCES MUSICALES USER : tu joues principalement {styles}.
+> Soft hint contextuel — utile pour ajuster le ton de tes conseils
+> (ex. analogies dans cot_step1, références d'autres morceaux du
+> même style). Ne filtre PAS le scoring du morceau actuel selon ces
+> préférences (le morceau garde son style spécifique)."*
+
+10 call sites mis à jour (ListScreen ×2, HomeScreen ×2, SongDetailCard
+×2, SetlistsScreen, MonProfilScreen, MaintenanceTab, AddSongModal).
+AddSongModal passe `[]` vide (n'a pas accès à `profile` en props,
+cohérent avec `'balanced'` + `'frfr'` déjà hardcodés).
+
+**Bonus.2 — `preferredStyles` ajouté au profileHash (sync)** :
+`profileHash` Phase 7.46 dans main.jsx étendu avec
+`(p.preferredStyles||[]).slice().sort().join(',')`. Sinon un toggle
+isolé du multi-select ne déclenchait pas le push Firestore (dette
+notée Session A).
+
+### Architecture livrée Session B + Bonus
+
+```
+src/main.jsx                            APP_VERSION 8.14.175 → 8.14.176
+                                        profileHash : +preferredStyles
+public/sw.js                            CACHE backline-v275 → backline-v276
+src/app/screens/MonProfilScreen.jsx     +import isTrusted, setTrusted
+                                        +import resizeImageToDataUrl
+                                        tabBtn list : +monCompte premier,
+                                          password retiré (déjà absent
+                                          du rendu)
+                                        normalizedInitTab : +'password'
+                                          → 'monCompte'
+                                        Default tab : 'profile' → 'monCompte'
+                                        +{tab === 'monCompte' &&
+                                          <MonCompteSection .../>}
+                                        +function MonCompteSection (~200 lignes) :
+                                          - state local (editingName,
+                                            drafts name/bio/email,
+                                            avatarErr)
+                                          - 3 sections empilées <hr/>
+                                          - Section Identité (avatar
+                                            upload + nom inline + bio
+                                            + email + badges)
+                                          - Section Sécurité (réutilise
+                                            PasswordTab + Trusted devices
+                                            statut + bouton révoquer)
+                                          - Section Mes données (export
+                                            JSON filtré profil + reset
+                                            avec confirm détaillé)
+src/app/utils/fetchAI.js                fetchAI(...) +13e param preferredStyles
+                                        +preferredStylesLine dans le prompt
+                                        injecté entre outputContextLine
+                                        et INSTRUCTIONS.
+src/app/screens/ListScreen.jsx          2 call sites fetchAI étendus
+src/app/screens/HomeScreen.jsx          2 call sites fetchAI étendus
+src/app/screens/SongDetailCard.jsx      2 call sites fetchAI étendus
+src/app/screens/SetlistsScreen.jsx      1 call site étendu
+src/app/screens/MaintenanceTab.jsx      1 call site étendu
+src/app/components/AddSongModal.jsx     1 call site étendu ([] vide)
+src/i18n/en.js, es.js                   +profile.tab.mon-compte
+                                        +~33 clés mon-compte.* trilingues
+                                        (intro, section-identity/security/
+                                        data, fields, avatar, badges,
+                                        trusted-*, data-export-*, reset-*)
+```
+
+### Conséquences Session B + Bonus
+
+- **1561/1561 tests verts** (aucun nouveau, MonCompteSection est UI
+  pure sans test dédié à ce stade).
+- Bundle 2583 → 2605 KB (+22 KB pour MonCompteSection + i18n + Bonus
+  changements call sites).
+- **Pas de bump STATE_VERSION** (champs `profile.avatar`, `profile.bio`,
+  `profile.email` additifs optionnels, lecture défensive partout).
+- **Pas de migration localStorage**.
+- **Effet immédiat post-déploiement** :
+  - Mon Profil ouvre désormais sur "👤 Mon compte" par défaut
+  - User peut uploader son avatar + remplir bio + email
+  - User peut révoquer trusted device sur son appareil
+  - User peut exporter ses données JSON filtrées
+- **Effet au re-fetch IA** : `preferredStyles` injecté dans le prompt
+  → l'IA peut adapter le ton de ses conseils selon les styles préférés.
+
+### Validation post-déploiement attendue
+
+1. Reload PWA → `v8.14.176`
+2. Mon Profil → **"👤 Mon compte" doit être le premier tab et ouvert par défaut**
+3. Section Identité :
+   - Avatar : cliquer "📷 Ajouter un avatar" → choisir une image →
+     elle s'affiche en cercle 64×64
+   - Nom : cliquer "Modifier" → input + boutons ✓/✕ → save Enter
+   - Bio : taper du texte → blur → sauvegardé
+   - Email : taper → blur → sauvegardé
+   - Badges : ★ ADMIN apparaît pour Sébastien
+4. Section Sécurité :
+   - PasswordTab fonctionne normalement (change password + historique)
+   - "Cet appareil est de confiance" affiché si trusted
+   - Bouton wine "🔒 Révoquer" disponible si trusted
+5. Section Mes données :
+   - Cliquer "⬇ Exporter mes données" → fichier JSON téléchargé
+   - Cliquer "🗑 Réinitialiser mon profil" → confirm modal détaillé
+6. Switch FR/EN/ES → tous les labels traduits
+
+### Dette résiduelle Session B
+
+- **Pas de tests Vitest** sur MonCompteSection. Smoke test manuel
+  obligatoire post-déploiement.
+- **Reset profile**: la logique filter setlists solo
+  (`profileIds.length === 1`) est pragmatique mais peut être trop
+  conservatrice (cas multi-user). À affiner si signal user.
+- **Import JSON** : pas livré Session B (export seul). Phase 7.73.2
+  Session C peut l'ajouter si besoin. Pour l'instant le user export
+  est suffisant (cas backup avant reset).
+- **Email récup password** : champ stocké mais pas encore utilisé
+  pour récupération réelle. Backend nécessaire (Phase ultérieure).
+- **Avatar dans ProfileSelector** : actuellement ProfileSelector
+  affiche juste l'initiale. Phase 7.73.2.1 future pourrait lire
+  `profile.avatar` pour afficher la photo. Trivial (~10 min).
+
+### Phase 7.73.2 — Status final
+
+| Session | Status | Version |
+|---|---|---|
+| Session A — Tab ⚙️ Préférences + renommages | ✅ LIVRÉE 2026-05-23 nuit | 8.14.175 |
+| Session B — Tab 👤 Mon compte (Identité + Sécurité + Mes données) | ✅ LIVRÉE 2026-05-23 matin | 8.14.176 |
+| Session C — Activité + Communauté + Aide | ⏳ Pending (~2h) | — |
+
+**Sessions A+B livrées** (~4h50 réelles vs 4h30 estimées). Session C
+optionnelle (Activité + Communauté + Aide = bonus polish, pas core).
+
+---
+
+## État précédent (2026-05-23 nuit, Phase 7.73.2 Session A — Refonte Mon Profil avec tab ⚙️ Préférences)
 
 **Backline v8.14.175 / SW backline-v275 / STATE_VERSION 11 / 1561 tests verts.**
 

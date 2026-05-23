@@ -15,6 +15,8 @@ import { updateAiCache } from '../utils/ai-helpers.js';
 import { fetchAI } from '../utils/fetchAI.js';
 import { setSharedGeminiKey } from '../utils/shared-key.js';
 import { hashPassword, verifyPassword, isPasswordLegacy } from '../../core/crypto-utils.js';
+import { isTrusted, setTrusted } from '../../core/state.js';
+import { resizeImageToDataUrl } from '../utils/image-resize.js';
 import { buildFeedbackUrl } from '../../core/branding.js';
 import Breadcrumb from '../components/Breadcrumb.jsx';
 import BankEditor from '../components/BankEditor.jsx';
@@ -49,8 +51,13 @@ function MonProfilScreen({
   // Phase 7.73.2 — Rétrocompat initTab : les tabs 'display' et 'reco'
   // n'existent plus séparément, ils sont fusionnés dans 'preferences'.
   // Si un caller passe encore 'display' ou 'reco', on redirige.
-  const normalizedInitTab = (initTab === 'display' || initTab === 'reco') ? 'preferences' : initTab;
-  const [tab, setTab] = useState(normalizedInitTab || 'profile');
+  const normalizedInitTab = (() => {
+    if (initTab === 'display' || initTab === 'reco') return 'preferences';
+    // Phase 7.73.2 Session B — 'password' fusionné dans Mon compte
+    if (initTab === 'password') return 'monCompte';
+    return initTab;
+  })();
+  const [tab, setTab] = useState(normalizedInitTab || 'monCompte');
   const [newSlName, setNewSlName] = useState('');
   const [editSlId, setEditSlId] = useState(null);
   const [editSlName, setEditSlName] = useState('');
@@ -95,7 +102,7 @@ function MonProfilScreen({
     const ns = { id: `c_${Date.now()}`, title, artist, isCustom: true, ig: [], aiCache: null };
     onSongDb((p) => [...p, ns]);
     if (newSongSlIds.length > 0) onSetlists((p) => p.map((sl) => newSongSlIds.includes(sl.id) ? { ...sl, songIds: [...sl.songIds, ns.id] } : sl));
-    fetchAI(ns, '', banksAnn, banksPlug, aiProvider, aiKeys, allGuitars, null, null, profile?.recoMode || 'balanced', guitarBias, ns.outputContext || profile?.outputContext || 'frfr')
+    fetchAI(ns, '', banksAnn, banksPlug, aiProvider, aiKeys, allGuitars, null, null, profile?.recoMode || 'balanced', guitarBias, ns.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || [])
       // Phase 7.54 — Écrit dans profile.aiCache
       .then((r) => {
         const value = updateAiCache(null, '', r);
@@ -121,6 +128,11 @@ function MonProfilScreen({
       <Breadcrumb crumbs={[{ label: t('common.home', 'Accueil'), screen: 'list' }, { label: t('profile.title-short', 'Mon profil') }]} onNavigate={onNavigate}/>
       <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 16 }}>{t('profile.title', '👤 Mon profil')}</div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+        {/* Phase 7.73.2 Session B — Tab "👤 Mon compte" en premier.
+            Regroupe Identité + Sécurité (migration PasswordTab) + Mes
+            données (export/import perso). Le tab "🔐 Mot de passe"
+            séparé est retiré (migré dans Sécurité de Mon compte). */}
+        {!isDemo && tabBtn('monCompte', t('profile.tab.mon-compte', '👤 Mon compte'))}
         {/* Phase 7.73.2 — Renommages "Guitares" → "Mes guitares" /
             "Sources" → "Mes sources" pour cohérence avec "Mes appareils"
             / "Mes presets custom". */}
@@ -139,7 +151,8 @@ function MonProfilScreen({
             fusionnés dans le nouveau tab "⚙️ Préférences" (3 sous-
             sections : Affichage + Préférences IA + Préférences musicales). */}
         {tabBtn('preferences', t('profile.tab.preferences', '⚙️ Préférences'))}
-        {!isDemo && tabBtn('password', t('profile.tab.password', '🔐 Mot de passe'))}
+        {/* Phase 7.73.2 Session B — Tab "🔐 Mot de passe" retiré
+            (migré dans Mon compte → 🔐 Sécurité). */}
         {/* Phase 7.72 — Tabs Clé API + Maintenance migrés dans Admin séparé. */}
         {/* Phase 7.67 — Export/Import ouvert aux non-admins. Les setters
             onBanksAnn/onBanksPlug écrivent dans profile.banksAnn/banksPlug
@@ -152,6 +165,30 @@ function MonProfilScreen({
         {/* Phase 7.72 — Tabs Profils + AllUserPresets + AdminPacks
             migrés dans Admin séparé (cf bouton ⚙️ Admin dans la nav). */}
       </div>
+      {/* Phase 7.73.2 Session B — Tab "👤 Mon compte" (premier tab,
+          défaut). 3 sections empilées avec séparateurs <hr/> :
+          1. 👤 Identité (avatar + nom + bio + email + badges)
+          2. 🔐 Sécurité (PasswordTab + trusted devices)
+          3. 💾 Mes données (export/import perso + reset) */}
+      {tab === 'monCompte' && (
+        <MonCompteSection
+          profile={profile}
+          onProfiles={onProfiles}
+          activeProfileId={activeProfileId}
+          setlists={setlists}
+          songDb={songDb}
+          onSongDb={onSongDb}
+          onSetlists={onSetlists}
+          banksAnn={banksAnn}
+          onBanksAnn={onBanksAnn}
+          banksPlug={banksPlug}
+          onBanksPlug={onBanksPlug}
+          toneNetPresets={toneNetPresets}
+          customGuitars={customGuitars}
+          onLogout={onLogout}
+          inp={inp}
+        />
+      )}
       {tab === 'profile' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="guitars" aiKeys={aiKeys} customGuitars={customGuitars} onCustomGuitars={onCustomGuitars}/>}
       {tab === 'devices' && <MesAppareilsTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} toneNetPresets={toneNetPresets} onToneNetPresets={onToneNetPresets} songDb={songDb} fullState={fullState} onImportState={onImportState} onNavigate={onNavigate} onSharedUsagesOverrides={onSharedUsagesOverrides}/>}
       {tab === 'sources' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="sources"/>}
@@ -623,6 +660,285 @@ function PasswordTab({ profile, onProfiles, activeProfileId, inp }) {
       </div>
     )}
   </div>;
+}
+
+// Phase 7.73.2 Session B (2026-05-23) — Composant MonCompteSection
+// regroupe 3 sections empilées dans le nouveau tab "👤 Mon compte" :
+//
+// 1. 👤 Identité (avatar + nom + bio + email + badges read-only)
+// 2. 🔐 Sécurité (PasswordTab existant + trusted devices)
+// 3. 💾 Mes données (export/import perso + reset profil)
+//
+// Avatar upload via image-resize.js Phase 7.29.9 (data-URL JPEG ~30 KB).
+// Trusted devices : statut local du profil sur CE device, bouton
+// "Révoquer" via setTrusted(id, false) + reload.
+// Sections séparées par <hr/> avec headers fontSize 14.
+function MonCompteSection({
+  profile, onProfiles, activeProfileId,
+  setlists, songDb, onSongDb, onSetlists,
+  banksAnn, onBanksAnn, banksPlug, onBanksPlug,
+  toneNetPresets, customGuitars,
+  onLogout, inp,
+}) {
+  // Section 👤 Identité — édition inline name + bio + email + avatar
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(profile?.name || '');
+  const [bioDraft, setBioDraft] = useState(profile?.bio || '');
+  const [emailDraft, setEmailDraft] = useState(profile?.email || '');
+  const [avatarErr, setAvatarErr] = useState('');
+
+  const saveName = () => {
+    const n = nameDraft.trim();
+    if (!n) { setEditingName(false); setNameDraft(profile?.name || ''); return; }
+    if (n === profile?.name) { setEditingName(false); return; }
+    onProfiles((p) => ({ ...p, [activeProfileId]: { ...p[activeProfileId], name: n, lastModified: Date.now() } }));
+    setEditingName(false);
+  };
+  const cancelName = () => { setEditingName(false); setNameDraft(profile?.name || ''); };
+
+  const saveBio = () => {
+    const b = bioDraft.trim();
+    if (b === (profile?.bio || '')) return;
+    onProfiles((p) => ({ ...p, [activeProfileId]: { ...p[activeProfileId], bio: b || undefined, lastModified: Date.now() } }));
+  };
+  const saveEmail = () => {
+    const e = emailDraft.trim();
+    if (e === (profile?.email || '')) return;
+    onProfiles((p) => ({ ...p, [activeProfileId]: { ...p[activeProfileId], email: e || undefined, lastModified: Date.now() } }));
+  };
+
+  const onAvatarUpload = async (e) => {
+    setAvatarErr('');
+    const file = e?.target?.files?.[0];
+    if (!file) return;
+    if (!file.type?.startsWith('image/')) { setAvatarErr(t('mon-compte.avatar-err-type', 'Format non supporté (image attendue).')); return; }
+    if (file.size > 5 * 1024 * 1024) { setAvatarErr(t('mon-compte.avatar-err-size', 'Image trop grosse (max 5 MB avant resize).')); return; }
+    try {
+      const dataUrl = await resizeImageToDataUrl(file, 240, 0.85);
+      onProfiles((p) => ({ ...p, [activeProfileId]: { ...p[activeProfileId], avatar: dataUrl, lastModified: Date.now() } }));
+    } catch (err) {
+      setAvatarErr(t('mon-compte.avatar-err-resize', 'Erreur lors du resize : ') + (err?.message || String(err)));
+    }
+    // Reset l'input file pour permettre de re-uploader la même image
+    if (e?.target) e.target.value = '';
+  };
+  const removeAvatar = () => {
+    if (!profile?.avatar) return;
+    if (!window.confirm(t('mon-compte.avatar-remove-confirm', 'Retirer ton avatar ?'))) return;
+    onProfiles((p) => ({ ...p, [activeProfileId]: { ...p[activeProfileId], avatar: undefined, lastModified: Date.now() } }));
+  };
+
+  // Section 🔐 Sécurité — trusted devices
+  const trusted = isTrusted(activeProfileId);
+  const revokeTrusted = () => {
+    if (!window.confirm(t('mon-compte.trusted-revoke-confirm', 'Révoquer la confiance de cet appareil ?\nTu devras retaper ton mot de passe à la prochaine connexion sur cet appareil.'))) return;
+    setTrusted(activeProfileId, false);
+    window.alert(t('mon-compte.trusted-revoke-done', '✓ Confiance révoquée pour cet appareil.'));
+  };
+
+  // Section 💾 Mes données — export perso filtré par profil
+  const exportMyData = () => {
+    const mySetlists = (setlists || []).filter((sl) => Array.isArray(sl.profileIds) && sl.profileIds.includes(activeProfileId));
+    const mySongIds = new Set();
+    mySetlists.forEach((sl) => (sl.songIds || []).forEach((id) => mySongIds.add(id)));
+    const mySongs = (songDb || []).filter((s) => mySongIds.has(s.id));
+    const payload = {
+      version: 'mon-compte-export-v1',
+      exported: new Date().toISOString(),
+      profileId: activeProfileId,
+      profile: { ...profile },
+      setlists: mySetlists,
+      songs: mySongs,
+      banksAnn: banksAnn || {},
+      banksPlug: banksPlug || {},
+      toneNetPresets: toneNetPresets || [],
+      customGuitars: customGuitars || [],
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const dd = String(new Date().getDate()).padStart(2, '0');
+    const mm = String(new Date().getMonth() + 1).padStart(2, '0');
+    const aa = String(new Date().getFullYear()).slice(2);
+    a.download = `backline_${(profile?.name || activeProfileId).replace(/\s+/g, '_')}_${dd}${mm}${aa}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const resetMyProfile = () => {
+    const confirmTxt = t('mon-compte.reset-confirm', 'Réinitialiser ton profil ?\n\nCela vide :\n- Tes guitares custom\n- Tes presets custom\n- Tes banks (Anniversary + Plug)\n- Tes setlists\n- Ton historique IA\n\nGardé :\n- Ton nom + email + bio + avatar\n- Ton mot de passe\n- Ton historique de connexion\n\nIrréversible.');
+    if (!window.confirm(confirmTxt)) return;
+    onProfiles((p) => {
+      const cur = p[activeProfileId]; if (!cur) return p;
+      return {
+        ...p,
+        [activeProfileId]: {
+          ...cur,
+          myGuitars: [],
+          customGuitars: [],
+          editedGuitars: {},
+          banksAnn: {},
+          banksPlug: {},
+          customPacks: [],
+          aiCache: {},
+          guitarBias: {},
+          preferredStyles: [],
+          lastModified: Date.now(),
+        },
+      };
+    });
+    onSetlists((p) => (p || []).filter((sl) => !(Array.isArray(sl.profileIds) && sl.profileIds.includes(activeProfileId) && sl.profileIds.length === 1)));
+    window.alert(t('mon-compte.reset-done', '✓ Profil réinitialisé.'));
+  };
+
+  // Badges read-only
+  const badges = [];
+  if (profile?.isAdmin) badges.push({ icon: '★', label: t('mon-compte.badge-admin', 'ADMIN'), color: 'var(--accent)' });
+  if (profile?.isDemo) badges.push({ icon: '🎬', label: t('mon-compte.badge-demo', 'DEMO'), color: 'var(--brass-bg)' });
+
+  const sectionTitleStyle = { fontSize: 14, fontWeight: 700, color: 'var(--text)', marginTop: 4, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 };
+  const sectionIntroStyle = { fontSize: 11, color: 'var(--text-dim)', marginBottom: 10 };
+  const cardStyle = { background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 14, marginBottom: 12 };
+  const fieldLabelStyle = { fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 6 };
+
+  return (
+    <div>
+      <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 16 }}>{t('mon-compte.intro', 'Ton profil, ta sécurité et tes données.')}</div>
+
+      {/* ─── Section 1 : 👤 Identité ─── */}
+      <div style={sectionTitleStyle}>
+        <span>👤</span><span>{t('mon-compte.section-identity', 'Identité')}</span>
+      </div>
+      <div style={sectionIntroStyle}>{t('mon-compte.identity-intro', 'Ton identité dans Backline. Email facultatif.')}</div>
+      <div style={cardStyle}>
+        {/* Avatar */}
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 14 }}>
+          {profile?.avatar ? (
+            <img src={profile.avatar} alt="avatar" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--a10)' }}/>
+          ) : (
+            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--a8)', border: '2px solid var(--a10)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 700, color: 'var(--text-sec)' }}>{(profile?.name || '?').charAt(0).toUpperCase()}</div>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>
+              📷 {profile?.avatar ? t('mon-compte.avatar-change', 'Changer') : t('mon-compte.avatar-add', 'Ajouter un avatar')}
+              <input type="file" accept="image/*" onChange={onAvatarUpload} style={{ display: 'none' }}/>
+            </label>
+            {profile?.avatar && <button onClick={removeAvatar} style={{ background: 'transparent', border: '1px solid var(--a10)', color: 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '4px 10px', fontSize: 10, cursor: 'pointer' }}>{t('mon-compte.avatar-remove', 'Retirer')}</button>}
+          </div>
+        </div>
+        {avatarErr && <div style={{ fontSize: 11, color: 'var(--wine-400)', marginBottom: 10 }}>{avatarErr}</div>}
+
+        {/* Nom (édition inline) */}
+        <div style={fieldLabelStyle}>{t('mon-compte.field-name', 'Nom')}</div>
+        {editingName ? (
+          <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+            <input
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') cancelName(); }}
+              autoFocus
+              style={{ ...inp, flex: 1 }}
+            />
+            <button onClick={saveName} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>✓</button>
+            <button onClick={cancelName} style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 11, cursor: 'pointer' }}>✕</button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600, flex: 1 }}>{profile?.name || '—'}</div>
+            <button onClick={() => { setEditingName(true); setNameDraft(profile?.name || ''); }} style={{ background: 'transparent', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '4px 10px', fontSize: 10, cursor: 'pointer' }}>{t('mon-compte.edit', 'Modifier')}</button>
+          </div>
+        )}
+
+        {/* Bio (textarea, save au blur) */}
+        <div style={fieldLabelStyle}>{t('mon-compte.field-bio', 'Bio courte')} <span style={{ fontWeight: 400, color: 'var(--text-dim)', fontSize: 10 }}>({t('mon-compte.field-bio-hint', 'optionnel, max 200 caractères')})</span></div>
+        <textarea
+          value={bioDraft}
+          maxLength={200}
+          onChange={(e) => setBioDraft(e.target.value)}
+          onBlur={saveBio}
+          placeholder={t('mon-compte.field-bio-placeholder', 'Ex: Guitariste blues/rock, 12 ans de pratique...')}
+          rows={2}
+          style={{ ...inp, width: '100%', resize: 'vertical', marginBottom: 12, fontFamily: 'var(--font-body)' }}
+        />
+
+        {/* Email (input, save au blur) */}
+        <div style={fieldLabelStyle}>{t('mon-compte.field-email', 'Email')} <span style={{ fontWeight: 400, color: 'var(--text-dim)', fontSize: 10 }}>({t('mon-compte.field-email-hint', 'optionnel, pour récup mot de passe')})</span></div>
+        <input
+          type="email"
+          value={emailDraft}
+          onChange={(e) => setEmailDraft(e.target.value)}
+          onBlur={saveEmail}
+          placeholder="moi@exemple.com"
+          autoComplete="email"
+          style={{ ...inp, width: '100%' }}
+        />
+
+        {/* Badges read-only */}
+        {badges.length > 0 && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 14 }}>
+            {badges.map((b, i) => (
+              <span key={i} style={{ fontSize: 10, padding: '3px 8px', borderRadius: 'var(--r-sm)', background: b.color, color: b.color === 'var(--accent)' ? 'var(--bg)' : 'var(--text)', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                {b.icon} {b.label}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ─── Section 2 : 🔐 Sécurité ─── */}
+      <hr style={{ border: 'none', borderTop: '1px solid var(--a10)', margin: '20px 0 16px 0' }}/>
+      <div style={sectionTitleStyle}>
+        <span>🔐</span><span>{t('mon-compte.section-security', 'Sécurité')}</span>
+      </div>
+      <PasswordTab profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp}/>
+
+      {/* Trusted devices */}
+      <div style={{ ...cardStyle, marginTop: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{t('mon-compte.trusted-title', 'Appareil de confiance')}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.4 }}>
+          {trusted
+            ? t('mon-compte.trusted-yes', 'Cet appareil est de confiance : tu n\'as pas à retaper ton mot de passe à chaque connexion. La confiance est locale à cet appareil (pas synchronisée).')
+            : t('mon-compte.trusted-no', 'Cet appareil n\'est pas de confiance : ton mot de passe sera demandé à chaque connexion. La confiance se gagne en cochant "Mémoriser cet appareil" au login.')}
+        </div>
+        {trusted && (
+          <button
+            onClick={revokeTrusted}
+            style={{ background: 'var(--wine-400)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+          >🔒 {t('mon-compte.trusted-revoke', 'Révoquer pour cet appareil')}</button>
+        )}
+      </div>
+
+      {/* ─── Section 3 : 💾 Mes données ─── */}
+      <hr style={{ border: 'none', borderTop: '1px solid var(--a10)', margin: '20px 0 16px 0' }}/>
+      <div style={sectionTitleStyle}>
+        <span>💾</span><span>{t('mon-compte.section-data', 'Mes données')}</span>
+      </div>
+      <div style={sectionIntroStyle}>{t('mon-compte.data-intro', 'Export, import et réinitialisation de TES données (profil actif uniquement).')}</div>
+      <div style={cardStyle}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+          <button
+            onClick={exportMyData}
+            style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+          >⬇ {t('mon-compte.data-export', 'Exporter mes données (JSON)')}</button>
+        </div>
+        <div style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+          {t('mon-compte.data-export-hint', 'Inclut ton profil, tes setlists, tes morceaux, tes banks, tes presets ToneNET et tes guitares custom. Ne contient pas tes données autres profils.')}
+        </div>
+      </div>
+
+      <div style={cardStyle}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--wine-400)', marginBottom: 4 }}>⚠ {t('mon-compte.reset-title', 'Réinitialiser mon profil')}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.4 }}>
+          {t('mon-compte.reset-hint', 'Vide ton rig, tes banks, tes setlists et ton historique IA. Garde ton nom, email, mot de passe et historique de connexion. Action irréversible.')}
+        </div>
+        <button
+          onClick={resetMyProfile}
+          style={{ background: 'transparent', border: '1px solid var(--wine-400)', color: 'var(--wine-400)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+        >🗑 {t('mon-compte.reset-button', 'Réinitialiser mon profil')}</button>
+      </div>
+    </div>
+  );
 }
 
 // Phase 7.73.1 — Factory : callback pour push les "ajouter custom" depuis

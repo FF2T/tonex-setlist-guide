@@ -107,7 +107,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
     const historicalFeedback = Array.isArray(song.feedback) && song.feedback.length > 0
       ? song.feedback.map((f) => f.text).filter(Boolean).join('. ')
       : null;
-    fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, allRigsGuitars || guitars, historicalFeedback, null, effectiveRecoMode, guitarBias, song.outputContext || profile?.outputContext || 'frfr')
+    fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, allRigsGuitars || guitars, historicalFeedback, null, effectiveRecoMode, guitarBias, song.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || [])
       .then((r) => {
         setLocalAiResult(r);
         setLocalAiErr(null);
@@ -1071,7 +1071,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   setShowFeedback(false); setReloading(true);
                   const prev = aiC;
                   const effectiveRecoMode = song.recoMode || profile?.recoMode || 'balanced';
-                  fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, allRigsGuitars || guitars, fb || null, null, effectiveRecoMode, guitarBias, song.outputContext || profile?.outputContext || 'frfr')
+                  fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, allRigsGuitars || guitars, fb || null, null, effectiveRecoMode, guitarBias, song.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || [])
                     .then((r) => {
                       const pick = mergeBestResults(prev, r);
                       setLocalAiResult(pick);

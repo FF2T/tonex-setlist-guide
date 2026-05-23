@@ -84,7 +84,7 @@ function buildInstalledSlotsSection(banksAnn, banksPlug) {
   return lines.join('\n');
 }
 
-function fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, feedback, availableSources, recoMode, guitarBias, outputContext) {
+function fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, feedback, availableSources, recoMode, guitarBias, outputContext, preferredStyles) {
   guitars = guitars || GUITARS;
   const g = guitars.find((x) => x.id === gId);
   const gType = g?.type || 'HB';
@@ -139,6 +139,19 @@ function fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, fe
     if (!desc) return '';
     return `\nCONTEXTE D'ÉCOUTE : l'utilisateur joue sur ${desc}. Adapte tes conseils settings_preset (EQ, volume) en conséquence.`;
   })();
+  // Phase 7.73.2 Session A — Préférences musicales du user (multi-select
+  // depuis profile.preferredStyles). Soft hint contextuel : signale à
+  // l'IA quels styles le user joue le plus souvent. Ne pas filtrer dur
+  // (chaque morceau garde son scoring spécifique selon son style).
+  const preferredStylesLine = (() => {
+    if (!Array.isArray(preferredStyles) || preferredStyles.length === 0) return '';
+    const STYLE_LABELS = {
+      blues: 'blues', rock: 'rock', hard_rock: 'hard rock',
+      jazz: 'jazz', metal: 'metal', pop: 'pop',
+    };
+    const labels = preferredStyles.map((s) => STYLE_LABELS[s] || s).join(', ');
+    return `\nPRÉFÉRENCES MUSICALES USER : tu joues principalement ${labels}. Soft hint contextuel — utile pour ajuster le ton de tes conseils (ex. analogies dans cot_step1, références d'autres morceaux du même style). Ne filtre PAS le scoring du morceau actuel selon ces préférences (le morceau garde son style spécifique).`;
+  })();
   const gProfiles = guitars.map((x) => {
     const p = findGuitarProfile(x.id);
     return `- ${x.name} (${x.type}) : ${p ? p.desc : 'profil inconnu'}`;
@@ -149,7 +162,7 @@ Guitare sélectionnée : ${g ? g.name + ' (' + g.type + ')' : 'non précisée'}.
 
 COLLECTION DE GUITARES DISPONIBLES :
 ${gProfiles}
-${feedbackLine}${modeLine}${biasLine}${tmpCatalogLine}${installedSlotsLine}${outputContextLine}
+${feedbackLine}${modeLine}${biasLine}${tmpCatalogLine}${installedSlotsLine}${outputContextLine}${preferredStylesLine}
 INSTRUCTIONS : Tu dois suivre un raisonnement structuré AVANT de donner ta recommandation. Ce raisonnement DOIT apparaître dans le JSON de sortie.
 
 ÉTAPE 1 – PROFIL TONAL DU MORCEAU

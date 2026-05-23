@@ -346,7 +346,7 @@ function ListScreen({
         const historicalFeedback = Array.isArray(s.feedback) && s.feedback.length > 0
           ? s.feedback.map((f) => f.text).filter(Boolean).join('. ')
           : null;
-        const r = await fetchAI(s, '', banksAnn, banksPlug, aiProvider, aiKeys, allRigsGuitars || guitars, historicalFeedback, null, profile?.recoMode || 'balanced', guitarBias, s.outputContext || profile?.outputContext || 'frfr');
+        const r = await fetchAI(s, '', banksAnn, banksPlug, aiProvider, aiKeys, allRigsGuitars || guitars, historicalFeedback, null, profile?.recoMode || 'balanced', guitarBias, s.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || []);
         if (analyzeCancelRef.current) break;
         // Phase 7.81 — rigSnapshot stocké = rig profil actif (pas union all-rigs).
         const rigSnapshot = computeRigSnapshot(guitars);
@@ -391,7 +391,7 @@ function ListScreen({
           const historicalFeedback = Array.isArray(s.feedback) && s.feedback.length > 0
             ? s.feedback.map((f) => f.text).filter(Boolean).join('. ')
             : null;
-          const r = await waitOrCancel(fetchAI(s, gId, banksAnn, banksPlug, aiProvider, aiKeys, allRigsGuitars || guitars, historicalFeedback, null, profile?.recoMode || 'balanced', guitarBias, s.outputContext || profile?.outputContext || 'frfr'));
+          const r = await waitOrCancel(fetchAI(s, gId, banksAnn, banksPlug, aiProvider, aiKeys, allRigsGuitars || guitars, historicalFeedback, null, profile?.recoMode || 'balanced', guitarBias, s.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || []));
           if (improveCancelRef.current) break;
           // Phase 7.54 — Écrit dans profile.aiCache.
           const newCache = updateAiCache(s.aiCache, gId, r);

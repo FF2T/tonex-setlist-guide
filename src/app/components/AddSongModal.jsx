@@ -34,7 +34,7 @@ function AddSongModal({ songDb, onSongDb, onAiCacheUpdate, isDemo, setlists, onS
       const ns = { id: `c_${Date.now()}`, title: newTitle.trim(), artist: newArtist.trim() || t('add-song.unknown-artist', 'Artiste inconnu'), isCustom: true, ig: [], aiCache: null };
       onSongDb((p) => [...p, ns]);
       onSetlists((p) => p.map((sl) => targetSlIds.includes(sl.id) ? { ...sl, songIds: [...sl.songIds, ns.id] } : sl));
-      fetchAI(ns, '', banksAnn, banksPlug, aiProvider, aiKeys, guitars, null, null, 'balanced', guitarBias, 'frfr')
+      fetchAI(ns, '', banksAnn, banksPlug, aiProvider, aiKeys, guitars, null, null, 'balanced', guitarBias, 'frfr', [])
         // Phase 7.54 — Écrit dans profile.aiCache
         .then((r) => {
           const value = updateAiCache(null, '', r);

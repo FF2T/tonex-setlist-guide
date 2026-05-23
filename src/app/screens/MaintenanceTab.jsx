@@ -108,7 +108,7 @@ function MaintenanceTab({ songDb, onSongDb, onAiCacheUpdate, onProfiles, activeP
         const historicalFeedback = Array.isArray(s.feedback) && s.feedback.length > 0
           ? s.feedback.map((f) => f.text).filter(Boolean).join('. ')
           : null;
-        const r = await fetchAI(s, '', banksAnn, banksPlug, aiProvider, aiKeys, GUITARS, historicalFeedback, null, profile?.recoMode || 'balanced', guitarBias, s.outputContext || profile?.outputContext || 'frfr');
+        const r = await fetchAI(s, '', banksAnn, banksPlug, aiProvider, aiKeys, GUITARS, historicalFeedback, null, profile?.recoMode || 'balanced', guitarBias, s.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || []);
         // Phase 7.54 — Écrit dans profile.aiCache via onAiCacheUpdate
         const newCache = updateAiCache(s.aiCache, '', r);
         if (onAiCacheUpdate) onAiCacheUpdate(s.id, newCache);

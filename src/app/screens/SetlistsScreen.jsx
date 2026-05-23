@@ -71,7 +71,7 @@ function SetlistsScreen({
     const ns = { id: `c_${Date.now()}`, title, artist: finalArtist, isCustom: true, ig: [], aiCache: null };
     onSongDb((p) => [...p, ns]);
     if (newSongSlIds.length > 0) onSetlists((p) => p.map((sl) => newSongSlIds.includes(sl.id) ? { ...sl, songIds: [...sl.songIds, ns.id] } : sl));
-    fetchAI(ns, '', banksAnn, banksPlug, aiProvider, aiKeys, allGuitars, null, null, profile?.recoMode || 'balanced', guitarBias, ns.outputContext || profile?.outputContext || 'frfr')
+    fetchAI(ns, '', banksAnn, banksPlug, aiProvider, aiKeys, allGuitars, null, null, profile?.recoMode || 'balanced', guitarBias, ns.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || [])
       // Phase 7.54 — Écrit dans profile.aiCache via setSongAiCache au lieu
       // de shared.songDb. Si onAiCacheUpdate n'est pas passé (cas dégénéré),
       // fallback vers onSongDb pour compat.
