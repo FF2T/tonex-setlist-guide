@@ -627,9 +627,8 @@ const es = {
   'mon-compte.help-intro': 'Tutorial, feedback y contacto.',
   'mon-compte.help-relaunch-tutorial': '🎓 Relanzar el tutorial de introducción',
   'mon-compte.help-send-feedback': '💬 Enviar feedback al equipo',
-  'mon-compte.help-contact-admin': '📧 Contactar a Sébastien (admin)',
-  'mon-compte.help-contact-subject': 'Backline — Pregunta / sugerencia',
-  'mon-compte.help-contact-body': 'Hola Sébastien,\n\n[tu mensaje]\n\n--\nPerfil: ',
+  // Phase 7.73.2.1 — Claves mailto retiradas (privacidad : email admin no
+  // debe aparecer en el DOM). Todo pasa por Tally (help-send-feedback).
   'mon-compte.help-version-label': 'Versión',
   'mon-compte.help-build-tag': 'Backline',
   'profile.display.language': 'Idioma',

@@ -761,7 +761,130 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-23 matin, Phase 7.73.2 Session B + Bonus — Tab 👤 Mon compte + preferredStyles au prompt)
+## État actuel (2026-05-23 matin, Phase 7.73.2.1 hotfix privacy — retrait bouton mailto admin)
+
+**Backline v8.14.178 / SW backline-v278 / STATE_VERSION 11 / 1561 tests verts.**
+
+### Phase 7.73.2.1 — Hotfix privacy mailto (v8.14.178)
+
+Constat post-déploiement Phase 7.73.2 Session C v8.14.177 : la
+section 💬 Aide de Mon compte contenait un bouton
+**"📧 Contacter Sébastien (admin)"** qui exposait `sebastien.chemin@
+gmail.com` en clair dans le DOM via `mailto:`. Visible par tous les
+utilisateurs (beta-testeurs Bruno/Francisco et futurs visiteurs démo
+si le tab leur devient accessible).
+
+**Fix immédiat** : retirer le bouton mailto de
+`src/app/screens/MonProfilScreen.jsx` (MonCompteSection Section Aide).
+Toute communication passe désormais par le formulaire Tally via le
+bouton "💬 Envoyer un feedback à l'équipe" (canal unique).
+
+Clés i18n `mon-compte.help-contact-admin`, `.help-contact-subject`,
+`.help-contact-body` retirées de `src/i18n/en.js` et `src/i18n/es.js`
+(devenues inutiles, cleanup).
+
+APP_VERSION 8.14.177 → 8.14.178, SW CACHE v277 → v278. Pas de bump
+STATE_VERSION. 1561/1561 tests verts. Bundle 2613 → 2612 KB
+(retrait léger).
+
+### 🐛 Bug Paranoid observé — investigation à faire prochaine session
+
+Sur la fiche Paranoid de Black Sabbath, incohérence visuelle entre
+deux blocs :
+
+- **🎯 Recommandation idéale Preset** : `SupergroupBass_SM57_TB_full`
+  à **93%**, ✓ installé en Banque 18C, source 🌐 ToneNET
+- **Meilleurs presets installés pour SG Ebony · Anniversary** :
+  `ORNG 120 Dimed BAL CAB` à **92%** en Banque 32C
+
+Le 93% installé devrait apparaître dans "Meilleurs installés" mais
+le bloc affiche un 92% à la place. Bug d'affichage UI ou de
+scoring.
+
+**Investigation déjà faite** :
+- ✅ Le useMemo Phase 7.53 dans `main.jsx:546-563` copie bien le
+  champ `usages` depuis `shared.toneNetPresets` vers
+  `PRESET_CATALOG_MERGED` (ligne 560). Donc **H2 écartée** (pas un
+  bug de propagation).
+- ✅ Le never-regress dans `enrichAIResult` (lignes 517-520) est
+  correctement gated par `!annPinnedByAI`. Si `findSlotByUsageMatch`
+  trouve un slot avec score 100, le pin survit et "Meilleurs
+  installés" devrait afficher SupergroupBass.
+
+**Hypothèses restantes** (à valider runtime) :
+- **H1 — Pas de tag user** : Sébastien n'a pas tagué le ToneNET
+  SupergroupBass avec `usages: [{artist: "Black Sabbath", songs:
+  ["Paranoid"]}]` via le tab admin ⚙️ Admin → ToneNET (Phase 7.53).
+  Alors `findSlotByUsageMatch` ne match pas → fallback V9 → ORNG.
+  Le 93% Recommandation idéale viendrait du scoring V9 catalog scan
+  de SupergroupBass (Laney Supergroup amp Sabbath-historic).
+- **H3 — Pin écrasé** : Les usages sont tagués mais quelque chose
+  écrase `preset_ann` après le pin (cross-contamination Phase 7.31
+  preset_ann_name, ou autre).
+
+**Étapes diagnostic** :
+1. Inspecter `shared.toneNetPresets` dans localStorage Sébastien
+   (DevTools → Application → Local Storage → `tonex_guide_v2`) :
+   chercher l'entry `SupergroupBass_SM57_TB_full` et vérifier la
+   présence ou absence du champ `usages`.
+2. Si présent → c'est H3. Inspecter `aiC.preset_ann` runtime sur
+   Paranoid + tracer le pipeline `enrichAIResult` pour identifier
+   ce qui écrase le pin.
+3. Si absent → c'est H1. Solution : tagger via Mon Profil →
+   ⚙️ Admin → 🌐 ToneNET (Phase 7.53 UI éditable usages). Optionnel
+   Phase ultérieure : améliorer l'inférence usages depuis le nom
+   du preset (ex. "Supergroup" → Sabbath/Iommi). Risque
+   cross-contamination, à éviter sans signal user explicit.
+
+**Fix code (si H3 confirmé)** : ajouter un override final dans
+`enrichAIResult` après le never-regress lignes 517-524, qui re-vérifie
+`findSlotByUsageMatch` et écrase `preset_ann` si match >= 50 ET
+label différent du current. ~10 lignes + tests Vitest.
+
+### Architecture livrée Phase 7.73.2.1
+
+```
+src/main.jsx                            APP_VERSION 8.14.177 → 8.14.178
+public/sw.js                            CACHE backline-v277 → backline-v278
+src/app/screens/MonProfilScreen.jsx     MonCompteSection Section Aide :
+                                          retire <a href="mailto:..."> et
+                                          son bloc. Commentaire de remplacement
+                                          pour traçabilité.
+src/i18n/en.js, es.js                   Retire 3 clés mon-compte.help-contact-*
+                                          (admin, subject, body)
+```
+
+### Conséquences
+
+- **1561/1561 tests verts** (aucun changement de logique testée).
+- Bundle 2613 → 2612 KB (cleanup).
+- Pas de bump STATE_VERSION ni migration.
+- **Email admin n'apparaît plus dans le DOM** côté production.
+- Tally reste le canal unique de feedback.
+
+### Validation post-déploiement
+
+1. Reload PWA → `v8.14.178`
+2. Mon Profil → 👤 Mon compte → Section Aide :
+   - ✅ Bouton "📧 Contacter Sébastien" DISPARU
+   - ✅ Bouton "💬 Envoyer un feedback à l'équipe" (Tally) toujours présent
+3. View Source de la page → aucune occurrence de `sebastien.chemin@gmail.com`
+4. Régression : autres sections Mon compte (Identité, Sécurité, Données, Activité, Communauté) fonctionnent normalement
+
+---
+
+## État précédent (2026-05-23 nuit, Phase 7.73.2 Session C — sections Activité + Communauté + Aide)
+
+**Backline v8.14.177 / SW backline-v277 / STATE_VERSION 11 / 1561 tests verts.**
+
+(Section C livrée hier soir, voir commits `b6cb048` + `cd5b05f`. Inclut
+les 3 dernières sections du tab Mon compte : 📊 Activité stats read-only,
+🤝 Communauté partages reçus, 💬 Aide tutoriel + feedback + version.
+Le bouton mailto privacy de cette session a été retiré Phase 7.73.2.1.)
+
+---
+
+## État précédent (2026-05-23 matin, Phase 7.73.2 Session B + Bonus — Tab 👤 Mon compte + preferredStyles au prompt)
 
 **Backline v8.14.176 / SW backline-v276 / STATE_VERSION 11 / 1561 tests verts.**
 

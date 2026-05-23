@@ -1056,12 +1056,10 @@ function MonCompteSection({
             rel="noopener noreferrer"
             style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'none', textAlign: 'left' }}
           >💬 {t('mon-compte.help-send-feedback', 'Envoyer un feedback à l\'équipe')}</a>
-
-          {/* Contact admin (mailto) */}
-          <a
-            href={`mailto:sebastien.chemin@gmail.com?subject=${encodeURIComponent(t('mon-compte.help-contact-subject', 'Backline — Question / suggestion'))}&body=${encodeURIComponent(t('mon-compte.help-contact-body', 'Salut Sébastien,\n\n[ton message]\n\n--\nProfil : ') + (profile?.name || '?') + '\nVersion : ' + ((typeof window !== 'undefined' && window.__BACKLINE_APP_VERSION) || '?'))}`}
-            style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'none', textAlign: 'left' }}
-          >📧 {t('mon-compte.help-contact-admin', 'Contacter Sébastien (admin)')}</a>
+          {/* Phase 7.73.2.1 (2026-05-23) — Bouton mailto retiré pour
+              privacy (l'email admin était exposé en clair via mailto:).
+              Toute communication passe par le formulaire Tally
+              ci-dessus (canal unique de feedback). */}
         </div>
 
         {/* Version (info read-only) */}
