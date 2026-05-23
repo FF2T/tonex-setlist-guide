@@ -173,6 +173,7 @@ function MonProfilScreen({
       {tab === 'monCompte' && (
         <MonCompteSection
           profile={profile}
+          profiles={profiles}
           onProfiles={onProfiles}
           activeProfileId={activeProfileId}
           setlists={setlists}
@@ -674,7 +675,7 @@ function PasswordTab({ profile, onProfiles, activeProfileId, inp }) {
 // "Révoquer" via setTrusted(id, false) + reload.
 // Sections séparées par <hr/> avec headers fontSize 14.
 function MonCompteSection({
-  profile, onProfiles, activeProfileId,
+  profile, onProfiles, activeProfileId, profiles,
   setlists, songDb, onSongDb, onSetlists,
   banksAnn, onBanksAnn, banksPlug, onBanksPlug,
   toneNetPresets, customGuitars,
@@ -936,6 +937,139 @@ function MonCompteSection({
           onClick={resetMyProfile}
           style={{ background: 'transparent', border: '1px solid var(--wine-400)', color: 'var(--wine-400)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
         >🗑 {t('mon-compte.reset-button', 'Réinitialiser mon profil')}</button>
+      </div>
+
+      {/* ─── Section 4 : 📊 Activité (Phase 7.73.2 Session C) ─── */}
+      {(() => {
+        const lh = Array.isArray(profile?.loginHistory) ? profile.loginHistory : [];
+        // Plus ancienne entrée = inscription approximative. Format dual
+        // (number = login normal, object = admin_switch). On filtre les
+        // numbers seulement pour estimer la date d'inscription.
+        const numericEntries = lh.filter((e) => typeof e === 'number');
+        const firstLogin = numericEntries.length > 0 ? numericEntries[numericEntries.length - 1] : null;
+        const inscriptionDate = firstLogin ? new Date(firstLogin) : null;
+        const mySetlists = (setlists || []).filter((sl) => Array.isArray(sl.profileIds) && sl.profileIds.includes(activeProfileId));
+        const myAiCacheCount = Object.keys(profile?.aiCache || {}).length;
+        // Compter les feedbacks dans song.feedback[] sur les morceaux que
+        // je joue (les feedbacks sont partagés cross-profil v1, on les
+        // compte tous sur les morceaux de mes setlists).
+        const mySongIds = new Set();
+        mySetlists.forEach((sl) => (sl.songIds || []).forEach((id) => mySongIds.add(id)));
+        const feedbackCount = (songDb || []).filter((s) => mySongIds.has(s.id)).reduce((acc, s) => acc + (Array.isArray(s.feedback) ? s.feedback.length : 0), 0);
+        // Customs créés : flatten customPacks + customGuitars
+        const customPresetsCount = (profile?.customPacks || []).reduce((acc, pk) => acc + (Array.isArray(pk.presets) ? pk.presets.length : 0), 0);
+        const customGuitarsCount = Array.isArray(profile?.customGuitars) ? profile.customGuitars.length : 0;
+        const stats = [
+          { label: t('mon-compte.stats-inscription', 'Inscription'), value: inscriptionDate ? inscriptionDate.toLocaleDateString(getLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—', icon: '📅' },
+          { label: t('mon-compte.stats-setlists', 'Setlists'), value: mySetlists.length, icon: '📋' },
+          { label: t('mon-compte.stats-analyses', 'Analyses IA'), value: myAiCacheCount, icon: '🤖' },
+          { label: t('mon-compte.stats-feedbacks', 'Feedbacks donnés'), value: feedbackCount, icon: '💬' },
+          { label: t('mon-compte.stats-custom-presets', 'Presets custom'), value: customPresetsCount, icon: '🎛️' },
+          { label: t('mon-compte.stats-custom-guitars', 'Guitares custom'), value: customGuitarsCount, icon: '🎸' },
+        ];
+        return (
+          <>
+            <hr style={{ border: 'none', borderTop: '1px solid var(--a10)', margin: '20px 0 16px 0' }}/>
+            <div style={sectionTitleStyle}>
+              <span>📊</span><span>{t('mon-compte.section-activity', 'Activité')}</span>
+            </div>
+            <div style={sectionIntroStyle}>{t('mon-compte.activity-intro', 'Tes stats sur Backline (read-only).')}</div>
+            <div style={cardStyle}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+                {stats.map((s, i) => (
+                  <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 4, background: 'var(--a3)', borderRadius: 'var(--r-md)', padding: '10px 12px' }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>{s.icon} {s.label}</div>
+                    <div style={{ fontSize: 18, color: 'var(--text-bright)', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{s.value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        );
+      })()}
+
+      {/* ─── Section 5 : 🤝 Communauté (partages reçus, Phase 7.73.2 Session C) ─── */}
+      {(() => {
+        // Setlists où je suis dans profileIds ET il y a d'autres profileIds
+        // (= setlist partagée avec moi par un autre user). v1 read-only.
+        const sharedWithMe = (setlists || []).filter((sl) => {
+          if (!Array.isArray(sl.profileIds)) return false;
+          if (!sl.profileIds.includes(activeProfileId)) return false;
+          return sl.profileIds.length > 1; // partagée avec d'autres
+        });
+        return (
+          <>
+            <hr style={{ border: 'none', borderTop: '1px solid var(--a10)', margin: '20px 0 16px 0' }}/>
+            <div style={sectionTitleStyle}>
+              <span>🤝</span><span>{t('mon-compte.section-community', 'Communauté')}</span>
+            </div>
+            <div style={sectionIntroStyle}>{t('mon-compte.community-intro', 'Setlists partagées avec toi par d\'autres profils.')}</div>
+            <div style={cardStyle}>
+              {sharedWithMe.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', padding: '8px 0' }}>
+                  {t('mon-compte.community-empty', 'Aucune setlist partagée avec toi pour le moment.')}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {sharedWithMe.map((sl) => {
+                    const otherIds = sl.profileIds.filter((id) => id !== activeProfileId);
+                    const otherNames = otherIds.map((id) => profiles?.[id]?.name || id).join(', ');
+                    return (
+                      <div key={sl.id} style={{ background: 'var(--a3)', borderRadius: 'var(--r-md)', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                        <div style={{ flex: 1, minWidth: 120 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{sl.name}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2 }}>
+                            {tFormat('mon-compte.shared-with', { count: (sl.songIds || []).length, others: otherNames }, '{count} morceaux · avec {others}')}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </>
+        );
+      })()}
+
+      {/* ─── Section 6 : 💬 Aide (Phase 7.73.2 Session C) ─── */}
+      <hr style={{ border: 'none', borderTop: '1px solid var(--a10)', margin: '20px 0 16px 0' }}/>
+      <div style={sectionTitleStyle}>
+        <span>💬</span><span>{t('mon-compte.section-help', 'Aide')}</span>
+      </div>
+      <div style={sectionIntroStyle}>{t('mon-compte.help-intro', 'Tutoriel, feedback et contact.')}</div>
+      <div style={cardStyle}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {/* Relancer le tutoriel (pattern footer existant Phase 1) */}
+          <button
+            onClick={() => {
+              if (typeof window.setShowOnboarding === 'function') window.setShowOnboarding(true);
+              else { const e = new CustomEvent('showOnboarding'); window.dispatchEvent(e); }
+            }}
+            style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}
+          >🎓 {t('mon-compte.help-relaunch-tutorial', 'Relancer le tutoriel d\'introduction')}</button>
+
+          {/* Feedback Tally (Phase 7.73.0) */}
+          <a
+            href={buildFeedbackUrl(profile?.name, (typeof window !== 'undefined' && window.__BACKLINE_APP_VERSION) || '')}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'none', textAlign: 'left' }}
+          >💬 {t('mon-compte.help-send-feedback', 'Envoyer un feedback à l\'équipe')}</a>
+
+          {/* Contact admin (mailto) */}
+          <a
+            href={`mailto:sebastien.chemin@gmail.com?subject=${encodeURIComponent(t('mon-compte.help-contact-subject', 'Backline — Question / suggestion'))}&body=${encodeURIComponent(t('mon-compte.help-contact-body', 'Salut Sébastien,\n\n[ton message]\n\n--\nProfil : ') + (profile?.name || '?') + '\nVersion : ' + ((typeof window !== 'undefined' && window.__BACKLINE_APP_VERSION) || '?'))}`}
+            style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'none', textAlign: 'left' }}
+          >📧 {t('mon-compte.help-contact-admin', 'Contacter Sébastien (admin)')}</a>
+        </div>
+
+        {/* Version (info read-only) */}
+        <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--a10)', fontSize: 10, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <span>{t('mon-compte.help-version-label', 'Version')} : <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{(typeof window !== 'undefined' && window.__BACKLINE_APP_VERSION) || '?'}</span></span>
+          <span style={{ color: 'var(--text-tertiary)' }}>·</span>
+          <span>{t('mon-compte.help-build-tag', 'Backline')}</span>
+        </div>
       </div>
     </div>
   );
