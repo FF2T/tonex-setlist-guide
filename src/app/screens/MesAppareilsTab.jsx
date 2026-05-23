@@ -483,11 +483,10 @@ function MesAppareilsTab({
                 fontSize: 11, color: 'var(--text-sec)',
                 display: 'flex', flexDirection: 'column', gap: 6,
               }}>
-                <LegendRow color={CURATION_COLORS.unknown}      label={t('curation-legend.unknown', '🔴 Inconnu — pas dans le catalog, scoring dégradé, pas de pin IA possible.')}/>
-                <LegendRow color={CURATION_COLORS.known}        label={t('curation-legend.known', '🟠 Connu non curé — dans le catalog, mais sans usages artiste/morceau. Scoring V9 OK, pas de pin direct.')}/>
-                <LegendRow color={CURATION_COLORS['curated-perso']}  label={t('curation-legend.curated-perso', '🔵 Curé perso — tu as enrichi ce preset (custom ou ToneNET) avec des usages.')}/>
-                <LegendRow color={CURATION_COLORS['curated-admin']}  label={t('curation-legend.curated-admin', '🟦 Curé admin — preset enrichi par Sébastien dans le catalog Backline (Factory, Anniversary, TSR, AA, JS, TJ, WT, Galtone, ML).')}/>
-                <LegendRow color={CURATION_COLORS['curated-studio']} label={t('curation-legend.curated-studio', '🟪 Curé studio — futur (Phase 11) : preset enrichi par son créateur (TSR, ML, etc.).')}/>
+                <LegendRow color={CURATION_COLORS.unknown}      label={t('curation-legend.unknown', 'Inconnu — pas dans le catalog, scoring dégradé, pas de pin IA possible.')}/>
+                <LegendRow color={CURATION_COLORS.known}        label={t('curation-legend.known', 'Connu non curé — dans le catalog, mais sans usages artiste/morceau. Scoring V9 OK, pas de pin direct.')}/>
+                <LegendRow color={CURATION_COLORS['curated-perso']}  label={t('curation-legend.curated-perso', 'Curé perso — tu as enrichi ce preset (custom ou ToneNET) avec des usages.')}/>
+                <LegendRow color={CURATION_COLORS['curated-admin']}  label={t('curation-legend.curated-admin', 'Curé admin — preset enrichi par Sébastien dans le catalog Backline (Factory, Anniversary, TSR, AA, JS, TJ, WT, Galtone, ML).')}/>
                 <div style={{ marginTop: 4, fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>
                   {t('curation-legend.tip', 'Astuce : clique sur une pastille pour voir ou éditer ses usages.')}
                 </div>
