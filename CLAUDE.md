@@ -761,153 +761,171 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-23 matin, Phase 7.73.2.2 — Fix Paranoid override post-V9 usages-match)
+## État actuel (2026-05-23 PM, Phase 7.73.2.3 + 7.73.2.4 — Paranoid fix via propagation V9-top + Légende pastilles curation)
 
-**Backline v8.14.179 / SW backline-v279 / STATE_VERSION 11 / 1567 tests verts.**
+**Backline v8.14.180 / SW backline-v280 / STATE_VERSION 11 / 1567 tests verts.**
 
-### Phase 7.73.2.2 — Override final usages-match dans enrichAIResult (v8.14.179)
+### Contexte — Diagnostic Paranoid affiné
 
-**Bug rapporté ce matin sur Paranoid** (Black Sabbath) :
-- **🎯 Recommandation idéale Preset** : `SupergroupBass_SM57_TB_full`
-  à 93%, ✓ installé en Bank 18C, source 🌐 ToneNET
-- **Meilleurs presets installés Anniversary** : `ORNG 120 Dimed`
-  à 92% en Bank 32C
+`SupergroupBass_SM57_TB_full` (utilisé par Sébastien sur Paranoid) est
+**présent dans `shared.toneNetPresets`** mais **sans usages tagués**
+(`getPresetCurationStatus()` retourne `'known'` → pastille orange brass
+en bank 18C). Donc Phase 7.73.2.2 (override final via
+`findSlotByUsageMatch`) ne fait RIEN sur ce cas — elle dépend des
+usages tagués pour matcher.
 
-Incohérence : le 93% installé devrait apparaître en top installé.
-ORNG 92% prend sa place. Le user perd la cohérence "voici le top
-installé pertinent".
+Le 93% Recommandation idéale vient du **catalog scan V9 pur** (good
+match Laney Supergroup sur ref_amp). Le 92% Meilleurs installés vient
+du pin Phase 7.52.5 sur ORNG 120 Dimed 32C (usages tagués Sabbath
+côté catalog Anniversary Premium).
 
-#### Cause racine identifiée
+### Phase 7.73.2.3 — Propagation V9-top vs usages-pin (remplace 7.73.2.2)
 
-`computeBestPresets` (`src/app/utils/ai-helpers.js:150-238`) calcule
-un scoring V9 pur (pickup + gainMatch + refAmp + styleMatch) **qui
-ignore les usages-match**. Le pin Phase 7.52.5 lignes 451-460 pose
-bien `preset_ann` sur le slot avec match usages... MAIS seulement si :
-- Match score 100 (full match titre + artist) → annPinnedByAI=true,
-  never-regress ne touche pas. OK.
-- Match score 50 (artist seul) ET `!annPinnedByAI` → pose mais
-  fragile : si l'IA pin un autre slot via `preset_ann_name`
-  (Phase 7.31), annPinnedByAI est déjà true → ce pin score 50
-  est SKIP.
-
-Le bloc "Meilleurs installés" rend `aiC.preset_ann` qui peut donc
-finir sur ORNG (V9 top) au lieu de SupergroupBass (usages-match
-score 50 skip).
-
-#### Fix livré — Override final post-V9
-
-Nouveau bloc dans `enrichAIResult` après le never-regress lignes
-517-524 :
+**Fix structurel** : si `best.annTop.score` (V9 réel du slot V9-top
+installé) > `preset_ann.score` (pin Phase 7.52.5 hardcoded 92/80) →
+propage le slot V9-top sur `preset_ann`. Couvre TOUS les cas H1
+(presets connus non tagués) sans dépendre de la curation user.
 
 ```js
-if (songArtist || songTitle || refGuitarist) {
-  const annUsageFinal = findSlotByUsageMatch(banksAnn, ...);
-  if (annUsageFinal && annUsageFinal.score >= 50
-      && aiResult.preset_ann?.label !== annUsageFinal.label) {
-    aiResult.preset_ann = {
-      bank, col, label, breakdown: null,
-      score: annUsageFinal.score === 100 ? 92 : 80,
-    };
-  }
-  // idem pour preset_plug
+if (best.annTop && best.annTop.score > (aiResult.preset_ann?.score || 0)) {
+  aiResult.preset_ann = {
+    bank: best.annTop.bank, col: best.annTop.col,
+    label: best.annTop.name,
+    score: best.annTop.score,
+    breakdown: best.annTop.breakdown || null,
+  };
 }
+// idem preset_plug avec best.plugTop
 ```
 
-**Logique** :
-- Cherche un slot installé avec usages match (artist + title ou
-  artist seul ou refGuitarist substring)
-- Si trouvé ET le current preset_ann ne pointe PAS déjà ce slot
-  → override (force le slot pertinent en top installé)
-- Score posé : 92 si match parfait (score 100), 80 si match artist
-  seul (score 50) — alignement avec convention Phase 7.52.5
-- Safe-by-design : si pas d'usages tagués (cas H1 = user n'a pas
-  configuré ses ToneNET), aucun match → no-op → aucune régression
+**Pourquoi Phase 7.31 (pin IA via preset_ann_name) reste protégée** :
+son pin pose `score = max(90, v9Score)`. Si v9Score réel ≥ 90 →
+best.annTop ne peut pas le dépasser → no-op. Si v9Score réel < 90
+(pin hardcoded à 90) ET best.annTop V9 > 90 → propage : l'IA s'est
+trompée, le V9 top est mieux.
 
-#### Tests Vitest Phase 7.73.2.2 (+6 tests)
+**Idempotent** : 2e appel → `best.annTop.score === preset_ann.score`
+(post-propagation) → strict `>` → no-op.
 
-`src/app/utils/ai-helpers.test.js` describe `enrichAIResult — Phase
-7.73.2.2 (override final usages-match)` :
+**Tests Vitest Phase 7.73.2.3 (+6 tests)** :
+1. **Scénario Paranoid** : ORNG pin Phase 7.52.5 à 92 (usages match
+   titre), SupergroupBass V9 réel > 92 grâce à ref_amp Laney exact →
+   propagation → preset_ann = SupergroupBass 18C.
+2. **Safe-by-design** : preset_ann = best.annTop déjà (single slot)
+   → no-op via strict `>`.
+3. **Phase 7.31 préservé avec V9 réel haut** : pin via preset_ann_name
+   posé à score ≥ 90 → best.annTop same slot → no-op.
+4. **Phase 7.31 V9 bas (pin hardcoded 90) + best.annTop > 90** :
+   propage (FAKE_PIN avec V9 30, SupergroupBass V9 95+ → écrase).
+5. **Idempotence** : 2e appel ne change pas preset_ann.
+6. **preset_plug** : propage aussi via best.plugTop.
 
-1. **Scénario Paranoid** : SupergroupBass installé en Bank 18C
-   avec usages Sabbath/Paranoid → override pose preset_ann sur
-   SupergroupBass à 92 même si ORNG aurait été le top V9.
-2. **Safe H1** : pas d'usages tagués sur SupergroupBass →
-   findSlotByUsageMatch ne match pas → override no-op → top V9
-   normal préservé (pas de régression).
-3. **Artist seul (pin déjà posé par Phase 7.52.5)** : pose à 92
-   d'entrée, override skip car label déjà identique.
-4. **Cas où override est utile** : preset_ann_name IA pin ORNG en
-   premier (annPinnedByAI=true), Phase 7.52.5 skip car score=50
-   ET pinned, override final ré-écrit sur SupergroupBass à 80.
-5. **Régression idempotence** : si preset_ann déjà SupergroupBass,
-   override skip (no-op).
-6. **preset_plug pas affecté si banksPlug vide**.
+### Phase 7.73.2.4 — Légende pastilles curation dans MesAppareilsTab
 
-### Architecture livrée Phase 7.73.2.2
+Le user a remonté que les couleurs de pastilles Phase 7.70 (rouge wine
+/ orange brass / bleu clair / bleu moyen) ne sont pas explicitées dans
+l'UI — tooltip hover existe mais peu pratique sur mobile.
+
+Nouveau bloc collapsable dans **Mon Profil → 📱 Mes appareils** sous
+la phrase "Banks et patches de tes N appareil(s) activé(s)" :
 
 ```
-src/main.jsx                            APP_VERSION 8.14.178 → 8.14.179
-public/sw.js                            CACHE backline-v278 → backline-v279
-src/app/utils/ai-helpers.js             enrichAIResult : +bloc override
-                                          final usages-match après
-                                          never-regress lignes 517-524.
-                                          Re-appel findSlotByUsageMatch
-                                          (banksAnn + banksPlug). Override
-                                          si match >= 50 ET label différent.
-                                          Score posé 92 (match 100) ou 80
-                                          (match 50).
-src/app/utils/ai-helpers.test.js        +6 tests Phase 7.73.2.2 :
-                                          scenario Paranoid, safe H1,
-                                          artist-only, IA preset_ann_name
-                                          écrasé, idempotence, plug vide.
+▼ Légende des pastilles de curation       (collapsée par défaut)
+
+[expand]
+🔴 Inconnu — pas dans le catalog, scoring dégradé, pas de pin IA possible
+🟠 Connu non curé — dans le catalog, mais sans usages artiste/morceau
+🔵 Curé perso — tu as enrichi ce preset (custom ou ToneNET) avec des usages
+🟦 Curé admin — preset enrichi par Sébastien dans le catalog Backline
+🟪 Curé studio — futur (Phase 11) : enrichi par son créateur
+
+Astuce : clique sur une pastille pour voir ou éditer ses usages.
 ```
 
-### Conséquences
+Composant `LegendRow` inline (10px dot coloré via `CURATION_COLORS` +
+label texte). 7 nouvelles clés i18n FR/EN/ES (`curation-legend.*`).
+Trilingue dès J0.
 
-- **1567/1567 tests verts** (+6 nouveaux Phase 7.73.2.2).
-- Bundle 2612 → 2613 KB (~stable, +0.4 KB pour bloc + tests).
+### Architecture livrée Phase 7.73.2.3 + 7.73.2.4
+
+```
+src/main.jsx                            APP_VERSION 8.14.179 → 8.14.180
+public/sw.js                            CACHE backline-v279 → backline-v280
+src/app/utils/ai-helpers.js             Phase 7.73.2.3 : remplace le bloc
+                                          Phase 7.73.2.2 par propagation
+                                          V9-top vs usages-pin. Plus simple,
+                                          plus robuste, indépendant des
+                                          usages tagués.
+src/app/utils/ai-helpers.test.js        Phase 7.73.2.3 : 6 tests adaptés
+                                          (scénario Paranoid avec ref_amp
+                                          Laney + target_gain 9 pour V9
+                                          réel > 92, Phase 7.31 préservé,
+                                          FAKE_PIN propagation, idempotence,
+                                          plug).
+src/app/screens/MesAppareilsTab.jsx     +import CURATION_COLORS
+                                        +state legendOpen
+                                        +composant LegendRow inline
+                                        +bloc légende collapsable sous
+                                          "Banks et patches de tes N
+                                          appareil(s) activé(s)"
+src/i18n/en.js, es.js                   +7 clés curation-legend.* (title,
+                                          unknown, known, curated-perso/
+                                          admin/studio, tip) × 2 langues
+```
+
+### Conséquences Phase 7.73.2.3 + 7.73.2.4
+
+- **1567/1567 tests verts** (6 tests Phase 7.73.2.2 remplacés par 6
+  tests Phase 7.73.2.3, count inchangé).
+- Bundle 2613 → 2616 KB (+3 KB pour légende + i18n + nouveaux tests).
 - **Pas de bump STATE_VERSION**, pas de migration.
-- **Effet** au prochain `enrichAIResult` (mount fiche song ou
-  re-fetch IA) : si un slot installé matche les usages du morceau,
-  il apparaît correctement dans le bloc "Meilleurs presets
-  installés".
-- Cas H1 (user n'a pas tagué ToneNET avec usages) : comportement
-  inchangé — fallback V9 normal. Pas de régression.
-- Cas H3 (usages tagués mais pin écrasé) : fix opérationnel.
+- **Effet** au prochain render `enrichAIResult` (mount fiche song ou
+  re-fetch) : si `best.annTop` V9 réel > `preset_ann.score` actuel,
+  le slot V9-top installé est propagé automatiquement, sans
+  dépendance aux usages tagués.
 
 ### Validation post-déploiement attendue
 
-1. Reload PWA → `v8.14.179`
+1. Reload PWA → `v8.14.180`
 2. Ouvrir Paranoid :
-   - Vérifier d'abord si SupergroupBass est tagué côté ToneNET
-     (Mon Profil → ⚙️ Admin → 🌐 ToneNET → chercher
-     SupergroupBass_SM57_TB_full → champ usages)
-   - **Si usages présent (artist Black Sabbath)** :
-     ✅ Le bloc "Meilleurs presets installés Anniversary" doit
-     maintenant afficher **SupergroupBass** en top (avec score 92)
-     au lieu de ORNG 120 (92).
-   - **Si usages absent** :
-     - Tagger via le tab ToneNET (Phase 7.53 UI) : `usages: [{artist:
-       "Black Sabbath", songs: ["Paranoid", ...]}]`
-     - Reload → vérifier que l'override fonctionne avec le nouveau
-       tag
-3. Régression check sur autres morceaux :
-   - Hells Bells (AC/DC) → top installé inchangé (AA MRSH JT50)
-   - For Whom the Bell Tolls Bruno → Kirk & James 48A inchangé
-   - Under Pressure → preset Brian May custom inchangé
+   - ✅ "Meilleurs presets installés Anniversary" affiche maintenant
+     **SupergroupBass 18C** avec son score V9 réel (probablement
+     93+ grâce à ref_amp Laney match).
+   - ORNG 120 Dimed 32C est désormais relégué (best.annTop V9 < SupergroupBass).
+3. Mon Profil → 📱 Mes appareils :
+   - ✅ Sous "Banks et patches de tes N appareil(s) activé(s) :"
+     apparaît un toggle "▼ Légende des pastilles de curation"
+   - Click → révèle les 5 couleurs avec labels explicits + astuce
+     "clique sur une pastille pour voir ou éditer ses usages"
+4. Régression check :
+   - Hells Bells (AC/DC) → top installé inchangé (AA MRSH JT50, usages
+     Sabbath/AC/DC dans Anniversary Premium, V9 réel > 92).
+   - Sur les autres morceaux, le bloc "Meilleurs installés" est
+     désormais cohérent avec "Recommandation idéale" (même top quand
+     le top catalog est installé).
 
-### Dette résiduelle Phase 7.73.2.2
+### Dette résiduelle Phase 7.73.2.3 + 7.73.2.4
 
-- **Phase 11 long terme** : enrichissement Studio-driven avec
-  `tone_profile` per-capture permettra à terme de pré-tagger les
-  usages des packs commerciaux sans effort user. Cf section
+- **Trade-off** : si l'IA Gemini pin un slot via `preset_ann_name`
+  avec un V9 réel bas (rare), Phase 7.73.2.3 va écraser ce pin si
+  best.annTop a un V9 réel > 90. Comportement souhaité (le V9 top
+  est probablement plus juste qu'une IA qui s'est trompée) mais à
+  surveiller si feedback contraire d'un beta-tester.
+- **`computeBestPresets` reste pur V9** : non touché. Si signal user
+  qu'on veut un scoring intégré usages-bonus dans le scoring lui-même
+  (au lieu d'override), Phase 7.73.2.5 future étendrait
+  `computeBestPresets` avec params song.artist/title + secondary
+  sort usageBonus. Plus invasif.
+- **Phase 11 long terme** : enrichissement Studio-driven
+  (`tone_profile` per-capture) permettra de pré-tagger automatiquement
+  les usages des packs commerciaux sans effort user. Cf section
   "Idées en attente" Phase 11.
-- **`computeBestPresets` reste pur V9** : non touché Phase 7.73.2.2.
-  Si on veut un scoring intégré usages au lieu d'un override,
-  Phase 7.73.2.3 future étendrait `computeBestPresets` avec params
-  song.artist/title + refGuitarist + secondary sort usageBonus.
-  Plus invasif, à ne faire que si signal user que l'override
-  current n'est pas suffisant.
+- **Quick win user immédiat** : tagger `SupergroupBass_SM57_TB_full`
+  via Mon Profil → ⚙️ Admin → 🌐 ToneNET avec `usages: [{artist:
+  "Black Sabbath", songs: ["Paranoid", "Iron Man", "War Pigs",
+  "N.I.B."]}]` → pastille passe orange → bleu clair + pin direct
+  Phase 7.52.5 → cohérence renforcée même si Phase 7.73.2.3 le
+  couvrait déjà via propagation V9.
 
 ---
 

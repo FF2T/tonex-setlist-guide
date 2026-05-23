@@ -813,44 +813,48 @@ describe('computeRigSnapshot (Phase 5.10.2 + 7.81 scope profil actif)', () => {
   });
 });
 
-// Phase 7.73.2.2 (2026-05-23) — Override final usages-match dans
-// enrichAIResult. Cas Paranoid (Black Sabbath) :
+// Phase 7.73.2.3 (2026-05-23) — Propagation V9-top vs usages-pin.
 //
-// Le bloc "🎯 Recommandation idéale Preset" affichait SupergroupBass à
-// 93% (best.idealTop catalog scan V9) en Bank 18C. Le bloc "Meilleurs
-// presets installés" affichait ORNG 120 Dimed à 92% en Bank 32C.
-// Incohérence : SupergroupBass est installé et meilleur que ORNG, mais
-// `computeBestPresets` (V9 pur) ne sait pas que SupergroupBass a
-// usages-match Sabbath/Paranoid.
+// Cas Paranoid (Black Sabbath) :
+//   - findSlotByUsageMatch Phase 7.52.5 pin preset_ann sur ORNG 32C à 92
+//     (ORNG a usages tagués Black Sabbath dans Anniversary Premium)
+//   - Le never-regress est gated par !annPinnedByAI → ORNG préservé
+//   - Mais best.annTop V9 pur = SupergroupBass 18C à 93+ (V9 réel via
+//     ref_amp Laney Supergroup match parfait)
+//   - SupergroupBass apparaît 93% dans "Recommandation idéale Preset"
+//     (best.idealTop catalog) mais "Meilleurs installés" affiche ORNG 92
+//     → incohérence visuelle
 //
-// Fix : après le never-regress lignes 517-524, on relance
-// findSlotByUsageMatch et override preset_ann/preset_plug si match
-// >= 50 ET label différent. Safe-by-design : no-op si pas d'usages
-// tagués (cas H1 = user n'a pas tagué le ToneNET).
-describe('enrichAIResult — Phase 7.73.2.2 (override final usages-match)', () => {
+// Fix : après le never-regress, si best.annTop V9 score > preset_ann.score,
+// propage. Phase 7.31 (pin via preset_ann_name de l'IA) reste protégée
+// car son score min est 90 — si v9Score réel ≥ 90, best.annTop ne peut
+// pas le dépasser.
+describe('enrichAIResult — Phase 7.73.2.3 (propagation V9-top)', () => {
   const TONENET_SUPERGROUP = 'SupergroupBass_SM57_TB_full';
   const FACTORY_ORNG = 'AA ORNG 120 Dimed BAL CAB';
   const seededKeys = [TONENET_SUPERGROUP, FACTORY_ORNG];
 
   beforeEach(() => {
-    // SupergroupBass : ToneNET tagué Sabbath/Paranoid
+    // SupergroupBass : Laney Supergroup match parfait ref_amp + scores HB
+    // élevés → V9 > 92 sur SG Ebony HB.
     PRESET_CATALOG_MERGED[TONENET_SUPERGROUP] = {
       src: 'ToneNET',
       amp: 'Laney Supergroup',
       gain: 'high',
       style: 'hard_rock',
-      scores: { HB: 85, SC: 60, P90: 75 },
-      usages: [
-        { artist: 'Black Sabbath', songs: ['Paranoid', 'Iron Man', 'War Pigs'] },
-      ],
+      scores: { HB: 99, SC: 50, P90: 80 },
     };
-    // ORNG : Anniversary Factory générique sans usages spécifiques
+    // ORNG : Anniversary Factory avec usages Sabbath (Phase 7.52.5 pin à 92
+    // hardcoded). refAmp Orange match faible vs Laney → V9 < 92.
     PRESET_CATALOG_MERGED[FACTORY_ORNG] = {
       src: 'Anniversary',
       amp: 'Orange OR120',
       gain: 'high',
       style: 'hard_rock',
-      scores: { HB: 90, SC: 55, P90: 70 },
+      scores: { HB: 70, SC: 55, P90: 65 },
+      usages: [
+        { artist: 'Black Sabbath', songs: ['Paranoid', 'Iron Man', 'War Pigs'] },
+      ],
     };
   });
 
@@ -858,51 +862,50 @@ describe('enrichAIResult — Phase 7.73.2.2 (override final usages-match)', () =
     for (const k of seededKeys) delete PRESET_CATALOG_MERGED[k];
   });
 
-  it('scénario Paranoid : SupergroupBass installé avec usages match → override ORNG V9 top', () => {
-    // Setup : SupergroupBass en 18C (Anniversary), ORNG en 32C.
-    // Hypothèse H3 : computeBestPresets sort ORNG en best.annTop (V9 pur
-    // sans usages-match). Le fix override final doit substituer
-    // SupergroupBass.
+  it('scénario Paranoid : ORNG pin Phase 7.52.5 à 92, SupergroupBass V9 plus haut → propagation', () => {
+    // Setup : ORNG en 32C (pin Phase 7.52.5 via usages match titre exact
+    // → score 92 hardcoded, annPinnedByAI=true → never-regress skip).
+    // SupergroupBass en 18C avec V9 réel > 92 grâce à refAmp Laney match.
     const banksAnn = {
       18: { A: '', B: '', C: TONENET_SUPERGROUP },
       32: { A: '', B: '', C: FACTORY_ORNG },
     };
     const aiResult = {
       song_style: 'hard_rock',
-      target_gain: 6,
+      target_gain: 9, // gain match perfect pour 'high'
+      ref_amp: 'Laney Supergroup', // SupergroupBass refAmp = 100, ORNG = 40 (school)
       ref_guitar: 'Gibson SG',
-      ref_artist: 'Black Sabbath',
-      song_title: 'Paranoid',
-      // Pas de preset_ann_name de l'IA (laisser le scoring local trancher)
     };
     const out = enrichAIResult(
       aiResult,
       'HB',
       'sg_ebony',
       banksAnn,
-      {}, // banksPlug vide
-      undefined, // availableSources
-      { artist: 'Black Sabbath', title: 'Paranoid' }, // song
+      {},
+      undefined,
+      { artist: 'Black Sabbath', title: 'Paranoid' },
     );
-    // Le preset_ann doit pointer sur SupergroupBass (Bank 18C) via override,
-    // pas sur ORNG (Bank 32C) que computeBestPresets aurait préféré V9-pur.
+    // Phase 7.52.5 pose ORNG à 92 d'abord (usages match titre Paranoid).
+    // Phase 7.73.2.3 voit que best.annTop = SupergroupBass V9 > 92 →
+    // propage. preset_ann doit pointer sur SupergroupBass.
     expect(out.preset_ann).toBeTruthy();
     expect(out.preset_ann.label).toBe(TONENET_SUPERGROUP);
     expect(out.preset_ann.bank).toBe(18);
     expect(out.preset_ann.col).toBe('C');
-    expect(out.preset_ann.score).toBe(92); // score 100 → 92 (convention Phase 7.52.5)
+    expect(out.preset_ann.score).toBeGreaterThan(92);
   });
 
-  it('safe-by-design H1 : pas d\'usages tagués sur SupergroupBass → fallback V9 (no-op)', () => {
-    // Suppression usages pour simuler H1 (user n'a pas tagué le ToneNET)
-    delete PRESET_CATALOG_MERGED[TONENET_SUPERGROUP].usages;
+  it('safe-by-design : preset_ann actuel déjà == best.annTop → no-op', () => {
+    // Si Phase 7.52.5 ne match pas (pas d'usages), le never-regress
+    // (sans gate) propage best.annTop. preset_ann.score === best.annTop.score
+    // → Phase 7.73.2.3 condition strict ">" → no-op.
+    delete PRESET_CATALOG_MERGED[FACTORY_ORNG].usages;
     const banksAnn = {
       18: { A: '', B: '', C: TONENET_SUPERGROUP },
-      32: { A: '', B: '', C: FACTORY_ORNG },
     };
     const aiResult = {
       song_style: 'hard_rock',
-      target_gain: 6,
+      ref_amp: 'Laney Supergroup',
       ref_guitar: 'Gibson SG',
     };
     const out = enrichAIResult(
@@ -914,89 +917,23 @@ describe('enrichAIResult — Phase 7.73.2.2 (override final usages-match)', () =
       undefined,
       { artist: 'Black Sabbath', title: 'Paranoid' },
     );
-    // Sans usages, findSlotByUsageMatch ne match pas → preset_ann reste
-    // le top V9 (probablement ORNG ou SupergroupBass selon ref_amp).
-    // L'override ne change rien. Pas de régression.
-    expect(out.preset_ann).toBeTruthy();
-    // Le label peut être l'un OU l'autre, l'important est que l'override
-    // n'a pas forcé une mauvaise valeur.
-    expect([TONENET_SUPERGROUP, FACTORY_ORNG]).toContain(out.preset_ann.label);
-  });
-
-  it('usages artist seul (pas de title match) → pin Phase 7.52.5 pose 92 d\'abord, override skip', () => {
-    // Modifier les usages pour avoir artist match seulement (pas Paranoid
-    // dans songs, mais Black Sabbath bien présent). Le pin Phase 7.52.5
-    // lignes 451-460 hardcoder score: 92 même pour match score 50.
-    // L'override final ne re-stamp pas car label déjà identique.
-    PRESET_CATALOG_MERGED[TONENET_SUPERGROUP].usages = [
-      { artist: 'Black Sabbath' }, // pas de songs[]
-    ];
-    const banksAnn = {
-      18: { A: '', B: '', C: TONENET_SUPERGROUP },
-      32: { A: '', B: '', C: FACTORY_ORNG },
-    };
-    const aiResult = {
-      song_style: 'hard_rock',
-      target_gain: 6,
-      ref_guitar: 'Gibson SG',
-    };
-    const out = enrichAIResult(
-      aiResult,
-      'HB',
-      'sg_ebony',
-      banksAnn,
-      {},
-      undefined,
-      { artist: 'Black Sabbath', title: 'Paranoid' },
-    );
-    // Phase 7.52.5 pose à 92 d'entrée (hardcoded). Override skip car
-    // label déjà === SupergroupBass. Pas de re-stamp à 80.
+    // preset_ann = SupergroupBass (single slot installé) via never-regress.
+    // Phase 7.73.2.3 voit annTop.score === preset_ann.score → no-op.
     expect(out.preset_ann.label).toBe(TONENET_SUPERGROUP);
-    expect(out.preset_ann.score).toBe(92);
   });
 
-  it('cas où override est utile : preset_ann_name IA pin autre slot + usages match SupergroupBass score 50', () => {
-    // Phase 7.31 : l'IA retourne preset_ann_name = ORNG → pin ORNG +
-    // annPinnedByAI=true. Phase 7.52.5 lignes 451-460 voit
-    // findSlotByUsageMatch.score=50 mais annPinnedByAI=true → skip
-    // (condition score===100 || !pinned). Donc preset_ann reste ORNG.
-    // Override final voit annUsageFinal !== ORNG → override avec 80.
-    PRESET_CATALOG_MERGED[TONENET_SUPERGROUP].usages = [
-      { artist: 'Black Sabbath' }, // pas de songs Paranoid → score 50
-    ];
-    const banksAnn = {
-      18: { A: '', B: '', C: TONENET_SUPERGROUP },
-      32: { A: '', B: '', C: FACTORY_ORNG },
-    };
-    const aiResult = {
-      song_style: 'hard_rock',
-      target_gain: 6,
-      ref_guitar: 'Gibson SG',
-      preset_ann_name: FACTORY_ORNG, // L'IA pin ORNG d'abord
-    };
-    const out = enrichAIResult(
-      aiResult,
-      'HB',
-      'sg_ebony',
-      banksAnn,
-      {},
-      undefined,
-      { artist: 'Black Sabbath', title: 'Paranoid' },
-    );
-    // L'override final ré-écrit preset_ann sur SupergroupBass à 80 (score 50)
-    expect(out.preset_ann.label).toBe(TONENET_SUPERGROUP);
-    expect(out.preset_ann.score).toBe(80);
-  });
-
-  it('régression : si preset_ann était DÉJÀ SupergroupBass, l\'override ne re-stamp pas', () => {
-    // Le pin Phase 7.52.5 lignes 451-460 pose déjà preset_ann sur
-    // SupergroupBass. L'override final voit que label === label et skip.
+  it('Phase 7.31 pin via preset_ann_name avec V9 réel haut → préservé', () => {
+    // L'IA pin SupergroupBass via preset_ann_name → score = max(90, V9 réel).
+    // Si V9 réel = 95, pin à 95. best.annTop V9 = même score (same slot)
+    // → Phase 7.73.2.3 strict ">" → no-op.
     const banksAnn = {
       18: { A: '', B: '', C: TONENET_SUPERGROUP },
     };
     const aiResult = {
       song_style: 'hard_rock',
+      ref_amp: 'Laney Supergroup',
       ref_guitar: 'Gibson SG',
+      preset_ann_name: TONENET_SUPERGROUP, // L'IA pin explicitement
     };
     const out = enrichAIResult(
       aiResult,
@@ -1008,27 +945,113 @@ describe('enrichAIResult — Phase 7.73.2.2 (override final usages-match)', () =
       { artist: 'Black Sabbath', title: 'Paranoid' },
     );
     expect(out.preset_ann.label).toBe(TONENET_SUPERGROUP);
-    expect(out.preset_ann.score).toBe(92);
+    // Score min 90 par convention Phase 7.31
+    expect(out.preset_ann.score).toBeGreaterThanOrEqual(90);
   });
 
-  it('override ne touche pas preset_plug si banksPlug vide', () => {
+  it('Phase 7.31 pin avec V9 bas (90 hardcoded) + best.annTop autre slot V9 > 90 → propage', () => {
+    // Phase 7.31 pin un slot avec un V9 réel bas (ex 70) → posé à 90 hardcoded.
+    // best.annTop V9 réel sur un autre slot > 90 → Phase 7.73.2.3 propage.
+    // Le pin IA est écrasé : l'IA s'est trompée, le V9 top est mieux.
+    //
+    // Setup : SupergroupBass 18C (V9 ~95 avec ref_amp Laney match).
+    // FAKE_PIN 25A : un preset bidon avec V9 bas mais nommé par l'IA.
+    PRESET_CATALOG_MERGED['FAKE_PIN_LOW_V9'] = {
+      src: 'Anniversary',
+      amp: 'Fender Princeton', // refAmp Laney match ~30
+      gain: 'low',              // gain mismatch contre target=6
+      style: 'blues',           // style mismatch contre hard_rock
+      scores: { HB: 50, SC: 80, P90: 65 }, // pickup bas pour HB
+    };
     const banksAnn = {
       18: { A: '', B: '', C: TONENET_SUPERGROUP },
+      25: { A: 'FAKE_PIN_LOW_V9', B: '', C: '' },
     };
     const aiResult = {
       song_style: 'hard_rock',
+      target_gain: 9,
+      ref_amp: 'Laney Supergroup',
       ref_guitar: 'Gibson SG',
+      preset_ann_name: 'FAKE_PIN_LOW_V9', // L'IA s'est trompée
     };
     const out = enrichAIResult(
       aiResult,
       'HB',
       'sg_ebony',
       banksAnn,
-      {}, // banksPlug vide
+      {},
       undefined,
       { artist: 'Black Sabbath', title: 'Paranoid' },
     );
-    expect(out.preset_plug == null || out.preset_plug?.label !== TONENET_SUPERGROUP).toBe(true);
+    delete PRESET_CATALOG_MERGED['FAKE_PIN_LOW_V9'];
+    // SupergroupBass V9 doit dépasser 90 (pin hardcoded de FAKE) → propage.
+    expect(out.preset_ann.label).toBe(TONENET_SUPERGROUP);
+    expect(out.preset_ann.score).toBeGreaterThan(90);
+  });
+
+  it('idempotence : 2e appel sur même aiResult ne change pas preset_ann', () => {
+    const banksAnn = {
+      18: { A: '', B: '', C: TONENET_SUPERGROUP },
+      32: { A: '', B: '', C: FACTORY_ORNG },
+    };
+    const aiResult = {
+      song_style: 'hard_rock',
+      target_gain: 9,
+      ref_amp: 'Laney Supergroup',
+      ref_guitar: 'Gibson SG',
+    };
+    const out1 = enrichAIResult(
+      aiResult,
+      'HB',
+      'sg_ebony',
+      banksAnn,
+      {},
+      undefined,
+      { artist: 'Black Sabbath', title: 'Paranoid' },
+    );
+    const score1 = out1.preset_ann.score;
+    const label1 = out1.preset_ann.label;
+    // 2e appel : Phase 7.73.2.3 voit annTop.score === preset_ann.score
+    // (déjà propagé au 1er appel) → no-op.
+    const out2 = enrichAIResult(
+      out1,
+      'HB',
+      'sg_ebony',
+      banksAnn,
+      {},
+      undefined,
+      { artist: 'Black Sabbath', title: 'Paranoid' },
+    );
+    expect(out2.preset_ann.label).toBe(label1);
+    expect(out2.preset_ann.score).toBe(score1);
+  });
+
+  it('preset_plug propage aussi via best.plugTop', () => {
+    const banksPlug = {
+      4: { A: '', B: '', C: TONENET_SUPERGROUP },
+      8: { A: '', B: '', C: FACTORY_ORNG },
+    };
+    const aiResult = {
+      song_style: 'hard_rock',
+      target_gain: 9,
+      ref_amp: 'Laney Supergroup',
+      ref_guitar: 'Gibson SG',
+    };
+    const out = enrichAIResult(
+      aiResult,
+      'HB',
+      'sg_ebony',
+      {}, // banksAnn vide
+      banksPlug,
+      undefined,
+      { artist: 'Black Sabbath', title: 'Paranoid' },
+    );
+    // ORNG pin Phase 7.52.5 sur preset_plug à 92, propagation V9-top
+    // (SupergroupBass) dépasse → preset_plug devient SupergroupBass.
+    expect(out.preset_plug).toBeTruthy();
+    expect(out.preset_plug.label).toBe(TONENET_SUPERGROUP);
+    expect(out.preset_plug.bank).toBe(4);
+    expect(out.preset_plug.score).toBeGreaterThan(92);
   });
 });
 

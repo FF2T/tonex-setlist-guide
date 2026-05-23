@@ -522,57 +522,51 @@ function enrichAIResult(aiResult, gType, gId, banksAnn, banksPlug, availableSour
     const newPlug = { bank: best.plugTop.bank, col: best.plugTop.col, label: best.plugTop.name, score: best.plugTop.score, breakdown: best.plugTop.breakdown || null };
     if (!aiResult.preset_plug || newPlug.score >= (aiResult.preset_plug.score || 0)) aiResult.preset_plug = newPlug;
   }
-  // Phase 7.73.2.2 (2026-05-23) — Override final usages-match.
+  // Phase 7.73.2.3 (2026-05-23) — Propagation V9-top vs usages-pin.
   //
-  // Cas observé sur Paranoid (Black Sabbath) : le bloc "Recommandation
-  // idéale Preset" affiche SupergroupBass_SM57_TB_full à 93% (best.idealTop
-  // catalog scan V9), mais le bloc "Meilleurs presets installés" affiche
-  // ORNG 120 Dimed à 92% (best.annTop V9 pur). Incohérence visuelle alors
-  // que SupergroupBass EST installé en Bank 18C.
+  // Cas observé sur Paranoid (Black Sabbath, SG Ebony) :
+  //   - findSlotByUsageMatch Phase 7.52.5 pin preset_ann sur ORNG 32C à 92
+  //     (ORNG a usages tagués Black Sabbath dans Anniversary Premium)
+  //   - Le never-regress ci-dessus est gated par `!annPinnedByAI` → ORNG
+  //     préservé
+  //   - Mais best.annTop V9 pur = SupergroupBass 18C à 93 (V9 réel : Laney
+  //     Supergroup match parfait sur ref_amp Sabbath, plus haut que ORNG
+  //     Orange OR120 match faible)
+  //   - SupergroupBass apparaît dans "Recommandation idéale Preset" à 93
+  //     (best.idealTop catalog) mais "Meilleurs installés" affiche ORNG 92
+  //     → incohérence visuelle
   //
-  // Cause : computeBestPresets ignore les usages-match. Le pin Phase 7.52.5
-  // au-dessus (lignes 451-460) POSE bien preset_ann sur SupergroupBass SI
-  // les usages sont tagués Sabbath/Paranoid, mais le never-regress
-  // ci-dessus est gated par `!annPinnedByAI`. Donc :
-  //   - Si findSlotByUsageMatch a match (score 100 → annPinnedByAI=true)
-  //     → never-regress skip → preset_ann préservé. OK.
-  //   - Si findSlotByUsageMatch a match score 50 ET annPinnedByAI déjà
-  //     true (preset_ann_name de l'IA Phase 7.31) → le pin original
-  //     survit, pas le slot usages-match. Cas Paranoid pas couvert.
+  // Cause : Phase 7.52.5 hardcode score 92 (ou 80 pour match artist seul),
+  // sans rapport avec le V9 réel du slot. Si le V9 réel d'un autre slot est
+  // plus haut, il devrait gagner — l'usages-match n'est qu'un soft pin.
   //
-  // Cet override final relance findSlotByUsageMatch et écrase preset_ann
-  // si :
-  //   1. un slot installé matche l'artiste/morceau ET
-  //   2. le label actuel preset_ann est DIFFÉRENT de ce slot
+  // Fix structurel : si best.annTop V9 score > preset_ann.score actuel,
+  // propage le slot V9-top. Couvre TOUS les cas H1 (presets connus non
+  // tagués) sans dépendre de la curation user. Phase 7.31 (pin via
+  // preset_ann_name explicite de l'IA) reste protégée car son score est
+  // `Math.max(90, v9Score)` — si v9Score réel ≥ 90, best.annTop ne peut
+  // pas le dépasser. Si v9Score réel < 90 (pin posé à 90 hardcoded) et
+  // best.annTop > 90, on propage : l'IA s'est trompée, le V9 top est mieux.
   //
-  // Safe-by-design : si pas de match (cas H1 = pas de tag user), no-op.
-  // Si match, force le slot installé pertinent à apparaître dans le bloc
-  // "Meilleurs presets installés". Score posé à 92 (match 100) ou 80
-  // (match 50) — alignement avec la convention findSlotByUsageMatch
-  // initiale lignes 451-460.
-  if (songArtist || songTitle || refGuitarist) {
-    const annUsageFinal = findSlotByUsageMatch(banksAnn, songArtist, songTitle, refGuitarist);
-    if (annUsageFinal && (annUsageFinal.score >= 50)
-        && aiResult.preset_ann?.label !== annUsageFinal.label) {
-      aiResult.preset_ann = {
-        bank: annUsageFinal.bank,
-        col: annUsageFinal.col,
-        label: annUsageFinal.label,
-        score: annUsageFinal.score === 100 ? 92 : 80,
-        breakdown: null,
-      };
-    }
-    const plugUsageFinal = findSlotByUsageMatch(banksPlug, songArtist, songTitle, refGuitarist);
-    if (plugUsageFinal && (plugUsageFinal.score >= 50)
-        && aiResult.preset_plug?.label !== plugUsageFinal.label) {
-      aiResult.preset_plug = {
-        bank: plugUsageFinal.bank,
-        col: plugUsageFinal.col,
-        label: plugUsageFinal.label,
-        score: plugUsageFinal.score === 100 ? 92 : 80,
-        breakdown: null,
-      };
-    }
+  // Idempotent et safe : si best.annTop.score <= preset_ann.score → no-op
+  // (cas majoritaire post-never-regress sur cas H1).
+  if (best.annTop && best.annTop.score > (aiResult.preset_ann?.score || 0)) {
+    aiResult.preset_ann = {
+      bank: best.annTop.bank,
+      col: best.annTop.col,
+      label: best.annTop.name,
+      score: best.annTop.score,
+      breakdown: best.annTop.breakdown || null,
+    };
+  }
+  if (best.plugTop && best.plugTop.score > (aiResult.preset_plug?.score || 0)) {
+    aiResult.preset_plug = {
+      bank: best.plugTop.bank,
+      col: best.plugTop.col,
+      label: best.plugTop.name,
+      score: best.plugTop.score,
+      breakdown: best.plugTop.breakdown || null,
+    };
   }
   if (best.idealTop) {
     if (!aiResult.ideal_preset || best.idealTop.score >= (aiResult.ideal_preset_score || 0)) {

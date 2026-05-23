@@ -84,6 +84,15 @@ const en = {
   'common.footer-disclaimer': 'Independent tool — ToneX™ is a trademark of IK Multimedia SpA. Other mentioned trademarks belong to their respective owners.',
   'common.footer-pathtotone': 'PathToTone publishes Backline.',
 
+  // curation legend (Phase 7.73.2.4)
+  'curation-legend.title': 'Curation dot legend',
+  'curation-legend.unknown': '🔴 Unknown — not in the catalog, scoring degraded, no AI pin possible.',
+  'curation-legend.known': '🟠 Known but not curated — in the catalog, but no artist/song usages. V9 scoring OK, no direct pin.',
+  'curation-legend.curated-perso': '🔵 Personally curated — you enriched this preset (custom or ToneNET) with usages.',
+  'curation-legend.curated-admin': '🟦 Admin curated — preset enriched by Sébastien in the Backline catalog (Factory, Anniversary, TSR, AA, JS, TJ, WT, Galtone, ML).',
+  'curation-legend.curated-studio': '🟪 Studio curated — future (Phase 11): preset enriched by its creator (TSR, ML, etc.).',
+  'curation-legend.tip': 'Tip: click on a dot to view or edit its usages.',
+
   // devices
   'devices.hint': 'Check the devices you use. The Recap and Synthesis blocks will only display those. At least one device must remain checked.',
   'devices.title': 'My audio devices',

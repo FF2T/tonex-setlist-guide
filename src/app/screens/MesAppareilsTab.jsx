@@ -22,7 +22,7 @@ import { FACTORY_BANKS_PEDALE_V1, FACTORY_BANKS_PEDALE_V2 } from '../../devices/
 import { FACTORY_BANKS_ANNIVERSARY } from '../../devices/tonex-anniversary/index.js';
 import { FACTORY_BANKS_PLUG } from '../../devices/tonex-plug/index.js';
 import { detectUnknownsInBanks, detectAllNonCurated, applyResolutionsToBanks } from '../../core/preset-curation.js';
-import { PRESET_CATALOG_MERGED, normalizePresetName } from '../../core/catalog.js';
+import { PRESET_CATALOG_MERGED, normalizePresetName, CURATION_COLORS } from '../../core/catalog.js';
 
 // Phase 7.75 — Factory : callback pour push les "ajouter custom" depuis
 // la modale presets inconnus (CSV import) vers profile.customPacks "Mes
@@ -48,6 +48,21 @@ function makeOnAddCustomPresets(onProfiles, activeProfileId) {
   };
 }
 
+// Phase 7.73.2.4 — Petit composant interne pour rendre une ligne de
+// légende avec pastille (8px ronde colorée) + label texte.
+function LegendRow({ color, label }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+      <span style={{
+        display: 'inline-block', width: 10, height: 10, borderRadius: '50%',
+        background: color?.dot || '#888', border: '1px solid ' + (color?.border || '#666'),
+        flexShrink: 0, marginTop: 3,
+      }}/>
+      <span style={{ flex: 1, lineHeight: 1.4 }}>{label}</span>
+    </div>
+  );
+}
+
 function MesAppareilsTab({
   profile, profiles, onProfiles, activeProfileId,
   banksAnn, onBanksAnn, banksPlug, onBanksPlug,
@@ -64,6 +79,11 @@ function MesAppareilsTab({
   // Sections expandables : par défaut toutes ouvertes (le user voit
   // tout son rig d'un coup). Toggle pour collapse si besoin.
   const [collapsedDevices, setCollapsedDevices] = useState(() => new Set());
+  // Phase 7.73.2.4 — Légende des pastilles curation (Phase 7.70).
+  // Collapsée par défaut, le user clique pour révéler les 4 statuts
+  // (rouge wine inconnu, brass orange connu, bleu clair curé perso,
+  // bleu moyen curé admin). 5e niveau curé studio Phase 11 (slot vide).
+  const [legendOpen, setLegendOpen] = useState(false);
   const toggleCollapsed = (id) => {
     setCollapsedDevices((prev) => {
       const next = new Set(prev);
@@ -442,6 +462,37 @@ function MesAppareilsTab({
         <div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, marginLeft: 4 }}>
             {tFormat('devices.sections-hint', { n: enabledList.length }, 'Banks et patches de tes {n} appareil(s) activé(s) :')}
+          </div>
+          {/* Phase 7.73.2.4 — Légende des pastilles curation (Phase 7.70). */}
+          <div style={{ marginLeft: 4, marginBottom: 8 }}>
+            <button
+              onClick={() => setLegendOpen((v) => !v)}
+              style={{
+                background: 'transparent', border: 'none', cursor: 'pointer',
+                padding: '4px 0', fontSize: 11, color: 'var(--text-dim)',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              <span>{legendOpen ? '▲' : '▼'}</span>
+              <span>{t('curation-legend.title', 'Légende des pastilles de curation')}</span>
+            </button>
+            {legendOpen && (
+              <div style={{
+                background: 'var(--a2)', border: '1px solid var(--a7)',
+                borderRadius: 'var(--r-md)', padding: 10, marginTop: 4,
+                fontSize: 11, color: 'var(--text-sec)',
+                display: 'flex', flexDirection: 'column', gap: 6,
+              }}>
+                <LegendRow color={CURATION_COLORS.unknown}      label={t('curation-legend.unknown', '🔴 Inconnu — pas dans le catalog, scoring dégradé, pas de pin IA possible.')}/>
+                <LegendRow color={CURATION_COLORS.known}        label={t('curation-legend.known', '🟠 Connu non curé — dans le catalog, mais sans usages artiste/morceau. Scoring V9 OK, pas de pin direct.')}/>
+                <LegendRow color={CURATION_COLORS['curated-perso']}  label={t('curation-legend.curated-perso', '🔵 Curé perso — tu as enrichi ce preset (custom ou ToneNET) avec des usages.')}/>
+                <LegendRow color={CURATION_COLORS['curated-admin']}  label={t('curation-legend.curated-admin', '🟦 Curé admin — preset enrichi par Sébastien dans le catalog Backline (Factory, Anniversary, TSR, AA, JS, TJ, WT, Galtone, ML).')}/>
+                <LegendRow color={CURATION_COLORS['curated-studio']} label={t('curation-legend.curated-studio', '🟪 Curé studio — futur (Phase 11) : preset enrichi par son créateur (TSR, ML, etc.).')}/>
+                <div style={{ marginTop: 4, fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  {t('curation-legend.tip', 'Astuce : clique sur une pastille pour voir ou éditer ses usages.')}
+                </div>
+              </div>
+            )}
           </div>
           {enabledList.map(renderDeviceSection)}
         </div>

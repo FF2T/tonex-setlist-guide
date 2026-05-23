@@ -82,6 +82,15 @@ const es = {
   'common.footer-disclaimer': 'Herramienta independiente — ToneX™ es una marca de IK Multimedia SpA. Las demás marcas mencionadas pertenecen a sus respectivos propietarios.',
   'common.footer-pathtotone': 'PathToTone publica Backline.',
 
+  // curation legend (Phase 7.73.2.4)
+  'curation-legend.title': 'Leyenda de las pastillas de curación',
+  'curation-legend.unknown': '🔴 Desconocido — no está en el catálogo, puntuación degradada, no es posible fijar por IA.',
+  'curation-legend.known': '🟠 Conocido sin curar — está en el catálogo, pero sin usos artista/canción. Puntuación V9 OK, sin fijación directa.',
+  'curation-legend.curated-perso': '🔵 Curado personalmente — has enriquecido este preset (custom o ToneNET) con usos.',
+  'curation-legend.curated-admin': '🟦 Curado por admin — preset enriquecido por Sébastien en el catálogo Backline (Factory, Anniversary, TSR, AA, JS, TJ, WT, Galtone, ML).',
+  'curation-legend.curated-studio': '🟪 Curado por estudio — futuro (Fase 11): preset enriquecido por su creador (TSR, ML, etc.).',
+  'curation-legend.tip': 'Consejo: haz clic en una pastilla para ver o editar sus usos.',
+
   // devices
   'devices.hint': 'Marca los dispositivos que utilizas. Los bloques Resumen y Síntesis solo mostrarán esos. Al menos un dispositivo debe permanecer marcado.',
   'devices.title': 'Mis dispositivos de audio',
