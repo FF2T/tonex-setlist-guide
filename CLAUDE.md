@@ -761,7 +761,157 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-23 matin, Phase 7.73.2.1 hotfix privacy — retrait bouton mailto admin)
+## État actuel (2026-05-23 matin, Phase 7.73.2.2 — Fix Paranoid override post-V9 usages-match)
+
+**Backline v8.14.179 / SW backline-v279 / STATE_VERSION 11 / 1567 tests verts.**
+
+### Phase 7.73.2.2 — Override final usages-match dans enrichAIResult (v8.14.179)
+
+**Bug rapporté ce matin sur Paranoid** (Black Sabbath) :
+- **🎯 Recommandation idéale Preset** : `SupergroupBass_SM57_TB_full`
+  à 93%, ✓ installé en Bank 18C, source 🌐 ToneNET
+- **Meilleurs presets installés Anniversary** : `ORNG 120 Dimed`
+  à 92% en Bank 32C
+
+Incohérence : le 93% installé devrait apparaître en top installé.
+ORNG 92% prend sa place. Le user perd la cohérence "voici le top
+installé pertinent".
+
+#### Cause racine identifiée
+
+`computeBestPresets` (`src/app/utils/ai-helpers.js:150-238`) calcule
+un scoring V9 pur (pickup + gainMatch + refAmp + styleMatch) **qui
+ignore les usages-match**. Le pin Phase 7.52.5 lignes 451-460 pose
+bien `preset_ann` sur le slot avec match usages... MAIS seulement si :
+- Match score 100 (full match titre + artist) → annPinnedByAI=true,
+  never-regress ne touche pas. OK.
+- Match score 50 (artist seul) ET `!annPinnedByAI` → pose mais
+  fragile : si l'IA pin un autre slot via `preset_ann_name`
+  (Phase 7.31), annPinnedByAI est déjà true → ce pin score 50
+  est SKIP.
+
+Le bloc "Meilleurs installés" rend `aiC.preset_ann` qui peut donc
+finir sur ORNG (V9 top) au lieu de SupergroupBass (usages-match
+score 50 skip).
+
+#### Fix livré — Override final post-V9
+
+Nouveau bloc dans `enrichAIResult` après le never-regress lignes
+517-524 :
+
+```js
+if (songArtist || songTitle || refGuitarist) {
+  const annUsageFinal = findSlotByUsageMatch(banksAnn, ...);
+  if (annUsageFinal && annUsageFinal.score >= 50
+      && aiResult.preset_ann?.label !== annUsageFinal.label) {
+    aiResult.preset_ann = {
+      bank, col, label, breakdown: null,
+      score: annUsageFinal.score === 100 ? 92 : 80,
+    };
+  }
+  // idem pour preset_plug
+}
+```
+
+**Logique** :
+- Cherche un slot installé avec usages match (artist + title ou
+  artist seul ou refGuitarist substring)
+- Si trouvé ET le current preset_ann ne pointe PAS déjà ce slot
+  → override (force le slot pertinent en top installé)
+- Score posé : 92 si match parfait (score 100), 80 si match artist
+  seul (score 50) — alignement avec convention Phase 7.52.5
+- Safe-by-design : si pas d'usages tagués (cas H1 = user n'a pas
+  configuré ses ToneNET), aucun match → no-op → aucune régression
+
+#### Tests Vitest Phase 7.73.2.2 (+6 tests)
+
+`src/app/utils/ai-helpers.test.js` describe `enrichAIResult — Phase
+7.73.2.2 (override final usages-match)` :
+
+1. **Scénario Paranoid** : SupergroupBass installé en Bank 18C
+   avec usages Sabbath/Paranoid → override pose preset_ann sur
+   SupergroupBass à 92 même si ORNG aurait été le top V9.
+2. **Safe H1** : pas d'usages tagués sur SupergroupBass →
+   findSlotByUsageMatch ne match pas → override no-op → top V9
+   normal préservé (pas de régression).
+3. **Artist seul (pin déjà posé par Phase 7.52.5)** : pose à 92
+   d'entrée, override skip car label déjà identique.
+4. **Cas où override est utile** : preset_ann_name IA pin ORNG en
+   premier (annPinnedByAI=true), Phase 7.52.5 skip car score=50
+   ET pinned, override final ré-écrit sur SupergroupBass à 80.
+5. **Régression idempotence** : si preset_ann déjà SupergroupBass,
+   override skip (no-op).
+6. **preset_plug pas affecté si banksPlug vide**.
+
+### Architecture livrée Phase 7.73.2.2
+
+```
+src/main.jsx                            APP_VERSION 8.14.178 → 8.14.179
+public/sw.js                            CACHE backline-v278 → backline-v279
+src/app/utils/ai-helpers.js             enrichAIResult : +bloc override
+                                          final usages-match après
+                                          never-regress lignes 517-524.
+                                          Re-appel findSlotByUsageMatch
+                                          (banksAnn + banksPlug). Override
+                                          si match >= 50 ET label différent.
+                                          Score posé 92 (match 100) ou 80
+                                          (match 50).
+src/app/utils/ai-helpers.test.js        +6 tests Phase 7.73.2.2 :
+                                          scenario Paranoid, safe H1,
+                                          artist-only, IA preset_ann_name
+                                          écrasé, idempotence, plug vide.
+```
+
+### Conséquences
+
+- **1567/1567 tests verts** (+6 nouveaux Phase 7.73.2.2).
+- Bundle 2612 → 2613 KB (~stable, +0.4 KB pour bloc + tests).
+- **Pas de bump STATE_VERSION**, pas de migration.
+- **Effet** au prochain `enrichAIResult` (mount fiche song ou
+  re-fetch IA) : si un slot installé matche les usages du morceau,
+  il apparaît correctement dans le bloc "Meilleurs presets
+  installés".
+- Cas H1 (user n'a pas tagué ToneNET avec usages) : comportement
+  inchangé — fallback V9 normal. Pas de régression.
+- Cas H3 (usages tagués mais pin écrasé) : fix opérationnel.
+
+### Validation post-déploiement attendue
+
+1. Reload PWA → `v8.14.179`
+2. Ouvrir Paranoid :
+   - Vérifier d'abord si SupergroupBass est tagué côté ToneNET
+     (Mon Profil → ⚙️ Admin → 🌐 ToneNET → chercher
+     SupergroupBass_SM57_TB_full → champ usages)
+   - **Si usages présent (artist Black Sabbath)** :
+     ✅ Le bloc "Meilleurs presets installés Anniversary" doit
+     maintenant afficher **SupergroupBass** en top (avec score 92)
+     au lieu de ORNG 120 (92).
+   - **Si usages absent** :
+     - Tagger via le tab ToneNET (Phase 7.53 UI) : `usages: [{artist:
+       "Black Sabbath", songs: ["Paranoid", ...]}]`
+     - Reload → vérifier que l'override fonctionne avec le nouveau
+       tag
+3. Régression check sur autres morceaux :
+   - Hells Bells (AC/DC) → top installé inchangé (AA MRSH JT50)
+   - For Whom the Bell Tolls Bruno → Kirk & James 48A inchangé
+   - Under Pressure → preset Brian May custom inchangé
+
+### Dette résiduelle Phase 7.73.2.2
+
+- **Phase 11 long terme** : enrichissement Studio-driven avec
+  `tone_profile` per-capture permettra à terme de pré-tagger les
+  usages des packs commerciaux sans effort user. Cf section
+  "Idées en attente" Phase 11.
+- **`computeBestPresets` reste pur V9** : non touché Phase 7.73.2.2.
+  Si on veut un scoring intégré usages au lieu d'un override,
+  Phase 7.73.2.3 future étendrait `computeBestPresets` avec params
+  song.artist/title + refGuitarist + secondary sort usageBonus.
+  Plus invasif, à ne faire que si signal user que l'override
+  current n'est pas suffisant.
+
+---
+
+## État précédent (2026-05-23 matin, Phase 7.73.2.1 hotfix privacy — retrait bouton mailto admin)
 
 **Backline v8.14.178 / SW backline-v278 / STATE_VERSION 11 / 1561 tests verts.**
 
