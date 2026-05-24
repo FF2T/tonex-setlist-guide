@@ -277,7 +277,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.186";
+const APP_VERSION = "8.14.187";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -1657,8 +1657,12 @@ export function App() {
     const sl = liveSetlistId
       ? (mySetlists.find(s=>s.id===liveSetlistId) || setlists.find(s=>s.id===liveSetlistId))
       : null;
-    const songIds = sl ? sl.songIds : songDb.map(s=>s.id);
-    const liveSongs = songIds.map(id=>songDb.find(s=>s.id===id)).filter(Boolean);
+    // Phase 4.6 fix — résoudre l'aiCache via songDbWithProfileCache
+    // (Phase 7.54 per-profile aiCache). Avant : songDb brut retournait
+    // les songs avec aiCache=null après la migration v10 → LiveScreen
+    // affichait "Pas de preset déterminé pour ce morceau".
+    const songIds = sl ? sl.songIds : songDbWithProfileCache.map(s=>s.id);
+    const liveSongs = songIds.map(id=>songDbWithProfileCache.find(s=>s.id===id)).filter(Boolean);
     const liveDevices = getActiveDevicesForRender(profile);
     const exitToOrigin = ()=>{ setScreen(liveSetlistId ? "setlists" : "list"); };
     return <LiveScreen
