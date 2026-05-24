@@ -761,7 +761,145 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-23 PM, Phase 7.73.2.3 + 7.73.2.4 — Paranoid fix via propagation V9-top + Légende pastilles curation)
+## État actuel (2026-05-24 matin, Phase 7.73.2.5 + 7.73.2.6 — Légende pastilles fix doublon + Push toneNetPresets manquant)
+
+**Backline v8.14.182 / SW backline-v282 / STATE_VERSION 11 / 1567 tests verts.**
+
+### Phase 7.73.2.6 — Fix bug push manquant toneNetPresets (v8.14.182)
+
+**Bug découvert par Sébastien** : modifications dans le tab ToneNET
+(suppression / ajout / édition de presets) ne déclenchaient **pas**
+de push Firestore. Sébastien purgeait 5 entries → state local Mac
+propre → aucun `[firestore] Push WITH aiCache` dans les logs →
+Firestore reste avec les 5 entries → iPhone au prochain pull
+ré-injecte les 5 → cycle infini.
+
+**Cause** : le `syncHash` Phase 7.46 (`src/main.jsx:1146-1162`)
+n'incluait PAS `shared.toneNetPresets`. Le hash incluait songDb /
+setlists / customGuitars / deletedSetlistIds / **adminPacks** (Phase
+7.69.7) / sharedUsagesOverrides / sharedStudioUsages / profileHash /
+activeProfileId / theme — mais oubli historique sur `toneNetPresets`.
+`shouldBump` reste donc `false` → `if(!shouldBump) return` → push
+skip.
+
+**Fix livré** — 1 ligne ajoutée au syncHash array sur le pattern
+adminPacks (Phase 7.69.7) :
+
+```js
+(toneNetPresets||[]).map(p=>(p.id||p.name||'')+':'+(p.lastModified||0)+':'+(Array.isArray(p.usages)?p.usages.length:0)).sort().join('|'),
+```
+
+Le hash inclut name (id en fallback) + lastModified + usages.length
+pour détecter add / remove / edit usages.
+
+**Limite résiduelle** : ce fix résout le PUSH manquant. Il NE résout
+PAS la **résurrection cross-device** par absence de tombstones
+(Phase 7.53.1 documenté). Si iPhone garde 5 entries locales avec
+lastModified avant le pull, son `mergeToneNetPresetsLWW(local=5,
+remote=0)` retourne `5` (local-only keep) → iPhone repushé 5 →
+Firestore réinjecte → Mac repull 5. Workaround manuel : sur chaque
+device polluant, purge directe console + reload (cf docs/SYNC.md
+section workarounds).
+
+Cf section "Idées en attente" Phase 7.53.2 (tombstones ToneNET)
+pour fix structurel.
+
+### Phase 7.73.2.5 — Légende pastilles fix doublon emojis (v8.14.181)
+
+Le user a remonté que les emojis 🔴/🟠/🔵/🟦 dans les labels de
+la légende Phase 7.73.2.4 faisaient **doublon** avec les pastilles
+colorées rendues à gauche par `LegendRow` via `CURATION_COLORS`.
+
+Fix : retire les emojis des labels (FR + EN + ES). La pastille
+12×12px à gauche suffit. Aussi : retirer la ligne "🟪 Curé studio
+(Phase 11)" non encore déployée.
+
+Légende finale : 4 lignes (Inconnu rouge / Connu non curé orange /
+Curé perso bleu clair / Curé admin bleu moyen) + tip
+"clique sur une pastille pour voir ou éditer ses usages".
+
+`CURATION_COLORS.curated-studio` conservée dans `core/catalog.js`
+(utilisée par `getPresetCurationStatus` si `entry.curatedBy ===
+'studio'`, prête pour Phase 11 future).
+
+### Architecture livrée Phase 7.73.2.5 + 7.73.2.6
+
+```
+src/main.jsx                            APP_VERSION 8.14.180 → 8.14.181 → 8.14.182
+                                        syncHash : +ligne toneNetPresets (Phase 7.73.2.6)
+public/sw.js                            CACHE backline-v280 → backline-v281 → backline-v282
+src/app/screens/MesAppareilsTab.jsx     LegendRow labels : retire emojis
+                                        4 lignes au lieu de 5 (drop curated-studio)
+src/i18n/en.js, es.js                   curation-legend.* : retire emojis labels
+                                        retire curated-studio
+```
+
+### Diagnostic session 2026-05-24 matin (workaround manuel)
+
+Session de troubleshooting collaborative sur la pollution ToneNET
+cross-device entre Mac + iPhone + Safari Mac (3 instances) :
+
+1. **Safari Mac** mis hors boucle : reset localStorage + `?beta=1` →
+   flag `backline_no_sync='1'` posé → arrête push/pull Firestore.
+2. **iPhone** mis hors boucle temporairement : `?beta=1` →
+   `backline_no_sync='1'` → stop polluer.
+3. **Chrome Mac** clean propre : FR + purge 5 ToneNET + décoche
+   tonex-pedal. Stamp `lastModified` 24/05/2026 08:48:57.
+4. **iPhone** retiré du no-sync → reload → pull → mais re-injecte
+   ses 5 ToneNET locales (mergeLWW local-only keep).
+5. **Diagnostic Sébastien** : "je n'ai pas vu la sync se
+   déclencher" → identification du bug syncHash → Phase 7.73.2.6.
+6. **Deploy v8.14.182** → reload Mac + iPhone.
+7. **iPhone purge directe console** : `s.shared.toneNetPresets=[];
+   s.shared.lastModified=Date.now(); localStorage.setItem(...);
+   location.reload();`
+8. Au reload v8.14.182, syncHash recalcul → diff (5→0) → push
+   automatique → Firestore vide → Mac reste à 0.
+
+**Cycle cassé** confirmé : Mac=0, iPhone=0, stable.
+
+### Observations annexes (non bloquantes)
+
+- **Erreurs Firestore 401 répétées** dans les logs Safari/Chrome :
+  `[firebase-auth] fetch 401 → clearing cache + retry`. Le retry
+  Phase 7.52.17 kick in à chaque fois mais la prochaine requête
+  re-fail aussi. Possible quota Firebase Anonymous Auth proche, ou
+  rate limit. Sans impact (Pull/Push fonctionnent malgré tout entre
+  les 401), à surveiller dans Firebase Console → Authentication →
+  Usage si récidive massive.
+- **Pollution profile cross-device Phase 7.74.x** : 3 défenses
+  observées en logs :
+  - `[merge-defense] banksAnn mass-change BLOCKED` (Phase 7.74.9
+    banksModified timestamp dédié)
+  - `[merge-defense] orphan-cross-profile` (Phase 7.74.1 filter
+    guitares d'autres profils)
+  - `[merge-defense] swap pattern cg_*→standard` (Phase 7.74.4
+    détection swap suspect)
+
+  Les 3 couches tiennent → état Sébastien Mac préservé. Un device
+  stale (probablement iPhone à un moment) essaie encore de pousser
+  des états anciens. Pas critique.
+
+### Dette résiduelle Phase 7.73.2.5 + 7.73.2.6
+
+- **Phase 7.53.2 — Tombstones ToneNET** (cf "Idées en attente").
+  Validée comme prochaine étape post-Phase 7.73.2.6. Effort ~1.5h
+  dev + tests. Pattern Phase 5.7 setlists : champ
+  `shared.deletedToneNetIds: {[id]: ts}` qui survit aux merges et
+  empêche la résurrection. Phase 7.73.2.6 résout le push manquant
+  (Mac peut maintenant pusher une purge), mais sans tombstones,
+  un autre device qui garde l'item local peut encore le pousser
+  via son propre push. Une fois Phase 7.53.2 livrée, le cycle est
+  cassé structurellement.
+- **Pastille Laney VC50 HighGain/extrim Sat** : si Sébastien
+  souhaite la rendre fonctionnelle (pastille bleu clair + pin IA),
+  recréer comme custom avec usages tagués. Sinon laisser comme
+  rien — ne bloque rien (juste un slot Plug avec label inconnu,
+  scoring V9 fallback).
+
+---
+
+## État précédent (2026-05-23 PM, Phase 7.73.2.3 + 7.73.2.4 — Paranoid fix via propagation V9-top + Légende pastilles curation)
 
 **Backline v8.14.180 / SW backline-v280 / STATE_VERSION 11 / 1567 tests verts.**
 
@@ -14895,6 +15033,91 @@ Sébastien décide de re-curer le snapshot avec un autre profil
 curateur (changement d'id) et trouve la maintenance manuelle du
 JSON pénible. En attendant, Phase 7.52.15 suffit pour
 `demo_1778839429588` (id stable).
+
+### Phase 7.53.2 (validée 2026-05-24 — à livrer) — Tombstones ToneNET
+
+**Contexte** : Phase 7.53.1 (2026-05-11) a livré le merge LWW
+per-item sur `shared.toneNetPresets` (`mergeToneNetPresetsLWW`)
+pour éviter l'effacement bloc qui avait vidé les presets ToneNET
+Sébastien sur Firestore. Mais elle **n'a pas inclus de mécanisme
+tombstone** — explicitement documenté comme limite v1 (cf Phase
+7.53.1 section "Limite acceptée").
+
+Conséquence observée 2026-05-24 :
+- Mac purge 5 entries ToneNET → state local Mac propre
+- Phase 7.73.2.6 (2026-05-24) corrige le push manquant → Firestore
+  reçoit `toneNetPresets: []`
+- iPhone garde 5 entries locales avec lastModified pas plus ancien
+- iPhone pull → `mergeToneNetPresetsLWW(local=5, remote=0)` →
+  **local-only keep** (pas de signal "remote a supprimé") → iPhone
+  garde 5
+- iPhone push (au moindre toggle) → Firestore réinjecte 5 →
+  Mac pull → mergeLWW(local=0, remote=5) → adopt 5 → Mac réinjecte
+- **Cycle infini**
+
+Workaround Sébastien (manuel via console) : purger directement
+chaque device, force-reload. Phase 7.73.2.6 fait que les pushs
+suivants propagent correctement, donc cycle cassé après le 1er
+clean manuel. Mais si à l'avenir 2 devices ajoutent un preset
+SIMULTANÉMENT, puis l'un supprime, le bug peut revenir.
+
+#### Design Phase 7.53.2
+
+Pattern Phase 5.7 (setlists) :
+
+- Nouveau champ `shared.deletedToneNetIds: {[id]: number}` —
+  map id → timestamp de suppression
+- À la suppression UI dans ToneNetTab : `setDeletedToneNetIds(prev =>
+  ({ ...prev, [id]: Date.now() }))` + `setToneNetPresets(prev =>
+  prev.filter(p => p.id !== id))`
+- `mergeToneNetPresetsLWW(local, remote, mergedTombstones)` étendu :
+  - Si `mergedTombstones[id]` ≥ `max(local.lastModified,
+    remote.lastModified)` → **DROP** (le suppression gagne)
+  - Sinon merge LWW per-item normal Phase 7.53.1
+- `mergeDeletedToneNetIds(local, remote)` : union avec `max(ts)`
+- `gcTombstones(map, maxAgeMs = 30j)` : purge entries >30j (pattern
+  Phase 5.7 setlists ; appelé au boot via `_runFullChain`)
+- Inclure `deletedToneNetIds` dans le syncHash (Phase 7.46) pour
+  déclencher push sur suppression
+- Inclure dans le push Firestore via `shared.deletedToneNetIds`
+
+#### Migration STATE_VERSION
+
+Additif (champ optional). Si STATE_VERSION reste 11 et le client
+fait défaut à `{}` si absent → pas de bump nécessaire. Si on
+préfère stamper proprement la migration → STATE_VERSION 11 → 12,
+`migrateV11toV12(state)` ajoute `shared.deletedToneNetIds = {}`.
+
+#### Tests Vitest
+
+- `mergeDeletedToneNetIds` × 4 : union max(ts), local-only,
+  remote-only, falsy inputs
+- `mergeToneNetPresetsLWW` étendu × 6 : scénario Mac purge / iPhone
+  garde → tombstone gagne, local plus récent que tombstone → keep,
+  remote plus récent que tombstone → adopt, tombstone vs deux items
+  → drop, tombstone manquant → comportement Phase 7.53.1 préservé,
+  gcTombstones >30j drop
+- Scénario bug 2026-05-24 reproduit : Mac purge avec tombstone,
+  iPhone pull → 0 entries (cycle cassé)
+
+#### Effort estimé
+
+~1.5h dev + 30min tests + 15min déploiement = ~2h total.
+
+Découpage possible :
+- Phase 7.53.2a : helpers purs (mergeDeletedToneNetIds, extension
+  mergeToneNetPresetsLWW, gcTombstones) + tests (~1h)
+- Phase 7.53.2b : câblage main.jsx (setDeletedToneNetIds state,
+  applyRemoteData merge, syncHash inclus, push Firestore) +
+  UI ToneNetTab.handleDelete (~30min)
+- Phase 7.53.2c : tests + déploiement (~30min)
+
+#### Quand activer
+
+**Validé pour livraison post-Phase 7.73.2.6** (session 2026-05-24).
+À démarrer dès la prochaine session Backline.
+
+---
 
 ### Phase 7.53 — ✅ LIVRÉE 2026-05-16 (cf section "État actuel" en haut de CLAUDE.md)
 
