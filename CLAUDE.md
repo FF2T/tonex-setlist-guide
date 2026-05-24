@@ -761,7 +761,159 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-24 dimanche fin matinée, Phase 7.55.7 Session 1 LiveScreen iPad polish + analytics + Tally + LiveScreen recos détaillées)
+## État actuel (2026-05-24 dimanche après-midi, Phase 7.55.7 S2 fixes Cowork + diagnostic 401 Firestore résolu)
+
+**Backline v8.14.191 / SW backline-v291 / STATE_VERSION 11 / 1579 tests verts.**
+
+### Session dimanche 2026-05-24 — 9 phases livrées + diagnostic 401
+
+| # | Phase | Sujet | Version |
+|---|---|---|---|
+| 1 | 7.53.2 | Tombstones ToneNET (cycle pollution résolu) | 8.14.183 |
+| 2 | 7.66 | Prompt fetchAI rig actif uniquement | 8.14.184 |
+| 3 | 7.55.6 | Cloudflare Web Analytics setup | 8.14.185 |
+| 4 | 4.6 + 4.6.1 | LiveScreen recos détaillées + hotfix | 8.14.186/187 |
+| 5 | 7.55.5 | Tally beta request + ThanksScreen (refactor bilingue) | 8.14.188/189 |
+| 6 | 7.55.7 S1 | LiveScreen iPad polish (typo XXL + Wake Lock badge) | 8.14.190 |
+| 7 | **7.55.7 S2** | **Fixes Cowork (preset name iPhone + cibles tactiles)** | **8.14.191** |
+
+### Phase 7.55.7 S2 — Fixes Cowork audit responsive (v8.14.191)
+
+Rapport Claude Cowork (Chrome MCP, 6 résolutions iPhone/iPad émulées)
+livré dimanche après-midi. 2 bugs prioritaires fixés :
+
+🔴 **Effondrement vertical preset name SongDetailCard iPhone** :
+Cowork observait sur iPhone 375-430px un span à width:17px height:248px
+pour 'AA MRSH JT50 I Drive BAL SCH CAB' (1 char par ligne dans une
+colonne 17px de large). Cause : `<div style={{flex:1}}>` ligne 912
+SongDetailCard SANS `min-width:0` autour du PBlock → flex enfants
+shrinkent à 0 sur viewport étroit, puis le mot long s'effondre
+caractère par caractère. Fix double :
+- SongDetailCard:912 — ajout `minWidth: 0` au wrapper flex
+- PBlock:76 — ajout `overflowWrap: anywhere` + `wordBreak: break-word`
+  sur le `<div>` displayName (belt-and-suspenders)
+
+🟠 **Cibles tactiles < 44×44 iOS HIG (systémique)** : 3 fixes prioritaires :
+- `AppNavBottom` (Accueil/Setlists/Explorer/Jammer) : 30px → `minHeight: 50px`,
+  padding 8px→10px, icon 20→22
+- Boutons toolbar setlist (Éditer / Analyser/MAJ / Annuler) : 23-25px →
+  `minHeight: 36px`, padding 3px→7px, fontSize 10→11
+- Bouton ✕ Quitter banner démo : 21px → `minHeight: 36px`, padding 3px→7px
+
+Autres fixes Cowork reportés (chantier plus large) :
+- 🟠 Layout iPad rétréci ProfilePicker + SongDetailCard centrée 500-620px
+  avec gros gutters → effort ~2-3h, à trigger si signal user iPad ou
+  démo studio
+- 🟠 HomeScreen vide vertical central → effort ~1-2h
+- 🟠 Onglets profile Mon Profil 31px → 30 min
+- 🟡 Troncatures noms preset, chips wrap inélégant → cosmétique pur
+
+Bug fonctionnel séparé identifié par Cowork (pas responsive) :
+🔴 **Gel rendu "Analyser/MAJ 5"** (2+ min main thread bloqué). Probable
+boucle synchrone non-yieldée dans batch fetchAI. À investiguer
+séparément si reproduit. Cf Phase 5.13 (mai 2026) qui a déjà fait ce
+type d'optim pour `enrichAIResult` côté affichage mais pas pour le
+batch fetchAI lui-même.
+
+### Diagnostic 401 Firestore résolu dimanche après-midi
+
+**Symptôme** : cascade `[firebase-auth] fetch 401 → clearing cache +
+retry` dans les logs depuis plusieurs jours. Chaque retry crée un
+nouveau Anonymous User → 449 users accumulés au compteur Firebase
+Console (vs 5-20 attendus pour 4-5 devices actifs).
+
+**Diagnostic en 2 étapes Firebase Console** :
+- Étape 1 — Authentication → Users count : **449 anonymes** (sous
+  free tier 50K, pas critique mais signal de retry boucle)
+- Étape 2 — Authentication → Settings → Authorized domains : **seuls
+  localhost + tonex-guide.firebaseapp.com + tonex-guide.web.app
+  listés**. `mybackline.app` MANQUANT.
+
+**Cause** : depuis la migration Phase 7.29 (mai 2026 — `mybackline.app`
+domaine canonique), l'app appelle Firestore avec un token anonyme
+mais Firebase Auth vérifie l'origine du domaine. `mybackline.app`
+n'était pas autorisé → token rejeté → 401 → retry → nouveau signUp →
+encore 401 → boucle = 449 users créés.
+
+**Fix** : ajout `mybackline.app` dans Authentication → Settings →
+Authorized domains (1 clic Console). Validation immédiate au reload
+PWA : plus de 401 cascade en console, Push/Pull Firestore fonctionnent
+normalement (`Pull WITH aiCache → 983 KB → Push WITH aiCache COMPRESSED`).
+
+**Résiduel** : un 403 isolé sur `securetoken.googleapis.com/v1/token`
+correspond au `refreshToken` cached localStorage datant d'avant le
+fix → rejet refresh → fallback auto sur `signUpAnonymously` → nouveau
+user propre. Non bloquant. Cleanup optionnel via
+`localStorage.removeItem('backline_anon_auth')` + reload.
+
+**Bulk delete 449 users obsolètes** : abandonné (Firebase Console UI
+n'a plus de "Select all" récent + 449 = 0.9% free tier, aucun impact
+pratique). Le compteur restera stable maintenant que le domaine est
+autorisé.
+
+**Phase 7.55.7.x circuit breaker firebase-auth** : initialement
+proposée en backup si le bug venait du code retry. Non nécessaire —
+bug venait de la config Firebase Console, pas du code. Le retry Phase
+7.52.17 fonctionne correctement maintenant.
+
+### Architecture livrée session 2026-05-24
+
+```
+src/main.jsx                            APP_VERSION 8.14.180 → 8.14.191
+public/sw.js                            CACHE backline-v280 → backline-v291
+src/core/state.js                       +mergeDeletedToneNetIds (Phase 7.53.2)
+                                        +mergeToneNetPresetsLWW tombstones
+src/core/state.test.js                  +12 tests Phase 7.53.2
+src/core/branding.js                    +TALLY_FORM_ID_BY_LOCALE
+                                        +buildDemoRequestUrl (Phase 7.55.5)
+src/index.html                          +script Cloudflare beacon (Phase 7.55.6)
+src/app/utils/ai-helpers.js             Phase 7.66 — guitars (rig actif)
+src/app/screens/SongDetailCard.jsx      Phase 7.66 + Phase 7.55.7 min-width:0
+src/app/screens/LiveScreen.jsx          Phase 4.6 section guitare +
+                                        Phase 4.6.1 songDbWithProfileCache +
+                                        Phase 7.55.7 S1 polish iPad
+src/devices/_shared/ToneXLiveBlock.jsx  Phase 4.6 sections pédale + FX
+src/app/components/PBlock.jsx           Phase 7.55.7 S2 overflowWrap
+src/app/components/AppHeader.jsx        Phase 7.55.7 S2 AppNavBottom 50px
+src/app/components/DemoBanner.jsx       Phase 7.55.5 Tally + 7.55.7 S2 button
+src/app/screens/ToneNetTab.jsx          Phase 7.53.2 tombstone stamp
+src/app/screens/ListScreen.jsx          Phase 7.66 fetchAI guitars +
+                                        Phase 7.55.7 S2 toolbar buttons
+src/app/screens/AdminScreen.jsx         Phase 7.53.2 onDeletedToneNetIds prop
+docs/SYNC.md                            +Phase 7.73.2.6 + 7.53.2 régressions
+CLAUDE.md                               état actuel session dimanche
+```
+
+### Actions en attente côté Sébastien (à faire si non encore fait)
+
+1. **Configurer Tally redirect ThanksScreen** : Settings → Form behaviors
+   → After submit → Redirect → `https://mybackline.app/?thanks=1` sur
+   les 2 formulaires (RGbBVd FR + 68WQyO EN). Sans ça, le visiteur
+   reste sur la page Tally générique au lieu d'atterrir sur
+   ThanksScreen branded.
+2. **Cloudflare Analytics stats** : stats détaillées arrivent demain
+   matin (24h après setup ce matin). Premier checkpoint trafic
+   landing publique.
+3. **Test iPad v8.14.191** : reload PWA → vérifier mode scène (typo XXL +
+   Wake Lock badge 🔒 + sections guitare/pédale/FX lisibles à 1m) +
+   vérifier preset name SongDetailCard iPhone (plus d'effondrement
+   vertical).
+4. **Brouillon post Reddit** : prêt à copier (variantes A/B/C),
+   publication ce soir ou demain matin selon timing souhaité.
+5. **Cleanup local 403 isolé Mac** (optionnel) :
+   `localStorage.removeItem('backline_anon_auth'); location.reload();`
+
+### Dette résiduelle Phase 7.55.7
+
+- **Session 3 (proposée si signal user)** : layout iPad rétréci
+  (ProfilePicker + SongDetailCard) + HomeScreen vide vertical +
+  onglets profile minHeight. Effort ~4-5h.
+- **Investigation gel "Analyser/MAJ"** : main thread bloqué 2+ min.
+  Si reproduit par Bruno/Francisco ou Sébastien, ~1-2h investigation.
+
+---
+
+## État précédent (2026-05-24 dimanche fin matinée, Phase 7.55.7 Session 1 LiveScreen iPad polish + analytics + Tally + LiveScreen recos détaillées)
 
 **Backline v8.14.190 / SW backline-v290 / STATE_VERSION 11 / 1579 tests verts.**
 
