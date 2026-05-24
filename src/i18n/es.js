@@ -89,6 +89,8 @@ const es = {
   'live.tone': 'Tono',
   'live.pedal-settings': 'Ajustes pedal',
   'live.fx-section': 'Efectos',
+  // Phase 7.55.7
+  'live.wakelock-active': 'Pantalla siempre encendida',
 
   // curation legend (Phase 7.73.2.4)
   'curation-legend.title': 'Leyenda de las pastillas de curación',

@@ -44,6 +44,8 @@ const SWIPE_MAX_VERTICAL = 80; // px (ignore si swipe trop vertical)
 
 function useWakeLock(enabled) {
   const lockRef = useRef(null);
+  // Phase 7.55.7 — état actif pour afficher l'indicateur 🔒 dans le header.
+  const [isLocked, setIsLocked] = useState(false);
   useEffect(() => {
     if (!enabled) return undefined;
     let cancelled = false;
@@ -58,6 +60,12 @@ function useWakeLock(enabled) {
             return;
           }
           lockRef.current = lock;
+          setIsLocked(true);
+          // Safari iOS / certains browsers émettent un event 'release'
+          // quand le lock est révoqué (background, low battery, etc.)
+          if (lock && typeof lock.addEventListener === 'function') {
+            lock.addEventListener('release', () => setIsLocked(false));
+          }
         }
       } catch (_e) {
         // Silencieux : Wake Lock optionnel, fallback = rien.
@@ -76,6 +84,7 @@ function useWakeLock(enabled) {
     }
     return () => {
       cancelled = true;
+      setIsLocked(false);
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', onVisibility);
       }
@@ -85,6 +94,7 @@ function useWakeLock(enabled) {
       }
     };
   }, [enabled]);
+  return isLocked;
 }
 
 function LiveScreen({
@@ -110,7 +120,7 @@ function LiveScreen({
     if (index >= total && total > 0) setIndex(total - 1);
   }, [total, index]);
 
-  useWakeLock(true);
+  const wakeLockActive = useWakeLock(true);
 
   const goPrev = () => setIndex((i) => Math.max(0, i - 1));
   const goNext = () => setIndex((i) => Math.min(total - 1, i + 1));
@@ -197,15 +207,17 @@ function LiveScreen({
         position: 'fixed', inset: 0, zIndex: 9999,
         background: 'var(--bg-base)',
         display: 'flex', flexDirection: 'column',
-        padding: '12px 16px 16px',
+        // Phase 7.55.7 — padding responsive iPad : plus de respiration latérale
+        padding: 'clamp(12px, 1.8vw, 24px) clamp(16px, 2.5vw, 32px) clamp(16px, 2.2vw, 28px)',
         overflowY: 'auto',
       }}
     >
-      {/* Header — bouton sortir + compteur */}
+      {/* Header — bouton sortir + indicateur wake lock + compteur */}
       <div
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          marginBottom: 8,
+          marginBottom: 'clamp(8px, 1vw, 16px)',
+          gap: 12,
         }}
       >
         <button
@@ -214,32 +226,58 @@ function LiveScreen({
           onClick={onExit}
           style={{
             background: 'var(--a5)', border: '1px solid var(--a8)',
-            borderRadius: 'var(--r-md)', padding: '6px 12px',
-            fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            borderRadius: 'var(--r-md)',
+            // Phase 7.55.7 — cible touch 48×48 min pour ergo scène doigts moites
+            padding: 'clamp(10px, 1.4vw, 14px) clamp(14px, 2vw, 22px)',
+            minWidth: 'clamp(80px, 12vw, 140px)',
+            fontSize: 'clamp(13px, 1.6vw, 18px)',
+            fontWeight: 700, cursor: 'pointer',
             color: 'var(--text-bright)',
           }}
         >
           {t('live.exit', '← Sortir')}
         </button>
-        <div
-          style={{
-            fontFamily: 'var(--font-mono)', fontWeight: 700,
-            fontSize: 13, color: 'var(--text-muted)',
-          }}
-        >
-          {index + 1} / {total}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          {/* Phase 7.55.7 — indicateur Wake Lock actif : 🔒 visible quand
+              navigator.wakeLock a accordé un lock screen-on. Rassure le
+              user en scène que son écran ne va pas s'éteindre. Silencieux
+              si API pas dispo. */}
+          {wakeLockActive && (
+            <div
+              data-testid="live-screen-wakelock"
+              title={t('live.wakelock-active', 'Écran maintenu allumé')}
+              style={{
+                fontSize: 'clamp(13px, 1.5vw, 17px)',
+                color: 'var(--green)',
+                fontFamily: 'var(--font-mono)',
+                display: 'flex', alignItems: 'center', gap: 4,
+              }}
+            >
+              <span aria-hidden="true">🔒</span>
+            </div>
+          )}
+          <div
+            style={{
+              fontFamily: 'var(--font-mono)', fontWeight: 700,
+              fontSize: 'clamp(13px, 1.8vw, 19px)',
+              color: 'var(--text-muted)',
+            }}
+          >
+            {index + 1} / {total}
+          </div>
         </div>
       </div>
 
-      {/* Title block — gros titre + BPM/key + history */}
-      <div style={{ marginBottom: 12 }}>
+      {/* Title block — gros titre + BPM/key + history. Phase 7.55.7 :
+          caps poussés pour lecture iPad scène (72-80pt en paysage iPad). */}
+      <div style={{ marginBottom: 'clamp(12px, 1.5vw, 20px)' }}>
         <div
           style={{
             fontFamily: 'var(--font-display)',
-            fontSize: 'clamp(28px, 6vw, 48px)',
+            fontSize: 'clamp(28px, 7vw, 72px)',
             fontWeight: 800, lineHeight: 1.05,
             color: 'var(--text-primary)',
-            marginBottom: 4,
+            marginBottom: 'clamp(4px, 0.6vw, 8px)',
           }}
           data-testid="live-screen-title"
         >
@@ -247,8 +285,10 @@ function LiveScreen({
         </div>
         <div
           style={{
-            fontSize: 'clamp(14px, 2.5vw, 18px)',
-            color: 'var(--text-sec)', marginBottom: 6,
+            fontSize: 'clamp(14px, 2.8vw, 28px)',
+            color: 'var(--text-sec)',
+            marginBottom: 'clamp(6px, 0.8vw, 10px)',
+            fontWeight: 500,
           }}
         >
           {song?.artist || ''}
@@ -257,10 +297,10 @@ function LiveScreen({
           <div
             data-testid="live-screen-bpm-key"
             style={{
-              display: 'flex', gap: 12, alignItems: 'center',
-              fontSize: 'clamp(13px, 2vw, 16px)',
+              display: 'flex', gap: 'clamp(12px, 1.8vw, 20px)', alignItems: 'center',
+              fontSize: 'clamp(13px, 2.2vw, 22px)',
               color: 'var(--text-muted)',
-              marginBottom: 6,
+              marginBottom: 'clamp(6px, 0.8vw, 10px)',
             }}
           >
             {info.bpm && (
@@ -278,7 +318,8 @@ function LiveScreen({
         {hist && (
           <div
             style={{
-              fontSize: 11, color: 'var(--text-tertiary)',
+              fontSize: 'clamp(11px, 1.4vw, 15px)',
+              color: 'var(--text-tertiary)',
               fontStyle: 'italic', lineHeight: 1.5,
             }}
           >
@@ -321,7 +362,8 @@ function LiveScreen({
             </div>
             <div
               style={{
-                fontSize: 'clamp(15px, 2.5vw, 20px)',
+                // Phase 7.55.7 — cap poussé à 26px pour lecture scène iPad
+                fontSize: 'clamp(15px, 2.8vw, 26px)',
                 fontWeight: 700, color: 'var(--text-bright)',
                 lineHeight: 1.4,
                 display: 'flex', flexWrap: 'wrap',

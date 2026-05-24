@@ -264,7 +264,7 @@ function makeToneXLiveBlock(device) {
               {mainEntries.length > 0 && (
                 <div
                   style={{
-                    fontSize: 'clamp(12px, 1.8vw, 14px)',
+                    fontSize: 'clamp(12px, 2vw, 18px)',
                     color: 'var(--text-bright)', lineHeight: 1.5,
                     display: 'flex', flexWrap: 'wrap', gap: '2px 12px',
                   }}
@@ -280,7 +280,7 @@ function makeToneXLiveBlock(device) {
               {altEntries.length > 0 && (
                 <div
                   style={{
-                    fontSize: 'clamp(11px, 1.6vw, 13px)',
+                    fontSize: 'clamp(11px, 1.8vw, 16px)',
                     color: 'var(--text-sec)', lineHeight: 1.5,
                     display: 'flex', flexWrap: 'wrap', gap: '2px 10px',
                   }}

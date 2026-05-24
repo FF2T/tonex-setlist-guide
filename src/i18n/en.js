@@ -91,6 +91,8 @@ const en = {
   'live.tone': 'Tone',
   'live.pedal-settings': 'Pedal settings',
   'live.fx-section': 'Effects',
+  // Phase 7.55.7
+  'live.wakelock-active': 'Screen kept awake',
 
   // curation legend (Phase 7.73.2.4)
   'curation-legend.title': 'Curation dot legend',
