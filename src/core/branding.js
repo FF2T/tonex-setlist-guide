@@ -50,4 +50,42 @@ function buildFeedbackUrl(profileName, appVersion) {
   return url.toString();
 }
 
-export { APP_NAME, APP_TAGLINE, APP_TAGLINE_BY_LOCALE, getAppTagline, APP_SHORT_NAME, TALLY_FEEDBACK_URL, buildFeedbackUrl };
+// Phase 7.55.5 — Formulaire Tally dédié aux demandes d'accès beta
+// depuis le mode démo (DemoBanner). Distinct de TALLY_FEEDBACK_URL
+// (qui sert au feedback générique post-login Phase 7.73.0).
+// Champs Tally : pseudo + email + guitares + ToneX hardware (radio) +
+// morceaux + source (radio Reddit/DM/Démo/Studio/Autre) + temps démo
+// (radio <5/5-15/>15min/pas encore). À remplacer par l'URL réelle au
+// moment du setup côté Tally.
+const TALLY_DEMO_REQUEST_URL = 'https://tally.so/r/Bz2LeA';
+
+/**
+ * Construit l'URL Tally demande d'accès beta avec param `source` pour
+ * distinguer les demandes "depuis mode démo" vs futures sources.
+ * @param {object} opts - { source: 'demo_banner' | ... }
+ */
+function buildDemoRequestUrl(opts) {
+  const base = TALLY_DEMO_REQUEST_URL;
+  if (!base || base.startsWith('REPLACE_')) {
+    // Fallback mailto pendant que Tally pas encore configuré côté admin.
+    return 'mailto:contact@mybackline.app'
+      + '?subject=' + encodeURIComponent('Demande de profil Backline')
+      + '&body=' + encodeURIComponent(
+        "Hi,\n\nI'd like a Backline profile with my own rig. Here's my setup:\n\n"
+        + "- Main guitars : [...]\n- ToneX hardware : [...]\n- 5-10 songs I typically rehearse : [...]\n\nThanks!"
+      );
+  }
+  try {
+    const url = new URL(base);
+    if (opts?.source) url.searchParams.set('source', opts.source);
+    return url.toString();
+  } catch (_e) {
+    return base;
+  }
+}
+
+export {
+  APP_NAME, APP_TAGLINE, APP_TAGLINE_BY_LOCALE, getAppTagline, APP_SHORT_NAME,
+  TALLY_FEEDBACK_URL, buildFeedbackUrl,
+  TALLY_DEMO_REQUEST_URL, buildDemoRequestUrl,
+};

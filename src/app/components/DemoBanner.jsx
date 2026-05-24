@@ -1,4 +1,4 @@
-// src/app/components/DemoBanner.jsx — Phase 7.51.3.
+// src/app/components/DemoBanner.jsx — Phase 7.51.3 + 7.55.5.
 //
 // Bandeau persistant affiché en haut de tous les écrans en mode démo,
 // SAUF LiveScreen (mode scène plein écran où le clutter UI doit être
@@ -8,24 +8,15 @@
 // "mode démo" pour comprendre que les actions de write sont bloquées
 // (cf. ToastDemoBlocked Phase 7.51.2).
 //
-// Le lien mailto pré-rempli ouvre le client mail du visiteur avec un
-// template prêt à remplir (guitares, hardware ToneX, morceaux types) →
-// l'admin (Sébastien) reçoit la demande structurée et crée le profil
-// curé manuellement.
+// Phase 7.55.5 — Lien Tally qualif au lieu de mailto (target='_blank').
+// Pré-rempli avec source=demo_banner pour distinguer les demandes depuis
+// le mode démo des autres canaux (futur Phase 7.44 formulaire public).
+// Fallback automatique sur mailto si TALLY_DEMO_REQUEST_URL pas encore
+// configuré côté branding.js.
 
 import React from 'react';
 import { t, useLocale } from '../../i18n/index.js';
-
-const MAILTO_URL = 'mailto:contact@mybackline.app'
-  + '?subject=' + encodeURIComponent('Demande de profil Backline')
-  + '&body=' + encodeURIComponent(
-    "Hi,\n\n"
-    + "I'd like a Backline profile with my own rig. Here's my setup:\n\n"
-    + "- Main guitars : [...]\n"
-    + "- ToneX hardware : [...]\n"
-    + "- 5-10 songs I typically rehearse : [...]\n\n"
-    + "Thanks!"
-  );
+import { buildDemoRequestUrl } from '../../core/branding.js';
 
 function DemoBanner({ onExit }) {
   useLocale(); // re-render au switch de langue
@@ -76,7 +67,9 @@ function DemoBanner({ onExit }) {
       <span>{text}</span>
       <span style={{ opacity: 0.6 }}>·</span>
       <a
-        href={MAILTO_URL}
+        href={buildDemoRequestUrl({ source: 'demo_banner' })}
+        target="_blank"
+        rel="noopener noreferrer"
         style={{
           color: 'var(--tolex-900)',
           textDecoration: 'underline',
@@ -104,4 +97,4 @@ function DemoBanner({ onExit }) {
 }
 
 export default DemoBanner;
-export { DemoBanner, MAILTO_URL };
+export { DemoBanner };
