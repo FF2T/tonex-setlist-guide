@@ -331,10 +331,29 @@ saveToFirestore, etc.) :
 | 7.74.7 | Pollution profile récurrente (6 occurrences) — `banksAnn`/`banksPlug` révertés vers une version périmée, propagés à tous les appareils | `recordLogin` re-stampait `lastModified=Date.now()` à CHAQUE boot/login. Un login ne change aucune donnée mais le stamp rendait le profil « le plus récent » → un appareil au contenu périmé, simplement rechargé, gagnait le LWW et propageait son état stale. `banksAnn`/`banksPlug` adoptés en bloc sans défense ni log → corruption invisible | `recordLogin` → `appendLoginEntry` (n'stampe plus `lastModified`) ; log forensique `[merge-defense] SUSPECT banksAnn/Plug mass-change` quand ≥10 slots adoptés en bloc |
 | 7.74.8 | Pollution profile **occurrence #7** — banques Anniversary (~79 slots) + Plug (7 slots) révertées, propagées Mac↔iPhone, MALGRÉ le fix 7.74.7 déployé (v8.14.157) | `migrateV9toV10` — appelé par `_runFullChain` à CHAQUE chargement, même sur un state déjà-v10 — re-stampait `profile.lastModified=Date.now()` **inconditionnellement** sur le profil actif. `recordLogin` n'était qu'un amplificateur parmi deux ; celui-ci tourne à 100 % des boots | `migrateV9toV10` : flag `cacheMigrated`, ne stamper `lastModified` que si une migration aiCache shared→profile réelle a lieu |
 | 7.74.9 | Pollution profile **occurrence #8** — `banksAnn` Sébastien réverté (79/150 slots, slot 23C vidé — signature occ #5), Mac ET iPhone corrompus, MALGRÉ 7.74.7 + 7.74.8 déployés (v8.14.162). Forensique : 3 logs `banksAnn mass-change : adoption remote remplace 79 slots` (log seul, pas de blocage) | `mergeProfileLWW` adoptait `banksAnn`/`banksPlug` **en bloc** via `merged={...remote}` dès que `remote.lastModified > local.lastModified`. Or `lastModified` est un timestamp **global au profil** : toute écriture (édition de sources, ouverture d'un morceau via `setSongAiCache` stampant, login, etc.) faisait gagner le LWW à TOUS les champs, banks comprises — y compris quand le device en question n'avait pas touché aux banks. La défense Phase 7.74.7 *détectait* mais ne *bloquait* pas | Timestamp dédié `profile.banksModified`, stampé UNIQUEMENT lors d'une édition réelle de `banksAnn`/`banksPlug` via `setProfileField`. `mergeProfileLWW` adopte les banks remote SEULEMENT si `remote.banksModified > local.banksModified` ; sinon keep local. Bonus hardening : `setSongAiCache` ne stamp plus `lastModified` (le merge aiCache per-songId auto-arbitre déjà via `ts` per-entry), et `mergeProfileLWW` merge l'aiCache même dans la branche `rts <= lts` |
+| 7.73.2.6 | Suppression ToneNET ne se propage pas Firestore — Sébastien purge 5 entries via UI, state local Mac OK, mais aucun `[firestore] Push WITH aiCache` ne se déclenche. iPhone garde ses 5 entries locales, les re-push → Mac re-pull → cycle infini (5 entries reviennent toujours) | `syncHash` (Phase 7.46) n'incluait pas `shared.toneNetPresets`. Le hash incluait songDb / setlists / customGuitars / deletedSetlistIds / **adminPacks** (Phase 7.69.7) / sharedUsagesOverrides / sharedStudioUsages / profileHash / activeProfileId / theme — mais oubli historique sur `toneNetPresets`. `shouldBump` reste donc `false` après modif ToneNET → `if(!shouldBump) return` → push skip | +1 ligne `(toneNetPresets||[]).map(p=>(p.id||p.name||'')+':'+(p.lastModified||0)+':'+(Array.isArray(p.usages)?p.usages.length:0)).sort().join('|')` ajoutée au syncHash sur le pattern adminPacks. Phase 7.73.2.6 livré v8.14.182 |
+| 7.53.2 | Résurrection ToneNET cross-device — même après fix push 7.73.2.6, une suppression sur Mac ne *propage* pas vraiment si un autre device garde l'item local avec lastModified plus ancien (mergeToneNetPresetsLWW Phase 7.53.1 retourne local-only keep) → l'autre device repush → Firestore réinjecte → Mac réinjecte | Absence de mécanisme tombstone (documenté comme limite acceptée en Phase 7.53.1). Le merge LWW per-item ne pouvait pas distinguer « pas encore vu par ce device » de « supprimé volontairement par un autre » | Champ `shared.deletedToneNetIds: {[id]: timestamp}` (pattern Phase 5.7 setlists). `mergeToneNetPresetsLWW(local, remote, mergedTombstones)` étendu : drop items dont `id ∈ tombstones` ET `tombstones[id] >= max(local.lastModified, remote.lastModified)`. Rétro-compat stricte (3e param optional). `gcTombstones` 30j (helper Phase 5.7 réutilisé). `ToneNetTab.deletePreset` stamp `tombstones[id] = Date.now()`. Phase 7.53.2 livré v8.14.183 |
 
 Chaque ligne représente une régression réelle vécue en prod. La
 prochaine session doit s'assurer qu'aucun fix ne ré-introduit un cas
 ci-dessus.
+
+### Invariant Phase 7.53.2 — Tombstones pour les listes per-item LWW
+
+Toute liste persistée per-item via merge LWW (`setlists`,
+`toneNetPresets`, futur `customPacks` cross-profile, etc.) DOIT
+disposer d'un mécanisme tombstone pour propager les suppressions :
+- champ `shared.deletedXxxIds: {[id]: ts}` accompagnant la liste
+- helper `mergeDeletedXxxIds(local, remote)` (union max(ts))
+- helper de merge étendu avec param `mergedTombstones` (drop item si
+  ts <= tombstone)
+- garbage collection 30j via `gcTombstones`
+- inclusion dans syncHash + push Firestore + persist localStorage
+- UI handler delete stamp tombstones[id] = Date.now()
+
+Sans cela : merge LWW per-item garde local-only keep par défaut → la
+suppression d'un seul device ne propage jamais → cycle de
+résurrection au prochain push de l'autre device.
 
 ## Phase 7.74.7 — `recordLogin` ne re-stampe plus `lastModified` (2026-05-21)
 

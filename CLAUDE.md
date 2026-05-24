@@ -761,7 +761,191 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-24 matin, Phase 7.73.2.5 + 7.73.2.6 — Légende pastilles fix doublon + Push toneNetPresets manquant)
+## État actuel (2026-05-24 dimanche, Phase 7.53.2 + 7.66 — Tombstones ToneNET + Prompt fetchAI rig actif)
+
+**Backline v8.14.184 / SW backline-v284 / STATE_VERSION 11 / 1579 tests verts.**
+
+### Phase 7.66 — Prompt fetchAI passe rig actif uniquement (v8.14.184)
+
+**Context** : Phase 3.6 (mai 2026) passait l'union all-rigs des
+guitares de TOUS les profils (`allRigsGuitars`) au prompt fetchAI
+pour enrichir le cache cross-profil (admin pré-calcule recos pour
+beta-testeurs avant qu'ils se connectent). Conséquence : pour les
+non-admins (Bruno, Francisco), Gemini voyait des guitares hors leur
+rig actif et pouvait proposer `ideal_guitar` hors rig. Phase 7.32 +
+7.65 ont fixé l'affichage (filtre côté UI) mais le prompt envoyait
+toujours l'union.
+
+**Phase 7.54** (mai 2026) a per-profile-isé l'aiCache → le bénéfice
+Phase 3.6 (cache partagé) est devenu obsolète. Sébastien admin peut
+pré-calculer pour un beta-testeur en basculant via Phase 7.63
+admin-switch — une fois basculé, `profile = profiles.bruno` →
+`guitars = bruno.myGuitars` → le prompt voit le bon rig.
+
+**Fix Phase 7.66** : remplacer `allRigsGuitars || guitars` par
+`guitars` (rig actif) dans les 4 call sites fetchAI :
+- `ListScreen.jsx:349` (analyzeMissingAll batch)
+- `ListScreen.jsx:394` (improveAll batch)
+- `SongDetailCard.jsx:110` (useEffect mount/recompute)
+- `SongDetailCard.jsx:1078` (rerunWithFeedback)
+
+Les autres call sites (HomeScreen, SetlistsScreen, MaintenanceTab,
+MonProfilScreen, AddSongModal) passaient déjà `allGuitars` (rig
+actif merged in main.jsx:902) ou `GUITARS` (catalog complet pour
+admin recalc batch) — pas touchés.
+
+`findGuitarByAIName(r.ideal_guitar, allRigsGuitars || guitars)`
+ligne 119 SongDetailCard reste avec fallback `allRigsGuitars` pour
+**résoudre les aiCache historiques pré-Phase 7.66** qui contiennent
+un `ideal_guitar` hors rig actif. Phase 7.32 filtre l'affichage si
+match hors rig.
+
+**Bénéfices** :
+- Prompt fetchAI plus court (1 rig au lieu de 11+ guitares unioned)
+- Moins de tokens Gemini par fetch (~50-100 tokens économisés)
+- Élimine les hallucinations IA "ideal_guitar hors rig" → réduit
+  les cas où Phase 7.32 + 7.65 doivent filtrer
+- Cohérence : prompt et affichage voient désormais le même rig
+- **Aucune invalidation aiCache** : caches existants restent
+  fonctionnels, leurs cot_step2 hors rig sont filtrés à l'affichage
+
+**Limites** :
+- Pré-calcul admin pour autres profils (Phase 3.6 design original)
+  : nécessite explicitement de basculer via admin-switch Phase 7.63
+  avant de lancer "🤖 Analyser/MAJ N". Documenté dans BETA_TESTING.md
+  section 6 (pitfall onboarding).
+
+### Phase 7.53.2 — Tombstones ToneNET (v8.14.183, déployée matin 2026-05-24)
+
+Pattern Phase 5.7 setlists appliqué à `shared.toneNetPresets` :
+- Champ `shared.deletedToneNetIds: {[id]: number}` map de tombstones
+- `mergeToneNetPresetsLWW(local, remote, mergedTombstones)` étendu :
+  drop items dont `id ∈ tombstones` ET `tombstones[id] >= max(local,
+  remote)`. Rétro-compat stricte (3e param optional → comportement
+  Phase 7.53.1 préservé).
+- `mergeDeletedToneNetIds = alias mergeDeletedSetlistIds` (union
+  max(ts))
+- `gcTombstones` 30j (helper Phase 5.7 réutilisé)
+- syncHash inclut `deletedToneNetIds` (push se déclenche sur
+  suppression)
+- Push Firestore inclut `shared.deletedToneNetIds`
+- `ToneNetTab.deletePreset` stamp `tombstones[id] = Date.now()`
+- `applyRemoteData` merge LWW tombstones puis passe au
+  `mergeToneNetPresetsLWW`
+
+**Tests Vitest +12** dans `state.test.js` :
+- `mergeDeletedToneNetIds` × 3 : union max(ts), falsy, non-numeric
+- `mergeToneNetPresetsLWW` tombstones × 9 : scénario bug 2026-05-24
+  reproduit, tombstone gagne sur remote, local plus récent que
+  tombstone (resurrection légitime), égalité ts → tombstone gagne,
+  tombstones absent/{} → rétro-compat Phase 7.53.1 préservée, mix
+  items keep/drop, gcTombstones 30j applicable.
+
+### Phase 7.73.2.6 — Fix bug push manquant toneNetPresets (v8.14.182, matin)
+
+Le `syncHash` Phase 7.46 n'incluait pas `shared.toneNetPresets` →
+modifications dans le tab ToneNET (suppression / ajout / édition)
+ne déclenchaient AUCUN push Firestore → cycle infini de résurrection
+entre devices.
+
+**Fix** : +1 ligne dans syncHash array sur pattern adminPacks (Phase
+7.69.7) :
+```js
+(toneNetPresets||[]).map(p=>(p.id||p.name||'')+':'+(p.lastModified||0)+':'+(Array.isArray(p.usages)?p.usages.length:0)).sort().join('|'),
+```
+
+### Phase 7.73.2.5 — Légende pastilles fix doublon emojis (v8.14.181)
+
+Emojis 🔴/🟠/🔵/🟦 retirés des labels de la légende (doublon avec
+LegendRow dots colorés). Ligne "🟪 Curé studio (Phase 11)" retirée
+(non encore déployée). Légende finale 4 lignes propres + tip.
+
+### Architecture livrée session 2026-05-24
+
+```
+src/main.jsx                            APP_VERSION 8.14.180 → 8.14.181 → 8.14.182
+                                                    → 8.14.183 → 8.14.184
+                                        Phase 7.73.2.6 : +toneNetPresets dans syncHash
+                                        Phase 7.53.2 : +deletedToneNetIds state, push,
+                                                       merge LWW, gcTombstones boot
+                                        Phase 7.66 : (rien à changer, propage via
+                                                     guitars prop des screens)
+public/sw.js                            CACHE backline-v280 → backline-v284
+src/core/state.js                       Phase 7.53.2 : +mergeDeletedToneNetIds (alias),
+                                        mergeToneNetPresetsLWW étendu avec param tombstones
+src/core/state.test.js                  +12 tests Phase 7.53.2
+src/app/screens/ToneNetTab.jsx          Phase 7.53.2 : deletePreset stamp tombstone via
+                                        onDeletedToneNetIds prop
+src/app/screens/AdminScreen.jsx         Phase 7.53.2 : propagation onDeletedToneNetIds
+src/app/screens/ListScreen.jsx          Phase 7.66 : 2 call sites fetchAI → guitars
+src/app/screens/SongDetailCard.jsx      Phase 7.66 : 2 call sites fetchAI → guitars
+                                        Note : findGuitarByAIName garde allRigsGuitars
+                                        en fallback pour caches historiques
+src/app/screens/MesAppareilsTab.jsx     Phase 7.73.2.5 : LegendRow labels sans emojis,
+                                        4 lignes (drop curated-studio)
+src/i18n/en.js, es.js                   Phase 7.73.2.5 : curation-legend.* sans emojis,
+                                        retire curated-studio
+docs/SYNC.md                            +Phase 7.73.2.6 et 7.53.2 dans table régressions
+                                        +invariant tombstones pour listes per-item LWW
+CLAUDE.md                               État actuel mis à jour
+```
+
+### Diagnostic session pollutions ToneNET (2026-05-24)
+
+Session de troubleshooting collaborative sur la pollution ToneNET
+cross-device entre Mac + iPhone + Safari Mac (3 instances) :
+
+1. **Safari Mac** mis hors boucle : reset localStorage + `?beta=1` →
+   flag `backline_no_sync='1'` → arrête push/pull Firestore.
+2. **iPhone** mis hors boucle temporairement : `?beta=1` →
+   `backline_no_sync='1'`.
+3. **Chrome Mac** clean propre : FR + purge 5 ToneNET + décoche
+   tonex-pedal. Stamp `lastModified` 24/05/2026 08:48:57.
+4. **iPhone** retiré du no-sync → reload → pull → mais re-injecte
+   ses 5 ToneNET locales (mergeLWW local-only keep).
+5. **Diagnostic Sébastien** : "je n'ai pas vu la sync se
+   déclencher" → identification du bug syncHash → Phase 7.73.2.6.
+6. Deploy v8.14.182 → reload Mac + iPhone.
+7. iPhone purge directe console + reload v8.14.182 → push se
+   déclenche → Firestore vide → Mac reste à 0.
+8. Phase 7.53.2 livrée v8.14.183 pour résoudre structurellement la
+   résurrection cross-device sans intervention manuelle future.
+
+Cycle cassé confirmé : Mac=0, iPhone=0, stable. Tests futurs
+n'auront pas besoin de workaround manuel grâce aux tombstones.
+
+### Observations annexes session 2026-05-24
+
+- **Erreurs Firestore 401 répétées** dans les logs : `[firebase-auth]
+  fetch 401 → clearing cache + retry`. Le retry Phase 7.52.17 kick
+  in mais la prochaine requête re-fail aussi. Pull/Push fonctionnent
+  malgré tout entre les 401. À surveiller dans Firebase Console →
+  Authentication → Usage si récidive massive (possible quota
+  Anonymous Auth).
+- **Pollution profile cross-device Phase 7.74.x** : 3 défenses
+  observées en logs (banksAnn mass-change BLOCKED + orphan-cross-
+  profile + swap pattern cg_*→standard). Les 3 couches tiennent.
+  Un device stale (probably iPhone à un moment) essaie encore de
+  pousser des états anciens. Pas critique.
+
+### Dette résiduelle
+
+- **Pastille Laney VC50 HighGain/extrim Sat** : 1 entry encore en
+  localStorage post-purge partielle. À traiter au choix :
+  - Recréer comme custom (avec usages tagués) → pastille bleu clair
+  - Supprimer via tab ToneNET admin (Phase 7.53.2 propage maintenant)
+  - Laisser tel quel (pastille orange = correct car entry connue
+    sans usages)
+- **Recos pré-Phase 7.66** : les aiCache existants contiennent
+  potentiellement des `ideal_guitar` hors rig actif. Phase 7.32 +
+  7.65 filtrent à l'affichage. Pour basculer sur des recos
+  100% in-rig dès le 1er render, "🔄 Réinitialiser mes analyses"
+  (Mon Profil → ⚙️ Préférences → 🎯 Préférences IA) puis re-batch
+  "🤖 Analyser/MAJ N". Optionnel.
+
+---
+
+## État précédent (2026-05-24 matin, Phase 7.73.2.5 + 7.73.2.6 — Légende pastilles fix doublon + Push toneNetPresets manquant)
 
 **Backline v8.14.182 / SW backline-v282 / STATE_VERSION 11 / 1567 tests verts.**
 

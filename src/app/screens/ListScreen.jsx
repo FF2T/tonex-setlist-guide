@@ -346,7 +346,11 @@ function ListScreen({
         const historicalFeedback = Array.isArray(s.feedback) && s.feedback.length > 0
           ? s.feedback.map((f) => f.text).filter(Boolean).join('. ')
           : null;
-        const r = await fetchAI(s, '', banksAnn, banksPlug, aiProvider, aiKeys, allRigsGuitars || guitars, historicalFeedback, null, profile?.recoMode || 'balanced', guitarBias, s.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || []);
+        // Phase 7.66 — Prompt scopé au rig du profil actif (vs union all-rigs
+        // Phase 3.6). Élimine les hallucinations IA "ideal_guitar hors rig"
+        // que Phase 7.32/7.65 devaient filtrer côté affichage. Bénéfice :
+        // prompt plus court, moins de tokens, recos toujours dans le rig.
+        const r = await fetchAI(s, '', banksAnn, banksPlug, aiProvider, aiKeys, guitars, historicalFeedback, null, profile?.recoMode || 'balanced', guitarBias, s.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || []);
         if (analyzeCancelRef.current) break;
         // Phase 7.81 — rigSnapshot stocké = rig profil actif (pas union all-rigs).
         const rigSnapshot = computeRigSnapshot(guitars);
@@ -391,7 +395,8 @@ function ListScreen({
           const historicalFeedback = Array.isArray(s.feedback) && s.feedback.length > 0
             ? s.feedback.map((f) => f.text).filter(Boolean).join('. ')
             : null;
-          const r = await waitOrCancel(fetchAI(s, gId, banksAnn, banksPlug, aiProvider, aiKeys, allRigsGuitars || guitars, historicalFeedback, null, profile?.recoMode || 'balanced', guitarBias, s.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || []));
+          // Phase 7.66 — Prompt scopé au rig profil actif.
+          const r = await waitOrCancel(fetchAI(s, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, historicalFeedback, null, profile?.recoMode || 'balanced', guitarBias, s.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || []));
           if (improveCancelRef.current) break;
           // Phase 7.54 — Écrit dans profile.aiCache.
           const newCache = updateAiCache(s.aiCache, gId, r);
