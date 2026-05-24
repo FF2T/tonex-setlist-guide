@@ -15,7 +15,7 @@
 
 import React, { useEffect } from 'react';
 import { t, useLocale } from '../../i18n/index.js';
-import { APP_NAME } from '../../core/branding.js';
+import { APP_NAME, TALLY_FORM_ID_BY_LOCALE } from '../../core/branding.js';
 import BacklineIcon from '../components/BacklineIcon.jsx';
 
 // Formulaire Tally "demande accès beta" — affiché en popup modale
@@ -35,10 +35,9 @@ import BacklineIcon from '../components/BacklineIcon.jsx';
 // data-tally-open=...> par <a href={`https://tally.so/r/${formId}`}
 // target="_blank" rel="noopener noreferrer"> et retirer le useEffect
 // d'injection du script.
-const TALLY_FORM_ID_BY_LOCALE = {
-  fr: 'RGbBVd',
-  en: '68WQyO',
-};
+//
+// Phase 7.55.5 — TALLY_FORM_ID_BY_LOCALE centralisé dans core/branding.js
+// pour partager avec DemoBanner. Import en tête du fichier.
 const TALLY_EMBED_SRC = 'https://tally.so/widgets/embed.js';
 
 function FeatureCard({ icon, title, body }) {
@@ -227,4 +226,4 @@ function LandingScreen({ onDemoEnter, onShowPicker, appVersion }) {
 }
 
 export default LandingScreen;
-export { LandingScreen, TALLY_FORM_ID_BY_LOCALE };
+export { LandingScreen };

@@ -15,7 +15,7 @@
 // configuré côté branding.js.
 
 import React from 'react';
-import { t, useLocale } from '../../i18n/index.js';
+import { t, useLocale, getLocale } from '../../i18n/index.js';
 import { buildDemoRequestUrl } from '../../core/branding.js';
 
 function DemoBanner({ onExit }) {
@@ -67,7 +67,7 @@ function DemoBanner({ onExit }) {
       <span>{text}</span>
       <span style={{ opacity: 0.6 }}>·</span>
       <a
-        href={buildDemoRequestUrl({ source: 'demo_banner' })}
+        href={buildDemoRequestUrl({ source: 'demo_banner', locale: getLocale() })}
         target="_blank"
         rel="noopener noreferrer"
         style={{

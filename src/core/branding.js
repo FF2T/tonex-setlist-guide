@@ -50,42 +50,45 @@ function buildFeedbackUrl(profileName, appVersion) {
   return url.toString();
 }
 
-// Phase 7.55.5 — Formulaire Tally dédié aux demandes d'accès beta
-// depuis le mode démo (DemoBanner). Distinct de TALLY_FEEDBACK_URL
-// (qui sert au feedback générique post-login Phase 7.73.0).
+// Phase 7.55.5 — Formulaires Tally bilingues pour les demandes d'accès
+// beta depuis le mode démo (DemoBanner) + landing publique (LandingScreen
+// Phase 7.60.1). Distinct de TALLY_FEEDBACK_URL (Phase 7.73.0, feedback
+// générique post-login).
+//
+// 1 form par locale (FR + EN). Si locale courante n'a pas de form mappé,
+// fallback FR (Sébastien comprend les 3 langues côté réponse). ES suit
+// FR pour l'instant — basculer sur EN serait pire (les hispanophones
+// bilingues FR sont rares vs hispanophones bilingues EN). Si demande
+// explicite ES, ajouter un form ES et un mapping ici.
+//
 // Champs Tally : pseudo + email + guitares + ToneX hardware (radio) +
 // morceaux + source (radio Reddit/DM/Démo/Studio/Autre) + temps démo
-// (radio <5/5-15/>15min/pas encore). À remplacer par l'URL réelle au
-// moment du setup côté Tally.
-const TALLY_DEMO_REQUEST_URL = 'https://tally.so/r/Bz2LeA';
+// (radio <5/5-15/>15min). Hidden field "source" pour distinguer
+// demandes "depuis demo banner" vs landing publique.
+const TALLY_FORM_ID_BY_LOCALE = {
+  fr: 'RGbBVd',
+  en: '68WQyO',
+};
 
 /**
- * Construit l'URL Tally demande d'accès beta avec param `source` pour
- * distinguer les demandes "depuis mode démo" vs futures sources.
- * @param {object} opts - { source: 'demo_banner' | ... }
+ * Construit l'URL Tally demande d'accès beta selon la locale active,
+ * avec param `source` pour distinguer les canaux d'entrée.
+ * @param {object} opts - { source: 'demo_banner' | 'landing' | ..., locale: 'fr'|'en'|'es' }
  */
 function buildDemoRequestUrl(opts) {
-  const base = TALLY_DEMO_REQUEST_URL;
-  if (!base || base.startsWith('REPLACE_')) {
-    // Fallback mailto pendant que Tally pas encore configuré côté admin.
-    return 'mailto:contact@mybackline.app'
-      + '?subject=' + encodeURIComponent('Demande de profil Backline')
-      + '&body=' + encodeURIComponent(
-        "Hi,\n\nI'd like a Backline profile with my own rig. Here's my setup:\n\n"
-        + "- Main guitars : [...]\n- ToneX hardware : [...]\n- 5-10 songs I typically rehearse : [...]\n\nThanks!"
-      );
-  }
+  const locale = opts?.locale;
+  const formId = TALLY_FORM_ID_BY_LOCALE[locale] || TALLY_FORM_ID_BY_LOCALE.fr;
   try {
-    const url = new URL(base);
+    const url = new URL(`https://tally.so/r/${formId}`);
     if (opts?.source) url.searchParams.set('source', opts.source);
     return url.toString();
   } catch (_e) {
-    return base;
+    return `https://tally.so/r/${formId}`;
   }
 }
 
 export {
   APP_NAME, APP_TAGLINE, APP_TAGLINE_BY_LOCALE, getAppTagline, APP_SHORT_NAME,
   TALLY_FEEDBACK_URL, buildFeedbackUrl,
-  TALLY_DEMO_REQUEST_URL, buildDemoRequestUrl,
+  TALLY_FORM_ID_BY_LOCALE, buildDemoRequestUrl,
 };
