@@ -16,7 +16,7 @@
 // installer) → message "non installé" + nom du preset.
 
 import React from 'react';
-import { t } from '../../i18n/index.js';
+import { t, tFormat } from '../../i18n/index.js';
 
 // Cherche un preset par nom dans une structure { [bankNumber]: { A, B, C } }.
 function findPresetLocation(name, banks) {
@@ -210,6 +210,164 @@ function makeToneXLiveBlock(device) {
             </div>
           </div>
         )}
+
+        {/* Phase 4.6 — Réglages pédale (Phase 9.1 preset_settings_v1).
+            Affichage compact des 5 boutons principaux + 5 ALT + cab on/off.
+            Skip silencieux si preset_settings_v1 absent (aiCache pré-9.1). */}
+        {aiC?.preset_settings_v1 && typeof aiC.preset_settings_v1 === 'object' && (() => {
+          const ps = aiC.preset_settings_v1;
+          const main = ps.main || {};
+          const alt = ps.alt || {};
+          const getValue = (knob) => {
+            if (typeof knob === 'number') return knob;
+            if (knob && typeof knob === 'object' && typeof knob.value === 'number') return knob.value;
+            return null;
+          };
+          const formatVal = (v, suffix) => v != null ? `${v}${suffix || ''}` : null;
+          const mainEntries = [
+            ['Gain', formatVal(getValue(main.gain))],
+            ['Bass', formatVal(getValue(main.bass))],
+            ['Mid', formatVal(getValue(main.mid))],
+            ['Treble', formatVal(getValue(main.treble))],
+            ['Volume', formatVal(getValue(main.volume))],
+          ].filter(([, v]) => v != null);
+          const altEntries = [
+            ['Presence', formatVal(getValue(alt.presence))],
+            ['Depth', formatVal(getValue(alt.depth))],
+            ['Reverb mix', formatVal(getValue(alt.reverb_mix), '%')],
+            ['Comp', formatVal(getValue(alt.comp_threshold), 'dB')],
+            ['Gate', formatVal(getValue(alt.gate_threshold), 'dB')],
+          ].filter(([, v]) => v != null);
+          if (mainEntries.length === 0 && altEntries.length === 0) return null;
+          const cabEnabled = ps.cab_enabled !== false;
+          return (
+            <div
+              data-testid={`tonex-live-settings-${device.id}`}
+              style={{
+                background: 'var(--a5)', borderRadius: 'var(--r-md)',
+                padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 4,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 9, color: 'var(--text-muted)',
+                  fontFamily: 'var(--font-mono)', textTransform: 'uppercase',
+                  letterSpacing: 0.5,
+                  display: 'flex', justifyContent: 'space-between',
+                }}
+              >
+                <span>🎛️ {t('live.pedal-settings', 'Réglages pédale')}</span>
+                <span style={{ color: cabEnabled ? 'var(--green)' : 'var(--yellow)' }}>
+                  CAB {cabEnabled ? 'ON' : 'OFF'}
+                </span>
+              </div>
+              {mainEntries.length > 0 && (
+                <div
+                  style={{
+                    fontSize: 'clamp(12px, 1.8vw, 14px)',
+                    color: 'var(--text-bright)', lineHeight: 1.5,
+                    display: 'flex', flexWrap: 'wrap', gap: '2px 12px',
+                  }}
+                >
+                  {mainEntries.map(([label, val]) => (
+                    <span key={label}>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{label}</span>{' '}
+                      <b>{val}</b>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {altEntries.length > 0 && (
+                <div
+                  style={{
+                    fontSize: 'clamp(11px, 1.6vw, 13px)',
+                    color: 'var(--text-sec)', lineHeight: 1.5,
+                    display: 'flex', flexWrap: 'wrap', gap: '2px 10px',
+                  }}
+                >
+                  {altEntries.map(([label, val]) => (
+                    <span key={label}>
+                      <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{label}</span>{' '}
+                      {val}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Phase 4.6 — FX blocks (Phase 9.2 / 9.7).
+            5 blocs ON/OFF compacts pour décision rapide en scène. Sub-params
+            visibles seulement si bloc enabled, format court "Type · key value".
+            Skip silencieux si fx_blocks absent. */}
+        {aiC?.fx_blocks && typeof aiC.fx_blocks === 'object' && (() => {
+          const fx = aiC.fx_blocks;
+          const blockKeys = ['noise_gate', 'compressor', 'modulation', 'delay', 'reverb'];
+          const blockLabels = {
+            noise_gate: 'Gate',
+            compressor: 'Comp',
+            modulation: 'Mod',
+            delay: 'Delay',
+            reverb: 'Reverb',
+          };
+          const blocks = blockKeys
+            .map((k) => ({ key: k, label: blockLabels[k], block: fx[k] }))
+            .filter((b) => b.block && typeof b.block === 'object');
+          if (blocks.length === 0) return null;
+          return (
+            <div
+              data-testid={`tonex-live-fx-${device.id}`}
+              style={{
+                background: 'var(--a5)', borderRadius: 'var(--r-md)',
+                padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 4,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 9, color: 'var(--text-muted)',
+                  fontFamily: 'var(--font-mono)', textTransform: 'uppercase',
+                  letterSpacing: 0.5,
+                }}
+              >
+                🎚 {t('live.fx-section', 'Effets')}
+              </div>
+              <div
+                style={{
+                  fontSize: 'clamp(11px, 1.6vw, 13px)',
+                  color: 'var(--text-bright)', lineHeight: 1.6,
+                  display: 'flex', flexWrap: 'wrap', gap: '4px 14px',
+                }}
+              >
+                {blocks.map(({ key, label, block }) => {
+                  const on = block.enabled === true;
+                  const typeStr = on && block.type ? ` · ${block.type}` : '';
+                  return (
+                    <span
+                      key={key}
+                      style={{
+                        color: on ? 'var(--text-bright)' : 'var(--text-dim)',
+                        fontWeight: on ? 700 : 500,
+                      }}
+                    >
+                      {label}{' '}
+                      <span
+                        style={{
+                          fontSize: 9, fontFamily: 'var(--font-mono)',
+                          color: on ? 'var(--green)' : 'var(--text-tertiary)',
+                          letterSpacing: 0.5,
+                        }}
+                      >
+                        {on ? 'ON' : 'OFF'}
+                      </span>
+                      {typeStr && <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 500 }}>{typeStr}</span>}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
       </div>
     );
   }

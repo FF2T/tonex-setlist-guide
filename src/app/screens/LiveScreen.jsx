@@ -19,8 +19,25 @@
 //                       éventuelle depuis un LiveBlock (TMP).
 
 import React, { useEffect, useRef, useState } from 'react';
-import { t, tFormat } from '../../i18n/index.js';
+import { t, tFormat, getLocale } from '../../i18n/index.js';
 import { getSongInfo, SONG_HISTORY } from '../../core/songs.js';
+
+// Phase 4.6 — Mapping pickup playing_hints (Phase 9.5) vers labels
+// trilingues pour lecture rapide en scène. Universal pickup names
+// (Bridge/Neck/Middle/Position 2-4) → localisés FR/EN/ES.
+function localizePickupLive(raw, locale) {
+  if (!raw) return null;
+  const v = String(raw).toLowerCase().trim();
+  const fr = locale === 'fr' || (!locale && getLocale() === 'fr');
+  const es = locale === 'es' || (!locale && getLocale() === 'es');
+  if (v.includes('bridge') && !v.includes('neck')) return fr ? 'Micro chevalet' : es ? 'Pastilla puente' : 'Bridge';
+  if (v.includes('neck') && !v.includes('bridge')) return fr ? 'Micro manche' : es ? 'Pastilla mástil' : 'Neck';
+  if (v.includes('middle') || v.includes('position 3')) return fr ? 'Micro intermédiaire' : es ? 'Pastilla central' : 'Middle';
+  if (v.includes('position 4') || v.includes('middle+bridge')) return fr ? 'Position 4 (intermédiaire+chevalet)' : es ? 'Posición 4' : 'Position 4 (Middle+Bridge)';
+  if (v.includes('position 2') || v.includes('middle+neck')) return fr ? 'Position 2 (manche+intermédiaire)' : es ? 'Posición 2' : 'Position 2 (Middle+Neck)';
+  if (v.includes('bridge+neck') || v.includes('all')) return fr ? 'Tous micros' : es ? 'Todas las pastillas' : 'All pickups';
+  return raw; // fallback : valeur brute
+}
 
 const SWIPE_MIN_DISTANCE = 50; // px
 const SWIPE_MAX_VERTICAL = 80; // px (ignore si swipe trop vertical)
@@ -269,6 +286,80 @@ function LiveScreen({
           </div>
         )}
       </div>
+
+      {/* Phase 4.6 — Section guitare device-agnostic (playing_hints Phase 9.5)
+          Affichée entre Title block et Devices pour lecture rapide en scène.
+          Skip silencieux si aiCache absent ou playing_hints absent. */}
+      {(() => {
+        const playingHints = song?.aiCache?.result?.playing_hints;
+        if (!playingHints || typeof playingHints !== 'object') return null;
+        const { pickup, guitar_volume, guitar_tone, stereo } = playingHints;
+        if (!pickup && !guitar_volume && !guitar_tone && !stereo) return null;
+        const locale = getLocale();
+        const pickupLoc = localizePickupLive(pickup, locale);
+        const guitarLabel = guitar?.name || t('live.your-guitar', 'ta guitare');
+        return (
+          <div
+            data-testid="live-screen-guitar-hints"
+            style={{
+              background: 'var(--a3)',
+              border: '1px solid var(--accent-border)',
+              borderRadius: 'var(--r-lg)',
+              padding: '12px 14px',
+              marginBottom: 12,
+              display: 'flex', flexDirection: 'column', gap: 4,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 9, fontWeight: 700, color: 'var(--accent)',
+                fontFamily: 'var(--font-mono)', textTransform: 'uppercase',
+                letterSpacing: 0.5,
+              }}
+            >
+              🎸 {tFormat('live.guitar-section', { guitar: guitarLabel }, 'Sur ta {guitar}')}
+            </div>
+            <div
+              style={{
+                fontSize: 'clamp(15px, 2.5vw, 20px)',
+                fontWeight: 700, color: 'var(--text-bright)',
+                lineHeight: 1.4,
+                display: 'flex', flexWrap: 'wrap',
+                gap: '4px 14px', alignItems: 'baseline',
+              }}
+            >
+              {pickupLoc && <span>{pickupLoc}</span>}
+              {guitar_volume && (
+                <span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>{t('live.volume', 'Volume')}</span>{' '}
+                  <b>{guitar_volume}</b>
+                </span>
+              )}
+              {guitar_tone && (
+                <span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>{t('live.tone', 'Tone')}</span>{' '}
+                  <b>{guitar_tone}</b>
+                </span>
+              )}
+              {stereo === true && (
+                <span
+                  style={{
+                    fontSize: 10, fontWeight: 800, color: 'var(--brass-300)',
+                    background: 'rgba(218,165,32,0.15)',
+                    border: '1px solid rgba(218,165,32,0.4)',
+                    borderRadius: 'var(--r-sm)',
+                    padding: '2px 6px',
+                    fontFamily: 'var(--font-mono)',
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  🎚️ STEREO
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Devices — 1 LiveBlock par device activé */}
       <div

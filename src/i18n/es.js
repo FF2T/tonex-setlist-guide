@@ -82,6 +82,14 @@ const es = {
   'common.footer-disclaimer': 'Herramienta independiente — ToneX™ es una marca de IK Multimedia SpA. Las demás marcas mencionadas pertenecen a sus respectivos propietarios.',
   'common.footer-pathtotone': 'PathToTone publica Backline.',
 
+  // live recos détaillées (Phase 4.6)
+  'live.your-guitar': 'tu guitarra',
+  'live.guitar-section': 'En tu {guitar}',
+  'live.volume': 'Volumen',
+  'live.tone': 'Tono',
+  'live.pedal-settings': 'Ajustes pedal',
+  'live.fx-section': 'Efectos',
+
   // curation legend (Phase 7.73.2.4)
   'curation-legend.title': 'Leyenda de las pastillas de curación',
   'curation-legend.unknown': 'Desconocido — no está en el catálogo, puntuación degradada, no es posible fijar por IA.',

@@ -84,6 +84,14 @@ const en = {
   'common.footer-disclaimer': 'Independent tool — ToneX™ is a trademark of IK Multimedia SpA. Other mentioned trademarks belong to their respective owners.',
   'common.footer-pathtotone': 'PathToTone publishes Backline.',
 
+  // live recos détaillées (Phase 4.6)
+  'live.your-guitar': 'your guitar',
+  'live.guitar-section': 'On your {guitar}',
+  'live.volume': 'Volume',
+  'live.tone': 'Tone',
+  'live.pedal-settings': 'Pedal settings',
+  'live.fx-section': 'Effects',
+
   // curation legend (Phase 7.73.2.4)
   'curation-legend.title': 'Curation dot legend',
   'curation-legend.unknown': 'Unknown — not in the catalog, scoring degraded, no AI pin possible.',
