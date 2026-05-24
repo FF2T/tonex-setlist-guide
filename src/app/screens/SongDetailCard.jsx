@@ -909,7 +909,12 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             return (
               <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <StatusDot score={presetData?.score} ideal={presetData?.label === aiC.ideal_preset} size={10}/>
-                <div style={{ flex: 1 }}>
+                {/* Phase 7.55.7 fix bug Cowork iPhone — min-width: 0 obligatoire
+                    sur flex:1 enfant pour laisser PBlock shrink correctement.
+                    Sans ça : sur viewport étroit (iPhone 375-430), le nom de
+                    preset long s'effondrait en colonne verticale (1 char/ligne,
+                    span 17×248px). */}
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <PBlock device={d.label} emoji={d.icon} presetName={presetData?.label} gType={gId ? type : null} banks={banks} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={presetData?.score} breakdown={presetData?.breakdown}/>
                 </div>
               </div>

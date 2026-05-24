@@ -73,7 +73,11 @@ function PBlock({ device, emoji, presetName, gType, banks, adapted, gs, bg2, ava
       </div>
       {displayRec ? (
         <>
-          <div style={{ fontSize: 12, color: 'var(--text-bright)', fontWeight: 600, marginBottom: 4 }}>{displayName}</div>
+          {/* Phase 7.55.7 — overflowWrap: anywhere évite l'effondrement vertical
+              du nom long sur iPhone (col 17×248px observé Cowork) si jamais le
+              parent flex passe quand même en width insuffisante. Belt-and-
+              suspenders avec min-width: 0 côté SongDetailCard. */}
+          <div style={{ fontSize: 12, color: 'var(--text-bright)', fontWeight: 600, marginBottom: 4, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{displayName}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
             {displayRec.installed
               ? <span title={`Slot ${displayRec.slot} — ${CL[displayRec.slot]}`} style={{ background: `${CC[displayRec.slot]}18`, color: CC[displayRec.slot], border: `1px solid ${CC[displayRec.slot]}40`, borderRadius: 'var(--r-sm)', padding: '1px 7px', fontSize: 10, fontWeight: 700 }}>{tFormat('pblock.installed-bank', { bank: displayRec.bank, slot: displayRec.slot }, 'Banque {bank}{slot}')}</span>

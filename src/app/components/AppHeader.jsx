@@ -81,12 +81,14 @@ function AppNavBottom({ screen, onNavigate, isAdmin }) {
   ];
   const visibleItems = ITEMS.filter((it) => !it.adminOnly || isAdmin);
   return (
+    // Phase 7.55.7 fix Cowork — bumper la hauteur min à 50px pour atteindre
+    // 44×44 Apple HIG (vs 30px observé). padding 8→10 vertical + minHeight.
     <div className="nav-mobile" style={{ display: 'flex', position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--surface-card,var(--bg-card))', borderTop: '1px solid var(--border-subtle,var(--a8))', zIndex: 50, paddingBottom: 'max(4px,env(safe-area-inset-bottom))' }}>
       {visibleItems.map((item) => {
         const active = screen === item.id;
-        return <button key={item.id} onClick={() => { onNavigate(item.id); }} style={{ flex: 1, background: 'none', border: 'none', color: active ? 'var(--accent,#818cf8)' : 'var(--text-tertiary,var(--text-muted))', padding: '8px 0 4px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-          <NavIcon id={item.id} size={20}/>
-          <span style={{ fontSize: 9, fontWeight: active ? 700 : 500 }}>{item.label}</span>
+        return <button key={item.id} onClick={() => { onNavigate(item.id); }} style={{ flex: 1, minHeight: 50, background: 'none', border: 'none', color: active ? 'var(--accent,#818cf8)' : 'var(--text-tertiary,var(--text-muted))', padding: '10px 0 6px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+          <NavIcon id={item.id} size={22}/>
+          <span style={{ fontSize: 10, fontWeight: active ? 700 : 500 }}>{item.label}</span>
         </button>;
       })}
     </div>

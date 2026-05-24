@@ -79,14 +79,16 @@ function DemoBanner({ onExit }) {
       <button
         type="button"
         onClick={handleExit}
+        // Phase 7.55.7 fix Cowork — cible touch 36px (vs 21px)
         style={{
           marginLeft: 'auto',
           background: 'rgba(0,0,0,0.08)',
           border: '1px solid var(--brass-400)',
           color: 'var(--tolex-900)',
-          padding: '3px 10px',
+          padding: '7px 14px',
+          minHeight: 36,
           borderRadius: 'var(--r-sm, 6px)',
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: 700,
           cursor: 'pointer',
         }}

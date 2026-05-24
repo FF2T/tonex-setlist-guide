@@ -513,7 +513,8 @@ function ListScreen({
           {activeSlId && activeSongs.length > 0 && (
             <button
               onClick={() => setEditingSongs((x) => !x)}
-              style={{ fontSize: 10, color: editingSongs ? 'var(--wine-400)' : 'var(--text-muted)', background: editingSongs ? 'rgba(155,58,44,0.12)' : 'var(--a5)', border: '1px solid ' + (editingSongs ? 'rgba(155,58,44,0.3)' : 'var(--a10)'), borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer', fontWeight: editingSongs ? 700 : 500 }}
+              // Phase 7.55.7 fix Cowork — cible touch 36px min (vs 23-25px)
+              style={{ fontSize: 11, minHeight: 36, color: editingSongs ? 'var(--wine-400)' : 'var(--text-muted)', background: editingSongs ? 'rgba(155,58,44,0.12)' : 'var(--a5)', border: '1px solid ' + (editingSongs ? 'rgba(155,58,44,0.3)' : 'var(--a10)'), borderRadius: 'var(--r-sm)', padding: '7px 12px', cursor: 'pointer', fontWeight: editingSongs ? 700 : 500 }}
               title={t('list.edit-setlist-title', "Mode édition : permet de retirer les morceaux de la setlist (sans toucher à la base globale)")}
             >
               {editingSongs
@@ -529,12 +530,12 @@ function ListScreen({
               analyzeMissingAll();
             }}
             title={tFormat('list.analyze-title', { count: missingCount }, '{count} morceau(x) à analyser ou actualiser après modif du rig.')}
-            style={{ fontSize: 10, color: 'var(--accent)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer', fontWeight: 700 }}
+            style={{ fontSize: 11, minHeight: 36, color: 'var(--accent)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-sm)', padding: '7px 12px', cursor: 'pointer', fontWeight: 700 }}
           >{tFormat('list.analyze-button', { count: missingCount }, '🤖 Analyser/MAJ {count}')}</button>}
           {analyzeAllStatus && <button
             data-testid="list-screen-analyze-cancel"
             onClick={() => { analyzeCancelRef.current = true; }}
-            style={{ fontSize: 10, color: 'var(--wine-400)', background: 'rgba(155,58,44,0.12)', border: '1px solid rgba(155,58,44,0.3)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer', fontWeight: 700 }}
+            style={{ fontSize: 11, minHeight: 36, color: 'var(--wine-400)', background: 'rgba(155,58,44,0.12)', border: '1px solid rgba(155,58,44,0.3)', borderRadius: 'var(--r-sm)', padding: '7px 12px', cursor: 'pointer', fontWeight: 700 }}
             title={tFormat('list.cancel-analyze', { current: analyzeAllStatus.current, total: analyzeAllStatus.total }, "Annuler l'analyse en cours ({current}/{total})")}
           >⏸ {analyzeAllStatus.current}/{analyzeAllStatus.total}</button>}
           {/* Phase 7.71 — Bouton "Retirer non-cochés" supprimé (Phase 5.5)
