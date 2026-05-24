@@ -13,7 +13,7 @@ import {
   wrapDemoGuard, stripDemoProfiles, stripDemoFromSetlists,
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW, mergeProfileLWW,
-  mergeToneNetPresetsLWW,
+  mergeToneNetPresetsLWW, mergeDeletedToneNetIds,
   stampedProfileUpdate,
   ensureProfileV10, ensureProfilesV10, migrateV9toV10, getProfileAiCache,
   ensureProfileV11, ensureProfilesV11, migrateV10toV11,
@@ -1515,6 +1515,115 @@ describe('mergeToneNetPresetsLWW — Phase 7.53.1', () => {
     const remote = [{ id: 'tn_1', name: 'Laney updated', lastModified: 2000, usages: [{ artist: 'Black Sabbath', songs: ['Paranoid', 'Iron Man'] }] }];
     const out = mergeToneNetPresetsLWW(local, remote);
     expect(out[0].usages[0].songs).toEqual(['Paranoid', 'Iron Man']);
+  });
+});
+
+describe('mergeDeletedToneNetIds — Phase 7.53.2', () => {
+  test('union max(ts) sur ids communs', () => {
+    const local = { 'tn_1': 1000, 'tn_2': 500 };
+    const remote = { 'tn_1': 800, 'tn_3': 2000 };
+    const out = mergeDeletedToneNetIds(local, remote);
+    expect(out).toEqual({ 'tn_1': 1000, 'tn_2': 500, 'tn_3': 2000 });
+  });
+
+  test('inputs falsy → {}', () => {
+    expect(mergeDeletedToneNetIds(null, null)).toEqual({});
+    expect(mergeDeletedToneNetIds(undefined, {})).toEqual({});
+    expect(mergeDeletedToneNetIds({}, null)).toEqual({});
+  });
+
+  test('ignore ts non-numérique', () => {
+    const local = { 'tn_1': 'not-a-number', 'tn_2': 100 };
+    const remote = { 'tn_1': 500 };
+    const out = mergeDeletedToneNetIds(local, remote);
+    expect(out).toEqual({ 'tn_1': 500, 'tn_2': 100 });
+  });
+});
+
+describe('mergeToneNetPresetsLWW — Phase 7.53.2 (tombstones)', () => {
+  test('scénario bug 2026-05-24 : Mac purge avec tombstone → iPhone drop au pull', () => {
+    // Mac purge id=X à T2, tombstones[X]=T2
+    // iPhone garde local avec lastModified=T1 (T1 < T2)
+    // mergeToneNetPresetsLWW(local=[{X,T1}], remote=[], tombstones={X:T2})
+    // → DROP X
+    const local = [{ id: 'tn_X', name: 'Old', lastModified: 1000 }];
+    const remote = [];
+    const tombstones = { 'tn_X': 2000 };
+    const out = mergeToneNetPresetsLWW(local, remote, tombstones);
+    expect(out).toEqual([]);
+  });
+
+  test('tombstone gagne sur remote-only plus ancien', () => {
+    // iPhone push id=Y (lastModified=T1), Mac a tombstone Y à T2 (T2>T1)
+    // → DROP Y
+    const local = [];
+    const remote = [{ id: 'tn_Y', name: 'Resurrected', lastModified: 1000 }];
+    const tombstones = { 'tn_Y': 2000 };
+    const out = mergeToneNetPresetsLWW(local, remote, tombstones);
+    expect(out).toEqual([]);
+  });
+
+  test('local plus récent que tombstone → keep local (resurrection légitime)', () => {
+    // Si user a re-créé un preset id=X après suppression :
+    // local lastModified=T3 > tombstone[X]=T2 → keep local (nouvelle saisie)
+    const local = [{ id: 'tn_X', name: 'Recreated', lastModified: 3000 }];
+    const remote = [];
+    const tombstones = { 'tn_X': 2000 };
+    const out = mergeToneNetPresetsLWW(local, remote, tombstones);
+    expect(out).toHaveLength(1);
+    expect(out[0].name).toBe('Recreated');
+  });
+
+  test('remote plus récent que tombstone → keep remote', () => {
+    // Autre device a recreated le preset après ta suppression :
+    // remote lastModified=T3 > tombstone[X]=T2 → adopt remote
+    const local = [];
+    const remote = [{ id: 'tn_X', name: 'Remote recreate', lastModified: 3000 }];
+    const tombstones = { 'tn_X': 2000 };
+    const out = mergeToneNetPresetsLWW(local, remote, tombstones);
+    expect(out).toHaveLength(1);
+    expect(out[0].name).toBe('Remote recreate');
+  });
+
+  test('égalité ts tombstone vs item → tombstone gagne (drop)', () => {
+    // Convention : tombstone === item ts → DROP. Évite cycle quand
+    // tombstone et item sont créés simultanément (rare mais possible).
+    const local = [{ id: 'tn_X', name: 'Same ts', lastModified: 2000 }];
+    const tombstones = { 'tn_X': 2000 };
+    const out = mergeToneNetPresetsLWW(local, [], tombstones);
+    expect(out).toEqual([]);
+  });
+
+  test('tombstones absent → comportement Phase 7.53.1 préservé', () => {
+    // Sans 3e param, rétro-compat strict.
+    const local = [{ id: 'tn_1', name: 'A', lastModified: 1000 }];
+    const out = mergeToneNetPresetsLWW(local, []);
+    expect(out).toEqual(local);
+  });
+
+  test('tombstones {} → comportement Phase 7.53.1 préservé', () => {
+    const local = [{ id: 'tn_1', name: 'A', lastModified: 1000 }];
+    const out = mergeToneNetPresetsLWW(local, [], {});
+    expect(out).toEqual(local);
+  });
+
+  test('mix : 2 items, 1 tombstone qui matche, 1 qui pas', () => {
+    const local = [
+      { id: 'tn_keep', name: 'Keep', lastModified: 1000 },
+      { id: 'tn_drop', name: 'Drop', lastModified: 1000 },
+    ];
+    const tombstones = { 'tn_drop': 2000 }; // tombstone match tn_drop seul
+    const out = mergeToneNetPresetsLWW(local, [], tombstones);
+    expect(out).toHaveLength(1);
+    expect(out[0].id).toBe('tn_keep');
+  });
+
+  test('gcTombstones 30j applicable à deletedToneNetIds (réutilise helper Phase 5.7)', () => {
+    const old = Date.now() - 31 * 24 * 3600 * 1000;
+    const recent = Date.now() - 10 * 24 * 3600 * 1000;
+    const map = { 'tn_old': old, 'tn_recent': recent };
+    const out = gcTombstones(map);
+    expect(out).toEqual({ 'tn_recent': recent });
   });
 });
 

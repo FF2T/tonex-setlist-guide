@@ -30,7 +30,7 @@ function suggestStyleFromAmp(ampName) {
   return null;
 }
 
-function ToneNetTab({ toneNetPresets, onToneNetPresets, inp, songDb }) {
+function ToneNetTab({ toneNetPresets, onToneNetPresets, onDeletedToneNetIds, inp, songDb }) {
   const [name, setName] = useState('');
   const [amp, setAmp] = useState('');
   const [gain, setGain] = useState('mid');
@@ -126,7 +126,15 @@ function ToneNetTab({ toneNetPresets, onToneNetPresets, inp, songDb }) {
     setShowUsages(Array.isArray(p.usages) && p.usages.length > 0);
     setAutoFilled(false);
   };
-  const deletePreset = (id) => onToneNetPresets((prev) => prev.filter((p) => p.id !== id));
+  // Phase 7.53.2 — Stamp tombstone à la suppression pour propager le
+  // delete via Firestore (sinon : iPhone garde local-only et re-pousse
+  // au prochain merge LWW per-item).
+  const deletePreset = (id) => {
+    onToneNetPresets((prev) => prev.filter((p) => p.id !== id));
+    if (typeof onDeletedToneNetIds === 'function') {
+      onDeletedToneNetIds((prev) => ({ ...(prev || {}), [id]: Date.now() }));
+    }
+  };
   return (
     <div>
       <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>{t('tonenet.title', 'Presets ToneNET')}</div>

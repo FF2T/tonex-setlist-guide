@@ -30,7 +30,7 @@ function AdminScreen({
   banksAnn, banksPlug,
   aiProvider, aiKeys, onAiKeys, onSaveSharedKey,
   guitarBias,
-  toneNetPresets, onToneNetPresets,
+  toneNetPresets, onToneNetPresets, onDeletedToneNetIds,
   adminPacks, onAdminPacks,
   MaintenanceTabComponent,
   fullState, onImportState,
@@ -108,6 +108,7 @@ function AdminScreen({
         <ToneNetTab
           toneNetPresets={toneNetPresets}
           onToneNetPresets={onToneNetPresets}
+          onDeletedToneNetIds={onDeletedToneNetIds}
           inp={inp}
           songDb={songDb}
         />

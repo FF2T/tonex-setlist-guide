@@ -77,7 +77,7 @@ import {
   ensureSharedV7, ensureProfileV7, ensureProfilesV7,
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
-  mergeToneNetPresetsLWW,
+  mergeToneNetPresetsLWW, mergeDeletedToneNetIds,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,
   toggleSetlistProfile,
@@ -277,7 +277,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.182";
+const APP_VERSION = "8.14.183";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -505,6 +505,16 @@ export function App() {
     return migrated;
   });
   const [toneNetPresets, setToneNetPresets] = useState(initDefault.shared?.toneNetPresets || []);
+  // Phase 7.53.2 — Tombstones ToneNET pour résoudre la résurrection
+  // cross-device. Suppression UI dans ToneNetTab stamp `deletedToneNetIds[id]
+  // = Date.now()`. Au merge LWW, item avec ts <= tombstone[id] est dropped
+  // (cf src/core/state.js mergeToneNetPresetsLWW). GC 30j au boot via
+  // _runFullChain (gcTombstones existant Phase 5.7).
+  const [deletedToneNetIds, setDeletedToneNetIds] = useState(() => {
+    const raw = initDefault.shared?.deletedToneNetIds;
+    if (!raw || typeof raw !== 'object') return {};
+    return gcTombstones(raw);
+  });
   // Phase 7.69.7 — adminPacks : packs créés par l'admin via PacksTab
   // (import listing texte unzip -l). Stockés dans shared.* → visibles
   // par tous les profils via leur toggle Sources existant (TSR / AA /
@@ -1160,6 +1170,9 @@ export function App() {
       // Phase 7.53.1 documentée). Le hash inclut name + lastModified +
       // usages.len pour détecter add/remove/edit + tag usages curation.
       (toneNetPresets||[]).map(p=>(p.id||p.name||'')+':'+(p.lastModified||0)+':'+(Array.isArray(p.usages)?p.usages.length:0)).sort().join('|'),
+      // Phase 7.53.2 — hash deletedToneNetIds pour déclencher push sur
+      // nouvelle suppression. Format compact id:ts trié.
+      Object.entries(deletedToneNetIds||{}).map(([id,ts])=>id+':'+ts).sort().join('|'),
       // Phase 7.79.3c — hash shared.usagesOverrides + studioUsages (niveau 2/3 cascade)
       Object.entries(sharedUsagesOverrides||{}).map(([n,o])=>n+'|'+(o?.lastModified||0)+'|'+(o?.usages===null?'NULL':Array.isArray(o?.usages)?o.usages.length:'NA')).sort().join('!'),
       Object.entries(sharedStudioUsages||{}).map(([n,o])=>n+'|'+(o?.lastModified||0)+'|'+(o?.curatedBy||'')+'|'+(o?.usages===null?'NULL':Array.isArray(o?.usages)?o.usages.length:'NA')).sort().join('!'),
@@ -1183,7 +1196,7 @@ export function App() {
       // Phase 7.79.3c — shared.usagesOverrides + studioUsages persistés
       // dans localStorage + push Firestore. Le profile.usagesOverrides est
       // déjà dans `profiles` via le useState standard.
-      shared:{songDb,theme,setlists,customGuitars,toneNetPresets,deletedSetlistIds,adminPacks,usagesOverrides:sharedUsagesOverrides,studioUsages:sharedStudioUsages,lastModified:lastSharedModRef.current},
+      shared:{songDb,theme,setlists,customGuitars,toneNetPresets,deletedSetlistIds,deletedToneNetIds,adminPacks,usagesOverrides:sharedUsagesOverrides,studioUsages:sharedStudioUsages,lastModified:lastSharedModRef.current},
       profiles,
     };
     // Phase 7.51.3 — mode démo : ne JAMAIS persister le snapshot in-memory
@@ -1252,7 +1265,7 @@ export function App() {
     // Le clearTimeout explicite ligne 888 (en début de branche
     // shouldBump=true) suffit pour le debounce normal sur modifs
     // consécutives.
-  },[songDb,theme,setlists,customGuitars,toneNetPresets,deletedSetlistIds,adminPacks,profiles,activeProfileId,firestoreLoaded]);
+  },[songDb,theme,setlists,customGuitars,toneNetPresets,deletedSetlistIds,deletedToneNetIds,adminPacks,profiles,activeProfileId,firestoreLoaded]);
 
   // Apply remote data into local state, using LWW per record (Phase 5.7).
   //  - songDb : union by id (mergeSongDb, hors scope LWW).
@@ -1306,8 +1319,18 @@ export function App() {
     // Évite qu'un device avec [] vide écrase la curation d'un autre device.
     // Le remote.toneNetPresets peut être absent (pas d'écrasement local
     // par []) ou présent (merge per-id par lastModified).
+    //
+    // Phase 7.53.2 — Tombstones ToneNET pour résoudre la résurrection
+    // cross-device. Merge LWW des tombstones d'abord (union max(ts)) →
+    // passe au mergeToneNetPresetsLWW comme 3e param → drop items dont
+    // ts <= tombstone[id]. Cycle cassé.
+    const remoteDelTn = data.shared.deletedToneNetIds;
+    const mergedDelTn = mergeDeletedToneNetIds(deletedToneNetIds, remoteDelTn);
+    if (JSON.stringify(mergedDelTn) !== JSON.stringify(deletedToneNetIds||{})) {
+      setDeletedToneNetIds(mergedDelTn);
+    }
     if(data.shared.toneNetPresets!==undefined) setToneNetPresets(prev=>{
-      const merged=mergeToneNetPresetsLWW(prev,data.shared.toneNetPresets);
+      const merged=mergeToneNetPresetsLWW(prev,data.shared.toneNetPresets,mergedDelTn);
       if(JSON.stringify(merged)===JSON.stringify(prev))return prev;
       return merged;
     });
@@ -1701,7 +1724,7 @@ export function App() {
   /></div>;
   else if(screen==="optimizer"&&isAdmin) screenContent=<BankOptimizerScreen songDb={songDbWithProfileCache} setlists={mySetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} allGuitars={allGuitars} availableSources={availableSources} onNavigate={setScreen} profile={profile}/>;
   // Phase 7.72 — Écran ⚙️ Admin séparé, gated isAdmin (URL hack defense).
-  else if(screen==="admin"&&isAdmin) screenContent=<AdminScreen profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} allSetlists={setlists} onSetlists={setSetlists} onDeletedSetlistIds={setDeletedSetlistIds} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} onSaveSharedKey={saveSharedKey} guitarBias={effectiveGuitarBias} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} adminPacks={adminPacks} onAdminPacks={setAdminPacks} MaintenanceTabComponent={MaintenanceTab} fullState={fullState} onImportState={onImportState} onBack={()=>setScreen("list")} onNavigate={setScreen}/>;
+  else if(screen==="admin"&&isAdmin) screenContent=<AdminScreen profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} allSetlists={setlists} onSetlists={setSetlists} onDeletedSetlistIds={setDeletedSetlistIds} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} onSaveSharedKey={saveSharedKey} guitarBias={effectiveGuitarBias} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} onDeletedToneNetIds={setDeletedToneNetIds} adminPacks={adminPacks} onAdminPacks={setAdminPacks} MaintenanceTabComponent={MaintenanceTab} fullState={fullState} onImportState={onImportState} onBack={()=>setScreen("list")} onNavigate={setScreen}/>;
   else if(screen==="synthesis"&&synth) screenContent=<SynthesisScreen songs={songs} gps={synth.gps} aiR={synth.aiR} onBack={()=>setScreen("recap")} onNavigate={setScreen} songDb={songDbWithProfileCache} banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources} profile={profile}/>;
   else if(screen==="recap") screenContent=<RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} profile={profile} onTmpPatchOverride={onTmpPatchOverride}/>;
   else screenContent=<HomeScreen songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} mySongIds={mySongIds} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} onOptimizer={()=>setScreen("optimizer")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");sessionStorage.removeItem(ADMIN_ORIGIN_KEY);setScreen("pick");}} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;

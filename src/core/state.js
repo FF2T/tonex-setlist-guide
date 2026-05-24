@@ -761,9 +761,32 @@ function mergeSetlistsLWW(localSetlists, remoteSetlists, mergedDeletedMap) {
 // considère ts=0 → un remote stampé gagne toujours. Inverse safe :
 // un remote sans stamp ne gagne jamais sur un local stampé. Convergence
 // éventuelle vers tous stampés à mesure que les saves se font.
-function mergeToneNetPresetsLWW(localPresets, remotePresets) {
+// Phase 7.53.2 — Union de deux maps de tombstones ToneNET (alias
+// fonctionnel de mergeDeletedSetlistIds pour clarté de l'API). Pour
+// chaque id présent des deux côtés, garde max(localTs, remoteTs).
+// Inputs falsy → {}.
+function mergeDeletedToneNetIds(localMap, remoteMap) {
+  return mergeDeletedSetlistIds(localMap, remoteMap);
+}
+
+// Phase 7.53.2 — Param `mergedTombstones` (optional) pour résoudre la
+// résurrection ToneNET cross-device. Sans tombstones (param absent ou
+// {}) : comportement Phase 7.53.1 inchangé (rétro-compat). Avec :
+// drop les items dont `id ∈ tombstones` ET `tombstones[id] >=
+// max(local.lastModified, remote.lastModified)`. Tombstone gagne sur
+// item plus ancien → suppression vraiment propagée.
+//
+// Cas-cible Phase 7.53.2 (bug 2026-05-24) :
+//   - Mac purge un preset id=X à T2, écrit tombstones[X]=T2
+//   - iPhone garde le preset local avec lastModified=T1 (T1 < T2)
+//   - Mac push : Firestore = {presets: [], tombstones: {X: T2}}
+//   - iPhone pull → mergeToneNetPresetsLWW(local=[{id:X,T1}],
+//     remote=[], tombstones={X:T2}) → DROP X car T2 >= T1
+//   - Cycle cassé.
+function mergeToneNetPresetsLWW(localPresets, remotePresets, mergedTombstones) {
   const local = Array.isArray(localPresets) ? localPresets : [];
   const remote = Array.isArray(remotePresets) ? remotePresets : [];
+  const tombstones = mergedTombstones && typeof mergedTombstones === 'object' ? mergedTombstones : {};
   const remoteMap = new Map(remote.filter((p) => p && p.id).map((p) => [p.id, p]));
   const seenIds = new Set();
   const out = [];
@@ -771,18 +794,23 @@ function mergeToneNetPresetsLWW(localPresets, remotePresets) {
     if (!lp || !lp.id) continue;
     seenIds.add(lp.id);
     const rp = remoteMap.get(lp.id);
+    const lts = typeof lp.lastModified === 'number' ? lp.lastModified : 0;
+    const rts = rp && typeof rp.lastModified === 'number' ? rp.lastModified : 0;
+    const tts = typeof tombstones[lp.id] === 'number' ? tombstones[lp.id] : 0;
+    // Phase 7.53.2 — Tombstone gagne si son ts >= max(local, remote)
+    if (tts > 0 && tts >= Math.max(lts, rts)) continue;
     if (!rp) {
-      // Local-only → keep (preserve local saisie pas encore pushée)
       out.push(lp);
       continue;
     }
-    const lts = typeof lp.lastModified === 'number' ? lp.lastModified : 0;
-    const rts = typeof rp.lastModified === 'number' ? rp.lastModified : 0;
     out.push(rts > lts ? rp : lp);
   }
-  // Remote-only
+  // Remote-only (respecte aussi tombstones)
   for (const rp of remote) {
     if (!rp || !rp.id || seenIds.has(rp.id)) continue;
+    const rts = typeof rp.lastModified === 'number' ? rp.lastModified : 0;
+    const tts = typeof tombstones[rp.id] === 'number' ? tombstones[rp.id] : 0;
+    if (tts > 0 && tts >= rts) continue;
     out.push(rp);
   }
   return out;
@@ -2495,7 +2523,7 @@ export {
   wrapDemoGuard, stripDemoProfiles, stripDemoFromSetlists,
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW, mergeProfileLWW,
-  mergeToneNetPresetsLWW,
+  mergeToneNetPresetsLWW, mergeDeletedToneNetIds,
   stampedProfileUpdate,
   ensureProfileV10, ensureProfilesV10, migrateV9toV10, getProfileAiCache,
   ensureProfileV11, ensureProfilesV11, migrateV10toV11,
