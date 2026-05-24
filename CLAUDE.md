@@ -761,7 +761,192 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-24 dimanche, Phase 7.53.2 + 7.66 — Tombstones ToneNET + Prompt fetchAI rig actif)
+## État actuel (2026-05-24 dimanche fin matinée, Phase 7.55.7 Session 1 LiveScreen iPad polish + analytics + Tally + LiveScreen recos détaillées)
+
+**Backline v8.14.190 / SW backline-v290 / STATE_VERSION 11 / 1579 tests verts.**
+
+### Session dimanche 2026-05-24 — 8 phases livrées
+
+| # | Phase | Sujet | Version |
+|---|---|---|---|
+| 1 | 7.53.2 | Tombstones ToneNET (fix résurrection cross-device) | 8.14.183 |
+| 2 | 7.66 | Prompt fetchAI rig actif uniquement | 8.14.184 |
+| 3 | 7.55.6 | Cloudflare Web Analytics setup | 8.14.185 |
+| 4 | 4.6 | LiveScreen recos détaillées (playing_hints + preset_settings + fx_blocks) | 8.14.186 |
+| 5 | 4.6.1 | Hotfix LiveScreen songDbWithProfileCache | 8.14.187 |
+| 6 | 7.55.5 (1) | Tally beta request initial | 8.14.188 |
+| 7 | 7.55.5 (2) | Refactor Tally bilingue centralisé branding.js | 8.14.189 |
+| 8 | **7.55.7 S1** | **LiveScreen iPad polish (typo XXL + bouton 48×48 + Wake Lock badge)** | **8.14.190** |
+
+### Phase 7.55.7 Session 1 — LiveScreen iPad polish (v8.14.190)
+
+Optimise le mode scène pour iPad Pro M4 (outil de scène principal de
+Sébastien) :
+
+1. **Bouton "← Sortir"** — cible touch 48×48 min (ergo scène doigts
+   moites) : padding `clamp(10px, 1.4vw, 14px) clamp(14px, 2vw, 22px)` +
+   minWidth `clamp(80px, 12vw, 140px)` + fontSize `clamp(13, 1.6vw, 18)`.
+   Avant : 28×24px ~ insuffisant Apple HIG.
+
+2. **Indicateur Wake Lock 🔒** visible dans le header. `useWakeLock`
+   retourne maintenant `isLocked` state via useState + écoute event
+   `release` du lock natif (Safari iOS release au tab change). Badge
+   vert "🔒" rassure le user que l'écran ne va pas s'éteindre pendant
+   le set. Silencieux si API pas disponible.
+
+3. **Typo XXL pour lecture scène** (caps poussés vs Phase 4) :
+   - Titre morceau : cap 48 → **72pt** (paysage iPad 13" 1366px = 7vw)
+   - Artiste : cap 18 → 28pt
+   - BPM/Key : cap 16 → 22pt
+   - History (guitariste / amp original) : 11pt fixe → clamp(11, 1.4vw, 15)
+   - Compteur "i/total" : 13pt fixe → clamp(13, 1.8vw, 19)
+   - Section guitare Phase 4.6 : cap 20 → 26pt
+   - Sections pédale/FX ToneXLiveBlock : caps 14→18 et 13→16
+
+4. **Padding container responsive** : 12px 16px 16px fixe →
+   `clamp(12, 1.8vw, 24) clamp(16, 2.5vw, 32) clamp(16, 2.2vw, 28)`
+   pour respirer sur iPad sans casser mobile. iPhone 393px reste
+   identique (caps minimum inchangés).
+
+5. **i18n FR/EN/ES** : nouvelle clé `live.wakelock-active` ("Écran
+   maintenu allumé" / "Screen kept awake" / "Pantalla siempre encendida").
+
+**Effort réel** : ~1h dev. **Session 2 (bugs iPhone précis + Setlists
+iPad)** : reportée — audit responsive complet déclenché en parallèle
+via Claude Cowork (Chrome MCP) qui peut visualiser le rendu réel sur
+différentes émulations vs deviner depuis le code.
+
+### Phase 7.55.5 — Formulaire Tally demande d'accès beta (v8.14.188 + 8.14.189)
+
+DemoBanner.jsx remplace `mailto:contact@mybackline.app` par lien Tally
+qualifiant `target="_blank"` avec champs structurés (pseudo / email /
+guitares / ToneX hardware / morceaux / source découverte / temps démo).
+Réutilise les 2 formulaires bilingues existants (Phase 7.60.1 :
+`RGbBVd` FR + `68WQyO` EN) — Sébastien avait créé un 3e form `Bz2LeA`
+en doublon, refactor v8.14.189 centralise `TALLY_FORM_ID_BY_LOCALE`
+dans `core/branding.js` (LandingScreen importe désormais depuis là).
+
+**ThanksScreen** (Phase 7.60 préparée mai 2026, jamais activée) :
+maintenant câblée. Tally redirige vers `mybackline.app/?thanks=1` après
+submit → main.jsx détecte param → screen='thanks' → page branded
+Backline (icône Backline + 🎸 + "Merci ! Sébastien reviendra sous 48h"
++ CTA "🎸 Tester la démo en attendant" + lien retour accueil).
+
+**Config Tally requise côté Sébastien** (à faire post-déploiement) :
+pour chacun des 2 forms (RGbBVd + 68WQyO) → Settings → Form behaviors →
+After submit → Redirect to URL → `https://mybackline.app/?thanks=1`.
+
+### Phase 4.6 + 4.6.1 — LiveScreen recos détaillées (v8.14.186/187)
+
+Le mode scène n'affichait que le slot reco bank A/B/C + nom preset.
+Tout le contenu Phase 9 (playing_hints / preset_settings_v1 / fx_blocks)
+n'était visible que dans la fiche song dépliée → user devait quitter
+LiveScreen pour consulter, cassait le flow de jeu.
+
+Phase 4.6 intègre 3 sections dans LiveScreen :
+1. **🎸 Sur ta {guitar.name}** — pickup localisé FR/EN/ES + Volume +
+   Tone + badge STEREO (device-agnostic, entre Title et Devices)
+2. **🎛️ Réglages pédale** — 5 boutons principaux + 5 ALT + badge
+   CAB ON/OFF (dans ToneXLiveBlock, après les 3 slots A/B/C)
+3. **🎚 Effets** — 5 blocs (Gate/Comp/Mod/Delay/Reverb) avec ON/OFF
+   coloré + type (dans ToneXLiveBlock)
+
+Trilingue FR/EN/ES via 6 nouvelles clés `live.*`. Skip silencieux si
+aiCache absent ou champs Phase 9 absents (caches pré-Phase 9 = Mai
+2026 affichent juste le bloc preset legacy).
+
+**Phase 4.6.1 hotfix** : `screen==='live'` dans main.jsx utilisait
+`songDb` brut au lieu de `songDbWithProfileCache` → liveSongs avait
+aiCache=null après migration Phase 7.54 (per-profile aiCache) →
+ToneXLiveBlock retournait "Pas de preset déterminé". Fix : remplacer
+`songDb` par `songDbWithProfileCache` aux 2 lignes (1660, 1661 main.jsx).
+Bug latent depuis Phase 7.54, jamais détecté car aucun test E2E
+LiveScreen. Découvert par Sébastien au 1er test post-déploiement Phase 4.6.
+
+### Phase 7.55.6 — Cloudflare Web Analytics (v8.14.185)
+
+Snippet `<script defer src='https://static.cloudflareinsights.com/beacon.min.js'
+data-cf-beacon='{"token": "5a8503857f494b259d11a1b17cef0df6"}'>` inline
+dans `src/index.html`. Compteur visiteurs + sources trafic + pays +
+device type pour `mybackline.app`. Gratuit, sans cookies, sans
+bandeau RGPD. Stats détaillées sous 24h dans dashboard Cloudflare.
+
+Permet de mesurer la conversion landing Phase 7.60 + démo `?demo=1`
++ flow Tally beta request (Phase 7.55.5). Si signal trafic suffisant
+plus tard, basculer sur Umami self-hosted pour funnels conversion
+détaillés (cf "Idées en attente" Phase 7.55.6 doc).
+
+### Phase 7.66 — Prompt fetchAI passe rig actif uniquement (v8.14.184)
+
+Phase 3.6 (mai 2026) passait `allRigsGuitars` (union all-profils) au
+prompt fetchAI pour enrichir le cache cross-profil. Phase 7.54
+(per-profile aiCache) a rendu ce bénéfice obsolète. Phase 7.32+7.65
+filtraient l'affichage côté UI quand l'IA proposait `ideal_guitar`
+hors rig — mais le prompt envoyait toujours l'union.
+
+Fix : 4 call sites fetchAI passent maintenant `guitars` (rig actif) :
+- `ListScreen.jsx:349` analyzeMissingAll
+- `ListScreen.jsx:394` improveAll
+- `SongDetailCard.jsx:110` useEffect mount
+- `SongDetailCard.jsx:1078` rerunWithFeedback
+
+`findGuitarByAIName(r.ideal_guitar, allRigsGuitars || guitars)` ligne
+119 garde le fallback `allRigsGuitars` pour résoudre les aiCache
+historiques pré-Phase 7.66 (rétro-compat).
+
+Bénéfices : prompt ~50-100 tokens plus court + élimine hallucinations
+IA à la source + cohérence prompt↔affichage.
+
+### Phase 7.53.2 — Tombstones ToneNET (v8.14.183)
+
+Pattern Phase 5.7 setlists appliqué à `shared.toneNetPresets`. Champ
+`shared.deletedToneNetIds: {[id]: ts}` + `mergeToneNetPresetsLWW`
+étendu avec 3e param `mergedTombstones` (drop items dont `id ∈
+tombstones` ET `ts >= max(local, remote)`). Rétro-compat stricte
+(param optional). `gcTombstones` 30j réutilisé. `ToneNetTab.deletePreset`
+stamp tombstone. Phase 7.73.2.6 du matin (toneNetPresets dans
+syncHash) + Phase 7.53.2 ferment ensemble le bug résurrection
+cross-device ToneNET observé samedi.
+
+**+12 tests Vitest** Phase 7.53.2 : scénario bug reproduit + safe-by-
+design + égalité ts + idempotence + rétro-compat sans tombstones + mix
+items keep/drop + gcTombstones 30j.
+
+### Observations annexes session 2026-05-24
+
+- **Cycle pollution ToneNET résolu structurellement** (Phase 7.73.2.6 +
+  7.53.2 + workaround manuel session matinée). Mac=0, iPhone=0 stable.
+- **Erreurs Firestore 401 répétées** dans les logs : `[firebase-auth]
+  fetch 401 → clearing cache + retry` en cascade. Retry boucle sans
+  succès → crée un nouveau user anonyme à chaque retry → potentielle
+  explosion quota Firebase Anonymous Auth (50K DAU free tier). À
+  diagnostiquer côté Firebase Console (Authentication → Users count).
+  Code Phase 7.52.17 retry n'a PAS de circuit breaker → pollution
+  Auth + burn quota. Fix possible Phase 7.55.7.x : circuit breaker
+  qui bloque les signUp après 3 401 consécutifs pendant 60s.
+- **Pollution profile cross-device Phase 7.74.x** : défenses Phase
+  7.74.1/.4/.9 tiennent toujours.
+
+### Dette résiduelle session 2026-05-24
+
+- **Phase 7.55.7 Session 2** (audit responsive complet) : déclenché
+  via Claude Cowork qui peut visualiser le rendu réel sur 6 résolutions
+  émulées (iPhone SE/14/14+, iPad portrait/paysage 11"/13"). Rapport
+  attendu en parallèle. Ensuite fixes prioritaires selon sévérité
+  rapportée.
+- **Phase 7.55.7.x — Circuit breaker firebase-auth** : à activer si
+  diagnostic Firebase Console confirme une pollution Anonymous Auth
+  user count > 10K ou quota burn observé. ~30 min dev + tests.
+- **Post Reddit case study J+11** : draft prêt, à publier ce soir /
+  demain matin (timing US prime 10h EST = 16h Paris).
+- **CONFIG TALLY redirect** : Sébastien doit configurer côté Tally
+  RGbBVd + 68WQyO → Settings → After submit → Redirect to
+  `https://mybackline.app/?thanks=1` pour que ThanksScreen s'affiche
+  après soumission.
+
+---
+
+## État précédent (2026-05-24 dimanche tôt, Phase 7.53.2 + 7.66 — Tombstones ToneNET + Prompt fetchAI rig actif)
 
 **Backline v8.14.184 / SW backline-v284 / STATE_VERSION 11 / 1579 tests verts.**
 
