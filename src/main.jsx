@@ -277,7 +277,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.181";
+const APP_VERSION = "8.14.182";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -1153,6 +1153,13 @@ export function App() {
       Object.keys(deletedSetlistIds||{}).slice().sort().join(','),
       // Phase 7.69.7 — hash adminPacks pour déclencher sync sur modif
       (adminPacks||[]).map(pk=>(pk.id||'')+':'+(pk.lastModified||0)+':'+((pk.presets||[]).length)).join('|'),
+      // Phase 7.73.2.6 — hash toneNetPresets pour déclencher push sur modif
+      // (add/remove/edit). Sans ça : suppression locale d'un preset ToneNET
+      // ne déclenchait PAS push Firestore → autres devices gardent les 5
+      // entries → re-injectent au prochain pull (cycle infini sans tombstones
+      // Phase 7.53.1 documentée). Le hash inclut name + lastModified +
+      // usages.len pour détecter add/remove/edit + tag usages curation.
+      (toneNetPresets||[]).map(p=>(p.id||p.name||'')+':'+(p.lastModified||0)+':'+(Array.isArray(p.usages)?p.usages.length:0)).sort().join('|'),
       // Phase 7.79.3c — hash shared.usagesOverrides + studioUsages (niveau 2/3 cascade)
       Object.entries(sharedUsagesOverrides||{}).map(([n,o])=>n+'|'+(o?.lastModified||0)+'|'+(o?.usages===null?'NULL':Array.isArray(o?.usages)?o.usages.length:'NA')).sort().join('!'),
       Object.entries(sharedStudioUsages||{}).map(([n,o])=>n+'|'+(o?.lastModified||0)+'|'+(o?.curatedBy||'')+'|'+(o?.usages===null?'NULL':Array.isArray(o?.usages)?o.usages.length:'NA')).sort().join('!'),
