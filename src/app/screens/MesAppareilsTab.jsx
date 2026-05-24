@@ -23,6 +23,7 @@ import { FACTORY_BANKS_ANNIVERSARY } from '../../devices/tonex-anniversary/index
 import { FACTORY_BANKS_PLUG } from '../../devices/tonex-plug/index.js';
 import { detectUnknownsInBanks, detectAllNonCurated, applyResolutionsToBanks } from '../../core/preset-curation.js';
 import { PRESET_CATALOG_MERGED, normalizePresetName, CURATION_COLORS } from '../../core/catalog.js';
+import { cascadeAvailableSources } from '../../core/sources.js';
 
 // Phase 7.75 — Factory : callback pour push les "ajouter custom" depuis
 // la modale presets inconnus (CSV import) vers profile.customPacks "Mes
@@ -101,7 +102,24 @@ function MesAppareilsTab({
       next.add(id);
     }
     const arr = allDevices.filter((d) => next.has(d.id)).map((d) => d.id);
-    onProfiles((p) => stampedProfileUpdate(p, activeProfileId, { enabledDevices: arr }));
+    const isNowEnabled = next.has(id);
+    // Phase 7.74.10 — cascade automatique sur availableSources : ON
+    // active la source factory liée (Factory/Anniversary/PlugFactory),
+    // OFF désactive toutes les sources liées au device (incluant
+    // FactoryV1 pour tonex-pedal). Nettoie aussi les états pollués
+    // (Factory: true sans tonex-pedal activé).
+    onProfiles((p) => {
+      const cur = p[activeProfileId];
+      if (!cur) return p;
+      const nextAvailableSources = cascadeAvailableSources(
+        cur.availableSources, id, isNowEnabled
+      );
+      const patch = { enabledDevices: arr };
+      if (nextAvailableSources !== cur.availableSources) {
+        patch.availableSources = nextAvailableSources;
+      }
+      return stampedProfileUpdate(p, activeProfileId, patch);
+    });
   };
 
   const addCustomPresets = makeOnAddCustomPresets(onProfiles, activeProfileId);

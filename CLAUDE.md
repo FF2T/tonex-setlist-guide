@@ -761,7 +761,142 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-24 dimanche après-midi, Phase 7.55.7 S2 fixes Cowork + diagnostic 401 Firestore résolu)
+## État actuel (2026-05-25 lundi, Phase 7.74.10 — Cascade availableSources au toggle device + UI gating sources non disponibles)
+
+**Backline v8.14.192 / SW backline-v292 / STATE_VERSION 11 / 1592 tests verts.**
+
+### Phase 7.74.10 — UX cleanup couplage device ↔ source (v8.14.192)
+
+**Bug rapporté 24/05 soir** : sur Mac admin Sébastien, l'état
+`profile.availableSources.Factory = true` est apparu alors que
+`tonex-pedal` n'était PAS dans `enabledDevices`. Idem pour
+`language: 'en'` (Sébastien francophone). État convergé sur Mac
+ET iPhone (Firestore sync). Pas de cycle actif de pollution
+observé en logs (les 3 défenses Phase 7.74.x tournent normalement).
+Hypothèse cause : un push historique a écrit cet état une fois,
+l'autre device a adopté en bloc, c'est resté.
+
+**Phase 7.74.10 = UX cleanup défensif** (pas le fix racine, cf
+dette résiduelle "Phase 7.74.X investigation cause profonde"
+ci-dessous) :
+
+#### Helper pur `core/sources.js`
+
+- **`DEVICE_ENABLES_SOURCES`** : mapping device → sources à
+  cocher à l'activation. `tonex-pedal → ['Factory']` seulement
+  (firmware v2 par défaut). User cochera `FactoryV1` manuellement
+  si firmware v1.
+- **`DEVICE_DISABLES_SOURCES`** : à la désactivation, cascade ON
+  toutes les sources liées. `tonex-pedal → ['Factory',
+  'FactoryV1']` (pas de pédale = aucune des deux factory liée n'a
+  de sens).
+- **`SOURCE_REQUIRES_DEVICE`** : mapping inverse pour UI gating.
+  Si la source dépend d'un device non activé → grisée +
+  non-cliquable + force OFF visuel.
+- **`cascadeAvailableSources(availableSources, deviceId,
+  isEnabled)`** : helper pur testable. Préserve l'identité de
+  l'objet si rien ne change (perf).
+- **12 tests Vitest dédiés** (`sources.test.js`) : symétrie ON ⊆
+  OFF, cascade tonex-pedal/anniversary/plug, device inconnu
+  no-op, identité préservée, scénario bug Sébastien cleanup.
+
+#### Câblage `MesAppareilsTab.jsx` `toggleDevice`
+
+Au toggle d'un device :
+```js
+const isNowEnabled = next.has(id);
+const nextAvailableSources = cascadeAvailableSources(
+  cur.availableSources, id, isNowEnabled
+);
+const patch = { enabledDevices: arr };
+if (nextAvailableSources !== cur.availableSources) {
+  patch.availableSources = nextAvailableSources;
+}
+return stampedProfileUpdate(p, activeProfileId, patch);
+```
+
+Effet : un toggle device propage automatiquement aux sources
+liées. Auto-cleanup d'un état pollué quand le user re-toggle.
+
+#### UI gating `ProfileTab.jsx` Sources
+
+Pour chaque source listée :
+```js
+const requiredDevice = SOURCE_REQUIRES_DEVICE[key];
+const deviceMissing = !!(requiredDevice && !enabled.has(requiredDevice));
+const unavailable = ... || deviceMissing;
+const on = !unavailable && (locked || profile.availableSources?.[key] !== false);
+const unavailableLabel = deviceMissing
+  ? t('profile-tab.device-required', 'matériel non activé')
+  : (key === 'FactoryV1' ? '...' : '...');
+```
+
+Si device requis non activé :
+- Source grisée (opacity 0.5)
+- Cursor `not-allowed`
+- Affichage forcé OFF (peu importe la valeur stockée)
+- Badge "matériel non activé" à droite du label
+
+### Architecture livrée Phase 7.74.10
+
+```
+src/main.jsx                              APP_VERSION 8.14.191 → 8.14.192
+public/sw.js                              CACHE backline-v291 → backline-v292
+src/core/sources.js                       +DEVICE_ENABLES_SOURCES,
+                                          +DEVICE_DISABLES_SOURCES,
+                                          +SOURCE_REQUIRES_DEVICE,
+                                          +cascadeAvailableSources helper pur
+src/core/sources.test.js                  +12 tests Phase 7.74.10
+src/app/screens/MesAppareilsTab.jsx       toggleDevice :
+                                          +cascade availableSources via helper
+src/app/screens/ProfileTab.jsx            Sources section :
+                                          +deviceMissing check via SOURCE_REQUIRES_DEVICE
+                                          +unavailableLabel dynamique
+src/i18n/en.js                            +profile-tab.device-required
+src/i18n/es.js                            +profile-tab.device-required
+```
+
+### Conséquences
+
+- **1592/1592 tests verts** (+12 nouveaux Phase 7.74.10, +1
+  ré-équilibrage : baseline 1580 → 1592).
+- Bundle 2624 → 2625 KB (+0.8 KB).
+- Pas de bump STATE_VERSION.
+- Pas de migration localStorage.
+- **Cohabitation pré/post-7.74.10 safe** : un client pré-7.74.10
+  qui pull un état où `availableSources.Factory: false` (posé par
+  la cascade post-7.74.10) ignore juste la valeur (champ optional).
+
+### Dette résiduelle Phase 7.74.10 → 7.74.X investigation
+
+- **Pas de heal défensif au boot** : si un état pollué arrive via
+  Firestore (push d'un device pré-7.74.10), il n'est pas nettoyé
+  tant que le user ne touche pas Mes appareils. À implémenter
+  Phase 7.74.10.1 (heal au boot via `ensureProfileV12` qui appelle
+  `cascadeAvailableSources` pour chaque device non-activé) si bug
+  récidive.
+- **Cause profonde non identifiée** — Phase 7.74.X investigation
+  séparée à mener. Hypothèses à instruire :
+  - H1 : `setLocale` détecte `navigator.language` 'en' au boot et
+    écrit `profile.language` via `_profileLanguageUpdater` Phase
+    7.49 → revoir `src/i18n/index.js`.
+  - H2 : Migration v7→v8 (`migrateV7toV8`) lit
+    `localStorage.backline_locale` 'en' au premier load et pose
+    `language: 'en'` comme default → revoir `state.js`.
+  - H3 : `enterDemoMode` historique a injecté un snapshot avec
+    `Factory: true` + `language: 'en'` via override par id →
+    revoir `demo-profile.json` + merge.
+  - H4 : `makeDefaultProfile(isAdmin=true)` historique a
+    `availableSources.Factory: true` hérité (Sébastien profil
+    pré-existant) → revoir `state.js`.
+  - H5 : `recordAdminSwitch` (Phase 7.63) écrit dans profile
+    target avec champs Sébastien → revoir.
+  Sans identifier la cause, on continue d'accumuler du défensif.
+  À planifier prochaine session dédiée.
+
+---
+
+## État précédent (2026-05-24 dimanche après-midi, Phase 7.55.7 S2 fixes Cowork + diagnostic 401 Firestore résolu)
 
 **Backline v8.14.191 / SW backline-v291 / STATE_VERSION 11 / 1579 tests verts.**
 
@@ -886,11 +1021,10 @@ CLAUDE.md                               état actuel session dimanche
 
 ### Actions en attente côté Sébastien (à faire si non encore fait)
 
-1. **Configurer Tally redirect ThanksScreen** : Settings → Form behaviors
-   → After submit → Redirect → `https://mybackline.app/?thanks=1` sur
-   les 2 formulaires (RGbBVd FR + 68WQyO EN). Sans ça, le visiteur
-   reste sur la page Tally générique au lieu d'atterrir sur
-   ThanksScreen branded.
+1. ~~**Configurer Tally redirect ThanksScreen**~~ ✅ FAIT 24/05 :
+   redirect `https://mybackline.app/?thanks=1` configuré sur les 2
+   formulaires (RGbBVd FR + 68WQyO EN). Le visiteur atterrit
+   désormais sur ThanksScreen branded après soumission.
 2. **Cloudflare Analytics stats** : stats détaillées arrivent demain
    matin (24h après setup ce matin). Premier checkpoint trafic
    landing publique.
@@ -1091,10 +1225,9 @@ items keep/drop + gcTombstones 30j.
   user count > 10K ou quota burn observé. ~30 min dev + tests.
 - **Post Reddit case study J+11** : draft prêt, à publier ce soir /
   demain matin (timing US prime 10h EST = 16h Paris).
-- **CONFIG TALLY redirect** : Sébastien doit configurer côté Tally
-  RGbBVd + 68WQyO → Settings → After submit → Redirect to
-  `https://mybackline.app/?thanks=1` pour que ThanksScreen s'affiche
-  après soumission.
+- ~~**CONFIG TALLY redirect**~~ ✅ FAIT 24/05 par Sébastien sur les 2
+  formulaires (RGbBVd FR + 68WQyO EN). ThanksScreen branded s'affiche
+  désormais après soumission.
 
 ---
 

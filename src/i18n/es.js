@@ -700,6 +700,7 @@ const es = {
   'profile-tab.locked': 'bloqueado (equipo marcado)',
   'profile-tab.empty-list': 'lista por proveer',
   'profile-tab.empty-custom': 'sin pack personalizado',
+  'profile-tab.device-required': 'equipo no activado',
   'profile-tab.modified': 'modificado',
   'profile-tab.my-guitars': 'Mis guitarras',
   'profile-tab.my-guitars-hint': 'Marca las guitarras que posees.',

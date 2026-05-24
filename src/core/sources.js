@@ -155,6 +155,67 @@ function getSourceInfo(entry) {
   return base;
 }
 
+// Phase 7.74.10 — couplage device ↔ source. Les 4 sources factory
+// pre-installed (Anniversary, Factory, FactoryV1, PlugFactory) ne
+// sont pertinentes QUE si le device matching est dans
+// profile.enabledDevices. Avant 7.74.10, un état pollué (LWW
+// stale) pouvait coller `Factory: true` sur un profil sans
+// tonex-pedal coché → Optimiser/Explorer proposait des captures
+// que le user ne possède pas.
+//
+// Mapping symétrique (ON ≠ OFF) :
+//
+// - DEVICE_ENABLES_SOURCES : à l'activation du device, sources
+//   cochées AUTO. tonex-pedal active uniquement Factory (firmware
+//   v2 par défaut) — l'user cochera FactoryV1 manuellement s'il a
+//   le firmware v1.
+//
+// - DEVICE_DISABLES_SOURCES : à la désactivation, sources décochées
+//   AUTO. tonex-pedal décoche Factory ET FactoryV1 (pas de pédale
+//   classique = aucune des deux n'a de sens).
+//
+// - SOURCE_REQUIRES_DEVICE : pour l'UI gating dans ProfileTab Sources.
+//   Si le device requis n'est pas dans enabledDevices, la source
+//   est grisée + non-cliquable + force-affichée à OFF.
+const DEVICE_ENABLES_SOURCES = {
+  'tonex-pedal': ['Factory'],
+  'tonex-anniversary': ['Anniversary'],
+  'tonex-plug': ['PlugFactory'],
+};
+
+const DEVICE_DISABLES_SOURCES = {
+  'tonex-pedal': ['Factory', 'FactoryV1'],
+  'tonex-anniversary': ['Anniversary'],
+  'tonex-plug': ['PlugFactory'],
+};
+
+const SOURCE_REQUIRES_DEVICE = {
+  Anniversary: 'tonex-anniversary',
+  Factory: 'tonex-pedal',
+  FactoryV1: 'tonex-pedal',
+  PlugFactory: 'tonex-plug',
+};
+
+// Phase 7.74.10 — helper pur. Retourne le nouvel availableSources
+// après toggle d'un device. Préserve l'identité de l'objet si rien
+// ne change (perf, comparaisons par référence).
+function cascadeAvailableSources(availableSources, deviceId, isEnabled) {
+  const targets = isEnabled
+    ? (DEVICE_ENABLES_SOURCES[deviceId] || [])
+    : (DEVICE_DISABLES_SOURCES[deviceId] || []);
+  if (targets.length === 0) return availableSources || {};
+  const cur = availableSources || {};
+  const next = { ...cur };
+  let changed = false;
+  for (const src of targets) {
+    if (cur[src] !== isEnabled) {
+      next[src] = isEnabled;
+      changed = true;
+    }
+  }
+  return changed ? next : availableSources;
+}
+
 // Phase 5.6 — vérifie qu'une source est activée dans availableSources.
 // availableSources = { [srcId]: boolean } (cf. profile.availableSources).
 // - Si la source est explicitement false → bloquée.
@@ -177,7 +238,11 @@ export {
   SOURCE_DESCRIPTIONS,
   SOURCE_BADGES,
   SOURCE_INFO,
+  DEVICE_ENABLES_SOURCES,
+  DEVICE_DISABLES_SOURCES,
+  SOURCE_REQUIRES_DEVICE,
   getSourceBadge,
   getSourceInfo,
   isSourceAvailable,
+  cascadeAvailableSources,
 };

@@ -16,7 +16,7 @@
 import React, { useState } from 'react';
 import { t } from '../../i18n/index.js';
 import { GUITARS, GUITAR_BRANDS } from '../../core/guitars.js';
-import { SOURCE_LABELS, SOURCE_DESCRIPTIONS, SOURCE_INFO } from '../../core/sources.js';
+import { SOURCE_LABELS, SOURCE_DESCRIPTIONS, SOURCE_INFO, SOURCE_REQUIRES_DEVICE } from '../../core/sources.js';
 import { FACTORY_BANKS_PEDALE_V1 } from '../../devices/tonex-pedal/index.js';
 import GuitarSearchAdd from '../components/GuitarSearchAdd.jsx';
 import { resizeImageToDataUrl } from '../utils/image-resize.js';
@@ -226,15 +226,31 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
             const customEmpty = !profile.customPacks || profile.customPacks.length === 0;
             return Object.entries(SOURCE_LABELS).map(([key, label]) => {
               const enabled = new Set(profile.enabledDevices || []);
-              const locked = (key === 'Anniversary' && enabled.has('tonex-anniversary'))
+              // Phase 7.74.10 — si la source dépend d'un device et que
+              // ce device n'est pas activé, la source devient grisée +
+              // non-cliquable + force-affichée OFF (peu importe la
+              // valeur stockée).
+              const requiredDevice = SOURCE_REQUIRES_DEVICE[key];
+              const deviceMissing = !!(requiredDevice && !enabled.has(requiredDevice));
+              const locked = !deviceMissing && (
+                (key === 'Anniversary' && enabled.has('tonex-anniversary'))
                 || (key === 'Factory' && enabled.has('tonex-pedal'))
-                || (key === 'PlugFactory' && enabled.has('tonex-plug'));
+                || (key === 'PlugFactory' && enabled.has('tonex-plug'))
+              );
               // Phase 7.50 (B-UX-01) : source désactivable si son contenu est vide.
+              // Phase 7.74.10 : extension — device non activé bloque aussi.
               const unavailable = (key === 'FactoryV1' && factoryV1Empty)
-                || (key === 'custom' && customEmpty);
+                || (key === 'custom' && customEmpty)
+                || deviceMissing;
               const on = !unavailable && (locked || profile.availableSources?.[key] !== false);
               const desc = SOURCE_DESCRIPTIONS[key] || '';
               const icon = SOURCE_INFO[key]?.icon || '📁';
+              // Phase 7.74.10 — label dynamique selon raison d'indisponibilité.
+              const unavailableLabel = deviceMissing
+                ? t('profile-tab.device-required', 'matériel non activé')
+                : (key === 'FactoryV1'
+                    ? t('profile-tab.empty-list', 'liste à fournir')
+                    : t('profile-tab.empty-custom', 'aucun pack custom'));
               return <button key={key} onClick={() => { if (!locked && !unavailable) toggleSource(key); }}
                 disabled={unavailable}
                 style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: on ? 'var(--green-bg)' : 'var(--a3)', border: on ? '1px solid var(--green-border)' : '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '10px 14px', cursor: unavailable ? 'not-allowed' : (locked ? 'default' : 'pointer'), textAlign: 'left', opacity: unavailable ? 0.5 : (locked ? 0.85 : 1) }}>
@@ -244,7 +260,7 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                     <span>{icon}</span>
                     <span>{label}</span>
                     {locked && <span style={{ fontSize: 9, color: 'var(--text-dim)', background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 600 }}>{t('profile-tab.locked', 'verrouillé (matériel coché)')}</span>}
-                    {unavailable && <span style={{ fontSize: 9, color: 'var(--text-dim)', background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 600 }}>{key === 'FactoryV1' ? t('profile-tab.empty-list', 'liste à fournir') : t('profile-tab.empty-custom', 'aucun pack custom')}</span>}
+                    {unavailable && <span style={{ fontSize: 9, color: 'var(--text-dim)', background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 600 }}>{unavailableLabel}</span>}
                   </div>
                   {desc && <div style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.4 }}>{desc}</div>}
                 </div>

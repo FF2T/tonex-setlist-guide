@@ -4,6 +4,8 @@ import { describe, test, expect } from 'vitest';
 import {
   SOURCE_IDS, SOURCE_LABELS, SOURCE_BADGES, SOURCE_INFO,
   getSourceBadge, getSourceInfo, isSourceAvailable,
+  cascadeAvailableSources, DEVICE_ENABLES_SOURCES,
+  DEVICE_DISABLES_SOURCES, SOURCE_REQUIRES_DEVICE,
 } from './sources.js';
 
 describe('SOURCE_IDS — liste canonique', () => {
@@ -191,5 +193,100 @@ describe('Phase 5.6 — filtre catalogue selon availableSources (régression)', 
     };
     const filtered = filterCatalog(SAMPLE_CATALOG, allOn);
     expect(filtered).toHaveLength(5);
+  });
+});
+
+describe('Phase 7.74.10 — cascade availableSources au toggle device', () => {
+  test('mappings device → sources cohérents (ON ⊆ OFF)', () => {
+    for (const deviceId of Object.keys(DEVICE_ENABLES_SOURCES)) {
+      const onSrcs = DEVICE_ENABLES_SOURCES[deviceId];
+      const offSrcs = DEVICE_DISABLES_SOURCES[deviceId];
+      // Toutes les sources cochées à l'ON doivent être décochées à l'OFF.
+      for (const src of onSrcs) {
+        expect(offSrcs).toContain(src);
+      }
+    }
+  });
+
+  test('SOURCE_REQUIRES_DEVICE cohérent avec DEVICE_DISABLES_SOURCES', () => {
+    // Si une source est dans DEVICE_DISABLES_SOURCES[device], alors
+    // SOURCE_REQUIRES_DEVICE[source] === device.
+    for (const [deviceId, srcs] of Object.entries(DEVICE_DISABLES_SOURCES)) {
+      for (const src of srcs) {
+        expect(SOURCE_REQUIRES_DEVICE[src]).toBe(deviceId);
+      }
+    }
+  });
+
+  test('cascade tonex-pedal ON → Factory: true, FactoryV1 inchangé', () => {
+    const before = { Factory: false, FactoryV1: false, TSR: true };
+    const after = cascadeAvailableSources(before, 'tonex-pedal', true);
+    expect(after).toEqual({ Factory: true, FactoryV1: false, TSR: true });
+  });
+
+  test('cascade tonex-pedal OFF → Factory ET FactoryV1 à false', () => {
+    const before = { Factory: true, FactoryV1: true, TSR: true };
+    const after = cascadeAvailableSources(before, 'tonex-pedal', false);
+    expect(after).toEqual({ Factory: false, FactoryV1: false, TSR: true });
+  });
+
+  test('cascade tonex-anniversary ON → Anniversary: true', () => {
+    const before = { Anniversary: false, TSR: true };
+    const after = cascadeAvailableSources(before, 'tonex-anniversary', true);
+    expect(after).toEqual({ Anniversary: true, TSR: true });
+  });
+
+  test('cascade tonex-anniversary OFF → Anniversary: false', () => {
+    const before = { Anniversary: true, TSR: true };
+    const after = cascadeAvailableSources(before, 'tonex-anniversary', false);
+    expect(after).toEqual({ Anniversary: false, TSR: true });
+  });
+
+  test('cascade tonex-plug ON → PlugFactory: true', () => {
+    const before = { PlugFactory: false };
+    const after = cascadeAvailableSources(before, 'tonex-plug', true);
+    expect(after).toEqual({ PlugFactory: true });
+  });
+
+  test('cascade tonex-plug OFF → PlugFactory: false', () => {
+    const before = { PlugFactory: true };
+    const after = cascadeAvailableSources(before, 'tonex-plug', false);
+    expect(after).toEqual({ PlugFactory: false });
+  });
+
+  test('device inconnu (tonemaster-pro) → availableSources inchangé', () => {
+    const before = { Factory: true, Anniversary: true };
+    const after = cascadeAvailableSources(before, 'tonemaster-pro', true);
+    expect(after).toEqual(before);
+  });
+
+  test('availableSources null/undefined → retourne {} (toggle device inconnu) ou obj cohérent', () => {
+    expect(cascadeAvailableSources(null, 'tonemaster-pro', true)).toEqual({});
+    expect(cascadeAvailableSources(undefined, 'tonemaster-pro', true)).toEqual({});
+  });
+
+  test('availableSources null + cascade pedal ON → {Factory: true}', () => {
+    const after = cascadeAvailableSources(null, 'tonex-pedal', true);
+    expect(after).toEqual({ Factory: true });
+  });
+
+  test('identité préservée si aucun changement effectif (perf)', () => {
+    // Déjà à la valeur cible → même référence retournée
+    const before = { Factory: true, FactoryV1: false };
+    const after = cascadeAvailableSources(before, 'tonex-pedal', true);
+    expect(after).toBe(before);
+  });
+
+  test('scénario bug Sébastien (24/05) : Factory: true polluant + tonex-pedal non activé → OFF cascade cleanup', () => {
+    // État pollué observé : Factory: true alors que tonex-pedal pas activé.
+    // Au prochain toggle device, si user décoche tonex-pedal (déjà décoché
+    // techniquement, mais simule "user toggle"), la cascade nettoie.
+    // Ce test simule plutôt : user toggle tonex-pedal OFF (avant: ON),
+    // cascade décoche Factory + FactoryV1.
+    const polluted = { Factory: true, FactoryV1: true, Anniversary: true };
+    const cleaned = cascadeAvailableSources(polluted, 'tonex-pedal', false);
+    expect(cleaned.Factory).toBe(false);
+    expect(cleaned.FactoryV1).toBe(false);
+    expect(cleaned.Anniversary).toBe(true); // pas touché
   });
 });

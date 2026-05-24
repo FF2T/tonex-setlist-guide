@@ -702,6 +702,7 @@ const en = {
   'profile-tab.locked': 'locked (hardware checked)',
   'profile-tab.empty-list': 'list to provide',
   'profile-tab.empty-custom': 'no custom pack',
+  'profile-tab.device-required': 'hardware not enabled',
   'profile-tab.modified': 'modified',
   'profile-tab.my-guitars': 'My guitars',
   'profile-tab.my-guitars-hint': 'Check the guitars you own.',
