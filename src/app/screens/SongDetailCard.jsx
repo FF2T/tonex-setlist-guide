@@ -200,7 +200,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
       {reloading && (
         <div style={{ textAlign: 'center', padding: '16px 0' }}>
           <div style={{ fontSize: 28, marginBottom: 6, animation: 'spin 1.5s linear infinite', display: 'inline-block' }}>&#9203;</div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+          <div style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-muted)' }}>
             {rigStale
               ? t('song-detail.rig-stale-analyzing', 'Analyse précédente faite avec un autre rig — recalcul pour ton matériel…')
               : tFormat('song-detail.analyzing', { guitar: g?.short || t('song-detail.this-guitar', 'cette guitare') }, 'Analyse en cours pour {guitar}...')}
@@ -259,12 +259,12 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         {/* Rappel guitare choisie (utile si le sticky est scrollé hors vue
             sur fiche longue). */}
         {g && (
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontStyle: 'italic' }}>
+          <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-muted)', marginBottom: 8, fontStyle: 'italic' }}>
             {tFormat('song-detail.setup-on-guitar', { guitar: g.name }, 'Sur ta {guitar} :')}
           </div>
         )}
         <div style={{ marginBottom: 8 }}>
-          {g && chosenGuitarScore && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 3 }}>{t('song-detail.compat', 'Compatibilité :')} <b style={{ color: scoreColor(chosenGuitarScore) }}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated && <>{' '}<span style={{ marginLeft: 6, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>{t('song-detail.estimated', '(estimé)')}</span></>}</div>}
+          {g && chosenGuitarScore && <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-dim)', marginBottom: 3 }}>{t('song-detail.compat', 'Compatibilité :')} <b style={{ color: scoreColor(chosenGuitarScore) }}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated && <>{' '}<span style={{ marginLeft: 6, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>{t('song-detail.estimated', '(estimé)')}</span></>}</div>}
           {g && aiC && (() => {
             // Phase 7.85 — guitarChoiceFeedback retourne désormais un objet
             // structuré (ai|tokens|desc) qu'on compose côté UI. Avant 7.85,
@@ -297,7 +297,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             } else if (fb.kind === 'desc') {
               fbText = fb.desc;
             }
-            return fbText ? <div style={{ fontSize: 10, color: 'var(--text-sec)', marginTop: 3, marginLeft: 24, lineHeight: 1.4 }}>{fbText}</div> : null;
+            return fbText ? <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-sec)', marginTop: 3, marginLeft: 24, lineHeight: 1.4 }}>{fbText}</div> : null;
           })()}
           {g && aiC && !aiC.playing_hints && (() => {
             // Phase 7.82 — localGuitarSettings retourne un objet structuré ;
@@ -313,7 +313,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             const pickupTxt = t(s.pickupKey, s.pickupFallback);
             const mismatchTxt = s.mismatchKey ? t(s.mismatchKey, s.mismatchFallback) : '';
             const text = `${pickupTxt} · ${t('song-detail.tone-label', 'Tone')} ${s.tone} · ${t('song-detail.volume-label', 'Volume')} ${s.volume}${mismatchTxt}`;
-            return <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)', marginTop: 5, marginLeft: 24 }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.settings', 'Réglages :')}</b> {text}</div>;
+            return <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)', marginTop: 5, marginLeft: 24 }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.settings', 'Réglages :')}</b> {text}</div>;
           })()}
           {/* Phase 9.5 — playing_hints structurés (pickup / volume / tone /
               stereo) générés par l'IA, complémentaires à localGuitarSettings
@@ -332,10 +332,10 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             if (parts.length === 0 && !ph.stereo) return null;
             const text = parts.join(' · ');
             return (
-              <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)', marginTop: 3, marginLeft: 24 }}>
+              <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)', marginTop: 3, marginLeft: 24 }}>
                 <b style={{ color: 'var(--text-muted)' }}>{t('playing-hints.ai-advice', '💡 Conseil IA :')}</b> {text}
                 {ph.stereo === true && (
-                  <span style={{ marginLeft: 6, padding: '1px 5px', borderRadius: 'var(--r-sm)', background: 'var(--brass-bg)', color: 'var(--brass)', fontSize: 9, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                  <span style={{ marginLeft: 6, padding: '1px 5px', borderRadius: 'var(--r-sm)', background: 'var(--brass-bg)', color: 'var(--brass)', fontSize: 'clamp(9px, 1.05vw, 11px)', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
                     {t('playing-hints.stereo', '🎚️ STEREO')}
                   </span>
                 )}
@@ -353,7 +353,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           <button
             onClick={() => setShowAdvancedMode((p) => !p)}
             data-testid="advanced-mode-toggle"
-            style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0, fontWeight: 600, textAlign: 'left' }}
+            style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0, fontWeight: 600, textAlign: 'left' }}
           >
             {showAdvancedMode
               ? t('song-detail.advanced-mode-hide', '▲ Masquer le mode reco avancé')
@@ -362,7 +362,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           </button>
           {showAdvancedMode && (
             <div style={{ marginTop: 6 }}>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{t('song-detail.mode-label', 'Mode IA pour ce morceau')} {song.recoMode ? <span style={{ color: 'var(--accent)' }}>{t('song-detail.mode-override', '· override')}</span> : <span style={{ color: 'var(--text-dim)' }}>{tFormat('song-detail.mode-inherited', { mode: profile?.recoMode || 'balanced' }, '· profil ({mode})')}</span>}</div>
+              <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-muted)', marginBottom: 4 }}>{t('song-detail.mode-label', 'Mode IA pour ce morceau')} {song.recoMode ? <span style={{ color: 'var(--accent)' }}>{t('song-detail.mode-override', '· override')}</span> : <span style={{ color: 'var(--text-dim)' }}>{tFormat('song-detail.mode-inherited', { mode: profile?.recoMode || 'balanced' }, '· profil ({mode})')}</span>}</div>
               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                 {[
                   { id: '', icon: '↻', label: t('song-detail.mode-profile', 'Profil') },
@@ -380,45 +380,29 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                         setLocalAiResult(null);
                       }}
                       title={id ? tFormat('song-detail.mode-tooltip-override', { label }, 'Override : {label}') : t('song-detail.mode-tooltip-profile', 'Hérite du mode profil. Cliquer invalide le cache IA pour re-fetcher avec le nouveau mode.')}
-                      style={{ fontSize: 10, fontWeight: active ? 700 : 500, background: active ? 'var(--accent-bg)' : 'var(--a3)', border: active ? '1px solid var(--accent-border)' : '1px solid var(--a8)', color: active ? 'var(--accent)' : 'var(--text-muted)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer' }}
+                      style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: active ? 700 : 500, background: active ? 'var(--accent-bg)' : 'var(--a3)', border: active ? '1px solid var(--accent-border)' : '1px solid var(--a8)', color: active ? 'var(--accent)' : 'var(--text-muted)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer' }}
                     >{icon} {label}</button>
                   );
                 })}
               </div>
-              <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 3, fontStyle: 'italic' }}>{t('song-detail.mode-hint', 'Changer le mode invalide le cache → re-analyse au prochain ouverture du morceau.')}</div>
+              <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', color: 'var(--text-dim)', marginTop: 3, fontStyle: 'italic' }}>{t('song-detail.mode-hint', 'Changer le mode invalide le cache → re-analyse au prochain ouverture du morceau.')}</div>
             </div>
           )}
         </div>
-        {aiC && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{tFormat('song-detail.best-installed-for', { guitar: g?.short || t('song-detail.this-guitar', 'cette guitare') }, 'Meilleurs presets installes pour {guitar}')}</div>}
+        {/* Phase 7.55.7 S9.4 — Section "Meilleurs presets installés" droppée.
+            Doublon avec la row playlist parente (qui affiche déjà les
+            presets installés Anniv/Plug via meta-grid devices). Sébastien
+            25/05. Seuls les device blocks avec RecommendBlock (TMP) sont
+            conservés (pas représentés dans la row). */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {getActiveDevicesForRender(profile).map((d) => {
-            if (typeof d.RecommendBlock === 'function') {
-              return (
-                <div key={d.id} style={{ borderTop: '1px solid var(--a8)', marginTop: 6, paddingTop: 6 }}>
-                  <div style={{ fontSize: 9, fontWeight: 700, color: d.deviceColor || 'var(--brass-400)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span>{d.icon}</span><span>{d.label}</span>
-                  </div>
-                  <d.RecommendBlock song={song} guitar={g} profile={profile} allGuitars={guitars} onPatchOverride={onTmpPatchOverride}/>
-                </div>
-              );
-            }
-            if (!aiC) return null;
-            const banks = d.bankStorageKey === 'banksAnn' ? banksAnn : banksPlug;
-            const presetData = aiC[d.presetResultKey];
-            return (
-              <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <StatusDot score={presetData?.score} ideal={presetData?.label === aiC.ideal_preset} size={10}/>
-                {/* Phase 7.55.7 fix bug Cowork iPhone — min-width: 0 obligatoire
-                    sur flex:1 enfant pour laisser PBlock shrink correctement.
-                    Sans ça : sur viewport étroit (iPhone 375-430), le nom de
-                    preset long s'effondrait en colonne verticale (1 char/ligne,
-                    span 17×248px). */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <PBlock device={d.label} emoji={d.icon} presetName={presetData?.label} gType={gId ? type : null} banks={banks} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={presetData?.score} breakdown={presetData?.breakdown}/>
-                </div>
+          {getActiveDevicesForRender(profile).filter((d) => typeof d.RecommendBlock === 'function').map((d) => (
+            <div key={d.id} style={{ borderTop: '1px solid var(--a8)', marginTop: 6, paddingTop: 6 }}>
+              <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', fontWeight: 700, color: d.deviceColor || 'var(--brass-400)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span>{d.icon}</span><span>{d.label}</span>
               </div>
-            );
-          })}
+              <d.RecommendBlock song={song} guitar={g} profile={profile} allGuitars={guitars} onPatchOverride={onTmpPatchOverride}/>
+            </div>
+          ))}
         </div>
         {/* Suggestion d'amélioration si score < 90% */}
         {aiC && (() => {
@@ -490,29 +474,29 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           else suggestion = t('song-detail.weak-generic', "Le meilleur preset installé n'atteint pas 90%.");
           return (
             <div style={{ marginTop: 8, background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 8, padding: '10px 12px' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--yellow)', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 4 }}>{tFormat('song-detail.improvable', { score: bestScore }, 'Ameliorable — {score}% max')}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.5, marginBottom: 6 }}>
+              <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--yellow)', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 4 }}>{tFormat('song-detail.improvable', { score: bestScore }, 'Ameliorable — {score}% max')}</div>
+              <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.5, marginBottom: 6 }}>
                 {weakest && <span>{tFormat('song-detail.weak-point', { label: weakLabel, score: weakScore }, 'Point faible : ')}<b>{weakLabel}</b> ({weakScore}%). </span>}
                 {suggestion}
               </div>
               {extMatches.length > 0 && (
                 <div style={{ marginBottom: 6 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>{t('song-detail.recommended-packs', 'Packs recommandés à l\'achat :')}</div>
+                  <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>{t('song-detail.recommended-packs', 'Packs recommandés à l\'achat :')}</div>
                   {extMatches.map((e, i) => (
-                    <div key={i} style={{ fontSize: 10, color: 'var(--text-sec)', marginBottom: 3, display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                    <div key={i} style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-sec)', marginBottom: 3, display: 'flex', alignItems: 'baseline', gap: 4 }}>
                       <StatusDot score={e.family ? 65 : 85} size={6}/>
                       <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{e.pack}</span>
                       <span style={{ color: 'var(--text-dim)' }}>{e.creator}</span>
-                      {e.family && <span style={{ fontSize: 9, color: 'var(--text-dim)' }}>{t('song-detail.family-similar', '[famille similaire]')}</span>}
+                      {e.family && <span style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', color: 'var(--text-dim)' }}>{t('song-detail.family-similar', '[famille similaire]')}</span>}
                     </div>
                   ))}
                 </div>
               )}
-              {extMatches.length === 0 && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 6 }}>{tFormat('song-detail.no-pack', { ref: refAmp }, 'Aucun pack connu pour "{ref}" dans notre base.')}</div>}
+              {extMatches.length === 0 && <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-dim)', marginBottom: 6 }}>{tFormat('song-detail.no-pack', { ref: refAmp }, 'Aucun pack connu pour "{ref}" dans notre base.')}</div>}
               <div style={{ marginTop: 6, background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 6, padding: '8px 10px' }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-sec)', marginBottom: 3 }}>{t('song-detail.tonenet-search', 'Recherche ToneNET')}</div>
-                <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>{tFormat('song-detail.tonenet-instructions', { ref: refAmp }, 'Recherchez {ref} dans le moteur de recherche ToneNET').split(refAmp).map((part, i, arr) => i < arr.length - 1 ? <React.Fragment key={i}>{part}<b style={{ color: 'var(--text-bright)' }}>{refAmp}</b></React.Fragment> : part)}</div>
-                <a href="https://tone.net" target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: 'var(--accent)', textDecoration: 'underline' }}>tone.net</a>
+                <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 600, color: 'var(--text-sec)', marginBottom: 3 }}>{t('song-detail.tonenet-search', 'Recherche ToneNET')}</div>
+                <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-dim)', marginBottom: 4 }}>{tFormat('song-detail.tonenet-instructions', { ref: refAmp }, 'Recherchez {ref} dans le moteur de recherche ToneNET').split(refAmp).map((part, i, arr) => i < arr.length - 1 ? <React.Fragment key={i}>{part}<b style={{ color: 'var(--text-bright)' }}>{refAmp}</b></React.Fragment> : part)}</div>
+                <a href="https://tone.net" target="_blank" rel="noopener noreferrer" style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--accent)', textDecoration: 'underline' }}>tone.net</a>
               </div>
             </div>
           );
@@ -537,9 +521,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             {/* Scoring guitares — déplacé de SECTION 2 vers tête de Bloc 2 */}
             {cotInRig.length > 0 && (
               <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px', marginBottom: 8 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-guitars', 'Scoring guitares')}</div>
+                <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-guitars', 'Scoring guitares')}</div>
                 {cotInRig.map((gt, i) => (
-                  <div key={i} style={{ fontSize: 11, color: 'var(--text-sec)', marginBottom: i < cotInRig.length - 1 ? 4 : 0, display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                  <div key={i} style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', marginBottom: i < cotInRig.length - 1 ? 4 : 0, display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
                     <span style={{ fontWeight: 600, color: 'var(--text-bright)', flexShrink: 0 }}>{gt.name}</span>
                     <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: scoreColor(gt.score), flexShrink: 0 }}>{gt.score}%</span>
                     <span style={{ color: 'var(--text-dim)' }}>{getLocalizedText(gt.reason, locale)}</span>
@@ -573,7 +557,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 const idealName = stripTypeSuffix(displayIdealGuitarName);
                 const isDuplicate = cotTopName && idealName && cotTopName === idealName;
                 if (isDuplicate) return null;
-                return <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: -2, marginBottom: 2 }}>{getLocalizedText(aiC.guitar_reason, locale)}</div>;
+                return <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-dim)', marginTop: -2, marginBottom: 2 }}>{getLocalizedText(aiC.guitar_reason, locale)}</div>;
               })()}
               {displayTopPreset && getActiveDevicesForRender(profile).some((d) => d.deviceKey === 'ann' || d.deviceKey === 'plug') && (() => {
                 const displayPresetName = displayTopPreset.label;
@@ -602,17 +586,17 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   const deviceLabel = dev ? `${dev.icon} ${dev.label}` : (device === 'ann' ? '📦 Pedale' : '🔌 Plug');
                   return (
                     <div style={{ marginBottom: 6 }}>
-                      <div style={{ fontSize: 10, color: 'var(--text-sec)', marginBottom: 4, fontWeight: 600 }}>{deviceLabel}</div>
+                      <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-sec)', marginBottom: 4, fontWeight: 600 }}>{deviceLabel}</div>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t('song-detail.bank', 'Banque')}</span>
-                        <input type="number" inputMode="numeric" min={device === 'ann' ? 0 : 1} max={maxBanks} value={bk} onChange={(e) => setInstallBank((p) => ({ ...p, [device]: e.target.value }))} style={{ width: 50, fontSize: 11, background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '4px 6px', textAlign: 'center' }} placeholder={device === 'ann' ? '0-49' : '1-10'}/>
-                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t('song-detail.slot', 'Slot')}</span>
-                        <select value={sl} onChange={(e) => setInstallSlot((p) => ({ ...p, [device]: e.target.value }))} style={{ fontSize: 11, background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '4px 6px' }}>
+                        <span style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-muted)' }}>{t('song-detail.bank', 'Banque')}</span>
+                        <input type="number" inputMode="numeric" min={device === 'ann' ? 0 : 1} max={maxBanks} value={bk} onChange={(e) => setInstallBank((p) => ({ ...p, [device]: e.target.value }))} style={{ width: 50, fontSize: 'clamp(11px, 1.25vw, 13px)', background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '4px 6px', textAlign: 'center' }} placeholder={device === 'ann' ? '0-49' : '1-10'}/>
+                        <span style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-muted)' }}>{t('song-detail.slot', 'Slot')}</span>
+                        <select value={sl} onChange={(e) => setInstallSlot((p) => ({ ...p, [device]: e.target.value }))} style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '4px 6px' }}>
                           <option value="A">{t('song-detail.slot-a', 'A (Clean)')}</option><option value="B">{t('song-detail.slot-b', 'B (Drive)')}</option><option value="C">{t('song-detail.slot-c', 'C (Lead)')}</option>
                         </select>
-                        <button onClick={() => doInstall(device)} disabled={bk === ''} style={{ fontSize: 10, background: bk !== '' ? 'var(--accent)' : 'var(--bg-disabled)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '4px 10px', cursor: bk !== '' ? 'pointer' : 'not-allowed', fontWeight: 700 }}>{t('song-detail.ok', 'OK')}</button>
+                        <button onClick={() => doInstall(device)} disabled={bk === ''} style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', background: bk !== '' ? 'var(--accent)' : 'var(--bg-disabled)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '4px 10px', cursor: bk !== '' ? 'pointer' : 'not-allowed', fontWeight: 700 }}>{t('song-detail.ok', 'OK')}</button>
                       </div>
-                      {bk !== '' && currentPreset && <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 2 }}>{tFormat('song-detail.replaces', { preset: currentPreset }, 'Remplace : {preset}')}</div>}
+                      {bk !== '' && currentPreset && <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', color: 'var(--text-dim)', marginTop: 2 }}>{tFormat('song-detail.replaces', { preset: currentPreset }, 'Remplace : {preset}')}</div>}
                     </div>
                   );
                 };
@@ -628,11 +612,11 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                       </div>
                       {idealScore > 0 && <b style={{ color: scoreColor(idealScore), flexShrink: 0 }}>{idealScore}%</b>}
                     </div>
-                    <div style={{ fontSize: 9, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       {loc ? <span style={{ color: 'var(--green)' }}>{tFormat('song-detail.installed-bank', { bank: loc.bank, slot: loc.slot }, '✓ Installé — Banque {bank}{slot}')}</span>
                         : <span style={{ color: 'var(--yellow)' }}>{t('song-detail.not-installed', '⬇ Non installé')}</span>}
                       {(() => { const si = getSourceInfo(entry); return si ? <span style={{ color: loc ? 'var(--text-tertiary)' : 'var(--text-sec)' }}>· {si.icon} {si.label}</span> : null; })()}
-                      {!loc && !installTarget && (canInstallAnn || canInstallPlug) && <button onClick={() => setInstallTarget({ preset: displayPresetName })} style={{ fontSize: 9, background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-sm)', padding: '2px 8px', cursor: 'pointer', fontWeight: 600, marginLeft: 'auto' }}>{t('song-detail.install', 'Installer')}</button>}
+                      {!loc && !installTarget && (canInstallAnn || canInstallPlug) && <button onClick={() => setInstallTarget({ preset: displayPresetName })} style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-sm)', padding: '2px 8px', cursor: 'pointer', fontWeight: 600, marginLeft: 'auto' }}>{t('song-detail.install', 'Installer')}</button>}
                     </div>
                     {installTarget?.preset === displayPresetName && (() => {
                       const activeEnabled = getActiveDevicesForRender(profile);
@@ -641,10 +625,10 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                       if (!canPedal && !canPlug) return null;
                       return (
                         <div style={{ marginTop: 6, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: 10 }}>
-                          <div style={{ fontSize: 10, color: 'var(--text-sec)', marginBottom: 8, fontWeight: 600 }}>{tFormat('song-detail.install-target', { preset: displayPresetName }, 'Installer "{preset}" sur :')}</div>
+                          <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-sec)', marginBottom: 8, fontWeight: 600 }}>{tFormat('song-detail.install-target', { preset: displayPresetName }, 'Installer "{preset}" sur :')}</div>
                           {canPedal && bankInput('ann', 49)}
                           {canPlug && bankInput('plug', 10)}
-                          <button onClick={() => setInstallTarget(null)} style={{ fontSize: 9, background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}>{t('song-detail.cancel', 'Annuler')}</button>
+                          <button onClick={() => setInstallTarget(null)} style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}>{t('song-detail.cancel', 'Annuler')}</button>
                         </div>
                       );
                     })()}
@@ -659,7 +643,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 if (filteredTop3.length <= 1) return null;
                 return (
                   <div style={{ marginTop: 6 }}>
-                    <div style={{ fontSize: 9, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', color: 'var(--text-tertiary)', marginBottom: 4 }}>{t('song-detail.alternatives', 'Alternatives catalogue')}</div>
+                    <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', color: 'var(--text-tertiary)', marginBottom: 4 }}>{t('song-detail.alternatives', 'Alternatives catalogue')}</div>
                     {filteredTop3.slice(1).map((p, i) => {
                       const loc = findInBanks(p.name, banksAnn) || findInBanks(p.name, banksPlug);
                       const entry = findCatalogEntry(p.name);
@@ -671,7 +655,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                             <span style={{ flex: 1, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name} <span style={{ color: 'var(--text-tertiary)' }}>({entry?.amp || p.amp})</span></span>
                             <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: scoreColor(p.score), flexShrink: 0 }}>{p.score}%</span>
                           </div>
-                          <div style={{ fontSize: 9, marginLeft: 14, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                          <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginLeft: 14, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
                             {loc ? <span style={{ color: 'var(--green)' }}>{tFormat('song-detail.installed-bank', { bank: loc.bank, slot: loc.slot }, '✓ Installé — Banque {bank}{slot}')}</span>
                               : <span style={{ color: 'var(--yellow)' }}>{t('song-detail.not-installed', '⬇ Non installé')}</span>}
                             {si && <span style={{ color: loc ? 'var(--text-tertiary)' : 'var(--text-sec)' }}>· {si.icon} {si.label}</span>}
@@ -706,10 +690,10 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 };
                 const fmtNum = (v, decimals = 1) => typeof v === 'number' ? v.toFixed(decimals).replace(/\.0$/, '') : '—';
                 const fmtUnit = (v, unit) => typeof v === 'number' ? `${v.toFixed(unit === '%' ? 0 : 1).replace(/\.0$/, '')}${unit}` : '—';
-                const rowStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 10, padding: '2px 0' };
+                const rowStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 'clamp(10px, 1.15vw, 12px)', padding: '2px 0' };
                 const labelStyle = { color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' };
                 const valueStyle = { color: 'var(--text-bright)', fontFamily: 'var(--font-mono)', fontWeight: 700 };
-                const whyRowStyle = { fontSize: 9, color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.4, marginLeft: 8, marginBottom: 4 };
+                const whyRowStyle = { fontSize: 'clamp(9px, 1.05vw, 11px)', color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.4, marginLeft: 8, marginBottom: 4 };
                 const renderKnobRow = ([key, label, suffix, unit], group) => {
                   const knob = group[key];
                   const val = getVal(knob);
@@ -733,9 +717,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 return (
                   <div style={{ marginTop: 6, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text)' }}>{t('preset-settings.title', '🎛️ Réglages pédale')} <span style={{ fontWeight: 400, fontSize: 9, color: 'var(--text-dim)' }}>{t('preset-settings.subtitle', '(suggérés par l\'IA)')}</span></div>
+                      <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text)' }}>{t('preset-settings.title', '🎛️ Réglages pédale')} <span style={{ fontWeight: 400, fontSize: 'clamp(9px, 1.05vw, 11px)', color: 'var(--text-dim)' }}>{t('preset-settings.subtitle', '(suggérés par l\'IA)')}</span></div>
                       {typeof ps.cab_enabled === 'boolean' && (
-                        <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 'var(--r-sm)', background: ps.cab_enabled ? 'var(--green-bg)' : 'var(--yellow-bg)', color: ps.cab_enabled ? 'var(--green)' : 'var(--yellow)', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                        <span style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', padding: '2px 6px', borderRadius: 'var(--r-sm)', background: ps.cab_enabled ? 'var(--green-bg)' : 'var(--yellow-bg)', color: ps.cab_enabled ? 'var(--green)' : 'var(--yellow)', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
                           {ps.cab_enabled ? t('preset-settings.cab-on', 'CAB ON') : t('preset-settings.cab-off', 'CAB OFF')}
                         </span>
                       )}
@@ -745,12 +729,12 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                         de l'ampli original. Les valeurs ci-dessous sont
                         des post-capture additifs, à affiner à l'oreille
                         via les tweaks. */}
-                    <div style={{ fontSize: 9, color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.4, marginBottom: 5 }}>
+                    <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.4, marginBottom: 5 }}>
                       {t('preset-settings.starting-point', 'Point de départ — la capture intègre déjà les réglages physiques de l\'ampli original. Affine à l\'oreille avec les ajustements ci-dessous.')}
                     </div>
                     {Object.keys(main).length > 0 && (
                       <>
-                        <div style={{ fontSize: 9, color: 'var(--text-dim)', fontStyle: 'italic', marginTop: 4, marginBottom: 2 }}>{t('preset-settings.section-main', 'Boutons principaux')}</div>
+                        <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', color: 'var(--text-dim)', fontStyle: 'italic', marginTop: 4, marginBottom: 2 }}>{t('preset-settings.section-main', 'Boutons principaux')}</div>
                         {[
                           ['gain', 'Gain', '/10', ''],
                           ['bass', 'Bass', '/10', ''],
@@ -785,20 +769,20 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                         : t('preset-settings.section-alt', 'Boutons ALT (mode avancé)');
                       return (
                         <>
-                          <div style={{ fontSize: 9, color: 'var(--text-dim)', fontStyle: 'italic', marginTop: 5, marginBottom: 2 }}>{sectionLabel}</div>
+                          <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', color: 'var(--text-dim)', fontStyle: 'italic', marginTop: 5, marginBottom: 2 }}>{sectionLabel}</div>
                           {altSpecs.map((spec) => renderKnobRow(spec, alt))}
                         </>
                       );
                     })()}
                     {ps.why && (() => {
                       const whyTxt = getLocalizedText(ps.why, locale);
-                      return whyTxt ? <div style={{ marginTop: 6, fontSize: 10, color: 'var(--text-sec)', fontStyle: 'italic', lineHeight: 1.4 }}>{whyTxt}</div> : null;
+                      return whyTxt ? <div style={{ marginTop: 6, fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-sec)', fontStyle: 'italic', lineHeight: 1.4 }}>{whyTxt}</div> : null;
                     })()}
                     {hasAnyWhyPerKnob && (
                       <button
                         onClick={() => setShowWhyPerKnob((p) => !p)}
                         data-testid="preset-settings-why-toggle"
-                        style={{ marginTop: 6, fontSize: 10, background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0, fontWeight: 600, textAlign: 'left', width: '100%' }}
+                        style={{ marginTop: 6, fontSize: 'clamp(10px, 1.15vw, 12px)', background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0, fontWeight: 600, textAlign: 'left', width: '100%' }}
                       >
                         {showWhyPerKnob
                           ? t('preset-settings.why-per-knob-hide', '▲ Masquer les explications par paramètre')
@@ -815,7 +799,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                         <button
                           onClick={() => setShowTweaks((p) => !p)}
                           data-testid="preset-settings-tweaks-toggle"
-                          style={{ marginTop: 6, fontSize: 10, background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0, fontWeight: 600, textAlign: 'left', width: '100%' }}
+                          style={{ marginTop: 6, fontSize: 'clamp(10px, 1.15vw, 12px)', background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0, fontWeight: 600, textAlign: 'left', width: '100%' }}
                         >
                           {showTweaks
                             ? tFormat('tweaks.toggle-hide', { count: ps.tweaks.length }, '▲ Masquer les ajustements ({count})')
@@ -839,7 +823,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                               // espaces dans le format human-friendly.
                               const fixDisplayed = String(tweak.fix).replace(/_/g, ' ');
                               return (
-                                <div key={idx} style={{ fontSize: 10, lineHeight: 1.4, padding: '3px 6px', background: 'var(--a2)', borderRadius: 'var(--r-sm)' }}>
+                                <div key={idx} style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', lineHeight: 1.4, padding: '3px 6px', background: 'var(--a2)', borderRadius: 'var(--r-sm)' }}>
                                   <span style={{ color: 'var(--text-muted)' }}>{t('tweaks.if', 'Si')} </span>
                                   <span style={{ color: 'var(--text-sec)', fontStyle: 'italic' }}>{symptomDisplayed}</span>
                                   <span style={{ color: 'var(--text-muted)' }}> → </span>
@@ -919,7 +903,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                       };
                       return (
                         <div data-testid="preset-settings-fx-blocks" style={{ marginTop: 6, paddingTop: 6, borderTop: '1px dashed var(--a10)' }}>
-                          <div style={{ fontSize: 9, color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: 3 }}>{t('fx-blocks.section-title', '🎚 Effets')}</div>
+                          <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: 3 }}>{t('fx-blocks.section-title', '🎚 Effets')}</div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                             {present.map(([key, label]) => {
                               const block = fx[key];
@@ -930,20 +914,20 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                               const subParams = subParamsFor(key, block);
                               return (
                                 <div key={key}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, padding: '2px 0' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 'clamp(10px, 1.15vw, 12px)', padding: '2px 0' }}>
                                     <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{label}</span>
                                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                       {block.enabled && block.type && (
-                                        <span style={{ fontSize: 9, color: 'var(--text-dim)', fontStyle: 'italic' }}>{block.type}</span>
+                                        <span style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', color: 'var(--text-dim)', fontStyle: 'italic' }}>{block.type}</span>
                                       )}
-                                      <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 'var(--r-sm)', background: bgColor, color: textColor, fontWeight: 700, fontFamily: 'var(--font-mono)', minWidth: 28, textAlign: 'center' }}>{onLabel}</span>
+                                      <span style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', padding: '1px 6px', borderRadius: 'var(--r-sm)', background: bgColor, color: textColor, fontWeight: 700, fontFamily: 'var(--font-mono)', minWidth: 28, textAlign: 'center' }}>{onLabel}</span>
                                     </span>
                                   </div>
                                   {/* Phase 9.7 — sub-params alignés sous
                                       le bloc si enabled. Format compact
                                       "Threshold -56dB · Release 140ms · Depth -75dB". */}
                                   {subParams.length > 0 && (
-                                    <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', lineHeight: 1.5, marginLeft: 8, marginBottom: 2 }}>
+                                    <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', lineHeight: 1.5, marginLeft: 8, marginBottom: 2 }}>
                                       {subParams.map((sp, i) => (
                                         <span key={i}>
                                           {i > 0 && <span> · </span>}
@@ -953,7 +937,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                                     </div>
                                   )}
                                   {showFxWhy && whyTxt && (
-                                    <div style={{ fontSize: 9, color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.4, marginLeft: 8, marginBottom: 3 }}>↳ {whyTxt}</div>
+                                    <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.4, marginLeft: 8, marginBottom: 3 }}>↳ {whyTxt}</div>
                                   )}
                                 </div>
                               );
@@ -963,7 +947,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                             <button
                               onClick={() => setShowFxWhy((p) => !p)}
                               data-testid="preset-settings-fx-why-toggle"
-                              style={{ marginTop: 4, fontSize: 10, background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0, fontWeight: 600, textAlign: 'left', width: '100%' }}
+                              style={{ marginTop: 4, fontSize: 'clamp(10px, 1.15vw, 12px)', background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0, fontWeight: 600, textAlign: 'left', width: '100%' }}
                             >
                               {showFxWhy
                                 ? t('fx-blocks.why-hide', '▲ Masquer les explications')
@@ -978,8 +962,8 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
               })()}
               {(aiC.settings_preset || aiC.settings_guitar) && (
                 <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  {aiC.settings_preset && <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)' }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.preset-settings', 'Preset :')}</b> {getLocalizedText(aiC.settings_preset, locale)}</div>}
-                  {aiC.settings_guitar && <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)' }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.guitar-settings', 'Guitare :')}</b> {getLocalizedText(aiC.settings_guitar, locale)}</div>}
+                  {aiC.settings_preset && <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)' }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.preset-settings', 'Preset :')}</b> {getLocalizedText(aiC.settings_preset, locale)}</div>}
+                  {aiC.settings_guitar && <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)' }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.guitar-settings', 'Guitare :')}</b> {getLocalizedText(aiC.settings_guitar, locale)}</div>}
                 </div>
               )}
             </div>
@@ -989,7 +973,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
       })()}
 
 
-      {!reloading && !aiC && !localAiErr && <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: '10px 0' }}>{t('song-detail.no-cache', 'Aucune analyse IA en cache. Selectionne une guitare pour lancer l\'analyse.')}</div>}
+      {!reloading && !aiC && !localAiErr && <div style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-dim)', padding: '10px 0' }}>{t('song-detail.no-cache', 'Aucune analyse IA en cache. Selectionne une guitare pour lancer l\'analyse.')}</div>}
       {/* Phase 7.55.7 S7 — AIErrorPanel classifie l'erreur Gemini et
           affiche un message user-friendly trilingue stylé. Le data-testid
           reste pour les tests existants. */}
@@ -1008,7 +992,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             return (
               <div style={{ background: 'var(--a3)', border: '1px solid var(--a7)', borderRadius: 'var(--r-md)', padding: '6px 10px', marginBottom: 6 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <div style={{ fontSize: 9, color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, flex: 1 }}>{tFormat('song-detail.feedback-history', { count: all.length }, '💬 Tes feedbacks précédents ({count})')}</div>
+                  <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, flex: 1 }}>{tFormat('song-detail.feedback-history', { count: all.length }, '💬 Tes feedbacks précédents ({count})')}</div>
                   {all.length > 1 && <button
                     data-testid="song-feedback-clear-all"
                     onClick={() => {
@@ -1018,14 +1002,14 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                       writeAiCache(null);
                       setLocalAiResult(null);
                     }}
-                    style={{ fontSize: 9, background: 'none', border: '1px solid var(--a10)', color: 'var(--text-dim)', borderRadius: 'var(--r-sm)', padding: '1px 6px', cursor: 'pointer' }}
+                    style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', background: 'none', border: '1px solid var(--a10)', color: 'var(--text-dim)', borderRadius: 'var(--r-sm)', padding: '1px 6px', cursor: 'pointer' }}
                     title={t('song-detail.feedback-clear-tooltip', 'Effacer tous les feedbacks pour ce morceau')}
                   >{t('song-detail.feedback-clear-all', 'Tout effacer')}</button>}
                 </div>
                 {all.map((fb, i) => {
                   if (i < showFromIdx) return null;
                   return (
-                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 10, color: 'var(--text-sec)', lineHeight: 1.4, marginBottom: 2 }}>
+                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-sec)', lineHeight: 1.4, marginBottom: 2 }}>
                       <span style={{ flex: 1 }}>· <span style={{ color: 'var(--text-dim)', fontStyle: 'italic' }}>{fb.ts ? new Date(fb.ts).toLocaleDateString(getLocale()) : ''}</span> — {fb.text}</span>
                       <button
                         data-testid={`song-feedback-delete-${i}`}
@@ -1036,7 +1020,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                           setLocalAiResult(null);
                         }}
                         title={t('song-detail.feedback-delete-tooltip', 'Supprimer ce feedback + recalculer la reco IA sans lui')}
-                        style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 11, cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 'clamp(11px, 1.25vw, 13px)', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}
                       >✕</button>
                     </div>
                   );
@@ -1045,7 +1029,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             );
           })()}
           {!showFeedback
-            ? <button data-testid="song-feedback-open" onClick={() => setShowFeedback(true)} style={{ fontSize: 11, background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-md)', padding: '6px 12px', cursor: 'pointer', fontWeight: 600 }}>{t('song-detail.give-feedback', '💬 Donner un feedback à l\'IA')}</button>
+            ? <button data-testid="song-feedback-open" onClick={() => setShowFeedback(true)} style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-md)', padding: '6px 12px', cursor: 'pointer', fontWeight: 600 }}>{t('song-detail.give-feedback', '💬 Donner un feedback à l\'IA')}</button>
             : <FeedbackPanel
                 onSubmit={(fb) => {
                   setShowFeedback(false); setReloading(true);
@@ -1070,7 +1054,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           }
         </div>
       )}
-      <button onClick={onClose} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, marginTop: 4 }}>{t('song-detail.close', 'Fermer ↑')}</button>
+      <button onClick={onClose} style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, marginTop: 4 }}>{t('song-detail.close', 'Fermer ↑')}</button>
 
       {/* Phase 7.79 — Modale info/édition usages d'un preset (déclenchée
           par CurationDot ligne 308). */}
@@ -1094,10 +1078,10 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           après les actions (Mon Setup + Recos IA + Feedback). */}
       <div style={sectionStyle}>
         {sectionTitle('📚', t('song-detail.info-section', 'Infos morceau'))}
-        {(songInfo.year || songInfo.album || songInfo.key || songInfo.bpm) && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{songInfo.year}{songInfo.album ? ' · ' + songInfo.album : ''}{songInfo.key ? ' · ' + songInfo.key : ''}{songInfo.bpm ? ' · ' + songInfo.bpm + ' BPM' : ''}</div>}
-        {songInfo.desc && <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.5, marginBottom: 6 }}>{getLocalizedText(songInfo.desc, locale)}</div>}
+        {(songInfo.year || songInfo.album || songInfo.key || songInfo.bpm) && <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-muted)', marginBottom: 4 }}>{songInfo.year}{songInfo.album ? ' · ' + songInfo.album : ''}{songInfo.key ? ' · ' + songInfo.key : ''}{songInfo.bpm ? ' · ' + songInfo.bpm + ' BPM' : ''}</div>}
+        {songInfo.desc && <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.5, marginBottom: 6 }}>{getLocalizedText(songInfo.desc, locale)}</div>}
         {aiC && (aiC.ref_guitarist || aiC.ref_guitar || aiC.ref_amp) && (
-          <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.6 }}>
+          <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.6 }}>
             <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 10 }}>{aiC.ref_guitarist || t('song-detail.ref-default', 'Référence')}</span><br/>
             {aiC.ref_guitar && <>🎸 {aiC.ref_guitar} · </>}
             {aiC.ref_amp && <>🔊 {aiC.ref_amp}</>}
@@ -1105,21 +1089,21 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           </div>
         )}
         {hist && !aiC && (
-          <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.6 }}>
+          <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.6 }}>
             <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 10 }}>{hist.guitarist}</span><br/>
             🎸 {hist.guitar} · 🔊 {hist.amp}{(() => { const fx = getLocalizedText(hist.effects, locale); return fx ? ' · 🎚 ' + fx : ''; })()}
           </div>
         )}
         {aiC?.cot_step1 && (
           <div style={{ marginTop: 8, background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-tonal', 'Profil tonal')}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{getLocalizedText(aiC.cot_step1, locale)}</div>
+            <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-tonal', 'Profil tonal')}</div>
+            <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.4 }}>{getLocalizedText(aiC.cot_step1, locale)}</div>
           </div>
         )}
         {aiC?.cot_step3_amp && (
           <div style={{ marginTop: 8, background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-amp', 'Profil ampli')}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{getLocalizedText(aiC.cot_step3_amp, locale)}</div>
+            <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-amp', 'Profil ampli')}</div>
+            <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.4 }}>{getLocalizedText(aiC.cot_step3_amp, locale)}</div>
           </div>
         )}
       </div>

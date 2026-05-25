@@ -281,14 +281,27 @@
   .songrow-pl-chevron{font-size:12px;color:var(--text-tertiary);flex-shrink:0}
   /* S8.4 — Meta grid 4 colonnes desktop pour alignement strict entre
      rows (Sébastien "j'ai vraiment besoin d'alignements"). Mobile :
-     stack flex column avec gap pour lisibilité. */
+     stack flex column avec gap pour lisibilité.
+     S9.4 — Grid interne guitare + device-line APPLIQUÉ AUSSI EN MOBILE
+     (avant : desktop only). Pills slot/score alignées même mobile. */
   .songrow-pl-meta-grid{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text-secondary);line-height:1.5}
   .songrow-pl-meta-cell{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0}
   .songrow-pl-meta-cell:empty{display:none}
   .songrow-pl-meta-artist{font-weight:600;color:var(--text-secondary)}
   .songrow-pl-guitar{color:var(--text-secondary);font-weight:500}
-  .songrow-pl-device-line{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0;width:100%}
+  /* S9.4 — Guitare cell : grid 2 col mobile aussi (score gauche + label flex) */
+  .songrow-pl-meta-guitar{display:grid;grid-template-columns:40px 1fr;align-items:center;gap:6px}
+  .songrow-pl-meta-guitar .songrow-pl-guitar{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  /* S9.4 — Device line : grid 4 col mobile aussi (label/slot/score/preset) */
+  .songrow-pl-meta-devices{flex-direction:column;align-items:stretch;gap:3px}
+  .songrow-pl-device-line{display:grid;grid-template-columns:48px 40px 40px 1fr;align-items:center;gap:6px;min-width:0;width:100%}
   .songrow-pl-device{color:var(--text-secondary);font-weight:600;font-family:var(--font-mono);font-size:11px}
+  /* S9.4 — Pills slot/score mobile : min-width fixe pour alignement */
+  .songrow-pl-slot-pill{text-align:center;min-width:40px;box-sizing:border-box}
+  .songrow-pl-score-pill-inline{text-align:center;min-width:40px;box-sizing:border-box}
+  .songrow-pl-score-pill-empty{display:block;min-width:40px}
+  /* Extras mobile : stack column compact */
+  .songrow-pl-meta-extras{flex-direction:column;align-items:flex-start;gap:3px}
   /* Slot bank pill : style "tag" sombre cohérent palette Backline
      (tolex-800 fond + brass-100 texte). Distinct des pills scores
      sémantiques (green/yellow/red) mais même esprit "pill plein".
