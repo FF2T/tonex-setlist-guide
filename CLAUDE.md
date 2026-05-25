@@ -761,7 +761,154 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-25 lundi, Phase 7.74.10 — Cascade availableSources au toggle device + UI gating sources non disponibles)
+## État actuel (2026-05-25 lundi soir, Phase 7.55.7 — Refonte Setlists vue repliée + dépliée, 9 sessions S1-S9.7)
+
+**Backline v8.14.213 / SW backline-v313 / STATE_VERSION 11 / 1690 tests verts.**
+
+### Récap session 2026-05-25 — Phase 7.55.7 refonte UX Setlists (~21 sous-phases livrées en prod)
+
+Session marathon de refonte UX des 2 vues clés Setlists : **row playlist
+(vue repliée)** + **fiche dépliée (SongDetailCard)**. Cohérence visuelle,
+alignement, hiérarchie typographique, et élimination des doublons entre
+les 2 vues. Toutes les sous-phases livrées en prod (refactor-and-tmp
+→ main worktree) avec npm test 100% + build OK à chaque release.
+
+#### Sessions S1-S7 (matinée + AM) — bug fixes Cowork + Explorer polish + erreur Gemini friendly
+
+| Session | Sujet | Version |
+|---|---|---|
+| S1-S2 | 7 bugs Cowork (sticky DemoBanner, overflow-x clip, etc.) | v8.14.193-194 |
+| S3 | Mockup vue repliée — choix variante C "playlist-like" | — |
+| S4 | Refonte row replié vue Tous (3 alignements pills) | v8.14.195-198 |
+| S5 | Mini design-system tokens.js (TYPO, WEIGHT, badges, sections) | v8.14.199 |
+| S6 | Explorer tuiles amplis 3 colonnes alignées | v8.14.200-203 |
+| S7 | AIErrorPanel friendly (classify quota/auth/safety/parse/network) | v8.14.204 |
+| S8 | Row playlist variante C (numéro, titre, score abs, meta 4-col) | v8.14.205-208 |
+| S8.1-S8.7 | Bug bank=0, helper getRowPlaylistData, scores entre numéro/libellé, alignement | v8.14.205-208 |
+
+#### Sessions S9.1-S9.7 (après-midi + soir) — Refonte fiche dépliée 3 blocs
+
+| Session | Sujet | Version |
+|---|---|---|
+| S9.1 | Passe globale fiche dépliée (3 blocs Phase 7.86 simplifiés) | v8.14.209 |
+| S9.2 | Réordonnancement : Mon Setup en tête, Infos morceau en fin | v8.14.210 |
+| S9.3 | Drop sticky bandeau (était doublon avec row repliée) | v8.14.210 |
+| S9.4 | Bumper fontSize desktop via clamp(11px, 1.25vw, 13px) | v8.14.211 |
+| S9.5 | Drop table Réglages pédale chiffrée (doublon row repliée) | v8.14.211 |
+| S9.6 | **Hotfix** : restaure texte why preset + tweaks + FX whys (S9.5 trop agressif) | v8.14.212 |
+| **S9.7** | **Cadres symétriques Scoring guitares/Scoring preset + Recommandations + drop doublon feedback** | **v8.14.213** |
+
+### Phase 7.55.7 S9.7 — Cadres symétriques + drop doublon feedback (v8.14.213)
+
+Retour user après S9.6 : *"il faudrait un cadre scoring preset autant
+qu'il y a un cadre scoring guitares. Il faudrait aligner les scores.
+Il faudrait un cadre 'Recommandations' dans lequel intégrer le textuel
+preset et guitare."* Puis : *"Il y a un doublon de bouton pour le
+feedback IA, celui du bas suffit."*
+
+#### 4 changements
+
+1. **Cadre "Scoring preset"** symétrique au cadre "Scoring guitares" :
+   même style encadré (background `var(--a3)`, border `var(--a8)`,
+   borderRadius `var(--r-md)`, padding 8x10). Wrap `displayTopPreset`
+   + alternatives catalog. Titre uppercase mono `Scoring preset`.
+2. **Scores alignés à droite** via pills uniformes dans les 2 cadres :
+   `background: scoreColor`, `color: text-inverse`, `minWidth: 44`,
+   `font mono bold 800`, `padding 2x7`. Alignement vertical entre
+   rows guitare et preset.
+3. **Cadre "Recommandations"** unique wrap `settings_preset` +
+   `settings_guitar` (au lieu de 2 mini-blocs ad-hoc). Padding et
+   typography alignés sur les autres cadres.
+4. **Bouton feedback sticky retiré** : doublon avec
+   `song-feedback-open` en bas (qui ouvre le formulaire complet via
+   `setShowFeedback(true)`).
+
+3 nouvelles clés i18n EN/ES (`song-detail.scoring-preset`,
+`song-detail.recommendations`).
+
+### Architecture finale fiche dépliée post-S9.7
+
+```
+Bloc 3 — 🎸 Mon Setup (premier, swap S9.2)
+  • Sticky bandeau drop (S9.3) — GuitarSelect inline
+  • Compatibilité guitare choisie + reason (si pas top scoring)
+Bloc 2 — 🎯 Recommandations IA
+  • Cadre Scoring guitares (cot_step2_guitars filter rig)
+  • Hors cadre : Guitare idéale (cas family boost Phase 7.64)
+  • Cadre Scoring preset (NOUVEAU S9.7 — wrap displayTopPreset + alts)
+  • Cadre 🎛️ Réglages pédale (why global + tweaks Phase 9.4)
+  • Cadre 💡 Recommandations (NOUVEAU S9.7 — wrap settings_preset + settings_guitar)
+  • FX blocks Phase 9.2
+Feedback IA (sticky drop S9.7, formulaire bas conservé)
+Bloc 1 — 📚 Infos morceau (dernier, déplacé S9.2)
+  • Titre + BPM/key + desc + history + cot_step1 + cot_step3_amp
+```
+
+### Architecture livrée Phase 7.55.7 (cumul session)
+
+```
+src/main.jsx                              APP_VERSION 8.14.192 → 8.14.213
+public/sw.js                              CACHE backline-v292 → backline-v313
+src/app/screens/SongDetailCard.jsx        Refonte 3 blocs + 2 cadres
+                                          symétriques + drop sticky
+                                          feedback + drop table chiffrée
+src/app/screens/ListScreen.jsx            Row playlist variante C
+src/app/utils/setlist-row-playlist.js     NOUVEAU — helper
+                                          getRowPlaylistData (18 tests)
+src/app/utils/setlist-row-extras.js       NOUVEAU — formatRowPotardsFX
+src/app/utils/ai-error-helper.js          NOUVEAU — classifyAIError +
+                                          getAIErrorMessage trilingual
+src/app/components/AIErrorPanel.jsx       NOUVEAU
+src/app/styles/tokens.js                  NOUVEAU — mini design-system
+src/index.html                            CSS Grid row playlist
+                                          (.songrow-pl-meta-grid +
+                                          .songrow-pl-device-line)
+                                          + tuiles Explorer 3 cols
+                                          + overflow-x: clip (vs hidden)
+                                          pour ne pas casser sticky
+src/i18n/en.js, es.js                     +clés scoring-preset,
+                                          recommendations
+```
+
+### Conséquences Phase 7.55.7
+
+- **1690/1690 tests verts** (+10 nouveaux vs Phase 7.74.10 : helpers
+  row playlist, ai-error, tokens).
+- Bundle 2625 → 2635 KB (+10 KB pour helpers + cadres + i18n).
+- **Pas de bump STATE_VERSION** (purement UI).
+- **Pas de migration localStorage**.
+- **Toutes les sous-phases déployées en prod** sur GitHub Pages via
+  worktree main.
+
+### Validation cible utilisateur
+
+- Cohérence visuelle entre row replié et fiche dépliée : header sticky
+  drop, pas de doublon "Meilleurs presets installés", scores alignés
+  via pills uniformes.
+- Hiérarchie typographique homogène : `clamp(11px, 1.25vw, 13px)` pour
+  body, `clamp(10px, 1.15vw, 12px)` pour meta, `clamp(9px, 1.05vw, 11px)`
+  pour micro. Plus de fontSize 11 hardcoded restant.
+- Encadrés sémantiques : Scoring guitares / Scoring preset /
+  Recommandations / Réglages pédale = 4 cadres aux styles alignés.
+- Mon Setup en tête (action prioritaire), Infos morceau en fin
+  (contexte). Plus de Bloc 1 → 2 → 3 historique.
+
+### Dette résiduelle Phase 7.55.7
+
+- **Test E2E SongDetailCard** : non couvert par Vitest (rendering
+  React complexe avec aiCache mock). Smoke test manuel post-déploiement
+  obligatoire.
+- **2 boutons feedback `data-testid` orphelins** : `sticky-feedback-toggle`
+  a été retiré du DOM mais les clés i18n `song-detail.sticky-feedback`
+  + `.sticky-feedback-tooltip` restent. Cleanup mineur à grignoter.
+- **Helper extraction props SongDetailCard** : le composant fait
+  ~890 lignes après S9.6. Decoupage possible (SongDetailHeader,
+  SongDetailScoring, SongDetailRecommendations, SongDetailInfo) si
+  test E2E nécessaire à l'avenir.
+
+---
+
+## État précédent (2026-05-25 lundi, Phase 7.74.10 — Cascade availableSources au toggle device + UI gating sources non disponibles)
 
 **Backline v8.14.192 / SW backline-v292 / STATE_VERSION 11 / 1592 tests verts.**
 
