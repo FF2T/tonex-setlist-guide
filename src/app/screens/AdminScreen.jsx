@@ -21,7 +21,7 @@ import ProfilesAdmin from './ProfilesAdmin.jsx';
 import AllUserPresetsTab from './AllUserPresetsTab.jsx';
 import AdminPacksTab from './AdminPacksTab.jsx';
 import ToneNetTab from './ToneNetTab.jsx';
-import { setSharedGeminiKey } from '../utils/shared-key.js';
+import { getSharedGeminiKey, setSharedGeminiKey } from '../utils/shared-key.js';
 
 function AdminScreen({
   profile, profiles, onProfiles, activeProfileId,
@@ -37,6 +37,11 @@ function AdminScreen({
   onBack, onNavigate,
 }) {
   const [tab, setTab] = useState('profiles');
+  // S9.12 — État local pour le champ "Clé Gemini partagée". Initialisé
+  // depuis le singleton module (getSharedGeminiKey, posé au boot via
+  // loadSharedKey()). L'écriture pousse à Firestore via onSaveSharedKey
+  // + update local module via setSharedGeminiKey.
+  const [sharedKeyInput, setSharedKeyInput] = useState(() => getSharedGeminiKey() || '');
 
   const inp = { background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '6px 10px', fontSize: 12, boxSizing: 'border-box' };
 
@@ -139,51 +144,85 @@ function AdminScreen({
       {tab === 'ia' && (
         <div>
           <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>
-            {t('admin.ia-intro', 'Clé API Gemini partagée avec tous les profils (via Firestore config/apikeys).')}
+            {t('admin.ia-intro-v2', '3 clés API distinctes : partagée Firestore (tous profils), perso Gemini (toi seul), perso Anthropic (toi seul, S9.11 auto-forcé si présente).')}
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 12px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontWeight: 700 }}>Modèle actif :</span>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 12px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontWeight: 700 }}>{t('admin.active-model', 'Modèle actif :')}</span>
             <span style={{ color: 'var(--green)', fontWeight: 600 }}>
-              {aiProvider === 'gemini' ? 'gemini-3-flash-preview' : 'claude-haiku-4-5'}
+              {aiProvider === 'anthropic' ? 'claude-haiku-4-5-20251001' : 'gemini-3-flash-preview'}
+            </span>
+            <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-dim)' }}>
+              {aiProvider === 'anthropic'
+                ? t('admin.using-anthropic', '🅰 Anthropic perso')
+                : (aiKeys.gemini ? t('admin.using-gemini-perso', '🅖 Gemini perso') : t('admin.using-gemini-shared', '🅖 Gemini partagée'))}
             </span>
           </div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>Clé Gemini</div>
-          <input
-            type="password"
-            placeholder="AIza..."
-            value={aiKeys.gemini}
-            onChange={(e) => onAiKeys((p) => ({ ...p, gemini: e.target.value }))}
-            style={{ ...inp, width: '100%', marginBottom: 8, fontFamily: 'monospace' }}
-          />
-          <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-            <button
-              onClick={() => {
-                if (!aiKeys.gemini) { window.alert('Configure d\'abord une clé Gemini.'); return; }
-                if (!window.confirm('Partager ta clé Gemini avec tous les profils ?\n\n• La clé est stockée dans Firestore (config/apikeys.gemini)\n• Tous les devices la téléchargent au boot\n• Les profils sans clé personnelle l\'utiliseront en fallback\n• Les appels IA seront facturés sur ton quota Google\n\nGemini a un free tier généreux (1500 req/jour) qui suffit largement.')) return;
-                if (!onSaveSharedKey) { window.alert('saveSharedKey indisponible.'); return; }
-                onSaveSharedKey(aiKeys.gemini).then(() => {
-                  setSharedGeminiKey(aiKeys.gemini);
-                  window.alert('✓ Clé partagée. Les autres profils l\'utiliseront au prochain reload.');
-                }).catch((e) => {
-                  console.error('[saveSharedKey] failed:', e);
-                  window.alert('Échec du partage. Vérifie ta console pour le détail.');
-                });
-              }}
-              disabled={!aiKeys.gemini}
-              style={{ background: aiKeys.gemini ? 'var(--green)' : 'var(--bg-disabled)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: aiKeys.gemini ? 'pointer' : 'not-allowed' }}
-            >
-              🔑 Partager la clé (tous les profils)
-            </button>
-            <span style={{ fontSize: 10, color: 'var(--text-dim)', alignSelf: 'center' }}>aistudio.google.com → Get API key</span>
+
+          {/* ENTRÉE 1 — Clé Gemini partagée (Firestore) */}
+          <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid var(--a8)' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>🌐 {t('admin.shared-gemini-title', 'Clé Gemini partagée (Firestore)')}</div>
+            <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 8, lineHeight: 1.45 }}>
+              {t('admin.shared-gemini-hint', 'Stockée dans Firestore config/apikeys. Téléchargée au boot par tous les profils. Sert de fallback aux profils SANS clé Gemini perso.')}
+            </div>
+            <input
+              type="password"
+              placeholder="AIza... (clé déjà partagée chargée depuis Firestore)"
+              value={sharedKeyInput}
+              onChange={(e) => setSharedKeyInput(e.target.value)}
+              style={{ ...inp, width: '100%', marginBottom: 6, fontFamily: 'monospace' }}
+            />
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+              <button
+                onClick={() => {
+                  if (!sharedKeyInput) { window.alert(t('admin.shared-gemini-empty', 'Saisis une clé Gemini avant de partager.')); return; }
+                  if (!window.confirm(t('admin.shared-gemini-confirm', 'Mettre à jour la clé Gemini partagée ?\n\n• Stockée dans Firestore (config/apikeys.gemini)\n• Tous les devices la téléchargent au boot\n• Les profils sans clé Gemini perso l\'utiliseront en fallback\n• Les appels IA seront facturés sur le quota Google de la clé'))) return;
+                  if (!onSaveSharedKey) { window.alert('saveSharedKey indisponible.'); return; }
+                  onSaveSharedKey(sharedKeyInput).then(() => {
+                    setSharedGeminiKey(sharedKeyInput);
+                    window.alert(t('admin.shared-gemini-ok', '✓ Clé partagée mise à jour. Les autres profils l\'utiliseront au prochain reload.'));
+                  }).catch((e) => {
+                    console.error('[saveSharedKey] failed:', e);
+                    window.alert(t('admin.shared-gemini-fail', 'Échec du partage. Vérifie ta console pour le détail.'));
+                  });
+                }}
+                disabled={!sharedKeyInput}
+                style={{ background: sharedKeyInput ? 'var(--green)' : 'var(--bg-disabled)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: sharedKeyInput ? 'pointer' : 'not-allowed' }}
+              >
+                🔑 {t('admin.shared-gemini-save', 'Mettre à jour la clé partagée')}
+              </button>
+              <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>aistudio.google.com → Get API key</span>
+            </div>
           </div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>Clé Anthropic (fallback)</div>
-          <input
-            type="password"
-            placeholder="sk-ant-..."
-            value={aiKeys.anthropic}
-            onChange={(e) => onAiKeys((p) => ({ ...p, anthropic: e.target.value }))}
-            style={{ ...inp, width: '100%', fontFamily: 'monospace' }}
-          />
+
+          {/* ENTRÉE 2 — Clé Gemini perso (locale) */}
+          <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid var(--a8)' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>🅖 {t('admin.perso-gemini-title', 'Clé Gemini perso (toi seul)')}</div>
+            <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 8, lineHeight: 1.45 }}>
+              {t('admin.perso-gemini-hint', 'Reste sur ce device (jamais syncée Firestore — Phase 7.30 strip). Prend priorité sur la clé partagée pour TES analyses. Crée une 2e clé sur un nouveau projet Google Cloud pour avoir un quota free tier indépendant (1500 req/jour).')}
+            </div>
+            <input
+              type="password"
+              placeholder="AIza..."
+              value={aiKeys.gemini}
+              onChange={(e) => onAiKeys((p) => ({ ...p, gemini: e.target.value }))}
+              style={{ ...inp, width: '100%', fontFamily: 'monospace' }}
+            />
+          </div>
+
+          {/* ENTRÉE 3 — Clé Anthropic perso (locale) */}
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>🅰 {t('admin.perso-anthropic-title', 'Clé Anthropic perso (toi seul)')}</div>
+            <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 8, lineHeight: 1.45 }}>
+              {t('admin.perso-anthropic-hint', 'Reste sur ce device (jamais syncée Firestore). S9.11 auto-force Anthropic si cette clé est présente ET tu es admin. console.anthropic.com → API Keys. ⚠ Pas inclus dans Claude.ai Pro/Max — facturation API séparée, prépaiement minimum $5.')}
+            </div>
+            <input
+              type="password"
+              placeholder="sk-ant-..."
+              value={aiKeys.anthropic}
+              onChange={(e) => onAiKeys((p) => ({ ...p, anthropic: e.target.value }))}
+              style={{ ...inp, width: '100%', fontFamily: 'monospace' }}
+            />
+          </div>
         </div>
       )}
 
