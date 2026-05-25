@@ -251,11 +251,21 @@
      Affiche potards (preset_settings_v1 Phase 9.1) + FX activés
      (fx_blocks Phase 9.2) sur les écrans larges (≥ 1024px). Cachée
      en mobile/tablette pour préserver la densité du layout existant.
-     Aligne sur les rows déjà rendues juste au-dessus. */
+
+     Phase 7.55.7 S5 — Refonte grid 1-ligne complète (variante A maquette
+     validée Sébastien 25/05). Sur desktop, .songrow-clickable bascule en
+     CSS grid 4 colonnes : title-group / guitar / preset / extras.
+     Mobile inchangé (block natif, sections empilées verticalement).
+     Hist masquée desktop (info redondante avec header tri par artist). */
   .song-row-extras{display:none}
   @media(min-width:1024px){
-    .song-row-extras{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:5px;font-family:var(--font-mono);font-size:10px;color:var(--text-dim);line-height:1.4}
-    .song-row-extras-potards{color:var(--text-sec);font-weight:600;letter-spacing:0.5px;background:var(--a3);border:1px solid var(--a7);border-radius:var(--r-sm);padding:2px 8px}
+    .songrow-clickable{display:grid !important;grid-template-columns:minmax(180px,1.5fr) auto auto auto;gap:14px;align-items:center}
+    .songrow-title-group{min-width:0}
+    .songrow-guitar{margin-top:0 !important;flex-shrink:0}
+    .songrow-preset{min-width:0;flex-shrink:0}
+    .songrow-hist{display:none !important}
+    .song-row-extras{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:0;font-family:var(--font-mono);font-size:10px;color:var(--text-dim);line-height:1.4;flex-shrink:0}
+    .song-row-extras-potards{color:var(--text-sec);font-weight:600;letter-spacing:0.5px;background:var(--a3);border:1px solid var(--a7);border-radius:var(--r-sm);padding:2px 8px;white-space:nowrap}
     .song-row-extras-fx{display:inline-flex;gap:4px;align-items:center;flex-wrap:wrap}
     .song-row-extras-fx-badge{background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent-border);border-radius:var(--r-sm);padding:1px 7px;font-weight:700;font-size:9px;letter-spacing:0.3px;text-transform:uppercase}
   }

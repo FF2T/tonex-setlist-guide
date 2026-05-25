@@ -681,18 +681,26 @@ function ListScreen({
                         }
                       }));
                     }
-                  }} style={{ flex: 1, background: 'var(--a3)', border: '1px solid var(--a7)', borderRight: (activeSlId && editingSongs) ? 'none' : '1px solid var(--a7)', borderRadius: (activeSlId && editingSongs) ? (isExpanded ? '10px 0 0 0' : '10px 0 0 10px') : (isExpanded ? '10px 10px 0 0' : '10px'), padding: '10px 13px', cursor: 'pointer' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
-                      <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{s.title}</span>
-                      {!s.aiCache && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>⏳</span>}
-                      <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)' }}>{isExpanded ? '▲' : '▼'}</span>
+                  }}
+                  className="songrow-clickable"
+                  style={{ flex: 1, background: 'var(--a3)', border: '1px solid var(--a7)', borderRight: (activeSlId && editingSongs) ? 'none' : '1px solid var(--a7)', borderRadius: (activeSlId && editingSongs) ? (isExpanded ? '10px 0 0 0' : '10px 0 0 10px') : (isExpanded ? '10px 10px 0 0' : '10px'), padding: '10px 13px', cursor: 'pointer' }}>
+                    {/* Phase 7.55.7 S5 — Title group (col 1 grid desktop) :
+                        regroupe titre + artist + hist pour que le grid
+                        responsive ne casse pas l'empilement vertical de
+                        ces 3 sous-infos. Mobile : flex column natif. */}
+                    <div className="songrow-title-group">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{s.title}</span>
+                        {!s.aiCache && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>⏳</span>}
+                        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)' }}>{isExpanded ? '▲' : '▼'}</span>
+                      </div>
+                      {sort !== 'artist' && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: hist ? 3 : 0 }}>{s.artist}</div>}
+                      {showDeviceRows && hist && !isExpanded && <div className="songrow-hist" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{hist.guitarist}</span>
+                        <span style={{ color: 'var(--text-tertiary)' }}>·</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{hist.amp}</span>
+                      </div>}
                     </div>
-                    {sort !== 'artist' && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: hist ? 3 : 0 }}>{s.artist}</div>}
-                    {showDeviceRows && hist && !isExpanded && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-                      <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{hist.guitarist}</span>
-                      <span style={{ color: 'var(--text-tertiary)' }}>·</span>
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{hist.amp}</span>
-                    </div>}
                     {showDeviceRows && !isExpanded && (() => {
                       // Phase 7.65 — Vue repliée : la guitare affichée doit
                       // OBLIGATOIREMENT être dans le rig actif. Avant fix :
@@ -728,14 +736,14 @@ function ListScreen({
                         && savedGId === displayG.id
                         && !ig.includes(savedGId);
                       return (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 4 }}>
+                        <div className="songrow-guitar" style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 4 }}>
                           <StatusDot score={displayScore || null} ideal={isIdealGuitar}/>
                           <span style={{ fontSize: 10, color: 'var(--text-sec)', background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '1px 7px', fontWeight: 600 }}>{displayG.name} ({displayG.type}){isCustomChoice ? ' ' + t('list.custom-choice', '(choix perso)') : ''}</span>
                           {displayScore > 0 && <span style={{ fontSize: 10, fontWeight: 800, color: scoreColor(displayScore), background: scoreBg(displayScore), borderRadius: 'var(--r-sm)', padding: '1px 6px', border: `1px solid ${scoreColor(displayScore)}30` }} title={scoreLabel(displayScore).tip + '  —  score guitare'}>{displayScore}%</span>}
                         </div>
                       );
                     })()}
-                    {!isExpanded && showDeviceRows && <SongCollapsedDeviceRows
+                    {!isExpanded && showDeviceRows && <div className="songrow-preset"><SongCollapsedDeviceRows
                       profile={profile}
                       aiC={aiC}
                       banksAnn={banksAnn}
@@ -746,7 +754,7 @@ function ListScreen({
                       enabledDevices={enabledDevicesForRender}
                       precomputedTopRecBySongId={tmpTopRecBySongId}
                       renderRow={(d, banks, presetData) => presetRow(d.icon, presetData.label, banks, presetData.score, d.id, d.deviceColor)}
-                    />}
+                    /></div>}
                     {/* Phase 7.55.7 S4 (S4-3) — Row "extras" desktop only
                         (≥ 1024px) : potards G/B/M/T/V + FX badges
                         (Gate/Comp/Mod/Delay/Verb). Affichée sous la device
