@@ -544,7 +544,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 const idealName = stripTypeSuffix(displayIdealGuitarName);
                 if (cotTopName && idealName && cotTopName === idealName) return null;
                 return (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'clamp(11px, 1.25vw, 13px)' }}>
                     <StatusDot score={idealGuitarScore} ideal={true}/>
                     <div style={{ flex: 1 }}>{t('song-detail.guitar-label', 'Guitare ')}<span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{displayIdealGuitarName}</span></div>
                     {idealGuitarScore && <b style={{ color: scoreColor(idealGuitarScore), flexShrink: 0 }}>{idealGuitarScore}%</b>}
@@ -614,7 +614,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 };
                 return (
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'clamp(11px, 1.25vw, 13px)' }}>
                       <StatusDot score={idealScore} ideal={true}/>
                       <div style={{ flex: 1 }}>{t('song-detail.preset-label', 'Preset')} <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{displayPresetName}</span>
                         {/* Phase 7.70.1 + 7.79 — Pastille curation cliquable */}
@@ -662,7 +662,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                       const si = getSourceInfo(entry);
                       return (
                         <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 3 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'clamp(10px, 1.15vw, 12px)' }}>
                             <StatusDot score={p.score} size={6}/>
                             <span style={{ flex: 1, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name} <span style={{ color: 'var(--text-tertiary)' }}>({entry?.amp || p.amp})</span></span>
                             <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: scoreColor(p.score), flexShrink: 0 }}>{p.score}%</span>
@@ -672,6 +672,59 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                               : <span style={{ color: 'var(--yellow)' }}>{t('song-detail.not-installed', '⬇ Non installé')}</span>}
                             {si && <span style={{ color: loc ? 'var(--text-tertiary)' : 'var(--text-sec)' }}>· {si.icon} {si.label}</span>}
                           </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+              {/* S9.6 — Restauration des conseils textuels Phase 9.4/9.7
+                  (drop S9.5 a supprimé aussi ces textes par accident).
+                  Affiche le why global preset_settings_v1 + tweaks
+                  (symptom→fix) + why per-bloc FX (ON uniquement).
+                  La TABLE chiffrée reste droppée (doublon row playlist). */}
+              {aiC.preset_settings_v1 && (aiC.preset_settings_v1.why || (aiC.preset_settings_v1.tweaks && aiC.preset_settings_v1.tweaks.length > 0)) && (
+                <div style={{ marginTop: 6, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+                  <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.preset-why', '🎛️ Réglages pédale')}</div>
+                  {aiC.preset_settings_v1.why && (
+                    <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.4, marginBottom: aiC.preset_settings_v1.tweaks?.length ? 6 : 0 }}>
+                      {getLocalizedText(aiC.preset_settings_v1.why, locale)}
+                    </div>
+                  )}
+                  {Array.isArray(aiC.preset_settings_v1.tweaks) && aiC.preset_settings_v1.tweaks.length > 0 && (
+                    <div style={{ marginTop: 4 }}>
+                      <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', fontWeight: 700, color: 'var(--text-dim)', marginBottom: 3, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 0.3 }}>{t('song-detail.tweaks-label', 'Si ça ne sonne pas tout à fait juste')}</div>
+                      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                        {aiC.preset_settings_v1.tweaks.map((tw, i) => {
+                          const symptom = getLocalizedText(tw.symptom, locale);
+                          if (!symptom || !tw.fix) return null;
+                          return (
+                            <li key={i} style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-sec)', lineHeight: 1.5, paddingLeft: 12, position: 'relative', marginBottom: 1 }}>
+                              <span style={{ position: 'absolute', left: 0, color: 'var(--accent)' }}>·</span>
+                              <i>{t('song-detail.tweaks-if', 'Si')}</i> {symptom} → <b style={{ color: 'var(--text-bright)', fontFamily: 'var(--font-mono)' }}>{String(tw.fix).replace(/_/g, ' ')}</b>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+              {aiC.fx_blocks && (() => {
+                const FX_KEYS = ['noise_gate', 'compressor', 'modulation', 'delay', 'reverb'];
+                const FX_LABELS = { noise_gate: 'Gate', compressor: 'Comp', modulation: 'Mod', delay: 'Delay', reverb: 'Verb' };
+                const onBlocks = FX_KEYS.filter((k) => aiC.fx_blocks[k]?.enabled === true);
+                if (onBlocks.length === 0) return null;
+                return (
+                  <div style={{ marginTop: 6, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+                    <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.fx-why', '🎚 Effets activés')}</div>
+                    {onBlocks.map((k) => {
+                      const block = aiC.fx_blocks[k];
+                      const whyTxt = block.why ? getLocalizedText(block.why, locale) : null;
+                      return (
+                        <div key={k} style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.4, marginBottom: 3, display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                          <b style={{ color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontSize: 'clamp(10px, 1.15vw, 12px)', textTransform: 'uppercase', letterSpacing: 0.3, flexShrink: 0 }}>{FX_LABELS[k]}{block.type ? ` ${block.type}` : ''}</b>
+                          {whyTxt && <span style={{ color: 'var(--text-dim)' }}>{whyTxt}</span>}
                         </div>
                       );
                     })}
@@ -800,7 +853,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         {songInfo.desc && <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.5, marginBottom: 6 }}>{getLocalizedText(songInfo.desc, locale)}</div>}
         {aiC && (aiC.ref_guitarist || aiC.ref_guitar || aiC.ref_amp) && (
           <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.6 }}>
-            <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 10 }}>{aiC.ref_guitarist || t('song-detail.ref-default', 'Référence')}</span><br/>
+            <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 'clamp(10px, 1.15vw, 12px)' }}>{aiC.ref_guitarist || t('song-detail.ref-default', 'Référence')}</span><br/>
             {aiC.ref_guitar && <>🎸 {aiC.ref_guitar} · </>}
             {aiC.ref_amp && <>🔊 {aiC.ref_amp}</>}
             {aiC.ref_effects && aiC.ref_effects !== 'Aucun effet' && <> · 🎚 {aiC.ref_effects}</>}
@@ -808,7 +861,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         )}
         {hist && !aiC && (
           <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.6 }}>
-            <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 10 }}>{hist.guitarist}</span><br/>
+            <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 'clamp(10px, 1.15vw, 12px)' }}>{hist.guitarist}</span><br/>
             🎸 {hist.guitar} · 🔊 {hist.amp}{(() => { const fx = getLocalizedText(hist.effects, locale); return fx ? ' · 🎚 ' + fx : ''; })()}
           </div>
         )}
