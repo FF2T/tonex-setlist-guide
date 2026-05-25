@@ -332,11 +332,19 @@
     /* Devices empilés + chaque ligne en grid 4 col (label fixe |
        slot pill fixe | preset flex | score pill fixe) */
     .songrow-pl-meta-devices{flex-direction:column;align-items:stretch;gap:4px}
-    .songrow-pl-device-line{display:grid;grid-template-columns:52px auto 1fr 48px;align-items:center;gap:8px}
+    /* S8.6 — Ordre device line : [label][slot][score][preset].
+       Sébastien : "score entre le numéro de banque et le libellé
+       pour bien comprendre à quoi les valeurs correspondent."
+       Lecture naturelle : "Anniv slot 9C scoré 88%, c'est AA MRSH JT50". */
+    .songrow-pl-device-line{display:grid;grid-template-columns:52px 44px 44px 1fr;align-items:center;gap:8px}
     /* Pills : centrer le contenu pour qu'ils paraissent "vraiment"
        de la même largeur entre rows */
     .songrow-pl-slot-pill{text-align:center;min-width:44px;box-sizing:border-box}
     .songrow-pl-score-pill-inline{text-align:center;min-width:44px;box-sizing:border-box}
+    /* Placeholder vide quand preset_score absent : préserve la 4e
+       colonne preset alignée (sinon le preset glisse vers la gauche
+       sur les rows sans score). */
+    .songrow-pl-score-pill-empty{display:block;min-width:44px}
     /* Extras (potards + FX) empilés verticalement */
     .songrow-pl-meta-extras{flex-direction:column;align-items:flex-start;gap:4px}
   }

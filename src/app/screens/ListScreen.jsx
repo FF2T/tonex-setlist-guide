@@ -767,10 +767,12 @@ function ListScreen({
                                     <div key={d.deviceKey} className="songrow-pl-device-line">
                                       <span className="songrow-pl-device">{d.deviceLabel}</span>
                                       <span className="songrow-pl-slot-pill">{d.slot}</span>
-                                      <span className="songrow-pl-preset">"{d.presetName}"</span>
-                                      {d.presetScore != null && (
+                                      {d.presetScore != null ? (
                                         <span className="songrow-pl-score-pill-inline" style={{ background: scoreColor(d.presetScore) }}>{d.presetScore}%</span>
+                                      ) : (
+                                        <span className="songrow-pl-score-pill-empty" aria-hidden="true"/>
                                       )}
+                                      <span className="songrow-pl-preset">"{d.presetName}"</span>
                                     </div>
                                   ))}
                                 </div>
