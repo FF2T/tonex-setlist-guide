@@ -746,8 +746,11 @@ function ListScreen({
                             {/* S8.4 — Meta grid 4 colonnes desktop pour
                                 alignement strict entre rows (Sébastien
                                 25/05 "j'ai vraiment besoin d'alignements").
-                                Mobile : stack flex column. */}
-                            {!isExpanded && (rowData.artist || rowData.guitarLabel || rowData.devices.length > 0 || rowData.potards || rowData.fxOn.length > 0) && (
+                                Mobile : stack flex column.
+                                S9.3 — Reste visible aussi quand isExpanded
+                                pour servir de header à la fiche dépliée
+                                (drop sticky bandeau dupliqué Sébastien 25/05). */}
+                            {(rowData.artist || rowData.guitarLabel || rowData.devices.length > 0 || rowData.potards || rowData.fxOn.length > 0) && (
                               <div className="songrow-pl-meta-grid">
                                 <div className="songrow-pl-meta-cell songrow-pl-meta-artist">
                                   {rowData.artist || ''}

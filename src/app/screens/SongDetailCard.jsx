@@ -190,30 +190,11 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   return (
     <div className="song-row-detail" style={{ background: 'var(--bg-elev-1)', borderRadius: '0 0 12px 12px', padding: '10px 12px', marginBottom: 8, marginTop: -2, display: 'flex', flexDirection: 'column', gap: 6 }}>
 
-      {/* Phase 7.55.7 S9.2 — Sticky ultra-compact : titre + score absolu
-          uniquement. Reste visible au scroll comme repère contexte.
-          Les actions (GuitarSelect + outputContext + feedback) sont
-          intégrées au Bloc "Mon setup" (premier bloc) ci-dessous, par
-          choix Sébastien : action prioritaire en haut, contexte en bas. */}
-      {(() => {
-        const maxPS = Math.max(
-          (aiC?.preset_ann?.score) || 0,
-          (aiC?.preset_plug?.score) || 0,
-        ) || null;
-        let absSc = null;
-        const gSc = (typeof chosenGuitarScore === 'number' && chosenGuitarScore > 0) ? chosenGuitarScore : null;
-        if (gSc != null && maxPS != null) absSc = Math.round((gSc + maxPS) / 2);
-        else if (gSc != null) absSc = gSc;
-        else if (maxPS != null) absSc = maxPS;
-        return (
-          <div className="song-detail-sticky" style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-elev-1)', borderRadius: 'var(--r-md)', border: `1px solid ${BORDER_SUBTLE}`, padding: '8px 12px', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: TYPO.body, fontWeight: WEIGHT.bold, color: TEXT_1, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{song.title}</span>
-            {absSc != null && (
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: TYPO.emph, fontWeight: WEIGHT.black, color: 'var(--text-inverse)', background: scoreColor(absSc), padding: '4px 10px', borderRadius: 'var(--r-md)', letterSpacing: '-0.01em', lineHeight: 1.2 }}>{absSc}%</span>
-            )}
-          </div>
-        );
-      })()}
+      {/* Phase 7.55.7 S9.3 — Sticky bandeau supprimé. La row playlist
+          parente (ListScreen) reste visible au-dessus de la fiche
+          dépliée et joue le rôle de header (titre + score absolu +
+          guitare + presets + potards/FX). Évite la duplication
+          d'infos entre row et fiche dépliée (Sébastien 25/05). */}
 
       {/* Loading */}
       {reloading && (
