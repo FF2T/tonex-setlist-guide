@@ -246,14 +246,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 >{icon}</button>
               );
             })}
-            {aiC && (
-              <button
-                onClick={() => setShowFeedback((p) => !p)}
-                data-testid="sticky-feedback-toggle"
-                title={t('song-detail.sticky-feedback-tooltip', 'Donner un feedback à l\'IA sur ce morceau')}
-                style={{ marginLeft: 'auto', fontSize: TYPO.body, padding: '4px 10px', background: showFeedback ? 'var(--accent-soft)' : 'transparent', border: `1px solid ${showFeedback ? 'var(--border-accent)' : BORDER_SUBTLE}`, borderRadius: 'var(--r-sm)', color: showFeedback ? 'var(--accent)' : TEXT_2, cursor: 'pointer', fontWeight: WEIGHT.medium }}
-              >💬 {t('song-detail.sticky-feedback', 'Feedback')}</button>
-            )}
+            {/* S9.7 — Bouton feedback retiré du sticky (doublon avec
+                'song-feedback-open' en bas de fiche, qui ouvre le formulaire
+                complet via setShowFeedback(true)). */}
           </div>
         </div>
         {/* Rappel guitare choisie (utile si le sticky est scrollé hors vue
@@ -519,14 +514,19 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           <div style={sectionStyle}>
             {sectionTitle('🎯', t('song-detail.reco-block', 'Recommandations IA'))}
             {/* Scoring guitares — déplacé de SECTION 2 vers tête de Bloc 2 */}
+            {/* S9.7 — Scoring guitares : score aligné à droite (marginLeft auto)
+                pour alignement vertical entre rows. Raison en 2e ligne pour
+                préserver lisibilité (reason peut être longue). */}
             {cotInRig.length > 0 && (
               <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px', marginBottom: 8 }}>
                 <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-guitars', 'Scoring guitares')}</div>
                 {cotInRig.map((gt, i) => (
-                  <div key={i} style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', marginBottom: i < cotInRig.length - 1 ? 4 : 0, display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                    <span style={{ fontWeight: 600, color: 'var(--text-bright)', flexShrink: 0 }}>{gt.name}</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: scoreColor(gt.score), flexShrink: 0 }}>{gt.score}%</span>
-                    <span style={{ color: 'var(--text-dim)' }}>{getLocalizedText(gt.reason, locale)}</span>
+                  <div key={i} style={{ marginBottom: i < cotInRig.length - 1 ? 6 : 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(11px, 1.25vw, 13px)' }}>
+                      <span style={{ fontWeight: 600, color: 'var(--text-bright)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{gt.name}</span>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(gt.score), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(10px, 1.15vw, 12px)' }}>{gt.score}%</span>
+                    </div>
+                    {gt.reason && <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.4 }}>{getLocalizedText(gt.reason, locale)}</div>}
                   </div>
                 ))}
               </div>
@@ -571,7 +571,14 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 if (isDuplicate) return null;
                 return <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-dim)', marginTop: -2, marginBottom: 2 }}>{getLocalizedText(aiC.guitar_reason, locale)}</div>;
               })()}
-              {displayTopPreset && getActiveDevicesForRender(profile).some((d) => d.deviceKey === 'ann' || d.deviceKey === 'plug') && (() => {
+              {/* S9.7 — Cadre "Scoring preset" symétrique au cadre "Scoring
+                  guitares". Wrap le preset reco top + alternatives catalog.
+                  Scores alignés à droite via pill (même style que Scoring
+                  guitares). */}
+              {(displayTopPreset || (aiC.ideal_top3 && aiC.ideal_top3.length > 1)) && getActiveDevicesForRender(profile).some((d) => d.deviceKey === 'ann' || d.deviceKey === 'plug') && (
+              <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+                <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.scoring-preset', 'Scoring preset')}</div>
+              {displayTopPreset && (() => {
                 const displayPresetName = displayTopPreset.label;
                 const idealScore = displayTopPreset.score || 0;
                 const locAnn = findInBanks(displayPresetName, banksAnn);
@@ -613,16 +620,17 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   );
                 };
                 return (
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'clamp(11px, 1.25vw, 13px)' }}>
-                      <StatusDot score={idealScore} ideal={true}/>
-                      <div style={{ flex: 1 }}>{t('song-detail.preset-label', 'Preset')} <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{displayPresetName}</span>
-                        {/* Phase 7.70.1 + 7.79 — Pastille curation cliquable */}
+                  <div style={{ marginBottom: 6 }}>
+                    {/* S9.7 — Score aligné droite via pill (même style que
+                        Scoring guitares pour cohérence verticale). */}
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(11px, 1.25vw, 13px)' }}>
+                      <span style={{ fontWeight: 600, color: 'var(--text-bright)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                        {displayPresetName}
                         <span style={{ marginLeft: 6 }}>
                           <CurationDot name={displayPresetName} onClick={(n) => setCurationModalPreset(n)}/>
                         </span>
-                      </div>
-                      {idealScore > 0 && <b style={{ color: scoreColor(idealScore), flexShrink: 0 }}>{idealScore}%</b>}
+                      </span>
+                      {idealScore > 0 && <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(idealScore), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(10px, 1.15vw, 12px)' }}>{idealScore}%</span>}
                     </div>
                     <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       {loc ? <span style={{ color: 'var(--green)' }}>{tFormat('song-detail.installed-bank', { bank: loc.bank, slot: loc.slot }, '✓ Installé — Banque {bank}{slot}')}</span>
@@ -647,7 +655,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   </div>
                 );
               })()}
-              {getActiveDevicesForRender(profile).some((d) => d.deviceKey === 'ann' || d.deviceKey === 'plug') && (() => {
+              {(() => {
                 const filteredTop3 = (aiC.ideal_top3 || []).filter((p) => {
                   const e = findCatalogEntry(p.name);
                   return !availableSources || !e?.src || availableSources[e.src] !== false;
@@ -661,13 +669,13 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                       const entry = findCatalogEntry(p.name);
                       const si = getSourceInfo(entry);
                       return (
-                        <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 1, marginBottom: 3 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'clamp(10px, 1.15vw, 12px)' }}>
-                            <StatusDot score={p.score} size={6}/>
-                            <span style={{ flex: 1, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name} <span style={{ color: 'var(--text-tertiary)' }}>({entry?.amp || p.amp})</span></span>
-                            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: scoreColor(p.score), flexShrink: 0 }}>{p.score}%</span>
+                        <div key={i} style={{ marginBottom: 4 }}>
+                          {/* S9.7 — Score aligné droite via pill (cohérence Scoring guitares) */}
+                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(10px, 1.15vw, 12px)' }}>
+                            <span style={{ flex: 1, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{p.name} <span style={{ color: 'var(--text-tertiary)' }}>({entry?.amp || p.amp})</span></span>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(p.score), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(10px, 1.15vw, 12px)' }}>{p.score}%</span>
                           </div>
-                          <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginLeft: 14, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                          <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 1, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
                             {loc ? <span style={{ color: 'var(--green)' }}>{tFormat('song-detail.installed-bank', { bank: loc.bank, slot: loc.slot }, '✓ Installé — Banque {bank}{slot}')}</span>
                               : <span style={{ color: 'var(--yellow)' }}>{t('song-detail.not-installed', '⬇ Non installé')}</span>}
                             {si && <span style={{ color: loc ? 'var(--text-tertiary)' : 'var(--text-sec)' }}>· {si.icon} {si.label}</span>}
@@ -678,6 +686,8 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   </div>
                 );
               })()}
+              </div>
+              )}
               {/* S9.6 — Restauration des conseils textuels Phase 9.4/9.7
                   (drop S9.5 a supprimé aussi ces textes par accident).
                   Affiche le why global preset_settings_v1 + tweaks
@@ -731,10 +741,14 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   </div>
                 );
               })()}
+              {/* S9.7 — Cadre "Recommandations" unique wrap settings_preset
+                  + settings_guitar (au lieu de 2 mini-blocs séparés). Style
+                  encadré aligné Scoring guitares / Scoring preset. */}
               {(aiC.settings_preset || aiC.settings_guitar) && (
-                <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  {aiC.settings_preset && <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)' }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.preset-settings', 'Preset :')}</b> {getLocalizedText(aiC.settings_preset, locale)}</div>}
-                  {aiC.settings_guitar && <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)' }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.guitar-settings', 'Guitare :')}</b> {getLocalizedText(aiC.settings_guitar, locale)}</div>}
+                <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+                  <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.recommendations', '💡 Recommandations')}</div>
+                  {aiC.settings_preset && <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.45, marginBottom: aiC.settings_guitar ? 6 : 0 }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.preset-settings', 'Preset :')}</b> {getLocalizedText(aiC.settings_preset, locale)}</div>}
+                  {aiC.settings_guitar && <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.45 }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.guitar-settings', 'Guitare :')}</b> {getLocalizedText(aiC.settings_guitar, locale)}</div>}
                 </div>
               )}
             </div>

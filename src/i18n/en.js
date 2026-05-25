@@ -791,6 +791,8 @@ const en = {
   'song-detail.compat': 'Compatibility:',
   'song-detail.cot-amp': 'Amp profile',
   'song-detail.cot-guitars': 'Guitar scoring',
+  'song-detail.scoring-preset': 'Preset scoring',
+  'song-detail.recommendations': '💡 Recommendations',
   'song-detail.cot-tonal': 'Tonal profile',
   'song-detail.dim-amp': 'Amp',
   'song-detail.dim-gain': 'Gain',
