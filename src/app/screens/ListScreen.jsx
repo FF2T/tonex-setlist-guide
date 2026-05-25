@@ -743,41 +743,48 @@ function ListScreen({
                               )}
                               <span className="songrow-pl-chevron">{isExpanded ? '▲' : '▼'}</span>
                             </div>
-                            {!isExpanded && (rowData.artist || rowData.guitarLabel || rowData.devices.length > 0) && (
-                              <div className="songrow-pl-meta">
-                                {rowData.artist && <span className="songrow-pl-artist">{rowData.artist}</span>}
-                                {rowData.guitarLabel && (
-                                  <>
-                                    <span className="songrow-pl-sep">·</span>
-                                    <span className="songrow-pl-guitar">{rowData.guitarLabel}</span>
-                                    {rowData.guitarScore != null && (
-                                      <span className="songrow-pl-score-pill-inline" style={{ background: scoreColor(rowData.guitarScore) }}>{rowData.guitarScore}%</span>
-                                    )}
-                                  </>
-                                )}
-                                {rowData.devices.map((d) => (
-                                  <React.Fragment key={d.deviceKey}>
-                                    <span className="songrow-pl-sep">·</span>
-                                    <span className="songrow-pl-device">{d.deviceLabel}</span>
-                                    <span className="songrow-pl-slot-pill">{d.slot}</span>
-                                    <span className="songrow-pl-preset">"{d.presetName}"</span>
-                                    {d.presetScore != null && (
-                                      <span className="songrow-pl-score-pill-inline" style={{ background: scoreColor(d.presetScore) }}>{d.presetScore}%</span>
-                                    )}
-                                  </React.Fragment>
-                                ))}
-                                {rowData.potards && (
-                                  <>
-                                    <span className="songrow-pl-sep">·</span>
-                                    <span className="songrow-pl-potards">{rowData.potards}</span>
-                                  </>
-                                )}
-                              </div>
-                            )}
-                            {!isExpanded && rowData.fxOn.length > 0 && (
-                              <div className="songrow-pl-fx">
-                                <span className="songrow-pl-fx-icon">⚡</span>
-                                <span className="songrow-pl-fx-list">{rowData.fxOn.join(' · ')}</span>
+                            {/* S8.4 — Meta grid 4 colonnes desktop pour
+                                alignement strict entre rows (Sébastien
+                                25/05 "j'ai vraiment besoin d'alignements").
+                                Mobile : stack flex column. */}
+                            {!isExpanded && (rowData.artist || rowData.guitarLabel || rowData.devices.length > 0 || rowData.potards || rowData.fxOn.length > 0) && (
+                              <div className="songrow-pl-meta-grid">
+                                <div className="songrow-pl-meta-cell songrow-pl-meta-artist">
+                                  {rowData.artist || ''}
+                                </div>
+                                <div className="songrow-pl-meta-cell songrow-pl-meta-guitar">
+                                  {rowData.guitarLabel && (
+                                    <>
+                                      <span className="songrow-pl-guitar">{rowData.guitarLabel}</span>
+                                      {rowData.guitarScore != null && (
+                                        <span className="songrow-pl-score-pill-inline" style={{ background: scoreColor(rowData.guitarScore) }}>{rowData.guitarScore}%</span>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                                <div className="songrow-pl-meta-cell songrow-pl-meta-devices">
+                                  {rowData.devices.map((d) => (
+                                    <div key={d.deviceKey} className="songrow-pl-device-line">
+                                      <span className="songrow-pl-device">{d.deviceLabel}</span>
+                                      <span className="songrow-pl-slot-pill">{d.slot}</span>
+                                      <span className="songrow-pl-preset">"{d.presetName}"</span>
+                                      {d.presetScore != null && (
+                                        <span className="songrow-pl-score-pill-inline" style={{ background: scoreColor(d.presetScore) }}>{d.presetScore}%</span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="songrow-pl-meta-cell songrow-pl-meta-extras">
+                                  {rowData.potards && (
+                                    <div className="songrow-pl-potards">{rowData.potards}</div>
+                                  )}
+                                  {rowData.fxOn.length > 0 && (
+                                    <div className="songrow-pl-fx">
+                                      <span className="songrow-pl-fx-icon">⚡</span>
+                                      <span className="songrow-pl-fx-list">{rowData.fxOn.join(' · ')}</span>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             )}
                           </div>

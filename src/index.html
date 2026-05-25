@@ -279,10 +279,15 @@
      Validation Sébastien 25/05 post-S8. */
   .songrow-pl-topscore-pill{margin-left:auto;font-family:var(--font-mono);font-size:14px;font-weight:800;letter-spacing:-0.01em;color:var(--text-inverse);padding:4px 10px;border-radius:var(--r-md);line-height:1.2}
   .songrow-pl-chevron{font-size:12px;color:var(--text-tertiary);flex-shrink:0}
-  .songrow-pl-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);line-height:1.5}
-  .songrow-pl-artist{font-weight:600;color:var(--text-secondary)}
-  .songrow-pl-sep{color:var(--text-tertiary);font-weight:400;opacity:0.6}
+  /* S8.4 — Meta grid 4 colonnes desktop pour alignement strict entre
+     rows (Sébastien "j'ai vraiment besoin d'alignements"). Mobile :
+     stack flex column avec gap pour lisibilité. */
+  .songrow-pl-meta-grid{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text-secondary);line-height:1.5}
+  .songrow-pl-meta-cell{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0}
+  .songrow-pl-meta-cell:empty{display:none}
+  .songrow-pl-meta-artist{font-weight:600;color:var(--text-secondary)}
   .songrow-pl-guitar{color:var(--text-secondary);font-weight:500}
+  .songrow-pl-device-line{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0;width:100%}
   .songrow-pl-device{color:var(--text-secondary);font-weight:600;font-family:var(--font-mono);font-size:11px}
   /* Slot bank pill : style "tag" sombre cohérent palette Backline
      (tolex-800 fond + brass-100 texte). Distinct des pills scores
@@ -294,23 +299,31 @@
   /* Score inline (guitare/preset) : pill plein compact même style que topscore. */
   .songrow-pl-score-pill-inline{font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--text-inverse);padding:2px 6px;border-radius:var(--r-sm);line-height:1.2}
   .songrow-pl-potards{font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);letter-spacing:0.3px}
-  .songrow-pl-fx{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--accent);font-weight:600;letter-spacing:0.3px;text-transform:uppercase;margin-top:2px}
+  .songrow-pl-fx{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--accent);font-weight:600;letter-spacing:0.3px;text-transform:uppercase}
   .songrow-pl-fx-icon{font-size:11px}
 
   @media(min-width:1024px){
     .songrow-playlist{padding:16px 20px}
     .songrow-pl-row{gap:18px}
     .songrow-pl-number{font-size:15px;min-width:28px;padding-top:2px}
-    .songrow-pl-content{gap:6px}
+    .songrow-pl-content{gap:8px}
     .songrow-pl-title{font-size:16px}
     .songrow-pl-topscore-pill{font-size:16px;padding:5px 12px}
-    .songrow-pl-meta{font-size:14px;gap:8px}
     .songrow-pl-device{font-size:12px}
     .songrow-pl-slot-pill{font-size:12px;padding:3px 9px}
     .songrow-pl-score-pill-inline{font-size:12px;padding:3px 8px}
     .songrow-pl-potards{font-size:12px}
     .songrow-pl-fx{font-size:11px}
     .songrow-pl-preset{max-width:400px}
+    /* S8.4 — Meta grid 4 colonnes alignement strict desktop.
+       Largeurs minimales tunées sur contenus typiques :
+       Artist (12-18 chars) | Guitare+score (20-28) | Devices (35-50) | Extras (25-35) */
+    .songrow-pl-meta-grid{display:grid;grid-template-columns:minmax(110px,0.6fr) minmax(180px,1fr) minmax(300px,1.8fr) minmax(180px,1fr);gap:14px;align-items:start;font-size:13px}
+    .songrow-pl-meta-cell{align-items:baseline}
+    /* Devices empilés verticalement dans leur cellule si multi-device */
+    .songrow-pl-meta-devices{flex-direction:column;align-items:stretch;gap:3px}
+    /* Extras (potards + FX) empilés verticalement */
+    .songrow-pl-meta-extras{flex-direction:column;align-items:flex-start;gap:3px}
   }
 </style>
 <!-- Phase 7.55.6 — Cloudflare Web Analytics (gratuit, sans cookies, sans RGPD banner).
