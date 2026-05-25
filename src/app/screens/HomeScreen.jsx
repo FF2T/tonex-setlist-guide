@@ -331,12 +331,19 @@ function HomeScreen({
   const [feedback, setFeedback] = useState('');
 
   // Phase 7.55.3 — Pool de 4 morceaux suggérés en mode démo (chips).
-  // Choisis parmi les songs présentes dans le snapshot Demo Setlist
+  // Choisis parmi les songs présentes dans le seed INIT_SONG_DB_META
   // (ids stables, jamais renommés). Si une song est absente du songDb
   // actuel (cas dégénéré), elle est skip silencieusement.
+  // Phase 7.55.7 S3 — pinkfloyd_wywh remplacé par ledzep_stairway :
+  // l'ancien id ne correspondait à AUCUNE entrée du seed ni du snapshot
+  // démo bundlé (héritage Phase 7.55-A 11 songs avant la réduction Phase
+  // 7.60.1 à 8 songs). Résultat Cowork v8.14.191 : 3 chips affichés au
+  // lieu de 4. ledzep_stairway existe dans INIT_SONG_DB_META → résolvable
+  // partout. Diversifie le set (1 hard rock AC/DC, 1 blues B.B. King,
+  // 1 hard rock Deep Purple, 1 folk/prog Led Zep).
   const demoSuggestSongs = useMemo(() => {
     if (!isDemo) return [];
-    const targetIds = ['acdc_hth', 'bbking_thrill', 'deeppurple_smoke', 'pinkfloyd_wywh'];
+    const targetIds = ['acdc_hth', 'bbking_thrill', 'deeppurple_smoke', 'ledzep_stairway'];
     const found = [];
     for (const id of targetIds) {
       const s = songDb?.find?.((x) => x.id === id);
@@ -452,7 +459,12 @@ function HomeScreen({
       {splashOpen && <SplashPopup onClose={() => setSplashOpen(false)}/>}
       {showOnboarding && <OnboardingWizard onClose={() => setShowOnboarding(false)} onProfile={onProfile}/>}
 
-      <div style={{ padding: '8px 0 4px', minHeight: (!songResult && !songLoading) ? 'calc(100vh - 140px)' : 'auto', display: 'flex', flexDirection: 'column', justifyContent: (!songResult && !songLoading) ? 'center' : 'flex-start' }}>
+      {/* Phase 7.55.7 S3 — minHeight plafonné à 520px pour éviter le
+          vide vertical massif sur iPad portrait 1366 (rapport Cowork
+          v8.14.191 BUG 7). Sur mobile (~700px utilisable), comportement
+          quasi identique (centrage dans 520 = ancrage haut moelleux).
+          Sur iPad, le bloc d'accueil prend 520px max au lieu de 1226px. */}
+      <div style={{ padding: '8px 0 4px', minHeight: (!songResult && !songLoading) ? 'min(calc(100vh - 140px), 520px)' : 'auto', display: 'flex', flexDirection: 'column', justifyContent: (!songResult && !songLoading) ? 'center' : 'flex-start' }}>
         {songLoading ? (
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
             <div style={{ fontSize: 48, marginBottom: 16, animation: 'spin 1.5s linear infinite' }}>&#9203;</div>
@@ -555,7 +567,14 @@ function HomeScreen({
               const customSectionStyle = { background: 'var(--a5)', border: '1px solid var(--a10)', borderRadius: 'var(--r-lg)', padding: '10px 12px', marginBottom: 8 };
               const sectionTitle = (icon, label) => <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>{icon} {label}</div>;
               return (
-                <div style={{ width: '100%', maxWidth: 500, animation: 'slideDown .2s ease-out' }}>
+                // Phase 7.55.7 S3 — maxWidth 500 → 900 + centrage margin auto
+                // pour exploiter la largeur sur iPad/desktop (rapport Cowork
+                // v8.14.191 BUG 1 : fiche calée à gauche dans 440-485px avec
+                // 60% écran vide à droite). 900px = sweet spot lisibilité
+                // prose + form. Sur mobile (viewport < 900), prend 100%.
+                // Parent direct ligne 476 n'est PAS flex donc on utilise
+                // margin auto (alignSelf serait no-op).
+                <div style={{ width: '100%', maxWidth: 900, marginLeft: 'auto', marginRight: 'auto', animation: 'slideDown .2s ease-out' }}>
                   <div style={{ background: 'var(--bg-elev-1)', border: '1px solid var(--a7)', borderRadius: 'var(--r-xl)', padding: 14, marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <div style={{ marginBottom: 4 }}>
                       <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 2 }}>{confirmedSong.title}</div>

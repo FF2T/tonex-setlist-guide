@@ -141,7 +141,11 @@
   .badge-solid{background:var(--accent);border-color:var(--accent);color:var(--text-inverse)}
 
   /* ── Responsive ── */
-  .page-root{padding:var(--s-3);max-width:700px;margin:0 auto;overflow-x:hidden;word-break:break-word}
+  /* overflow-x:clip (vs hidden) préserve position:sticky des enfants
+     comme DemoBanner Phase 7.51.3. hidden crée un contexte d'overflow
+     qui casse sticky par rapport au viewport. clip empêche le débordement
+     horizontal sans établir ce contexte. Safari 16+ / Chrome 90+ / FF 81+. */
+  .page-root{padding:var(--s-3);max-width:700px;margin:0 auto;overflow-x:clip;word-break:break-word}
   @media(min-width:400px){.page-root{padding:var(--s-4)}}
   @media(min-width:640px){.page-root{padding:var(--s-5)}}
 

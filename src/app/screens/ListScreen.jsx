@@ -238,6 +238,11 @@ function ListScreen({
     const position = currentSl.songIds.indexOf(songId);
     if (position < 0) return;
     onSetlists((p) => p.map((sl) => sl.id === activeSlId ? { ...sl, songIds: sl.songIds.filter((x) => x !== songId) } : sl));
+    // Phase 7.55.7 S3 — En mode démo, onSetlists ci-dessus est wrappé
+    // par wrapDemoGuard qui affiche déjà le toast 🔒 et bloque l'écriture.
+    // Pas de toast undo "morceau retiré" qui laissait croire à une vraie
+    // suppression (rapport Cowork v8.14.191 BUG 3).
+    if (profile?.isDemo === true) return;
     if (removedTimeoutRef.current) { clearTimeout(removedTimeoutRef.current); removedTimeoutRef.current = null; }
     setRemovedSong({ slId: activeSlId, songId, songTitle: songTitle || songId, position, expiresAt: Date.now() + 5000 });
     removedTimeoutRef.current = setTimeout(() => { setRemovedSong(null); removedTimeoutRef.current = null; }, 5000);

@@ -591,12 +591,17 @@ function PresetList({ filtered, selected, setSelected, banksAnn, banksPlug, full
           </div>
         );
       })()}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>
+      {/* Phase 7.55.7 S3 — flexWrap + gap pour éviter le chevauchement
+          en mobile étroit (372-402px). Sans wrap, les deux blocs cassaient
+          chacun sur 2 lignes et se collaient (rapport Cowork v8.14.191 BUG 6).
+          flexShrink:0 sur la légende garde HB·SC·P90 sur 1 ligne ; si la
+          largeur manque, la légende passe sous l'en-tête principal. */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', minWidth: 0 }}>
           {tPlural('preset-list.count-click', displayFiltered.length, {}, { one: '1 preset — clique pour voir la fiche', other: '{count} presets — clique pour voir la fiche' })}
         </div>
         {/* Phase 7.83 — en-tête colonne compatibilité par type de pickup */}
-        <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', letterSpacing: 'var(--tracking-wider)', textTransform: 'uppercase' }}>
+        <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', letterSpacing: 'var(--tracking-wider)', textTransform: 'uppercase', flexShrink: 0 }}>
           {t('preset-list.pickup-header', 'HB · SC · P90')}
         </div>
       </div>
