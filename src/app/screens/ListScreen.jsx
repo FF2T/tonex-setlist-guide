@@ -699,7 +699,14 @@ function ListScreen({
                     }
                   }}
                   className="songrow-clickable songrow-playlist"
-                  style={{ flex: 1, background: 'var(--bg-elev-1)', border: '1px solid var(--border-subtle)', borderRight: (activeSlId && editingSongs) ? 'none' : '1px solid var(--border-subtle)', borderRadius: (activeSlId && editingSongs) ? (isExpanded ? '10px 0 0 0' : '10px 0 0 10px') : (isExpanded ? '10px 10px 0 0' : '10px'), cursor: 'pointer' }}>
+                  title={isExpanded ? t('list.row-collapse-tip', 'Clique sur le header pour replier la fiche.') : undefined}
+                  style={{ flex: 1, background: 'var(--bg-elev-1)', border: '1px solid var(--border-subtle)', borderRight: (activeSlId && editingSongs) ? 'none' : '1px solid var(--border-subtle)', borderRadius: (activeSlId && editingSongs) ? (isExpanded ? '10px 0 0 0' : '10px 0 0 10px') : (isExpanded ? '10px 10px 0 0' : '10px'), cursor: 'pointer',
+                    // S9.14 — Header sticky quand fiche dépliée : le row
+                    // playlist devient le "header" du morceau, reste visible
+                    // en haut du scroll → clic pour replier sans devoir
+                    // remonter en bas trouver le bouton "Fermer ↑".
+                    ...(isExpanded ? { position: 'sticky', top: 60, zIndex: 5 } : {})
+                  }}>
                     {(() => {
                       // Phase 7.55.7 S8 — Refonte playlist-like (variante C
                       // maquette validée Sébastien 25/05). Numéro à gauche,
@@ -780,7 +787,7 @@ function ListScreen({
                                       ) : (
                                         <span className="songrow-pl-score-pill-empty" aria-hidden="true"/>
                                       )}
-                                      <span className="songrow-pl-preset">"{d.presetName}"</span>
+                                      <span className="songrow-pl-preset" title={d.ampLabel && d.ampLabel !== d.presetName ? d.presetName : undefined}>"{d.ampLabel || d.presetName}"</span>
                                     </div>
                                   ))}
                                 </div>

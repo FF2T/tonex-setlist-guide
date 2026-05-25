@@ -31,6 +31,8 @@ describe('getRowPlaylistData — cas nominal', () => {
       deviceLabel: 'Anniv',
       slot: '9C',
       presetName: 'AA MRSH JT50',
+      // S9.13 — ampLabel : null si preset inconnu du catalog (cas test, mock data)
+      ampLabel: null,
       presetScore: 88,
     });
     expect(result.potards).toBe('G6.2 B4.5 M7 T5.3 V6');

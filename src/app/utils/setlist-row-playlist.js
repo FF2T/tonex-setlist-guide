@@ -29,6 +29,7 @@
 //   }
 
 import { formatRowPotardsFX } from './setlist-row-extras.js';
+import { findCatalogEntry } from '../../core/catalog.js';
 
 // Labels devices courts pour la ligne meta playlist.
 const DEVICE_SHORT_LABELS = {
@@ -60,6 +61,16 @@ export function getRowPlaylistData(song, aiC, guitar, guitarScore, isOptimalGuit
   // Pedal/Anniversary (FACTORY_BANKS_PEDALE_V2 démarre à 0). Sans ce
   // fix, preset_ann avec bank=0 (slot ex : 0A "CL DMBL") était filtré
   // et seul preset_plug s'affichait (Sébastien 25/05).
+  // S9.13 — Helper lookup amp pour afficher le nom de l'ampli modélisé
+  // plutôt que le preset name préfixé/abrégé (Sébastien : "Marshall JCM800"
+  // au lieu de "TSR - Mars 800SL Chnl 1 Drive"). Fallback sur presetName
+  // si pas d'entry catalog (ex : preset unknown ou guessed).
+  const resolveAmp = (label) => {
+    if (!label) return null;
+    const entry = findCatalogEntry(label);
+    if (!entry || entry.guessed) return null;
+    return entry.amp || null;
+  };
   const devices = [];
   const aiPA = aiC?.preset_ann;
   if (aiPA && aiPA.label && aiPA.bank != null && aiPA.col) {
@@ -68,6 +79,7 @@ export function getRowPlaylistData(song, aiC, guitar, guitarScore, isOptimalGuit
       deviceLabel: DEVICE_SHORT_LABELS['tonex-anniversary'],
       slot: `${aiPA.bank}${aiPA.col}`,
       presetName: aiPA.label,
+      ampLabel: resolveAmp(aiPA.label),
       presetScore: typeof aiPA.score === 'number' ? aiPA.score : null,
     });
   }
@@ -78,6 +90,7 @@ export function getRowPlaylistData(song, aiC, guitar, guitarScore, isOptimalGuit
       deviceLabel: DEVICE_SHORT_LABELS['tonex-plug'],
       slot: `${aiPP.bank}${aiPP.col}`,
       presetName: aiPP.label,
+      ampLabel: resolveAmp(aiPP.label),
       presetScore: typeof aiPP.score === 'number' ? aiPP.score : null,
     });
   }
