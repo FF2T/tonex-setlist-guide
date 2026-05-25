@@ -42,6 +42,7 @@ import { scoreColor, scoreBg, scoreLabel } from '../components/score-utils.js';
 import StatusDot from '../components/StatusDot.jsx';
 import SongCollapsedDeviceRows from '../components/SongCollapsedDeviceRows.jsx';
 import { formatRowPotardsFX } from '../utils/setlist-row-extras.js';
+import { getRowPlaylistData } from '../utils/setlist-row-playlist.js';
 import { TYPO, WEIGHT, TEXT_1, TEXT_2, TEXT_3, BG_1, BORDER_SUBTLE, badgeScore, badgeSlot, badgeLabel, badgePill } from '../styles/tokens.js';
 import AddSongModal from '../components/AddSongModal.jsx';
 import SongDetailCard from './SongDetailCard.jsx';
@@ -612,9 +613,10 @@ function ListScreen({
 
       {(() => {
         let lastArtist = '';
-        return activeSongs.slice(0, visibleCount).map((s) => {
+        return activeSongs.slice(0, visibleCount).map((s, idx) => {
           const showArtistHeader = sort === 'artist' && s.artist !== lastArtist;
           if (showArtistHeader) lastArtist = s.artist;
+          const playlistNumber = idx + 1;
           const rd = songRowData.get(s.id) || { ig: [], savedGId: undefined, gId: '', g: null };
           const ig = rd.ig;
           const savedGId = rd.savedGId;
@@ -696,104 +698,88 @@ function ListScreen({
                       }));
                     }
                   }}
-                  className="songrow-clickable"
-                  style={{ flex: 1, background: 'var(--a3)', border: '1px solid var(--a7)', borderRight: (activeSlId && editingSongs) ? 'none' : '1px solid var(--a7)', borderRadius: (activeSlId && editingSongs) ? (isExpanded ? '10px 0 0 0' : '10px 0 0 10px') : (isExpanded ? '10px 10px 0 0' : '10px'), padding: '10px 13px', cursor: 'pointer' }}>
-                    {/* Phase 7.55.7 S5 — Title group (col 1 grid desktop) :
-                        regroupe titre + artist + hist pour que le grid
-                        responsive ne casse pas l'empilement vertical de
-                        ces 3 sous-infos. Mobile : flex column natif. */}
-                    <div className="songrow-title-group">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 2 }}>
-                        <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{s.title}</span>
-                        {!s.aiCache && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>⏳</span>}
-                        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)' }}>{isExpanded ? '▲' : '▼'}</span>
-                      </div>
-                      {sort !== 'artist' && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: hist ? 3 : 0 }}>{s.artist}</div>}
-                      {showDeviceRows && hist && !isExpanded && <div className="songrow-hist" style={{ fontSize: TYPO.meta, color: TEXT_3, marginTop: 2, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-                        <span style={{ color: TEXT_2, fontWeight: WEIGHT.medium }}>{hist.guitarist}</span>
-                        <span style={{ color: TEXT_3 }}>·</span>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{hist.amp}</span>
-                      </div>}
-                    </div>
-                    {showDeviceRows && !isExpanded && (() => {
-                      // Phase 7.65 — Vue repliée : la guitare affichée doit
-                      // OBLIGATOIREMENT être dans le rig actif. Avant fix :
-                      // affichage direct de aiC.ideal_guitar (issu de l'union
-                      // all-rigs Phase 3.6) → pour Bruno (HB-only), on voyait
-                      // "Strat AM Vintage II 61 (SC) 92%" (guitare Sébastien).
-                      // Logique :
-                      //   1. Si gId pointe une guitare DANS le rig → on la
-                      //      garde (respect du choix utilisateur).
-                      //   2. Sinon → resolveDisplayGuitar (rig-in strict +
-                      //      fallback rig[0]).
+                  className="songrow-clickable songrow-playlist"
+                  style={{ flex: 1, background: 'var(--bg-elev-1)', border: '1px solid var(--border-subtle)', borderRight: (activeSlId && editingSongs) ? 'none' : '1px solid var(--border-subtle)', borderRadius: (activeSlId && editingSongs) ? (isExpanded ? '10px 0 0 0' : '10px 0 0 10px') : (isExpanded ? '10px 10px 0 0' : '10px'), cursor: 'pointer' }}>
+                    {(() => {
+                      // Phase 7.55.7 S8 — Refonte playlist-like (variante C
+                      // maquette validée Sébastien 25/05). Numéro à gauche,
+                      // titre dominant + score top + chevron à droite, ligne
+                      // meta dense (artist · guitare · slot+preset · potards),
+                      // ligne FX si présent. Pas d'encadrés badges (texte
+                      // coloré uniquement). CSS .songrow-playlist gère le
+                      // bumper desktop +2pt + spacing aéré.
+                      // Phase 7.65 préservée : guitare affichée doit être
+                      // dans le rig actif.
                       const rig = allGuitars || GUITARS;
                       const gInRig = g && rig.some((r) => r.id === g.id) ? g : null;
-                      let displayG;
-                      let displayScore;
-                      let displaySource;
+                      let playlistG = null;
+                      let playlistScore = null;
+                      let playlistIsOptimal = false;
                       if (gInRig) {
                         const cot = findCotEntryForGuitar(aiC?.cot_step2_guitars, gInRig);
-                        displayG = gInRig;
-                        displayScore = (cot?.score != null) ? cot.score : localGuitarSongScore(gInRig, aiC);
-                        displaySource = 'chosen';
-                      } else {
+                        playlistG = gInRig;
+                        playlistScore = (cot?.score != null) ? cot.score : localGuitarSongScore(gInRig, aiC);
+                        playlistIsOptimal = ig.includes(gInRig.id);
+                      } else if (showDeviceRows) {
                         const resolved = resolveDisplayGuitar(aiC, rig);
-                        if (!resolved.guitar) return null;
-                        displayG = resolved.guitar;
-                        displayScore = resolved.score;
-                        displaySource = resolved.source;
+                        if (resolved.guitar) {
+                          playlistG = resolved.guitar;
+                          playlistScore = resolved.score;
+                          playlistIsOptimal = resolved.source === 'ideal' || resolved.source === 'cot';
+                        }
                       }
-                      const isIdealGuitar = displaySource === 'chosen'
-                        ? ig.includes(displayG.id)
-                        : (displaySource === 'ideal' || displaySource === 'cot');
-                      const isCustomChoice = displaySource === 'chosen'
-                        && savedGId === displayG.id
-                        && !ig.includes(savedGId);
+                      const rowData = getRowPlaylistData(s, aiC, playlistG, playlistScore, playlistIsOptimal);
+                      const topScoreColor = rowData.topScore != null ? scoreColor(rowData.topScore) : null;
                       return (
-                        <div className="songrow-guitar" style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 4 }}>
-                          <StatusDot score={displayScore || null} ideal={isIdealGuitar}/>
-                          <span style={badgePill()}>{displayG.name} ({displayG.type}){isCustomChoice ? ' ' + t('list.custom-choice', '(choix perso)') : ''}</span>
-                          {displayScore > 0 && <span style={badgeScore({ color: scoreColor(displayScore), bg: scoreBg(displayScore) })} title={scoreLabel(displayScore).tip + '  —  score guitare'}>{displayScore}%</span>}
-                        </div>
-                      );
-                    })()}
-                    {!isExpanded && showDeviceRows && <div className="songrow-preset"><SongCollapsedDeviceRows
-                      profile={profile}
-                      aiC={aiC}
-                      banksAnn={banksAnn}
-                      banksPlug={banksPlug}
-                      song={s}
-                      guitar={g}
-                      allGuitars={allGuitars}
-                      enabledDevices={enabledDevicesForRender}
-                      precomputedTopRecBySongId={tmpTopRecBySongId}
-                      renderRow={(d, banks, presetData) => presetRow(d.icon, presetData.label, banks, presetData.score, d.id, d.deviceColor)}
-                    /></div>}
-                    {/* Phase 7.55.7 S4 (S4-3) — Row "extras" desktop only
-                        (≥ 1024px) : potards G/B/M/T/V + FX badges
-                        (Gate/Comp/Mod/Delay/Verb). Affichée sous la device
-                        row pour exploiter l'espace desktop sans déplier.
-                        Maquette A validée Sébastien 25/05. Lecture
-                        défensive : si aiC.preset_settings_v1 + fx_blocks
-                        absents (cache pré-Phase 9), helper retourne null
-                        → row pas rendue (fallback gracieux). */}
-                    {!isExpanded && showDeviceRows && (() => {
-                      const extras = formatRowPotardsFX(aiC);
-                      if (!extras) return null;
-                      return (
-                        <div className="song-row-extras">
-                          {extras.potards && (
-                            <span className="song-row-extras-potards" title={t('list.extras-potards-title', 'Valeurs preset_settings_v1 (Phase 9.1)')}>
-                              {extras.potards}
-                            </span>
-                          )}
-                          {extras.fxOn.length > 0 && (
-                            <span className="song-row-extras-fx" title={t('list.extras-fx-title', 'Blocs FX activés (Phase 9.2)')}>
-                              {extras.fxOn.map((fx) => (
-                                <span key={fx} className="song-row-extras-fx-badge">{fx}</span>
-                              ))}
-                            </span>
-                          )}
+                        <div className="songrow-pl-row">
+                          <span className="songrow-pl-number">{playlistNumber}</span>
+                          <div className="songrow-pl-content">
+                            <div className="songrow-pl-headline">
+                              <span className="songrow-pl-title">{rowData.title}</span>
+                              {!s.aiCache && <span className="songrow-pl-pending" title={t('list.pending-analysis', 'Pas encore analysé')}>⏳</span>}
+                              {rowData.isOptimalGuitar && <span className="songrow-pl-optimal" title={t('list.optimal-guitar', 'Guitare idéale')}>★</span>}
+                              {rowData.topScore != null && (
+                                <span className="songrow-pl-topscore" style={{ color: topScoreColor }}>{rowData.topScore}%</span>
+                              )}
+                              <span className="songrow-pl-chevron">{isExpanded ? '▲' : '▼'}</span>
+                            </div>
+                            {!isExpanded && (rowData.artist || rowData.guitarLabel || rowData.devices.length > 0) && (
+                              <div className="songrow-pl-meta">
+                                {rowData.artist && <span className="songrow-pl-artist">{rowData.artist}</span>}
+                                {rowData.guitarLabel && (
+                                  <>
+                                    <span className="songrow-pl-sep">·</span>
+                                    <span className="songrow-pl-guitar">{rowData.guitarLabel}</span>
+                                    {rowData.guitarScore != null && (
+                                      <span className="songrow-pl-score-inline" style={{ color: scoreColor(rowData.guitarScore) }}>{rowData.guitarScore}%</span>
+                                    )}
+                                  </>
+                                )}
+                                {rowData.devices.map((d) => (
+                                  <React.Fragment key={d.deviceKey}>
+                                    <span className="songrow-pl-sep">·</span>
+                                    <span className="songrow-pl-device">{d.deviceLabel} {d.slot}</span>
+                                    <span className="songrow-pl-preset">"{d.presetName}"</span>
+                                    {d.presetScore != null && (
+                                      <span className="songrow-pl-score-inline" style={{ color: scoreColor(d.presetScore) }}>{d.presetScore}%</span>
+                                    )}
+                                  </React.Fragment>
+                                ))}
+                                {rowData.potards && (
+                                  <>
+                                    <span className="songrow-pl-sep">·</span>
+                                    <span className="songrow-pl-potards">{rowData.potards}</span>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                            {!isExpanded && rowData.fxOn.length > 0 && (
+                              <div className="songrow-pl-fx">
+                                <span className="songrow-pl-fx-icon">⚡</span>
+                                <span className="songrow-pl-fx-list">{rowData.fxOn.join(' · ')}</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       );
                     })()}

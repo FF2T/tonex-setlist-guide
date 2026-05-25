@@ -257,27 +257,49 @@
     .preset-sound-tiles{grid-template-columns:repeat(3,1fr)}
   }
 
-  /* ── Phase 7.55.7 S4 (S4-3) — Setlists row repliée extras desktop ──
-     Affiche potards (preset_settings_v1 Phase 9.1) + FX activés
-     (fx_blocks Phase 9.2) sur les écrans larges (≥ 1024px). Cachée
-     en mobile/tablette pour préserver la densité du layout existant.
+  /* ── Phase 7.55.7 S8 — Setlists row repliée style "playlist-like" ──
+     Validation Sébastien 25/05 : maquette C (numéroté Spotify/Apple
+     Music) + bumper +2pt desktop + align top + drop encadrés badges.
+     Remplace l'ancien grid S5 4-colonnes.
 
-     Phase 7.55.7 S5 — Refonte grid 1-ligne complète (variante A maquette
-     validée Sébastien 25/05). Sur desktop, .songrow-clickable bascule en
-     CSS grid 4 colonnes : title-group / guitar / preset / extras.
-     Mobile inchangé (block natif, sections empilées verticalement).
-     Hist masquée desktop (info redondante avec header tri par artist). */
-  .song-row-extras{display:none}
+     Structure : <songrow-pl-row> = flex [number] [content]
+                 content = headline (titre + score + chevron) + meta (1 ligne dense) + fx (optionnel)
+
+     Mobile : tailles 14/12/10/9. Desktop ≥1024 : 16/14/11/10. */
+  .songrow-playlist{padding:12px 16px;align-items:flex-start}
+  .songrow-pl-row{display:flex;align-items:flex-start;gap:14px}
+  .songrow-pl-number{font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--text-tertiary);min-width:24px;text-align:right;line-height:1.3;padding-top:1px;flex-shrink:0}
+  .songrow-pl-content{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+  .songrow-pl-headline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .songrow-pl-title{font-size:14px;font-weight:700;color:var(--text-primary);line-height:1.3;letter-spacing:-0.01em}
+  .songrow-pl-pending{font-size:12px;color:var(--text-tertiary)}
+  .songrow-pl-optimal{font-size:14px;color:var(--accent);font-weight:700}
+  .songrow-pl-topscore{margin-left:auto;font-family:var(--font-mono);font-size:16px;font-weight:800;letter-spacing:-0.02em}
+  .songrow-pl-chevron{font-size:12px;color:var(--text-tertiary);flex-shrink:0}
+  .songrow-pl-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);line-height:1.5}
+  .songrow-pl-artist{font-weight:600;color:var(--text-secondary)}
+  .songrow-pl-sep{color:var(--text-tertiary);font-weight:400;opacity:0.6}
+  .songrow-pl-guitar{color:var(--text-secondary);font-weight:500}
+  .songrow-pl-device{color:var(--text-secondary);font-weight:600;font-family:var(--font-mono);font-size:11px}
+  .songrow-pl-preset{color:var(--text-primary);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:300px}
+  .songrow-pl-score-inline{font-family:var(--font-mono);font-size:11px;font-weight:700}
+  .songrow-pl-potards{font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);letter-spacing:0.3px}
+  .songrow-pl-fx{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--accent);font-weight:600;letter-spacing:0.3px;text-transform:uppercase;margin-top:2px}
+  .songrow-pl-fx-icon{font-size:11px}
+
   @media(min-width:1024px){
-    .songrow-clickable{display:grid !important;grid-template-columns:minmax(180px,1.5fr) auto auto auto;gap:14px;align-items:center}
-    .songrow-title-group{min-width:0}
-    .songrow-guitar{margin-top:0 !important;flex-shrink:0}
-    .songrow-preset{min-width:0;flex-shrink:0}
-    .songrow-hist{display:none !important}
-    .song-row-extras{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:0;font-family:var(--font-mono);font-size:10px;color:var(--text-dim);line-height:1.4;flex-shrink:0}
-    .song-row-extras-potards{color:var(--text-sec);font-weight:600;letter-spacing:0.5px;background:var(--a3);border:1px solid var(--a7);border-radius:var(--r-sm);padding:2px 8px;white-space:nowrap}
-    .song-row-extras-fx{display:inline-flex;gap:4px;align-items:center;flex-wrap:wrap}
-    .song-row-extras-fx-badge{background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent-border);border-radius:var(--r-sm);padding:1px 7px;font-weight:700;font-size:9px;letter-spacing:0.3px;text-transform:uppercase}
+    .songrow-playlist{padding:16px 20px}
+    .songrow-pl-row{gap:18px}
+    .songrow-pl-number{font-size:15px;min-width:28px;padding-top:2px}
+    .songrow-pl-content{gap:6px}
+    .songrow-pl-title{font-size:16px}
+    .songrow-pl-topscore{font-size:20px}
+    .songrow-pl-meta{font-size:14px;gap:8px}
+    .songrow-pl-device{font-size:12px}
+    .songrow-pl-score-inline{font-size:12px}
+    .songrow-pl-potards{font-size:12px}
+    .songrow-pl-fx{font-size:11px}
+    .songrow-pl-preset{max-width:400px}
   }
 </style>
 <!-- Phase 7.55.6 — Cloudflare Web Analytics (gratuit, sans cookies, sans RGPD banner).
