@@ -891,7 +891,13 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
               {PROFILE_GROUPS.map((g) => (
                 <div key={g.title} style={{ marginBottom: 6 }}>
                   <div style={{ fontSize: 9, color: 'var(--text-dim)', fontWeight: 600, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 4 }}>{g.title}</div>
-                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {/* Phase 7.55.7 S6.1 — grid responsive auto-fit minmax(180px, 1fr)
+                      pour aligner les tuiles "sons" sur le même format que les
+                      tuiles "Parcourir par ampli" (grid repeat(3,1fr) ligne 920).
+                      Toutes les tuiles d'un groupe ont la MÊME largeur, étirées
+                      sur la rangée. Sébastien 25/05 : "tuiles ampli alignées
+                      mais pas les tuiles son". */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 6 }}>
                     {g.profiles.map((id) => {
                       const p = SOUND_PROFILES[id]; if (!p) return null;
                       const active = soundProfile === id;
