@@ -66,10 +66,6 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   const [curationModalPreset, setCurationModalPreset] = useState(null);
   const isAdmin = !!profile?.isAdmin;
   const [showFeedback, setShowFeedback] = useState(false);
-  // Phase 7.55.7 S9.1 — sticky options menu (guitare + outputContext +
-  // feedback). Replié par défaut pour compacter le sticky en headline
-  // seule (titre + score absolu + ⚙).
-  const [showStickyOptions, setShowStickyOptions] = useState(false);
   // Phase 7.86 — toggles repli pour Bloc 2 + Bloc 3
   const [showAdvancedMode, setShowAdvancedMode] = useState(false);
   const [showWhyPerKnob, setShowWhyPerKnob] = useState(false);
@@ -194,12 +190,11 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   return (
     <div className="song-row-detail" style={{ background: 'var(--bg-elev-1)', borderRadius: '0 0 12px 12px', padding: '10px 12px', marginBottom: 8, marginTop: -2, display: 'flex', flexDirection: 'column', gap: 6 }}>
 
-      {/* Phase 7.55.7 S9.1 — Sticky simplifié : titre + score absolu +
-          bouton ⚙ qui révèle les options (GuitarSelect + outputContext
-          + 💬 feedback). Évite l'encombrement de la version Phase 7.86
-          où les 3 actions étaient toujours visibles. Le score absolu
-          = moyenne(chosenGuitarScore + maxPresetScore) cohérent avec
-          la row repliée S8.7. */}
+      {/* Phase 7.55.7 S9.2 — Sticky ultra-compact : titre + score absolu
+          uniquement. Reste visible au scroll comme repère contexte.
+          Les actions (GuitarSelect + outputContext + feedback) sont
+          intégrées au Bloc "Mon setup" (premier bloc) ci-dessous, par
+          choix Sébastien : action prioritaire en haut, contexte en bas. */}
       {(() => {
         const maxPS = Math.max(
           (aiC?.preset_ann?.score) || 0,
@@ -211,107 +206,14 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         else if (gSc != null) absSc = gSc;
         else if (maxPS != null) absSc = maxPS;
         return (
-          <div className="song-detail-sticky" style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-elev-1)', borderRadius: 'var(--r-md)', border: `1px solid ${BORDER_SUBTLE}`, padding: '8px 12px', marginBottom: 4 }}>
-            <div className="song-detail-sticky-headline" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: TYPO.body, fontWeight: WEIGHT.bold, color: TEXT_1, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{song.title}</span>
-              {absSc != null && (
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: TYPO.emph, fontWeight: WEIGHT.black, color: 'var(--text-inverse)', background: scoreColor(absSc), padding: '4px 10px', borderRadius: 'var(--r-md)', letterSpacing: '-0.01em', lineHeight: 1.2 }}>{absSc}%</span>
-              )}
-              <button
-                type="button"
-                onClick={() => setShowStickyOptions((p) => !p)}
-                data-testid="sticky-options-toggle"
-                title={t('song-detail.sticky-options-tooltip', 'Guitare, sortie audio, feedback IA')}
-                style={{ fontSize: TYPO.body, padding: '4px 10px', background: showStickyOptions ? 'var(--accent-soft)' : 'transparent', border: `1px solid ${showStickyOptions ? 'var(--border-accent)' : BORDER_SUBTLE}`, borderRadius: 'var(--r-sm)', color: showStickyOptions ? 'var(--accent)' : TEXT_2, cursor: 'pointer', fontWeight: WEIGHT.medium }}
-              >⚙ {showStickyOptions ? '▲' : '▼'}</button>
-            </div>
-            {showStickyOptions && (
-              <div className="song-detail-sticky-options" style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${BORDER_SUBTLE}`, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <StatusDot score={chosenGuitarScore} ideal={g && ig.includes(gId)} size={10}/>
-                  <div style={{ flex: 1 }}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/></div>
-                </div>
-                {/* Sortie audio override per-morceau Phase 10 */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }} title={t('song-detail.output-context-label', '🔌 Sortie audio pour ce morceau')}>
-                  <span style={{ fontSize: TYPO.micro, color: TEXT_3, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.output-context-short', 'Sortie')}</span>
-                  {[
-                    { id: '', icon: '↻', label: t('song-detail.output-context-profile', 'Profil') },
-                    { id: 'frfr', icon: '📢', label: t('output-context.label.frfr', 'Enceinte FRFR') },
-                    { id: 'headphone', icon: '🎧', label: t('output-context.label.headphone', 'Casque') },
-                    { id: 'pa', icon: '🎚️', label: t('output-context.label.pa', 'Sono / Table de mixage') },
-                  ].map(({ id, icon, label }) => {
-                    const active = (song.outputContext || '') === id;
-                    return (
-                      <button key={id || 'profile'}
-                        data-testid={`song-output-context-${id || 'profile'}`}
-                        onClick={() => {
-                          onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, outputContext: id || undefined } : x));
-                          writeAiCache(null);
-                          setLocalAiResult(null);
-                        }}
-                        title={id ? tFormat('song-detail.output-context-tooltip-override', { label }, 'Override : {label}') : t('song-detail.output-context-tooltip-profile', 'Hérite du contexte profil.')}
-                        style={{ fontSize: TYPO.body, lineHeight: 1, padding: '4px 8px', background: active ? 'var(--accent-soft)' : 'transparent', border: `1px solid ${active ? 'var(--border-accent)' : BORDER_SUBTLE}`, color: active ? 'var(--accent)' : TEXT_2, borderRadius: 'var(--r-sm)', cursor: 'pointer', fontWeight: active ? WEIGHT.bold : WEIGHT.medium }}
-                      >{icon}</button>
-                    );
-                  })}
-                  {/* Feedback bouton 💬 dans le sticky options */}
-                  {aiC && (
-                    <button
-                      onClick={() => setShowFeedback((p) => !p)}
-                      data-testid="sticky-feedback-toggle"
-                      title={t('song-detail.sticky-feedback-tooltip', 'Donner un feedback à l\'IA sur ce morceau')}
-                      style={{ marginLeft: 'auto', fontSize: TYPO.body, padding: '4px 10px', background: showFeedback ? 'var(--accent-soft)' : 'transparent', border: `1px solid ${showFeedback ? 'var(--border-accent)' : BORDER_SUBTLE}`, borderRadius: 'var(--r-sm)', color: showFeedback ? 'var(--accent)' : TEXT_2, cursor: 'pointer', fontWeight: WEIGHT.medium }}
-                    >💬 {t('song-detail.sticky-feedback', 'Feedback')}</button>
-                  )}
-                </div>
-              </div>
+          <div className="song-detail-sticky" style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-elev-1)', borderRadius: 'var(--r-md)', border: `1px solid ${BORDER_SUBTLE}`, padding: '8px 12px', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: TYPO.body, fontWeight: WEIGHT.bold, color: TEXT_1, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{song.title}</span>
+            {absSc != null && (
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: TYPO.emph, fontWeight: WEIGHT.black, color: 'var(--text-inverse)', background: scoreColor(absSc), padding: '4px 10px', borderRadius: 'var(--r-md)', letterSpacing: '-0.01em', lineHeight: 1.2 }}>{absSc}%</span>
             )}
           </div>
         );
       })()}
-
-      {/* Phase 7.86 — Bloc 1 : 📚 Infos morceau (factuel + profil tonal IA + profil ampli IA) */}
-      <div style={sectionStyle}>
-        {sectionTitle('📚', t('song-detail.info-section', 'Infos morceau'))}
-        {(songInfo.year || songInfo.album || songInfo.key || songInfo.bpm) && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{songInfo.year}{songInfo.album ? ' · ' + songInfo.album : ''}{songInfo.key ? ' · ' + songInfo.key : ''}{songInfo.bpm ? ' · ' + songInfo.bpm + ' BPM' : ''}</div>}
-        {/* Phase 7.57 — Éditeur BPM/tonalité retiré.
-            L'IA Gemini retourne désormais `song_bpm` et `song_key` fiables
-            dans aiCache.result. Les valeurs sont affichées en read-only
-            ligne ci-dessus (songInfo.year/album/key/bpm via getSongInfo).
-            Les champs `song.bpm` et `song.key` restent dans le data model
-            (rétro-compat avec setlists existantes + LiveScreen Phase 4).
-            Si besoin d'éditer manuellement à l'avenir, réafficher ce bloc.
-        */}
-        {songInfo.desc && <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.5, marginBottom: 6 }}>{getLocalizedText(songInfo.desc, locale)}</div>}
-        {aiC && (aiC.ref_guitarist || aiC.ref_guitar || aiC.ref_amp) && (
-          <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.6 }}>
-            <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 10 }}>{aiC.ref_guitarist || t('song-detail.ref-default', 'Référence')}</span><br/>
-            {aiC.ref_guitar && <>🎸 {aiC.ref_guitar} · </>}
-            {aiC.ref_amp && <>🔊 {aiC.ref_amp}</>}
-            {aiC.ref_effects && aiC.ref_effects !== 'Aucun effet' && <> · 🎚 {aiC.ref_effects}</>}
-          </div>
-        )}
-        {hist && !aiC && (
-          <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.6 }}>
-            <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 10 }}>{hist.guitarist}</span><br/>
-            🎸 {hist.guitar} · 🔊 {hist.amp}{(() => { const fx = getLocalizedText(hist.effects, locale); return fx ? ' · 🎚 ' + fx : ''; })()}
-          </div>
-        )}
-        {/* Phase 7.86 — Bloc 1 — profil tonal + profil ampli IA déplacés
-            ici (auparavant dans SECTION 2 "Raisonnement IA" pliable). */}
-        {aiC?.cot_step1 && (
-          <div style={{ marginTop: 8, background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-tonal', 'Profil tonal')}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{getLocalizedText(aiC.cot_step1, locale)}</div>
-          </div>
-        )}
-        {aiC?.cot_step3_amp && (
-          <div style={{ marginTop: 8, background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-amp', 'Profil ampli')}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{getLocalizedText(aiC.cot_step3_amp, locale)}</div>
-          </div>
-        )}
-      </div>
 
       {/* Loading */}
       {reloading && (
@@ -324,6 +226,318 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           </div>
         </div>
       )}
+
+      {/* Phase 7.86 — Bloc 3 : 🎸 Mon setup. GuitarSelect + outputContext +
+          feedback déplacés dans sticky bandeau en tête de fiche. Mode IA
+          replié dans Bloc 2 (toggle "▸ Mode reco avancé"). Ce bloc se
+          concentre sur ce que je joue concrètement avec MA guitare choisie
+          et MON contexte d'écoute. */}
+      <div style={customSectionStyle}>
+        {sectionTitle('🎸', t('song-detail.setup-block', 'Mon setup'))}
+        {/* Phase 7.55.7 S9.2 — GuitarSelect + outputContext + 💬 feedback
+            intégrés en tête du Bloc "Mon setup" (déplacés du sticky pour
+            que l'action prioritaire soit visible dans le 1er bloc — choix
+            Sébastien). */}
+        <div style={{ marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 10, borderBottom: `1px solid ${BORDER_SUBTLE}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <StatusDot score={chosenGuitarScore} ideal={g && ig.includes(gId)} size={10}/>
+            <div style={{ flex: 1 }}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/></div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }} title={t('song-detail.output-context-label', '🔌 Sortie audio pour ce morceau')}>
+            <span style={{ fontSize: TYPO.micro, color: TEXT_3, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.output-context-short', 'Sortie')}</span>
+            {[
+              { id: '', icon: '↻', label: t('song-detail.output-context-profile', 'Profil') },
+              { id: 'frfr', icon: '📢', label: t('output-context.label.frfr', 'Enceinte FRFR') },
+              { id: 'headphone', icon: '🎧', label: t('output-context.label.headphone', 'Casque') },
+              { id: 'pa', icon: '🎚️', label: t('output-context.label.pa', 'Sono / Table de mixage') },
+            ].map(({ id, icon, label }) => {
+              const active = (song.outputContext || '') === id;
+              return (
+                <button key={id || 'profile'}
+                  data-testid={`song-output-context-${id || 'profile'}`}
+                  onClick={() => {
+                    onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, outputContext: id || undefined } : x));
+                    writeAiCache(null);
+                    setLocalAiResult(null);
+                  }}
+                  title={id ? tFormat('song-detail.output-context-tooltip-override', { label }, 'Override : {label}') : t('song-detail.output-context-tooltip-profile', 'Hérite du contexte profil.')}
+                  style={{ fontSize: TYPO.body, lineHeight: 1, padding: '4px 8px', background: active ? 'var(--accent-soft)' : 'transparent', border: `1px solid ${active ? 'var(--border-accent)' : BORDER_SUBTLE}`, color: active ? 'var(--accent)' : TEXT_2, borderRadius: 'var(--r-sm)', cursor: 'pointer', fontWeight: active ? WEIGHT.bold : WEIGHT.medium }}
+                >{icon}</button>
+              );
+            })}
+            {aiC && (
+              <button
+                onClick={() => setShowFeedback((p) => !p)}
+                data-testid="sticky-feedback-toggle"
+                title={t('song-detail.sticky-feedback-tooltip', 'Donner un feedback à l\'IA sur ce morceau')}
+                style={{ marginLeft: 'auto', fontSize: TYPO.body, padding: '4px 10px', background: showFeedback ? 'var(--accent-soft)' : 'transparent', border: `1px solid ${showFeedback ? 'var(--border-accent)' : BORDER_SUBTLE}`, borderRadius: 'var(--r-sm)', color: showFeedback ? 'var(--accent)' : TEXT_2, cursor: 'pointer', fontWeight: WEIGHT.medium }}
+              >💬 {t('song-detail.sticky-feedback', 'Feedback')}</button>
+            )}
+          </div>
+        </div>
+        {/* Rappel guitare choisie (utile si le sticky est scrollé hors vue
+            sur fiche longue). */}
+        {g && (
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontStyle: 'italic' }}>
+            {tFormat('song-detail.setup-on-guitar', { guitar: g.name }, 'Sur ta {guitar} :')}
+          </div>
+        )}
+        <div style={{ marginBottom: 8 }}>
+          {g && chosenGuitarScore && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 3 }}>{t('song-detail.compat', 'Compatibilité :')} <b style={{ color: scoreColor(chosenGuitarScore) }}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated && <>{' '}<span style={{ marginLeft: 6, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>{t('song-detail.estimated', '(estimé)')}</span></>}</div>}
+          {g && aiC && (() => {
+            // Phase 7.85 — guitarChoiceFeedback retourne désormais un objet
+            // structuré (ai|tokens|desc) qu'on compose côté UI. Avant 7.85,
+            // les fallbacks pros/cons retournaient des chaînes FR concaténées
+            // visibles en EN/ES (Bloqueur 1 audit démo EN).
+            // Phase 9.6.2 (2026-05-22) — si la guitare choisie matche
+            // cot_step2[0] (la top du scoring), sa reason est déjà rendue
+            // dans le Bloc 2 "Scoring guitares". On évite la 3e répétition
+            // ici uniquement pour le kind:'ai' (qui vient justement de cot).
+            // kind:'tokens' (heuristique pros/cons) et kind:'desc' restent
+            // visibles car informations distinctes.
+            const fb = guitarChoiceFeedback(g, aiC, chosenGuitarCot);
+            if (!fb) return null;
+            if (fb.kind === 'ai') {
+              const stripTypeSuffix = (s) => (s || '').trim().toLowerCase().replace(/\s*\([^)]*\)\s*$/, '').trim();
+              const cotTop = Array.isArray(aiC.cot_step2_guitars) ? aiC.cot_step2_guitars[0] : null;
+              const cotTopName = stripTypeSuffix(cotTop?.name);
+              const chosenName = stripTypeSuffix(g?.name);
+              if (cotTopName && chosenName && cotTopName === chosenName) return null;
+            }
+            let fbText = null;
+            if (fb.kind === 'ai') fbText = getLocalizedText(fb.reason, locale);
+            else if (fb.kind === 'tokens') {
+              const prosT = (fb.pros || []).map(p => tFormat(p.key, p.params, p.fallback));
+              const consT = (fb.cons || []).map(c => tFormat(c.key, c.params, c.fallback));
+              const parts = [];
+              if (prosT.length) parts.push('✓ ' + prosT.join(', '));
+              if (consT.length) parts.push('⚠ ' + consT.join(', '));
+              fbText = parts.join(' · ');
+            } else if (fb.kind === 'desc') {
+              fbText = fb.desc;
+            }
+            return fbText ? <div style={{ fontSize: 10, color: 'var(--text-sec)', marginTop: 3, marginLeft: 24, lineHeight: 1.4 }}>{fbText}</div> : null;
+          })()}
+          {g && aiC && !aiC.playing_hints && (() => {
+            // Phase 7.82 — localGuitarSettings retourne un objet structuré ;
+            // composition i18n côté UI (Bug #2 "Micro chevalet" en EN).
+            // Phase 9.6 (2026-05-22) — gated par !aiC.playing_hints : si l'IA
+            // a fourni des playing_hints (Phase 9.5), le bloc "💡 Conseil IA"
+            // ci-dessous prend le relais avec des valeurs contextuelles au
+            // morceau. Le bloc "Réglages" local n'apparaît plus qu'en
+            // fallback pour les aiCache pré-9.5 (ou si l'IA n'a pas
+            // retourné playing_hints valide).
+            const s = localGuitarSettings(g, aiC);
+            if (!s) return null;
+            const pickupTxt = t(s.pickupKey, s.pickupFallback);
+            const mismatchTxt = s.mismatchKey ? t(s.mismatchKey, s.mismatchFallback) : '';
+            const text = `${pickupTxt} · ${t('song-detail.tone-label', 'Tone')} ${s.tone} · ${t('song-detail.volume-label', 'Volume')} ${s.volume}${mismatchTxt}`;
+            return <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)', marginTop: 5, marginLeft: 24 }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.settings', 'Réglages :')}</b> {text}</div>;
+          })()}
+          {/* Phase 9.5 — playing_hints structurés (pickup / volume / tone /
+              stereo) générés par l'IA, complémentaires à localGuitarSettings
+              ci-dessus qui sont des valeurs heuristiques locales. Affiche un
+              second bloc "💡 Conseil IA" si présent. Skip si absent (aiCache
+              pré-9.5 → rendu inchangé). */}
+          {aiC && aiC.playing_hints && (() => {
+            const ph = aiC.playing_hints;
+            const parts = [];
+            // Phase 9.5.1 — pickup localisé en FR/ES (jargon universel EN
+            // sinon affiché brut "Bridge" à côté du bloc Réglages déjà
+            // traduit "Micro chevalet" — incohérence visuelle).
+            if (ph.pickup) parts.push(localizePickup(ph.pickup, locale));
+            if (ph.guitar_tone) parts.push(`${t('song-detail.tone-label', 'Tone')} ${ph.guitar_tone}`);
+            if (ph.guitar_volume) parts.push(`${t('song-detail.volume-label', 'Volume')} ${ph.guitar_volume}`);
+            if (parts.length === 0 && !ph.stereo) return null;
+            const text = parts.join(' · ');
+            return (
+              <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)', marginTop: 3, marginLeft: 24 }}>
+                <b style={{ color: 'var(--text-muted)' }}>{t('playing-hints.ai-advice', '💡 Conseil IA :')}</b> {text}
+                {ph.stereo === true && (
+                  <span style={{ marginLeft: 6, padding: '1px 5px', borderRadius: 'var(--r-sm)', background: 'var(--brass-bg)', color: 'var(--brass)', fontSize: 9, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                    {t('playing-hints.stereo', '🎚️ STEREO')}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
+        </div>
+        {/* Phase 7.86 — Bloc Mode reco avancé : repli sous toggle.
+            Préserve la fonctionnalité Phase 7.3 (override recoMode par
+            morceau : balanced / faithful / interpretation) mais cachée
+            par défaut pour désencombrer l'UI débutant. Power-users peuvent
+            déplier pour ajuster. Bloc outputContext supprimé (déplacé
+            dans sticky bandeau en tête de fiche). */}
+        <div style={{ marginBottom: 8 }}>
+          <button
+            onClick={() => setShowAdvancedMode((p) => !p)}
+            data-testid="advanced-mode-toggle"
+            style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0, fontWeight: 600, textAlign: 'left' }}
+          >
+            {showAdvancedMode
+              ? t('song-detail.advanced-mode-hide', '▲ Masquer le mode reco avancé')
+              : t('song-detail.advanced-mode-show', '▸ Mode reco avancé')}
+            {song.recoMode && <span style={{ marginLeft: 6, color: 'var(--text-dim)', fontWeight: 400 }}>{tFormat('song-detail.advanced-mode-active', { mode: song.recoMode }, '· {mode} actif')}</span>}
+          </button>
+          {showAdvancedMode && (
+            <div style={{ marginTop: 6 }}>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{t('song-detail.mode-label', 'Mode IA pour ce morceau')} {song.recoMode ? <span style={{ color: 'var(--accent)' }}>{t('song-detail.mode-override', '· override')}</span> : <span style={{ color: 'var(--text-dim)' }}>{tFormat('song-detail.mode-inherited', { mode: profile?.recoMode || 'balanced' }, '· profil ({mode})')}</span>}</div>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                {[
+                  { id: '', icon: '↻', label: t('song-detail.mode-profile', 'Profil') },
+                  { id: 'balanced', icon: '⚖️', label: t('song-detail.mode-balanced', 'Équilibré') },
+                  { id: 'faithful', icon: '🎯', label: t('song-detail.mode-faithful', 'Fidèle') },
+                  { id: 'interpretation', icon: '🎨', label: t('song-detail.mode-interpretation', 'Interprétation') },
+                ].map(({ id, icon, label }) => {
+                  const active = (song.recoMode || '') === id;
+                  return (
+                    <button key={id || 'profile'}
+                      data-testid={`song-reco-mode-${id || 'profile'}`}
+                      onClick={() => {
+                        onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, recoMode: id || undefined } : x));
+                        writeAiCache(null);
+                        setLocalAiResult(null);
+                      }}
+                      title={id ? tFormat('song-detail.mode-tooltip-override', { label }, 'Override : {label}') : t('song-detail.mode-tooltip-profile', 'Hérite du mode profil. Cliquer invalide le cache IA pour re-fetcher avec le nouveau mode.')}
+                      style={{ fontSize: 10, fontWeight: active ? 700 : 500, background: active ? 'var(--accent-bg)' : 'var(--a3)', border: active ? '1px solid var(--accent-border)' : '1px solid var(--a8)', color: active ? 'var(--accent)' : 'var(--text-muted)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer' }}
+                    >{icon} {label}</button>
+                  );
+                })}
+              </div>
+              <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 3, fontStyle: 'italic' }}>{t('song-detail.mode-hint', 'Changer le mode invalide le cache → re-analyse au prochain ouverture du morceau.')}</div>
+            </div>
+          )}
+        </div>
+        {aiC && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{tFormat('song-detail.best-installed-for', { guitar: g?.short || t('song-detail.this-guitar', 'cette guitare') }, 'Meilleurs presets installes pour {guitar}')}</div>}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {getActiveDevicesForRender(profile).map((d) => {
+            if (typeof d.RecommendBlock === 'function') {
+              return (
+                <div key={d.id} style={{ borderTop: '1px solid var(--a8)', marginTop: 6, paddingTop: 6 }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: d.deviceColor || 'var(--brass-400)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span>{d.icon}</span><span>{d.label}</span>
+                  </div>
+                  <d.RecommendBlock song={song} guitar={g} profile={profile} allGuitars={guitars} onPatchOverride={onTmpPatchOverride}/>
+                </div>
+              );
+            }
+            if (!aiC) return null;
+            const banks = d.bankStorageKey === 'banksAnn' ? banksAnn : banksPlug;
+            const presetData = aiC[d.presetResultKey];
+            return (
+              <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <StatusDot score={presetData?.score} ideal={presetData?.label === aiC.ideal_preset} size={10}/>
+                {/* Phase 7.55.7 fix bug Cowork iPhone — min-width: 0 obligatoire
+                    sur flex:1 enfant pour laisser PBlock shrink correctement.
+                    Sans ça : sur viewport étroit (iPhone 375-430), le nom de
+                    preset long s'effondrait en colonne verticale (1 char/ligne,
+                    span 17×248px). */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <PBlock device={d.label} emoji={d.icon} presetName={presetData?.label} gType={gId ? type : null} banks={banks} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={presetData?.score} breakdown={presetData?.breakdown}/>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {/* Suggestion d'amélioration si score < 90% */}
+        {aiC && (() => {
+          const bestScore = Math.max(aiC.preset_ann?.score || 0, aiC.preset_plug?.score || 0, aiC.ideal_preset_score || 0);
+          if (bestScore >= 90) return null;
+          const bestBreakdown = aiC.preset_ann?.breakdown || aiC.preset_plug?.breakdown;
+          const refAmp = aiC.ref_amp || t('song-detail.original-amp', "l'ampli original");
+          let weakest = null; let weakLabel = ''; let weakScore = 100;
+          if (bestBreakdown) {
+            const dims = [
+              { key: 'refAmp', label: t('song-detail.dim-amp', 'Ampli'), score: bestBreakdown.refAmp?.raw },
+              { key: 'gainMatch', label: t('song-detail.dim-gain', 'Gain'), score: bestBreakdown.gainMatch?.raw },
+              { key: 'styleMatch', label: t('song-detail.dim-style', 'Style'), score: bestBreakdown.styleMatch?.raw },
+              { key: 'pickup', label: t('song-detail.dim-pickup', 'Micro'), score: bestBreakdown.pickup?.raw },
+            ];
+            dims.forEach((d) => { if (d.score != null && d.score < weakScore) { weakScore = d.score; weakest = d.key; weakLabel = d.label; } });
+          }
+          const extMatches = [];
+          const refLower = (refAmp || '').toLowerCase();
+          for (const packName in TSR_PACK_ZIPS) {
+            if (packName.toLowerCase().includes(refLower) || refLower.includes(packName.toLowerCase())) {
+              extMatches.push({ creator: 'The Studio Rats', url: 'thestudiorats.com', pack: packName });
+            }
+          }
+          (EXTERNAL_PACK_CATALOG || []).forEach((creator) => {
+            if (creator.creator === 'The Studio Rats') return;
+            creator.packs.forEach((pack) => {
+              const match = pack.amps.some((a) => refLower.includes(a) || a.includes(refLower));
+              if (match) {
+                const already = extMatches.find((e) => e.creator === creator.creator && e.pack === pack.name);
+                if (!already) extMatches.push({ creator: creator.creator, url: creator.url, pack: pack.name });
+              }
+            });
+          });
+          if (extMatches.length === 0 && AMP_TAXONOMY) {
+            const refTax = AMP_TAXONOMY[refAmp];
+            if (refTax) {
+              for (const pn in TSR_PACK_ZIPS) {
+                const pnLower = pn.toLowerCase();
+                for (const ampName in AMP_TAXONOMY) {
+                  if (pnLower.includes(ampName.toLowerCase().split(' ')[0]) && AMP_TAXONOMY[ampName].family === refTax.family) {
+                    const alr = extMatches.find((e) => e.creator === 'The Studio Rats' && e.pack === pn);
+                    if (!alr) extMatches.push({ creator: 'The Studio Rats', url: 'thestudiorats.com', pack: pn, family: true });
+                    break;
+                  }
+                }
+              }
+              (EXTERNAL_PACK_CATALOG || []).forEach((creator) => {
+                if (creator.creator === 'The Studio Rats') return;
+                creator.packs.forEach((pack) => {
+                  pack.amps.forEach((a) => {
+                    for (const ampName in AMP_TAXONOMY) {
+                      if (ampName.toLowerCase().includes(a) && AMP_TAXONOMY[ampName].family === refTax.family) {
+                        const already = extMatches.find((e) => e.creator === creator.creator && e.pack === pack.name);
+                        if (!already) extMatches.push({ creator: creator.creator, url: creator.url, pack: pack.name, family: true });
+                        return;
+                      }
+                    }
+                  });
+                });
+              });
+            }
+          }
+          let suggestion = '';
+          if (weakest === 'refAmp') suggestion = tFormat('song-detail.weak-amp', { ref: refAmp }, 'Aucun preset installé ne simule {ref}.');
+          else if (weakest === 'gainMatch') suggestion = t('song-detail.weak-gain', 'Le gain des presets disponibles ne correspond pas au son original.');
+          else if (weakest === 'styleMatch') suggestion = t('song-detail.weak-style', 'Le style des presets disponibles ne matche pas bien.');
+          else if (weakest === 'pickup') suggestion = tFormat('song-detail.weak-pickup', { type }, 'Les presets ne sont pas optimises pour votre type de micro ({type}).');
+          else suggestion = t('song-detail.weak-generic', "Le meilleur preset installé n'atteint pas 90%.");
+          return (
+            <div style={{ marginTop: 8, background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 8, padding: '10px 12px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--yellow)', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 4 }}>{tFormat('song-detail.improvable', { score: bestScore }, 'Ameliorable — {score}% max')}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.5, marginBottom: 6 }}>
+                {weakest && <span>{tFormat('song-detail.weak-point', { label: weakLabel, score: weakScore }, 'Point faible : ')}<b>{weakLabel}</b> ({weakScore}%). </span>}
+                {suggestion}
+              </div>
+              {extMatches.length > 0 && (
+                <div style={{ marginBottom: 6 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>{t('song-detail.recommended-packs', 'Packs recommandés à l\'achat :')}</div>
+                  {extMatches.map((e, i) => (
+                    <div key={i} style={{ fontSize: 10, color: 'var(--text-sec)', marginBottom: 3, display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                      <StatusDot score={e.family ? 65 : 85} size={6}/>
+                      <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{e.pack}</span>
+                      <span style={{ color: 'var(--text-dim)' }}>{e.creator}</span>
+                      {e.family && <span style={{ fontSize: 9, color: 'var(--text-dim)' }}>{t('song-detail.family-similar', '[famille similaire]')}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {extMatches.length === 0 && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 6 }}>{tFormat('song-detail.no-pack', { ref: refAmp }, 'Aucun pack connu pour "{ref}" dans notre base.')}</div>}
+              <div style={{ marginTop: 6, background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 6, padding: '8px 10px' }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-sec)', marginBottom: 3 }}>{t('song-detail.tonenet-search', 'Recherche ToneNET')}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>{tFormat('song-detail.tonenet-instructions', { ref: refAmp }, 'Recherchez {ref} dans le moteur de recherche ToneNET').split(refAmp).map((part, i, arr) => i < arr.length - 1 ? <React.Fragment key={i}>{part}<b style={{ color: 'var(--text-bright)' }}>{refAmp}</b></React.Fragment> : part)}</div>
+                <a href="https://tone.net" target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: 'var(--accent)', textDecoration: 'underline' }}>tone.net</a>
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
 
       {!reloading && aiC && (() => {
         // Phase 7.65.1 — Filtre strict cot_step2_guitars sur le rig actif
@@ -793,275 +1007,6 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         );
       })()}
 
-      {/* Phase 7.86 — Bloc 3 : 🎸 Mon setup. GuitarSelect + outputContext +
-          feedback déplacés dans sticky bandeau en tête de fiche. Mode IA
-          replié dans Bloc 2 (toggle "▸ Mode reco avancé"). Ce bloc se
-          concentre sur ce que je joue concrètement avec MA guitare choisie
-          et MON contexte d'écoute. */}
-      <div style={customSectionStyle}>
-        {sectionTitle('🎸', t('song-detail.setup-block', 'Mon setup'))}
-        {/* Rappel guitare choisie (utile si le sticky est scrollé hors vue
-            sur fiche longue). Cliquable pour scroll-to-top retour sticky. */}
-        {g && (
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontStyle: 'italic' }}>
-            {tFormat('song-detail.setup-on-guitar', { guitar: g.name }, 'Sur ta {guitar} :')}
-          </div>
-        )}
-        <div style={{ marginBottom: 8 }}>
-          {g && chosenGuitarScore && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 3 }}>{t('song-detail.compat', 'Compatibilité :')} <b style={{ color: scoreColor(chosenGuitarScore) }}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated && <>{' '}<span style={{ marginLeft: 6, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>{t('song-detail.estimated', '(estimé)')}</span></>}</div>}
-          {g && aiC && (() => {
-            // Phase 7.85 — guitarChoiceFeedback retourne désormais un objet
-            // structuré (ai|tokens|desc) qu'on compose côté UI. Avant 7.85,
-            // les fallbacks pros/cons retournaient des chaînes FR concaténées
-            // visibles en EN/ES (Bloqueur 1 audit démo EN).
-            // Phase 9.6.2 (2026-05-22) — si la guitare choisie matche
-            // cot_step2[0] (la top du scoring), sa reason est déjà rendue
-            // dans le Bloc 2 "Scoring guitares". On évite la 3e répétition
-            // ici uniquement pour le kind:'ai' (qui vient justement de cot).
-            // kind:'tokens' (heuristique pros/cons) et kind:'desc' restent
-            // visibles car informations distinctes.
-            const fb = guitarChoiceFeedback(g, aiC, chosenGuitarCot);
-            if (!fb) return null;
-            if (fb.kind === 'ai') {
-              const stripTypeSuffix = (s) => (s || '').trim().toLowerCase().replace(/\s*\([^)]*\)\s*$/, '').trim();
-              const cotTop = Array.isArray(aiC.cot_step2_guitars) ? aiC.cot_step2_guitars[0] : null;
-              const cotTopName = stripTypeSuffix(cotTop?.name);
-              const chosenName = stripTypeSuffix(g?.name);
-              if (cotTopName && chosenName && cotTopName === chosenName) return null;
-            }
-            let fbText = null;
-            if (fb.kind === 'ai') fbText = getLocalizedText(fb.reason, locale);
-            else if (fb.kind === 'tokens') {
-              const prosT = (fb.pros || []).map(p => tFormat(p.key, p.params, p.fallback));
-              const consT = (fb.cons || []).map(c => tFormat(c.key, c.params, c.fallback));
-              const parts = [];
-              if (prosT.length) parts.push('✓ ' + prosT.join(', '));
-              if (consT.length) parts.push('⚠ ' + consT.join(', '));
-              fbText = parts.join(' · ');
-            } else if (fb.kind === 'desc') {
-              fbText = fb.desc;
-            }
-            return fbText ? <div style={{ fontSize: 10, color: 'var(--text-sec)', marginTop: 3, marginLeft: 24, lineHeight: 1.4 }}>{fbText}</div> : null;
-          })()}
-          {g && aiC && !aiC.playing_hints && (() => {
-            // Phase 7.82 — localGuitarSettings retourne un objet structuré ;
-            // composition i18n côté UI (Bug #2 "Micro chevalet" en EN).
-            // Phase 9.6 (2026-05-22) — gated par !aiC.playing_hints : si l'IA
-            // a fourni des playing_hints (Phase 9.5), le bloc "💡 Conseil IA"
-            // ci-dessous prend le relais avec des valeurs contextuelles au
-            // morceau. Le bloc "Réglages" local n'apparaît plus qu'en
-            // fallback pour les aiCache pré-9.5 (ou si l'IA n'a pas
-            // retourné playing_hints valide).
-            const s = localGuitarSettings(g, aiC);
-            if (!s) return null;
-            const pickupTxt = t(s.pickupKey, s.pickupFallback);
-            const mismatchTxt = s.mismatchKey ? t(s.mismatchKey, s.mismatchFallback) : '';
-            const text = `${pickupTxt} · ${t('song-detail.tone-label', 'Tone')} ${s.tone} · ${t('song-detail.volume-label', 'Volume')} ${s.volume}${mismatchTxt}`;
-            return <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)', marginTop: 5, marginLeft: 24 }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.settings', 'Réglages :')}</b> {text}</div>;
-          })()}
-          {/* Phase 9.5 — playing_hints structurés (pickup / volume / tone /
-              stereo) générés par l'IA, complémentaires à localGuitarSettings
-              ci-dessus qui sont des valeurs heuristiques locales. Affiche un
-              second bloc "💡 Conseil IA" si présent. Skip si absent (aiCache
-              pré-9.5 → rendu inchangé). */}
-          {aiC && aiC.playing_hints && (() => {
-            const ph = aiC.playing_hints;
-            const parts = [];
-            // Phase 9.5.1 — pickup localisé en FR/ES (jargon universel EN
-            // sinon affiché brut "Bridge" à côté du bloc Réglages déjà
-            // traduit "Micro chevalet" — incohérence visuelle).
-            if (ph.pickup) parts.push(localizePickup(ph.pickup, locale));
-            if (ph.guitar_tone) parts.push(`${t('song-detail.tone-label', 'Tone')} ${ph.guitar_tone}`);
-            if (ph.guitar_volume) parts.push(`${t('song-detail.volume-label', 'Volume')} ${ph.guitar_volume}`);
-            if (parts.length === 0 && !ph.stereo) return null;
-            const text = parts.join(' · ');
-            return (
-              <div style={{ fontSize: 10, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)', marginTop: 3, marginLeft: 24 }}>
-                <b style={{ color: 'var(--text-muted)' }}>{t('playing-hints.ai-advice', '💡 Conseil IA :')}</b> {text}
-                {ph.stereo === true && (
-                  <span style={{ marginLeft: 6, padding: '1px 5px', borderRadius: 'var(--r-sm)', background: 'var(--brass-bg)', color: 'var(--brass)', fontSize: 9, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-                    {t('playing-hints.stereo', '🎚️ STEREO')}
-                  </span>
-                )}
-              </div>
-            );
-          })()}
-        </div>
-        {/* Phase 7.86 — Bloc Mode reco avancé : repli sous toggle.
-            Préserve la fonctionnalité Phase 7.3 (override recoMode par
-            morceau : balanced / faithful / interpretation) mais cachée
-            par défaut pour désencombrer l'UI débutant. Power-users peuvent
-            déplier pour ajuster. Bloc outputContext supprimé (déplacé
-            dans sticky bandeau en tête de fiche). */}
-        <div style={{ marginBottom: 8 }}>
-          <button
-            onClick={() => setShowAdvancedMode((p) => !p)}
-            data-testid="advanced-mode-toggle"
-            style={{ fontSize: 10, background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0, fontWeight: 600, textAlign: 'left' }}
-          >
-            {showAdvancedMode
-              ? t('song-detail.advanced-mode-hide', '▲ Masquer le mode reco avancé')
-              : t('song-detail.advanced-mode-show', '▸ Mode reco avancé')}
-            {song.recoMode && <span style={{ marginLeft: 6, color: 'var(--text-dim)', fontWeight: 400 }}>{tFormat('song-detail.advanced-mode-active', { mode: song.recoMode }, '· {mode} actif')}</span>}
-          </button>
-          {showAdvancedMode && (
-            <div style={{ marginTop: 6 }}>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{t('song-detail.mode-label', 'Mode IA pour ce morceau')} {song.recoMode ? <span style={{ color: 'var(--accent)' }}>{t('song-detail.mode-override', '· override')}</span> : <span style={{ color: 'var(--text-dim)' }}>{tFormat('song-detail.mode-inherited', { mode: profile?.recoMode || 'balanced' }, '· profil ({mode})')}</span>}</div>
-              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                {[
-                  { id: '', icon: '↻', label: t('song-detail.mode-profile', 'Profil') },
-                  { id: 'balanced', icon: '⚖️', label: t('song-detail.mode-balanced', 'Équilibré') },
-                  { id: 'faithful', icon: '🎯', label: t('song-detail.mode-faithful', 'Fidèle') },
-                  { id: 'interpretation', icon: '🎨', label: t('song-detail.mode-interpretation', 'Interprétation') },
-                ].map(({ id, icon, label }) => {
-                  const active = (song.recoMode || '') === id;
-                  return (
-                    <button key={id || 'profile'}
-                      data-testid={`song-reco-mode-${id || 'profile'}`}
-                      onClick={() => {
-                        onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, recoMode: id || undefined } : x));
-                        writeAiCache(null);
-                        setLocalAiResult(null);
-                      }}
-                      title={id ? tFormat('song-detail.mode-tooltip-override', { label }, 'Override : {label}') : t('song-detail.mode-tooltip-profile', 'Hérite du mode profil. Cliquer invalide le cache IA pour re-fetcher avec le nouveau mode.')}
-                      style={{ fontSize: 10, fontWeight: active ? 700 : 500, background: active ? 'var(--accent-bg)' : 'var(--a3)', border: active ? '1px solid var(--accent-border)' : '1px solid var(--a8)', color: active ? 'var(--accent)' : 'var(--text-muted)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer' }}
-                    >{icon} {label}</button>
-                  );
-                })}
-              </div>
-              <div style={{ fontSize: 9, color: 'var(--text-dim)', marginTop: 3, fontStyle: 'italic' }}>{t('song-detail.mode-hint', 'Changer le mode invalide le cache → re-analyse au prochain ouverture du morceau.')}</div>
-            </div>
-          )}
-        </div>
-        {aiC && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{tFormat('song-detail.best-installed-for', { guitar: g?.short || t('song-detail.this-guitar', 'cette guitare') }, 'Meilleurs presets installes pour {guitar}')}</div>}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {getActiveDevicesForRender(profile).map((d) => {
-            if (typeof d.RecommendBlock === 'function') {
-              return (
-                <div key={d.id} style={{ borderTop: '1px solid var(--a8)', marginTop: 6, paddingTop: 6 }}>
-                  <div style={{ fontSize: 9, fontWeight: 700, color: d.deviceColor || 'var(--brass-400)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span>{d.icon}</span><span>{d.label}</span>
-                  </div>
-                  <d.RecommendBlock song={song} guitar={g} profile={profile} allGuitars={guitars} onPatchOverride={onTmpPatchOverride}/>
-                </div>
-              );
-            }
-            if (!aiC) return null;
-            const banks = d.bankStorageKey === 'banksAnn' ? banksAnn : banksPlug;
-            const presetData = aiC[d.presetResultKey];
-            return (
-              <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <StatusDot score={presetData?.score} ideal={presetData?.label === aiC.ideal_preset} size={10}/>
-                {/* Phase 7.55.7 fix bug Cowork iPhone — min-width: 0 obligatoire
-                    sur flex:1 enfant pour laisser PBlock shrink correctement.
-                    Sans ça : sur viewport étroit (iPhone 375-430), le nom de
-                    preset long s'effondrait en colonne verticale (1 char/ligne,
-                    span 17×248px). */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <PBlock device={d.label} emoji={d.icon} presetName={presetData?.label} gType={gId ? type : null} banks={banks} availableSources={availableSources} guitarId={gId} noUpgrade finalScore={presetData?.score} breakdown={presetData?.breakdown}/>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        {/* Suggestion d'amélioration si score < 90% */}
-        {aiC && (() => {
-          const bestScore = Math.max(aiC.preset_ann?.score || 0, aiC.preset_plug?.score || 0, aiC.ideal_preset_score || 0);
-          if (bestScore >= 90) return null;
-          const bestBreakdown = aiC.preset_ann?.breakdown || aiC.preset_plug?.breakdown;
-          const refAmp = aiC.ref_amp || t('song-detail.original-amp', "l'ampli original");
-          let weakest = null; let weakLabel = ''; let weakScore = 100;
-          if (bestBreakdown) {
-            const dims = [
-              { key: 'refAmp', label: t('song-detail.dim-amp', 'Ampli'), score: bestBreakdown.refAmp?.raw },
-              { key: 'gainMatch', label: t('song-detail.dim-gain', 'Gain'), score: bestBreakdown.gainMatch?.raw },
-              { key: 'styleMatch', label: t('song-detail.dim-style', 'Style'), score: bestBreakdown.styleMatch?.raw },
-              { key: 'pickup', label: t('song-detail.dim-pickup', 'Micro'), score: bestBreakdown.pickup?.raw },
-            ];
-            dims.forEach((d) => { if (d.score != null && d.score < weakScore) { weakScore = d.score; weakest = d.key; weakLabel = d.label; } });
-          }
-          const extMatches = [];
-          const refLower = (refAmp || '').toLowerCase();
-          for (const packName in TSR_PACK_ZIPS) {
-            if (packName.toLowerCase().includes(refLower) || refLower.includes(packName.toLowerCase())) {
-              extMatches.push({ creator: 'The Studio Rats', url: 'thestudiorats.com', pack: packName });
-            }
-          }
-          (EXTERNAL_PACK_CATALOG || []).forEach((creator) => {
-            if (creator.creator === 'The Studio Rats') return;
-            creator.packs.forEach((pack) => {
-              const match = pack.amps.some((a) => refLower.includes(a) || a.includes(refLower));
-              if (match) {
-                const already = extMatches.find((e) => e.creator === creator.creator && e.pack === pack.name);
-                if (!already) extMatches.push({ creator: creator.creator, url: creator.url, pack: pack.name });
-              }
-            });
-          });
-          if (extMatches.length === 0 && AMP_TAXONOMY) {
-            const refTax = AMP_TAXONOMY[refAmp];
-            if (refTax) {
-              for (const pn in TSR_PACK_ZIPS) {
-                const pnLower = pn.toLowerCase();
-                for (const ampName in AMP_TAXONOMY) {
-                  if (pnLower.includes(ampName.toLowerCase().split(' ')[0]) && AMP_TAXONOMY[ampName].family === refTax.family) {
-                    const alr = extMatches.find((e) => e.creator === 'The Studio Rats' && e.pack === pn);
-                    if (!alr) extMatches.push({ creator: 'The Studio Rats', url: 'thestudiorats.com', pack: pn, family: true });
-                    break;
-                  }
-                }
-              }
-              (EXTERNAL_PACK_CATALOG || []).forEach((creator) => {
-                if (creator.creator === 'The Studio Rats') return;
-                creator.packs.forEach((pack) => {
-                  pack.amps.forEach((a) => {
-                    for (const ampName in AMP_TAXONOMY) {
-                      if (ampName.toLowerCase().includes(a) && AMP_TAXONOMY[ampName].family === refTax.family) {
-                        const already = extMatches.find((e) => e.creator === creator.creator && e.pack === pack.name);
-                        if (!already) extMatches.push({ creator: creator.creator, url: creator.url, pack: pack.name, family: true });
-                        return;
-                      }
-                    }
-                  });
-                });
-              });
-            }
-          }
-          let suggestion = '';
-          if (weakest === 'refAmp') suggestion = tFormat('song-detail.weak-amp', { ref: refAmp }, 'Aucun preset installé ne simule {ref}.');
-          else if (weakest === 'gainMatch') suggestion = t('song-detail.weak-gain', 'Le gain des presets disponibles ne correspond pas au son original.');
-          else if (weakest === 'styleMatch') suggestion = t('song-detail.weak-style', 'Le style des presets disponibles ne matche pas bien.');
-          else if (weakest === 'pickup') suggestion = tFormat('song-detail.weak-pickup', { type }, 'Les presets ne sont pas optimises pour votre type de micro ({type}).');
-          else suggestion = t('song-detail.weak-generic', "Le meilleur preset installé n'atteint pas 90%.");
-          return (
-            <div style={{ marginTop: 8, background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 8, padding: '10px 12px' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--yellow)', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 4 }}>{tFormat('song-detail.improvable', { score: bestScore }, 'Ameliorable — {score}% max')}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.5, marginBottom: 6 }}>
-                {weakest && <span>{tFormat('song-detail.weak-point', { label: weakLabel, score: weakScore }, 'Point faible : ')}<b>{weakLabel}</b> ({weakScore}%). </span>}
-                {suggestion}
-              </div>
-              {extMatches.length > 0 && (
-                <div style={{ marginBottom: 6 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>{t('song-detail.recommended-packs', 'Packs recommandés à l\'achat :')}</div>
-                  {extMatches.map((e, i) => (
-                    <div key={i} style={{ fontSize: 10, color: 'var(--text-sec)', marginBottom: 3, display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                      <StatusDot score={e.family ? 65 : 85} size={6}/>
-                      <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{e.pack}</span>
-                      <span style={{ color: 'var(--text-dim)' }}>{e.creator}</span>
-                      {e.family && <span style={{ fontSize: 9, color: 'var(--text-dim)' }}>{t('song-detail.family-similar', '[famille similaire]')}</span>}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {extMatches.length === 0 && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 6 }}>{tFormat('song-detail.no-pack', { ref: refAmp }, 'Aucun pack connu pour "{ref}" dans notre base.')}</div>}
-              <div style={{ marginTop: 6, background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 6, padding: '8px 10px' }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-sec)', marginBottom: 3 }}>{t('song-detail.tonenet-search', 'Recherche ToneNET')}</div>
-                <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>{tFormat('song-detail.tonenet-instructions', { ref: refAmp }, 'Recherchez {ref} dans le moteur de recherche ToneNET').split(refAmp).map((part, i, arr) => i < arr.length - 1 ? <React.Fragment key={i}>{part}<b style={{ color: 'var(--text-bright)' }}>{refAmp}</b></React.Fragment> : part)}</div>
-                <a href="https://tone.net" target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: 'var(--accent)', textDecoration: 'underline' }}>tone.net</a>
-              </div>
-            </div>
-          );
-        })()}
-      </div>
 
       {!reloading && !aiC && !localAiErr && <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: '10px 0' }}>{t('song-detail.no-cache', 'Aucune analyse IA en cache. Selectionne une guitare pour lancer l\'analyse.')}</div>}
       {/* Phase 7.55.7 S7 — AIErrorPanel classifie l'erreur Gemini et
@@ -1162,6 +1107,41 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           onClose={() => setCurationModalPreset(null)}
         />
       )}
+
+      {/* Phase 7.55.7 S9.2 — Bloc Infos morceau déplacé EN BAS de la
+          fiche (choix Sébastien 25/05). Le contexte/référence vient
+          après les actions (Mon Setup + Recos IA + Feedback). */}
+      <div style={sectionStyle}>
+        {sectionTitle('📚', t('song-detail.info-section', 'Infos morceau'))}
+        {(songInfo.year || songInfo.album || songInfo.key || songInfo.bpm) && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{songInfo.year}{songInfo.album ? ' · ' + songInfo.album : ''}{songInfo.key ? ' · ' + songInfo.key : ''}{songInfo.bpm ? ' · ' + songInfo.bpm + ' BPM' : ''}</div>}
+        {songInfo.desc && <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.5, marginBottom: 6 }}>{getLocalizedText(songInfo.desc, locale)}</div>}
+        {aiC && (aiC.ref_guitarist || aiC.ref_guitar || aiC.ref_amp) && (
+          <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.6 }}>
+            <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 10 }}>{aiC.ref_guitarist || t('song-detail.ref-default', 'Référence')}</span><br/>
+            {aiC.ref_guitar && <>🎸 {aiC.ref_guitar} · </>}
+            {aiC.ref_amp && <>🔊 {aiC.ref_amp}</>}
+            {aiC.ref_effects && aiC.ref_effects !== 'Aucun effet' && <> · 🎚 {aiC.ref_effects}</>}
+          </div>
+        )}
+        {hist && !aiC && (
+          <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.6 }}>
+            <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 10 }}>{hist.guitarist}</span><br/>
+            🎸 {hist.guitar} · 🔊 {hist.amp}{(() => { const fx = getLocalizedText(hist.effects, locale); return fx ? ' · 🎚 ' + fx : ''; })()}
+          </div>
+        )}
+        {aiC?.cot_step1 && (
+          <div style={{ marginTop: 8, background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-tonal', 'Profil tonal')}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{getLocalizedText(aiC.cot_step1, locale)}</div>
+          </div>
+        )}
+        {aiC?.cot_step3_amp && (
+          <div style={{ marginTop: 8, background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-amp', 'Profil ampli')}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{getLocalizedText(aiC.cot_step3_amp, locale)}</div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
