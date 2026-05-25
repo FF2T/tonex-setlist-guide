@@ -274,7 +274,10 @@
   .songrow-pl-title{font-size:14px;font-weight:700;color:var(--text-primary);line-height:1.3;letter-spacing:-0.01em}
   .songrow-pl-pending{font-size:12px;color:var(--text-tertiary)}
   .songrow-pl-optimal{font-size:14px;color:var(--accent);font-weight:700}
-  .songrow-pl-topscore{margin-left:auto;font-family:var(--font-mono);font-size:16px;font-weight:800;letter-spacing:-0.02em}
+  /* Score top : pill plein avec contraste inversé (texte clair sur fond
+     coloré saturé) — bien plus visible que le texte coloré seul.
+     Validation Sébastien 25/05 post-S8. */
+  .songrow-pl-topscore-pill{margin-left:auto;font-family:var(--font-mono);font-size:14px;font-weight:800;letter-spacing:-0.01em;color:var(--text-inverse);padding:4px 10px;border-radius:var(--r-md);line-height:1.2}
   .songrow-pl-chevron{font-size:12px;color:var(--text-tertiary);flex-shrink:0}
   .songrow-pl-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);line-height:1.5}
   .songrow-pl-artist{font-weight:600;color:var(--text-secondary)}
@@ -282,7 +285,8 @@
   .songrow-pl-guitar{color:var(--text-secondary);font-weight:500}
   .songrow-pl-device{color:var(--text-secondary);font-weight:600;font-family:var(--font-mono);font-size:11px}
   .songrow-pl-preset{color:var(--text-primary);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:300px}
-  .songrow-pl-score-inline{font-family:var(--font-mono);font-size:11px;font-weight:700}
+  /* Score inline (guitare/preset) : pill plein compact même style que topscore. */
+  .songrow-pl-score-pill-inline{font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--text-inverse);padding:2px 6px;border-radius:var(--r-sm);line-height:1.2}
   .songrow-pl-potards{font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);letter-spacing:0.3px}
   .songrow-pl-fx{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--accent);font-weight:600;letter-spacing:0.3px;text-transform:uppercase;margin-top:2px}
   .songrow-pl-fx-icon{font-size:11px}
@@ -293,10 +297,10 @@
     .songrow-pl-number{font-size:15px;min-width:28px;padding-top:2px}
     .songrow-pl-content{gap:6px}
     .songrow-pl-title{font-size:16px}
-    .songrow-pl-topscore{font-size:20px}
+    .songrow-pl-topscore-pill{font-size:16px;padding:5px 12px}
     .songrow-pl-meta{font-size:14px;gap:8px}
     .songrow-pl-device{font-size:12px}
-    .songrow-pl-score-inline{font-size:12px}
+    .songrow-pl-score-pill-inline{font-size:12px;padding:3px 8px}
     .songrow-pl-potards{font-size:12px}
     .songrow-pl-fx{font-size:11px}
     .songrow-pl-preset{max-width:400px}

@@ -739,7 +739,7 @@ function ListScreen({
                               {!s.aiCache && <span className="songrow-pl-pending" title={t('list.pending-analysis', 'Pas encore analysé')}>⏳</span>}
                               {rowData.isOptimalGuitar && <span className="songrow-pl-optimal" title={t('list.optimal-guitar', 'Guitare idéale')}>★</span>}
                               {rowData.topScore != null && (
-                                <span className="songrow-pl-topscore" style={{ color: topScoreColor }}>{rowData.topScore}%</span>
+                                <span className="songrow-pl-topscore-pill" style={{ background: topScoreColor }}>{rowData.topScore}%</span>
                               )}
                               <span className="songrow-pl-chevron">{isExpanded ? '▲' : '▼'}</span>
                             </div>
@@ -751,7 +751,7 @@ function ListScreen({
                                     <span className="songrow-pl-sep">·</span>
                                     <span className="songrow-pl-guitar">{rowData.guitarLabel}</span>
                                     {rowData.guitarScore != null && (
-                                      <span className="songrow-pl-score-inline" style={{ color: scoreColor(rowData.guitarScore) }}>{rowData.guitarScore}%</span>
+                                      <span className="songrow-pl-score-pill-inline" style={{ background: scoreColor(rowData.guitarScore) }}>{rowData.guitarScore}%</span>
                                     )}
                                   </>
                                 )}
@@ -761,7 +761,7 @@ function ListScreen({
                                     <span className="songrow-pl-device">{d.deviceLabel} {d.slot}</span>
                                     <span className="songrow-pl-preset">"{d.presetName}"</span>
                                     {d.presetScore != null && (
-                                      <span className="songrow-pl-score-inline" style={{ color: scoreColor(d.presetScore) }}>{d.presetScore}%</span>
+                                      <span className="songrow-pl-score-pill-inline" style={{ background: scoreColor(d.presetScore) }}>{d.presetScore}%</span>
                                     )}
                                   </React.Fragment>
                                 ))}
