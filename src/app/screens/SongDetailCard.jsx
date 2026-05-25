@@ -222,9 +222,17 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             que l'action prioritaire soit visible dans le 1er bloc — choix
             Sébastien). */}
         <div style={{ marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 10, borderBottom: `1px solid ${BORDER_SUBTLE}` }}>
+          {/* S9.10 — Score compatibilité à droite du GuitarSelect (sur même
+              ligne) pour gain de place et lecture immédiate. La ligne
+              "Compatibilité : X%" séparée plus bas est retirée (doublon). */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <StatusDot score={chosenGuitarScore} ideal={g && ig.includes(gId)} size={10}/>
-            <div style={{ flex: 1 }}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/></div>
+            <div style={{ flex: 1, minWidth: 0 }}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/></div>
+            {g && chosenGuitarScore != null && (
+              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(chosenGuitarScore), padding: '3px 8px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(10px, 1.15vw, 12px)' }} title={chosenGuitarScoreEstimated ? t('song-detail.estimated', '(estimé)') : t('song-detail.compat', 'Compatibilité :')}>
+                {chosenGuitarScore}%{chosenGuitarScoreEstimated ? '*' : ''}
+              </span>
+            )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }} title={t('song-detail.output-context-label', '🔌 Sortie audio pour ce morceau')}>
             <span style={{ fontSize: TYPO.micro, color: TEXT_3, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.output-context-short', 'Sortie')}</span>
@@ -261,7 +269,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           </div>
         )}
         <div style={{ marginBottom: 8 }}>
-          {g && chosenGuitarScore && <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-dim)', marginBottom: 3 }}>{t('song-detail.compat', 'Compatibilité :')} <b style={{ color: scoreColor(chosenGuitarScore) }}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated && <>{' '}<span style={{ marginLeft: 6, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>{t('song-detail.estimated', '(estimé)')}</span></>}</div>}
+          {/* S9.10 — Ligne "Compatibilité : X%" séparée retirée. Le score
+              s'affiche désormais en pill à droite du GuitarSelect (cohérence
+              avec les pills Scoring guitares / preset). */}
           {g && aiC && (() => {
             // Phase 7.85 — guitarChoiceFeedback retourne désormais un objet
             // structuré (ai|tokens|desc) qu'on compose côté UI. Avant 7.85,
@@ -312,33 +322,11 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             const text = `${pickupTxt} · ${t('song-detail.tone-label', 'Tone')} ${s.tone} · ${t('song-detail.volume-label', 'Volume')} ${s.volume}${mismatchTxt}`;
             return <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)', marginTop: 5, marginLeft: 24 }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.settings', 'Réglages :')}</b> {text}</div>;
           })()}
-          {/* Phase 9.5 — playing_hints structurés (pickup / volume / tone /
-              stereo) générés par l'IA, complémentaires à localGuitarSettings
-              ci-dessus qui sont des valeurs heuristiques locales. Affiche un
-              second bloc "💡 Conseil IA" si présent. Skip si absent (aiCache
-              pré-9.5 → rendu inchangé). */}
-          {aiC && aiC.playing_hints && (() => {
-            const ph = aiC.playing_hints;
-            const parts = [];
-            // Phase 9.5.1 — pickup localisé en FR/ES (jargon universel EN
-            // sinon affiché brut "Bridge" à côté du bloc Réglages déjà
-            // traduit "Micro chevalet" — incohérence visuelle).
-            if (ph.pickup) parts.push(localizePickup(ph.pickup, locale));
-            if (ph.guitar_tone) parts.push(`${t('song-detail.tone-label', 'Tone')} ${ph.guitar_tone}`);
-            if (ph.guitar_volume) parts.push(`${t('song-detail.volume-label', 'Volume')} ${ph.guitar_volume}`);
-            if (parts.length === 0 && !ph.stereo) return null;
-            const text = parts.join(' · ');
-            return (
-              <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '5px 8px', color: 'var(--text-sec)', marginTop: 3, marginLeft: 24 }}>
-                <b style={{ color: 'var(--text-muted)' }}>{t('playing-hints.ai-advice', '💡 Conseil IA :')}</b> {text}
-                {ph.stereo === true && (
-                  <span style={{ marginLeft: 6, padding: '1px 5px', borderRadius: 'var(--r-sm)', background: 'var(--brass-bg)', color: 'var(--brass)', fontSize: 'clamp(9px, 1.05vw, 11px)', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-                    {t('playing-hints.stereo', '🎚️ STEREO')}
-                  </span>
-                )}
-              </div>
-            );
-          })()}
+          {/* S9.10 — playing_hints (Conseil IA pickup/tone/volume/stereo)
+              retiré de Mon Setup et intégré dans le cadre Recommandations
+              (Bloc 2) sous "Guitare :" — choix Sébastien : ces hints
+              concernent la guitare donc leur place est dans Recommandations
+              avec settings_guitar. */}
         </div>
         {/* Phase 7.86 — Bloc Mode reco avancé : repli sous toggle.
             Préserve la fonctionnalité Phase 7.3 (override recoMode par
@@ -523,14 +511,48 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   4. Scoring guitares (descendu après les réglages)
                   5. Scoring preset (descendu) */}
 
-              {/* SECTION 1 — Cadre Recommandations (settings_preset + settings_guitar) */}
-              {(aiC.settings_preset || aiC.settings_guitar) && (
-                <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                  <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.recommendations', '💡 Recommandations')}</div>
-                  {aiC.settings_preset && <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.45, marginBottom: aiC.settings_guitar ? 6 : 0 }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.preset-settings', 'Preset :')}</b> {getLocalizedText(aiC.settings_preset, locale)}</div>}
-                  {aiC.settings_guitar && <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.45 }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.guitar-settings', 'Guitare :')}</b> {getLocalizedText(aiC.settings_guitar, locale)}</div>}
-                </div>
-              )}
+              {/* SECTION 1 — Cadre Recommandations (settings_preset + settings_guitar + playing_hints)
+                  S9.10 — playing_hints (Conseil IA pickup/tone/volume/stereo)
+                  intégrés sous "Guitare :" comme sous-ligne. Déplacés depuis
+                  Mon Setup où ils faisaient double avec settings_guitar. */}
+              {(() => {
+                const hasGuitarBlock = aiC.settings_guitar || aiC.playing_hints;
+                if (!aiC.settings_preset && !hasGuitarBlock) return null;
+                // Construit le texte des playing_hints (pickup / tone / volume).
+                let phText = null;
+                let phStereo = false;
+                if (aiC.playing_hints) {
+                  const ph = aiC.playing_hints;
+                  const parts = [];
+                  if (ph.pickup) parts.push(localizePickup(ph.pickup, locale));
+                  if (ph.guitar_tone) parts.push(`${t('song-detail.tone-label', 'Tone')} ${ph.guitar_tone}`);
+                  if (ph.guitar_volume) parts.push(`${t('song-detail.volume-label', 'Volume')} ${ph.guitar_volume}`);
+                  if (parts.length > 0) phText = parts.join(' · ');
+                  phStereo = ph.stereo === true;
+                }
+                return (
+                  <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+                    <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.recommendations', '💡 Recommandations')}</div>
+                    {aiC.settings_preset && <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.45, marginBottom: hasGuitarBlock ? 6 : 0 }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.preset-settings', 'Preset :')}</b> {getLocalizedText(aiC.settings_preset, locale)}</div>}
+                    {hasGuitarBlock && (
+                      <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.45 }}>
+                        <b style={{ color: 'var(--text-muted)' }}>{t('song-detail.guitar-settings', 'Guitare :')}</b>
+                        {aiC.settings_guitar && <> {getLocalizedText(aiC.settings_guitar, locale)}</>}
+                        {(phText || phStereo) && (
+                          <div style={{ marginTop: 4, paddingLeft: 12, fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            {phText && <span>↳ {phText}</span>}
+                            {phStereo && (
+                              <span style={{ padding: '1px 5px', borderRadius: 'var(--r-sm)', background: 'var(--brass-bg)', color: 'var(--brass)', fontSize: 'clamp(9px, 1.05vw, 11px)', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                                {t('playing-hints.stereo', '🎚️ STEREO')}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* SECTION 2 — Cadre Réglages EQ (renommé Réglages pédale) */}
               {aiC.preset_settings_v1 && (aiC.preset_settings_v1.why || (aiC.preset_settings_v1.tweaks && aiC.preset_settings_v1.tweaks.length > 0)) && (
@@ -890,7 +912,8 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           </div>
         </div>
       )}
-      <button onClick={onClose} style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, marginTop: 4 }}>{t('song-detail.close', 'Fermer ↑')}</button>
+      {/* S9.10 — Bouton Fermer déplacé en fin de fiche (après Infos morceau)
+          pour cohérence : tu remontes en fin de lecture, pas au milieu. */}
 
       {/* Phase 7.79 — Modale info/édition usages d'un preset (déclenchée
           par CurationDot ligne 308). */}
@@ -943,6 +966,8 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           </div>
         )}
       </div>
+      {/* S9.10 — Bouton Fermer en fin de fiche après Infos morceau */}
+      <button onClick={onClose} style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, marginTop: 8 }}>{t('song-detail.close', 'Fermer ↑')}</button>
     </div>
   );
 }
