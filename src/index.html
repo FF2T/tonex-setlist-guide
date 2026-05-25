@@ -318,12 +318,27 @@
     /* S8.4 — Meta grid 4 colonnes alignement strict desktop.
        Largeurs minimales tunées sur contenus typiques :
        Artist (12-18 chars) | Guitare+score (20-28) | Devices (35-50) | Extras (25-35) */
-    .songrow-pl-meta-grid{display:grid;grid-template-columns:minmax(110px,0.6fr) minmax(180px,1fr) minmax(300px,1.8fr) minmax(180px,1fr);gap:14px;align-items:start;font-size:13px}
+    .songrow-pl-meta-grid{display:grid;grid-template-columns:minmax(110px,0.6fr) minmax(200px,1fr) minmax(320px,1.8fr) minmax(180px,1fr);gap:14px;align-items:start;font-size:13px}
     .songrow-pl-meta-cell{align-items:baseline}
-    /* Devices empilés verticalement dans leur cellule si multi-device */
-    .songrow-pl-meta-devices{flex-direction:column;align-items:stretch;gap:3px}
+    /* S8.5 — Alignement strict vertical des pills entre rows :
+       chaque cellule devient un grid interne avec largeurs fixes
+       sur les pills/labels (pas de flex variable). Le text du label
+       (qui varie en longueur) prend 1fr, les pills ont min-width fixes.
+       Conséquence : tous les "95%" alignés sur la même x, tous les
+       slot pills "9C" alignés, etc. Sébastien 25/05 : "j'ai vraiment
+       besoin d'alignements". */
+    .songrow-pl-meta-guitar{display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px}
+    .songrow-pl-meta-guitar .songrow-pl-guitar{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+    /* Devices empilés + chaque ligne en grid 4 col (label fixe |
+       slot pill fixe | preset flex | score pill fixe) */
+    .songrow-pl-meta-devices{flex-direction:column;align-items:stretch;gap:4px}
+    .songrow-pl-device-line{display:grid;grid-template-columns:52px auto 1fr 48px;align-items:center;gap:8px}
+    /* Pills : centrer le contenu pour qu'ils paraissent "vraiment"
+       de la même largeur entre rows */
+    .songrow-pl-slot-pill{text-align:center;min-width:44px;box-sizing:border-box}
+    .songrow-pl-score-pill-inline{text-align:center;min-width:44px;box-sizing:border-box}
     /* Extras (potards + FX) empilés verticalement */
-    .songrow-pl-meta-extras{flex-direction:column;align-items:flex-start;gap:3px}
+    .songrow-pl-meta-extras{flex-direction:column;align-items:flex-start;gap:4px}
   }
 </style>
 <!-- Phase 7.55.6 — Cloudflare Web Analytics (gratuit, sans cookies, sans RGPD banner).
