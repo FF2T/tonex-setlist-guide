@@ -34,6 +34,7 @@ import { getSharedGeminiKey } from '../utils/shared-key.js';
 import { scoreColor } from '../components/score-utils.js';
 import StatusDot from '../components/StatusDot.jsx';
 import BacklineIcon from '../components/BacklineIcon.jsx';
+import { BG_2, sectionCard, sectionTitle as sectionTitleStyle } from '../styles/tokens.js';
 
 // Tags feedback localisés (rebuild à chaque render pour réagir au switch
 // de langue). Pas un const top-level car FEEDBACK_TAGS doit suivre la locale.
@@ -563,9 +564,11 @@ function HomeScreen({
               const chosenGuitarCot = selectedGuitar ? findCotEntryForGuitar(songResult.cot_step2_guitars, selectedGuitar) : null;
               const chosenGuitarScore = chosenGuitarCot?.score || (selectedGuitar ? localGuitarSongScore(selectedGuitar, songResult) : idealGuitarScore);
               const chosenGuitarScoreEstimated = !!selectedGuitar && !chosenGuitarCot && chosenGuitarScore != null;
-              const sectionStyle = { background: 'var(--a3)', border: '1px solid var(--a7)', borderRadius: 'var(--r-lg)', padding: '10px 12px', marginBottom: 8 };
-              const customSectionStyle = { background: 'var(--a5)', border: '1px solid var(--a10)', borderRadius: 'var(--r-lg)', padding: '10px 12px', marginBottom: 8 };
-              const sectionTitle = (icon, label) => <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>{icon} {label}</div>;
+              // Phase 7.55.7 S6 — helpers section centralisés tokens.js,
+              // identique à SongDetailCard (cohérence cross-écran).
+              const sectionStyle = sectionCard();
+              const customSectionStyle = { ...sectionCard(), background: BG_2 };
+              const sectionTitle = (icon, label) => <div style={{ ...sectionTitleStyle(), marginBottom: 8 }}>{icon} {label}</div>;
               return (
                 // Phase 7.55.7 S3 — maxWidth 500 → 900 + centrage margin auto
                 // pour exploiter la largeur sur iPad/desktop (rapport Cowork

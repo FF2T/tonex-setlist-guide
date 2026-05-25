@@ -44,6 +44,7 @@ import StatusDot from '../components/StatusDot.jsx';
 import GuitarSelect from '../components/GuitarSelect.jsx';
 import PBlock from '../components/PBlock.jsx';
 import FeedbackPanel from '../components/FeedbackPanel.jsx';
+import { TYPO, WEIGHT, TEXT_1, TEXT_2, TEXT_3, BG_1, BG_2, BORDER_SUBTLE, sectionCard, sectionTitle as sectionTitleStyle } from '../styles/tokens.js';
 
 function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, onClose, guitars, allRigsGuitars, availableSources, savedGuitarId, onGuitarChange, aiProvider, aiKeys, onSongDb, onAiCacheUpdate, profile, guitarBias, onTmpPatchOverride, songDb, onProfiles, activeProfileId, toneNetPresets, onToneNetPresets, onSharedUsagesOverrides }) {
   // Phase 7.54 — Helper interne : écrit aiCache via onAiCacheUpdate
@@ -177,9 +178,13 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   const chosenGuitarCot = findCotEntryForGuitar(aiC?.cot_step2_guitars, g);
   const chosenGuitarScore = chosenGuitarCot?.score || localGuitarSongScore(g, aiC);
   const chosenGuitarScoreEstimated = !chosenGuitarCot && chosenGuitarScore != null;
-  const sectionStyle = { background: 'var(--a3)', border: '1px solid var(--a7)', borderRadius: 'var(--r-lg)', padding: '10px 12px', marginBottom: 8 };
-  const customSectionStyle = { background: 'var(--a5)', border: '1px solid var(--a10)', borderRadius: 'var(--r-lg)', padding: '10px 12px', marginBottom: 8 };
-  const sectionTitle = (icon, label) => <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>{icon} {label}</div>;
+  // Phase 7.55.7 S6 — Helpers section centralisés (tokens.js).
+  // sectionStyle = sectionCard() neutre, customSectionStyle = variante
+  // élevée (BG_2 vs BG_1) pour le Bloc 3 "Mon setup". sectionTitle
+  // utilise sectionTitleStyle() + marginBottom 8 (vs défaut 6).
+  const sectionStyle = sectionCard();
+  const customSectionStyle = { ...sectionCard(), background: BG_2 };
+  const sectionTitle = (icon, label) => <div style={{ ...sectionTitleStyle(), marginBottom: 8 }}>{icon} {label}</div>;
 
   return (
     <div className="song-row-detail" style={{ background: 'var(--bg-elev-1)', borderRadius: '0 0 12px 12px', padding: '10px 12px', marginBottom: 8, marginTop: -2, display: 'flex', flexDirection: 'column', gap: 6 }}>

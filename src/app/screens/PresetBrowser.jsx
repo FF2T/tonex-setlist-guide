@@ -19,6 +19,7 @@ import {
 import { findGuitarProfile } from '../../core/scoring/guitar.js';
 import { bucketizeScore, groupByBucket, COMPAT_LEVELS } from '../../core/scoring/compat-buckets.js';
 import { PRESET_CATALOG_FULL } from '../../data/preset_catalog_full.js';
+import { TYPO, WEIGHT, TEXT_1, TEXT_2, TEXT_3, BG_1, BG_2, BORDER_SUBTLE, BORDER_STRONG, tile as tileStyle, chip as chipStyle } from '../styles/tokens.js';
 import {
   PRESET_CATALOG, FACTORY_CATALOG, PLUG_FACTORY_CATALOG, TSR_PACK_CATALOG,
   ANNIVERSARY_CATALOG,
@@ -580,13 +581,14 @@ function PresetList({ filtered, selected, setSelected, banksAnn, banksPlug, full
   return (
     <div>
       {subPacks && subPacks.length > 1 && (() => {
-        const chipStyle = (on) => ({ fontSize: 10, fontWeight: on ? 700 : 500, color: on ? 'var(--accent)' : 'var(--text-sec)', background: on ? 'var(--accent-bg)' : 'var(--a3)', border: on ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '4px 8px', cursor: 'pointer' });
+        // Phase 7.55.7 S6 — chip() centralisé tokens.js (filtres compacts).
+        const chipStyleFn = (on) => chipStyle({ active: on });
         return (
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 6 }}>{t('preset-list.amp-model', 'Modèle d\'ampli')}</div>
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-              <button onClick={() => setFilterPacks([])} style={chipStyle(filterPacks.length === 0)}>{tFormat('preset-list.all-count', { count: filtered.length }, 'Tous ({count})')}</button>
-              {subPacks.slice(0, 20).map(([amp, count]) => { const on = filterPacks.includes(amp); return <button key={amp} onClick={() => togglePack(amp)} style={chipStyle(on)}>{amp} ({count})</button>; })}
+              <button onClick={() => setFilterPacks([])} style={chipStyleFn(filterPacks.length === 0)}>{tFormat('preset-list.all-count', { count: filtered.length }, 'Tous ({count})')}</button>
+              {subPacks.slice(0, 20).map(([amp, count]) => { const on = filterPacks.includes(amp); return <button key={amp} onClick={() => togglePack(amp)} style={chipStyleFn(on)}>{amp} ({count})</button>; })}
             </div>
           </div>
         );
@@ -865,12 +867,11 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
       )}
 
       {(() => {
-        // Phase 7.55.7 S4 — Harmoniser les chips catégorie d'entrée sur
-        // le style massif des tuiles "Parcourir par ampli" (ligne ~919) :
-        // padding plus généreux, fontSize plus visible, background a4,
-        // hover effect. Le user (Sébastien 25/05) trouvait les tuiles
-        // modèle d'ampli plus ergonomiques et voulait cohérence.
-        const tile = (active) => ({ fontSize: 13, fontWeight: active ? 700 : 600, color: active ? 'var(--accent)' : 'var(--text-primary)', background: active ? 'var(--accent-bg)' : 'var(--a4)', border: active ? '1px solid var(--accent-border)' : '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '10px 14px', cursor: 'pointer', textAlign: 'left', transition: 'all .15s' });
+        // Phase 7.55.7 S6 — tile() centralisé dans tokens.js (variant
+        // "tile" massif) garanti cohérence avec PresetBrowser autres
+        // sites + futures réutilisations. Préserve textAlign: left local
+        // (les tuiles "Parcourir par ampli" en grid sont centrées).
+        const tile = (active) => ({ ...tileStyle({ active }), textAlign: 'left' });
         const PROFILE_GROUPS = [
           { title: t('preset-browser.group-clean', 'Sons cleans'), profiles: ['clean_cristallin', 'blues_vintage', 'jazz_warm', 'funk_soul'] },
           { title: t('preset-browser.group-crunch', 'Sons crunch / drive'), profiles: ['crunch_70s', 'british', 'blues_rock'] },

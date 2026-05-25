@@ -42,6 +42,7 @@ import { scoreColor, scoreBg, scoreLabel } from '../components/score-utils.js';
 import StatusDot from '../components/StatusDot.jsx';
 import SongCollapsedDeviceRows from '../components/SongCollapsedDeviceRows.jsx';
 import { formatRowPotardsFX } from '../utils/setlist-row-extras.js';
+import { TYPO, WEIGHT, TEXT_1, TEXT_2, TEXT_3, BG_1, BORDER_SUBTLE, badgeScore, badgeSlot, badgeLabel, badgePill } from '../styles/tokens.js';
 import AddSongModal from '../components/AddSongModal.jsx';
 import SongDetailCard from './SongDetailCard.jsx';
 import { exportSetlistPdf } from './SetlistPdfExport.js';
@@ -648,17 +649,30 @@ function ListScreen({
             // label+score en scoreColor — mélange confus rapporté
             // 2026-05-17 par Sébastien.
             const unifiedColor = scColorV || deviceColor || (loc ? CC[loc.slot] : null) || 'var(--text-sec)';
+            // Phase 7.55.7 S6 — Helpers badge centralisés (tokens.js).
+            // Variants : slot (bank+slot), label (preset name+amp), score (% mono).
+            // unifiedColor sert de couleur dynamique pour les 3 (cohérence visuelle
+            // déjà acquise Phase 7.61, ici on harmonise le STYLE).
+            const slotMissingStyle = {
+              fontSize: TYPO.meta,
+              fontWeight: WEIGHT.bold,
+              color: 'var(--yellow)',
+              background: 'var(--yellow-bg)',
+              border: `1px solid var(--yellow-border)`,
+              borderRadius: 'var(--r-sm)',
+              padding: '1px 6px',
+            };
             return (
               <div style={{ display: 'flex', alignItems: 'center', gap: 5 }} data-device-id={deviceId || 'unknown'}>
                 <StatusDot score={sc} ideal={isIdeal}/>
                 {loc
-                  ? <span title={tFormat('list.bank-tooltip', { bank: loc.bank, slot: loc.slot, label: CL[loc.slot] }, 'Banque {bank}, slot {slot} — {label}')} style={{ fontSize: 10, background: `${unifiedColor}18`, color: unifiedColor, border: `1px solid ${unifiedColor}40`, borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700 }}>{loc.bank}{loc.slot}</span>
-                  : <span style={{ fontSize: 10, background: 'var(--yellow-bg)', color: 'var(--yellow)', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700 }}>⬇</span>}
-                {label && <span title={ampName ? `${label} · ${ampName}` : label} style={{ fontSize: 10, color: unifiedColor, background: scBgV || 'transparent', border: scColorV ? `1px solid ${scColorV}30` : 'none', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 'clamp(200px, 35vw, 500px)', display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                  ? <span title={tFormat('list.bank-tooltip', { bank: loc.bank, slot: loc.slot, label: CL[loc.slot] }, 'Banque {bank}, slot {slot} — {label}')} style={badgeSlot({ color: unifiedColor })}>{loc.bank}{loc.slot}</span>
+                  : <span style={slotMissingStyle}>⬇</span>}
+                {label && <span title={ampName ? `${label} · ${ampName}` : label} style={{ ...badgeLabel({ color: unifiedColor, bg: scBgV || 'transparent' }), maxWidth: 'clamp(200px, 35vw, 500px)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{label}</span>
-                  {ampName && <span style={{ opacity: 0.6, fontWeight: 500, fontSize: 9, flexShrink: 0 }}>· {ampName.replace(/^Marshall /, '').replace(/^Fender /, '').replace(/^Mesa Boogie /, 'Mesa ')}</span>}
+                  {ampName && <span style={{ opacity: 0.6, fontWeight: WEIGHT.normal, fontSize: TYPO.micro, flexShrink: 0 }}>· {ampName.replace(/^Marshall /, '').replace(/^Fender /, '').replace(/^Mesa Boogie /, 'Mesa ')}</span>}
                 </span>}
-                {sc != null && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 800, color: unifiedColor, background: scBgV, borderRadius: 'var(--r-sm)', padding: '1px 6px', border: `1px solid ${unifiedColor}30` }} title={scoreLabel(sc).tip}>{sc}%</span>}
+                {sc != null && <span style={badgeScore({ color: unifiedColor, bg: scBgV })} title={scoreLabel(sc).tip}>{sc}%</span>}
               </div>
             );
           };
@@ -695,9 +709,9 @@ function ListScreen({
                         <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-dim)' }}>{isExpanded ? '▲' : '▼'}</span>
                       </div>
                       {sort !== 'artist' && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: hist ? 3 : 0 }}>{s.artist}</div>}
-                      {showDeviceRows && hist && !isExpanded && <div className="songrow-hist" style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-                        <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{hist.guitarist}</span>
-                        <span style={{ color: 'var(--text-tertiary)' }}>·</span>
+                      {showDeviceRows && hist && !isExpanded && <div className="songrow-hist" style={{ fontSize: TYPO.meta, color: TEXT_3, marginTop: 2, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span style={{ color: TEXT_2, fontWeight: WEIGHT.medium }}>{hist.guitarist}</span>
+                        <span style={{ color: TEXT_3 }}>·</span>
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{hist.amp}</span>
                       </div>}
                     </div>
@@ -738,8 +752,8 @@ function ListScreen({
                       return (
                         <div className="songrow-guitar" style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 4 }}>
                           <StatusDot score={displayScore || null} ideal={isIdealGuitar}/>
-                          <span style={{ fontSize: 10, color: 'var(--text-sec)', background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '1px 7px', fontWeight: 600 }}>{displayG.name} ({displayG.type}){isCustomChoice ? ' ' + t('list.custom-choice', '(choix perso)') : ''}</span>
-                          {displayScore > 0 && <span style={{ fontSize: 10, fontWeight: 800, color: scoreColor(displayScore), background: scoreBg(displayScore), borderRadius: 'var(--r-sm)', padding: '1px 6px', border: `1px solid ${scoreColor(displayScore)}30` }} title={scoreLabel(displayScore).tip + '  —  score guitare'}>{displayScore}%</span>}
+                          <span style={badgePill()}>{displayG.name} ({displayG.type}){isCustomChoice ? ' ' + t('list.custom-choice', '(choix perso)') : ''}</span>
+                          {displayScore > 0 && <span style={badgeScore({ color: scoreColor(displayScore), bg: scoreBg(displayScore) })} title={scoreLabel(displayScore).tip + '  —  score guitare'}>{displayScore}%</span>}
                         </div>
                       );
                     })()}
