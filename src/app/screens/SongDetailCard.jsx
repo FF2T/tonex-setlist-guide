@@ -66,6 +66,8 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   const [curationModalPreset, setCurationModalPreset] = useState(null);
   const isAdmin = !!profile?.isAdmin;
   const [showFeedback, setShowFeedback] = useState(false);
+  // S9.8 — zone de texte feedback inline avant bouton "Envoyer".
+  const [quickFeedback, setQuickFeedback] = useState('');
   // Phase 7.86 — toggles repli pour Bloc 2 + Bloc 3
   const [showAdvancedMode, setShowAdvancedMode] = useState(false);
   const [showWhyPerKnob, setShowWhyPerKnob] = useState(false);
@@ -513,30 +515,123 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
               Mode reco avancé en bas (replié — Phase 7.3 boutons). */}
           <div style={sectionStyle}>
             {sectionTitle('🎯', t('song-detail.reco-block', 'Recommandations IA'))}
-            {/* Scoring guitares — déplacé de SECTION 2 vers tête de Bloc 2 */}
-            {/* S9.7 — Scoring guitares : score aligné à droite (marginLeft auto)
-                pour alignement vertical entre rows. Raison en 2e ligne pour
-                préserver lisibilité (reason peut être longue). */}
-            {cotInRig.length > 0 && (
-              <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px', marginBottom: 8 }}>
-                <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-guitars', 'Scoring guitares')}</div>
-                {cotInRig.map((gt, i) => (
-                  <div key={i} style={{ marginBottom: i < cotInRig.length - 1 ? 6 : 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(11px, 1.25vw, 13px)' }}>
-                      <span style={{ fontWeight: 600, color: 'var(--text-bright)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{gt.name}</span>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(gt.score), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(10px, 1.15vw, 12px)' }}>{gt.score}%</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* S9.8 NOUVEL ORDRE :
+                  1. Recommandations (settings_preset + settings_guitar)
+                  2. Réglages EQ (renommé Réglages pédale, why + tweaks)
+                  3. Réglages effets (renommé Effets activés, avec valeurs sub-params)
+                  4. Scoring guitares (descendu après les réglages)
+                  5. Scoring preset (descendu) */}
+
+              {/* SECTION 1 — Cadre Recommandations (settings_preset + settings_guitar) */}
+              {(aiC.settings_preset || aiC.settings_guitar) && (
+                <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+                  <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.recommendations', '💡 Recommandations')}</div>
+                  {aiC.settings_preset && <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.45, marginBottom: aiC.settings_guitar ? 6 : 0 }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.preset-settings', 'Preset :')}</b> {getLocalizedText(aiC.settings_preset, locale)}</div>}
+                  {aiC.settings_guitar && <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.45 }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.guitar-settings', 'Guitare :')}</b> {getLocalizedText(aiC.settings_guitar, locale)}</div>}
+                </div>
+              )}
+
+              {/* SECTION 2 — Cadre Réglages EQ (renommé Réglages pédale) */}
+              {aiC.preset_settings_v1 && (aiC.preset_settings_v1.why || (aiC.preset_settings_v1.tweaks && aiC.preset_settings_v1.tweaks.length > 0)) && (
+                <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+                  <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.eq-settings', '🎛️ Réglages EQ')}</div>
+                  {aiC.preset_settings_v1.why && (
+                    <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.45, marginBottom: aiC.preset_settings_v1.tweaks?.length ? 6 : 0 }}>
+                      {getLocalizedText(aiC.preset_settings_v1.why, locale)}
                     </div>
-                    {gt.reason && <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.4 }}>{getLocalizedText(gt.reason, locale)}</div>}
+                  )}
+                  {Array.isArray(aiC.preset_settings_v1.tweaks) && aiC.preset_settings_v1.tweaks.length > 0 && (
+                    <div style={{ marginTop: 4 }}>
+                      <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', fontWeight: 700, color: 'var(--text-dim)', marginBottom: 3, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 0.3 }}>{t('song-detail.tweaks-label', 'Si ça ne sonne pas tout à fait juste')}</div>
+                      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                        {aiC.preset_settings_v1.tweaks.map((tw, i) => {
+                          const symptom = getLocalizedText(tw.symptom, locale);
+                          if (!symptom || !tw.fix) return null;
+                          return (
+                            <li key={i} style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-sec)', lineHeight: 1.5, paddingLeft: 12, position: 'relative', marginBottom: 1 }}>
+                              <span style={{ position: 'absolute', left: 0, color: 'var(--accent)' }}>·</span>
+                              <i>{t('song-detail.tweaks-if', 'Si')}</i> {symptom} → <b style={{ color: 'var(--text-bright)', fontFamily: 'var(--font-mono)' }}>{String(tw.fix).replace(/_/g, ' ')}</b>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* SECTION 3 — Cadre Réglages effets (renommé + valeurs sub-params Phase 9.7) */}
+              {aiC.fx_blocks && (() => {
+                const FX_KEYS = ['noise_gate', 'compressor', 'modulation', 'delay', 'reverb'];
+                const FX_LABELS = { noise_gate: 'Gate', compressor: 'Comp', modulation: 'Mod', delay: 'Delay', reverb: 'Reverb' };
+                const onBlocks = FX_KEYS.filter((k) => aiC.fx_blocks[k]?.enabled === true);
+                if (onBlocks.length === 0) return null;
+                // S9.8 — extraire les sub-params selon le type de bloc (Phase 9.7 N2)
+                const fmtParams = (k, b) => {
+                  const parts = [];
+                  if (k === 'noise_gate') {
+                    if (b.threshold != null) parts.push(`Threshold ${b.threshold}dB`);
+                    if (b.release != null) parts.push(`Release ${b.release}ms`);
+                    if (b.depth != null) parts.push(`Depth ${b.depth}dB`);
+                  } else if (k === 'compressor') {
+                    if (b.threshold != null) parts.push(`Threshold ${b.threshold}dB`);
+                    if (b.gain != null) parts.push(`Gain ${b.gain}dB`);
+                    if (b.attack != null) parts.push(`Attack ${b.attack}ms`);
+                  } else if (k === 'modulation') {
+                    if (b.rate != null) parts.push(`Rate ${b.rate}Hz`);
+                    if (b.depth != null) parts.push(`Depth ${b.depth}%`);
+                    if (b.level != null) parts.push(`Level ${b.level}`);
+                  } else if (k === 'delay') {
+                    if (b.mode) parts.push(`Mode ${b.mode}`);
+                    if (b.time != null) parts.push(`Time ${b.time}ms`);
+                    if (b.feedback != null) parts.push(`Feedback ${b.feedback}%`);
+                    if (b.mix != null) parts.push(`Mix ${b.mix}%`);
+                  } else if (k === 'reverb') {
+                    if (b.time != null) parts.push(`Time ${b.time}`);
+                    if (b.pre_delay != null) parts.push(`Pre-delay ${b.pre_delay}ms`);
+                    if (b.color != null) parts.push(`Color ${b.color}`);
+                    if (b.mix != null) parts.push(`Mix ${b.mix}%`);
+                  }
+                  return parts.join(' · ');
+                };
+                return (
+                  <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+                    <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.fx-settings', '🎚 Réglages effets')}</div>
+                    {onBlocks.map((k) => {
+                      const block = aiC.fx_blocks[k];
+                      const whyTxt = block.why ? getLocalizedText(block.why, locale) : null;
+                      const paramsTxt = fmtParams(k, block);
+                      return (
+                        <div key={k} style={{ marginBottom: 6 }}>
+                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(11px, 1.25vw, 13px)' }}>
+                            <b style={{ color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontSize: 'clamp(10px, 1.15vw, 12px)', textTransform: 'uppercase', letterSpacing: 0.3, flexShrink: 0, minWidth: 60 }}>{FX_LABELS[k]}{block.type ? ` ${block.type}` : ''}</b>
+                            {paramsTxt && <span style={{ color: 'var(--text-sec)', fontFamily: 'var(--font-mono)', fontSize: 'clamp(10px, 1.15vw, 12px)', flex: 1 }}>{paramsTxt}</span>}
+                          </div>
+                          {whyTxt && <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-dim)', marginTop: 1, lineHeight: 1.4 }}>{whyTxt}</div>}
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
-              </div>
-            )}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {/* S9.5 — Affiche "Guitare idéale" UNIQUEMENT si elle diffère
-                  de cot_step2[0] (top scoring). Dans le cas courant, l'idéale
-                  EST le top scoring → doublon (Sébastien 25/05). Dans le
-                  cas family boost Phase 7.64 (idéale ≠ top), info utile,
-                  on l'affiche. Strip suffix type "(HB)" comme Phase 9.6.1. */}
+                );
+              })()}
+
+              {/* SECTION 4 — Cadre Scoring guitares + Guitare idéale + guitar_reason (descendus) */}
+              {cotInRig.length > 0 && (
+                <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+                  <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-guitars', 'Scoring guitares')}</div>
+                  {cotInRig.map((gt, i) => (
+                    <div key={i} style={{ marginBottom: i < cotInRig.length - 1 ? 6 : 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(11px, 1.25vw, 13px)' }}>
+                        <span style={{ fontWeight: 600, color: 'var(--text-bright)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{gt.name}</span>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(gt.score), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(10px, 1.15vw, 12px)' }}>{gt.score}%</span>
+                      </div>
+                      {gt.reason && <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.4 }}>{getLocalizedText(gt.reason, locale)}</div>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Guitare idéale (cas family boost Phase 7.64 où idéale ≠ top scoring) */}
               {displayIdealGuitarName && (() => {
                 const stripTypeSuffix = (s) => (s || '').trim().toLowerCase().replace(/\s*\([^)]*\)\s*$/, '').trim();
                 const cotTop = Array.isArray(aiC.cot_step2_guitars) ? aiC.cot_step2_guitars[0] : null;
@@ -688,69 +783,10 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
               })()}
               </div>
               )}
-              {/* S9.6 — Restauration des conseils textuels Phase 9.4/9.7
-                  (drop S9.5 a supprimé aussi ces textes par accident).
-                  Affiche le why global preset_settings_v1 + tweaks
-                  (symptom→fix) + why per-bloc FX (ON uniquement).
-                  La TABLE chiffrée reste droppée (doublon row playlist). */}
-              {aiC.preset_settings_v1 && (aiC.preset_settings_v1.why || (aiC.preset_settings_v1.tweaks && aiC.preset_settings_v1.tweaks.length > 0)) && (
-                <div style={{ marginTop: 6, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                  <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.preset-why', '🎛️ Réglages pédale')}</div>
-                  {aiC.preset_settings_v1.why && (
-                    <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.4, marginBottom: aiC.preset_settings_v1.tweaks?.length ? 6 : 0 }}>
-                      {getLocalizedText(aiC.preset_settings_v1.why, locale)}
-                    </div>
-                  )}
-                  {Array.isArray(aiC.preset_settings_v1.tweaks) && aiC.preset_settings_v1.tweaks.length > 0 && (
-                    <div style={{ marginTop: 4 }}>
-                      <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', fontWeight: 700, color: 'var(--text-dim)', marginBottom: 3, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 0.3 }}>{t('song-detail.tweaks-label', 'Si ça ne sonne pas tout à fait juste')}</div>
-                      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                        {aiC.preset_settings_v1.tweaks.map((tw, i) => {
-                          const symptom = getLocalizedText(tw.symptom, locale);
-                          if (!symptom || !tw.fix) return null;
-                          return (
-                            <li key={i} style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-sec)', lineHeight: 1.5, paddingLeft: 12, position: 'relative', marginBottom: 1 }}>
-                              <span style={{ position: 'absolute', left: 0, color: 'var(--accent)' }}>·</span>
-                              <i>{t('song-detail.tweaks-if', 'Si')}</i> {symptom} → <b style={{ color: 'var(--text-bright)', fontFamily: 'var(--font-mono)' }}>{String(tw.fix).replace(/_/g, ' ')}</b>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-              {aiC.fx_blocks && (() => {
-                const FX_KEYS = ['noise_gate', 'compressor', 'modulation', 'delay', 'reverb'];
-                const FX_LABELS = { noise_gate: 'Gate', compressor: 'Comp', modulation: 'Mod', delay: 'Delay', reverb: 'Verb' };
-                const onBlocks = FX_KEYS.filter((k) => aiC.fx_blocks[k]?.enabled === true);
-                if (onBlocks.length === 0) return null;
-                return (
-                  <div style={{ marginTop: 6, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                    <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.fx-why', '🎚 Effets activés')}</div>
-                    {onBlocks.map((k) => {
-                      const block = aiC.fx_blocks[k];
-                      const whyTxt = block.why ? getLocalizedText(block.why, locale) : null;
-                      return (
-                        <div key={k} style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.4, marginBottom: 3, display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                          <b style={{ color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontSize: 'clamp(10px, 1.15vw, 12px)', textTransform: 'uppercase', letterSpacing: 0.3, flexShrink: 0 }}>{FX_LABELS[k]}{block.type ? ` ${block.type}` : ''}</b>
-                          {whyTxt && <span style={{ color: 'var(--text-dim)' }}>{whyTxt}</span>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
-              {/* S9.7 — Cadre "Recommandations" unique wrap settings_preset
-                  + settings_guitar (au lieu de 2 mini-blocs séparés). Style
-                  encadré aligné Scoring guitares / Scoring preset. */}
-              {(aiC.settings_preset || aiC.settings_guitar) && (
-                <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                  <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.recommendations', '💡 Recommandations')}</div>
-                  {aiC.settings_preset && <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.45, marginBottom: aiC.settings_guitar ? 6 : 0 }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.preset-settings', 'Preset :')}</b> {getLocalizedText(aiC.settings_preset, locale)}</div>}
-                  {aiC.settings_guitar && <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.45 }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.guitar-settings', 'Guitare :')}</b> {getLocalizedText(aiC.settings_guitar, locale)}</div>}
-                </div>
-              )}
+              {/* S9.8 — Anciens cadres Réglages pédale / FX / Recommandations
+                  retirés ici : déplacés en haut du Bloc 2 (SECTIONS 1-3) dans
+                  le nouvel ordre (Recommandations → Réglages EQ → Réglages
+                  effets → Scoring guitares → Scoring preset). */}
             </div>
           </div>
         </>
@@ -813,30 +849,45 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
               </div>
             );
           })()}
-          {!showFeedback
-            ? <button data-testid="song-feedback-open" onClick={() => setShowFeedback(true)} style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-md)', padding: '6px 12px', cursor: 'pointer', fontWeight: 600 }}>{t('song-detail.give-feedback', '💬 Donner un feedback à l\'IA')}</button>
-            : <FeedbackPanel
-                onSubmit={(fb) => {
-                  setShowFeedback(false); setReloading(true);
+          {/* S9.8 — Mini-form inline : zone de texte AVANT bouton Envoyer.
+              Remplace l'ancien toggle [bouton "Donner feedback"] → [FeedbackPanel
+              modal]. Plus rapide à utiliser, pas besoin de cliquer pour révéler
+              la textarea. Le FeedbackPanel reste importable si besoin futur. */}
+          <div>
+            <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-muted)', marginBottom: 4, fontWeight: 600 }}>{t('song-detail.give-feedback', '💬 Donner un feedback à l\'IA')}</div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <textarea
+                value={quickFeedback}
+                onChange={(e) => setQuickFeedback(e.target.value)}
+                placeholder={t('song-detail.feedback-placeholder', 'Ex : Préfère la Tele sur ce morceau, ou Mid 6 plutôt que 7…')}
+                rows={2}
+                disabled={reloading}
+                style={{ flex: 1, minWidth: 200, fontSize: 'clamp(11px, 1.25vw, 13px)', padding: '6px 8px', background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.4 }}
+              />
+              <button
+                data-testid="song-feedback-open"
+                onClick={() => {
+                  const fb = quickFeedback.trim();
+                  if (!fb) return;
+                  setReloading(true);
                   const prev = aiC;
                   const effectiveRecoMode = song.recoMode || profile?.recoMode || 'balanced';
-                  // Phase 7.66 — Prompt scopé au rig profil actif.
-                  fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, fb || null, null, effectiveRecoMode, guitarBias, song.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || [])
+                  fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, fb, null, effectiveRecoMode, guitarBias, song.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || [])
                     .then((r) => {
                       const pick = mergeBestResults(prev, r);
                       setLocalAiResult(pick);
-                      // Phase 7.54 — feedback dans song (shared), aiCache dans profile.
-                      if (fb && onSongDb) {
-                        onSongDb((p) => p.map((x) => x.id !== song.id ? x : { ...x, feedback: [...(x.feedback || []), { text: fb, ts: Date.now() }] }));
-                      }
+                      if (onSongDb) onSongDb((p) => p.map((x) => x.id !== song.id ? x : { ...x, feedback: [...(x.feedback || []), { text: fb, ts: Date.now() }] }));
                       writeAiCache(updateAiCache(song.aiCache, gId, pick));
+                      setQuickFeedback('');
                     })
                     .catch((e) => { setLocalAiErr(e?.message || String(e)); })
                     .finally(() => setReloading(false));
                 }}
-                onCancel={() => setShowFeedback(false)}
-              />
-          }
+                disabled={!quickFeedback.trim() || reloading}
+                style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', background: quickFeedback.trim() && !reloading ? 'var(--accent)' : 'var(--bg-disabled)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px 14px', cursor: quickFeedback.trim() && !reloading ? 'pointer' : 'not-allowed', fontWeight: 700, flexShrink: 0 }}
+              >📤 {t('song-detail.feedback-send', 'Envoyer')}</button>
+            </div>
+          </div>
         </div>
       )}
       <button onClick={onClose} style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, marginTop: 4 }}>{t('song-detail.close', 'Fermer ↑')}</button>
