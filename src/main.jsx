@@ -277,7 +277,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.216";
+const APP_VERSION = "8.14.217";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -947,7 +947,17 @@ export function App() {
   const [liveSetlistId, setLiveSetlistId] = useState(null);
 
   // Destructure profile fields for convenience
-  const {banksAnn, banksPlug, aiProvider, aiKeys, availableSources} = profile;
+  const {banksAnn, banksPlug, aiProvider: rawAiProvider, aiKeys, availableSources} = profile;
+  // S9.11 — Auto-fallback Anthropic pour admin si clé Anthropic configurée.
+  // Sébastien admin peut éviter de cramer le quota Gemini partagé sans
+  // toucher au comportement des beta-testeurs (qui n'ont pas la clé
+  // Anthropic et donc tombent toujours sur Gemini partagée). Invisible
+  // côté UI : pas de toggle, déterministe selon présence de la clé.
+  // La clé Anthropic est strippée du push Firestore (Phase 7.30) →
+  // elle reste sur le device Mac de Sébastien, jamais visible aux autres.
+  const aiProvider = (profile?.isAdmin && aiKeys?.anthropic && String(aiKeys.anthropic).trim())
+    ? 'anthropic'
+    : (rawAiProvider || 'gemini');
   // Filter setlists for current profile.
   // Phase 7.42 — useMemo crucial : sans memo, mySetlists devient une
   // nouvelle ref à chaque render de App → invalide mySongIds → activeSongs

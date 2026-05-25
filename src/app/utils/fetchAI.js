@@ -419,9 +419,21 @@ Contraintes :
 - ideal_guitar : DOIT être une guitare de la collection
 - song_key : notation anglaise (Em, A, Bb, F#m)
 - target_gain : 0-10`;
+  // S9.11 — Routing provider qui respecte aiProvider explicitement.
+  // Avant : `provider = (aiKeys.gemini || defaultKey) ? 'gemini' : 'anthropic'`
+  // ignorait le param et préférait toujours Gemini si une clé Gemini était
+  // disponible. Conséquence : impossible pour l'admin de basculer sur
+  // Anthropic même avec une clé sk-ant-... configurée. Le main.jsx S9.11
+  // override aiProvider à 'anthropic' pour admin+clé Anthropic dispo.
   const defaultKey = getSharedGeminiKey();
-  const key = aiKeys.gemini || aiKeys.anthropic || defaultKey;
-  const provider = (aiKeys.gemini || defaultKey) ? 'gemini' : 'anthropic';
+  let provider, key;
+  if (aiProvider === 'anthropic' && aiKeys.anthropic) {
+    provider = 'anthropic';
+    key = aiKeys.anthropic;
+  } else {
+    provider = 'gemini';
+    key = aiKeys.gemini || defaultKey;
+  }
   if (!key) return Promise.reject(new Error('Clé API manquante — configure-la dans ⚙️ Paramètres.'));
   const parse = safeParseJSON;
   const callAI = () => {
