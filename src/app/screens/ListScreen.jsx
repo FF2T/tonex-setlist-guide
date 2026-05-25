@@ -41,6 +41,7 @@ import { CC, CL, TYPE_COLORS } from '../utils/ui-constants.js';
 import { scoreColor, scoreBg, scoreLabel } from '../components/score-utils.js';
 import StatusDot from '../components/StatusDot.jsx';
 import SongCollapsedDeviceRows from '../components/SongCollapsedDeviceRows.jsx';
+import { formatRowPotardsFX } from '../utils/setlist-row-extras.js';
 import AddSongModal from '../components/AddSongModal.jsx';
 import SongDetailCard from './SongDetailCard.jsx';
 import { exportSetlistPdf } from './SetlistPdfExport.js';
@@ -746,6 +747,34 @@ function ListScreen({
                       precomputedTopRecBySongId={tmpTopRecBySongId}
                       renderRow={(d, banks, presetData) => presetRow(d.icon, presetData.label, banks, presetData.score, d.id, d.deviceColor)}
                     />}
+                    {/* Phase 7.55.7 S4 (S4-3) — Row "extras" desktop only
+                        (≥ 1024px) : potards G/B/M/T/V + FX badges
+                        (Gate/Comp/Mod/Delay/Verb). Affichée sous la device
+                        row pour exploiter l'espace desktop sans déplier.
+                        Maquette A validée Sébastien 25/05. Lecture
+                        défensive : si aiC.preset_settings_v1 + fx_blocks
+                        absents (cache pré-Phase 9), helper retourne null
+                        → row pas rendue (fallback gracieux). */}
+                    {!isExpanded && showDeviceRows && (() => {
+                      const extras = formatRowPotardsFX(aiC);
+                      if (!extras) return null;
+                      return (
+                        <div className="song-row-extras">
+                          {extras.potards && (
+                            <span className="song-row-extras-potards" title={t('list.extras-potards-title', 'Valeurs preset_settings_v1 (Phase 9.1)')}>
+                              {extras.potards}
+                            </span>
+                          )}
+                          {extras.fxOn.length > 0 && (
+                            <span className="song-row-extras-fx" title={t('list.extras-fx-title', 'Blocs FX activés (Phase 9.2)')}>
+                              {extras.fxOn.map((fx) => (
+                                <span key={fx} className="song-row-extras-fx-badge">{fx}</span>
+                              ))}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                   {activeSlId && editingSongs && <button
                     data-testid={`song-row-remove-${s.id}`}

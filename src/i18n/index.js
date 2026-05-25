@@ -58,6 +58,32 @@ export function bindActiveProfile(profile) {
   if (next === _activeProfileLanguage) return;
   _activeProfileLanguage = next;
   if (next) {
+    // Phase 7.55.7 S4 — sync localStorage backline_locale avec
+    // profile.language (hors mode démo). Évite la régression "bascule
+    // EN au boot Chrome Mac" observée 25/05 : si profile.language='fr'
+    // mais localStorage='en' (resté d'un boot précédent où Chrome avait
+    // navigator.language='en' temporairement), le 1er render avant
+    // bindActiveProfile s'affichait EN. En syncrhonisant ici, le
+    // prochain boot lit directement 'fr' depuis localStorage.
+    // Skip en mode démo pour ne pas polluer le default permanent.
+    if (!_activeProfileIsDemo) {
+      try {
+        const cur = (typeof localStorage !== 'undefined') ? localStorage.getItem(LOCALE_KEY) : null;
+        if (cur !== next) {
+          localStorage.setItem(LOCALE_KEY, next);
+          // Log forensique discret au boot si le mismatch venait de
+          // navigator.language → permet de catch la prochaine occurrence
+          // côté user (zéro impact sur les sessions normales).
+          if (typeof window !== 'undefined' && !window.__BACKLINE_I18N_BOOTED) {
+            window.__BACKLINE_I18N_BOOTED = true;
+            const nav = ((typeof navigator !== 'undefined' && navigator.language) || '').toLowerCase().split('-')[0];
+            if (nav && nav !== next && SUPPORTED_IDS.has(nav) && cur === nav) {
+              try { console.log('[i18n] boot mismatch resolved: localStorage was "' + cur + '" (navigator.language) → synced to profile.language "' + next + '" (Phase 7.55.7 S4)'); } catch (e) {}
+            }
+          }
+        }
+      } catch (e) {}
+    }
     _cachedLocale = next;
     _tCache.clear();
     listeners.forEach((cb) => { try { cb(next); } catch (e) {} });
@@ -110,9 +136,15 @@ export function getLocale() {
       _cachedLocale = stored;
       return stored;
     }
-    // Premier boot : détecte et persiste pour stabilité au reload.
+    // Phase 7.55.7 S4 — Premier boot sans valeur stockée : détecte
+    // navigator.language pour le 1er paint mais NE PERSISTE PLUS dans
+    // localStorage. Régression "bascule EN au boot" 25/05 : l'ancien
+    // setItem ici figeait navigator.language au localStorage avant
+    // que bindActiveProfile ait l'occasion d'écrire profile.language.
+    // La persistance localStorage se fait désormais uniquement via :
+    //   1. setLocale() (UI explicite Mon Profil → Affichage)
+    //   2. bindActiveProfile() (sync depuis profile.language hors démo)
     const detected = detectBrowserLocale();
-    try { localStorage.setItem(LOCALE_KEY, detected); } catch (e) {}
     _cachedLocale = detected;
     return detected;
   } catch (e) {

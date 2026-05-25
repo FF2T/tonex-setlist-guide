@@ -246,6 +246,19 @@
   .form-input{background:var(--bg-elev-1);border:1px solid var(--border-strong);border-radius:var(--r-md);padding:var(--s-2) var(--s-3);color:var(--text-primary);font-family:var(--font-ui);font-size:var(--fs-sm);transition:border-color var(--dur-fast) var(--ease-out)}
   .form-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);outline:none}
   .form-select{background:var(--bg-elev-1);border:1px solid var(--border-strong);border-radius:var(--r-md);padding:var(--s-2) var(--s-3);color:var(--text-primary);font-family:var(--font-ui)}
+
+  /* ── Phase 7.55.7 S4 (S4-3) — Setlists row repliée extras desktop ──
+     Affiche potards (preset_settings_v1 Phase 9.1) + FX activés
+     (fx_blocks Phase 9.2) sur les écrans larges (≥ 1024px). Cachée
+     en mobile/tablette pour préserver la densité du layout existant.
+     Aligne sur les rows déjà rendues juste au-dessus. */
+  .song-row-extras{display:none}
+  @media(min-width:1024px){
+    .song-row-extras{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:5px;font-family:var(--font-mono);font-size:10px;color:var(--text-dim);line-height:1.4}
+    .song-row-extras-potards{color:var(--text-sec);font-weight:600;letter-spacing:0.5px;background:var(--a3);border:1px solid var(--a7);border-radius:var(--r-sm);padding:2px 8px}
+    .song-row-extras-fx{display:inline-flex;gap:4px;align-items:center;flex-wrap:wrap}
+    .song-row-extras-fx-badge{background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent-border);border-radius:var(--r-sm);padding:1px 7px;font-weight:700;font-size:9px;letter-spacing:0.3px;text-transform:uppercase}
+  }
 </style>
 <!-- Phase 7.55.6 — Cloudflare Web Analytics (gratuit, sans cookies, sans RGPD banner).
      Compteur visiteurs + sources trafic pour mybackline.app. Token à récupérer

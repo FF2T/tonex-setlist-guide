@@ -865,7 +865,12 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
       )}
 
       {(() => {
-        const tile = (active) => ({ fontSize: 11, fontWeight: active ? 700 : 500, color: active ? 'var(--accent)' : 'var(--text-muted)', background: active ? 'var(--accent-bg)' : 'var(--a3)', border: active ? '1px solid var(--accent-border)' : '1px solid var(--a7)', borderRadius: 'var(--r-md)', padding: '6px 12px', cursor: 'pointer', textAlign: 'left' });
+        // Phase 7.55.7 S4 — Harmoniser les chips catégorie d'entrée sur
+        // le style massif des tuiles "Parcourir par ampli" (ligne ~919) :
+        // padding plus généreux, fontSize plus visible, background a4,
+        // hover effect. Le user (Sébastien 25/05) trouvait les tuiles
+        // modèle d'ampli plus ergonomiques et voulait cohérence.
+        const tile = (active) => ({ fontSize: 13, fontWeight: active ? 700 : 600, color: active ? 'var(--accent)' : 'var(--text-primary)', background: active ? 'var(--accent-bg)' : 'var(--a4)', border: active ? '1px solid var(--accent-border)' : '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '10px 14px', cursor: 'pointer', textAlign: 'left', transition: 'all .15s' });
         const PROFILE_GROUPS = [
           { title: t('preset-browser.group-clean', 'Sons cleans'), profiles: ['clean_cristallin', 'blues_vintage', 'jazz_warm', 'funk_soul'] },
           { title: t('preset-browser.group-crunch', 'Sons crunch / drive'), profiles: ['crunch_70s', 'british', 'blues_rock'] },
@@ -877,7 +882,10 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
             <div>
               <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 6 }}>{t('preset-browser.what-sound', 'Quel son cherches-tu ?')}</div>
               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
-                <button onClick={() => setSoundProfile('all')} style={tile(soundProfile === 'all')}>{t('preset-browser.all', 'Tous')}</button>
+                <button onClick={() => setSoundProfile('all')}
+                  style={tile(soundProfile === 'all')}
+                  onMouseOver={(e) => { if (soundProfile !== 'all') { e.currentTarget.style.borderColor = 'var(--a15)'; e.currentTarget.style.background = 'var(--a7)'; } }}
+                  onMouseOut={(e) => { if (soundProfile !== 'all') { e.currentTarget.style.borderColor = 'var(--a8)'; e.currentTarget.style.background = 'var(--a4)'; } }}>{t('preset-browser.all', 'Tous')}</button>
               </div>
               {PROFILE_GROUPS.map((g) => (
                 <div key={g.title} style={{ marginBottom: 6 }}>
@@ -887,9 +895,13 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
                       const p = SOUND_PROFILES[id]; if (!p) return null;
                       const active = soundProfile === id;
                       return (
-                        <button key={id} onClick={() => setSoundProfile(active ? 'all' : id)} style={tile(active)}>
+                        <button key={id}
+                          onClick={() => setSoundProfile(active ? 'all' : id)}
+                          style={tile(active)}
+                          onMouseOver={(e) => { if (!active) { e.currentTarget.style.borderColor = 'var(--a15)'; e.currentTarget.style.background = 'var(--a7)'; } }}
+                          onMouseOut={(e) => { if (!active) { e.currentTarget.style.borderColor = 'var(--a8)'; e.currentTarget.style.background = 'var(--a4)'; } }}>
                           <div>{p.label}</div>
-                          {p.desc && <div style={{ fontSize: 9, fontWeight: 400, color: active ? 'var(--accent)' : 'var(--text-dim)', marginTop: 1 }}>{p.desc}</div>}
+                          {p.desc && <div style={{ fontSize: 10, fontWeight: 400, color: active ? 'var(--accent)' : 'var(--text-tertiary)', marginTop: 2 }}>{p.desc}</div>}
                         </button>
                       );
                     })}
