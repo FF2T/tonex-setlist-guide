@@ -87,15 +87,25 @@ export function getRowPlaylistData(song, aiC, guitar, guitarScore, isOptimalGuit
   const potards = extras?.potards || null;
   const fxOn = extras?.fxOn || [];
 
-  // topScore : pioche le max parmi les devices.presetScore. Fallback
-  // sur guitarScore si aucun preset analysé (cas non-analysé partiel).
-  let topScore = null;
+  // absoluteScore : score combiné guitare + preset top (moyenne).
+  // S8.7 (Sébastien 25/05) : le topScore du header faisait doublon avec
+  // les scores inline (guitar + preset) déjà visibles dans la meta line.
+  // Sens nouveau : moyenne(guitarScore, maxPresetScore) = "performance
+  // globale de la combinaison guitar+preset pour ce morceau".
+  let maxPresetScore = null;
   for (const d of devices) {
-    if (d.presetScore != null && (topScore == null || d.presetScore > topScore)) {
-      topScore = d.presetScore;
+    if (d.presetScore != null && (maxPresetScore == null || d.presetScore > maxPresetScore)) {
+      maxPresetScore = d.presetScore;
     }
   }
-  if (topScore == null && guitarScoreClean != null) topScore = guitarScoreClean;
+  let absoluteScore = null;
+  if (guitarScoreClean != null && maxPresetScore != null) {
+    absoluteScore = Math.round((guitarScoreClean + maxPresetScore) / 2);
+  } else if (guitarScoreClean != null) {
+    absoluteScore = guitarScoreClean;
+  } else if (maxPresetScore != null) {
+    absoluteScore = maxPresetScore;
+  }
 
   const needsAnalysis = devices.length === 0 && guitarScoreClean == null;
 
@@ -108,7 +118,11 @@ export function getRowPlaylistData(song, aiC, guitar, guitarScore, isOptimalGuit
     devices,
     potards,
     fxOn,
-    topScore,
+    // topScore conservé en alias rétrocompat pour les consumers existants.
+    // absoluteScore = la nouvelle sémantique "moyenne guitar+preset top".
+    topScore: absoluteScore,
+    absoluteScore,
+    maxPresetScore,
     needsAnalysis,
   };
 }

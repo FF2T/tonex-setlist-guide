@@ -35,29 +35,46 @@ describe('getRowPlaylistData — cas nominal', () => {
     });
     expect(result.potards).toBe('G6.2 B4.5 M7 T5.3 V6');
     expect(result.fxOn).toEqual(['Gate', 'Verb']);
-    expect(result.topScore).toBe(88);
+    // S8.7 : absoluteScore = moyenne(guitar 95 + maxPreset 88) = 91.5 → 92
+    expect(result.absoluteScore).toBe(92);
+    expect(result.topScore).toBe(92); // alias retrocompat
+    expect(result.maxPresetScore).toBe(88);
     expect(result.needsAnalysis).toBe(false);
   });
 
-  it('multi-device : Anniv + Plug', () => {
+  it('multi-device : Anniv + Plug → maxPresetScore = max(devices)', () => {
     const aiC = {
       preset_ann: { bank: 9, col: 'C', label: 'AA MRSH JT50', score: 88 },
       preset_plug: { bank: 4, col: 'B', label: 'Plug Preset', score: 85 },
     };
     const result = getRowPlaylistData(SONG_AC_DC, aiC, GUITAR_SG, 95, true);
     expect(result.devices).toHaveLength(2);
-    expect(result.devices[0].deviceKey).toBe('tonex-anniversary');
-    expect(result.devices[1].deviceKey).toBe('tonex-plug');
-    expect(result.topScore).toBe(88); // max(88, 85)
+    expect(result.maxPresetScore).toBe(88); // max(88, 85)
+    // absoluteScore = moyenne(95 + 88) = 91.5 → 92
+    expect(result.absoluteScore).toBe(92);
   });
 
-  it('topScore prend le max preset, pas le score guitare', () => {
+  it('absoluteScore = moyenne(guitar + maxPreset) avec arrondi', () => {
     const aiC = {
       preset_ann: { bank: 9, col: 'C', label: 'X', score: 70 },
       preset_plug: { bank: 4, col: 'B', label: 'Y', score: 90 },
     };
     const result = getRowPlaylistData(SONG_AC_DC, aiC, GUITAR_SG, 95, true);
-    expect(result.topScore).toBe(90); // pas 95
+    expect(result.maxPresetScore).toBe(90);
+    // (95 + 90) / 2 = 92.5 → 93 (Math.round arrondit au plus proche)
+    expect(result.absoluteScore).toBe(93);
+  });
+
+  it('absoluteScore : fallback sur guitar seul si preset absent', () => {
+    const result = getRowPlaylistData(SONG_AC_DC, null, GUITAR_SG, 88, true);
+    expect(result.maxPresetScore).toBeNull();
+    expect(result.absoluteScore).toBe(88);
+  });
+
+  it('absoluteScore : fallback sur preset seul si guitar absent', () => {
+    const aiC = { preset_ann: { bank: 9, col: 'C', label: 'X', score: 78 } };
+    const result = getRowPlaylistData(SONG_AC_DC, aiC, null, null, false);
+    expect(result.absoluteScore).toBe(78);
   });
 });
 

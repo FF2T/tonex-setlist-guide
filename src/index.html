@@ -318,8 +318,15 @@
     /* S8.4 — Meta grid 4 colonnes alignement strict desktop.
        Largeurs minimales tunées sur contenus typiques :
        Artist (12-18 chars) | Guitare+score (20-28) | Devices (35-50) | Extras (25-35) */
-    .songrow-pl-meta-grid{display:grid;grid-template-columns:minmax(110px,0.6fr) minmax(200px,1fr) minmax(320px,1.8fr) minmax(180px,1fr);gap:14px;align-items:start;font-size:13px}
-    .songrow-pl-meta-cell{align-items:baseline}
+    .songrow-pl-meta-grid{display:grid;grid-template-columns:minmax(110px,0.6fr) minmax(200px,1fr) minmax(320px,1.8fr) minmax(180px,1fr);gap:0;align-items:start;font-size:13px}
+    /* S8.8 — Bordures légères entre cellules pour différencier les
+       colonnes du tableau (Sébastien : "le tableau des preset + fx est
+       peut-être à mettre avec bordures légères pour bien différencier
+       et aligner les paramètres"). Padding interne pour respiration. */
+    .songrow-pl-meta-cell{align-items:baseline;padding:0 14px}
+    .songrow-pl-meta-cell:first-child{padding-left:0}
+    .songrow-pl-meta-cell:last-child{padding-right:0}
+    .songrow-pl-meta-cell + .songrow-pl-meta-cell{border-left:1px solid var(--border-subtle)}
     /* S8.5 — Alignement strict vertical des pills entre rows :
        chaque cellule devient un grid interne avec largeurs fixes
        sur les pills/labels (pas de flex variable). Le text du label
@@ -327,7 +334,9 @@
        Conséquence : tous les "95%" alignés sur la même x, tous les
        slot pills "9C" alignés, etc. Sébastien 25/05 : "j'ai vraiment
        besoin d'alignements". */
-    .songrow-pl-meta-guitar{display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px}
+    /* S8.7 — Score guitare à GAUCHE par cohérence avec devices.
+       Grid `auto 1fr` : pill score (44px fixe) + label flex. */
+    .songrow-pl-meta-guitar{display:grid;grid-template-columns:44px 1fr;align-items:center;gap:8px}
     .songrow-pl-meta-guitar .songrow-pl-guitar{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
     /* Devices empilés + chaque ligne en grid 4 col (label fixe |
        slot pill fixe | preset flex | score pill fixe) */

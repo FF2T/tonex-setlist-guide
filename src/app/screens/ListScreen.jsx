@@ -755,10 +755,15 @@ function ListScreen({
                                 <div className="songrow-pl-meta-cell songrow-pl-meta-guitar">
                                   {rowData.guitarLabel && (
                                     <>
-                                      <span className="songrow-pl-guitar">{rowData.guitarLabel}</span>
-                                      {rowData.guitarScore != null && (
+                                      {/* S8.7 — Score à GAUCHE du label guitare
+                                          par cohérence avec les devices
+                                          ([slot][score][preset]). */}
+                                      {rowData.guitarScore != null ? (
                                         <span className="songrow-pl-score-pill-inline" style={{ background: scoreColor(rowData.guitarScore) }}>{rowData.guitarScore}%</span>
+                                      ) : (
+                                        <span className="songrow-pl-score-pill-empty" aria-hidden="true"/>
                                       )}
+                                      <span className="songrow-pl-guitar">{rowData.guitarLabel}</span>
                                     </>
                                   )}
                                 </div>
