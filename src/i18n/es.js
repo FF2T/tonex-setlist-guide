@@ -775,6 +775,9 @@ const es = {
   // song-detail
   'song-detail.ai-error-hint': 'Revisa tu clave API en ⚙️ Ajustes y vuelve a seleccionar la guitarra para reintentar.',
   'song-detail.ai-error-prefix': '⚠️ Análisis IA fallido:',
+  'ai-error.learn-more': 'Más información',
+  'ai-error.show-details': '▾ Detalles técnicos',
+  'ai-error.hide-details': '▴ Ocultar detalles técnicos',
   'song-detail.alternatives': 'Alternativas catálogo',
   'song-detail.analyzing': 'Analizando para {guitar}...',
   'song-detail.rig-stale-analyzing': 'Análisis anterior con otro equipo — recalculando para tu material…',

@@ -777,6 +777,9 @@ const en = {
   // song-detail
   'song-detail.ai-error-hint': 'Check your API key in ⚙️ Settings then re-select the guitar to retry.',
   'song-detail.ai-error-prefix': '⚠️ AI analysis failed:',
+  'ai-error.learn-more': 'Learn more',
+  'ai-error.show-details': '▾ Technical details',
+  'ai-error.hide-details': '▴ Hide technical details',
   'song-detail.alternatives': 'Catalog alternatives',
   'song-detail.analyzing': 'Analyzing for {guitar}...',
   'song-detail.rig-stale-analyzing': 'Previous analysis ran with a different rig — recomputing for your gear…',

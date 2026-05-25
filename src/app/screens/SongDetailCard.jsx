@@ -44,6 +44,7 @@ import StatusDot from '../components/StatusDot.jsx';
 import GuitarSelect from '../components/GuitarSelect.jsx';
 import PBlock from '../components/PBlock.jsx';
 import FeedbackPanel from '../components/FeedbackPanel.jsx';
+import AIErrorPanel from '../components/AIErrorPanel.jsx';
 import { TYPO, WEIGHT, TEXT_1, TEXT_2, TEXT_3, BG_1, BG_2, BORDER_SUBTLE, sectionCard, sectionTitle as sectionTitleStyle } from '../styles/tokens.js';
 
 function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, onClose, guitars, allRigsGuitars, availableSources, savedGuitarId, onGuitarChange, aiProvider, aiKeys, onSongDb, onAiCacheUpdate, profile, guitarBias, onTmpPatchOverride, songDb, onProfiles, activeProfileId, toneNetPresets, onToneNetPresets, onSharedUsagesOverrides }) {
@@ -1026,10 +1027,12 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
       </div>
 
       {!reloading && !aiC && !localAiErr && <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: '10px 0' }}>{t('song-detail.no-cache', 'Aucune analyse IA en cache. Selectionne une guitare pour lancer l\'analyse.')}</div>}
+      {/* Phase 7.55.7 S7 — AIErrorPanel classifie l'erreur Gemini et
+          affiche un message user-friendly trilingue stylé. Le data-testid
+          reste pour les tests existants. */}
       {localAiErr && !reloading && (
-        <div data-testid="song-ai-error" style={{ fontSize: 12, color: 'var(--red)', background: 'var(--red-bg)', border: '1px solid var(--red-border)', borderRadius: 'var(--r-md)', padding: '8px 10px', margin: '6px 0', lineHeight: 1.4 }}>
-          {t('song-detail.ai-error-prefix', '⚠️ Analyse IA échouée :')} <b>{localAiErr}</b>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>{t('song-detail.ai-error-hint', 'Vérifie ta clé API dans ⚙️ Paramètres puis re-sélectionne la guitare pour relancer.')}</div>
+        <div data-testid="song-ai-error">
+          <AIErrorPanel error={localAiErr}/>
         </div>
       )}
 

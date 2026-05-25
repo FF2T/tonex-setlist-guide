@@ -34,6 +34,7 @@ import { getSharedGeminiKey } from '../utils/shared-key.js';
 import { scoreColor } from '../components/score-utils.js';
 import StatusDot from '../components/StatusDot.jsx';
 import BacklineIcon from '../components/BacklineIcon.jsx';
+import AIErrorPanel from '../components/AIErrorPanel.jsx';
 import { BG_2, sectionCard, sectionTitle as sectionTitleStyle } from '../styles/tokens.js';
 
 // Tags feedback localisés (rebuild à chaque render pour réagir au switch
@@ -546,7 +547,12 @@ function HomeScreen({
                 >{t('demo.random-button', '🎲 Au hasard')}</button>
               </div>
             )}
-            {songErr && <div style={{ fontSize: 12, color: 'var(--red)', textAlign: 'center', padding: 10 }}>{songErr}</div>}
+            {/* Phase 7.55.7 S7 — AIErrorPanel classifie l'erreur Gemini
+                et affiche un message user-friendly trilingue stylé. Remplace
+                l'affichage brut "Your project has exceeded its monthly
+                spending cap..." par "🤖 L'IA Gemini a atteint son quota
+                mensuel" + hints + lien Gemini billing. */}
+            {songErr && <AIErrorPanel error={songErr}/>}
 
             {songResult && confirmedSong && (() => {
               const existing = songDb.find((s) => normalizePresetName(s.title) === normalizePresetName(confirmedSong.title));

@@ -234,6 +234,8 @@ export function sectionTitle() {
 /**
  * Tile massive — pour grille de catégories / amplis (PresetBrowser).
  * S4-2 a aligné les chips catégorie d'entrée sur ce format.
+ * S7.1 (25/05) : textAlign 'center' (cohérent avec les tuiles
+ * "Parcourir par ampli" ligne ~920). Le user demande l'homogénéité.
  * @param {object} [opts]
  * @param {boolean} [opts.active=false] - état sélectionné
  */
@@ -248,7 +250,7 @@ export function tile(opts = {}) {
     borderRadius: 'var(--r-md)',
     padding: '10px 14px',
     cursor: 'pointer',
-    textAlign: 'left',
+    textAlign: 'center',
     transition: 'all .15s',
   };
 }

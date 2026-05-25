@@ -247,6 +247,16 @@
   .form-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);outline:none}
   .form-select{background:var(--bg-elev-1);border:1px solid var(--border-strong);border-radius:var(--r-md);padding:var(--s-2) var(--s-3);color:var(--text-primary);font-family:var(--font-ui)}
 
+  /* ── Phase 7.55.7 S7.1 — Explorer "sound" tiles 3 cols fixes ──
+     Sébastien 25/05 post-S6.1 : préfère 3 colonnes fixes (comme amplis
+     ligne ~920) plutôt que auto-fit responsive qui peut passer de 3 à
+     4 colonnes selon viewport. Mobile <640px : 1 col (sinon labels
+     "Hard rock classique" se compressent dans 116px ~ illisible). */
+  .preset-sound-tiles{display:grid;gap:6px;grid-template-columns:1fr}
+  @media(min-width:640px){
+    .preset-sound-tiles{grid-template-columns:repeat(3,1fr)}
+  }
+
   /* ── Phase 7.55.7 S4 (S4-3) — Setlists row repliée extras desktop ──
      Affiche potards (preset_settings_v1 Phase 9.1) + FX activés
      (fx_blocks Phase 9.2) sur les écrans larges (≥ 1024px). Cachée

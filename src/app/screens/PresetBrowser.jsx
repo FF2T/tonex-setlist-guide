@@ -867,11 +867,9 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
       )}
 
       {(() => {
-        // Phase 7.55.7 S6 — tile() centralisé dans tokens.js (variant
-        // "tile" massif) garanti cohérence avec PresetBrowser autres
-        // sites + futures réutilisations. Préserve textAlign: left local
-        // (les tuiles "Parcourir par ampli" en grid sont centrées).
-        const tile = (active) => ({ ...tileStyle({ active }), textAlign: 'left' });
+        // Phase 7.55.7 S7.1 — tile() centralisé + textAlign center
+        // (homogène avec tuiles "Parcourir par ampli" ligne ~920).
+        const tile = (active) => tileStyle({ active });
         const PROFILE_GROUPS = [
           { title: t('preset-browser.group-clean', 'Sons cleans'), profiles: ['clean_cristallin', 'blues_vintage', 'jazz_warm', 'funk_soul'] },
           { title: t('preset-browser.group-crunch', 'Sons crunch / drive'), profiles: ['crunch_70s', 'british', 'blues_rock'] },
@@ -891,13 +889,11 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
               {PROFILE_GROUPS.map((g) => (
                 <div key={g.title} style={{ marginBottom: 6 }}>
                   <div style={{ fontSize: 9, color: 'var(--text-dim)', fontWeight: 600, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 4 }}>{g.title}</div>
-                  {/* Phase 7.55.7 S6.1 — grid responsive auto-fit minmax(180px, 1fr)
-                      pour aligner les tuiles "sons" sur le même format que les
-                      tuiles "Parcourir par ampli" (grid repeat(3,1fr) ligne 920).
-                      Toutes les tuiles d'un groupe ont la MÊME largeur, étirées
-                      sur la rangée. Sébastien 25/05 : "tuiles ampli alignées
-                      mais pas les tuiles son". */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 6 }}>
+                  {/* Phase 7.55.7 S7.1 — grid 3 colonnes fixes desktop+ (≥640),
+                      1 colonne mobile (sinon labels écrasés). Cohérent avec le
+                      grid amplis ligne ~920 qui est repeat(3,1fr). Sébastien
+                      25/05 : "rester sur 3 cols pour ne pas passer de 3 à 4". */}
+                  <div className="preset-sound-tiles">
                     {g.profiles.map((id) => {
                       const p = SOUND_PROFILES[id]; if (!p) return null;
                       const active = soundProfile === id;
