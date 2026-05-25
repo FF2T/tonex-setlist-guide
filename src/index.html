@@ -302,6 +302,15 @@
   .songrow-pl-fx{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--accent);font-weight:600;letter-spacing:0.3px;text-transform:uppercase}
   .songrow-pl-fx-icon{font-size:11px}
 
+  /* S9 — Fiche dépliée SongDetailCard : padding desktop plus aéré +
+     sticky options resizé. Le reste des inline styles (fontSize ad-hoc
+     dans les sections) sera traité S9.x si signal user. */
+  .song-row-detail{padding:10px 12px}
+  @media(min-width:1024px){
+    .song-row-detail{padding:16px 20px;font-size:14px}
+    .song-detail-sticky{padding:12px 16px !important}
+  }
+
   @media(min-width:1024px){
     .songrow-playlist{padding:16px 20px}
     .songrow-pl-row{gap:18px}

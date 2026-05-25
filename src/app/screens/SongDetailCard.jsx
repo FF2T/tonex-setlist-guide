@@ -66,6 +66,10 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   const [curationModalPreset, setCurationModalPreset] = useState(null);
   const isAdmin = !!profile?.isAdmin;
   const [showFeedback, setShowFeedback] = useState(false);
+  // Phase 7.55.7 S9.1 — sticky options menu (guitare + outputContext +
+  // feedback). Replié par défaut pour compacter le sticky en headline
+  // seule (titre + score absolu + ⚙).
+  const [showStickyOptions, setShowStickyOptions] = useState(false);
   // Phase 7.86 — toggles repli pour Bloc 2 + Bloc 3
   const [showAdvancedMode, setShowAdvancedMode] = useState(false);
   const [showWhyPerKnob, setShowWhyPerKnob] = useState(false);
@@ -190,48 +194,81 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   return (
     <div className="song-row-detail" style={{ background: 'var(--bg-elev-1)', borderRadius: '0 0 12px 12px', padding: '10px 12px', marginBottom: 8, marginTop: -2, display: 'flex', flexDirection: 'column', gap: 6 }}>
 
-      {/* Phase 7.86 — Bandeau sticky en tête : guitare choisie + sortie
-          audio + feedback. Reste visible en haut quand on scroll dans la
-          fiche dépliée. Influence les 3 blocs ci-dessous (recos IA + mon
-          setup adaptatifs). */}
-      <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-elev-1)', borderRadius: 'var(--r-md)', border: '1px solid var(--a8)', padding: '8px 10px', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 180 }}>
-          <StatusDot score={chosenGuitarScore} ideal={g && ig.includes(gId)} size={10}/>
-          <div style={{ flex: 1 }}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/></div>
-        </div>
-        {/* Sortie audio override per-morceau — Phase 10. Hint compact, 4 boutons. */}
-        <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', alignItems: 'center' }} title={t('song-detail.output-context-label', '🔌 Sortie audio pour ce morceau')}>
-          {[
-            { id: '', icon: '↻', label: t('song-detail.output-context-profile', 'Profil') },
-            { id: 'frfr', icon: '📢', label: t('output-context.label.frfr', 'Enceinte FRFR') },
-            { id: 'headphone', icon: '🎧', label: t('output-context.label.headphone', 'Casque') },
-            { id: 'pa', icon: '🎚️', label: t('output-context.label.pa', 'Sono / Table de mixage') },
-          ].map(({ id, icon, label }) => {
-            const active = (song.outputContext || '') === id;
-            return (
-              <button key={id || 'profile'}
-                data-testid={`song-output-context-${id || 'profile'}`}
-                onClick={() => {
-                  onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, outputContext: id || undefined } : x));
-                  writeAiCache(null);
-                  setLocalAiResult(null);
-                }}
-                title={id ? tFormat('song-detail.output-context-tooltip-override', { label }, 'Override : {label}') : t('song-detail.output-context-tooltip-profile', 'Hérite du contexte profil.')}
-                style={{ fontSize: 11, lineHeight: 1, padding: '4px 6px', background: active ? 'var(--accent-bg)' : 'var(--a3)', border: active ? '1px solid var(--accent-border)' : '1px solid var(--a8)', color: active ? 'var(--accent)' : 'var(--text-muted)', borderRadius: 'var(--r-sm)', cursor: 'pointer', fontWeight: active ? 700 : 500 }}
-              >{icon}</button>
-            );
-          })}
-        </div>
-        {/* Feedback bouton — scrolle vers la section feedback IA en bas */}
-        {aiC && (
-          <button
-            onClick={() => setShowFeedback((p) => !p)}
-            data-testid="sticky-feedback-toggle"
-            title={t('song-detail.sticky-feedback-tooltip', 'Donner un feedback à l\'IA sur ce morceau')}
-            style={{ fontSize: 11, padding: '5px 8px', background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-sm)', color: 'var(--text-muted)', cursor: 'pointer', fontWeight: 600 }}
-          >💬</button>
-        )}
-      </div>
+      {/* Phase 7.55.7 S9.1 — Sticky simplifié : titre + score absolu +
+          bouton ⚙ qui révèle les options (GuitarSelect + outputContext
+          + 💬 feedback). Évite l'encombrement de la version Phase 7.86
+          où les 3 actions étaient toujours visibles. Le score absolu
+          = moyenne(chosenGuitarScore + maxPresetScore) cohérent avec
+          la row repliée S8.7. */}
+      {(() => {
+        const maxPS = Math.max(
+          (aiC?.preset_ann?.score) || 0,
+          (aiC?.preset_plug?.score) || 0,
+        ) || null;
+        let absSc = null;
+        const gSc = (typeof chosenGuitarScore === 'number' && chosenGuitarScore > 0) ? chosenGuitarScore : null;
+        if (gSc != null && maxPS != null) absSc = Math.round((gSc + maxPS) / 2);
+        else if (gSc != null) absSc = gSc;
+        else if (maxPS != null) absSc = maxPS;
+        return (
+          <div className="song-detail-sticky" style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-elev-1)', borderRadius: 'var(--r-md)', border: `1px solid ${BORDER_SUBTLE}`, padding: '8px 12px', marginBottom: 4 }}>
+            <div className="song-detail-sticky-headline" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: TYPO.body, fontWeight: WEIGHT.bold, color: TEXT_1, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{song.title}</span>
+              {absSc != null && (
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: TYPO.emph, fontWeight: WEIGHT.black, color: 'var(--text-inverse)', background: scoreColor(absSc), padding: '4px 10px', borderRadius: 'var(--r-md)', letterSpacing: '-0.01em', lineHeight: 1.2 }}>{absSc}%</span>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowStickyOptions((p) => !p)}
+                data-testid="sticky-options-toggle"
+                title={t('song-detail.sticky-options-tooltip', 'Guitare, sortie audio, feedback IA')}
+                style={{ fontSize: TYPO.body, padding: '4px 10px', background: showStickyOptions ? 'var(--accent-soft)' : 'transparent', border: `1px solid ${showStickyOptions ? 'var(--border-accent)' : BORDER_SUBTLE}`, borderRadius: 'var(--r-sm)', color: showStickyOptions ? 'var(--accent)' : TEXT_2, cursor: 'pointer', fontWeight: WEIGHT.medium }}
+              >⚙ {showStickyOptions ? '▲' : '▼'}</button>
+            </div>
+            {showStickyOptions && (
+              <div className="song-detail-sticky-options" style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${BORDER_SUBTLE}`, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <StatusDot score={chosenGuitarScore} ideal={g && ig.includes(gId)} size={10}/>
+                  <div style={{ flex: 1 }}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/></div>
+                </div>
+                {/* Sortie audio override per-morceau Phase 10 */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }} title={t('song-detail.output-context-label', '🔌 Sortie audio pour ce morceau')}>
+                  <span style={{ fontSize: TYPO.micro, color: TEXT_3, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.output-context-short', 'Sortie')}</span>
+                  {[
+                    { id: '', icon: '↻', label: t('song-detail.output-context-profile', 'Profil') },
+                    { id: 'frfr', icon: '📢', label: t('output-context.label.frfr', 'Enceinte FRFR') },
+                    { id: 'headphone', icon: '🎧', label: t('output-context.label.headphone', 'Casque') },
+                    { id: 'pa', icon: '🎚️', label: t('output-context.label.pa', 'Sono / Table de mixage') },
+                  ].map(({ id, icon, label }) => {
+                    const active = (song.outputContext || '') === id;
+                    return (
+                      <button key={id || 'profile'}
+                        data-testid={`song-output-context-${id || 'profile'}`}
+                        onClick={() => {
+                          onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, outputContext: id || undefined } : x));
+                          writeAiCache(null);
+                          setLocalAiResult(null);
+                        }}
+                        title={id ? tFormat('song-detail.output-context-tooltip-override', { label }, 'Override : {label}') : t('song-detail.output-context-tooltip-profile', 'Hérite du contexte profil.')}
+                        style={{ fontSize: TYPO.body, lineHeight: 1, padding: '4px 8px', background: active ? 'var(--accent-soft)' : 'transparent', border: `1px solid ${active ? 'var(--border-accent)' : BORDER_SUBTLE}`, color: active ? 'var(--accent)' : TEXT_2, borderRadius: 'var(--r-sm)', cursor: 'pointer', fontWeight: active ? WEIGHT.bold : WEIGHT.medium }}
+                      >{icon}</button>
+                    );
+                  })}
+                  {/* Feedback bouton 💬 dans le sticky options */}
+                  {aiC && (
+                    <button
+                      onClick={() => setShowFeedback((p) => !p)}
+                      data-testid="sticky-feedback-toggle"
+                      title={t('song-detail.sticky-feedback-tooltip', 'Donner un feedback à l\'IA sur ce morceau')}
+                      style={{ marginLeft: 'auto', fontSize: TYPO.body, padding: '4px 10px', background: showFeedback ? 'var(--accent-soft)' : 'transparent', border: `1px solid ${showFeedback ? 'var(--border-accent)' : BORDER_SUBTLE}`, borderRadius: 'var(--r-sm)', color: showFeedback ? 'var(--accent)' : TEXT_2, cursor: 'pointer', fontWeight: WEIGHT.medium }}
+                    >💬 {t('song-detail.sticky-feedback', 'Feedback')}</button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Phase 7.86 — Bloc 1 : 📚 Infos morceau (factuel + profil tonal IA + profil ampli IA) */}
       <div style={sectionStyle}>
