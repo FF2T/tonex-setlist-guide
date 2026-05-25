@@ -758,7 +758,8 @@ function ListScreen({
                                 {rowData.devices.map((d) => (
                                   <React.Fragment key={d.deviceKey}>
                                     <span className="songrow-pl-sep">·</span>
-                                    <span className="songrow-pl-device">{d.deviceLabel} {d.slot}</span>
+                                    <span className="songrow-pl-device">{d.deviceLabel}</span>
+                                    <span className="songrow-pl-slot-pill">{d.slot}</span>
                                     <span className="songrow-pl-preset">"{d.presetName}"</span>
                                     {d.presetScore != null && (
                                       <span className="songrow-pl-score-pill-inline" style={{ background: scoreColor(d.presetScore) }}>{d.presetScore}%</span>
