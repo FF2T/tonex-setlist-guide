@@ -116,6 +116,50 @@ describe('getRowPlaylistData — cas dégénérés', () => {
   });
 });
 
+describe('getRowPlaylistData — fix bank=0 (Sébastien 25/05)', () => {
+  it('preset_ann.bank=0 (slot 0A) → device affiché (pas filtré)', () => {
+    const aiC = {
+      preset_ann: { bank: 0, col: 'A', label: 'CL DMBL', score: 88 },
+    };
+    const result = getRowPlaylistData(SONG_AC_DC, aiC, GUITAR_SG, 90, true);
+    expect(result.devices).toHaveLength(1);
+    expect(result.devices[0].slot).toBe('0A');
+    expect(result.devices[0].presetName).toBe('CL DMBL');
+  });
+
+  it('preset_plug.bank=0 → device affiché aussi', () => {
+    const aiC = {
+      preset_plug: { bank: 0, col: 'B', label: 'Plug Preset Bank 0', score: 80 },
+    };
+    const result = getRowPlaylistData(SONG_AC_DC, aiC, GUITAR_SG, 90, true);
+    expect(result.devices).toHaveLength(1);
+    expect(result.devices[0].slot).toBe('0B');
+  });
+
+  it('scénario user : preset_ann bank=0 + preset_plug bank=4 → 2 devices', () => {
+    const aiC = {
+      preset_ann: { bank: 0, col: 'A', label: 'CL DMBL', score: 88 },
+      preset_plug: { bank: 4, col: 'B', label: 'Some plug', score: 85 },
+    };
+    const result = getRowPlaylistData(SONG_AC_DC, aiC, GUITAR_SG, 90, true);
+    expect(result.devices).toHaveLength(2);
+    expect(result.devices[0].slot).toBe('0A');
+    expect(result.devices[1].slot).toBe('4B');
+  });
+
+  it('preset_ann sans bank ni col → filtré (pas affiché)', () => {
+    const aiC = { preset_ann: { label: 'X', score: 80 } };
+    const result = getRowPlaylistData(SONG_AC_DC, aiC, GUITAR_SG, 90, true);
+    expect(result.devices).toEqual([]);
+  });
+
+  it('preset_ann.col vide string → filtré', () => {
+    const aiC = { preset_ann: { bank: 5, col: '', label: 'X', score: 80 } };
+    const result = getRowPlaylistData(SONG_AC_DC, aiC, GUITAR_SG, 90, true);
+    expect(result.devices).toEqual([]);
+  });
+});
+
 describe('getRowPlaylistData — extras Phase 9 absents', () => {
   it('pas de preset_settings_v1 ni fx_blocks → potards/fxOn null/[]', () => {
     const aiC = {

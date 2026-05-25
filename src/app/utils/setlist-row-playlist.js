@@ -56,9 +56,13 @@ export function getRowPlaylistData(song, aiC, guitar, guitarScore, isOptimalGuit
 
   // Devices : pioche preset_ann (Pedal/Anniversary partagent) + preset_plug.
   // Filtre les entrées sans label OU sans bank+col (pas de slot installé).
+  // S8.2 fix : bank != null (et pas juste truthy) — bank 0 existe pour
+  // Pedal/Anniversary (FACTORY_BANKS_PEDALE_V2 démarre à 0). Sans ce
+  // fix, preset_ann avec bank=0 (slot ex : 0A "CL DMBL") était filtré
+  // et seul preset_plug s'affichait (Sébastien 25/05).
   const devices = [];
   const aiPA = aiC?.preset_ann;
-  if (aiPA && aiPA.label && aiPA.bank && aiPA.col) {
+  if (aiPA && aiPA.label && aiPA.bank != null && aiPA.col) {
     devices.push({
       deviceKey: 'tonex-anniversary',
       deviceLabel: DEVICE_SHORT_LABELS['tonex-anniversary'],
@@ -68,7 +72,7 @@ export function getRowPlaylistData(song, aiC, guitar, guitarScore, isOptimalGuit
     });
   }
   const aiPP = aiC?.preset_plug;
-  if (aiPP && aiPP.label && aiPP.bank && aiPP.col) {
+  if (aiPP && aiPP.label && aiPP.bank != null && aiPP.col) {
     devices.push({
       deviceKey: 'tonex-plug',
       deviceLabel: DEVICE_SHORT_LABELS['tonex-plug'],
