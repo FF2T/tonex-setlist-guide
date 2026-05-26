@@ -24,6 +24,7 @@
 | 7 | **2026-05-21** | **Sébastien** | **`banksAnn` + `banksPlug`** | ~79 slots Ann + 7 slots Plug révertés, propagé Mac↔iPhone — MALGRÉ le fix 7.74.7 déployé (v8.14.157) | **✅ 2e CAUSE RACINE TROUVÉE → Phase 7.74.8** |
 | 8 | **2026-05-21 soir** | **Sébastien** | **`banksAnn` + `banksPlug`** | 79/150 slots Ann révertés (23C vidé — signature occ #5), Mac ET iPhone corrompus — MALGRÉ 7.74.7 + 7.74.8 déployés (v8.14.162). Forensique : 3× `banksAnn mass-change` adoptés en bloc (15:52, 16:29, 20:25) | **✅ Phase 7.74.9 LIVRÉE (v8.14.164, STATE_VERSION 11) — timestamp dédié `banksModified` + hardening aiCache** |
 | 9 | **2026-05-26** | **Sébastien** | **`language`** | Mac repassait régulièrement FR → EN. Banks intactes (Phase 7.74.9 tient). Forensique : pas de log dédié language (garde-fou délai 60s Phase 7.74.4 inopérant au-delà). | **✅ Phase 7.74.10 LIVRÉE (v8.14.226, STATE_VERSION 12) — timestamps dédiés `languageModified` / `enabledDevicesModified` / `availableSourcesModified` (pattern Phase 7.74.9 étendu)** |
+| 9bis | **2026-05-27** | **(traque)** | **identification du coupable** | Diagnostic post-Phase 7.74.10 : Firestore actuel PROPRE, mais `mergeLogs` Mac montrent qu'un device pousse encore un état pré-v11 (`remote.banksModified=0` + `sire_t3`/`sire_t7` cross-profil). Le coupable est très probablement un **device fantôme** (iPhone/iPad/autre Mac, OU mobile d'un beta-testeur — Franck, Emmanuel, Bruno, Francisco) qui n'a pas été ouvert depuis Phase 7.74.9. Tant qu'il pull/push, il propage son état stale. | **✅ Phase 7.74.11 LIVRÉE (v8.14.227) — Fingerprint device dans le payload Firestore (`_deviceId`, `_deviceLabel`, `_deviceUA`, `_pushAt`). Logs sync + mergeLogs enrichis avec l'ID du device qui pousse. UI Mon Profil → Maintenance → 🆔 Cet appareil pour renommer humainement (ex. "Mac Sébastien").** |
 
 **Pattern commun** : le profil Sébastien (admin) perd des données qui
 sont remplacées par celles d'un autre profil (Francisco, Bruno, curateur
@@ -451,6 +452,69 @@ remote n'avait jamais changé sa langue mais avait juste fait une
 une édition réelle propage la modification entre devices. Un device
 dormant qui re-stampe son `lastModified` pour une raison innocente
 ne peut plus écraser ces 5 champs.
+
+### Session 5 — 2026-05-27 (Phase 7.74.11 — chasse au fantôme via fingerprint device)
+
+**Diagnostic post-7.74.10** : check Firestore `/sync/state` montre
+un état COHÉRENT (v11, `language: fr`, `myGuitars` propre,
+`banksModified` réel). MAIS les `mergeLogs` Mac (capture 26/05
+16:29:21) contiennent encore `[merge-defense] banksAnn mass-change
+BLOCKED : remote.banksModified=0 ...` → ça signifie qu'**un device
+push encore régulièrement un état pré-Phase 7.74.9** (`banksModified`
+absent → 0 au merge). Phase 7.74.9 le bloque côté Mac, mais on
+ignore qui est le device coupable.
+
+**Hypothèse forte** : ce n'est PAS Mac ni iPhone Sébastien (les 2
+sont updatés v8.14.226). C'est probablement un device d'un autre
+profil (mobile de Franck, Emmanuel, Bruno, Francisco) qui n'a pas
+été réouvert depuis ~5 jours. **Pourquoi le profil d'un autre user
+peut polluer Sébastien** : le state Firestore contient TOUS les
+profils (`state.profiles = { sebastien, franck, emmanuel, ... }`).
+Quand le device de Franck push, il push son propre `profiles.franck`
++ son `profiles.sebastien` tel qu'il l'a vu au dernier pull. Si ce
+pull date d'avant Phase 7.74.9, son `profiles.sebastien` est figé en
+v10 avec `banksModified=0` implicite et `myGuitars` pollué cross-
+profil (`sire_t3/t7` historique).
+
+**Fix livré — Phase 7.74.11** (v8.14.227) — fingerprint device :
+1. Chaque device génère un `_deviceId` unique persistant en
+   localStorage (`tonex_device_id`) au premier boot. Format
+   `${platform}-${YYMMDD}-${rand6}`, ex. `mac-260527-a3f5e1`.
+2. À chaque push Firestore, le payload contient `_deviceId`,
+   `_deviceLabel` (rename humain optionnel), `_deviceUA` (60 chars),
+   `_pushAt` (ISO timestamp).
+3. Au pull, log forensique `[firestore] Pulled from device "Mac
+   Sébastien" (id=mac-260527-a3f5e1, ua=..., pushed=..., v=12)` —
+   capturé par le wrapper Phase 7.74.5 dans `__backline_merge_logs`.
+4. Le `_deviceId` est propagé via options `remoteDeviceId` à
+   `mergeProfilesLWW` → `mergeProfileLWW` → les logs BLOCKED/ADOPTED
+   préfixent `[from device "X"=id]` pour traçabilité directe.
+5. UI Mon Profil → 🔧 Maintenance → section "🆔 Cet appareil" :
+   - Affiche `ID:` + `UA:` + `Label:`
+   - Bouton "Renommer" pour poser un label humain (ex. "iPhone
+     Sébastien", "Mac Bruno") — apparaît dans les logs sync de tous
+     les devices au prochain pull.
+   - Boutons "Voir les logs sync" / "Effacer les logs" / "Activer
+     logger" pour piloter le wrapper Phase 7.74.5 sans console.
+
+**Workflow d'identification du coupable** :
+1. Sébastien reload Mac + iPhone → chacun génère son `_deviceId` →
+   nomme via UI Maintenance ("Mac Seb" / "iPhone Seb").
+2. Attendre 24-48h. Le device fantôme finit par être ouvert un jour
+   (le user ouvre Backline ou la PWA pull en background) → génère
+   SON `_deviceId` → push avec lui.
+3. Mac pull → log `[firestore] Pulled from device "iphone-XXX-..."
+   (ua=iPhone Safari, pushed=...)` capturé dans mergeLogs.
+4. Mac voit aussi `[merge-defense] banksAnn mass-change BLOCKED
+   [from device "iphone-XXX"]` → on sait précisément qui c'est.
+5. Sébastien reconnaît via l'UA + le pattern d'ID (date de
+   création) → va réveiller ce device (le possesseur ouvre Backline
+   + Cmd+Shift+R / pull-to-refresh) → il passe en v12 → fini de
+   polluer.
+
+**Tests Vitest** : +7 tests dédiés (`getDeviceId` génération +
+idempotence + format, `setDeviceLabel`/`getDeviceLabel` round-trip,
+mergeProfileLWW accepte options remoteDeviceId/Label).
 
 ## Liens
 

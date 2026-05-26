@@ -10,7 +10,7 @@
 // tient. Phase 6.1 : compression lz-string en fallback avant strip.
 
 import LZString from 'lz-string';
-import { stripAiCacheForSync, stripDemoProfiles, stripDemoFromSetlists } from '../../core/state.js';
+import { stripAiCacheForSync, stripDemoProfiles, stripDemoFromSetlists, getDeviceId, getDeviceLabel, getDeviceUA } from '../../core/state.js';
 import { setSharedGeminiKey } from './shared-key.js';
 import { authedFetch as anonAuthedFetch } from './firebase-auth.js';
 
@@ -55,6 +55,24 @@ export function getLastSavedSyncId() { return _lastSavedSyncId; }
 export function getLastRemoteSyncId() { return _lastRemoteSyncId; }
 export function setLastRemoteSyncId(sid) { _lastRemoteSyncId = sid; }
 
+// Phase 7.74.11 — metadata du dernier pull Firestore (fingerprint
+// device qui a poussé). Exposé pour les logs forensique (wrapper Phase
+// 7.74.5) + applyRemoteData qui propage au mergeProfileLWW.
+let _lastRemoteDeviceMeta = null;
+export function getLastRemoteDeviceMeta() { return _lastRemoteDeviceMeta; }
+
+function _logRemoteDeviceInfo(state) {
+  if (!state || typeof state !== 'object') return;
+  const did = state._deviceId || '(unknown)';
+  const dlabel = state._deviceLabel || null;
+  const dua = state._deviceUA ? state._deviceUA.slice(0, 60) : '';
+  const dat = state._pushAt || '?';
+  const ver = state.version || '?';
+  _lastRemoteDeviceMeta = { deviceId: did, deviceLabel: dlabel, deviceUA: dua, pushAt: dat, version: ver };
+  const labelPart = dlabel ? ` "${dlabel}"` : '';
+  console.warn(`[firestore] Pulled from device${labelPart} (id=${did}, ua=${dua}, pushed=${dat}, v=${ver})`);
+}
+
 export function saveToFirestore(s) {
   if (isDemoOrNoSync()) return Promise.resolve({ skipped: _isDemoMode ? 'demo' : 'no-sync' });
   // Phase 7.58.1 — Bump 800 → 980 KB. Firestore limite hard 1 MB
@@ -88,6 +106,17 @@ export function saveToFirestore(s) {
     // depuis Phase 5.x, manifesté avec multi-device cross-user
     // (Sébastien Mac + Francisco iPhone en 2026-05-17).
     delete c.activeProfileId;
+    // Phase 7.74.11 — fingerprint device. Permet à un device qui pull
+    // d'identifier précisément quel autre device a poussé ce state.
+    // L'utilisateur peut ensuite mapper l'ID à un appareil physique
+    // (via le rename Mon Profil → Maintenance → Cet appareil) et
+    // intervenir manuellement sur un device fantôme qui propage un
+    // état stale (cf docs/INVESTIGATION_POLLUTION_PROFILE.md).
+    c._deviceId = getDeviceId();
+    const label = getDeviceLabel();
+    if (label) c._deviceLabel = label;
+    c._deviceUA = getDeviceUA();
+    c._pushAt = new Date().toISOString();
     return c;
   };
   const cleanFull = prep(s);
@@ -154,6 +183,7 @@ export function loadFromFirestore() {
             const parsed = JSON.parse(decompressed);
             _lastRemoteSyncId = doc.fields.syncId ? doc.fields.syncId.stringValue : null;
             console.log('[firestore] Pull WITH aiCache (compressed → ' + (decompressed.length / 1024).toFixed(0) + ' KB).');
+            _logRemoteDeviceInfo(parsed);
             return parsed;
           }
         } catch (e) { console.warn('[firestore] Decompress failed, fallback to data:', e); }
@@ -161,6 +191,7 @@ export function loadFromFirestore() {
       if (doc.fields.data && doc.fields.data.stringValue) {
         const parsed = JSON.parse(doc.fields.data.stringValue);
         _lastRemoteSyncId = doc.fields.syncId ? doc.fields.syncId.stringValue : null;
+        _logRemoteDeviceInfo(parsed);
         return parsed;
       }
       try {

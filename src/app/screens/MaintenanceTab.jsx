@@ -19,6 +19,7 @@ import {
   dedupSetlistsWithTombstones, findSetlistDuplicatesByName,
   dedupSongDb,
   buildDemoSnapshot,
+  getDeviceId, getDeviceLabel, setDeviceLabel, getDeviceUA,
 } from '../../core/state.js';
 import { normalizeSongTitle, normalizeArtist } from '../utils/song-helpers.js';
 import { enrichAIResult, updateAiCache } from '../utils/ai-helpers.js';
@@ -35,6 +36,12 @@ function MaintenanceTab({ songDb, onSongDb, onAiCacheUpdate, onProfiles, activeP
   // Default = profil actif. L'admin peut sélectionner n'importe quel profil
   // (curateur dédié, par exemple) sans avoir à switcher dessus.
   const [exportProfileId, setExportProfileId] = useState(profile?.id);
+  // Phase 7.74.11 — UI device fingerprint. Permet à l'admin de renommer
+  // chaque device avec un label humain (ex. "Mac Sébastien", "iPhone
+  // Bruno") pour identifier rapidement la source dans les logs sync.
+  const [deviceLabelDraft, setDeviceLabelDraft] = useState(getDeviceLabel() || '');
+  const [editingDeviceLabel, setEditingDeviceLabel] = useState(false);
+  const [deviceLabelSaved, setDeviceLabelSaved] = useState(false);
   const cachedCount = songDb.filter((s) => s.aiCache).length;
 
   const duplicateGroups = useMemo(() => {
@@ -201,6 +208,105 @@ function MaintenanceTab({ songDb, onSongDb, onAiCacheUpdate, onProfiles, activeP
           </div>
         </div>
       )}
+
+      {/* Phase 7.74.11 — Fingerprint device. Affiche l'ID unique de cet
+          appareil + UA + bouton rename humain. Les logs sync incluent
+          ce fingerprint, donc renommer permet à l'admin d'identifier
+          immédiatement quel device pousse quoi dans les logs forensique
+          (window.__getMergeDebugLogs()). Cf docs/INVESTIGATION_POLLUTION_PROFILE.md. */}
+      {(() => {
+        const did = getDeviceId();
+        const ua = getDeviceUA();
+        const label = getDeviceLabel();
+        const showLogs = () => {
+          if (typeof window === 'undefined' || typeof window.__getMergeDebugLogs !== 'function') {
+            alert('Logger forensique non actif. Active-le via localStorage.__backline_persist_logs = "true" puis reload.');
+            return;
+          }
+          const logs = window.__getMergeDebugLogs();
+          console.log('=== mergeDebugLogs (' + logs.length + ' entries) ===');
+          logs.forEach((l) => console.log(`[${l.ts}] [${l.level}] ${l.msg}`));
+          console.log('===');
+        };
+        const clearLogs = () => {
+          if (typeof window !== 'undefined' && typeof window.__clearMergeDebugLogs === 'function') {
+            window.__clearMergeDebugLogs();
+            alert('Logs effacés.');
+          }
+        };
+        const persistActive = typeof localStorage !== 'undefined' && localStorage.getItem('__backline_persist_logs') === 'true';
+        const togglePersist = () => {
+          try {
+            if (persistActive) {
+              localStorage.removeItem('__backline_persist_logs');
+              alert('Logger forensique désactivé. Reload requis.');
+            } else {
+              localStorage.setItem('__backline_persist_logs', 'true');
+              alert('Logger forensique activé. Reload requis pour qu\'il prenne effet.');
+            }
+          } catch (_e) {}
+        };
+        return (
+          <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>🆔</span><span>{t('maintenance.device-section', 'Cet appareil')}</span>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>
+              {t('maintenance.device-hint', "L'ID unique de cet appareil apparaît dans les logs sync. Renomme-le pour identifier rapidement les appareils dans la chasse aux pollutions profile.")}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: 'var(--text-sec)', marginBottom: 10, fontFamily: 'var(--font-mono, monospace)' }}>
+              <div><b>ID :</b> {did}</div>
+              <div><b>UA :</b> {ua.slice(0, 80)}{ua.length > 80 ? '…' : ''}</div>
+              <div><b>Label :</b> {label ? <span style={{ color: 'var(--accent-brass, var(--text))', fontWeight: 700 }}>{label}</span> : <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>(non défini)</span>}</div>
+            </div>
+            {!editingDeviceLabel ? (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button onClick={() => { setEditingDeviceLabel(true); setDeviceLabelSaved(false); }} style={{ background: 'var(--a6)', border: '1px solid var(--a8)', color: 'var(--text)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
+                  ✏️ {label ? t('maintenance.device-rename', 'Renommer') : t('maintenance.device-name', 'Nommer cet appareil')}
+                </button>
+                <button onClick={showLogs} style={{ background: 'var(--a6)', border: '1px solid var(--a8)', color: 'var(--text)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
+                  🔍 {t('maintenance.device-show-logs', 'Voir les logs sync')}
+                </button>
+                <button onClick={clearLogs} style={{ background: 'var(--a6)', border: '1px solid var(--a8)', color: 'var(--text)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
+                  🗑 {t('maintenance.device-clear-logs', 'Effacer les logs')}
+                </button>
+                <button onClick={togglePersist} style={{ background: persistActive ? 'rgba(74,222,128,0.15)' : 'var(--a6)', border: '1px solid ' + (persistActive ? 'rgba(74,222,128,0.35)' : 'var(--a8)'), color: persistActive ? 'var(--green)' : 'var(--text)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
+                  {persistActive ? '✅ ' + t('maintenance.device-logger-on', 'Logger actif') : '⏸ ' + t('maintenance.device-logger-off', 'Activer logger')}
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  value={deviceLabelDraft}
+                  onChange={(e) => setDeviceLabelDraft(e.target.value)}
+                  placeholder={t('maintenance.device-label-placeholder', 'Ex: Mac Sébastien, iPhone Bruno…')}
+                  autoFocus
+                  style={{ flex: 1, minWidth: 200, padding: '6px 10px', fontSize: 13, background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', color: 'var(--text)' }}
+                />
+                <button
+                  onClick={() => {
+                    setDeviceLabel(deviceLabelDraft);
+                    setEditingDeviceLabel(false);
+                    setDeviceLabelSaved(true);
+                    setTimeout(() => setDeviceLabelSaved(false), 2000);
+                  }}
+                  style={{ background: 'var(--green, #4ade80)', border: 'none', color: 'var(--text)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  ✓ {t('common.save', 'Enregistrer')}
+                </button>
+                <button
+                  onClick={() => { setEditingDeviceLabel(false); setDeviceLabelDraft(getDeviceLabel() || ''); }}
+                  style={{ background: 'var(--a6)', border: '1px solid var(--a8)', color: 'var(--text)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}
+                >
+                  ✕ {t('common.cancel', 'Annuler')}
+                </button>
+              </div>
+            )}
+            {deviceLabelSaved && <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 6 }}>✓ {t('maintenance.device-label-saved', 'Label sauvé. Sera utilisé au prochain push Firestore.')}</div>}
+          </div>
+        );
+      })()}
 
       <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>

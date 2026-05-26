@@ -34,7 +34,11 @@ function isPersistLoggerActive() {
 
 function shouldPersistMessage(msg) {
   if (!msg || typeof msg !== 'string') return false;
-  return msg.includes('[merge') || msg.includes('SUSPECT');
+  // Phase 7.74.11 — capture aussi les logs `[firestore] Pulled from
+  // device` qui contiennent le fingerprint du device qui a poussé le
+  // remote. Permet à l'admin de retracer qui pousse quoi via
+  // window.__getMergeDebugLogs() même après plusieurs reloads.
+  return msg.includes('[merge') || msg.includes('SUSPECT') || msg.includes('[firestore] Pulled from device');
 }
 
 function persistLog(level, msg) {

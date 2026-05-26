@@ -18,6 +18,7 @@ import {
   ensureProfileV10, ensureProfilesV10, migrateV9toV10, getProfileAiCache,
   ensureProfileV11, ensureProfilesV11, migrateV10toV11,
   ensureProfileV12, ensureProfilesV12, migrateV11toV12,
+  getDeviceId, getDeviceLabel, setDeviceLabel,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,
   toggleSetlistProfile,
@@ -3706,6 +3707,83 @@ describe('migrateV11toV12 — Phase 7.74.10 backfill timestamps dédiés', () =>
     expect(out.languageModified).toBe(7777);
     expect(out.enabledDevicesModified).toBe(0);
     expect(out.availableSourcesModified).toBe(0);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────
+// Phase 7.74.11 — Device fingerprint pour identifier les sources de
+// pollution profile (cf docs/INVESTIGATION_POLLUTION_PROFILE.md).
+// ───────────────────────────────────────────────────────────────────
+
+describe('Phase 7.74.11 — Device fingerprint', () => {
+  // Stub localStorage pour les tests (Vitest tourne en jsdom mais on
+  // veut clean state à chaque test).
+  let mockStorage;
+  beforeEach(() => {
+    mockStorage = {};
+    vi.stubGlobal('localStorage', {
+      getItem: (k) => mockStorage[k] || null,
+      setItem: (k, v) => { mockStorage[k] = String(v); },
+      removeItem: (k) => { delete mockStorage[k]; },
+      clear: () => { mockStorage = {}; },
+    });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test('getDeviceId génère un ID au format platform-YYMMDD-rand6', () => {
+    const id = getDeviceId();
+    expect(id).toMatch(/^(mac|iphone|ipad|android|win|linux|web|node)-\d{6}-[a-z0-9]{6}$/);
+  });
+
+  test('getDeviceId est idempotent (persistance localStorage)', () => {
+    const id1 = getDeviceId();
+    const id2 = getDeviceId();
+    expect(id1).toBe(id2);
+  });
+
+  test('getDeviceLabel retourne null si non posé', () => {
+    expect(getDeviceLabel()).toBeNull();
+  });
+
+  test('setDeviceLabel + getDeviceLabel round-trip', () => {
+    setDeviceLabel('Mac Sébastien');
+    expect(getDeviceLabel()).toBe('Mac Sébastien');
+  });
+
+  test('setDeviceLabel(null/empty) retire le label', () => {
+    setDeviceLabel('Tmp Label');
+    setDeviceLabel('');
+    expect(getDeviceLabel()).toBeNull();
+  });
+
+  test('setDeviceLabel trim + cap 80 chars', () => {
+    const longLabel = 'a'.repeat(200);
+    setDeviceLabel('  Label avec spaces  ');
+    expect(getDeviceLabel()).toBe('Label avec spaces');
+    setDeviceLabel(longLabel);
+    expect(getDeviceLabel().length).toBe(80);
+  });
+
+  test('mergeProfileLWW : remoteDeviceId/Label propagé dans les logs forensique', () => {
+    // On vérifie qu'aucune exception n'est levée quand on passe les
+    // options remoteDeviceId/Label (le log devra inclure le device dans
+    // les chaînes "BLOCKED" / "ADOPTED" mais ça n'est testable
+    // précisément qu'avec un spy sur console.warn).
+    const local = {
+      id: 'seb', lastModified: 1000,
+      language: 'fr', languageModified: 5000,
+    };
+    const remote = {
+      id: 'seb', lastModified: 9999,
+      language: 'en', languageModified: 100,
+    };
+    const out = mergeProfileLWW(local, remote, {
+      remoteDeviceId: 'mac-260527-abc123',
+      remoteDeviceLabel: 'iPhone Bruno',
+    });
+    expect(out.language).toBe('fr'); // BLOCKED → keep local
   });
 });
 

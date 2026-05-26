@@ -80,6 +80,84 @@ const LS_BACKUP_KEY = 'tonex_guide_backups';
 // actif → marge confortable.
 const MAX_BACKUPS = 1;
 
+// Phase 7.74.11 — clés localStorage pour le fingerprint device.
+// Le `_deviceId` est généré au premier boot après le déploiement de cette
+// phase et survit aux rechargements. Le `_deviceLabel` est posé par
+// l'utilisateur via UI (Mon Profil → Maintenance → Cet appareil).
+const LS_DEVICE_ID_KEY = 'tonex_device_id';
+const LS_DEVICE_LABEL_KEY = 'tonex_device_label';
+
+// Phase 7.74.11 — Fingerprint device persistant en localStorage.
+//
+// Cause racine identifiée 2026-05-26 (occurrence #9, language FR→EN) :
+// la pollution profile vient d'un device "fantôme" jamais réveillé
+// depuis Phase 7.74.9 (~5 jours). Son localStorage contient un état
+// pré-v11 qu'il continue à pousser au prochain pull/push cycle. Les
+// défenses Phase 7.74.9 + 7.74.10 bloquent l'adoption côté Mac, mais
+// on ne sait toujours pas QUEL device c'est physiquement.
+//
+// Solution : chaque device génère un ID unique persistant + l'inclut
+// dans le payload push Firestore. Au pull, on logge `[firestore] Pulled
+// from device X` et au merge, les logs mass-change BLOCKED/ADOPTED
+// préfixent avec le `_deviceId` du remote. L'utilisateur peut ainsi
+// identifier précisément quel device pousse les états stale et aller
+// le réveiller manuellement (ouvrir + Cmd+Shift+R).
+//
+// Format : `${platform}-${YYMMDD}-${rand6}`, ex. `mac-260527-a3f5e1`.
+// Detection platform via navigator.platform + ua simple ; fallback 'web'.
+
+function _detectPlatform() {
+  if (typeof navigator === 'undefined') return 'node';
+  const ua = (navigator.userAgent || '').toLowerCase();
+  const plat = (navigator.platform || '').toLowerCase();
+  if (/iphone|ipod/.test(ua) || /iphone/.test(plat)) return 'iphone';
+  if (/ipad/.test(ua) || /ipad/.test(plat) || (/(macintosh|mac os x)/.test(ua) && navigator.maxTouchPoints > 1)) return 'ipad';
+  if (/android/.test(ua)) return 'android';
+  if (/mac/.test(plat)) return 'mac';
+  if (/win/.test(plat)) return 'win';
+  if (/linux/.test(plat)) return 'linux';
+  return 'web';
+}
+
+function getDeviceId() {
+  if (typeof localStorage === 'undefined') return 'node-test';
+  let id = null;
+  try { id = localStorage.getItem(LS_DEVICE_ID_KEY); } catch (_e) {}
+  if (id && typeof id === 'string' && id.length >= 8) return id;
+  // Génère un nouvel ID au format platform-YYMMDD-rand6.
+  const platform = _detectPlatform();
+  const d = new Date();
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yy = String(d.getFullYear()).slice(2);
+  const rand = Math.random().toString(36).slice(2, 8);
+  const newId = `${platform}-${dd}${mm}${yy}-${rand}`;
+  try { localStorage.setItem(LS_DEVICE_ID_KEY, newId); } catch (_e) {}
+  return newId;
+}
+
+function getDeviceLabel() {
+  if (typeof localStorage === 'undefined') return null;
+  try { return localStorage.getItem(LS_DEVICE_LABEL_KEY) || null; } catch (_e) { return null; }
+}
+
+function setDeviceLabel(label) {
+  if (typeof localStorage === 'undefined') return false;
+  try {
+    if (!label || typeof label !== 'string' || !label.trim()) {
+      localStorage.removeItem(LS_DEVICE_LABEL_KEY);
+    } else {
+      localStorage.setItem(LS_DEVICE_LABEL_KEY, label.trim().slice(0, 80));
+    }
+    return true;
+  } catch (_e) { return false; }
+}
+
+function getDeviceUA() {
+  if (typeof navigator === 'undefined') return '';
+  return (navigator.userAgent || '').slice(0, 120);
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────
 function mergeBanks(saved, init) {
   if (!saved) return init;
@@ -1030,9 +1108,18 @@ function mergeProfileLWW(local, remote, options = {}) {
   }
   // Sinon : remote plus récent → on construit un merge per-field.
   const debug = options.debug === true || (typeof window !== 'undefined' && window.__BACKLINE_MERGE_DEBUG === true);
+  // Phase 7.74.11 — fingerprint device qui a poussé ce remote. Passé
+  // par applyRemoteData via mergeProfilesLWW pour enrichir les logs
+  // forensique BLOCKED/ADOPTED. L'utilisateur peut alors identifier
+  // précisément quel device pousse les états stale.
+  const remoteDeviceId = options.remoteDeviceId || null;
+  const remoteDeviceLabel = options.remoteDeviceLabel || null;
+  const devicePart = remoteDeviceId
+    ? ` [from device${remoteDeviceLabel ? ` "${remoteDeviceLabel}"` : ''}=${remoteDeviceId}]`
+    : '';
   const debugLog = (msg, data) => {
     if (debug && typeof console !== 'undefined' && console.warn) {
-      console.warn('[merge-defense]', local.id || '?', msg, data || '');
+      console.warn('[merge-defense]', local.id || '?', msg + devicePart, data || '');
     }
   };
 
@@ -2646,6 +2733,8 @@ export {
   ensureProfileV10, ensureProfilesV10, migrateV9toV10, getProfileAiCache,
   ensureProfileV11, ensureProfilesV11, migrateV10toV11,
   ensureProfileV12, ensureProfilesV12, migrateV11toV12,
+  LS_DEVICE_ID_KEY, LS_DEVICE_LABEL_KEY,
+  getDeviceId, getDeviceLabel, setDeviceLabel, getDeviceUA,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,
   toggleSetlistProfile,

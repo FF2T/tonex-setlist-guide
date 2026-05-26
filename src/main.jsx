@@ -277,7 +277,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.226";
+const APP_VERSION = "8.14.227";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -1394,7 +1394,13 @@ export function App() {
       // profils remote adoptés passent par applySecrets pour réinjecter
       // aiKeys/password locaux. ensureProfileV7 chaîne le heal v3→v7
       // (dont le drop legacy `devices` de la Phase 5.1).
-      const next=mergeProfilesLWW(prev,data.profiles,{applySecrets});
+      // Phase 7.74.11 — passe remoteDeviceId/Label pour enrichir les
+      // logs forensique des merges mass-change BLOCKED/ADOPTED.
+      const next=mergeProfilesLWW(prev,data.profiles,{
+        applySecrets,
+        remoteDeviceId: data._deviceId || null,
+        remoteDeviceLabel: data._deviceLabel || null,
+      });
       if(JSON.stringify(next)===JSON.stringify(prev))return prev;
       return next;
     });
