@@ -787,7 +787,7 @@ function ListScreen({
                                       ) : (
                                         <span className="songrow-pl-score-pill-empty" aria-hidden="true"/>
                                       )}
-                                      <span className="songrow-pl-preset" title={d.ampLabel && d.ampLabel !== d.presetName ? d.presetName : undefined}>"{d.ampLabel || d.presetName}"</span>
+                                      <span className="songrow-pl-preset" title={d.ampLabel && d.ampLabel !== d.presetName ? d.presetName : undefined}>{d.ampLabel || d.presetName}</span>
                                     </div>
                                   ))}
                                 </div>
