@@ -469,14 +469,35 @@ Contraintes :
         });
     return req.then((r) => enrichAIResult(r, gType, gId, banksAnn, banksPlug, availableSources, song));
   };
-  // Retry intelligent : si le meilleur score < 85%, relancer l'IA (max 2 retries).
+  // S9.17 — Retry automatique sur rate limit Gemini (429 / quota exceeded).
+  // Gemini free tier = 20 RPM par projet, fenêtre 60s. Le message
+  // "Please retry in X.Xs" donne le délai exact à attendre. Si parsable,
+  // on l'utilise ; sinon fallback 20s. Max 2 retries quota (40s max).
+  const isQuotaError = (err) => {
+    const msg = String(err?.message || err || '').toLowerCase();
+    return msg.includes('quota') || msg.includes('exceeded') || msg.includes('rate limit') || msg.includes('429') || msg.includes('resource_exhausted');
+  };
+  const parseRetryDelayMs = (msg) => {
+    const m = String(msg || '').match(/retry in (\d+(?:\.\d+)?)s/i);
+    if (m) return Math.ceil(parseFloat(m[1]) * 1000) + 500;
+    return null;
+  };
+  const callAIWithQuotaRetry = (retriesLeft = 2) => callAI().catch((err) => {
+    if (retriesLeft <= 0) throw err;
+    if (!isQuotaError(err)) throw err;
+    const delay = parseRetryDelayMs(err?.message) || 20000;
+    console.warn(`[fetchAI] Rate limit Gemini, retry in ${delay}ms (${retriesLeft} retries restants)`);
+    return new Promise((r) => setTimeout(r, delay)).then(() => callAIWithQuotaRetry(retriesLeft - 1));
+  });
+  // Retry intelligent qualité : si le meilleur score < 85%, relancer
+  // l'IA (max 2 retries). Indépendant du retry quota ci-dessus.
   const RETRY_THRESHOLD = 85;
   const MAX_RETRIES = 2;
   const tryBest = (currentBest, retries) => {
     if (retries <= 0 || bestScoreOf(currentBest) >= RETRY_THRESHOLD) return Promise.resolve(currentBest);
-    return callAI().then((newResult) => tryBest(mergeBestResults(currentBest, newResult), retries - 1)).catch(() => currentBest);
+    return callAIWithQuotaRetry().then((newResult) => tryBest(mergeBestResults(currentBest, newResult), retries - 1)).catch(() => currentBest);
   };
-  return callAI().then((first) => tryBest(first, MAX_RETRIES));
+  return callAIWithQuotaRetry().then((first) => tryBest(first, MAX_RETRIES));
 }
 
 export default fetchAI;
