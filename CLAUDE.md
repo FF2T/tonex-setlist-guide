@@ -761,11 +761,11 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-25 lundi soir, Phase 7.55.7 — Refonte Setlists vue repliée + dépliée, 9 sessions S1-S9.7)
+## État actuel (2026-05-25/26, Phase 7.55.7 close — Refonte Setlists vue repliée + dépliée, 29 sessions S1-S9.15)
 
-**Backline v8.14.213 / SW backline-v313 / STATE_VERSION 11 / 1690 tests verts.**
+**Backline v8.14.220 / SW backline-v320 / STATE_VERSION 11 / 1690 tests verts.**
 
-### Récap session 2026-05-25 — Phase 7.55.7 refonte UX Setlists (~21 sous-phases livrées en prod)
+### Récap final Phase 7.55.7 — refonte UX Setlists (29 sous-phases livrées en prod sur 2 jours)
 
 Session marathon de refonte UX des 2 vues clés Setlists : **row playlist
 (vue repliée)** + **fiche dépliée (SongDetailCard)**. Cohérence visuelle,
@@ -796,7 +796,19 @@ les 2 vues. Toutes les sous-phases livrées en prod (refactor-and-tmp
 | S9.4 | Bumper fontSize desktop via clamp(11px, 1.25vw, 13px) | v8.14.211 |
 | S9.5 | Drop table Réglages pédale chiffrée (doublon row repliée) | v8.14.211 |
 | S9.6 | **Hotfix** : restaure texte why preset + tweaks + FX whys (S9.5 trop agressif) | v8.14.212 |
-| **S9.7** | **Cadres symétriques Scoring guitares/Scoring preset + Recommandations + drop doublon feedback** | **v8.14.213** |
+| S9.7 | Cadres symétriques Scoring guitares/Scoring preset + Recommandations + drop doublon feedback | v8.14.213 |
+
+#### Sessions S9.8-S9.15 (soirée 25/05 + 26/05) — Polish final fiche + Anthropic + amp réel
+
+| Session | Sujet | Version |
+|---|---|---|
+| S9.8 | Réordonnance Bloc 2 (Recos → Réglages EQ → Réglages effets → Scoring g. → Scoring p.) + rename + sub-params FX Phase 9.7 + feedback inline textarea | v8.14.214 |
+| S9.9 | Aligne taille pills slot/score (border transparente compensation) | v8.14.215 |
+| S9.10 | Bouton Fermer en fin + score compat à droite GuitarSelect + playing_hints intégré dans Recommandations | v8.14.216 |
+| S9.11 | Auto-fallback Anthropic admin (si profile.isAdmin + aiKeys.anthropic posée → force aiProvider='anthropic') | v8.14.217 |
+| S9.12 | 3 entrées Clé API distinctes Admin (partagée Firestore / Gemini perso / Anthropic perso) | v8.14.218 |
+| S9.13 + S9.14 | Affichage amp réel ("Marshall JCM800") vs preset name préfixé + row playlist sticky quand fiche dépliée | v8.14.219 |
+| **S9.15** | **Retire les guillemets autour des libellés amplis row playlist** | **v8.14.220** |
 
 ### Phase 7.55.7 S9.7 — Cadres symétriques + drop doublon feedback (v8.14.213)
 
@@ -826,59 +838,208 @@ feedback IA, celui du bas suffit."*
 3 nouvelles clés i18n EN/ES (`song-detail.scoring-preset`,
 `song-detail.recommendations`).
 
-### Architecture finale fiche dépliée post-S9.7
+### Phase 7.55.7 S9.8 — Réordonnance Bloc 2 + sub-params FX (v8.14.214)
+
+Nouvel ordre fiche dépliée demandé : `Header → Mon Setup →
+Recommandations → Réglages EQ → Réglages effets → Feedback →
+Scoring guitares → Scoring preset → Infos morceau`.
+
+#### 5 changements
+
+1. **Réordonnance Bloc 2** : Recommandations/Réglages EQ/Réglages
+   effets remontent en tête. Scoring guitares + Scoring preset
+   descendent après les réglages.
+2. **Rename** : "Réglages pédale" → **Réglages EQ** ;
+   "Effets activés" → **Réglages effets**.
+3. **Sub-params FX visibles** (Phase 9.7 Niveau 2) par bloc :
+   - Gate : Threshold dB · Release ms · Depth dB
+   - Comp : Threshold dB · Gain dB · Attack ms
+   - Mod : Rate Hz · Depth % · Level
+   - Delay : Mode · Time ms · Feedback % · Mix %
+   - Reverb : Time · Pre-delay ms · Color · Mix %
+4. **Feedback inline** : textarea + bouton "📤 Envoyer" remplace
+   l'ancien toggle [bouton "Donner feedback"] → [FeedbackPanel
+   modal]. Plus rapide à utiliser, pas besoin de cliquer pour
+   révéler le formulaire. Submit → push dans `song.feedback` +
+   relance fetchAI auto + reset du quickFeedback state.
+5. **+4 clés i18n EN/ES** : `eq-settings`, `fx-settings`,
+   `feedback-placeholder`, `feedback-send`.
+
+### Phase 7.55.7 S9.11 — Auto-fallback Anthropic admin (v8.14.217)
+
+Réponse au souci utilisateur "je consomme trop de crédits Gemini".
+Permet à l'admin de basculer ses analyses sur Anthropic (sa propre
+clé sk-ant-...) sans impacter les beta-testeurs.
+
+#### Logique
+
+- `main.jsx` ligne 950 : `aiProvider` n'est plus la valeur brute
+  du profil mais est dérivé :
+  ```js
+  const aiProvider = (profile?.isAdmin && aiKeys?.anthropic?.trim())
+    ? 'anthropic'
+    : (rawAiProvider || 'gemini');
+  ```
+  Si l'admin pose une clé Anthropic, elle est auto-utilisée.
+  Aucun toggle UI explicite (déterministe par présence de la clé).
+
+- `fetchAI.js` ligne 422 : routing provider réécrit pour respecter
+  le param `aiProvider` au lieu de la heuristique précédente
+  `provider = (aiKeys.gemini || defaultKey) ? 'gemini' : 'anthropic'`
+  qui IGNORAIT le param et préférait toujours Gemini.
+
+#### Conséquences
+
+- Sébastien admin avec clé `sk-ant-...` → ses analyses consomment
+  Anthropic → quota Gemini partagé préservé pour beta-testeurs.
+- Bruno/Francisco → aucun changement, restent sur Gemini partagée
+  (leur `profile.aiKeys.anthropic` est vide).
+- Aucune clé syncée Firestore (Phase 7.30 strip → reste local Mac).
+- Pré-calculs admin-switch (Phase 7.63) sur profil Bruno utilisent
+  toujours Gemini partagée (cohérent — Bruno aura les mêmes recos
+  qu'en autonomie).
+
+#### Limite
+
+**Anthropic API n'est pas inclus dans Claude.ai Pro/Max** : pour
+appeler `api.anthropic.com/v1/messages` depuis Backline (PWA
+browser), facturation API séparée, prépaiement minimum $5 sur
+console.anthropic.com. Alternative gratuite documentée Phase
+S9.12 : 2e clé Gemini sur projet Google Cloud séparé (free
+tier 1500 req/jour indépendant).
+
+### Phase 7.55.7 S9.12 — 3 entrées Clé API distinctes (v8.14.218)
+
+Tab Admin → 🔑 Clé API restructuré pour clarifier l'usage des
+3 clés. Avant : `aiKeys.gemini` servait à LA FOIS pour la clé
+perso ET pour celle à partager → confus.
+
+#### 3 sections séparées
+
+1. **🌐 Clé Gemini partagée (Firestore)** : nouveau state local
+   `sharedKeyInput` initialisé via `getSharedGeminiKey()` (singleton
+   shared-key.js posé au boot par `loadSharedKey()`). Bouton
+   "Mettre à jour la clé partagée" pousse à Firestore via
+   `onSaveSharedKey` + update local module.
+2. **🅖 Clé Gemini perso** (locale, `aiKeys.gemini`) : reste sur le
+   device (Phase 7.30 strip → jamais Firestore). Prend priorité
+   sur la clé partagée pour les analyses admin. Stratégie clé :
+   créer une 2e clé sur nouveau projet Google Cloud → free tier
+   indépendant 1500 req/jour pour l'admin, sans toucher au quota
+   partagé.
+3. **🅰 Clé Anthropic perso** (locale, `aiKeys.anthropic`) : reste
+   sur le device. S9.11 auto-force `aiProvider='anthropic'` si
+   présente.
+
+Bandeau "Modèle actif" enrichi avec badge type de clé utilisée :
+🅰 Anthropic perso / 🅖 Gemini perso / 🅖 Gemini partagée.
+
+### Phase 7.55.7 S9.13 + S9.14 + S9.15 — Affichage amp réel + header sticky (v8.14.219-220)
+
+Sébastien : *"je préfèrerais avoir le nom de l'ampli réel plutôt
+que le preset (ex : Marshall 800 SL Channel 1 Drive au lieu de
+TSR - Mars 800SL Chnl 1 Drive)"*.
+
+#### Changements
+
+- **S9.13** — `setlist-row-playlist.js` étendu avec champ
+  `ampLabel` via `findCatalogEntry(presetName)?.amp`. Fallback
+  null si preset unknown/guessed → display tombe sur `presetName`
+  comme avant (régression-safe).
+- **ListScreen.jsx** ligne 783 : `<span>{d.ampLabel || d.presetName}</span>`
+  avec `title` HTML montrant le presetName original si différent
+  (hover desktop / tap mobile).
+- **S9.14** — Row playlist devient `position: sticky; top: 60;
+  zIndex: 5` quand `isExpanded`. Reste visible en haut du scroll
+  → clic dessus replie sans devoir scroller en fin pour le bouton
+  "Fermer ↑". Tooltip "Clique sur le header pour replier la fiche."
+- **S9.15** — Retire les guillemets `"..."` autour du libellé.
+  Héritage legacy (citation d'identifiant technique) qui n'a plus
+  de sens avec l'amp name "lisible naturel" Marshall JCM800.
+
+### Architecture finale fiche dépliée post-S9.15
+
+Ordre final (modifié S9.8 + S9.10) :
 
 ```
-Bloc 3 — 🎸 Mon Setup (premier, swap S9.2)
-  • Sticky bandeau drop (S9.3) — GuitarSelect inline
-  • Compatibilité guitare choisie + reason (si pas top scoring)
+Header sticky : row playlist (S9.14) — clic pour replier
+Bloc 3 — 🎸 Mon Setup
+  • GuitarSelect avec score compat pill à DROITE (S9.10)
+  • outputContext buttons (Profil / FRFR / Casque / PA)
+  • Rappel "Sur ta {guitar} :" italique
+  • guitarChoiceFeedback (reason)
+  • localGuitarSettings fallback (si pas playing_hints)
+  • Mode reco avancé (replié, Phase 7.3)
 Bloc 2 — 🎯 Recommandations IA
-  • Cadre Scoring guitares (cot_step2_guitars filter rig)
+  • Cadre 💡 Recommandations (settings_preset + settings_guitar +
+    playing_hints intégré sous Guitare → ↳ pickup·tone·volume·stereo, S9.10)
+  • Cadre 🎛️ Réglages EQ (rename S9.8 ; why global preset_settings_v1 +
+    tweaks Phase 9.4)
+  • Cadre 🎚 Réglages effets (rename S9.8 ; FX blocks ON + sub-params
+    Phase 9.7 N2 : Threshold/Release/Depth/Time/Mix/etc.)
+  • Cadre Scoring guitares (descendu S9.8, cot_step2 filter rig)
   • Hors cadre : Guitare idéale (cas family boost Phase 7.64)
-  • Cadre Scoring preset (NOUVEAU S9.7 — wrap displayTopPreset + alts)
-  • Cadre 🎛️ Réglages pédale (why global + tweaks Phase 9.4)
-  • Cadre 💡 Recommandations (NOUVEAU S9.7 — wrap settings_preset + settings_guitar)
-  • FX blocks Phase 9.2
-Feedback IA (sticky drop S9.7, formulaire bas conservé)
-Bloc 1 — 📚 Infos morceau (dernier, déplacé S9.2)
+  • Cadre Scoring preset (descendu S9.8, wrap displayTopPreset + alts)
+Feedback IA inline (S9.8 : textarea + bouton 📤 Envoyer, plus de modal)
+Bloc 1 — 📚 Infos morceau (déplacé S9.2)
   • Titre + BPM/key + desc + history + cot_step1 + cot_step3_amp
+Bouton Fermer ↑ (déplacé en fin S9.10)
 ```
 
-### Architecture livrée Phase 7.55.7 (cumul session)
+### Architecture livrée Phase 7.55.7 (cumul session S1 → S9.15)
 
 ```
-src/main.jsx                              APP_VERSION 8.14.192 → 8.14.213
-public/sw.js                              CACHE backline-v292 → backline-v313
-src/app/screens/SongDetailCard.jsx        Refonte 3 blocs + 2 cadres
-                                          symétriques + drop sticky
-                                          feedback + drop table chiffrée
+src/main.jsx                              APP_VERSION 8.14.192 → 8.14.220
+                                          +aiProvider override admin S9.11
+                                          (anthropic auto si clé posée)
+public/sw.js                              CACHE backline-v292 → backline-v320
+src/app/screens/SongDetailCard.jsx        Refonte 3 blocs + cadres
+                                          symétriques + drop sticky/table
+                                          + S9.8 réordonnance + S9.10
+                                          score pill droite GuitarSelect
+                                          + playing_hints dans Recos
+                                          + bouton Fermer en fin
+                                          + S9.8 feedback inline textarea
 src/app/screens/ListScreen.jsx            Row playlist variante C
-src/app/utils/setlist-row-playlist.js     NOUVEAU — helper
-                                          getRowPlaylistData (18 tests)
+                                          + S9.13 ampLabel || presetName
+                                          + S9.14 sticky quand expanded
+                                          + S9.15 drop guillemets
+src/app/screens/AdminScreen.jsx           S9.12 — 3 sections Clé API
+                                          distinctes (partagée Firestore /
+                                          Gemini perso / Anthropic perso)
+                                          + bandeau modèle actif enrichi
+src/app/utils/setlist-row-playlist.js     NOUVEAU — helper getRowPlaylistData
+                                          + S9.13 champ ampLabel via
+                                          findCatalogEntry (19 tests)
 src/app/utils/setlist-row-extras.js       NOUVEAU — formatRowPotardsFX
 src/app/utils/ai-error-helper.js          NOUVEAU — classifyAIError +
                                           getAIErrorMessage trilingual
+src/app/utils/fetchAI.js                  S9.11 — routing provider
+                                          respecte aiProvider explicite
+                                          (avant : forçait Gemini si clé
+                                          dispo, ignorait Anthropic)
 src/app/components/AIErrorPanel.jsx       NOUVEAU
 src/app/styles/tokens.js                  NOUVEAU — mini design-system
 src/index.html                            CSS Grid row playlist
-                                          (.songrow-pl-meta-grid +
-                                          .songrow-pl-device-line)
                                           + tuiles Explorer 3 cols
-                                          + overflow-x: clip (vs hidden)
-                                          pour ne pas casser sticky
-src/i18n/en.js, es.js                     +clés scoring-preset,
-                                          recommendations
+                                          + overflow-x: clip
+                                          + S9.9 score pill border
+                                          transparent (= taille slot)
+src/i18n/en.js, es.js                     +scoring-preset, recommendations
+                                          +eq-settings, fx-settings
+                                          +feedback-placeholder, feedback-send
 ```
 
 ### Conséquences Phase 7.55.7
 
 - **1690/1690 tests verts** (+10 nouveaux vs Phase 7.74.10 : helpers
-  row playlist, ai-error, tokens).
-- Bundle 2625 → 2635 KB (+10 KB pour helpers + cadres + i18n).
-- **Pas de bump STATE_VERSION** (purement UI).
+  row playlist, ai-error, tokens ; +1 test ampLabel S9.13).
+- Bundle 2625 → 2638 KB (+13 KB cumul refonte fiche + helpers +
+  i18n + 3 entrées Admin).
+- **Pas de bump STATE_VERSION** (purement UI + routing IA + helper).
 - **Pas de migration localStorage**.
-- **Toutes les sous-phases déployées en prod** sur GitHub Pages via
-  worktree main.
+- **29 sous-phases déployées en prod** sur GitHub Pages via worktree
+  main (v8.14.192 → v8.14.220, SW v292 → v320).
 
 ### Validation cible utilisateur
 
@@ -898,13 +1059,20 @@ src/i18n/en.js, es.js                     +clés scoring-preset,
 - **Test E2E SongDetailCard** : non couvert par Vitest (rendering
   React complexe avec aiCache mock). Smoke test manuel post-déploiement
   obligatoire.
-- **2 boutons feedback `data-testid` orphelins** : `sticky-feedback-toggle`
-  a été retiré du DOM mais les clés i18n `song-detail.sticky-feedback`
-  + `.sticky-feedback-tooltip` restent. Cleanup mineur à grignoter.
+- **Clés i18n orphelines** : `song-detail.sticky-feedback` + `.sticky-feedback-tooltip`
+  (sticky bandeau retiré S9.7) + `song-detail.compat`/`estimated` (ligne
+  compat retirée S9.10) restent dans les dicts EN/ES. Cleanup mineur à
+  grignoter.
 - **Helper extraction props SongDetailCard** : le composant fait
-  ~890 lignes après S9.6. Decoupage possible (SongDetailHeader,
-  SongDetailScoring, SongDetailRecommendations, SongDetailInfo) si
-  test E2E nécessaire à l'avenir.
+  ~890 lignes. Decoupage possible (SongDetailHeader, SongDetailScoring,
+  SongDetailRecommendations, SongDetailInfo) si test E2E nécessaire.
+- **S9.11 (Anthropic admin) inerte** tant que pas de clé `sk-ant-...`
+  posée. Sébastien a choisi alternative gratuite : 2e clé Gemini sur
+  nouveau projet Google Cloud → free tier 1500 req/jour indépendant
+  du quota partagé. Setup manuel utilisateur (non automatisable).
+- **Modèle Anthropic** : actuellement `claude-haiku-4-5-20251001`
+  (le plus rapide/abordable). Sonnet ou Opus si signal qualité
+  insuffisante.
 
 ---
 
