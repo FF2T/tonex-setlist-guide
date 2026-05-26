@@ -475,6 +475,10 @@ Contraintes :
   // on l'utilise ; sinon fallback 20s. Max 2 retries quota (40s max).
   const isQuotaError = (err) => {
     const msg = String(err?.message || err || '').toLowerCase();
+    // S9.18 — Ne PAS retry sur spend cap / billing : erreur permanente,
+    // pas transient. Retry serait inutile et masquerait le problème
+    // pendant 40s. Diffère du rate limit RPM qui se résout en 15s.
+    if (msg.includes('spending cap') || msg.includes('spend cap') || msg.includes('billing') || msg.includes('payment')) return false;
     return msg.includes('quota') || msg.includes('exceeded') || msg.includes('rate limit') || msg.includes('429') || msg.includes('resource_exhausted');
   };
   const parseRetryDelayMs = (msg) => {
