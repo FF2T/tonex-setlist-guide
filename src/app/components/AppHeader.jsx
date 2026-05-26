@@ -62,7 +62,9 @@ function AppHeader({ profiles, activeProfileId, onProfile, onSwitch, onViewProfi
       <div className="nav-desktop" style={{ display: 'none', gap: 4, marginBottom: 12 }}>
         {visibleNav.map((item) => {
           const active = screen === item.id;
-          return <button key={item.id} onClick={() => { onNavigate(item.id); }} style={{ background: active ? 'var(--accent-soft,rgba(129,140,248,0.1))' : 'transparent', border: active ? '1px solid var(--border-accent,rgba(129,140,248,0.3))' : '1px solid transparent', color: active ? 'var(--accent,#818cf8)' : 'var(--text-tertiary,var(--text-muted))', borderRadius: 'var(--r-md,8px)', padding: '6px 12px', fontSize: 12, fontWeight: active ? 700 : 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}><NavIcon id={item.id} size={16}/>{item.label}</button>;
+          // S9.16 audit Cowork : minHeight 44 (iOS HIG) + padding/fontSize bumpés
+          // pour lisibilité desktop (clamp evite hardcode tablette).
+          return <button key={item.id} onClick={() => { onNavigate(item.id); }} style={{ minHeight: 44, background: active ? 'var(--accent-soft,rgba(129,140,248,0.1))' : 'transparent', border: active ? '1px solid var(--border-accent,rgba(129,140,248,0.3))' : '1px solid transparent', color: active ? 'var(--accent,#818cf8)' : 'var(--text-tertiary,var(--text-muted))', borderRadius: 'var(--r-md,8px)', padding: '10px 16px', fontSize: 'clamp(12px, 1.25vw, 14px)', fontWeight: active ? 700 : 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}><NavIcon id={item.id} size={18}/>{item.label}</button>;
         })}
       </div>
     </div>

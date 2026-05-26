@@ -145,7 +145,14 @@
      comme DemoBanner Phase 7.51.3. hidden crée un contexte d'overflow
      qui casse sticky par rapport au viewport. clip empêche le débordement
      horizontal sans établir ce contexte. Safari 16+ / Chrome 90+ / FF 81+. */
-  .page-root{padding:var(--s-3);max-width:700px;margin:0 auto;overflow-x:clip;word-break:break-word}
+  /* S9.16 (audit Cowork 26/05) — overflow-x:clip RETIRÉ : créait un
+     containing block qui invalidait position:sticky sur les descendants
+     (Chrome 90+/Safari 16+). Conséquence : la row playlist sticky S9.14
+     se détachait au scroll (top devenait négatif). word-break:break-word
+     suffit pour gérer les longs mots sans overflow horizontal. Si overflow
+     horizontal ré-apparaît sur un sous-élément, le scoper individuellement
+     (ex : max-width:100% sur DemoBanner). */
+  .page-root{padding:var(--s-3);max-width:700px;margin:0 auto;word-break:break-word}
   @media(min-width:400px){.page-root{padding:var(--s-4)}}
   @media(min-width:640px){.page-root{padding:var(--s-5)}}
 
@@ -327,6 +334,13 @@
     .song-detail-sticky{padding:12px 16px !important}
   }
 
+  /* S9.16 audit Cowork — bump pills sur tablet (640-1023) avant le
+     palier desktop pour gagner en lisibilité dès iPad portrait. */
+  @media(min-width:640px){
+    .songrow-pl-slot-pill{font-size:11px;padding:3px 8px}
+    .songrow-pl-score-pill-inline{font-size:11px;padding:3px 8px}
+    .songrow-pl-topscore-pill{font-size:15px;padding:4px 11px}
+  }
   @media(min-width:1024px){
     .songrow-playlist{padding:16px 20px}
     .songrow-pl-row{gap:18px}

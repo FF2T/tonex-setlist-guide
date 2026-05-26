@@ -32,7 +32,7 @@ function SetlistsScreen({
   );
   const [tab, setTab] = useState('setlists');
   const tabBtn = (id, label) => (
-    <button onClick={() => setTab(id)} style={{ background: tab === id ? 'var(--accent-bg)' : 'var(--a5)', border: tab === id ? '1px solid var(--accent-border)' : '1px solid var(--a8)', color: tab === id ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '7px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{label}</button>
+    <button onClick={() => setTab(id)} style={{ minHeight: 44, background: tab === id ? 'var(--accent-bg)' : 'var(--a5)', border: tab === id ? '1px solid var(--accent-border)' : '1px solid var(--a8)', color: tab === id ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '10px 16px', fontSize: 'clamp(12px, 1.25vw, 14px)', fontWeight: 600, cursor: 'pointer' }}>{label}</button>
   );
 
   // Songs tab state
