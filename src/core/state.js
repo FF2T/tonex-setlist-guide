@@ -61,7 +61,7 @@ import {
 import demoSnapshot from '../data/demo-profile.json';
 
 // ─── Versioning + clés localStorage ──────────────────────────────────
-const STATE_VERSION = 11;
+const STATE_VERSION = 12;
 const LOCALE_KEY = 'backline_locale'; // Phase 7.49 — fallback pour migrateV7toV8
 const TOMBSTONE_MAX_AGE_MS = 30 * 24 * 3600 * 1000;
 const LS_KEY = 'tonex_guide_v2';        // nom historique stable
@@ -640,6 +640,68 @@ function migrateV10toV11(state) {
   };
 }
 
+// Phase 7.74.10 (2026-05-26) — Pollution profile résiduelle : la défense
+// `banksModified` Phase 7.74.9 a fermé le canal banks, mais d'autres
+// champs LWW globaux restaient adoptés en bloc dès que
+// `remote.lastModified > local.lastModified`. Cas observé : Sébastien
+// constate sa langue qui repasse de FR → EN involontairement, parce
+// qu'un device dormant (iPhone ou Safari Mac jamais réveillé depuis
+// longtemps) a `language: en` + `lastModified` qui devient plus récent
+// à un moment (par n'importe quelle écriture innocente) → push gagne le
+// LWW global → Mac adopte `en`. Phase 7.74.4 garde-fou `delta < 60s` ne
+// suffit pas : au-delà de 60s, adoption inconditionnelle.
+//
+// Fix : pattern Phase 7.74.9 étendu à 3 champs sensibles supplémentaires
+// avec leur propre timestamp dédié :
+//   - `languageModified` : stamp à chaque changement de langue (Mon
+//     Profil → Affichage). Le merge n'adopte la langue remote que si
+//     `remote.languageModified > local.languageModified`.
+//   - `enabledDevicesModified` : stamp au toggle device (Mes appareils).
+//     Empêche un device dormant avec une vieille liste de toggles
+//     d'écraser le profil actif.
+//   - `availableSourcesModified` : stamp au toggle source (Mes sources).
+//     Empêche un device dormant avec d'anciennes sources de pré-cocher
+//     ou décocher silencieusement.
+//
+// Backfill à 0 pour tous les profils existants : état neutre, aucun
+// appareil ne gagne tant qu'aucun n'a fait d'édition réelle
+// post-migration. Première édition (qui stamp `Date.now()`) propage
+// correctement.
+//
+// Idempotente : sur un state déjà v12 avec les 3 champs présents → no-op.
+
+function ensureProfileV12(profile) {
+  if (!profile) return profile;
+  const v11 = ensureProfileV11(profile);
+  const needsLang = typeof v11.languageModified !== 'number';
+  const needsDev = typeof v11.enabledDevicesModified !== 'number';
+  const needsSrc = typeof v11.availableSourcesModified !== 'number';
+  if (!needsLang && !needsDev && !needsSrc) return v11;
+  return {
+    ...v11,
+    languageModified: needsLang ? 0 : v11.languageModified,
+    enabledDevicesModified: needsDev ? 0 : v11.enabledDevicesModified,
+    availableSourcesModified: needsSrc ? 0 : v11.availableSourcesModified,
+  };
+}
+function ensureProfilesV12(profiles) {
+  if (!profiles) return profiles;
+  const out = {};
+  for (const [id, p] of Object.entries(profiles)) {
+    out[id] = ensureProfileV12(p);
+  }
+  return out;
+}
+
+function migrateV11toV12(state) {
+  if (!state) return state;
+  return {
+    ...state,
+    version: 12,
+    profiles: ensureProfilesV12(state.profiles),
+  };
+}
+
 // Phase 7.54 — Helper lookup aiCache (priorité profile.aiCache, fallback
 // shared.songDb[i].aiCache). Exposé pour la dérivation
 // songDbWithProfileCache au niveau App + pour les call sites isolés.
@@ -852,9 +914,19 @@ function stampedProfileUpdate(profiles, profileId, partial) {
   if (!cur) return profiles;
   const resolved = typeof partial === 'function' ? partial(cur) : partial;
   if (resolved == null || typeof resolved !== 'object') return profiles;
+  const now = Date.now();
+  const stamped = { ...cur, ...resolved, lastModified: now };
+  // Phase 7.74.9 + 7.74.10 — stamps dédiés des champs sensibles écrits
+  // dans `partial`. Le merge LWW utilise ces timestamps pour décider
+  // de l'adoption per-field sans se laisser piéger par un
+  // `lastModified` global gonflé par une autre écriture innocente.
+  if ('banksAnn' in resolved || 'banksPlug' in resolved) stamped.banksModified = now;
+  if ('language' in resolved) stamped.languageModified = now;
+  if ('enabledDevices' in resolved) stamped.enabledDevicesModified = now;
+  if ('availableSources' in resolved) stamped.availableSourcesModified = now;
   return {
     ...profiles,
-    [profileId]: { ...cur, ...resolved, lastModified: Date.now() },
+    [profileId]: stamped,
   };
 }
 
@@ -1091,16 +1163,51 @@ function mergeProfileLWW(local, remote, options = {}) {
     merged.myGuitars = remoteGuitars;
   }
 
-  // ── language : keep local si delta stamp < 60s (Phase 7.74.4 — élargi
-  //    de 5s à 60s pour couvrir les cycles sync espacés observés
-  //    2026-05-19 soir où la langue passait FR → EN involontairement
-  //    via merge LWW grossier). Anti-cycle : le user ne change pas sa
-  //    langue 2× en 60s. ──
-  if (local.language && remote.language && local.language !== remote.language) {
-    if (rts - lts < 60000) {
-      debugLog(`SUSPECT language conflict short delta (${rts - lts}ms) : ${local.language} → ${remote.language} — keeping local`, { local: local.language, remote: remote.language });
-      merged.language = local.language;
+  // ── Phase 7.74.10 — LWW per-field via timestamps dédiés ──
+  //    language / enabledDevices / availableSources : adopt remote
+  //    UNIQUEMENT si `remote.{field}Modified > local.{field}Modified`.
+  //    Sinon keep local. Stamp posé seulement lors d'une édition réelle
+  //    via setProfileField (main.jsx) ou _profileLanguageUpdater (i18n).
+  //
+  //    Phase 7.74.4 garde-fou language `delta < 60s` retiré : c'était un
+  //    filet large et trop court — un device dormant avec un vieux
+  //    `lastModified` plus récent que 60s passait quand même. Le
+  //    timestamp dédié est strict et précis (seule une édition réelle
+  //    propage).
+  const langFieldsLWW = [
+    { name: 'language', tsField: 'languageModified' },
+    { name: 'enabledDevices', tsField: 'enabledDevicesModified' },
+    { name: 'availableSources', tsField: 'availableSourcesModified' },
+  ];
+  for (const f of langFieldsLWW) {
+    const lts_f = typeof local[f.tsField] === 'number' ? local[f.tsField] : 0;
+    const rts_f = typeof remote[f.tsField] === 'number' ? remote[f.tsField] : 0;
+    const remoteWins = rts_f > lts_f;
+    const localVal = local[f.name];
+    const remoteVal = remote[f.name];
+    // Comparaison superficielle pour le log : strings compare direct,
+    // arrays/objets via JSON.stringify (acceptable, peu de données).
+    let differ = false;
+    if (typeof localVal === 'string' || typeof remoteVal === 'string') {
+      differ = localVal !== remoteVal;
+    } else {
+      try { differ = JSON.stringify(localVal) !== JSON.stringify(remoteVal); }
+      catch (_e) { differ = true; }
     }
+    if (remoteWins) {
+      // Adopte remote (déjà dans merged via spread).
+      if (differ) {
+        debugLog(`${f.name} ADOPTED : remote.${f.tsField}=${rts_f} > local=${lts_f}`, { local: localVal, remote: remoteVal });
+      }
+    } else {
+      // Keep local (override la valeur remote injectée par {...remote}).
+      merged[f.name] = localVal;
+      if (differ) {
+        debugLog(`${f.name} BLOCKED : remote.${f.tsField}=${rts_f} <= local=${lts_f} — keeping local`, { local: localVal, remote: remoteVal });
+      }
+    }
+    // Stamp du merged = max pour éviter oscillation à la prochaine sync.
+    merged[f.tsField] = Math.max(lts_f, rts_f);
   }
 
   // ── customGuitars : union par id, LWW remote gagne si conflit ──
@@ -1179,12 +1286,12 @@ function mergeProfilesLWW(localProfiles, remoteProfiles, options = {}) {
       const localGuitarSet = guitarsByProfile[id] || new Set();
       for (const g of localGuitarSet) otherProfilesGuitars.delete(g);
       const merged = mergeProfileLWW(lp, adoptedRemote, { ...options, otherProfilesGuitars });
-      out[id] = ensureProfileV11(merged || lp);
+      out[id] = ensureProfileV12(merged || lp);
     } else if (lp) {
-      out[id] = ensureProfileV11(lp);
+      out[id] = ensureProfileV12(lp);
     } else if (rp) {
       const adopted = applySecrets ? applySecrets({ [id]: rp })[id] : rp;
-      out[id] = ensureProfileV11(adopted);
+      out[id] = ensureProfileV12(adopted);
     }
   }
   return out;
@@ -1373,6 +1480,10 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
       // Phase 7.74.9 — timestamp dédié aux banks (0 = neutre, sera
       // stampé Date.now() à la première édition réelle via setProfileField).
       banksModified: 0,
+      // Phase 7.74.10 — timestamps dédiés language/enabledDevices/availableSources (0 = neutre).
+      languageModified: 0,
+      enabledDevicesModified: 0,
+      availableSourcesModified: 0,
       recoMode: 'balanced',
       guitarBias: {},
       // Phase 10 — contexte d'écoute (default 'frfr', cf OUTPUT_CONTEXTS).
@@ -1402,6 +1513,10 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
     lastModified: Date.now(),
     // Phase 7.74.9 — timestamp dédié aux banks (0 = neutre).
     banksModified: 0,
+    // Phase 7.74.10 — timestamps dédiés language/enabledDevices/availableSources (0 = neutre).
+    languageModified: 0,
+    enabledDevicesModified: 0,
+    availableSourcesModified: 0,
     recoMode: 'balanced',
     guitarBias: {},
     // Phase 10 — contexte d'écoute (default 'frfr', cf OUTPUT_CONTEXTS).
@@ -1826,8 +1941,10 @@ function _runFullChain(d) {
   const v10 = migrateV9toV10(v9);
   // Phase 7.74.9 — v10 → v11 : timestamp dédié banks.
   const v11 = migrateV10toV11(v10);
-  if (v11 && v11.shared && v11.shared.deletedSetlistIds) {
-    v11.shared = { ...v11.shared, deletedSetlistIds: gcTombstones(v11.shared.deletedSetlistIds) };
+  // Phase 7.74.10 — v11 → v12 : timestamps dédiés language/enabledDevices/availableSources.
+  const v12 = migrateV11toV12(v11);
+  if (v12 && v12.shared && v12.shared.deletedSetlistIds) {
+    v12.shared = { ...v12.shared, deletedSetlistIds: gcTombstones(v12.shared.deletedSetlistIds) };
   }
   // Phase 7.52.9 — Heal défensif au load : retire 'demo' des profileIds
   // des setlists non-démo (pollution Firestore historique, cf
@@ -1836,7 +1953,7 @@ function _runFullChain(d) {
   // au boot. Sinon Mac+iPhone stamperaient chacun au boot → loop LWW
   // infinie → sync cassée. Le stamp se fait seulement au push Firestore
   // (saveToFirestore.prep) pour propager le clean correctement.
-  return stripDemoFromSetlists(v11, { stamp: false });
+  return stripDemoFromSetlists(v12, { stamp: false });
 }
 
 function loadState() {
@@ -1845,6 +1962,7 @@ function loadState() {
     if (raw) {
       const d = JSON.parse(raw);
       if (d.version === STATE_VERSION) return _runFullChain(d);
+      if (d.version === 11) return _runFullChain(d);
       if (d.version === 10) return _runFullChain(d);
       if (d.version === 9) return _runFullChain(d);
       if (d.version === 8) return _runFullChain(d);
@@ -2527,6 +2645,7 @@ export {
   stampedProfileUpdate,
   ensureProfileV10, ensureProfilesV10, migrateV9toV10, getProfileAiCache,
   ensureProfileV11, ensureProfilesV11, migrateV10toV11,
+  ensureProfileV12, ensureProfilesV12, migrateV11toV12,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,
   toggleSetlistProfile,

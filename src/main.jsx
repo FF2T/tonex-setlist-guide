@@ -277,7 +277,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.225";
+const APP_VERSION = "8.14.226";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -761,7 +761,12 @@ export function App() {
       setProfiles((p) => {
         const cur = p[activeProfileId]; if (!cur) return p;
         if (cur.language === loc) return p;
-        return { ...p, [activeProfileId]: { ...cur, language: loc, lastModified: Date.now() } };
+        // Phase 7.74.10 — stamp `languageModified` en plus du `lastModified`
+        // global. Le merge LWW utilise ce timestamp dédié pour décider
+        // d'adopter ou non la langue remote, sans se laisser piéger par
+        // un `lastModified` global gonflé par une autre écriture.
+        const now = Date.now();
+        return { ...p, [activeProfileId]: { ...cur, language: loc, lastModified: now, languageModified: now } };
       });
     });
     return () => setProfileLanguageUpdater(null);
@@ -867,6 +872,8 @@ export function App() {
   // sont modifiés. Le merge LWW utilise ce timestamp dédié pour décider
   // d'adopter ou non les banks remote, sans se laisser piéger par un
   // `lastModified` global gonflé par une autre écriture.
+  // Phase 7.74.10 — étend le pattern aux champs language / enabledDevices /
+  // availableSources via leurs timestamps dédiés respectifs.
   const setProfileField = (field, value) => {
     setProfiles(p => {
       const cur = p[activeProfileId];
@@ -876,6 +883,12 @@ export function App() {
       const next = {...cur, [field]: resolved, lastModified: now};
       if (field === 'banksAnn' || field === 'banksPlug') {
         next.banksModified = now;
+      } else if (field === 'language') {
+        next.languageModified = now;
+      } else if (field === 'enabledDevices') {
+        next.enabledDevicesModified = now;
+      } else if (field === 'availableSources') {
+        next.availableSourcesModified = now;
       }
       return {...p, [activeProfileId]: next};
     });

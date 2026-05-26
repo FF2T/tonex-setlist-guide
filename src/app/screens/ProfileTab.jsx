@@ -35,7 +35,19 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
   const [editGBrand, setEditGBrand] = useState('');
   const [imgErr, setImgErr] = useState(null);
 
-  const updateProfile = (field, value) => onProfiles((p) => ({ ...p, [activeProfileId]: { ...p[activeProfileId], [field]: typeof value === 'function' ? value(p[activeProfileId][field]) : value, lastModified: Date.now() } }));
+  const updateProfile = (field, value) => onProfiles((p) => {
+    const cur = p[activeProfileId];
+    if (!cur) return p;
+    const resolved = typeof value === 'function' ? value(cur[field]) : value;
+    const now = Date.now();
+    const next = { ...cur, [field]: resolved, lastModified: now };
+    // Phase 7.74.10 — stamps dédiés des champs LWW sensibles
+    if (field === 'availableSources') next.availableSourcesModified = now;
+    else if (field === 'enabledDevices') next.enabledDevicesModified = now;
+    else if (field === 'language') next.languageModified = now;
+    else if (field === 'banksAnn' || field === 'banksPlug') next.banksModified = now;
+    return { ...p, [activeProfileId]: next };
+  });
 
   const toggleGuitar = (id) => {
     updateProfile('myGuitars', (prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);

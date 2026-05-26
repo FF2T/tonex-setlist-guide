@@ -23,6 +23,7 @@
 | 6 | **2026-05-21** | **Sébastien** | **`banksAnn` + `banksPlug` + `language`** | 79/150 slots Ann + 7/30 Plug révertés vers une version périmée, langue FR→EN, propagé Mac+iPhone | **✅ CAUSE RACINE TROUVÉE → Phase 7.74.7** |
 | 7 | **2026-05-21** | **Sébastien** | **`banksAnn` + `banksPlug`** | ~79 slots Ann + 7 slots Plug révertés, propagé Mac↔iPhone — MALGRÉ le fix 7.74.7 déployé (v8.14.157) | **✅ 2e CAUSE RACINE TROUVÉE → Phase 7.74.8** |
 | 8 | **2026-05-21 soir** | **Sébastien** | **`banksAnn` + `banksPlug`** | 79/150 slots Ann révertés (23C vidé — signature occ #5), Mac ET iPhone corrompus — MALGRÉ 7.74.7 + 7.74.8 déployés (v8.14.162). Forensique : 3× `banksAnn mass-change` adoptés en bloc (15:52, 16:29, 20:25) | **✅ Phase 7.74.9 LIVRÉE (v8.14.164, STATE_VERSION 11) — timestamp dédié `banksModified` + hardening aiCache** |
+| 9 | **2026-05-26** | **Sébastien** | **`language`** | Mac repassait régulièrement FR → EN. Banks intactes (Phase 7.74.9 tient). Forensique : pas de log dédié language (garde-fou délai 60s Phase 7.74.4 inopérant au-delà). | **✅ Phase 7.74.10 LIVRÉE (v8.14.226, STATE_VERSION 12) — timestamps dédiés `languageModified` / `enabledDevicesModified` / `availableSourcesModified` (pattern Phase 7.74.9 étendu)** |
 
 **Pattern commun** : le profil Sébastien (admin) perd des données qui
 sont remplacées par celles d'un autre profil (Francisco, Bruno, curateur
@@ -394,6 +395,62 @@ récupération + 9 autres cas.
 **Récupération** : Mac + iPhone tous deux corrompus → aucune copie
 saine en mémoire. Restauration depuis snapshot manuel (Phase 7.59) ou
 `ToneX_Anniversary_ref.csv` / `ToneX_Plug_ref.csv`.
+
+### Session 4 — 2026-05-26 (occurrence #9, capture live Mac)
+
+**Pattern Phase 7.74.9 étendu — `language` était la prochaine
+victime.**
+
+Occurrence #9 : Sébastien constate que sa langue Mac repasse
+régulièrement FR → EN, alors que Mac est nominalement en FR.
+
+**Capture forensique** (`localStorage` Mac, profil Sébastien,
+2026-05-26 20:30) :
+- `language: fr`, `banksModified: 23/05/2026 12:14:55`, banks 150/150
+  intactes → **Phase 7.74.9 tient** côté banks.
+- 50 merge logs en cache, 3 récents (16:29:21) montrent :
+  - `banksAnn mass-change BLOCKED : remote.banksModified=0 <=
+    local.banksModified=1779531295620, 79 slots préservés en local`
+    → un device dormant continue à pousser un état pré-v11.
+  - `orphan-cross-profile` détecté + filtré (sg61, sire_t7).
+  - `swap pattern cg_*→standard` détecté.
+- Mais aucun log dédié pour `language`. Le garde-fou Phase 7.74.4
+  (`delta < 60s` → keep local) est inopérant au-delà — un device
+  dormant qui a `language: en` + `lastModified` plus récent que 60s
+  passe au-dessus.
+
+**Cause racine confirmée** : `language` n'avait pas de timestamp
+dédié (contrairement à `banksModified` Phase 7.74.9). Le merge LWW
+adoptait `language` remote dès que `remote.lastModified >
+local.lastModified` (au-delà du délai 60s), même quand le device
+remote n'avait jamais changé sa langue mais avait juste fait une
+écriture innocente qui re-stampait son `lastModified`.
+
+**Fix livré — Phase 7.74.10** (v8.14.226, STATE_VERSION 12) :
+1. 3 nouveaux timestamps dédiés : `languageModified`,
+   `enabledDevicesModified`, `availableSourcesModified` (champs LWW
+   sensibles qui peuvent être manipulés involontairement par cycle
+   de sync entre devices dormants).
+2. `mergeProfileLWW` étendu : adopte chacun de ces champs UNIQUEMENT
+   si `remote.{field}Modified > local.{field}Modified`. Sinon keep
+   local. Log forensique ADOPTED/BLOCKED.
+3. `setProfileField` (main.jsx) + `stampedProfileUpdate` (state.js)
+   + `_profileLanguageUpdater` (i18n) + `ProfileTab.updateProfile`
+   stampent automatiquement le timestamp dédié selon le field écrit.
+4. Garde-fou Phase 7.74.4 `delta < 60s` pour `language` retiré
+   (devenu redondant avec le timestamp dédié, et trop court de toute
+   façon).
+5. Migration `migrateV11toV12` backfill les 3 timestamps à 0 pour
+   tous profils existants (état neutre, aucun appareil ne gagne
+   tant qu'aucun n'a fait d'édition réelle post-migration).
+6. 7 nouveaux tests Vitest dédiés + 2 tests legacy retirés.
+
+**Pattern complet désormais** : `banksAnn`/`banksPlug` (Phase
+7.74.9) + `language`/`enabledDevices`/`availableSources` (Phase
+7.74.10) sont tous protégés par leur propre timestamp dédié. Seul
+une édition réelle propage la modification entre devices. Un device
+dormant qui re-stampe son `lastModified` pour une raison innocente
+ne peut plus écraser ces 5 champs.
 
 ## Liens
 

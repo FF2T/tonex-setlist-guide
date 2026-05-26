@@ -17,6 +17,7 @@ import {
   stampedProfileUpdate,
   ensureProfileV10, ensureProfilesV10, migrateV9toV10, getProfileAiCache,
   ensureProfileV11, ensureProfilesV11, migrateV10toV11,
+  ensureProfileV12, ensureProfilesV12, migrateV11toV12,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,
   toggleSetlistProfile,
@@ -32,8 +33,8 @@ import {
 } from './state.js';
 
 describe('STATE_VERSION', () => {
-  test('vaut 11 en Phase 7.74.9 (timestamp dédié banks)', () => {
-    expect(STATE_VERSION).toBe(11);
+  test('vaut 12 en Phase 7.74.10 (timestamps dédiés language/enabledDevices/availableSources)', () => {
+    expect(STATE_VERSION).toBe(12);
   });
 });
 
@@ -1629,9 +1630,11 @@ describe('mergeToneNetPresetsLWW — Phase 7.53.2 (tombstones)', () => {
 
 describe('mergeProfilesLWW — Phase 5.7', () => {
   test('LWW per-profile + applySecrets sur remote adopté', () => {
+    // Phase 7.74.10 — adoption d'enabledDevices désormais gated par
+    // enabledDevicesModified. Donc côté remote stampé > local.
     const t = Date.now();
-    const localP = { sebastien: { id: 'sebastien', name: 'Seb local', enabledDevices: ['tonex-anniversary'], aiKeys: { gemini: 'LOCAL_KEY' }, lastModified: t - 1000 } };
-    const remoteP = { sebastien: { id: 'sebastien', name: 'Seb remote', enabledDevices: ['tonex-anniversary', 'tonex-plug'], aiKeys: { gemini: '' }, lastModified: t } };
+    const localP = { sebastien: { id: 'sebastien', name: 'Seb local', enabledDevices: ['tonex-anniversary'], enabledDevicesModified: t - 2000, aiKeys: { gemini: 'LOCAL_KEY' }, lastModified: t - 1000 } };
+    const remoteP = { sebastien: { id: 'sebastien', name: 'Seb remote', enabledDevices: ['tonex-anniversary', 'tonex-plug'], enabledDevicesModified: t - 500, aiKeys: { gemini: '' }, lastModified: t } };
     const applySecrets = (profiles) => {
       const out = {};
       for (const [id, p] of Object.entries(profiles)) {
@@ -2213,7 +2216,7 @@ describe('buildDemoSnapshot (Phase 7.51.4)', () => {
 
   test('format compatible loadDemoSnapshot (version + 4 clés)', () => {
     const snap = buildDemoSnapshot(sampleProfile, sampleSetlists, sampleSongs);
-    expect(snap.version).toBe(11);
+    expect(snap.version).toBe(12);
     expect(snap).toHaveProperty('profile');
     expect(snap).toHaveProperty('setlists');
     expect(snap).toHaveProperty('songs');
@@ -3183,18 +3186,19 @@ describe('mergeProfileLWW — Phase 7.74 Couche 2 (per-field) + 3 (defense)', ()
     expect(out.myGuitars).toEqual(['a', 'b', 'c']);
   });
 
-  test('language conflict short delta < 60s → keep local (Phase 7.74.4 élargi de 5s à 60s)', () => {
+  test('Phase 7.74.10 — language adoption gated par languageModified, pas par delta (legacy delta 60s retiré)', () => {
+    // Sans timestamps dédiés, pas d'adoption (les deux à 0 → keep local).
     const local = { id: 'seb', lastModified: 1000, language: 'fr' };
-    const remote = { id: 'seb', lastModified: 3000, language: 'en' }; // delta 2s
+    const remote = { id: 'seb', lastModified: 3000, language: 'en' };
     const out = mergeProfileLWW(local, remote);
     expect(out.language).toBe('fr');
   });
 
-  test('language conflict long delta > 60s → adopt remote', () => {
-    const local = { id: 'seb', lastModified: 1000, language: 'fr' };
-    const remote = { id: 'seb', lastModified: 100000, language: 'en' }; // delta 99s
+  test('Phase 7.74.10 — language adopté SEULEMENT si remote.languageModified > local.languageModified', () => {
+    const local = { id: 'seb', lastModified: 1000, language: 'fr', languageModified: 100 };
+    const remote = { id: 'seb', lastModified: 100000, language: 'en', languageModified: 200 };
     const out = mergeProfileLWW(local, remote);
-    expect(out.language).toBe('en');
+    expect(out.language).toBe('en'); // remote.languageModified (200) > local (100) → adopté
   });
 
   test('customGuitars : union par id, remote overwrite si conflit', () => {
@@ -3555,53 +3559,153 @@ describe('mergeProfileLWW — Phase 7.74.4 swap suspect cg_*→standard', () => 
   });
 });
 
-describe('mergeProfileLWW — Phase 7.74.4 language delta élargi 5s → 60s', () => {
-  test('delta 30s + language conflict → keep local (élargi vs 5s)', () => {
-    // Avant Phase 7.74.4 : delta 30s > 5s → adopt remote (language reset).
-    // Après Phase 7.74.4 : delta 30s < 60s → keep local.
+describe('mergeProfileLWW — Phase 7.74.10 language adoption gated par languageModified (legacy delta retiré)', () => {
+  test('languageModified absent des deux côtés (legacy v11-) → keep local (aucune adoption)', () => {
+    // Avant Phase 7.74.10 : delta 30s ou 70s décidait. Maintenant le
+    // garde-fou delta est retiré ; sans timestamp dédié, le merge ne
+    // peut pas savoir si remote a vraiment changé sa langue → keep local.
     const local = {
       id: 'seb', lastModified: 1000,
       language: 'fr',
       myGuitars: ['lp60'],
     };
     const remote = {
-      id: 'seb', lastModified: 1000 + 30000, // +30s
+      id: 'seb', lastModified: 1000 + 30000,
       language: 'en',
       myGuitars: ['lp60'],
     };
     const out = mergeProfileLWW(local, remote);
     expect(out.language).toBe('fr');
+    expect(out.languageModified).toBe(0);
   });
 
-  test('delta 70s + language conflict → adopt remote (au-delà du seuil élargi)', () => {
-    // Au-delà de 60s, on considère le changement comme intentionnel.
+  test('remote.languageModified > local.languageModified → adopt remote', () => {
+    // C'est ainsi qu'une vraie édition de langue propage via le merge.
     const local = {
       id: 'seb', lastModified: 1000,
-      language: 'fr',
+      language: 'fr', languageModified: 500,
       myGuitars: ['lp60'],
     };
     const remote = {
-      id: 'seb', lastModified: 1000 + 70000, // +70s > 60s
-      language: 'en',
+      id: 'seb', lastModified: 2000,
+      language: 'en', languageModified: 1500,
       myGuitars: ['lp60'],
     };
     const out = mergeProfileLWW(local, remote);
     expect(out.language).toBe('en');
+    expect(out.languageModified).toBe(1500);
   });
 
-  test('régression : delta < 5s → keep local (comportement Phase 7.74 préservé)', () => {
+  test('local.languageModified > remote.languageModified → keep local (scénario bug FR→EN)', () => {
+    // Scénario observé 2026-05-26 : device dormant pousse `language: en` +
+    // `lastModified` récent (parce qu'il a fait une autre écriture
+    // innocente), mais son `languageModified` est ancien (n'a pas changé
+    // de langue). Le merge doit garder la langue locale.
     const local = {
       id: 'seb', lastModified: 1000,
-      language: 'fr',
+      language: 'fr', languageModified: 5000,
       myGuitars: ['lp60'],
     };
     const remote = {
-      id: 'seb', lastModified: 1000 + 2000, // +2s
-      language: 'en',
+      id: 'seb', lastModified: 9999999,
+      language: 'en', languageModified: 100,
       myGuitars: ['lp60'],
     };
     const out = mergeProfileLWW(local, remote);
     expect(out.language).toBe('fr');
+    expect(out.languageModified).toBe(5000);
+  });
+
+  test('égalité languageModified → keep local (idempotence)', () => {
+    const local = {
+      id: 'seb', lastModified: 1000,
+      language: 'fr', languageModified: 500,
+      myGuitars: ['lp60'],
+    };
+    const remote = {
+      id: 'seb', lastModified: 2000,
+      language: 'en', languageModified: 500,
+      myGuitars: ['lp60'],
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.language).toBe('fr');
+  });
+
+  test('enabledDevices adopté seulement si enabledDevicesModified plus récent', () => {
+    const local = {
+      id: 'seb', lastModified: 1000,
+      enabledDevices: ['tonex-anniversary'],
+      enabledDevicesModified: 5000,
+    };
+    const remote = {
+      id: 'seb', lastModified: 9999999,
+      enabledDevices: ['tonex-pedal'],
+      enabledDevicesModified: 100,
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.enabledDevices).toEqual(['tonex-anniversary']);
+  });
+
+  test('availableSources adopté seulement si availableSourcesModified plus récent', () => {
+    const local = {
+      id: 'seb', lastModified: 1000,
+      availableSources: { TSR: true, ML: true },
+      availableSourcesModified: 5000,
+    };
+    const remote = {
+      id: 'seb', lastModified: 9999999,
+      availableSources: { TSR: false, ML: false },
+      availableSourcesModified: 100,
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.availableSources).toEqual({ TSR: true, ML: true });
+  });
+});
+
+describe('migrateV11toV12 — Phase 7.74.10 backfill timestamps dédiés', () => {
+  test('pose languageModified/enabledDevicesModified/availableSourcesModified à 0', () => {
+    const v11 = {
+      version: 11,
+      profiles: {
+        seb: { id: 'seb', name: 'Sébastien', isAdmin: true, banksModified: 12345 },
+      },
+    };
+    const v12 = migrateV11toV12(v11);
+    expect(v12.version).toBe(12);
+    expect(v12.profiles.seb.languageModified).toBe(0);
+    expect(v12.profiles.seb.enabledDevicesModified).toBe(0);
+    expect(v12.profiles.seb.availableSourcesModified).toBe(0);
+    expect(v12.profiles.seb.banksModified).toBe(12345); // préservé
+  });
+
+  test('idempotent : déjà v12 avec timestamps présents → no-op', () => {
+    const v12 = {
+      version: 12,
+      profiles: {
+        seb: {
+          id: 'seb', name: 'Sébastien',
+          languageModified: 1000,
+          enabledDevicesModified: 2000,
+          availableSourcesModified: 3000,
+        },
+      },
+    };
+    const out = ensureProfileV12(v12.profiles.seb);
+    expect(out.languageModified).toBe(1000);
+    expect(out.enabledDevicesModified).toBe(2000);
+    expect(out.availableSourcesModified).toBe(3000);
+  });
+
+  test('partial backfill : préserve les timestamps présents', () => {
+    const partial = {
+      id: 'seb', name: 'Sébastien',
+      languageModified: 7777, // déjà stampé
+      // enabledDevicesModified / availableSourcesModified absents
+    };
+    const out = ensureProfileV12(partial);
+    expect(out.languageModified).toBe(7777);
+    expect(out.enabledDevicesModified).toBe(0);
+    expect(out.availableSourcesModified).toBe(0);
   });
 });
 
