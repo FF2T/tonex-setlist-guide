@@ -1950,7 +1950,7 @@ describe('loadDemoSnapshot (Phase 7.51.1)', () => {
   test('retourne un objet structuré { version, profile, setlists, songs }', () => {
     const snap = loadDemoSnapshot();
     expect(snap).toBeDefined();
-    expect(snap.version).toBe(10);
+    expect(snap.version).toBe(11);
     expect(snap.profile).toBeDefined();
     expect(snap.profile.id).toBe('demo');
     expect(snap.profile.isDemo).toBe(true);
