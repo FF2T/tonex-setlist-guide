@@ -4,12 +4,13 @@
 // l'état complet. Extrait depuis main.jsx (verbatim).
 
 import { CL } from './ui-constants.js';
+import { formatDateJJMMAA } from '../../core/date-utils.js';
 
 export function exportJSON(state) {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `backline_${new Date().toISOString().slice(0, 10)}.json`;
+  a.href = url; a.download = `backline_${formatDateJJMMAA()}.json`;
   document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 

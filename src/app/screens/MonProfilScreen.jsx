@@ -18,6 +18,7 @@ import { hashPassword, verifyPassword, isPasswordLegacy } from '../../core/crypt
 import { isTrusted, setTrusted } from '../../core/state.js';
 import { resizeImageToDataUrl } from '../utils/image-resize.js';
 import { buildFeedbackUrl } from '../../core/branding.js';
+import { formatDateJJMMAA } from '../../core/date-utils.js';
 import Breadcrumb from '../components/Breadcrumb.jsx';
 import BankEditor from '../components/BankEditor.jsx';
 import ProfileTab from './ProfileTab.jsx';
@@ -759,10 +760,7 @@ function MonCompteSection({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const dd = String(new Date().getDate()).padStart(2, '0');
-    const mm = String(new Date().getMonth() + 1).padStart(2, '0');
-    const aa = String(new Date().getFullYear()).slice(2);
-    a.download = `backline_${(profile?.name || activeProfileId).replace(/\s+/g, '_')}_${dd}${mm}${aa}.json`;
+    a.download = `backline_${(profile?.name || activeProfileId).replace(/\s+/g, '_')}_${formatDateJJMMAA()}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
