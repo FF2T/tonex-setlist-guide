@@ -375,22 +375,31 @@ function ListScreen({
   // AUTRE profil ajoute/perd une custom guitar (pollution myGuitars
   // cross-profile observée Phase 7.74.x).
   const currentRigSnapshot = useMemo(() => computeRigSnapshot(allGuitars || GUITARS), [allGuitars]);
-  const missingCount = useMemo(() => (activeSongs || []).filter((s) => {
+  // Phase 8.x (2026-05-27) — user bass-actif : utilisé pour détecter
+  // les aiCache sans bass_recommendation (cf bassStale dans SongDetailCard).
+  const userHasBassRig = profile?.instruments?.includes('bass')
+    && ((profile?.myBasses || []).length > 0
+      || (profile?.myBassAmps || []).length > 0);
+  const isStaleSong = (s) => {
     if (!s.aiCache) return true;
     if (s.aiCache.rigSnapshot && s.aiCache.rigSnapshot !== currentRigSnapshot) return true;
+    // bassStale : aiCache existant mais sans bass_recommendation pour user bass-actif
+    if (userHasBassRig
+        && s.aiCache?.result?.cot_step1
+        && (s.aiCache.result.bass_recommendation === null
+          || s.aiCache.result.bass_recommendation === undefined)) return true;
     return false;
-  }).length, [activeSongs, currentRigSnapshot]);
+  };
+  const missingCount = useMemo(() => (activeSongs || []).filter(isStaleSong).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeSongs, currentRigSnapshot, userHasBassRig]);
   const [analyzeAllStatus, setAnalyzeAllStatus] = useState(null);
   const analyzeCancelRef = useRef(false);
   const isDemo = profile?.isDemo === true;
   const analyzeMissingAll = async () => {
     if (isDemo) return; // Phase 7.51.2 — pas de fetchAI en mode démo
     analyzeCancelRef.current = false;
-    const missing = (activeSongs || []).filter((s) => {
-      if (!s.aiCache) return true;
-      if (s.aiCache.rigSnapshot && s.aiCache.rigSnapshot !== currentRigSnapshot) return true;
-      return false;
-    });
+    const missing = (activeSongs || []).filter(isStaleSong);
     if (!missing.length) return;
     const guitars = allGuitars || GUITARS;
     setAnalyzeAllStatus({ current: 0, total: missing.length, songTitle: '' });

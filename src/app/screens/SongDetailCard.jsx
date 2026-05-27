@@ -92,13 +92,28 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   // rigStale faux positif sur les caches stockés.
   const currentRigSnapshot = computeRigSnapshot(guitars || GUITARS);
   const rigStale = song.aiCache?.rigSnapshot && song.aiCache.rigSnapshot !== currentRigSnapshot;
+  // Phase 8.x (2026-05-27) — bassStale : l'aiCache existe mais n'a pas
+  // de bass_recommendation alors que l'user a au moins une basse OU un
+  // ampli basse coché. Cas typique : aiCache calculé avant le fix Phase
+  // 8.7 (v8.14.257) qui demande désormais à Gemini de TOUJOURS retourner
+  // un objet bass_recommendation. Force un re-fetch unique au mount
+  // pour bénéficier des nouvelles recos basse sur les morceaux historiques.
+  // Pas de boucle : après le re-fetch, l'aiCache aura bass_recommendation
+  // != null/undefined → bassStale devient false.
+  const userHasBassRig = profile?.instruments?.includes('bass')
+    && ((profile?.myBasses || []).length > 0
+      || (profile?.myBassAmps || []).length > 0);
+  const bassStale = userHasBassRig
+    && song.aiCache?.result?.cot_step1
+    && (song.aiCache.result.bass_recommendation === null
+      || song.aiCache.result.bass_recommendation === undefined);
   // Phase 7.51.2 — mode démo : jamais d'appel fetchAI (cache uniquement).
   const isDemo = profile?.isDemo === true;
 
   useEffect(() => {
     if (isDemo) return; // Phase 7.51.2 — pas de fetchAI en mode démo.
-    if (localAiResult && !needsRescore && !rigStale) return;
-    if (song.aiCache?.result?.cot_step1 && gId && !rigStale) {
+    if (localAiResult && !needsRescore && !rigStale && !bassStale) return;
+    if (song.aiCache?.result?.cot_step1 && gId && !rigStale && !bassStale) {
       const gType = (guitars || GUITARS).find((x) => x.id === gId)?.type || 'HB';
       const cleaned2 = { ...song.aiCache.result, preset_ann: null, preset_plug: null, ideal_preset: null, ideal_preset_score: 0, ideal_top3: null };
       const recalc = enrichAIResult(cleaned2, gType, gId, banksAnn, banksPlug, undefined, song);
@@ -139,7 +154,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
       .catch((e) => { setLocalAiErr(e?.message || String(e)); })
       .finally(() => setReloading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [song.id, gId, needsRescore, rigStale, isDemo]);
+  }, [song.id, gId, needsRescore, rigStale, bassStale, isDemo]);
 
   const handleGuitarChange = (v) => {
     setGId(v);
