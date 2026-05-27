@@ -489,7 +489,7 @@ function MonProfilScreen({
               onSongDb((p) => p.map((s) => s.aiCache ? { ...s, aiCache: null } : s));
               window.alert(`✓ ${n} caches invalidés. Reviens dans Setlists et clique "⏳ Analyser/MAJ".`);
             }}
-            style={{ background: 'var(--wine-400)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+            style={{ background: 'var(--wine-400)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '12px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 44 }}
           >🗑 Invalider tous les caches IA</button>
         </div>}
         </div>{/* fin wrap demo-gating section IA */}

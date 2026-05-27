@@ -845,6 +845,10 @@ const es = {
   'song-detail.bass-ideal-out-of-rig': 'Bajo ideal (fuera de tu colección): {name}',
   'song-detail.bass-amp-settings': 'En tu {amp}',
   'song-detail.bass-on-tonex': 'En tu ToneX',
+  // Phase 8.9 — Explorer instrument filter
+  'preset-browser.instrument-all': '🎵 Todos',
+  'preset-browser.instrument-guitar': '🎸 Guitarra',
+  'preset-browser.instrument-bass': '🎻 Bajo',
   'song-detail.bass-playing-tips': 'Tocado:',
   'song-detail.bass-original-ref': 'Referencia original:',
   'song-detail.install': 'Instalar',

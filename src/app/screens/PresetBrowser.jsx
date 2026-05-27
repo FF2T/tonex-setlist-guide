@@ -10,7 +10,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { t, tFormat, tPlural, useLocale, getLocale } from '../../i18n/index.js';
 import { GUITARS } from '../../core/guitars.js';
-import { normalizePresetName, findCatalogEntry } from '../../core/catalog.js';
+import { normalizePresetName, findCatalogEntry, isBassPreset } from '../../core/catalog.js';
 import { SOURCE_LABELS } from '../../core/sources.js';
 import { cleanUsages } from './ToneNetTab.jsx';
 import {
@@ -716,6 +716,11 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null);
   const [filterPacks, setFilterPacks] = useState([]);
+  // Phase 8.9 — filtre instrument haut niveau (guitar / bass / all).
+  // Default 'all' = comportement Phase 8.8 inchangé. Switch sur 'bass'
+  // → liste uniquement captures bass (BS prefix, TSR bass packs,
+  // custom user instrument:'bass'). 'guitar' → tout SAUF bass.
+  const [instrumentFilter, setInstrumentFilter] = useState('all');
   const togglePack = (key) => setFilterPacks((p) => p.includes(key) ? p.filter((x) => x !== key) : [...p, key]);
 
   const mergedContext = useMemo(() => {
@@ -784,6 +789,12 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
   }, [fullCatalog]);
 
   const filtered = useMemo(() => Object.entries(fullCatalog).filter(([name, info]) => {
+    // Phase 8.9 — filtre instrument haut niveau (avant tout autre filtre)
+    if (instrumentFilter !== 'all') {
+      const isBass = isBassPreset(name, info);
+      if (instrumentFilter === 'bass' && !isBass) return false;
+      if (instrumentFilter === 'guitar' && isBass) return false;
+    }
     const profile = SOUND_PROFILES[soundProfile];
     if (profile && !profile.filter(info)) return false;
     if (filterBrand) {
@@ -800,7 +811,7 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
       if (!name.toLowerCase().includes(q) && !info.amp.toLowerCase().includes(q) && !artistsStr.includes(q) && !tracksStr.includes(q)) return false;
     }
     return true;
-  }), [soundProfile, filterBrand, filterModel, search]);
+  }), [soundProfile, filterBrand, filterModel, search, instrumentFilter, fullCatalog, mergedContext]);
 
   const [randomPick, setRandomPick] = useState(null);
   const pickRandom = () => {
@@ -833,6 +844,39 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
   return (
     <div>
       <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>{t('preset-browser.intro', 'Explore ta bibliothèque de presets et découvre leur contexte musical.')}</div>
+
+      {/* Phase 8.9 — Filtre instrument haut niveau (guitar/bass/all).
+          Bumpé en tête de l'écran avant search/profiles pour permettre
+          le switching rapide entre catalogue guitar et bass. Tab radio
+          style avec accent visuel sur le bouton actif. */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+        {[
+          { id: 'all',    label: t('preset-browser.instrument-all',    '🎵 Tous'),     icon: '🎵' },
+          { id: 'guitar', label: t('preset-browser.instrument-guitar', '🎸 Guitare'),  icon: '🎸' },
+          { id: 'bass',   label: t('preset-browser.instrument-bass',   '🎻 Basse'),    icon: '🎻' },
+        ].map(({ id, label }) => {
+          const active = instrumentFilter === id;
+          return (
+            <button
+              key={id}
+              onClick={() => setInstrumentFilter(id)}
+              style={{
+                flex: 1,
+                background: active ? 'var(--accent-bg, rgba(129,140,248,0.18))' : 'var(--a3)',
+                border: active ? '1px solid var(--accent, #818cf8)' : '1px solid var(--a8)',
+                color: active ? 'var(--accent, #818cf8)' : 'var(--text-muted)',
+                borderRadius: 'var(--r-md)',
+                padding: '10px 12px',
+                fontSize: 13,
+                fontWeight: active ? 700 : 500,
+                cursor: 'pointer',
+                minHeight: 44,
+                boxShadow: active ? 'inset 0 -2px 0 var(--accent, #818cf8)' : 'none',
+              }}
+            >{label}</button>
+          );
+        })}
+      </div>
 
       <div style={{ position: 'relative', marginBottom: 6 }}>
         <input
