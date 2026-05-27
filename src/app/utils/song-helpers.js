@@ -9,7 +9,7 @@
 // SongDetailCard, ListScreen, HomeScreen, SetlistsScreen, BankOptimizer).
 
 import { GUITARS } from '../../core/guitars.js';
-import { SONG_PRESETS, SONG_HISTORY } from '../../core/songs.js';
+import { SONG_PRESETS, SONG_HISTORY, INIT_SONG_DB_META } from '../../core/songs.js';
 import { pickTopGuitar } from '../../core/scoring/guitar.js';
 
 // Normalisation pour détection de doublons stricte
@@ -107,11 +107,28 @@ function getSongHist(song, aiResult = null) {
 // (qui retourne le info guitare). Le champ `bass` est OPTIONNEL au seed
 // (seuls les morceaux bass-jouables avec ligne basse notable l'ont).
 // Retourne null si absent → UI bass section sera masquée.
+//
+// Phase 8 hotfix v8.14.251 — Fallback fuzzy match par title quand song.id
+// n'est pas dans SONG_HISTORY directement (cas songs ajoutées en custom
+// `c_xxx` avant Phase 8.1, ou via SongSearchBar avec artist légèrement
+// différent du seed). Évite le bug rapporté Sébastien : "Under Pressure"
+// (artist="Queen") matche seed (artist="Queen & David Bowie") via title
+// normalisé partagé.
 function getSongBassHist(song) {
   if (!song || !song.id) return null;
-  const entry = SONG_HISTORY[song.id];
-  if (!entry || !entry.bass) return null;
-  return entry.bass;
+  // Path 1 : match direct par id (seed canonique)
+  const direct = SONG_HISTORY[song.id];
+  if (direct && direct.bass) return direct.bass;
+  // Path 2 : fallback fuzzy match par title normalisé
+  // (couvre les songs custom dont le title matche un seed bass-jouable)
+  if (!song.title) return null;
+  const nt = normalizeSongTitle(song.title);
+  if (!nt) return null;
+  const seedMatch = INIT_SONG_DB_META.find((s) => normalizeSongTitle(s.title) === nt);
+  if (!seedMatch) return null;
+  const seedHist = SONG_HISTORY[seedMatch.id];
+  if (!seedHist || !seedHist.bass) return null;
+  return seedHist.bass;
 }
 
 export {
