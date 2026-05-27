@@ -81,21 +81,21 @@ function PBlock({ device, emoji, presetName, gType, banks, adapted, gs, bg2, ava
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
             {displayRec.installed
               ? <span title={`Slot ${displayRec.slot} — ${CL[displayRec.slot]}`} style={{ background: `${CC[displayRec.slot]}18`, color: CC[displayRec.slot], border: `1px solid ${CC[displayRec.slot]}40`, borderRadius: 'var(--r-sm)', padding: '1px 7px', fontSize: 10, fontWeight: 700 }}>{tFormat('pblock.installed-bank', { bank: displayRec.bank, slot: displayRec.slot }, 'Banque {bank}{slot}')}</span>
-              : <><span style={{ fontSize: 10, color: 'var(--yellow)', fontWeight: 700 }}>⬇ À installer</span>{entry?.src === 'TSR' && entry.pack && <span style={{ fontSize: 9, color: 'var(--text-dim)' }}>📦 {entry.pack}.zip</span>}</>
+              : <><span style={{ fontSize: 10, color: 'var(--yellow)', fontWeight: 700 }}>À installer</span>{entry?.src === 'TSR' && entry.pack && <span style={{ fontSize: 9, color: 'var(--text-dim)' }}>{entry.pack}</span>}</>
             }
-            {showBest && <span style={{ fontSize: 9, color: 'var(--green)', fontWeight: 600 }}>↑ meilleur choix</span>}
-            {best && best.isCurrent && <span style={{ fontSize: 9, color: 'var(--green)', fontWeight: 600 }}>★ top dispo</span>}
-            {adapted && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>✦ adapté {gs}</span>}
+            {showBest && <span style={{ fontSize: 9, color: 'var(--green)', fontWeight: 600 }}>meilleur choix</span>}
+            {best && best.isCurrent && <span style={{ fontSize: 9, color: 'var(--green)', fontWeight: 600 }}>top dispo</span>}
+            {adapted && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>adapté {gs}</span>}
           </div>
           {!displayRec.installed && displayRec.replaceBank != null && (
             <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 3 }}>
-              → Remplace {displayRec.replaceBank}{displayRec.replaceSlot}
+              Remplace {displayRec.replaceBank}{displayRec.replaceSlot}
               {displayRec.replaceName && <> ({displayRec.replaceName}{displayRec.replaceScore != null && <span style={{ color: scoreColor(displayRec.replaceScore) }}> {displayRec.replaceScore}%</span>})</>}
             </div>
           )}
           {best && !best.isCurrent && !best.installed && (
             <div style={{ marginTop: 5, fontSize: 10, color: 'var(--text-sec)', background: 'var(--a3)', borderRadius: 'var(--r-md)', padding: '5px 8px' }}>
-              <span style={{ color: 'var(--green)', fontWeight: 600 }}>↑ Meilleur dispo :</span> {best.name} <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: scoreColor(best.score) }}>{best.score}%</span> <span style={{ color: 'var(--yellow)' }}>⬇ à installer</span>
+              <span style={{ color: 'var(--green)', fontWeight: 600 }}>Meilleur dispo :</span> {best.name} <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: scoreColor(best.score) }}>{best.score}%</span> <span style={{ color: 'var(--yellow)' }}>à installer</span>
             </div>
           )}
         </>

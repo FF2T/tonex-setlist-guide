@@ -21,6 +21,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { t, tFormat, getLocale } from '../../i18n/index.js';
 import { getSongInfo, SONG_HISTORY } from '../../core/songs.js';
+import NavIcon from '../components/NavIcon.jsx';
 
 // Phase 4.6 — Mapping pickup playing_hints (Phase 9.5) vers labels
 // trilingues pour lecture rapide en scène. Universal pickup names
@@ -166,7 +167,7 @@ function LiveScreen({
           padding: 32, textAlign: 'center', color: 'var(--text-dim)',
         }}
       >
-        <div style={{ fontSize: 48, marginBottom: 16 }}>🎤</div>
+        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center', color: 'var(--brass-300)' }}><NavIcon id="live" size={48}/></div>
         <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
           Setlist vide
         </div>
@@ -323,7 +324,7 @@ function LiveScreen({
               fontStyle: 'italic', lineHeight: 1.5,
             }}
           >
-            {hist.guitarist} · 🎸 {hist.guitar} · 🔊 {hist.amp}
+            {hist.guitarist} · {hist.guitar} · {hist.amp}
           </div>
         )}
       </div>
@@ -358,7 +359,7 @@ function LiveScreen({
                 letterSpacing: 0.5,
               }}
             >
-              🎸 {tFormat('live.guitar-section', { guitar: guitarLabel }, 'Sur ta {guitar}')}
+              {tFormat('live.guitar-section', { guitar: guitarLabel }, 'Sur ta {guitar}')}
             </div>
             <div
               style={{
@@ -395,7 +396,7 @@ function LiveScreen({
                     letterSpacing: 0.5,
                   }}
                 >
-                  🎚️ STEREO
+                  STEREO
                 </span>
               )}
             </div>

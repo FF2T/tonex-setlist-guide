@@ -190,7 +190,7 @@ function RecapScreen({
       <div style={{ background: 'var(--a4)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-xl)', padding: 16, marginBottom: 20 }}>
         {mode === 'single' ? (
           <div>
-            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>{t('recap.guitar-for-session', '🎸 Guitare pour cette session')}</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>{t('recap.guitar-for-session-flat', 'Guitare pour cette session')}</div>
             {topGuitar && <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 8 }}>{tFormat('recap.recommended', { name: topGuitar.name, count: rankedGuitars[0]?.count || 0, total: songs.length }, 'Recommandee : {name} ({count}/{total} morceaux)')}</div>}
             <div style={{ marginBottom: 4 }}>
               <GuitarSelect value={chosenGuitar?.id || ''} onChange={(v) => setSelectedGuitarId(v)} ig={rankedGuitars.map((r) => r.gId)} guitars={guitars}/>
@@ -199,7 +199,7 @@ function RecapScreen({
           </div>
         ) : (
           <div>
-            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 10 }}>{t('recap.top3-title', '🎸 Top 3 guitares à prendre')}</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 10 }}>{t('recap.top3-title-flat', 'Top 3 guitares à prendre')}</div>
             {top3.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {top3.map(({ gId, count, guitar }, i) => {
@@ -221,7 +221,7 @@ function RecapScreen({
 
       {/* Liste des morceaux avec preset/guitare */}
       <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 10 }}>{t('recap.songs-section', '🎵 Morceaux')}</div>
+        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)', marginBottom: 10 }}>{t('recap.songs-section-flat', 'Morceaux')}</div>
         {songRows.map(({ song, guitar, presetAnn, presetPlug }) => {
           const rgb = guitar ? TYPE_COLORS[guitar.type] || '148,163,184' : '148,163,184';
           const perDevice = enabledDevices.map((d) => {
@@ -266,18 +266,19 @@ function RecapScreen({
       {/* Presets manquants à installer */}
       {missingPresets.length > 0 && (
         <div style={{ background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 'var(--r-xl)', padding: 16, marginBottom: 20 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--yellow)', marginBottom: 4 }}>{t('recap.presets-to-install', '⬇ Presets à installer')}</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--yellow)', marginBottom: 4 }}>{t('recap.presets-to-install-flat', 'Presets à installer')}</div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>{tPlural('recap.presets-not-installed', missingPresets.length, {}, { one: '1 preset non installé', other: '{count} presets non installés' })}</div>
           {missingPresets.map((p) => {
             const dev = enabledDevices.find((d) => d.deviceKey === p.device);
-            const icon = dev ? dev.icon : (p.device === 'ann' ? '📦' : '🔌');
+            // Vague 2 emojis — icon retiré (était dev.icon ou 📦/🔌).
+            // Le device est implicite via la couleur + le pack name.
             const color = p.device === 'ann' ? 'var(--green)' : 'var(--accent)';
             return (
               <div key={p.preset + p.device} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px', background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.12)', borderRadius: 'var(--r-md)', marginBottom: 4, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 11, color, fontWeight: 700, flexShrink: 0 }}>{icon}</span>
+                <span style={{ fontSize: 10, color, fontWeight: 700, flexShrink: 0, textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>{dev?.label || (p.device === 'ann' ? 'Pédale' : 'Plug')}</span>
                 <span style={{ fontSize: 11, color: 'var(--text-bright)', fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.preset}</span>
                 {p.score > 0 && <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 700, color: scoreColor(p.score) }}>{p.score}%</span>}
-                {p.pack && <span style={{ fontSize: 9, color: 'var(--yellow)', fontWeight: 600 }}>📦 {p.pack}.zip</span>}
+                {p.pack && <span style={{ fontSize: 9, color: 'var(--yellow)', fontWeight: 600 }}>{p.pack}</span>}
                 <span style={{ fontSize: 9, color: 'var(--text-dim)' }}>{p.songs.join(', ')}</span>
               </div>
             );

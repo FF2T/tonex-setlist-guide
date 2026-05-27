@@ -28,6 +28,7 @@ import {
 import { findCatalogEntry } from '../../core/catalog.js';
 import { toggleSetlistProfile } from '../../core/state.js';
 import { TMP_FACTORY_PATCHES, recommendTMPPatch } from '../../devices/tonemaster-pro/index.js';
+import NavIcon from '../components/NavIcon.jsx';
 import { getActiveDevicesForRender } from '../utils/devices-render.js';
 import { getIg, getPA, getPP, getSongHist } from '../utils/song-helpers.js';
 import {
@@ -47,19 +48,20 @@ import { bucketizeScore } from '../../core/scoring/compat-buckets.js';
 function _compatPillProps(score, t) {
   if (score == null) return null;
   const bucket = bucketizeScore(score);
+  // Vague 2 emojis (2026-05-28) — labels flat (couleur encode déjà
+  // le niveau via bucket.color).
   const labels = {
-    ideal: t('compat.ideal-short', '🟢 Idéal'),
-    good: t('compat.good-short', '🟡 Bon'),
-    compromise: t('compat.compromise-short', '🟠 Limite'),
+    ideal: t('compat.ideal-short-flat', 'Idéal'),
+    good: t('compat.good-short-flat', 'Bon'),
+    compromise: t('compat.compromise-short-flat', 'Limite'),
   };
   const longLabels = {
-    ideal: t('compat.ideal-match', '🟢 Mariage parfait'),
-    good: t('compat.good-match', '🟡 Bon match'),
-    compromise: t('compat.compromise', '🟠 Compromis'),
+    ideal: t('compat.ideal-match-flat', 'Mariage parfait'),
+    good: t('compat.good-match-flat', 'Bon match'),
+    compromise: t('compat.compromise-flat', 'Compromis'),
   };
-  const stripEmoji = (s) => s.replace(/^[🟢🟡🟠]\s*/u, '');
   return {
-    label: stripEmoji(labels[bucket.id]),
+    label: labels[bucket.id],
     color: bucket.color,
     title: `${longLabels[bucket.id]} — ${score}%`,
   };
@@ -489,8 +491,8 @@ function ListScreen({
             "preset not determined"). Cohérence avec HomeScreen. */}
         {/* Phase 7.85 — minHeight 44 + minWidth 44 iOS HIG sur boutons icônes
             (rapport Cowork B12 P1 : ✏️ 34×33px sous seuil 44). */}
-        {typeof onLive === 'function' && !isDemo && activeSongs.length > 0 && <button data-testid="list-screen-live" onClick={() => onLive(activeSlId || null)} title={t('list.live-mode', 'Mode scène plein écran')} style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-md)', padding: '8px 12px', fontSize: 15, cursor: 'pointer', flexShrink: 0, fontWeight: 700, minHeight: 44, minWidth: 44 }}>🎤</button>}
-        <button onClick={() => setEditingSetlists(!editingSetlists)} style={{ background: editingSetlists ? 'var(--accent-bg)' : 'var(--a5)', border: '1px solid ' + (editingSetlists ? 'var(--accent-border)' : 'var(--a10)'), color: editingSetlists ? 'var(--accent)' : 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '8px 12px', fontSize: 13, cursor: 'pointer', flexShrink: 0, minHeight: 44, minWidth: 44 }}>{editingSetlists ? '✕' : '✏️'}</button>
+        {typeof onLive === 'function' && !isDemo && activeSongs.length > 0 && <button data-testid="list-screen-live" onClick={() => onLive(activeSlId || null)} title={t('list.live-mode', 'Mode scène plein écran')} style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-md)', padding: '8px 12px', fontSize: 15, cursor: 'pointer', flexShrink: 0, fontWeight: 700, minHeight: 44, minWidth: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><NavIcon id="live" size={18}/></button>}
+        <button title={editingSetlists ? t('list.edit-done', 'Terminer') : t('list.edit-setlist-title', 'Modifier les setlists')} onClick={() => setEditingSetlists(!editingSetlists)} style={{ background: editingSetlists ? 'var(--accent-bg)' : 'var(--a5)', border: '1px solid ' + (editingSetlists ? 'var(--accent-border)' : 'var(--a10)'), color: editingSetlists ? 'var(--accent)' : 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '8px 12px', fontSize: 13, cursor: 'pointer', flexShrink: 0, minHeight: 44, minWidth: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{editingSetlists ? '×' : <NavIcon id="pen" size={16}/>}</button>
       </div>
       {editingSetlists && (
         <div style={{ background: 'var(--a3)', border: '1px solid var(--a7)', borderRadius: 'var(--r-md)', padding: 10, marginBottom: 8 }}>
@@ -506,8 +508,8 @@ function ListScreen({
                         const songs = sl.songIds.map((id) => songDb.find((s) => s.id === id)).filter(Boolean);
                         const doc = exportSetlistPdf(sl, songs, { profile, banksAnn, banksPlug });
                         doc.save(`${sl.name.replace(/[^a-z0-9_-]+/gi, '_') || 'setlist'}.pdf`);
-                      }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer' }}>📄</button>}
-                      <button onClick={() => setEditSlId(sl.id)} disabled={isDemo} title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : undefined} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 11, cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.5 : 1 }}>✏️</button>
+                      }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 4 }}><NavIcon id="doc" size={16}/></button>}
+                      <button title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : t('list.rename-setlist', 'Renommer la setlist')} onClick={() => setEditSlId(sl.id)} disabled={isDemo} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 11, cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.5 : 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 4 }}><NavIcon id="pen" size={16}/></button>
                       {sl.songIds.length > 0 && <button
                         data-testid={`setlist-empty-${sl.id}`}
                         title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : t('list.empty-setlist-title', 'Vider la setlist (garde la setlist mais retire tous les morceaux)')}
@@ -518,9 +520,9 @@ function ListScreen({
                           onSetlists((p) => p.map((s) => s.id === sl.id ? { ...s, songIds: [] } : s));
                         }}
                         disabled={isDemo}
-                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 11, cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.5 : 1 }}
-                      >🧹</button>}
-                      {setlists.length > 1 && <button onClick={() => deleteSetlist(sl.id)} disabled={isDemo} title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : undefined} style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: 11, cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.5 : 1 }}>🗑</button>}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 11, cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.5 : 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 4 }}
+                      ><NavIcon id="broom" size={16}/></button>}
+                      {setlists.length > 1 && <button title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : t('list.delete-setlist', 'Supprimer la setlist')} onClick={() => deleteSetlist(sl.id)} disabled={isDemo} style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: 11, cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.5 : 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 4 }}><NavIcon id="trash" size={16}/></button>}
                     </>
                   )}
               </div>
@@ -554,7 +556,7 @@ function ListScreen({
                             opacity: isDemo ? 0.5 : (isMe ? 0.85 : 1),
                           }}
                         >
-                          {isChecked ? '✓ ' : ''}{pf.name || pf.id}{isMe ? ' 🔒' : ''}
+                          {isChecked ? '✓ ' : ''}{pf.name || pf.id}{isMe ? ' (' + t('list.share-me', 'moi') + ')' : ''}
                         </button>
                       );
                     })}
@@ -588,19 +590,19 @@ function ListScreen({
             >
               {editingSongs
                 ? t('list.edit-done', '✅ Terminer')
-                : t('list.edit-songs', '✏️ Éditer la setlist')}
+                : t('list.edit-songs-flat', 'Éditer la setlist')}
             </button>
           )}
           {missingCount > 0 && !analyzeAllStatus && <button
             data-testid="list-screen-analyze-missing"
             onClick={() => {
-              const msg = tFormat('list.analyze-confirm', { songs: tPlural('list.songs-count', missingCount, {}, { one: '1 morceau', other: '{count} morceaux' }), duration: Math.ceil(missingCount * 8) }, "Analyser/actualiser {songs} ?\n\nInclut :\n• Morceaux sans analyse IA (⏳)\n• Morceaux dont l'analyse date d'avant un changement de rig (guitare ajoutée/retirée)\n\nDurée estimée : {duration}s (~8s par morceau).\nLa clé Gemini partagée sera utilisée. Tu peux annuler à tout moment.");
+              const msg = tFormat('list.analyze-confirm-flat', { songs: tPlural('list.songs-count', missingCount, {}, { one: '1 morceau', other: '{count} morceaux' }), duration: Math.ceil(missingCount * 8) }, "Analyser/actualiser {songs} ?\n\nInclut :\n• Morceaux sans analyse IA\n• Morceaux dont l'analyse date d'avant un changement de rig (guitare ajoutée/retirée)\n\nDurée estimée : {duration}s (~8s par morceau).\nLa clé Gemini partagée sera utilisée. Tu peux annuler à tout moment.");
               if (!window.confirm(msg)) return;
               analyzeMissingAll();
             }}
             title={tFormat('list.analyze-title', { count: missingCount }, '{count} morceau(x) à analyser ou actualiser après modif du rig.')}
             style={{ fontSize: 11, minHeight: 36, color: 'var(--accent)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-sm)', padding: '7px 12px', cursor: 'pointer', fontWeight: 700 }}
-          >{tFormat('list.analyze-button', { count: missingCount }, '🤖 Analyser/MAJ {count}')}</button>}
+          >{tFormat('list.analyze-button-flat', { count: missingCount }, 'Analyser/MAJ {count}')}</button>}
           {analyzeAllStatus && <button
             data-testid="list-screen-analyze-cancel"
             onClick={() => { analyzeCancelRef.current = true; }}
@@ -670,7 +672,7 @@ function ListScreen({
         );
       })()}
 
-      {activeSongs.length === 0 && <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-dim)' }}><div style={{ fontSize: 24, marginBottom: 8 }}>🎵</div><div style={{ fontSize: 14 }}>{t('list.empty', 'Setlist vide — clique sur "+ Ajouter"')}</div></div>}
+      {activeSongs.length === 0 && <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-dim)' }}><div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center', color: 'var(--text-dim)' }}><NavIcon id="setlists" size={24}/></div><div style={{ fontSize: 14 }}>{t('list.empty', 'Setlist vide — clique sur "+ Ajouter"')}</div></div>}
 
       {(() => {
         let lastArtist = '';
@@ -730,7 +732,7 @@ function ListScreen({
                 <StatusDot score={sc} ideal={isIdeal}/>
                 {loc
                   ? <span title={tFormat('list.bank-tooltip', { bank: loc.bank, slot: loc.slot, label: CL[loc.slot] }, 'Banque {bank}, slot {slot} — {label}')} style={badgeSlot({ color: unifiedColor })}>{loc.bank}{loc.slot}</span>
-                  : <span style={slotMissingStyle}>⬇</span>}
+                  : <span style={slotMissingStyle}>—</span>}
                 {label && <span title={ampName ? `${label} · ${ampName}` : label} style={{ ...badgeLabel({ color: unifiedColor, bg: scBgV || 'transparent' }), maxWidth: 'clamp(200px, 35vw, 500px)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{label}</span>
                   {ampName && <span style={{ opacity: 0.6, fontWeight: WEIGHT.normal, fontSize: TYPO.micro, flexShrink: 0 }}>· {ampName.replace(/^Marshall /, '').replace(/^Fender /, '').replace(/^Mesa Boogie /, 'Mesa ')}</span>}
@@ -804,7 +806,7 @@ function ListScreen({
                           <div className="songrow-pl-content">
                             <div className="songrow-pl-headline">
                               <span className="songrow-pl-title">{rowData.title}</span>
-                              {!s.aiCache && <span className="songrow-pl-pending" title={t('list.pending-analysis', 'Pas encore analysé')}>⏳</span>}
+                              {!s.aiCache && <span className="songrow-pl-pending" title={t('list.pending-analysis', 'Pas encore analysé')}>···</span>}
                               {rowData.isOptimalGuitar && <span className="songrow-pl-optimal" title={t('list.optimal-guitar', 'Guitare idéale')}>★</span>}
                               {topPill && (
                                 <span className="songrow-pl-topscore-pill" style={{ background: topPill.color }} title={topPill.title}>{topPill.label}</span>
@@ -877,7 +879,7 @@ function ListScreen({
                                   )}
                                   {rowData.fxOn.length > 0 && (
                                     <div className="songrow-pl-fx">
-                                      <span className="songrow-pl-fx-icon">⚡</span>
+                                      <span className="songrow-pl-fx-icon">FX</span>
                                       <span className="songrow-pl-fx-list">{rowData.fxOn.join(' · ')}</span>
                                     </div>
                                   )}
@@ -905,7 +907,7 @@ function ListScreen({
                     }}
                     onMouseEnter={(e) => { if (!isDemo) e.currentTarget.style.color = 'var(--red)'; }}
                     onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-dim)'; }}
-                  >🗑️</button>}
+                  ><NavIcon id="trash" size={16}/></button>}
                 </div>
                 {isExpanded && <SongDetailCard song={s} banksAnn={banksAnn} banksPlug={banksPlug} onBanksAnn={onBanksAnn} onBanksPlug={onBanksPlug} onClose={() => setExpandedId(null)} guitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} savedGuitarId={activeSl?.guitars?.[s.id]} onGuitarChange={(songId, gId) => { if (activeSlId) onSetlists((p) => p.map((sl) => sl.id === activeSlId ? { ...sl, guitars: { ...(sl.guitars || {}), [songId]: gId } } : sl)); }} aiProvider={aiProvider} aiKeys={aiKeys} onSongDb={onSongDb} onAiCacheUpdate={onAiCacheUpdate} profile={profile} guitarBias={guitarBias} onTmpPatchOverride={onTmpPatchOverride} songDb={songDb} onProfiles={onProfiles} activeProfileId={activeProfileId} toneNetPresets={toneNetPresets} onToneNetPresets={onToneNetPresets} onSharedUsagesOverrides={onSharedUsagesOverrides}/>}
               </div>
