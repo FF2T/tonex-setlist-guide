@@ -608,14 +608,10 @@ function PresetList({ filtered, selected, setSelected, banksAnn, banksPlug, full
         <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', minWidth: 0 }}>
           {tPlural('preset-list.count-click', displayFiltered.length, {}, { one: '1 preset — clique pour voir la fiche', other: '{count} presets — clique pour voir la fiche' })}
         </div>
-        {/* Phase 7.83 — en-tête colonne compatibilité par type de pickup (guitare uniquement).
-            Phase 8.x — masqué si toutes les entries visibles sont des bass presets
-            (HB/SC/P90 = types de pickups GUITARE, non pertinent pour basse). */}
-        {visible.some(([name, info]) => !isBassPreset(name, info)) && (
-          <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', letterSpacing: 'var(--tracking-wider)', textTransform: 'uppercase', flexShrink: 0 }}>
-            {t('preset-list.pickup-header', 'HB · SC · P90')}
-          </div>
-        )}
+        {/* Phase 8.x — pastilles HB/SC/P90 retirées (validé Sébastien) : la compat
+            par guitare réelle du rig est couverte par le bloc 'Guitares adaptées'
+            qualitatif Phase 7.83 dans la fiche dépliée. Plus actionnable que des
+            pastilles abstraites de type pickup dans la liste. */}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
         {visible.map(([name, info]) => {
@@ -635,25 +631,7 @@ function PresetList({ filtered, selected, setSelected, banksAnn, banksPlug, full
                     {plugLoc && <span style={{ fontSize: 9, color: 'var(--accent)', background: 'rgba(165,180,252,0.1)', borderRadius: 'var(--r-sm)', padding: '1px 5px', fontWeight: 700 }}>🔌{plugLoc.bank}{plugLoc.slot}</span>}
                   </div>
                 </div>
-                {/* Phase 7.83 — pastilles HB/SC/P90 guitare uniquement.
-                    Phase 8.x — masquées sur bass presets (HB/SC/P90 sont des types
-                    de pickups GUITARE, les basses ont P-bass split / J-bass single /
-                    Music Man humbucker bass, scoring différent à venir si nécessaire). */}
-                {!isBassPreset(name, info) && (
-                  <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
-                    {['HB', 'SC', 'P90'].map((gt) => {
-                      const sc = computePickupScore(info.style, getGainRange(gainToNumeric(info.gain)), gt);
-                      const lvl = bucketizeScore(sc);
-                      return (
-                        <span
-                          key={gt}
-                          title={`${gt} — ${sc}%`}
-                          style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: lvl.color, border: `1px solid ${lvl.borderColor}`, flexShrink: 0 }}
-                        />
-                      );
-                    })}
-                  </div>
-                )}
+                {/* Phase 8.x — pastilles HB/SC/P90 retirées (cf commentaire header). */}
               </div>
               {isSel && <PresetDetailInline name={name} info={info} banksAnn={banksAnn} banksPlug={banksPlug} presetContext={mergedContext} guitars={guitars} isAdmin={isAdmin} songDb={songDb} onSaveUsages={onSaveUsages}/>}
             </div>
