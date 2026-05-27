@@ -821,6 +821,15 @@ const en = {
   'song-detail.guitar-settings': 'Guitar:',
   'song-detail.improvable': 'Improvable — {score}% max',
   'song-detail.info-section': 'Song info',
+  // Phase 8.6 — ProfileTab bass section
+  'profile.tab.basses': '🎻 My basses',
+  'profile-tab.bass-activate': 'Activate bass',
+  'profile-tab.bass-activate-hint': 'Enable if you also play bass (multi-instrument). A dedicated "🎻 Bass" section will appear in the song detail card for songs with a notable bass line.',
+  'profile-tab.bass-toggle-label': '🎻 I also play bass',
+  'profile-tab.my-basses': 'My basses',
+  'profile-tab.my-basses-hint': 'Check the basses you own. Backline will use them to recommend an instrument fit for each song.',
+  'profile-tab.my-bass-amps': 'My traditional bass amps',
+  'profile-tab.my-bass-amps-hint': 'Check the physical bass amps you own (in addition to your ToneX). Backline will suggest settings adapted to your gear.',
   // Phase 8.3 — Bass section
   'song-detail.bass-section': 'Bass',
   'song-detail.bass-ideal': 'Ideal bass:',

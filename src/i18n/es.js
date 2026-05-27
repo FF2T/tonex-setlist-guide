@@ -819,6 +819,15 @@ const es = {
   'song-detail.guitar-settings': 'Guitarra:',
   'song-detail.improvable': 'Mejorable — {score}% máx',
   'song-detail.info-section': 'Info de la canción',
+  // Phase 8.6 — ProfileTab bass section
+  'profile.tab.basses': '🎻 Mis bajos',
+  'profile-tab.bass-activate': 'Activar el bajo',
+  'profile-tab.bass-activate-hint': 'Activa si también tocas el bajo (multi-instrumento). Una sección dedicada "🎻 Bajo" aparecerá en la ficha de canción desplegada para las canciones con una línea de bajo notable.',
+  'profile-tab.bass-toggle-label': '🎻 También toco el bajo',
+  'profile-tab.my-basses': 'Mis bajos',
+  'profile-tab.my-basses-hint': 'Marca los bajos que posees. Backline los usará para recomendar un instrumento adecuado a la canción.',
+  'profile-tab.my-bass-amps': 'Mis amplificadores de bajo tradicionales',
+  'profile-tab.my-bass-amps-hint': 'Marca los amplificadores de bajo físicos que posees (además de tu ToneX). Backline propondrá ajustes adaptados a tu equipo.',
   // Phase 8.3 — Bass section
   'song-detail.bass-section': 'Bajo',
   'song-detail.bass-ideal': 'Bajo ideal:',

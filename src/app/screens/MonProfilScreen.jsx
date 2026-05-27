@@ -138,6 +138,10 @@ function MonProfilScreen({
             "Sources" → "Mes sources" pour cohérence avec "Mes appareils"
             / "Mes presets custom". */}
         {!isDemo && tabBtn('profile', t('profile.tab.guitars', '🎸 Mes guitares'))}
+        {/* Phase 8.6 — Tab "🎻 Mes basses" : toggle activation bass +
+            liste basses/amplis basse cochables. Visible à tous (admin
+            et non-admin), permet activation sans snippet console. */}
+        {!isDemo && tabBtn('basses', t('profile.tab.basses', '🎻 Mes basses'))}
         {!isDemo && tabBtn('devices', t('profile.tab.devices', '📱 Mes appareils'))}
         {!isDemo && tabBtn('sources', t('profile.tab.sources', '📦 Mes sources'))}
         {/* Phase 7.67 — Tab "📦 Mes presets custom" accessible à TOUS
@@ -192,6 +196,7 @@ function MonProfilScreen({
         />
       )}
       {tab === 'profile' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="guitars" aiKeys={aiKeys} customGuitars={customGuitars} onCustomGuitars={onCustomGuitars}/>}
+      {tab === 'basses' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="basses"/>}
       {tab === 'devices' && <MesAppareilsTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} toneNetPresets={toneNetPresets} onToneNetPresets={onToneNetPresets} songDb={songDb} fullState={fullState} onImportState={onImportState} onNavigate={onNavigate} onSharedUsagesOverrides={onSharedUsagesOverrides}/>}
       {tab === 'sources' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="sources"/>}
       {tab === 'custompacks' && <MyCustomPresetsTab profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId} songDb={songDb} inp={inp}/>}

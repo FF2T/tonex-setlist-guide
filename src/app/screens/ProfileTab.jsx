@@ -16,6 +16,8 @@
 import React, { useState } from 'react';
 import { t } from '../../i18n/index.js';
 import { GUITARS, GUITAR_BRANDS } from '../../core/guitars.js';
+import { BASSES, BASS_BRANDS } from '../../core/basses.js';
+import { BASS_AMPS, BASS_AMP_BRANDS } from '../../core/bass-amps.js';
 import { SOURCE_LABELS, SOURCE_DESCRIPTIONS, SOURCE_INFO, SOURCE_REQUIRES_DEVICE } from '../../core/sources.js';
 import { FACTORY_BANKS_PEDALE_V1 } from '../../devices/tonex-pedal/index.js';
 import GuitarSearchAdd from '../components/GuitarSearchAdd.jsx';
@@ -56,6 +58,22 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
   };
   const toggleSource = (key) => {
     updateProfile('availableSources', (prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+  // Phase 8.6 — Helpers basse (parallèles guitare)
+  const toggleBass = (id) => {
+    updateProfile('myBasses', (prev) => (prev || []).includes(id) ? prev.filter((x) => x !== id) : [...(prev || []), id]);
+  };
+  const toggleBassAmp = (id) => {
+    updateProfile('myBassAmps', (prev) => (prev || []).includes(id) ? prev.filter((x) => x !== id) : [...(prev || []), id]);
+  };
+  const toggleBassInstrument = () => {
+    updateProfile('instruments', (prev) => {
+      const list = Array.isArray(prev) ? prev : ['guitar'];
+      if (list.includes('bass')) {
+        return list.filter((x) => x !== 'bass');
+      }
+      return [...list, 'bass'];
+    });
   };
   const addCustomGuitar = (cg) => {
     onCustomGuitars((prev) => [...(prev || []), cg]);
@@ -233,6 +251,94 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
         <GuitarSearchAdd inp={inp} aiKeys={aiKeys} disabled={isDemo} onAdd={(name, short, type) => {
           addCustomGuitar({ id: `cg_${Date.now()}`, name, short, type, brand: inferBrand(name) });
         }}/>
+      </div>}
+
+      {/* Phase 8.6 — Tab "🎻 Mes basses" : toggle "Activer la basse" +
+          liste basses cochables + liste amplis basse cochables. Gated
+          comme les autres tabs (visible si !isDemo). */}
+      {s === 'basses' && <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 16 }}>
+        {(() => {
+          const instruments = Array.isArray(profile?.instruments) ? profile.instruments : ['guitar'];
+          const bassActive = instruments.includes('bass');
+          const myBasses = profile?.myBasses || [];
+          const myBassAmps = profile?.myBassAmps || [];
+          return (
+            <>
+              {/* Section 1 — Toggle activation basse */}
+              <div style={{ marginBottom: bassActive ? 20 : 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{t('profile-tab.bass-activate', 'Active la basse')}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>{t('profile-tab.bass-activate-hint', 'Active si tu joues aussi la basse (multi-instrument). Une section dédiée "🎻 Basse" apparaît dans la fiche song dépliée pour les morceaux ayant une ligne de basse notable.')}</div>
+                <div onClick={() => { if (!isDemo) toggleBassInstrument(); }} title={demoTitle} style={{ display: 'flex', alignItems: 'center', gap: 10, background: bassActive ? 'var(--accent-soft)' : 'var(--a3)', border: bassActive ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '10px 14px', cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.6 : 1 }}>
+                  <div style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: bassActive ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: bassActive ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{bassActive && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: bassActive ? 'var(--text)' : 'var(--text-muted)' }}>{t('profile-tab.bass-toggle-label', '🎻 Je joue aussi la basse')}</span>
+                </div>
+              </div>
+
+              {/* Section 2 — Liste basses cochables (seulement si activé) */}
+              {bassActive && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{t('profile-tab.my-basses', 'Mes basses')}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>{t('profile-tab.my-basses-hint', 'Coche les basses que tu possèdes. Backline les utilisera pour recommander un instrument adapté au morceau.')}</div>
+                  {BASS_BRANDS.map((brand) => {
+                    const brandBasses = BASSES.filter((b) => b.brand === brand);
+                    if (brandBasses.length === 0) return null;
+                    return (
+                      <div key={brand} style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{brand}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {brandBasses.map((b) => {
+                            const sel = myBasses.includes(b.id);
+                            return (
+                              <div key={b.id} onClick={() => { if (!isDemo) toggleBass(b.id); }} title={demoTitle} style={{ display: 'flex', alignItems: 'center', gap: 8, background: sel ? 'var(--accent-soft)' : 'var(--a3)', border: sel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '8px 12px', cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.6 : 1 }}>
+                                <div style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: sel ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: sel ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{sel && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
+                                <div style={{ flex: 1 }}>
+                                  <span style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{b.name}</span>
+                                  <span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 6 }}>{b.short}</span>
+                                </div>
+                                <span style={{ fontSize: 10, color: 'var(--text-dim)', marginRight: 4 }}>{b.type}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Section 3 — Liste amplis basse cochables (seulement si activé) */}
+              {bassActive && (
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{t('profile-tab.my-bass-amps', 'Mes amplis basse traditionnels')}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>{t('profile-tab.my-bass-amps-hint', 'Coche les amplis basse physiques que tu possèdes (en plus du ToneX). Backline proposera des réglages adaptés à ton matériel.')}</div>
+                  {BASS_AMP_BRANDS.map((brand) => {
+                    const brandAmps = BASS_AMPS.filter((a) => a.brand === brand);
+                    if (brandAmps.length === 0) return null;
+                    return (
+                      <div key={brand} style={{ marginBottom: 12 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{brand}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {brandAmps.map((a) => {
+                            const sel = myBassAmps.includes(a.id);
+                            return (
+                              <div key={a.id} onClick={() => { if (!isDemo) toggleBassAmp(a.id); }} title={demoTitle} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: sel ? 'var(--accent-soft)' : 'var(--a3)', border: sel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '8px 12px', cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.6 : 1 }}>
+                                <div style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: sel ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: sel ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{sel && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{a.name} <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400 }}>· {a.wattage}W</span></div>
+                                  <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.4 }}>{a.features?.join(' · ') || ''}</div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          );
+        })()}
       </div>}
 
       {s === 'sources' && <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 16 }}>
