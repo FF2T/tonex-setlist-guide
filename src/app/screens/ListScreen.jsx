@@ -812,12 +812,13 @@ function ListScreen({
                                       {/* S8.7 — Score à GAUCHE du label guitare
                                           par cohérence avec les devices
                                           ([slot][score][preset]). */}
-                                      {(() => {
-                                        const p = _compatPillProps(rowData.guitarScore, t);
-                                        return p
-                                          ? <span className="songrow-pl-score-pill-inline" style={{ background: p.color }} title={p.title}>{p.label}</span>
-                                          : <span className="songrow-pl-score-pill-empty" aria-hidden="true"/>;
-                                      })()}
+                                      {/* Phase 7.83 final4 — pill "Idéal" séparé retiré : le
+                                          libellé encadré du même fond bucket dit déjà la même
+                                          chose. Le score brut chiffré reste accessible via tooltip
+                                          hover. */}
+                                      {rowData.guitarScore != null
+                                        ? <span className="songrow-pl-score-pill-inline" style={{ background: 'transparent', border: 'none', padding: 0 }} aria-hidden="true"/>
+                                        : <span className="songrow-pl-score-pill-empty" aria-hidden="true"/>}
                                       {(() => {
                                         const cleanLabel = _cleanGuitarLabel(rowData.guitarLabel);
                                         const labelStyle = _compatLabelStyle(rowData.guitarScore);
@@ -836,16 +837,15 @@ function ListScreen({
                                     <div key={d.deviceKey} className="songrow-pl-device-line">
                                       <span className="songrow-pl-device">{d.deviceLabel}</span>
                                       <span className="songrow-pl-slot-pill">{d.slot}</span>
-                                      {(() => {
-                                        const p = _compatPillProps(d.presetScore, t);
-                                        return p
-                                          ? <span className="songrow-pl-score-pill-inline" style={{ background: p.color }} title={p.title}>{p.label}</span>
-                                          : <span className="songrow-pl-score-pill-empty" aria-hidden="true"/>;
-                                      })()}
+                                      {/* Phase 7.83 final4 — pill "Idéal" séparé retiré (même
+                                          raison qu'au-dessus pour la guitare). Spacer transparent
+                                          préserve le grid 4 col `52px 44px 44px 1fr`. */}
+                                      {d.presetScore != null
+                                        ? <span className="songrow-pl-score-pill-inline" style={{ background: 'transparent', border: 'none', padding: 0 }} aria-hidden="true"/>
+                                        : <span className="songrow-pl-score-pill-empty" aria-hidden="true"/>}
                                       {(() => {
                                         const presetDisplay = d.ampLabel || d.presetName;
                                         const labelStyle = _compatLabelStyle(d.presetScore);
-                                        // Tooltip : ampLabel ≠ presetName → preset name brut + score si dispo.
                                         const tooltipParts = [];
                                         if (d.ampLabel && d.ampLabel !== d.presetName) tooltipParts.push(d.presetName);
                                         if (d.presetScore != null) tooltipParts.push(`${d.presetScore}%`);

@@ -223,48 +223,36 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             que l'action prioritaire soit visible dans le 1er bloc — choix
             Sébastien). */}
         <div style={{ marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 10, borderBottom: `1px solid ${BORDER_SUBTLE}` }}>
-          {/* Phase 7.83 résidu cleanup (2026-05-27) — fusion des indicateurs
-              redondants. AVANT : StatusDot gauche (couleur+ideal) + bordure
-              colorée select (vert/jaune) + pill score droite (87%) + texte
-              "Choix optimal" / "Idéalement : X" sous le select = 4-5 indicateurs
-              disant la même chose. APRÈS : juste le select (bordure subtile
-              gardée pour scan rapide) + pill bucket qualitatif unique sous le
-              select + suggestion alternatives si pas idéal (info actionnable
-              unique). Pill `hideStatusText` retire les textes legacy du
-              GuitarSelect (RecapScreen les conserve via default false). */}
-          <div><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars} hideStatusText={true}/></div>
-          {g && chosenGuitarScore != null && (() => {
-            const bucket = bucketizeScore(chosenGuitarScore);
-            // Phase 7.83 polish (2026-05-27) — strip emoji du label affiché
-            // (le fond coloré du pill dit déjà la couleur, le rond emoji
-            // est redondant). Le label complet avec emoji reste dans le
-            // tooltip.
-            const stripEmoji = (s) => s.replace(/^[🟢🟡🟠]\s*/u, '');
-            const shortLabels = {
-              ideal: stripEmoji(t('compat.ideal-short', '🟢 Idéal')),
-              good: stripEmoji(t('compat.good-short', '🟡 Bon')),
-              compromise: stripEmoji(t('compat.compromise-short', '🟠 Limite')),
-            };
-            const longLabels = {
-              ideal: t('compat.ideal-match', '🟢 Mariage parfait'),
-              good: t('compat.good-match', '🟡 Bon match'),
-              compromise: t('compat.compromise', '🟠 Compromis'),
-            };
-            const titleText = `${longLabels[bucket.id]} — ${chosenGuitarScore}%${chosenGuitarScoreEstimated ? ' ' + t('song-detail.estimated', '(estimé)') : ''}`;
-            const isIdeal = ig.includes(gId);
-            const alternativesList = !isIdeal && ig.length > 0
-              ? ig.map((i) => guitars.find((x) => x.id === i)?.short || GUITARS.find((x) => x.id === i)?.short).filter(Boolean).join(', ')
-              : null;
-            return (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 2 }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: bucket.color, padding: '3px 9px', borderRadius: 'var(--r-sm)', textAlign: 'center', fontSize: 'clamp(11px, 1.2vw, 13px)', whiteSpace: 'nowrap', lineHeight: 1.3 }} title={titleText}>
-                  {shortLabels[bucket.id]}
+          {/* Phase 7.83 final4 (2026-05-27) — score chiffré pill à gauche
+              du select avec fond bucket-color (cohérent avec pattern preset
+              et ListScreen vue repliée). Pill bucket "Idéal" séparé retiré
+              (redondant avec la couleur du score). Warn alternatives reste
+              sous le select si pas idéal. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {g && chosenGuitarScore != null && (() => {
+              const bucket = bucketizeScore(chosenGuitarScore);
+              const longLabels = {
+                ideal: t('compat.ideal-match', '🟢 Mariage parfait'),
+                good: t('compat.good-match', '🟡 Bon match'),
+                compromise: t('compat.compromise', '🟠 Compromis'),
+              };
+              const titleText = `${longLabels[bucket.id]} — ${chosenGuitarScore}%${chosenGuitarScoreEstimated ? ' ' + t('song-detail.estimated', '(estimé)') : ''}`;
+              return (
+                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: bucket.color, padding: '3px 9px', borderRadius: 'var(--r-sm)', textAlign: 'center', fontSize: 'clamp(11px, 1.2vw, 13px)', whiteSpace: 'nowrap', lineHeight: 1.3, flexShrink: 0, minWidth: 44 }} title={titleText}>
+                  {chosenGuitarScore}%{chosenGuitarScoreEstimated ? '*' : ''}
                 </span>
-                {alternativesList && (
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                    {tFormat('guitar-select.warn', { list: alternativesList }, '⚠️ Idéalement : {list}')}
-                  </span>
-                )}
+              );
+            })()}
+            <div style={{ flex: 1, minWidth: 0 }}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars} hideStatusText={true}/></div>
+          </div>
+          {g && chosenGuitarScore != null && (() => {
+            const isIdeal = ig.includes(gId);
+            if (isIdeal || ig.length === 0) return null;
+            const alternativesList = ig.map((i) => guitars.find((x) => x.id === i)?.short || GUITARS.find((x) => x.id === i)?.short).filter(Boolean).join(', ');
+            if (!alternativesList) return null;
+            return (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 2 }}>
+                {tFormat('guitar-select.warn', { list: alternativesList }, '⚠️ Idéalement : {list}')}
               </div>
             );
           })()}
