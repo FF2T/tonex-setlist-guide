@@ -277,7 +277,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.252";
+const APP_VERSION = "8.14.253";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -1170,6 +1170,11 @@ export function App() {
       +":"+JSON.stringify(p.guitarBias||{})
       +":"+(p.language||'')                      // Phase 7.49 — i18n per-profile
       +":"+(p.preferredStyles||[]).slice().sort().join(',')  // Phase 7.73.2 Session A — bonus sync
+      +":"+(p.instruments||[]).slice().sort().join(',')      // Phase 8.6 — toggle bass + futur multi-instrument
+      +":"+(p.myBasses||[]).slice().sort().join(',')         // Phase 8.6 — basses cochées
+      +":"+(p.myBassAmps||[]).slice().sort().join(',')       // Phase 8.6 — amplis basse cochés
+      +":"+(p.customBasses||[]).map(b=>b.id).slice().sort().join(',')  // Phase 8.6 — custom basses future
+      +":"+(p.customBassAmps||[]).map(a=>a.id).slice().sort().join(',') // Phase 8.6 — custom amplis basse future
       +":"+Object.keys(p.aiCache||{}).slice().sort().join(',')+":"+Object.values(p.aiCache||{}).map(a=>(a?.sv||0)+'|'+(a?.rigSnapshot||'')+'|'+(a?.gId||'')+'|'+(a?.ts||0)).join('!')  // Phase 7.54 + 7.81 — aiCache per-profile, ts pour propager LWW
       // Phase 7.79.3c — usagesOverrides per-profile : sync via push profil
       // habituel. Hash basé sur (name, lastModified, usages?null|len) pour
