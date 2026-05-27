@@ -18,6 +18,7 @@ import {
   ensureProfileV10, ensureProfilesV10, migrateV9toV10, getProfileAiCache,
   ensureProfileV11, ensureProfilesV11, migrateV10toV11,
   ensureProfileV12, ensureProfilesV12, migrateV11toV12,
+  ensureProfileV13, ensureProfilesV13, migrateV12toV13,
   getDeviceId, getDeviceLabel, setDeviceLabel,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,
@@ -34,8 +35,8 @@ import {
 } from './state.js';
 
 describe('STATE_VERSION', () => {
-  test('vaut 12 en Phase 7.74.10 (timestamps dédiés language/enabledDevices/availableSources)', () => {
-    expect(STATE_VERSION).toBe(12);
+  test('vaut 13 en Phase 8.1 (intégration basse : profile.instruments + myBasses + bass amps)', () => {
+    expect(STATE_VERSION).toBe(13);
   });
 });
 
@@ -2217,7 +2218,7 @@ describe('buildDemoSnapshot (Phase 7.51.4)', () => {
 
   test('format compatible loadDemoSnapshot (version + 4 clés)', () => {
     const snap = buildDemoSnapshot(sampleProfile, sampleSetlists, sampleSongs);
-    expect(snap.version).toBe(12);
+    expect(snap.version).toBe(13);
     expect(snap).toHaveProperty('profile');
     expect(snap).toHaveProperty('setlists');
     expect(snap).toHaveProperty('songs');
@@ -3707,6 +3708,63 @@ describe('migrateV11toV12 — Phase 7.74.10 backfill timestamps dédiés', () =>
     expect(out.languageModified).toBe(7777);
     expect(out.enabledDevicesModified).toBe(0);
     expect(out.availableSourcesModified).toBe(0);
+  });
+});
+
+describe('migrateV12toV13 — Phase 8.1 intégration basse', () => {
+  test('pose instruments/myBasses/customBasses/myBassAmps/customBassAmps avec defaults', () => {
+    const v12 = {
+      version: 12,
+      profiles: {
+        seb: { id: 'seb', name: 'Sébastien', isAdmin: true, banksModified: 12345 },
+      },
+    };
+    const v13 = migrateV12toV13(v12);
+    expect(v13.version).toBe(13);
+    expect(v13.profiles.seb.instruments).toEqual(['guitar']);
+    expect(v13.profiles.seb.myBasses).toEqual([]);
+    expect(v13.profiles.seb.customBasses).toEqual([]);
+    expect(v13.profiles.seb.myBassAmps).toEqual([]);
+    expect(v13.profiles.seb.customBassAmps).toEqual([]);
+    expect(v13.profiles.seb.banksModified).toBe(12345); // préservé
+  });
+
+  test('idempotent : profil déjà v13 → préserve les valeurs', () => {
+    const v13 = {
+      version: 13,
+      profiles: {
+        seb: {
+          id: 'seb', name: 'Sébastien',
+          instruments: ['guitar', 'bass'],
+          myBasses: ['jazz_bass_player_plus', 'precision_avri'],
+          customBasses: [],
+          myBassAmps: ['rumble_100'],
+          customBassAmps: [],
+        },
+      },
+    };
+    const out = ensureProfileV13(v13.profiles.seb);
+    expect(out.instruments).toEqual(['guitar', 'bass']);
+    expect(out.myBasses).toEqual(['jazz_bass_player_plus', 'precision_avri']);
+    expect(out.myBassAmps).toEqual(['rumble_100']);
+  });
+
+  test('partial backfill : préserve champs présents, ajoute manquants', () => {
+    const partial = {
+      id: 'seb',
+      instruments: ['bass'], // déjà set
+      // myBasses, customBasses, etc. absents
+    };
+    const out = ensureProfileV13(partial);
+    expect(out.instruments).toEqual(['bass']);
+    expect(out.myBasses).toEqual([]);
+    expect(out.customBasses).toEqual([]);
+    expect(out.myBassAmps).toEqual([]);
+    expect(out.customBassAmps).toEqual([]);
+  });
+
+  test('null profile → return null', () => {
+    expect(ensureProfileV13(null)).toBeNull();
   });
 });
 

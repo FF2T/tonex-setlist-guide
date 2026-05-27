@@ -61,7 +61,7 @@ import {
 import demoSnapshot from '../data/demo-profile.json';
 
 // ─── Versioning + clés localStorage ──────────────────────────────────
-const STATE_VERSION = 12;
+const STATE_VERSION = 13;
 const LOCALE_KEY = 'backline_locale'; // Phase 7.49 — fallback pour migrateV7toV8
 const TOMBSTONE_MAX_AGE_MS = 30 * 24 * 3600 * 1000;
 const LS_KEY = 'tonex_guide_v2';        // nom historique stable
@@ -780,6 +780,60 @@ function migrateV11toV12(state) {
   };
 }
 
+// Phase 8.1 — Intégration basse. Ajoute aux profils existants les
+// champs :
+//   - profile.instruments  : string[] (default ['guitar']). Détermine
+//     quels instruments sont activés pour ce profil. V1 : 'guitar' ou
+//     'bass' ou les deux (multi-instrument).
+//   - profile.myBasses     : string[] (default []). Basses du catalog
+//     statique BASSES cochées par l'utilisateur (parallèle myGuitars).
+//   - profile.customBasses : Bass[] (default []). Custom user basses
+//     hors catalog (parallèle customGuitars). V1 vide, MVP UI Phase 8.x.
+//   - profile.myBassAmps   : string[] (default []). Amplis basse
+//     traditionnels (Rumble 100 etc.) cochés par l'utilisateur.
+//   - profile.customBassAmps : BassAmp[] (default []). Custom amplis
+//     basse user hors catalog. V1 vide, extension future.
+//
+// Migration purement additive — aucun champ touché, aucune migration
+// destructive. Idempotente sur v13. Compat v12→v13 garantie en pull
+// Firestore via ensureProfileV13.
+function ensureProfileV13(profile) {
+  if (!profile) return profile;
+  const v12 = ensureProfileV12(profile);
+  const needsInstruments = !Array.isArray(v12.instruments);
+  const needsMyBasses = !Array.isArray(v12.myBasses);
+  const needsCustomBasses = !Array.isArray(v12.customBasses);
+  const needsMyBassAmps = !Array.isArray(v12.myBassAmps);
+  const needsCustomBassAmps = !Array.isArray(v12.customBassAmps);
+  if (!needsInstruments && !needsMyBasses && !needsCustomBasses &&
+      !needsMyBassAmps && !needsCustomBassAmps) return v12;
+  return {
+    ...v12,
+    instruments: needsInstruments ? ['guitar'] : v12.instruments,
+    myBasses: needsMyBasses ? [] : v12.myBasses,
+    customBasses: needsCustomBasses ? [] : v12.customBasses,
+    myBassAmps: needsMyBassAmps ? [] : v12.myBassAmps,
+    customBassAmps: needsCustomBassAmps ? [] : v12.customBassAmps,
+  };
+}
+function ensureProfilesV13(profiles) {
+  if (!profiles) return profiles;
+  const out = {};
+  for (const [id, p] of Object.entries(profiles)) {
+    out[id] = ensureProfileV13(p);
+  }
+  return out;
+}
+
+function migrateV12toV13(state) {
+  if (!state) return state;
+  return {
+    ...state,
+    version: 13,
+    profiles: ensureProfilesV13(state.profiles),
+  };
+}
+
 // Phase 7.54 — Helper lookup aiCache (priorité profile.aiCache, fallback
 // shared.songDb[i].aiCache). Exposé pour la dérivation
 // songDbWithProfileCache au niveau App + pour les call sites isolés.
@@ -1373,12 +1427,12 @@ function mergeProfilesLWW(localProfiles, remoteProfiles, options = {}) {
       const localGuitarSet = guitarsByProfile[id] || new Set();
       for (const g of localGuitarSet) otherProfilesGuitars.delete(g);
       const merged = mergeProfileLWW(lp, adoptedRemote, { ...options, otherProfilesGuitars });
-      out[id] = ensureProfileV12(merged || lp);
+      out[id] = ensureProfileV13(merged || lp);
     } else if (lp) {
-      out[id] = ensureProfileV12(lp);
+      out[id] = ensureProfileV13(lp);
     } else if (rp) {
       const adopted = applySecrets ? applySecrets({ [id]: rp })[id] : rp;
-      out[id] = ensureProfileV12(adopted);
+      out[id] = ensureProfileV13(adopted);
     }
   }
   return out;
@@ -1554,6 +1608,14 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
       myGuitars: GUITARS.map((g) => g.id),
       customGuitars: [],
       editedGuitars: {},
+      // Phase 8.1 — Intégration basse. Admin Sébastien démarre avec
+      // ses 2 basses Fender cochées et l'ampli Rumble 100. instruments
+      // ['guitar', 'bass'] = multi-instrument par défaut (admin curateur).
+      instruments: ['guitar', 'bass'],
+      myBasses: ['jazz_bass_player_plus', 'precision_avri'],
+      customBasses: [],
+      myBassAmps: ['rumble_100'],
+      customBassAmps: [],
       enabledDevices: ['tonex-anniversary', 'tonex-plug'],
       availableSources: { TSR: true, ML: true, Anniversary: true, Factory: true, ToneNET: true },
       customPacks: [],
@@ -1584,6 +1646,14 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
     myGuitars: [],
     customGuitars: [],
     editedGuitars: {},
+    // Phase 8.1 — non-admin démarre vierge guitariste pur. Le profil
+    // bascule en multi-instrument quand l'utilisateur coche son
+    // premier instrument basse (UI Phase 8.3).
+    instruments: ['guitar'],
+    myBasses: [],
+    customBasses: [],
+    myBassAmps: [],
+    customBassAmps: [],
     enabledDevices: [],
     availableSources: {
       TSR: false, ML: false, Anniversary: false,
@@ -2030,8 +2100,11 @@ function _runFullChain(d) {
   const v11 = migrateV10toV11(v10);
   // Phase 7.74.10 — v11 → v12 : timestamps dédiés language/enabledDevices/availableSources.
   const v12 = migrateV11toV12(v11);
-  if (v12 && v12.shared && v12.shared.deletedSetlistIds) {
-    v12.shared = { ...v12.shared, deletedSetlistIds: gcTombstones(v12.shared.deletedSetlistIds) };
+  // Phase 8.1 — v12 → v13 : intégration basse (profile.instruments +
+  // myBasses + customBasses + myBassAmps + customBassAmps).
+  const v13 = migrateV12toV13(v12);
+  if (v13 && v13.shared && v13.shared.deletedSetlistIds) {
+    v13.shared = { ...v13.shared, deletedSetlistIds: gcTombstones(v13.shared.deletedSetlistIds) };
   }
   // Phase 7.52.9 — Heal défensif au load : retire 'demo' des profileIds
   // des setlists non-démo (pollution Firestore historique, cf
@@ -2040,7 +2113,7 @@ function _runFullChain(d) {
   // au boot. Sinon Mac+iPhone stamperaient chacun au boot → loop LWW
   // infinie → sync cassée. Le stamp se fait seulement au push Firestore
   // (saveToFirestore.prep) pour propager le clean correctement.
-  return stripDemoFromSetlists(v12, { stamp: false });
+  return stripDemoFromSetlists(v13, { stamp: false });
 }
 
 function loadState() {
@@ -2049,6 +2122,7 @@ function loadState() {
     if (raw) {
       const d = JSON.parse(raw);
       if (d.version === STATE_VERSION) return _runFullChain(d);
+      if (d.version === 12) return _runFullChain(d);
       if (d.version === 11) return _runFullChain(d);
       if (d.version === 10) return _runFullChain(d);
       if (d.version === 9) return _runFullChain(d);
@@ -2733,6 +2807,7 @@ export {
   ensureProfileV10, ensureProfilesV10, migrateV9toV10, getProfileAiCache,
   ensureProfileV11, ensureProfilesV11, migrateV10toV11,
   ensureProfileV12, ensureProfilesV12, migrateV11toV12,
+  ensureProfileV13, ensureProfilesV13, migrateV12toV13,
   LS_DEVICE_ID_KEY, LS_DEVICE_LABEL_KEY,
   getDeviceId, getDeviceLabel, setDeviceLabel, getDeviceUA,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,

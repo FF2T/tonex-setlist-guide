@@ -4,8 +4,8 @@ import { describe, test, expect } from 'vitest';
 import { INIT_SONG_DB_META, getSongInfo } from './songs.js';
 
 describe('INIT_SONG_DB_META — bpm/key Phase 4', () => {
-  test('les 13 morceaux ont bpm + key', () => {
-    expect(INIT_SONG_DB_META).toHaveLength(13);
+  test('les 16 morceaux (Phase 8.1 : +3 bass-jouables) ont bpm + key', () => {
+    expect(INIT_SONG_DB_META).toHaveLength(16);
     INIT_SONG_DB_META.forEach((s) => {
       expect(typeof s.bpm).toBe('number');
       expect(s.bpm).toBeGreaterThan(50);

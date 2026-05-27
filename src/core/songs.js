@@ -112,6 +112,10 @@ const INIT_SONG_DB_META = [
   {id:"tel_flipper",title:"Flipper",artist:"Téléphone",year:1977,album:"Téléphone",bpm:158,key:"E",desc:{fr:"Le rock français de Bertignac. Énergie punk, riffs simples et efficaces sur Marshall JCM900.",en:"Bertignac's French rock. Punk energy, simple effective riffs through a Marshall JCM900.",es:"El rock francés de Bertignac. Energía punk, riffs simples y eficaces en un Marshall JCM900."}},
   {id:"muddy_hoochie",title:"Hoochie Coochie Man",artist:"Muddy Waters",year:1954,album:"Single",bpm:84,key:"A",desc:{fr:"Le standard du Chicago Blues. Riff hypnotique en Mi, le son qui a inspiré le rock'n'roll.",en:"The Chicago Blues standard. Hypnotic E riff — the sound that inspired rock'n'roll.",es:"El estándar del Chicago Blues. Riff hipnótico en Mi, el sonido que inspiró el rock'n'roll."}},
   {id:"deeppurple_smoke",title:"Smoke on the Water",artist:"Deep Purple",year:1972,album:"Machine Head",bpm:112,key:"G minor",desc:{fr:"Le riff le plus connu de l'histoire du rock. Ritchie Blackmore sur une Strat dans un Marshall.",en:"The most famous riff in rock history. Ritchie Blackmore on a Strat through a Marshall.",es:"El riff más famoso de la historia del rock. Ritchie Blackmore con una Strat en un Marshall."}},
+  // Phase 8.1 — 3 morceaux bass-jouables (cas d'usage Sébastien V1)
+  {id:"cream_sunshine",title:"Sunshine of Your Love",artist:"Cream",year:1967,album:"Disraeli Gears",bpm:118,key:"D",desc:{fr:"Le riff de basse signature de Jack Bruce, doublé à la guitare par Clapton. Disraeli Gears 1967, blues-rock psychédélique.",en:"Jack Bruce's signature bass riff, doubled on guitar by Clapton. Disraeli Gears 1967, psychedelic blues-rock.",es:"El riff de bajo característico de Jack Bruce, doblado en guitarra por Clapton. Disraeli Gears 1967, blues-rock psicodélico."}},
+  {id:"queen_underpressure",title:"Under Pressure",artist:"Queen & David Bowie",year:1981,album:"Hot Space",bpm:114,key:"D",desc:{fr:"L'une des lignes de basse les plus reconnaissables au monde, intro pure basse 4 notes. John Deacon Fender Precision Bass.",en:"One of the most recognizable bass lines in the world, pure 4-note bass intro. John Deacon on Fender Precision Bass.",es:"Una de las líneas de bajo más reconocibles del mundo, intro pura de bajo en 4 notas. John Deacon con Fender Precision Bass."}},
+  {id:"joanjett_iloverock",title:"I Love Rock 'n' Roll",artist:"Joan Jett & The Blackhearts",year:1981,album:"I Love Rock 'n Roll",bpm:91,key:"E",desc:{fr:"Reprise du morceau des Arrows (1975). Riff guitare en Mi puissant et ligne de basse rythmique simple et efficace.",en:"Cover of The Arrows (1975). Powerful E guitar riff and a simple, effective rhythmic bass line.",es:"Versión del tema de The Arrows (1975). Riff de guitarra potente en Mi y línea de bajo rítmica simple y eficaz."}},
 ];
 
 // ─── Référence originale par morceau ──────────────────────────────────────────
@@ -136,6 +140,35 @@ const SONG_HISTORY = {
   tel_flipper:       {guitarist:"Louis Bertignac", guitar:"Fender Stratocaster",                        amp:"Marshall JCM800",                     effects:{fr:"Léger chorus / delay, boost pour les solos",en:"Light chorus / delay, boost for solos",es:"Ligero chorus / delay, boost para los solos"}},
   muddy_hoochie:     {guitarist:"Muddy Waters",    guitar:"Fender Telecaster (modifié, micros custom)", amp:"Fender Super Reverb",                 effects:{fr:"Aucun effet — blues électrique Chicago originel (1954)",en:"No effect — original Chicago electric blues (1954)",es:"Ningún efecto — blues eléctrico de Chicago original (1954)"}},
   deeppurple_smoke:  {guitarist:"Ritchie Blackmore",guitar:"Fender Stratocaster (noir, modifiée)",      amp:"Marshall Major 200W (modifié)",       effects:{fr:"Hornby-Skewes Treble Booster",en:"Hornby-Skewes Treble Booster",es:"Hornby-Skewes Treble Booster"}},
+  // Phase 8.1 — 3 morceaux bass-jouables avec champ `bass` dédié.
+  // Le champ bass est OPTIONNEL : si absent, le morceau ne propose pas
+  // de reco basse côté UI (cf SongDetailCard `<BassRecommendationSection>`
+  // Phase 8.3). `bass.effects` reste trilingue {fr,en,es} comme
+  // `effects` guitare.
+  cream_sunshine: {
+    guitarist:"Eric Clapton", guitar:"Gibson SG Standard «The Fool» (peinte)", amp:"Marshall JTM45 100W",
+    effects:{fr:"Aucun effet — son blues-rock direct",en:"No effect — direct blues-rock tone",es:"Ningún efecto — sonido blues-rock directo"},
+    bass: {
+      bassist:"Jack Bruce", bass_guitar:"Gibson EB-3 (short scale)", bass_amp:"Marshall Major 200W",
+      effects:{fr:"Aucun effet — son brut Marshall Major basse",en:"No effect — raw Marshall Major bass tone",es:"Ningún efecto — sonido crudo del Marshall Major de bajo"}
+    }
+  },
+  queen_underpressure: {
+    guitarist:"Brian May", guitar:"Brian May Red Special (custom 1963)", amp:"Vox AC30 + Treble Booster",
+    effects:{fr:"Dallas-Rangemaster Treble Booster, harmonisateur Eventide",en:"Dallas-Rangemaster Treble Booster, Eventide harmonizer",es:"Dallas-Rangemaster Treble Booster, armonizador Eventide"},
+    bass: {
+      bassist:"John Deacon", bass_guitar:"Fender Precision Bass", bass_amp:"Ampeg SVT",
+      effects:{fr:"Aucun effet — ligne de basse iconique 4 notes en intro",en:"No effect — iconic 4-note bass intro line",es:"Ningún efecto — línea de bajo icónica de 4 notas en la intro"}
+    }
+  },
+  joanjett_iloverock: {
+    guitarist:"Joan Jett · Ricky Byrd", guitar:"Gibson Melody Maker (Joan rythmique) · Fender Stratocaster (Ricky lead)", amp:"Marshall (Joan) · Fender Bassman (Ricky)",
+    effects:{fr:"Aucun effet — son rock direct, juste l'ampli",en:"No effect — direct rock tone, straight into the amp",es:"Ningún efecto — sonido rock directo, directamente al ampli"},
+    bass: {
+      bassist:"Gary Ryan", bass_guitar:"Fender Precision Bass", bass_amp:"Ampeg SVT",
+      effects:{fr:"Aucun effet — basse simple et carrée",en:"No effect — simple square bass",es:"Ningún efecto — bajo simple y cuadrado"}
+    }
+  },
 };
 
 function getSongInfo(song){
