@@ -846,6 +846,7 @@ const en = {
   'song-detail.bass-ideal': 'Ideal bass:',
   'song-detail.bass-ideal-out-of-rig': 'Ideal bass (outside your collection): {name}',
   'song-detail.bass-amp-settings': 'On your {amp}',
+  'song-detail.bass-on-tonex': 'On your ToneX',
   'song-detail.bass-playing-tips': 'Playing:',
   'song-detail.bass-original-ref': 'Original reference:',
   'song-detail.install': 'Install',

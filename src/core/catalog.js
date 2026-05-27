@@ -349,4 +349,25 @@ function getCurationLabel(status) {
   }
 }
 
-export { PRESET_CATALOG_MERGED, findCatalogEntry, guessPresetInfo, normalizePresetName, findCatalogSuggestions, getPresetCurationStatus, CURATION_COLORS, getCurationLabel };
+// Phase 8.8 — Détection captures bass dans le catalog (vs guitar).
+// Le catalog ne distingue pas nativement les 2 instruments, donc on
+// se base sur :
+//   1. Champ explicite `entry.instrument: 'bass'` (custom user Phase 8.7+)
+//   2. Préfixe nom `^BS ` (Factory ToneX Pedal v2 banks 45-49)
+//   3. TSR bass packs reconnus par préfixe nom (Bass Elliot, GK MBS150,
+//      Ampeg Pro, Bass Pack — cf TSR_PACK_GROUPS.Bass dans tsr-packs.js)
+const BASS_NAME_PATTERNS = [
+  /^BS /,                        // Factory bass slots
+  /^TSR Bass Elliot/i,           // TSR pack Bass Elliot
+  /^TSR GK MBS150/i,             // TSR pack GK MBS150 (Bass)
+  /^TSR Ampeg Pro/i,             // TSR pack Ampeg Pro 4
+  /^TSR Bass Pack/i,             // TSR pack Bass Pack 1
+];
+
+function isBassPreset(name, entry) {
+  if (entry?.instrument === 'bass') return true;
+  if (typeof name !== 'string' || !name) return false;
+  return BASS_NAME_PATTERNS.some((re) => re.test(name));
+}
+
+export { PRESET_CATALOG_MERGED, findCatalogEntry, guessPresetInfo, normalizePresetName, findCatalogSuggestions, getPresetCurationStatus, CURATION_COLORS, getCurationLabel, isBassPreset };

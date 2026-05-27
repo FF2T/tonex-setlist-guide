@@ -19,7 +19,7 @@
 import { GUITARS } from '../../core/guitars.js';
 import { findGuitarProfile } from '../../core/scoring/guitar.js';
 import { TMP_FACTORY_PATCHES } from '../../devices/tonemaster-pro/index.js';
-import { findCatalogEntry } from '../../core/catalog.js';
+import { findCatalogEntry, isBassPreset } from '../../core/catalog.js';
 import {
   enrichAIResult, mergeBestResults, bestScoreOf, safeParseJSON,
 } from './ai-helpers.js';
@@ -51,9 +51,13 @@ function formatUsages(usages) {
 
 function buildInstalledSlotsSection(banksAnn, banksPlug) {
   const lines = [];
+  // Phase 8.8 — filtre out captures bass (extraites par
+  // buildBassSlotsSection séparément). Évite que Gemini propose un
+  // preset bass pour un morceau guitare (et vice-versa).
   const fmt = (bank, col, name) => {
     const info = findCatalogEntry(name);
     if (!info) return null;
+    if (isBassPreset(name, info)) return null;
     const amp = info.amp || '?';
     const style = info.style || '?';
     const gain = info.gain || '?';
@@ -81,6 +85,47 @@ function buildInstalledSlotsSection(banksAnn, banksPlug) {
     lines.push(`\nCAPTURES INSTALLÉES DANS LES BANKS PLUG (10 banks × 3 slots A/B/C) :\n${plugLines.join('\n')}`);
   }
   lines.push(`\nINSTRUCTION CAPTURES : Si une de ces captures matche le morceau, retourne son nom EXACT dans preset_ann_name (pour Pedale/Anniversary) et preset_plug_name (pour Plug). PRIORITÉ ABSOLUE 1 : capture dont les "usages: [...]" contiennent l'artiste OU le titre du morceau analysé. Ex: pour "Highway to Hell" de AC/DC, choisis le slot dont usages contient "AC/DC" OU "Highway to Hell". PRIORITÉ 2 : capture dont le NOM mentionne explicitement l'artiste/morceau (ex: "Blink-182 Mesa Boggie" pour un morceau Blink-182). PRIORITÉ 3 : capture custom/specialty (src: TSR, ML, custom, ToneNET, Anniversary) dont l'ampli matche l'ampli historique. PRIORITÉ 4 : Factory matching l'ampli. Sinon retourne null pour ces champs et laisse le scoring fallback choisir. RAPPEL Phase 7.34 : une capture avec "usages: [X]" est RÉSERVÉE à l'artiste X — n'utilise PAS "AA MRSH SL100 JU Dimed" (usages Hendrix/Led Zep) pour un morceau qui n'est ni Hendrix ni Led Zep.`);
+  return lines.join('\n');
+}
+
+// Phase 8.8 — Section dédiée captures BASS installées dans les banks
+// user. Symétrique à buildInstalledSlotsSection mais filtré
+// isBassPreset === true. Utilisé par ÉTAPE 8 du prompt pour permettre
+// à Gemini de retourner bass_recommendation.capture_name + position
+// bank/slot quand pertinent (vs n'avoir que amp_settings traditionnel).
+function buildBassSlotsSection(banksAnn, banksPlug) {
+  const fmt = (bank, col, name) => {
+    const info = findCatalogEntry(name);
+    if (!info) return null;
+    if (!isBassPreset(name, info)) return null;
+    const amp = info.amp || '?';
+    const style = info.style || '?';
+    const gain = info.gain || '?';
+    const src = info.src || '?';
+    const usagesPart = formatUsages(info.usages);
+    return `- ${bank}${col} "${name}" — ${amp} — ${style} ${gain} gain — src:${src}${usagesPart}`;
+  };
+  const annLines = [];
+  for (const [k, v] of Object.entries(banksAnn || {})) {
+    for (const c of ['A', 'B', 'C']) {
+      if (v?.[c]) { const l = fmt(k, c, v[c]); if (l) annLines.push(l); }
+    }
+  }
+  const plugLines = [];
+  for (const [k, v] of Object.entries(banksPlug || {})) {
+    for (const c of ['A', 'B', 'C']) {
+      if (v?.[c]) { const l = fmt(k, c, v[c]); if (l) plugLines.push(l); }
+    }
+  }
+  if (!annLines.length && !plugLines.length) return '';
+  const lines = [];
+  if (annLines.length) {
+    lines.push(`\nCAPTURES BASS INSTALLÉES DANS LES BANKS PEDALE/ANNIVERSARY :\n${annLines.join('\n')}`);
+  }
+  if (plugLines.length) {
+    lines.push(`\nCAPTURES BASS INSTALLÉES DANS LES BANKS PLUG :\n${plugLines.join('\n')}`);
+  }
+  lines.push(`\nINSTRUCTION CAPTURES BASS : Si une de ces captures bass matche la ligne de basse du morceau, retourne son nom EXACT dans bass_recommendation.capture_name (ÉTAPE 8). Priorités identiques aux captures guitar (usages > nom mentionnant artiste > custom matchant ampli > Factory matchant ampli). Si aucune capture bass installée n'est pertinente OU si le user joue préférablement sur ampli traditionnel (Rumble, Ampeg SVT physique), laisse capture_name à null et utilise uniquement amp_settings.`);
   return lines.join('\n');
 }
 
@@ -164,10 +209,15 @@ function fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, fe
     if (!hasBassContext) return '';
     const bassesList = (basses || []).map((b) => `- ${b.name} (${b.type}, ${b.brand})`).join('\n');
     const ampsList = (bassAmps || []).map((a) => `- ${a.name} (${a.brand}, ${a.wattage}W, channels: ${(a.channels || []).join('/')}, EQ: ${(a.eq || []).join('/')})`).join('\n');
+    // Phase 8.8 — captures BASS installées dans les banks user (Factory
+    // banks 45-49 BS prefix + TSR bass packs + custom user instrument:'bass').
+    const bassSlotsSection = buildBassSlotsSection(banksAnn, banksPlug);
     const sections = [];
     if (bassesList) sections.push(`COLLECTION DE BASSES DISPONIBLES :\n${bassesList}`);
     if (ampsList) sections.push(`AMPLIS BASSE TRADITIONNELS DISPONIBLES :\n${ampsList}`);
-    return `\n${sections.join('\n\n')}\n\nSi ce morceau a une ligne de basse notable (riff bassiste signature ou contribution importante), recommande aussi quelle basse + quel matériel basse utiliser. Sinon retourne bass_recommendation: null.`;
+    let body = sections.join('\n\n');
+    if (bassSlotsSection) body += '\n' + bassSlotsSection;
+    return `\n${body}\n\nSi ce morceau a une ligne de basse notable (riff bassiste signature ou contribution importante), recommande aussi quelle basse + quel matériel basse utiliser. Sinon retourne bass_recommendation: null.`;
   })();
   const gProfiles = guitars.map((x) => {
     const p = findGuitarProfile(x.id);
@@ -403,9 +453,12 @@ Format de bass_recommendation :
   "ref_bassist": "nom du bassiste original" (string),
   "ref_bass_guitar": "modèle basse historique" (string),
   "ref_bass_amp": "modèle ampli basse historique" (string),
+  "capture_name": "nom EXACT d'une capture BASS installée dans les banks user" (string OU null) — Phase 8.8 : si la section "CAPTURES BASS INSTALLÉES" est présente et contient une capture pertinente pour le morceau (par usages match OU ampli match), retourne son nom EXACT ici. Sinon null. Mêmes priorités que captures guitar (usages > nom artiste > custom > Factory).
   "amp_settings": {"gain": 0-10, "bass": 0-10, "low_mid": 0-10, "high_mid": 0-10, "treble": 0-10, "master": 0-10, "channel": "Clean" | "Drive" | autre} (OPTIONNEL si user a un ampli basse traditionnel coché — réglages 0-10 sur les boutons),
   "settings_bass": {"fr":"conseils de jeu basse (doigts/médiator, position chevalet/manche, technique)","en":"...","es":"..."} (TRILINGUE, OPTIONNEL)
 }
+
+NOTE : capture_name et amp_settings ne sont PAS exclusifs. Si l'user a à la fois une capture bass installée pertinente ET un ampli basse traditionnel, retourne LES DEUX — l'UI affichera les 2 options côte à côte (Sur ta ToneX : Bank 47A "BS SVT" / Sur ton Rumble : amp_settings...). L'user choisit selon son contexte d'usage du moment.
 
 Critères pour déterminer "ligne de basse notable" :
 - Riff de basse signature reconnaissable (Under Pressure de Queen, Money de Pink Floyd, Hysteria de Muse, Roundabout de Yes)

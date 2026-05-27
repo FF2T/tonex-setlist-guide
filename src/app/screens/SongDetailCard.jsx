@@ -1097,6 +1097,27 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                     {bassReason}
                   </div>
                 )}
+                {/* Phase 8.8 — Mode ToneX bass : capture_name + bank/slot
+                    si l'IA propose une capture bass installée. Affichée
+                    en premier (préférable si user a une capture bass dans
+                    ses banks). */}
+                {bassReco?.capture_name && (() => {
+                  const captureName = bassReco.capture_name;
+                  const locAnn = findInBanks(captureName, banksAnn);
+                  const locPlug = findInBanks(captureName, banksPlug);
+                  const loc = locAnn || locPlug;
+                  const deviceLabel = locAnn ? '🏭 Anniversary/Pedale' : (locPlug ? '🔌 Plug' : '📦 ToneX');
+                  return (
+                    <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px', marginBottom: 6 }}>
+                      <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>
+                        {t('song-detail.bass-on-tonex', 'Sur ta ToneX')}
+                      </div>
+                      <div style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)' }}>
+                        {deviceLabel} {loc && <span style={{ fontFamily: 'var(--font-mono)', background: 'var(--accent-bg)', color: 'var(--accent)', padding: '1px 7px', borderRadius: 'var(--r-sm)', fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, marginLeft: 4 }}>Bank {loc.bank}{loc.col}</span>} <span style={{ fontWeight: 600 }}>{captureName}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
                 {/* Mode ampli traditionnel : amp_settings si user a un ampli basse coché */}
                 {userBassAmps.length > 0 && hasAmpSettings && (
                   <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px', marginBottom: 6 }}>
