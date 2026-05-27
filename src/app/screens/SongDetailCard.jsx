@@ -350,52 +350,14 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
               concernent la guitare donc leur place est dans Recommandations
               avec settings_guitar. */}
         </div>
-        {/* Phase 7.86 — Bloc Mode reco avancé : repli sous toggle.
-            Préserve la fonctionnalité Phase 7.3 (override recoMode par
-            morceau : balanced / faithful / interpretation) mais cachée
-            par défaut pour désencombrer l'UI débutant. Power-users peuvent
-            déplier pour ajuster. Bloc outputContext supprimé (déplacé
-            dans sticky bandeau en tête de fiche). */}
-        <div style={{ marginBottom: 8 }}>
-          <button
-            onClick={() => setShowAdvancedMode((p) => !p)}
-            data-testid="advanced-mode-toggle"
-            style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0, fontWeight: 600, textAlign: 'left' }}
-          >
-            {showAdvancedMode
-              ? t('song-detail.advanced-mode-hide', '▲ Masquer le mode reco avancé')
-              : t('song-detail.advanced-mode-show', '▸ Mode reco avancé')}
-            {song.recoMode && <span style={{ marginLeft: 6, color: 'var(--text-dim)', fontWeight: 400 }}>{tFormat('song-detail.advanced-mode-active', { mode: song.recoMode }, '· {mode} actif')}</span>}
-          </button>
-          {showAdvancedMode && (
-            <div style={{ marginTop: 6 }}>
-              <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-muted)', marginBottom: 4 }}>{t('song-detail.mode-label', 'Mode IA pour ce morceau')} {song.recoMode ? <span style={{ color: 'var(--accent)' }}>{t('song-detail.mode-override', '· override')}</span> : <span style={{ color: 'var(--text-dim)' }}>{tFormat('song-detail.mode-inherited', { mode: profile?.recoMode || 'balanced' }, '· profil ({mode})')}</span>}</div>
-              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                {[
-                  { id: '', icon: '↻', label: t('song-detail.mode-profile', 'Profil') },
-                  { id: 'balanced', icon: '⚖️', label: t('song-detail.mode-balanced', 'Équilibré') },
-                  { id: 'faithful', icon: '🎯', label: t('song-detail.mode-faithful', 'Fidèle') },
-                  { id: 'interpretation', icon: '🎨', label: t('song-detail.mode-interpretation', 'Interprétation') },
-                ].map(({ id, icon, label }) => {
-                  const active = (song.recoMode || '') === id;
-                  return (
-                    <button key={id || 'profile'}
-                      data-testid={`song-reco-mode-${id || 'profile'}`}
-                      onClick={() => {
-                        onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, recoMode: id || undefined } : x));
-                        writeAiCache(null);
-                        setLocalAiResult(null);
-                      }}
-                      title={id ? tFormat('song-detail.mode-tooltip-override', { label }, 'Override : {label}') : t('song-detail.mode-tooltip-profile', 'Hérite du mode profil. Cliquer invalide le cache IA pour re-fetcher avec le nouveau mode.')}
-                      style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: active ? 700 : 500, background: active ? 'var(--accent-bg)' : 'var(--a3)', border: active ? '1px solid var(--accent-border)' : '1px solid var(--a8)', color: active ? 'var(--accent)' : 'var(--text-muted)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer' }}
-                    >{icon} {label}</button>
-                  );
-                })}
-              </div>
-              <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', color: 'var(--text-dim)', marginTop: 3, fontStyle: 'italic' }}>{t('song-detail.mode-hint', 'Changer le mode invalide le cache → re-analyse au prochain ouverture du morceau.')}</div>
-            </div>
-          )}
-        </div>
+        {/* Phase 7.83 final5 (2026-05-27) — Bloc Mode reco avancé retiré
+            de la fiche song : l'utilisateur ne comprenait pas le wording
+            (↻ Profil / ⚖️ Équilibré / 🎯 Fidèle / 🎨 Interprétation) sans
+            le contexte de Mon Profil → Préférences IA. L'override par
+            morceau (song.recoMode) reste fonctionnel côté data — mais
+            seul le réglage profil global est exposé dans l'UI. Si une
+            poignée de power-users veulent l'override par morceau, on
+            réintroduira plus tard avec un wording plus clair. */}
         {/* Phase 7.55.7 S9.4 — Section "Meilleurs presets installés" droppée.
             Doublon avec la row playlist parente (qui affiche déjà les
             presets installés Anniv/Plug via meta-grid devices). Sébastien
@@ -626,54 +588,94 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 </div>
               )}
 
-              {/* SECTION 3 — Cadre Réglages effets (renommé + valeurs sub-params Phase 9.7) */}
+              {/* SECTION 3 — Cadre Réglages effets en HISTOGRAMME barres horizontales
+                  (Phase 7.83 final5, 2026-05-27) — chaque sub-param affiché en
+                  barre proportionnelle au range officiel manuel TONEX. Visuel
+                  scan immédiat vs liste de chiffres. */}
               {aiC.fx_blocks && (() => {
                 const FX_KEYS = ['noise_gate', 'compressor', 'modulation', 'delay', 'reverb'];
                 const FX_LABELS = { noise_gate: 'Gate', compressor: 'Comp', modulation: 'Mod', delay: 'Delay', reverb: 'Reverb' };
                 const onBlocks = FX_KEYS.filter((k) => aiC.fx_blocks[k]?.enabled === true);
                 if (onBlocks.length === 0) return null;
-                // S9.8 — extraire les sub-params selon le type de bloc (Phase 9.7 N2)
-                const fmtParams = (k, b) => {
-                  const parts = [];
-                  if (k === 'noise_gate') {
-                    if (b.threshold != null) parts.push(`Threshold ${b.threshold}dB`);
-                    if (b.release != null) parts.push(`Release ${b.release}ms`);
-                    if (b.depth != null) parts.push(`Depth ${b.depth}dB`);
-                  } else if (k === 'compressor') {
-                    if (b.threshold != null) parts.push(`Threshold ${b.threshold}dB`);
-                    if (b.gain != null) parts.push(`Gain ${b.gain}dB`);
-                    if (b.attack != null) parts.push(`Attack ${b.attack}ms`);
-                  } else if (k === 'modulation') {
-                    if (b.rate != null) parts.push(`Rate ${b.rate}Hz`);
-                    if (b.depth != null) parts.push(`Depth ${b.depth}%`);
-                    if (b.level != null) parts.push(`Level ${b.level}`);
-                  } else if (k === 'delay') {
-                    if (b.mode) parts.push(`Mode ${b.mode}`);
-                    if (b.time != null) parts.push(`Time ${b.time}ms`);
-                    if (b.feedback != null) parts.push(`Feedback ${b.feedback}%`);
-                    if (b.mix != null) parts.push(`Mix ${b.mix}%`);
-                  } else if (k === 'reverb') {
-                    if (b.time != null) parts.push(`Time ${b.time}`);
-                    if (b.pre_delay != null) parts.push(`Pre-delay ${b.pre_delay}ms`);
-                    if (b.color != null) parts.push(`Color ${b.color}`);
-                    if (b.mix != null) parts.push(`Mix ${b.mix}%`);
-                  }
-                  return parts.join(' · ');
+                // Ranges officiels par bloc (manuel TONEX p.22-28). Le `threshold`
+                // n'est pas dans FX_BLOCK_RANGES (qui ne couvre que Phase 9.7 N2),
+                // ajouté ici pour gate/comp.
+                const FX_PARAM_RANGES = {
+                  noise_gate: {
+                    threshold: { min: -100, max: 0, unit: 'dB' },
+                    release:   { min: 5,    max: 500, unit: 'ms' },
+                    depth:     { min: -100, max: -20, unit: 'dB' },
+                  },
+                  compressor: {
+                    threshold: { min: -40, max: 0,  unit: 'dB' },
+                    gain:      { min: -30, max: 10, unit: 'dB' },
+                    attack:    { min: 1,   max: 51, unit: 'ms' },
+                  },
+                  modulation: {
+                    rate:  { min: 0.1, max: 10,  unit: 'Hz' },
+                    depth: { min: 0,   max: 100, unit: '%' },
+                    level: { min: 0,   max: 10,  unit: '' },
+                  },
+                  delay: {
+                    time:     { min: 0, max: 1000, unit: 'ms' },
+                    feedback: { min: 0, max: 100,  unit: '%' },
+                    mix:      { min: 0, max: 100,  unit: '%' },
+                  },
+                  reverb: {
+                    time:      { min: 0,   max: 10,  unit: '' },
+                    pre_delay: { min: 0,   max: 500, unit: 'ms' },
+                    color:     { min: -10, max: 10,  unit: '' },
+                    mix:       { min: 0,   max: 100, unit: '%' },
+                  },
+                };
+                // Labels affichés (capitalize + espaces)
+                const PARAM_LABELS = {
+                  threshold: 'Threshold', release: 'Release', depth: 'Depth',
+                  gain: 'Gain', attack: 'Attack',
+                  rate: 'Rate', level: 'Level',
+                  time: 'Time', feedback: 'Feedback', mix: 'Mix',
+                  pre_delay: 'Pre-delay', color: 'Color',
+                };
+                // Ordre des params par bloc
+                const PARAM_ORDER = {
+                  noise_gate: ['threshold', 'release', 'depth'],
+                  compressor: ['threshold', 'gain', 'attack'],
+                  modulation: ['rate', 'depth', 'level'],
+                  delay: ['time', 'feedback', 'mix'],
+                  reverb: ['time', 'pre_delay', 'color', 'mix'],
+                };
+                const renderBar = (label, value, range) => {
+                  const pct = Math.max(0, Math.min(100, ((value - range.min) / (range.max - range.min)) * 100));
+                  return (
+                    <div key={label} style={{ display: 'grid', gridTemplateColumns: '70px 1fr 60px', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                      <span style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', color: 'var(--text-muted)' }}>{label}</span>
+                      <div style={{ height: 7, background: 'var(--a5)', borderRadius: 4, overflow: 'hidden' }}>
+                        <div style={{ width: `${pct}%`, height: '100%', background: 'var(--accent)' }}/>
+                      </div>
+                      <span style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--text-bright)' }}>{value}{range.unit}</span>
+                    </div>
+                  );
                 };
                 return (
                   <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                    <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.fx-settings', '🎚 Réglages effets')}</div>
+                    <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.fx-settings', '🎚 Réglages effets')}</div>
                     {onBlocks.map((k) => {
                       const block = aiC.fx_blocks[k];
                       const whyTxt = block.why ? getLocalizedText(block.why, locale) : null;
-                      const paramsTxt = fmtParams(k, block);
+                      const ranges = FX_PARAM_RANGES[k];
+                      const params = PARAM_ORDER[k] || [];
+                      const bars = params.map((p) => {
+                        const v = block[p];
+                        if (v == null || !ranges?.[p]) return null;
+                        return renderBar(PARAM_LABELS[p] || p, v, ranges[p]);
+                      }).filter(Boolean);
                       return (
-                        <div key={k} style={{ marginBottom: 6 }}>
-                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(11px, 1.25vw, 13px)' }}>
-                            <b style={{ color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontSize: 'clamp(10px, 1.15vw, 12px)', textTransform: 'uppercase', letterSpacing: 0.3, flexShrink: 0, minWidth: 60 }}>{FX_LABELS[k]}{block.type ? ` ${block.type}` : ''}</b>
-                            {paramsTxt && <span style={{ color: 'var(--text-sec)', fontFamily: 'var(--font-mono)', fontSize: 'clamp(10px, 1.15vw, 12px)', flex: 1 }}>{paramsTxt}</span>}
+                        <div key={k} style={{ marginBottom: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 3 }}>
+                            <b style={{ color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontSize: 'clamp(10px, 1.15vw, 12px)', textTransform: 'uppercase', letterSpacing: 0.3, flexShrink: 0 }}>{FX_LABELS[k]}{block.type ? ` ${block.type}` : ''}{k === 'delay' && block.mode ? ` ${block.mode}` : ''}</b>
                           </div>
-                          {whyTxt && <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-dim)', marginTop: 1, lineHeight: 1.4 }}>{whyTxt}</div>}
+                          {bars.length > 0 && <div>{bars}</div>}
+                          {whyTxt && <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-dim)', marginTop: 3, lineHeight: 1.4, fontStyle: 'italic' }}>{whyTxt}</div>}
                         </div>
                       );
                     })}
