@@ -1094,38 +1094,62 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         const bassReason = bassReco?.bass_reason
           ? getLocalizedText(bassReco.bass_reason, locale)
           : null;
+        // Vague A bass restructure (2026-05-27) — basse idéale élue :
+        // priorité à l'IA si elle matche le rig, sinon 1ère basse cochée.
+        const selectedBass = idealBassObj || userBasses[0] || null;
         return (
-          <div style={sectionStyle}>
-            {sectionTitle(<NavIcon id="bass" size={16}/>, t('song-detail.bass-section', 'Basse'))}
-            {/* Reco IA basse (si présente) */}
+          <>
+            {/* Section "Ma basse" — analogue à "Ma guitare" */}
+            <div style={sectionStyle}>
+              {sectionTitle(<NavIcon id="bass" size={16}/>, t('song-detail.bass-block', 'Ma basse'))}
+              {selectedBass ? (
+                <div style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)' }}>
+                  {idealBassObj && <span style={{ color: 'var(--accent)', marginRight: 6 }}>★</span>}
+                  <b style={{ color: 'var(--text-bright)' }}>{selectedBass.name}</b>
+                  <span style={{ marginLeft: 8, fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-dim)' }}>
+                    ({selectedBass.type}, {selectedBass.brand})
+                  </span>
+                </div>
+              ) : (
+                <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', fontStyle: 'italic' }}>
+                  {bassReco?.ideal_bass
+                    ? tFormat('song-detail.bass-ideal-out-of-rig', { name: bassReco.ideal_bass }, 'Basse idéale (hors collection) : {name}')
+                    : t('song-detail.bass-no-rig', 'Aucune basse cochée — active "Je joue aussi la basse" dans Mon profil → Mes basses.')}
+                </div>
+              )}
+              {bassHist && (
+                <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', lineHeight: 1.5, marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--a6)' }}>
+                  <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 'clamp(10px, 1.15vw, 12px)' }}>
+                    {t('song-detail.bass-original-ref', 'Référence originale :')}
+                  </span><br/>
+                  <span style={{ fontWeight: 600, color: 'var(--text-sec)' }}>{bassHist.bassist}</span>{' · '}
+                  {bassHist.bass_guitar}{' · '}
+                  {bassHist.bass_amp}
+                  {bassHist.effects && (() => {
+                    const fx = getLocalizedText(bassHist.effects, locale);
+                    return fx && fx !== 'Aucun effet' && !/no effect|ningún efecto/i.test(fx)
+                      ? <> · {fx}</>
+                      : null;
+                  })()}
+                </div>
+              )}
+            </div>
+            {/* Section "Recommandations basse" — analogue à "Recommandations guitare" */}
             {bassReco && (
-              <div style={{ marginBottom: 8 }}>
-                {idealBassObj && (
-                  <div style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', marginBottom: 4 }}>
-                    <b style={{ color: 'var(--text-muted)' }}>{t('song-detail.bass-ideal', 'Basse idéale :')}</b>{' '}
-                    {idealBassObj.name}
-                  </div>
-                )}
-                {!idealBassObj && bassReco.ideal_bass && (
-                  <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: 4 }}>
-                    {tFormat('song-detail.bass-ideal-out-of-rig', { name: bassReco.ideal_bass }, 'Basse idéale (hors collection) : {name}')}
-                  </div>
-                )}
+              <div style={sectionStyle}>
+                {sectionTitle(<NavIcon id="target" size={16}/>, t('song-detail.bass-reco-block', 'Recommandations basse'))}
                 {bassReason && (
-                  <div className="prose-readable" style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', lineHeight: 1.4, marginBottom: 6 }}>
+                  <div className="prose-readable" style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', lineHeight: 1.45, marginBottom: 8 }}>
                     {bassReason}
                   </div>
                 )}
-                {/* Phase 8.8 — Mode ToneX bass : capture_name + bank/slot
-                    si l'IA propose une capture bass installée. Affichée
-                    en premier (préférable si user a une capture bass dans
-                    ses banks). */}
+                {/* Phase 8.8 — Mode ToneX bass : capture_name + bank/slot */}
                 {bassReco?.capture_name && (() => {
                   const captureName = bassReco.capture_name;
                   const locAnn = findInBanks(captureName, banksAnn);
                   const locPlug = findInBanks(captureName, banksPlug);
                   const loc = locAnn || locPlug;
-                  const deviceLabel = locAnn ? '🏭 Anniversary/Pedale' : (locPlug ? '🔌 Plug' : '📦 ToneX');
+                  const deviceLabel = locAnn ? 'Anniversary/Pédale' : (locPlug ? 'Plug' : 'ToneX');
                   return (
                     <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px', marginBottom: 6 }}>
                       <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>
@@ -1137,7 +1161,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                     </div>
                   );
                 })()}
-                {/* Mode ampli traditionnel : amp_settings si user a un ampli basse coché */}
+                {/* Mode ampli traditionnel : amp_settings 0-10 */}
                 {userBassAmps.length > 0 && hasAmpSettings && (
                   <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px', marginBottom: 6 }}>
                     <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>
@@ -1159,24 +1183,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 )}
               </div>
             )}
-            {/* Référence historique (toujours visible si seed bass info) */}
-            {bassHist && (
-              <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', lineHeight: 1.5, paddingTop: bassReco ? 4 : 0, borderTop: bassReco ? '1px solid var(--a6)' : 'none' }}>
-                <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 'clamp(10px, 1.15vw, 12px)' }}>
-                  {t('song-detail.bass-original-ref', 'Référence originale :')}
-                </span><br/>
-                <span style={{ fontWeight: 600, color: 'var(--text-sec)' }}>{bassHist.bassist}</span>{' · '}
-                🎻 {bassHist.bass_guitar}{' · '}
-                🔊 {bassHist.bass_amp}
-                {bassHist.effects && (() => {
-                  const fx = getLocalizedText(bassHist.effects, locale);
-                  return fx && fx !== 'Aucun effet' && !/no effect|ningún efecto/i.test(fx)
-                    ? <> · 🎚 {fx}</>
-                    : null;
-                })()}
-              </div>
-            )}
-          </div>
+          </>
         );
       })()}
 
