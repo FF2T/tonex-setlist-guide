@@ -194,13 +194,14 @@ function SplashPopup({ onClose }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, textAlign: 'left', marginBottom: 20 }}>
           {/* Phase 7.55.8 — Étape 4 "Rock'n'roll !" supprimée (décorative,
               n'apportait pas de valeur — alourdissait le pitch). */}
+          {/* Vague 2 emojis — icônes SVG flat NavIcon à la place des emojis. */}
           {[
-            { n: '1', emoji: '🔍', text: t('home.splash.step1', 'Tape un morceau — l\'IA analyse le profil tonal et l\'ampli original') },
-            { n: '2', emoji: '🧠', text: t('home.splash.step2', 'L\'IA raisonne : guitare idéale, ampli cible, preset recommandé') },
-            { n: '3', emoji: '🎸', text: t('home.splash.step3', 'Choisis ta guitare — les presets s\'adaptent automatiquement') },
-          ].map(({ n, emoji, text }) => (
+            { n: '1', iconId: 'explore', text: t('home.splash.step1', 'Tape un morceau — l\'IA analyse le profil tonal et l\'ampli original') },
+            { n: '2', iconId: 'target', text: t('home.splash.step2', 'L\'IA raisonne : guitare idéale, ampli cible, preset recommandé') },
+            { n: '3', iconId: 'guitar', text: t('home.splash.step3', 'Choisis ta guitare — les presets s\'adaptent automatiquement') },
+          ].map(({ n, iconId, text }) => (
             <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--a3)', borderRadius: 'var(--r-lg)' }}>
-              <span style={{ fontSize: 20, flexShrink: 0 }}>{emoji}</span>
+              <span style={{ flexShrink: 0, color: 'var(--brass-300)', display: 'inline-flex' }}><NavIcon id={iconId} size={22}/></span>
               <div><span style={{ fontWeight: 700, color: 'var(--accent)', marginRight: 4 }}>{n}.</span><span style={{ fontSize: 12, color: 'var(--text-sec)' }}>{text}</span></div>
             </div>
           ))}
@@ -222,29 +223,30 @@ function OnboardingWizard({ onClose, onProfile }) {
         <div style={{ fontSize: 15, color: 'var(--text-sec)', lineHeight: 1.6, marginBottom: 24 }}>{getAppTagline(getLocale())} {t('home.onboarding.tagline-extra', '— quel preset charger pour chaque morceau, avec ta guitare.')}</div>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 2, textAlign: 'left', padding: '18px 20px', background: 'var(--a3)', borderRadius: 'var(--r-xl)' }}>
           <div style={{ fontWeight: 700, marginBottom: 6, color: 'var(--text-sec)', fontSize: 14 }}>{t('home.onboarding.in-3min', 'En 3 minutes tu pourras :')}</div>
-          <div>{t('home.onboarding.feat-search', '🔍 Chercher un morceau et obtenir le preset idéal')}</div>
-          <div>{t('home.onboarding.feat-reason', '🧠 Voir le raisonnement IA (profil tonal, guitare, ampli)')}</div>
-          <div>{t('home.onboarding.feat-setlist', '🎵 Préparer une setlist avec les bons presets')}</div>
-          <div>{t('home.onboarding.feat-explore', '🎛️ Explorer les presets par profil sonore')}</div>
+          <div>{t('home.onboarding.feat-search-flat', 'Chercher un morceau et obtenir le preset idéal')}</div>
+          <div>{t('home.onboarding.feat-reason-flat', 'Voir le raisonnement IA (profil tonal, guitare, ampli)')}</div>
+          <div>{t('home.onboarding.feat-setlist-flat', 'Préparer une setlist avec les bons presets')}</div>
+          <div>{t('home.onboarding.feat-explore-flat', 'Explorer les presets par profil sonore')}</div>
         </div>
       </div>
     ),
     () => (
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 48, marginBottom: 12 }}>🎵</div>
+        <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center', color: 'var(--brass-300)' }}><NavIcon id="setlists" size={48}/></div>
         <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8 }}>{t('home.onboarding.features-title', 'Fonctionnalités')}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left', padding: '4px 0' }}>
+          {/* Vague 2 emojis — emojis remplacés par icônes NavIcon */}
           {[
-            { emoji: '🔍', title: t('home.onboarding.f1-title', 'Recherche intelligente'), desc: t('home.onboarding.f1-desc', 'Tape un morceau — l\'IA analyse le profil tonal, identifie l\'ampli et la guitare d\'origine, et recommande le meilleur couple guitare + preset.') },
-            { emoji: '🧠', title: t('home.onboarding.f2-title', 'Raisonnement IA'), desc: t('home.onboarding.f2-desc', 'L\'IA explique son raisonnement en 3 étapes : profil tonal du morceau, scoring des guitares, profil ampli idéal.') },
-            { emoji: '🎵', title: t('home.onboarding.f3-title', 'Setlists de session'), desc: t('home.onboarding.f3-desc', 'Crée des setlists par contexte (cours, répétition, scène). Chaque morceau a sa fiche avec recommandation idéale et paramétrage.') },
-            { emoji: '🎲', title: t('home.onboarding.f4-title', 'Jammer'), desc: t('home.onboarding.f4-desc', 'Choisis une guitare et un style — top 3 des presets installés et meilleurs du catalogue, avec fiches dépliables.') },
-            { emoji: '🎛️', title: t('home.onboarding.f5-title', 'Explorateur de presets'), desc: t('home.onboarding.f5-desc', 'Explore par profil sonore (Clean cristallin, Blues vintage, Crunch 70s, Metal...). Chaque preset a sa fiche avec description, morceaux mythiques et guitares adaptées.') },
-            { emoji: '📦', title: t('home.onboarding.f6-title', 'Installation directe'), desc: t('home.onboarding.f6-desc', 'Installe le preset recommandé directement sur ta pédale ou ton plug en choisissant la banque et le slot.') },
-            { emoji: '👥', title: t('home.onboarding.f7-title', 'Multi-profils & Sync'), desc: t('home.onboarding.f7-desc', 'Chaque guitariste a son profil. Sync temps réel téléphone - PC via Firestore.') },
-          ].map(({ emoji, title, desc }) => (
+            { iconId: 'explore', title: t('home.onboarding.f1-title', 'Recherche intelligente'), desc: t('home.onboarding.f1-desc', 'Tape un morceau — l\'IA analyse le profil tonal, identifie l\'ampli et la guitare d\'origine, et recommande le meilleur couple guitare + preset.') },
+            { iconId: 'target', title: t('home.onboarding.f2-title', 'Raisonnement IA'), desc: t('home.onboarding.f2-desc', 'L\'IA explique son raisonnement en 3 étapes : profil tonal du morceau, scoring des guitares, profil ampli idéal.') },
+            { iconId: 'setlists', title: t('home.onboarding.f3-title', 'Setlists de session'), desc: t('home.onboarding.f3-desc', 'Crée des setlists par contexte (cours, répétition, scène). Chaque morceau a sa fiche avec recommandation idéale et paramétrage.') },
+            { iconId: 'jam', title: t('home.onboarding.f4-title', 'Jammer'), desc: t('home.onboarding.f4-desc', 'Choisis une guitare et un style — top 3 des presets installés et meilleurs du catalogue, avec fiches dépliables.') },
+            { iconId: 'sliders', title: t('home.onboarding.f5-title', 'Explorateur de presets'), desc: t('home.onboarding.f5-desc', 'Explore par profil sonore (Clean cristallin, Blues vintage, Crunch 70s, Metal...). Chaque preset a sa fiche avec description, morceaux mythiques et guitares adaptées.') },
+            { iconId: 'package', title: t('home.onboarding.f6-title', 'Installation directe'), desc: t('home.onboarding.f6-desc', 'Installe le preset recommandé directement sur ta pédale ou ton plug en choisissant la banque et le slot.') },
+            { iconId: 'users', title: t('home.onboarding.f7-title', 'Multi-profils & Sync'), desc: t('home.onboarding.f7-desc', 'Chaque guitariste a son profil. Sync temps réel téléphone - PC via Firestore.') },
+          ].map(({ iconId, title, desc }) => (
             <div key={title} style={{ display: 'flex', gap: 10, padding: '10px 12px', background: 'var(--a3)', borderRadius: 'var(--r-lg)' }}>
-              <span style={{ fontSize: 18, flexShrink: 0 }}>{emoji}</span>
+              <span style={{ flexShrink: 0, color: 'var(--brass-300)', display: 'inline-flex' }}><NavIcon id={iconId} size={20}/></span>
               <div><div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 2 }}>{title}</div><div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>{desc}</div></div>
             </div>
           ))}
@@ -253,13 +255,13 @@ function OnboardingWizard({ onClose, onProfile }) {
     ),
     () => (
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 48, marginBottom: 12 }}>⚙️</div>
+        <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center', color: 'var(--brass-300)' }}><NavIcon id="admin" size={48}/></div>
         <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8 }}>{t('home.onboarding.config-title', 'Configure ton profil')}</div>
         <div style={{ fontSize: 13, color: 'var(--text-sec)', lineHeight: 1.6, marginBottom: 20 }}>{t('home.onboarding.config-intro', 'Pour des recommandations precises, l\'app a besoin de connaitre :')}</div>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 2.2, textAlign: 'left', padding: '18px 20px', background: 'var(--a3)', borderRadius: 'var(--r-xl)' }}>
-          <div><b style={{ color: 'var(--text-sec)' }}>🎸 {t('home.onboarding.config-guitars-label', 'Tes guitares')}</b> {t('home.onboarding.config-guitars-desc', '— pour adapter les recommandations par modèle et type de micro')}</div>
-          <div><b style={{ color: 'var(--text-sec)' }}>📱 {t('home.onboarding.config-hardware-label', 'Ton materiel')}</b> {t('home.onboarding.config-hardware-desc', '— pedale ToneX Anniversary et/ou ToneX Plug')}</div>
-          <div><b style={{ color: 'var(--text-sec)' }}>📦 {t('home.onboarding.config-sources-label', 'Tes sources')}</b> {t('home.onboarding.config-sources-desc', '— quels packs de presets tu possedes (TSR, ML, Factory...)')}</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}><span style={{ color: 'var(--brass-300)', display: 'inline-flex', alignSelf: 'center' }}><NavIcon id="guitar" size={16}/></span><div><b style={{ color: 'var(--text-sec)' }}>{t('home.onboarding.config-guitars-label', 'Tes guitares')}</b> {t('home.onboarding.config-guitars-desc', '— pour adapter les recommandations par modèle et type de micro')}</div></div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}><span style={{ color: 'var(--brass-300)', display: 'inline-flex', alignSelf: 'center' }}><NavIcon id="device" size={16}/></span><div><b style={{ color: 'var(--text-sec)' }}>{t('home.onboarding.config-hardware-label', 'Ton materiel')}</b> {t('home.onboarding.config-hardware-desc', '— pedale ToneX Anniversary et/ou ToneX Plug')}</div></div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}><span style={{ color: 'var(--brass-300)', display: 'inline-flex', alignSelf: 'center' }}><NavIcon id="package" size={16}/></span><div><b style={{ color: 'var(--text-sec)' }}>{t('home.onboarding.config-sources-label', 'Tes sources')}</b> {t('home.onboarding.config-sources-desc', '— quels packs de presets tu possedes (TSR, ML, Factory...)')}</div></div>
         </div>
       </div>
     ),
@@ -573,7 +575,7 @@ function HomeScreen({
                     marginLeft: 8,
                   }}
                   title={t('demo.random-title', 'Tirer un morceau au hasard')}
-                >{t('demo.random-button', '🎲 Au hasard')}</button>
+                >{t('demo.random-button-flat', 'Au hasard')}</button>
               </div>
             )}
             {/* Phase 7.55.7 S7 — AIErrorPanel classifie l'erreur Gemini
@@ -617,7 +619,8 @@ function HomeScreen({
               // identique à SongDetailCard (cohérence cross-écran).
               const sectionStyle = sectionCard();
               const customSectionStyle = { ...sectionCard(), background: BG_2 };
-              const sectionTitle = (icon, label) => <div style={{ ...sectionTitleStyle(), marginBottom: 8 }}>{icon} {label}</div>;
+              // Vague 2 emojis — icon peut être string (emoji legacy) ou JSX (NavIcon).
+              const sectionTitle = (icon, label) => <div style={{ ...sectionTitleStyle(), marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>{icon}<span>{label}</span></div>;
               return (
                 // Phase 7.55.7 S3 — maxWidth 500 → 900 + centrage margin auto
                 // pour exploiter la largeur sur iPad/desktop (rapport Cowork
@@ -640,9 +643,9 @@ function HomeScreen({
                       {(songResult.ref_guitarist || songResult.ref_guitar || songResult.ref_amp) && (
                         <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.6 }}>
                           <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 10 }}>{songResult.ref_guitarist || t('home.song.ref-default', 'Référence')}</span><br/>
-                          {songResult.ref_guitar && <>🎸 {songResult.ref_guitar} · </>}
-                          {songResult.ref_amp && <>🔊 {songResult.ref_amp}</>}
-                          {songResult.ref_effects && songResult.ref_effects !== 'Aucun effet' && <> · 🎚 {songResult.ref_effects}</>}
+                          {songResult.ref_guitar && <>{songResult.ref_guitar} · </>}
+                          {songResult.ref_amp && <>{songResult.ref_amp}</>}
+                          {songResult.ref_effects && songResult.ref_effects !== 'Aucun effet' && <> · {songResult.ref_effects}</>}
                         </div>
                       )}
                     </div>
@@ -651,7 +654,7 @@ function HomeScreen({
                     {(songResult.cot_step1 || cotInRigHS.length > 0 || songResult.cot_step3_amp) && (
                       <div style={sectionStyle}>
                         <div onClick={() => setShowCotSearch((p) => !p)} style={{ cursor: 'pointer', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', display: 'flex', alignItems: 'center', gap: 5, userSelect: 'none' }}>
-                          {t('home.song.reasoning', '🧠 Raisonnement IA')} <span style={{ fontSize: 10, marginLeft: 'auto', fontWeight: 400 }}>{showCotSearch ? '▲' : '▼'}</span>
+                          {t('home.song.reasoning-flat', 'Raisonnement IA')} <span style={{ fontSize: 10, marginLeft: 'auto', fontWeight: 400 }}>{showCotSearch ? '▲' : '▼'}</span>
                         </div>
                         {showCotSearch && (
                           <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -703,7 +706,7 @@ function HomeScreen({
                               <div style={{ fontSize: 9, marginTop: 2, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                                 {loc
                                   ? <span style={{ color: 'var(--green)' }}>{tFormat('home.song.installed-bank', { bank: loc.bank, slot: loc.slot }, '✓ Installé · Banque {bank}{slot}')}</span>
-                                  : <span style={{ color: 'var(--yellow)' }}>{t('home.song.not-installed', '⬇ Non installé')}</span>}
+                                  : <span style={{ color: 'var(--yellow)' }}>{t('home.song.not-installed-flat', 'Non installé')}</span>}
                                 {srcInfo && <span style={{ color: loc ? 'var(--text-tertiary)' : 'var(--text-sec)' }}>· {srcInfo.icon} {srcInfo.label}</span>}
                               </div>
                             </div>
@@ -720,7 +723,7 @@ function HomeScreen({
 
                     {/* Section Paramétrage */}
                     <div style={customSectionStyle}>
-                      {sectionTitle('🎛', t('home.song.params-title', 'Paramétrage — mon choix'))}
+                      {sectionTitle(<NavIcon id="sliders" size={16}/>, t('home.song.params-title', 'Paramétrage — mon choix'))}
                       <div style={{ marginBottom: 8 }}>
                         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{t('home.song.guitar-chosen', 'Guitare choisie')}</div>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 4 }}>
@@ -728,19 +731,20 @@ function HomeScreen({
                           <button onClick={() => setShowGuitarPick((p) => !p)} style={{ fontSize: 10, background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '3px 8px', cursor: 'pointer' }}>{t('home.song.change', 'Changer')}</button>
                         </div>
                         {selectedGuitar && chosenGuitarScore && (() => {
-                          // Phase 7.83 résidu (2026-05-27) — bucket qualitatif au lieu du score brut.
+                          // Phase 7.83 résidu (2026-05-27) — bucket qualitatif.
+                          // Vague 2 emojis (2026-05-28) — emojis 🟢🟡🟠 retirés
+                          // des labels. Le fond coloré du badge encode déjà
+                          // sémantiquement le niveau.
                           const bucket = bucketizeScore(chosenGuitarScore);
-                          // Phase 7.83 polish — strip emoji (fond coloré redondant).
-                          const stripEmoji = (s) => s.replace(/^[🟢🟡🟠]\s*/u, '');
                           const shortLabels = {
-                            ideal: stripEmoji(t('compat.ideal-short', '🟢 Idéal')),
-                            good: stripEmoji(t('compat.good-short', '🟡 Bon')),
-                            compromise: stripEmoji(t('compat.compromise-short', '🟠 Limite')),
+                            ideal: t('compat.ideal-short-flat', 'Idéal'),
+                            good: t('compat.good-short-flat', 'Bon'),
+                            compromise: t('compat.compromise-short-flat', 'Limite'),
                           };
                           const longLabels = {
-                            ideal: t('compat.ideal-match', '🟢 Mariage parfait'),
-                            good: t('compat.good-match', '🟡 Bon match'),
-                            compromise: t('compat.compromise', '🟠 Compromis'),
+                            ideal: t('compat.ideal-match-flat', 'Mariage parfait'),
+                            good: t('compat.good-match-flat', 'Bon match'),
+                            compromise: t('compat.compromise-flat', 'Compromis'),
                           };
                           const titleText = `${longLabels[bucket.id]} — ${chosenGuitarScore}%${chosenGuitarScoreEstimated ? ' ' + t('home.song.estimated', '(estimé)') : ''}`;
                           return (
@@ -792,7 +796,7 @@ function HomeScreen({
 
                     {/* Affiner */}
                     {!showFeedback
-                      ? <button onClick={() => setShowFeedback(true)} style={{ fontSize: 10, background: 'none', border: '1px solid var(--a10)', color: 'var(--text-dim)', borderRadius: 'var(--r-md)', padding: '3px 8px', cursor: 'pointer' }}>{t('home.song.refine', '🔄 Affiner l\'analyse')}</button>
+                      ? <button onClick={() => setShowFeedback(true)} style={{ fontSize: 10, background: 'none', border: '1px solid var(--a10)', color: 'var(--text-dim)', borderRadius: 'var(--r-md)', padding: '3px 8px', cursor: 'pointer' }}>{t('home.song.refine-flat', 'Affiner l\'analyse')}</button>
                       : (
                         <div style={{ marginTop: 4, background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: 10 }}>
                           <div style={{ fontSize: 11, color: 'var(--text-sec)', marginBottom: 6 }}>{t('home.song.fb-question', 'Qu\'est-ce qui ne va pas ?')}</div>
@@ -801,7 +805,7 @@ function HomeScreen({
                           </div>
                           <input placeholder={t('home.song.fb-input', 'Ou précise ici...')} value={feedback} onChange={(e) => setFeedback(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && feedback.trim() && rerunWithFeedback()} style={{ width: '100%', background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '8px 10px', fontSize: 12, boxSizing: 'border-box', marginBottom: 6 }}/>
                           <div style={{ display: 'flex', gap: 6 }}>
-                            <button onClick={() => { if (feedback.trim()) rerunWithFeedback(); }} disabled={!feedback.trim() || songLoading} style={{ background: feedback.trim() ? 'var(--accent)' : 'var(--bg-disabled)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: feedback.trim() ? 'pointer' : 'not-allowed' }}>{songLoading ? t('home.song.loading-short', '⏳ Analyse...') : t('home.song.rerun', '🔄 Relancer')}</button>
+                            <button onClick={() => { if (feedback.trim()) rerunWithFeedback(); }} disabled={!feedback.trim() || songLoading} style={{ background: feedback.trim() ? 'var(--accent)' : 'var(--bg-disabled)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '6px 14px', fontSize: 11, fontWeight: 700, cursor: feedback.trim() ? 'pointer' : 'not-allowed' }}>{songLoading ? t('home.song.loading-short-flat', 'Analyse...') : t('home.song.rerun-flat', 'Relancer')}</button>
                             <button onClick={() => { setShowFeedback(false); setFeedback(''); }} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '6px 10px', fontSize: 11, cursor: 'pointer' }}>{t('home.song.cancel', 'Annuler')}</button>
                           </div>
                         </div>

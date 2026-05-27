@@ -253,9 +253,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             {g && chosenGuitarScore != null && (() => {
               const bucket = bucketizeScore(chosenGuitarScore);
               const longLabels = {
-                ideal: t('compat.ideal-match', '🟢 Mariage parfait'),
-                good: t('compat.good-match', '🟡 Bon match'),
-                compromise: t('compat.compromise', '🟠 Compromis'),
+                ideal: t('compat.ideal-match-flat', 'Mariage parfait'),
+                good: t('compat.good-match-flat', 'Bon match'),
+                compromise: t('compat.compromise-flat', 'Compromis'),
               };
               const titleText = `${longLabels[bucket.id]} — ${chosenGuitarScore}%${chosenGuitarScoreEstimated ? ' ' + t('song-detail.estimated', '(estimé)') : ''}`;
               return (
@@ -277,14 +277,16 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
               </div>
             );
           })()}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }} title={t('song-detail.output-context-label', '🔌 Sortie audio pour ce morceau')}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }} title={t('song-detail.output-context-label-flat', 'Sortie audio pour ce morceau')}>
             <span style={{ fontSize: TYPO.micro, color: TEXT_3, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.output-context-short', 'Sortie')}</span>
+            {/* Vague 2 emojis (2026-05-28) — icones emoji ↻📢🎧🎚️ remplacées
+                par labels courts texte. Label complet en title HTML au hover. */}
             {[
-              { id: '', icon: '↻', label: t('song-detail.output-context-profile', 'Profil') },
-              { id: 'frfr', icon: '📢', label: t('output-context.label.frfr', 'Enceinte FRFR') },
-              { id: 'headphone', icon: '🎧', label: t('output-context.label.headphone', 'Casque') },
-              { id: 'pa', icon: '🎚️', label: t('output-context.label.pa', 'Sono / Table de mixage') },
-            ].map(({ id, icon, label }) => {
+              { id: '', short: t('song-detail.output-short-profile', 'Profil'), label: t('song-detail.output-context-profile', 'Profil') },
+              { id: 'frfr', short: t('song-detail.output-short-frfr', 'FRFR'), label: t('output-context.label.frfr', 'Enceinte FRFR') },
+              { id: 'headphone', short: t('song-detail.output-short-headphone', 'Casque'), label: t('output-context.label.headphone', 'Casque') },
+              { id: 'pa', short: t('song-detail.output-short-pa', 'Sono'), label: t('output-context.label.pa', 'Sono / Table de mixage') },
+            ].map(({ id, short, label }) => {
               const active = (song.outputContext || '') === id;
               return (
                 <button key={id || 'profile'}
@@ -297,8 +299,8 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   }}
                   disabled={isDemo}
                   title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : (id ? tFormat('song-detail.output-context-tooltip-override', { label }, 'Override : {label}') : t('song-detail.output-context-tooltip-profile', 'Hérite du contexte profil.'))}
-                  style={{ fontSize: 18, lineHeight: 1, padding: '10px 12px', background: active ? 'var(--accent-soft)' : 'transparent', border: `1px solid ${active ? 'var(--border-accent)' : BORDER_SUBTLE}`, color: active ? 'var(--accent)' : TEXT_2, borderRadius: 'var(--r-sm)', cursor: isDemo ? 'not-allowed' : 'pointer', fontWeight: active ? WEIGHT.bold : WEIGHT.medium, opacity: isDemo ? 0.5 : 1, minHeight: 44, minWidth: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                >{icon}</button>
+                  style={{ fontSize: 12, fontFamily: 'var(--font-mono)', lineHeight: 1, padding: '10px 12px', background: active ? 'var(--accent-soft)' : 'transparent', border: `1px solid ${active ? 'var(--border-accent)' : BORDER_SUBTLE}`, color: active ? 'var(--accent)' : TEXT_2, borderRadius: 'var(--r-sm)', cursor: isDemo ? 'not-allowed' : 'pointer', fontWeight: active ? WEIGHT.bold : WEIGHT.medium, opacity: isDemo ? 0.5 : 1, minHeight: 44, minWidth: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                >{short}</button>
               );
             })}
             {/* S9.7 — Bouton feedback retiré du sticky (doublon avec
@@ -571,7 +573,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                             {phText && <span>↳ {phText}</span>}
                             {phStereo && (
                               <span style={{ padding: '1px 5px', borderRadius: 'var(--r-sm)', background: 'var(--brass-bg)', color: 'var(--brass)', fontSize: 'clamp(9px, 1.05vw, 11px)', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-                                {t('playing-hints.stereo', '🎚️ STEREO')}
+                                {t('playing-hints.stereo-flat', 'STEREO')}
                               </span>
                             )}
                           </div>
@@ -585,7 +587,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
               {/* SECTION 2 — Cadre Réglages EQ (renommé Réglages pédale) */}
               {aiC.preset_settings_v1 && (aiC.preset_settings_v1.why || (aiC.preset_settings_v1.tweaks && aiC.preset_settings_v1.tweaks.length > 0)) && (
                 <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                  <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.eq-settings', '🎛️ Réglages EQ')}</div>
+                  <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', display: 'flex', alignItems: 'center', gap: 6 }}><NavIcon id="sliders" size={14}/>{t('song-detail.eq-settings-flat', 'Réglages EQ')}</div>
                   {aiC.preset_settings_v1.why && (
                     <div className="prose-readable" style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', lineHeight: 1.45, marginBottom: aiC.preset_settings_v1.tweaks?.length ? 6 : 0 }}>
                       {getLocalizedText(aiC.preset_settings_v1.why, locale)}
@@ -681,7 +683,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 };
                 return (
                   <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                    <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.fx-settings', '🎚 Réglages effets')}</div>
+                    <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', display: 'flex', alignItems: 'center', gap: 6 }}><NavIcon id="sliders" size={14}/>{t('song-detail.fx-settings-flat', 'Réglages effets')}</div>
                     {/* Phase 7.83 final7 (2026-05-27) — grid 2 col max desktop
                         via classe reco-multicol (index.html). User retour :
                         3+ cols causent des coupures dans les textes longs (reason
@@ -798,7 +800,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   const sl = installSlot[device];
                   const currentPreset = bk !== '' && banks[Number(bk)] ? banks[Number(bk)][sl] || t('song-detail.empty', '(vide)') : '';
                   const dev = getActiveDevicesForRender(profile).find((d) => d.deviceKey === device);
-                  const deviceLabel = dev ? `${dev.icon} ${dev.label}` : (device === 'ann' ? '📦 Pedale' : '🔌 Plug');
+                  const deviceLabel = dev ? dev.label : (device === 'ann' ? 'Pédale' : 'Plug');
                   return (
                     <div style={{ marginBottom: 6 }}>
                       <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', marginBottom: 4, fontWeight: 600 }}>{deviceLabel}</div>
@@ -842,7 +844,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                     </div>
                     <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       {loc ? <span style={{ color: 'var(--green)' }}>{tFormat('song-detail.installed-bank', { bank: loc.bank, slot: loc.slot }, '✓ Installé — Banque {bank}{slot}')}</span>
-                        : <span style={{ color: 'var(--yellow)' }}>{t('song-detail.not-installed', '⬇ Non installé')}</span>}
+                        : <span style={{ color: 'var(--yellow)' }}>{t('song-detail.not-installed-flat', 'Non installé')}</span>}
                       {(() => { const si = getSourceInfo(entry); return si ? <span style={{ color: loc ? 'var(--text-tertiary)' : 'var(--text-sec)' }}>· {si.icon} {si.label}</span> : null; })()}
                       {!loc && !installTarget && (canInstallAnn || canInstallPlug) && <button onClick={() => setInstallTarget({ preset: displayPresetName })} style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-sm)', padding: '2px 8px', cursor: 'pointer', fontWeight: 600, marginLeft: 'auto' }}>{t('song-detail.install', 'Installer')}</button>}
                     </div>
@@ -901,7 +903,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                             </div>
                             <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 1, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
                               {loc ? <span style={{ color: 'var(--green)' }}>{tFormat('song-detail.installed-bank', { bank: loc.bank, slot: loc.slot }, '✓ Installé — Banque {bank}{slot}')}</span>
-                                : <span style={{ color: 'var(--yellow)' }}>{t('song-detail.not-installed', '⬇ Non installé')}</span>}
+                                : <span style={{ color: 'var(--yellow)' }}>{t('song-detail.not-installed-flat', 'Non installé')}</span>}
                               {si && <span style={{ color: loc ? 'var(--text-tertiary)' : 'var(--text-sec)' }}>· {si.icon} {si.label}</span>}
                             </div>
                           </div>
@@ -943,7 +945,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             return (
               <div style={{ background: 'var(--a3)', border: '1px solid var(--a7)', borderRadius: 'var(--r-md)', padding: '6px 10px', marginBottom: 6 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, flex: 1 }}>{tFormat('song-detail.feedback-history', { count: all.length }, '💬 Tes feedbacks précédents ({count})')}</div>
+                  <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, flex: 1 }}>{tFormat('song-detail.feedback-history-flat', { count: all.length }, 'Tes feedbacks précédents ({count})')}</div>
                   {all.length > 1 && <button
                     data-testid="song-feedback-clear-all"
                     onClick={() => {
@@ -988,7 +990,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
               modal]. Plus rapide à utiliser, pas besoin de cliquer pour révéler
               la textarea. Le FeedbackPanel reste importable si besoin futur. */}
           <div>
-            <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-muted)', marginBottom: 4, fontWeight: 600 }}>{t('song-detail.give-feedback', '💬 Donner un feedback à l\'IA')}</div>
+            <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-muted)', marginBottom: 4, fontWeight: 600 }}>{t('song-detail.give-feedback-flat', 'Donner un feedback à l\'IA')}</div>
             {/* Phase 7.85 — Layout column + bouton alignSelf:flex-end pour
                 éviter le chevauchement textarea/bouton observé Cowork B03 P0
                 (toutes résolutions). Plus robuste qu'un flex-row + flexWrap
@@ -1027,7 +1029,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 disabled={!quickFeedback.trim() || reloading || isDemo}
                 title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : undefined}
                 style={{ alignSelf: 'flex-end', fontSize: 'clamp(12px, 1.35vw, 14px)', background: quickFeedback.trim() && !reloading && !isDemo ? 'var(--accent)' : 'var(--bg-disabled)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px 16px', cursor: quickFeedback.trim() && !reloading && !isDemo ? 'pointer' : 'not-allowed', fontWeight: 700, minHeight: 44, opacity: isDemo ? 0.5 : 1 }}
-              >📤 {t('song-detail.feedback-send', 'Envoyer')}</button>
+              >{t('song-detail.feedback-send', 'Envoyer')}</button>
             </div>
           </div>
         </div>
@@ -1117,22 +1119,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                     : t('song-detail.bass-no-rig', 'Aucune basse cochée — active "Je joue aussi la basse" dans Mon profil → Mes basses.')}
                 </div>
               )}
-              {bassHist && (
-                <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', lineHeight: 1.5, marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--a6)' }}>
-                  <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 'clamp(10px, 1.15vw, 12px)' }}>
-                    {t('song-detail.bass-original-ref', 'Référence originale :')}
-                  </span><br/>
-                  <span style={{ fontWeight: 600, color: 'var(--text-sec)' }}>{bassHist.bassist}</span>{' · '}
-                  {bassHist.bass_guitar}{' · '}
-                  {bassHist.bass_amp}
-                  {bassHist.effects && (() => {
-                    const fx = getLocalizedText(bassHist.effects, locale);
-                    return fx && fx !== 'Aucun effet' && !/no effect|ningún efecto/i.test(fx)
-                      ? <> · {fx}</>
-                      : null;
-                  })()}
-                </div>
-              )}
+              {/* Vague A bass restructure (2026-05-28) — Référence originale
+                  bass historique déplacée dans 'Infos morceau' bas de page,
+                  pour symétrie avec la référence guitariste qui y est déjà. */}
             </div>
             {/* Section "Recommandations basse" — analogue à "Recommandations guitare" */}
             {bassReco && (
@@ -1194,20 +1183,47 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         {sectionTitle(<NavIcon id="info" size={16}/>, t('song-detail.info-section', 'Infos morceau'))}
         {(songInfo.year || songInfo.album || songInfo.key || songInfo.bpm) && <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-muted)', marginBottom: 4 }}>{songInfo.year}{songInfo.album ? ' · ' + songInfo.album : ''}{songInfo.key ? ' · ' + songInfo.key : ''}{songInfo.bpm ? ' · ' + songInfo.bpm + ' BPM' : ''}</div>}
         {songInfo.desc && <div className="prose-readable" style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', lineHeight: 1.5, marginBottom: 6 }}>{getLocalizedText(songInfo.desc, locale)}</div>}
+        {/* Référence guitare (depuis aiC ou fallback hist seed) */}
         {aiC && (aiC.ref_guitarist || aiC.ref_guitar || aiC.ref_amp) && (
           <div style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', lineHeight: 1.6 }}>
             <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 'clamp(11px, 1.25vw, 13px)' }}>{aiC.ref_guitarist || t('song-detail.ref-default', 'Référence')}</span><br/>
-            {aiC.ref_guitar && <>🎸 {aiC.ref_guitar} · </>}
-            {aiC.ref_amp && <>🔊 {aiC.ref_amp}</>}
-            {aiC.ref_effects && aiC.ref_effects !== 'Aucun effet' && <> · 🎚 {aiC.ref_effects}</>}
+            {aiC.ref_guitar && <>{aiC.ref_guitar} · </>}
+            {aiC.ref_amp && <>{aiC.ref_amp}</>}
+            {aiC.ref_effects && aiC.ref_effects !== 'Aucun effet' && <> · {aiC.ref_effects}</>}
           </div>
         )}
         {hist && !aiC && (
           <div style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', lineHeight: 1.6 }}>
             <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 'clamp(11px, 1.25vw, 13px)' }}>{hist.guitarist}</span><br/>
-            🎸 {hist.guitar} · 🔊 {hist.amp}{(() => { const fx = getLocalizedText(hist.effects, locale); return fx ? ' · 🎚 ' + fx : ''; })()}
+            {hist.guitar} · {hist.amp}{(() => { const fx = getLocalizedText(hist.effects, locale); return fx ? ' · ' + fx : ''; })()}
           </div>
         )}
+        {/* Vague A bass restructure (2026-05-28) — Référence basse symétrique
+            (bassiste + basse + ampli + effets), depuis aiC.bass_recommendation
+            (ref_bassist/ref_bass_guitar/ref_bass_amp) ou fallback bassHist seed
+            (SONG_HISTORY[songId].bass). Affichée seulement si user bass-actif
+            (profile.instruments inclut 'bass') ET ≥1 source d'info. */}
+        {(() => {
+          const isBassUser = Array.isArray(profile?.instruments) && profile.instruments.includes('bass');
+          if (!isBassUser) return null;
+          const bassReco = aiC?.bass_recommendation;
+          const bassHistSeed = getSongBassHist(song);
+          const refBassist = bassReco?.ref_bassist || bassHistSeed?.bassist;
+          const refBassGuitar = bassReco?.ref_bass_guitar || bassHistSeed?.bass_guitar;
+          const refBassAmp = bassReco?.ref_bass_amp || bassHistSeed?.bass_amp;
+          const refBassFx = bassHistSeed?.effects
+            ? getLocalizedText(bassHistSeed.effects, locale)
+            : null;
+          if (!refBassist && !refBassGuitar && !refBassAmp) return null;
+          return (
+            <div style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', lineHeight: 1.6, marginTop: 6 }}>
+              <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 'clamp(11px, 1.25vw, 13px)' }}>{refBassist || t('song-detail.ref-bass-default', 'Bassiste')}</span><br/>
+              {refBassGuitar && <>{refBassGuitar}{(refBassAmp || refBassFx) ? ' · ' : ''}</>}
+              {refBassAmp && <>{refBassAmp}</>}
+              {refBassFx && refBassFx !== 'Aucun effet' && !/no effect|ningún efecto/i.test(refBassFx) && <> · {refBassFx}</>}
+            </div>
+          );
+        })()}
         {aiC?.cot_step1 && (
           <div style={{ marginTop: 8, background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
             <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-tonal', 'Profil tonal')}</div>
