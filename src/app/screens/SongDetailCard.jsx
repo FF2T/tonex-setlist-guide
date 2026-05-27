@@ -528,6 +528,25 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         // (Phase 3.6 union all-rigs au prompt peut amener des guitares
         // d'autres profils, ex. Bruno voyait Strat AM Vintage II 61 hors rig).
         const cotInRig = filterCotGuitarsToRig(aiC.cot_step2_guitars, guitars);
+        // Phase 7.83 final2 (2026-05-27) — helpers pour encadrer les libellés
+        // guitare/preset avec la couleur du bucket de compatibilité (vert
+        // idéal / jaune bon / orange limite). Strip aussi le suffix
+        // "(HB)"/"(SC)"/"(P90)" que Gemini ajoute parfois dans
+        // cot_step2_guitars[i].name — info redondante avec le rig user
+        // qui connaît son matériel.
+        const compatLabelStyle = (score) => {
+          const b = bucketizeScore(score);
+          return {
+            background: b.bgColor,
+            border: `1px solid ${b.borderColor}`,
+            color: b.color,
+            padding: '2px 8px',
+            borderRadius: 'var(--r-sm)',
+            fontWeight: 600,
+            display: 'inline-block',
+          };
+        };
+        const cleanGuitarName = (n) => (n || '').replace(/\s*\((?:HB|SC|P90)\)\s*$/i, '').trim();
         return (
         <>
           {/* Phase 7.86 — Bloc 2 : 🎯 Recommandations IA. Fusion ancienne SECTION 2
@@ -679,7 +698,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   {cotInRig.map((gt, i) => (
                     <div key={i} style={{ marginBottom: i < cotInRig.length - 1 ? 6 : 0 }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(11px, 1.25vw, 13px)' }}>
-                        <span style={{ fontWeight: 600, color: 'var(--text-bright)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{gt.name}</span>
+                        <span style={{ ...compatLabelStyle(gt.score), flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{cleanGuitarName(gt.name)}</span>
                         <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(gt.score), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(10px, 1.15vw, 12px)' }}>{gt.score}%</span>
                       </div>
                       {gt.reason && <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.4 }}>{getLocalizedText(gt.reason, locale)}</div>}
@@ -696,9 +715,11 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 if (cotTopName && idealName && cotTopName === idealName) return null;
                 return (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'clamp(11px, 1.25vw, 13px)' }}>
-                    <StatusDot score={idealGuitarScore} ideal={true}/>
-                    <div style={{ flex: 1 }}>{t('song-detail.guitar-label', 'Guitare ')}<span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{displayIdealGuitarName}</span></div>
-                    {idealGuitarScore && <b style={{ color: scoreColor(idealGuitarScore), flexShrink: 0 }}>{idealGuitarScore}%</b>}
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                      <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>{t('song-detail.guitar-label', 'Guitare ')}</span>
+                      <span style={{ ...compatLabelStyle(idealGuitarScore || 100), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{cleanGuitarName(displayIdealGuitarName)}</span>
+                    </div>
+                    {idealGuitarScore != null && idealGuitarScore > 0 && <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(idealGuitarScore), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(10px, 1.15vw, 12px)' }}>{idealGuitarScore}%</span>}
                   </div>
                 );
               })()}
@@ -775,7 +796,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                     {/* S9.7 — Score aligné droite via pill (même style que
                         Scoring guitares pour cohérence verticale). */}
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(11px, 1.25vw, 13px)' }}>
-                      <span style={{ fontWeight: 600, color: 'var(--text-bright)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                      <span style={{ ...compatLabelStyle(idealScore), flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                         {displayPresetName}
                         <span style={{ marginLeft: 6 }}>
                           <CurationDot name={displayPresetName} onClick={(n) => setCurationModalPreset(n)}/>
@@ -823,7 +844,10 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                         <div key={i} style={{ marginBottom: 4 }}>
                           {/* S9.7 — Score aligné droite via pill (cohérence Scoring guitares) */}
                           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(10px, 1.15vw, 12px)' }}>
-                            <span style={{ flex: 1, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{p.name} <span style={{ color: 'var(--text-tertiary)' }}>({entry?.amp || p.amp})</span></span>
+                            <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+                              <span style={{ ...compatLabelStyle(p.score), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{p.name}</span>
+                              <span style={{ color: 'var(--text-tertiary)', fontSize: 'clamp(9px, 1.05vw, 11px)', flexShrink: 0 }}>({entry?.amp || p.amp})</span>
+                            </span>
                             <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(p.score), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(10px, 1.15vw, 12px)' }}>{p.score}%</span>
                           </div>
                           <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 1, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
