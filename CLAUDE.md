@@ -761,17 +761,30 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-27 soir tard, Phase 8 V1 close — Intégration basse MVP)
+## État actuel (2026-05-27 soir, Phase 8 complète — Intégration basse + UI Mon Profil + sync multi-device)
 
-**Backline v8.14.250 / SW backline-v350 / STATE_VERSION 13 / 1729 tests verts.**
+**Backline v8.14.253 / SW backline-v353 / STATE_VERSION 13 / 1729 tests verts.**
 
-### Phase 8 V1 — Intégration basse (3 sous-phases livrées)
+### Phase 8 livraison complète (6 sous-phases + 2 hotfixes, 6 deploys cumulés)
 
-| Sous-phase | Livrable |
-|---|---|
-| **8.1** Data layer (commit `795cdaa`) | `core/basses.js` (8 modèles iconiques + 2 Sébastien : Jazz Bass Player Plus + Precision American Vintage II) · `core/bass-amps.js` (4 amplis trad : Fender Rumble 100 + Ampeg SVT + Markbass + Aguilar) · STATE_VERSION 12→13 avec `migrateV12toV13` additive · `profile.instruments` + `myBasses` + `customBasses` + `myBassAmps` + `customBassAmps` · 3 morceaux bass-jouables ajoutés au seed (Sunshine of Your Love · Under Pressure · I Love Rock 'n' Roll) avec `bass: {bassist, bass_guitar, bass_amp, effects}` dans SONG_HISTORY · 19 tests Vitest |
-| **8.4** Prompt fetchAI étendu | Signature étendue `fetchAI(..., basses, bassAmps)` (params optionnels) · Section conditionnelle "COLLECTION DE BASSES" + "AMPLIS BASSE TRADITIONNELS" injectée si user a basses cochées · Nouvelle ÉTAPE 8 dans le prompt : Gemini retourne `bass_recommendation: {ideal_bass, bass_reason, ref_bassist, ref_bass_guitar, ref_bass_amp, amp_settings, settings_bass}` ou `null` si pas de ligne de basse notable · JSON template output mis à jour |
-| **8.3** UI SongDetailCard | Nouveau helper `getSongBassHist(song)` retourne `SONG_HISTORY[song.id].bass || null` · Section "🎻 Basse" entre Feedback IA et Infos morceau · Gated par `profile.instruments.includes('bass')` ET (seed bass OU `aiC.bass_recommendation`) · Affichage hiérarchique : basse idéale + reason + Sur ton ampli {amp} avec amp_settings 0-10 + conseils de jeu prose + référence originale historique · 2 call sites fetchAI dans SongDetailCard mis à jour pour passer `basses` + `bassAmps` |
+| Sous-phase | Version | Livrable |
+|---|---|---|
+| **8.1** Data layer (commit WIP `795cdaa`) | refactor-and-tmp | `core/basses.js` (8 modèles iconiques + 2 Sébastien : Jazz Bass Player Plus + Precision American Vintage II) · `core/bass-amps.js` (4 amplis trad : Fender Rumble 100 + Ampeg SVT + Markbass + Aguilar) · STATE_VERSION 12→13 avec `migrateV12toV13` additive · `profile.instruments` + `myBasses` + `customBasses` + `myBassAmps` + `customBassAmps` · 3 morceaux bass-jouables ajoutés au seed (Sunshine of Your Love · Under Pressure · I Love Rock 'n' Roll) avec `bass: {bassist, bass_guitar, bass_amp, effects}` dans SONG_HISTORY · 19 tests Vitest |
+| **8.4** Prompt fetchAI étendu | v8.14.250 | Signature étendue `fetchAI(..., basses, bassAmps)` (params optionnels) · Section conditionnelle "COLLECTION DE BASSES" + "AMPLIS BASSE TRADITIONNELS" injectée si user a basses cochées · Nouvelle ÉTAPE 8 dans le prompt : Gemini retourne `bass_recommendation: {ideal_bass, bass_reason, ref_bassist, ref_bass_guitar, ref_bass_amp, amp_settings, settings_bass}` ou `null` si pas de ligne de basse notable · JSON template output mis à jour |
+| **8.3** UI SongDetailCard | v8.14.250 | Nouveau helper `getSongBassHist(song)` retourne `SONG_HISTORY[song.id].bass || null` · Section "🎻 Basse" entre Feedback IA et Infos morceau · Gated par `profile.instruments.includes('bass')` ET (seed bass OU `aiC.bass_recommendation`) · Affichage hiérarchique : basse idéale + reason + Sur ton ampli {amp} avec amp_settings 0-10 + conseils de jeu prose + référence originale historique · 2 call sites fetchAI dans SongDetailCard mis à jour pour passer `basses` + `bassAmps` |
+| **8.5** Hotfix fallback fuzzy match | v8.14.251 | `getSongBassHist` étendu : si song.id pas dans SONG_HISTORY, fallback fuzzy match par title normalisé dans INIT_SONG_DB_META. Couvre les songs custom (ex. Under Pressure ajouté pré-Phase 8.1 avec id `c_xxx` au lieu de `queen_underpressure`). Évite à user de patcher manuellement chaque song. |
+| **8.6** UI Mon Profil bass toggle | v8.14.252 | Nouveau tab "🎻 Mes basses" dans `MonProfilScreen` entre "Mes guitares" et "Mes appareils". 3 sections empilées : toggle "🎻 Je joue aussi la basse" (modifie `profile.instruments`) + liste basses cochables (gated bass active) + liste amplis basse traditionnels cochables. Visible à tous (admin + non-admin, gated !isDemo). 8 nouvelles clés i18n EN/ES. |
+| **8.6** Hotfix syncHash bass fields | v8.14.253 | `profileHash` (Phase 7.46) étendu avec 5 nouvelles dimensions : `instruments` + `myBasses` + `myBassAmps` + `customBasses` (futur) + `customBassAmps` (futur). Sans ce fix, le toggle "Je joue aussi la basse" ne déclenchait pas le push Firestore → modif restait locale (bug rapporté Sébastien). Désormais propagation correcte multi-device via LWW per-profile. |
+
+### Validation end-to-end Phase 8 sur Under Pressure (Sébastien 2026-05-27 soir)
+
+Re-fetchAI déclenché via feedback IA "test bass" → Gemini retourne `bass_recommendation` parfaitement structuré :
+- **ideal_bass** : "Fender Precision Bass American Vintage II" (match exact ta basse cochée)
+- **bass_reason** : "La ligne de basse de John Deacon est l'élément le plus reconnaissable du morceau. La Precision Bass apporte ce claquement et cette assise mythique."
+- **amp_settings Rumble 100** : Gain 4 / Bass 6 / Low Mid 7 / High Mid 5 / Treble 4 / Master 6 / Channel Clean (cohérent rock 80s, low_mid bumpé pour faire chanter le riff 4 notes)
+- **settings_bass** : "Joue aux doigts pour la rondeur, avec une attaque précise sur les cordes de Ré et Sol pour faire ressortir le riff."
+
+Reco IA qualitative + techniquement actionnable. Phase 8.4 contrat respecté à 100%.
 
 ### Comportement utilisateur post-déploiement
 
@@ -782,22 +795,38 @@ son handler `activate`.
   - À l'ouverture d'une fiche song bass-jouable (Sunshine of Your Love, Under Pressure, I Love Rock 'n' Roll) → section "🎻 Basse" visible avec référence historique. Au prochain re-fetch IA (clic feedback ou "🤖 Analyser/MAJ") → l'IA peut retourner `bass_recommendation` avec amp_settings pour le Rumble 100.
 - **Non-admin existants** (Bruno/Francisco/etc.) : `instruments=['guitar']` par défaut → comportement strictement inchangé. Pas de section basse visible (toggle bass désactivé tant que UI Mon Profil pas étendue Phase 8.6).
 
-### Hors scope Phase 8 V1 (notés pour Phase 8.6+ future)
+### Hors scope Phase 8 livraison du jour (notés pour Phase 8.x+ future)
 
-- **UI Mon Profil — toggle bass** (~1-2h) : permettre à un user non-admin d'activer `instruments.includes('bass')` + cocher ses basses + bass amps. Aujourd'hui Sébastien admin a les valeurs hardcodées via `makeDefaultProfile`. Les autres profils restent guitar-only.
-- **Custom basses + custom bass amps** (~2-3h) : parallèle à `profile.customGuitars` + `customPacks`. UI dans Mon Profil pour ajouter une basse hors catalog (ex. Bass Elliot pour un futur beta-tester).
-- **Scoring V9 dédié basse** (`core/scoring/bass.js`) : reporté. L'IA Gemini fait le scoring contextuel via prompt étendu — qualité MVP suffisante. À monitorer en pratique. Si signal user que les recos basse manquent de cohérence, Phase 8.7 ajoute scoring local.
+- ~~**UI Mon Profil bass toggle**~~ ✅ LIVRÉ Phase 8.6 v8.14.252
+- **Custom basses + custom bass amps** (~2-3h) : parallèle à `profile.customGuitars` + `customPacks`. UI dans tab "🎻 Mes basses" pour ajouter une basse hors catalog (ex. ESP, Schecter, Ibanez Gio bass, Bass Elliot TSR pour un futur beta-tester). Form + add/edit/delete + brand inference. À déclencher si un beta-tester signale "je veux ajouter ma basse hors catalog".
+- **Scoring V9 dédié basse** (`core/scoring/bass.js`) : reporté. L'IA Gemini fait le scoring contextuel via prompt étendu — qualité MVP **validée Sébastien 2026-05-27** sur Under Pressure (reco Precision Bass + amp_settings Rumble 100 cohérents). À monitorer en pratique. Si signal user que les recos basse manquent de cohérence sur certains styles, Phase 8.7 ajouterait scoring local.
 - **LiveScreen multi-instrument** : section basse dans le mode scène plein écran. Non implémenté V1.
 - **HomeScreen fiche dépliée** : section basse non ajoutée V1 (seul SongDetailCard via Setlists vue dépliée affiche bass).
 - **Pédales basse curées** : Compresseur Aguilar TLC, Octaver Boss OC-2, EBS MultiComp etc. Phase 8.8 si bandwidth.
 - **Ampli traditionnel guitare + pédalier** : pivot Phase 13 séparée (non démarrée). Le pattern Phase 8.1 BASS_AMPS est réutilisable pour amplis guitare trad quand on l'attaque.
 
-### Bilan tests
+### Bilan tests + déploiements
 
 - **1729/1729 tests verts** à chaque étape (zéro régression)
-- Bundle 2565 → 2581 KB (+16 KB pour catalogs + UI section + i18n + prompt étendu)
+- Bundle 2565 → 2589 KB (+24 KB pour catalogs + UI sections + i18n + prompt étendu + tab bass + syncHash fix)
 - **STATE_VERSION 12 → 13** (migration additive, idempotente)
+- **6 deploys Phase 8** : v8.14.250 (V1 close 8.1+8.3+8.4+8.5) → 251 (hotfix fallback fuzzy) → 252 (UI bass toggle 8.6) → 253 (hotfix syncHash bass fields)
 - Cohabitation v12/v13 sur Firestore : un device pré-Phase 8 reçoit un state v13 → ignore champs inconnus (`instruments` etc.) sans erreur. Un device post-Phase 8 reçoit un state v12 → `ensureProfileV13` au pull comble les champs.
+
+### Récap session 2026-05-27 complète (12 deploys + 1 WIP)
+
+| # | Version | Phase | Sujet |
+|---|---|---|---|
+| 1 | 8.14.240 | 7.85 batch 1 | tabs Mon Profil/Admin 44px + bug recherche démo + 4 P0 Cowork (B01 noms presets row 2, B02 Scoring Preset wrap, B03 Feedback IA column, B04 SongSearchBar maxWidth) + B07 Fermer ↑ + B20 input rename setlist |
+| 2 | 8.14.241 | 7.85 batch 2 | retours user (alignement guitare vue repliée + inversion Mes guitares nom complet/court) + Lot B 11 touch targets 44×44 (chips Home + avatar header + toolbar + SORTIE + Mon Profil boutons) |
+| 3 | 8.14.242 | 7.85 batch 3 | Lot polish P2 (banner desktop hauteur + nav top active state + version label + chips wrap + iPad banner) |
+| 4 | 8.14.243 | 7.85 batch 4 | Lot A2 prose readable max-width 65ch + section card max-width 960 + CLAUDE.md État actuel update |
+| 5 | 8.14.244 | 7.85 fontSize bump | fontSize prose vue dépliée morceau (retour user mobile densité) |
+| 6 | WIP `795cdaa` | 8.1 | data layer basse (catalogs + migration v13 + 3 morceaux seed) — pas déployé prod |
+| 7 | 8.14.250 | 8 V1 close | 8.1 + 8.3 UI section bass + 8.4 prompt fetchAI + 8.5 deploy prod |
+| 8 | 8.14.251 | 8.5 hotfix | getSongBassHist fallback fuzzy match par title (Under Pressure custom id) |
+| 9 | 8.14.252 | 8.6 | UI Mon Profil tab "🎻 Mes basses" (toggle + liste basses + amplis) |
+| 10 | 8.14.253 | 8.6 hotfix | syncHash inclut instruments/myBasses/myBassAmps/customBasses/customBassAmps |
 
 ---
 

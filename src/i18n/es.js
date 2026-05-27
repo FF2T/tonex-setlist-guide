@@ -828,6 +828,17 @@ const es = {
   'profile-tab.my-basses-hint': 'Marca los bajos que posees. Backline los usará para recomendar un instrumento adecuado a la canción.',
   'profile-tab.my-bass-amps': 'Mis amplificadores de bajo tradicionales',
   'profile-tab.my-bass-amps-hint': 'Marca los amplificadores de bajo físicos que posees (además de tu ToneX). Backline propondrá ajustes adaptados a tu equipo.',
+  // Phase 8.7 — Custom basses + custom bass amps
+  'profile-tab.custom-basses-section': 'Mis bajos custom',
+  'profile-tab.add-custom-bass': '➕ Añadir un bajo fuera del catálogo',
+  'profile-tab.add-bass-name-placeholder': 'Nombre (ej. Sterling SUB Ray4)',
+  'profile-tab.add-bass-brand-placeholder': 'Marca',
+  'profile-tab.add-bass-submit': 'Añadir',
+  'profile-tab.custom-bass-amps-section': 'Mis amplificadores de bajo custom',
+  'profile-tab.add-custom-amp': '➕ Añadir un amplificador de bajo fuera del catálogo',
+  'profile-tab.add-amp-name-placeholder': 'Nombre (ej. Hartke HD500)',
+  'profile-tab.add-amp-brand-placeholder': 'Marca',
+  'profile-tab.add-amp-submit': 'Añadir',
   // Phase 8.3 — Bass section
   'song-detail.bass-section': 'Bajo',
   'song-detail.bass-ideal': 'Bajo ideal:',

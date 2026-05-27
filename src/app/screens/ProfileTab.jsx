@@ -38,6 +38,13 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
   const [editGImage, setEditGImage] = useState(null);
   const [editGBrand, setEditGBrand] = useState('');
   const [imgErr, setImgErr] = useState(null);
+  // Phase 8.7 — state forms ajout custom basses + amplis basse
+  const [newBassName, setNewBassName] = useState('');
+  const [newBassBrand, setNewBassBrand] = useState('');
+  const [newBassType, setNewBassType] = useState('PJ');
+  const [newAmpName, setNewAmpName] = useState('');
+  const [newAmpBrand, setNewAmpBrand] = useState('');
+  const [newAmpWattage, setNewAmpWattage] = useState('');
 
   const updateProfile = (field, value) => onProfiles((p) => {
     const cur = p[activeProfileId];
@@ -74,6 +81,50 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
       }
       return [...list, 'bass'];
     });
+  };
+  // Phase 8.7 — Helpers add/remove customs basse
+  const addCustomBass = () => {
+    if (!newBassName.trim()) return;
+    const name = newBassName.trim();
+    const brand = newBassBrand.trim() || 'Custom';
+    const cb = {
+      id: `cbass_${Date.now()}`,
+      name,
+      short: name.length > 20 ? name.slice(0, 18) + '…' : name,
+      type: newBassType,
+      brand,
+    };
+    updateProfile('customBasses', (prev) => [...(prev || []), cb]);
+    updateProfile('myBasses', (prev) => [...(prev || []), cb.id]);
+    setNewBassName(''); setNewBassBrand(''); setNewBassType('PJ');
+  };
+  const removeCustomBass = (id) => {
+    updateProfile('customBasses', (prev) => (prev || []).filter((b) => b.id !== id));
+    updateProfile('myBasses', (prev) => (prev || []).filter((x) => x !== id));
+  };
+  const addCustomBassAmp = () => {
+    if (!newAmpName.trim()) return;
+    const name = newAmpName.trim();
+    const brand = newAmpBrand.trim() || 'Custom';
+    const wattage = Number(newAmpWattage) || 100;
+    const ca = {
+      id: `camp_${Date.now()}`,
+      name,
+      short: name.length > 20 ? name.slice(0, 18) + '…' : name,
+      brand,
+      wattage,
+      channels: ['Clean'],
+      eq: ['Bass', 'Mid', 'Treble'],
+      features: [],
+      refs: { fr: '', en: '', es: '' },
+    };
+    updateProfile('customBassAmps', (prev) => [...(prev || []), ca]);
+    updateProfile('myBassAmps', (prev) => [...(prev || []), ca.id]);
+    setNewAmpName(''); setNewAmpBrand(''); setNewAmpWattage('');
+  };
+  const removeCustomBassAmp = (id) => {
+    updateProfile('customBassAmps', (prev) => (prev || []).filter((a) => a.id !== id));
+    updateProfile('myBassAmps', (prev) => (prev || []).filter((x) => x !== id));
   };
   const addCustomGuitar = (cg) => {
     onCustomGuitars((prev) => [...(prev || []), cg]);
@@ -303,6 +354,43 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                       </div>
                     );
                   })}
+                  {/* Phase 8.7 — Custom basses (hors catalog) */}
+                  {(profile?.customBasses || []).length > 0 && (
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('profile-tab.custom-basses-section', 'Mes basses custom')}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {(profile.customBasses || []).map((b) => {
+                          const sel = myBasses.includes(b.id);
+                          return (
+                            <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: sel ? 'var(--accent-soft)' : 'var(--a3)', border: sel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '8px 12px' }}>
+                              <div onClick={() => { if (!isDemo) toggleBass(b.id); }} title={demoTitle} style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: sel ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: sel ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: isDemo ? 'not-allowed' : 'pointer' }}>{sel && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
+                              <div style={{ flex: 1, cursor: isDemo ? 'not-allowed' : 'pointer' }} onClick={() => { if (!isDemo) toggleBass(b.id); }}>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{b.name}</span>
+                                <span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 6 }}>{b.brand}</span>
+                              </div>
+                              <span style={{ fontSize: 10, color: 'var(--text-dim)', marginRight: 4 }}>{b.type}</span>
+                              <button onClick={() => { if (!isDemo) removeCustomBass(b.id); }} disabled={isDemo} title={demoTitle} style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: isDemo ? 'not-allowed' : 'pointer', fontSize: 12, padding: '2px 4px', minHeight: 28, minWidth: 28, opacity: isDemo ? 0.5 : 1 }}>✕</button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {/* Phase 8.7 — Form ajout custom basse */}
+                  <div style={{ background: 'var(--a3)', border: '1px dashed var(--a8)', borderRadius: 'var(--r-md)', padding: 10, marginTop: 8 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>{t('profile-tab.add-custom-bass', '➕ Ajouter une basse hors catalog')}</div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
+                      <input placeholder={t('profile-tab.add-bass-name-placeholder', 'Nom (ex. Sterling SUB Ray4)')} value={newBassName} onChange={(e) => setNewBassName(e.target.value)} disabled={isDemo} style={{ ...inp, flex: '1 1 200px', fontSize: 12, padding: '6px 10px' }}/>
+                      <input placeholder={t('profile-tab.add-bass-brand-placeholder', 'Marque')} value={newBassBrand} onChange={(e) => setNewBassBrand(e.target.value)} disabled={isDemo} style={{ ...inp, flex: '1 1 100px', fontSize: 12, padding: '6px 10px' }}/>
+                      <select value={newBassType} onChange={(e) => setNewBassType(e.target.value)} disabled={isDemo} style={{ ...inp, flex: '0 0 80px', fontSize: 12, padding: '6px 6px' }}>
+                        <option value="SC">SC</option>
+                        <option value="PJ">PJ</option>
+                        <option value="HB">HB</option>
+                        <option value="MM">MM</option>
+                      </select>
+                    </div>
+                    <button onClick={() => { if (!isDemo) addCustomBass(); }} disabled={isDemo || !newBassName.trim()} title={demoTitle} style={{ background: !isDemo && newBassName.trim() ? 'var(--accent)' : 'var(--a7)', border: 'none', color: !isDemo && newBassName.trim() ? 'var(--text-inverse)' : 'var(--text-dim)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: !isDemo && newBassName.trim() ? 'pointer' : 'not-allowed', minHeight: 36 }}>{t('profile-tab.add-bass-submit', 'Ajouter')}</button>
+                  </div>
                 </div>
               )}
 
@@ -334,6 +422,36 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                       </div>
                     );
                   })}
+                  {/* Phase 8.7 — Custom amplis basse (hors catalog) */}
+                  {(profile?.customBassAmps || []).length > 0 && (
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('profile-tab.custom-bass-amps-section', 'Mes amplis basse custom')}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {(profile.customBassAmps || []).map((a) => {
+                          const sel = myBassAmps.includes(a.id);
+                          return (
+                            <div key={a.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: sel ? 'var(--accent-soft)' : 'var(--a3)', border: sel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '8px 12px' }}>
+                              <div onClick={() => { if (!isDemo) toggleBassAmp(a.id); }} title={demoTitle} style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: sel ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: sel ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, cursor: isDemo ? 'not-allowed' : 'pointer' }}>{sel && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
+                              <div style={{ flex: 1, minWidth: 0, cursor: isDemo ? 'not-allowed' : 'pointer' }} onClick={() => { if (!isDemo) toggleBassAmp(a.id); }}>
+                                <div style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{a.name} <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400 }}>· {a.brand} · {a.wattage}W</span></div>
+                              </div>
+                              <button onClick={() => { if (!isDemo) removeCustomBassAmp(a.id); }} disabled={isDemo} title={demoTitle} style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: isDemo ? 'not-allowed' : 'pointer', fontSize: 12, padding: '2px 4px', minHeight: 28, minWidth: 28, opacity: isDemo ? 0.5 : 1 }}>✕</button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {/* Phase 8.7 — Form ajout custom ampli basse */}
+                  <div style={{ background: 'var(--a3)', border: '1px dashed var(--a8)', borderRadius: 'var(--r-md)', padding: 10, marginTop: 8 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>{t('profile-tab.add-custom-amp', '➕ Ajouter un ampli basse hors catalog')}</div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
+                      <input placeholder={t('profile-tab.add-amp-name-placeholder', 'Nom (ex. Hartke HD500)')} value={newAmpName} onChange={(e) => setNewAmpName(e.target.value)} disabled={isDemo} style={{ ...inp, flex: '1 1 200px', fontSize: 12, padding: '6px 10px' }}/>
+                      <input placeholder={t('profile-tab.add-amp-brand-placeholder', 'Marque')} value={newAmpBrand} onChange={(e) => setNewAmpBrand(e.target.value)} disabled={isDemo} style={{ ...inp, flex: '1 1 100px', fontSize: 12, padding: '6px 10px' }}/>
+                      <input type="number" placeholder="Watt" value={newAmpWattage} onChange={(e) => setNewAmpWattage(e.target.value)} disabled={isDemo} min={1} max={2000} style={{ ...inp, flex: '0 0 70px', fontSize: 12, padding: '6px 8px' }}/>
+                    </div>
+                    <button onClick={() => { if (!isDemo) addCustomBassAmp(); }} disabled={isDemo || !newAmpName.trim()} title={demoTitle} style={{ background: !isDemo && newAmpName.trim() ? 'var(--accent)' : 'var(--a7)', border: 'none', color: !isDemo && newAmpName.trim() ? 'var(--text-inverse)' : 'var(--text-dim)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: !isDemo && newAmpName.trim() ? 'pointer' : 'not-allowed', minHeight: 36 }}>{t('profile-tab.add-amp-submit', 'Ajouter')}</button>
+                  </div>
                 </div>
               )}
             </>

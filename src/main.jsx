@@ -277,7 +277,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "8.14.253";
+const APP_VERSION = "8.14.254";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -919,6 +919,14 @@ export function App() {
     return [...base, ...customs];
   },[profile.myGuitars, customGuitars, profile.editedGuitars]);
   useEffect(()=>{window.__allGuitars=allGuitars;},[allGuitars]);
+
+  // Phase 8.7 — Pattern parallèle pour basses + amplis basse : expose
+  // sur window le combiné catalog + profile.customBasses pour que
+  // findBass / findBassAmp puissent les résoudre (fallback window).
+  useEffect(()=>{
+    window.__allBasses=[...(profile.customBasses||[])];
+    window.__allBassAmps=[...(profile.customBassAmps||[])];
+  },[profile.customBasses, profile.customBassAmps]);
 
   // Phase 3.6 — Union all-rigs des guitares de TOUS les profils
   // (Sébastien + Arthur + Franck + …). Utilisé par le mécanisme passif
