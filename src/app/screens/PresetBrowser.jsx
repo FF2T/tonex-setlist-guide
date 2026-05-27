@@ -508,6 +508,11 @@ function PresetDetailInline({ name, info, banksAnn, banksPlug, presetContext, gu
         sectionStyle={sectionStyle}
         sectionTitle={sectionTitle}
       />
+      {/* Phase 8.9 — Masquer section "Guitares adaptées" pour les
+          presets bass : non-sensique d'afficher des guitares pour un
+          preset BS B15, Bass Elliot, etc. Phase ultérieure pourra
+          ajouter une section "Basses adaptées" symétrique. */}
+      {!isBassPreset(name, info) && (
       <div style={sectionStyle}>
         {sectionTitle('🎸', t('preset-detail.section.suitable-guitars', 'Guitares adaptées'))}
         {/* Phase 7.83 — Buckets qualitatifs 3 niveaux (Mariage parfait / Bon match / Compromis)
@@ -554,6 +559,7 @@ function PresetDetailInline({ name, info, banksAnn, banksPlug, presetContext, gu
           );
         })()}
       </div>
+      )}
     </div>
   );
 }
