@@ -763,9 +763,9 @@ son handler `activate`.
 
 ## État actuel (2026-05-27, session pollution profile + polish UX fiche song)
 
-**Backline v8.14.238 / SW backline-v338 / STATE_VERSION 12 / 1710 tests verts.**
+**Backline v8.14.239 / SW backline-v339 / STATE_VERSION 12 / 1710 tests verts.**
 
-### Session 2026-05-26 nuit + 2026-05-27 — 15 commits déployés en prod
+### Session 2026-05-26 nuit + 2026-05-27 — 16 commits déployés en prod
 
 | Phase | Version | Sujet |
 |---|---|---|
@@ -783,6 +783,50 @@ son handler `activate`.
 | 7.83 final6 | 8.14.236 | Grid multi-col responsive 3 sections (Réglages effets / Scoring guitares / Alternatives) |
 | 7.83 final7 | 8.14.237 | Grid 2 cols max via classe `.reco-multicol` (3+ cols coupaient les textes longs) |
 | 7.83 final8 | 8.14.238 | Scoring preset : **amp encadré (réel) + preset name à côté en mono dim** (cohérent vue repliée) |
+| **7.83-demo-gating** | **8.14.239** | **Audit UX mode démo (clôture dette résiduelle Phase 7.51.3.1). Pattern uniforme `disabled + opacity 0.5 + cursor not-allowed + title` sur tous les writes profil/setlists/songs accessibles en démo.** |
+
+### Phase 7.83-demo-gating — Audit UX mode démo (v8.14.239)
+
+Suite à un audit Explore (rapport 25 sites identifiés), clôture de
+la dette résiduelle Phase 7.51.3.1 (~1h estimée → 2h réelles). Tous
+les inputs/boutons qui appellent `onSongDb` / `onSetlists` /
+`onProfiles` (writes bloqués par `wrapDemoGuard` Phase 7.51.2) sont
+désormais visuellement grisés en mode démo.
+
+**8 fichiers modifiés, +70/-46 lignes** :
+
+| Fichier | Sites gated | Notes |
+|---|---|---|
+| `ListScreen.jsx` | 7 sites Haute | InlineRenameInput (prop `disabled`) + ✏️/🧹/🗑 + pills partage + 🗑 retrait + bouton "+" |
+| `ProfileTab.jsx` | 4 sites | Toggle row standard/custom guitare + ✏️/✕ + GuitarSearchAdd + Sources (bonus) |
+| `SongDetailCard.jsx` | 5 sites | Boutons override outputContext + textarea feedback + 📤 Envoyer + ✕ delete feedback + Tout effacer |
+| `MonProfilScreen.jsx` | 2 wraps | Wrap `pointer-events:none` sur section IA + section musicales (le tab "⚙️ Préférences" est le seul accessible en démo) |
+| `PresetCurationModal.jsx` | 1 cond | `editable` + `canRemoveOverride` désactivés → boutons ✏️ Modifier + 🔄 Restaurer invisibles, modal reste en lecture |
+| `GuitarSearchAdd.jsx` | 1 prop | Composant étendu avec prop `disabled` (wrap parent) |
+
+**Sites volontairement laissés fonctionnels** :
+- `GuitarSelect` (dropdown choix guitare) : exploration utile pour
+  la démo, `setGId` reste local React, write parent `onGuitarChange`
+  → `setlist.guitars[songId]` est wrappé par `wrapDemoGuard` côté
+  parent.
+- Thème + langue (section Affichage tab Préférences) : préférences
+  globales localStorage, pas writes profil. Le i18n module skip
+  l'updater `profile.language` en mode démo (Phase 7.49).
+- Chips suggérés + bouton 🎲 random Accueil démo (Phase 7.55.3) :
+  appellent `handleSongConfirm` qui early-return sur le fetchAI et
+  qui trouve les morceaux dans le songDb démo bundlé → pas de write.
+
+**Sites déjà invisibles via tabs gated `!isDemo`** (Phase 7.51.2) :
+MyCustomPresetsTab, ToneNetTab (migré AdminScreen), BankEditor,
+MesAppareilsTab, ExportImportScreen. Tous masqués au niveau
+`tabBtn` de MonProfilScreen / AdminScreen.
+
+**Bonus annexe (Sources ProfileTab)** : le tab Sources est gated
+`!isDemo`, donc invisible. Mais en mode normal, la prop `isDemo`
+ajoutée s'étend aux toggles `availableSources` (préservation du
+chemin Phase 7.74.10 `deviceMissing` + `unavailable`).
+
+**Pas de bump STATE_VERSION** (purement UI).
 
 ### Phase 7.74.10 — Timestamps dédiés multi-champs (v8.14.226)
 
