@@ -360,7 +360,8 @@ const BASS_NAME_PATTERNS = [
   /^BS /,                        // Factory bass slots
   /^TSR Bass Elliot/i,           // TSR pack Bass Elliot
   /^TSR GK MBS150/i,             // TSR pack GK MBS150 (Bass)
-  /^TSR Ampeg Pro/i,             // TSR pack Ampeg Pro 4
+  /^TSR A-Peg Pro/i,             // TSR pack Ampeg Pro 4 — naming réel "A-Peg" (pas "Ampeg") dans le catalog gen_catalog
+  /^TSR Ampeg Pro/i,             // fallback si naming change un jour
   /^TSR Bass Pack/i,             // TSR pack Bass Pack 1
 ];
 
