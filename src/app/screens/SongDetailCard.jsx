@@ -659,26 +659,31 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 return (
                   <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
                     <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.fx-settings', '🎚 Réglages effets')}</div>
-                    {onBlocks.map((k) => {
-                      const block = aiC.fx_blocks[k];
-                      const whyTxt = block.why ? getLocalizedText(block.why, locale) : null;
-                      const ranges = FX_PARAM_RANGES[k];
-                      const params = PARAM_ORDER[k] || [];
-                      const bars = params.map((p) => {
-                        const v = block[p];
-                        if (v == null || !ranges?.[p]) return null;
-                        return renderBar(PARAM_LABELS[p] || p, v, ranges[p]);
-                      }).filter(Boolean);
-                      return (
-                        <div key={k} style={{ marginBottom: 8 }}>
-                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 3 }}>
-                            <b style={{ color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontSize: 'clamp(10px, 1.15vw, 12px)', textTransform: 'uppercase', letterSpacing: 0.3, flexShrink: 0 }}>{FX_LABELS[k]}{block.type ? ` ${block.type}` : ''}{k === 'delay' && block.mode ? ` ${block.mode}` : ''}</b>
+                    {/* Phase 7.83 final6 (2026-05-27) — grid responsive auto-fit
+                        pour limiter la largeur des barres sur desktop. Mobile :
+                        1 col. Desktop : 2-3 col selon largeur du conteneur. */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+                      {onBlocks.map((k) => {
+                        const block = aiC.fx_blocks[k];
+                        const whyTxt = block.why ? getLocalizedText(block.why, locale) : null;
+                        const ranges = FX_PARAM_RANGES[k];
+                        const params = PARAM_ORDER[k] || [];
+                        const bars = params.map((p) => {
+                          const v = block[p];
+                          if (v == null || !ranges?.[p]) return null;
+                          return renderBar(PARAM_LABELS[p] || p, v, ranges[p]);
+                        }).filter(Boolean);
+                        return (
+                          <div key={k}>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 3 }}>
+                              <b style={{ color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontSize: 'clamp(10px, 1.15vw, 12px)', textTransform: 'uppercase', letterSpacing: 0.3, flexShrink: 0 }}>{FX_LABELS[k]}{block.type ? ` ${block.type}` : ''}{k === 'delay' && block.mode ? ` ${block.mode}` : ''}</b>
+                            </div>
+                            {bars.length > 0 && <div>{bars}</div>}
+                            {whyTxt && <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-dim)', marginTop: 3, lineHeight: 1.4, fontStyle: 'italic' }}>{whyTxt}</div>}
                           </div>
-                          {bars.length > 0 && <div>{bars}</div>}
-                          {whyTxt && <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-dim)', marginTop: 3, lineHeight: 1.4, fontStyle: 'italic' }}>{whyTxt}</div>}
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
                 );
               })()}
@@ -686,16 +691,19 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
               {/* SECTION 4 — Cadre Scoring guitares + Guitare idéale + guitar_reason (descendus) */}
               {cotInRig.length > 0 && (
                 <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                  <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-guitars', 'Scoring guitares')}</div>
-                  {cotInRig.map((gt, i) => (
-                    <div key={i} style={{ marginBottom: i < cotInRig.length - 1 ? 6 : 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(11px, 1.25vw, 13px)' }}>
-                        <span style={{ ...compatLabelStyle(gt.score), flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{cleanGuitarName(gt.name)}</span>
-                        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(gt.score), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(10px, 1.15vw, 12px)' }}>{gt.score}%</span>
+                  <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-guitars', 'Scoring guitares')}</div>
+                  {/* Phase 7.83 final6 — grid responsive auto-fit multi-col desktop */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 10 }}>
+                    {cotInRig.map((gt, i) => (
+                      <div key={i}>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(11px, 1.25vw, 13px)' }}>
+                          <span style={{ ...compatLabelStyle(gt.score), flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{cleanGuitarName(gt.name)}</span>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(gt.score), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(10px, 1.15vw, 12px)' }}>{gt.score}%</span>
+                        </div>
+                        {gt.reason && <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.4 }}>{getLocalizedText(gt.reason, locale)}</div>}
                       </div>
-                      {gt.reason && <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.4 }}>{getLocalizedText(gt.reason, locale)}</div>}
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
               {/* Guitare idéale (cas family boost Phase 7.64 où idéale ≠ top scoring) */}
@@ -828,28 +836,30 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 return (
                   <div style={{ marginTop: 6 }}>
                     <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', color: 'var(--text-tertiary)', marginBottom: 4 }}>{t('song-detail.alternatives', 'Alternatives catalogue')}</div>
-                    {filteredTop3.slice(1).map((p, i) => {
-                      const loc = findInBanks(p.name, banksAnn) || findInBanks(p.name, banksPlug);
-                      const entry = findCatalogEntry(p.name);
-                      const si = getSourceInfo(entry);
-                      return (
-                        <div key={i} style={{ marginBottom: 4 }}>
-                          {/* S9.7 — Score aligné droite via pill (cohérence Scoring guitares) */}
-                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(10px, 1.15vw, 12px)' }}>
-                            <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
-                              <span style={{ ...compatLabelStyle(p.score), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{p.name}</span>
-                              <span style={{ color: 'var(--text-tertiary)', fontSize: 'clamp(9px, 1.05vw, 11px)', flexShrink: 0 }}>({entry?.amp || p.amp})</span>
-                            </span>
-                            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(p.score), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(10px, 1.15vw, 12px)' }}>{p.score}%</span>
+                    {/* Phase 7.83 final6 — grid responsive multi-col desktop */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 8 }}>
+                      {filteredTop3.slice(1).map((p, i) => {
+                        const loc = findInBanks(p.name, banksAnn) || findInBanks(p.name, banksPlug);
+                        const entry = findCatalogEntry(p.name);
+                        const si = getSourceInfo(entry);
+                        return (
+                          <div key={i}>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(10px, 1.15vw, 12px)' }}>
+                              <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+                                <span style={{ ...compatLabelStyle(p.score), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{p.name}</span>
+                                <span style={{ color: 'var(--text-tertiary)', fontSize: 'clamp(9px, 1.05vw, 11px)', flexShrink: 0 }}>({entry?.amp || p.amp})</span>
+                              </span>
+                              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(p.score), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(10px, 1.15vw, 12px)' }}>{p.score}%</span>
+                            </div>
+                            <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 1, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                              {loc ? <span style={{ color: 'var(--green)' }}>{tFormat('song-detail.installed-bank', { bank: loc.bank, slot: loc.slot }, '✓ Installé — Banque {bank}{slot}')}</span>
+                                : <span style={{ color: 'var(--yellow)' }}>{t('song-detail.not-installed', '⬇ Non installé')}</span>}
+                              {si && <span style={{ color: loc ? 'var(--text-tertiary)' : 'var(--text-sec)' }}>· {si.icon} {si.label}</span>}
+                            </div>
                           </div>
-                          <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 1, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-                            {loc ? <span style={{ color: 'var(--green)' }}>{tFormat('song-detail.installed-bank', { bank: loc.bank, slot: loc.slot }, '✓ Installé — Banque {bank}{slot}')}</span>
-                              : <span style={{ color: 'var(--yellow)' }}>{t('song-detail.not-installed', '⬇ Non installé')}</span>}
-                            {si && <span style={{ color: loc ? 'var(--text-tertiary)' : 'var(--text-sec)' }}>· {si.icon} {si.label}</span>}
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
                 );
               })()}
