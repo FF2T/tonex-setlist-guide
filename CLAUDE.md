@@ -220,20 +220,35 @@ import NavIcon from '../components/NavIcon.jsx';
 Style cohérent : outline, `stroke=currentColor`, viewBox 24×24,
 `strokeWidth=1.8`.
 
+**21 icônes disponibles** (vagues 1 + 2 cumulées) :
+
 | id | Visuel | Usage |
 |---|---|---|
 | `list` | maison | nav Accueil |
 | `setlists` | note musique + cercles | nav Setlists |
-| `explore` | loupe | nav Explorer |
+| `explore` | loupe | nav Explorer / Recherche intelligente |
 | `jam` | rectangle arrondi + flèches | nav Jammer |
 | `optimizer` | barres verticales | nav Optimiser (admin) |
-| `admin` | engrenage | nav Admin (admin) |
-| `live` | micro | bouton Mode scène |
-| `target` | cible concentrique | section Recommandations IA |
-| `guitar` | silhouette guitare | section Mon setup |
-| `bass` | corps allongé + 4 chevilles | section Basse |
+| `admin` | engrenage | nav Admin / tab Préférences / config |
+| `live` | micro | bouton Mode scène / empty state Live |
+| `target` | cible concentrique | section Recommandations IA / Raisonnement |
+| `guitar` | silhouette guitare | section Ma guitare / config |
+| `bass` | corps allongé + 4 chevilles | section Ma basse / Mes basses |
 | `info` | i dans cercle | section Infos morceau |
-| `sliders` | 3 sliders horizontaux | réglages effets / paramétrage |
+| `sliders` | 3 sliders horizontaux | réglages effets / paramétrage / Réglages EQ |
+| `user` | personne unique | tab Mon compte |
+| `users` | plusieurs personnes | tab Profils (admin) / Multi-profils & Sync |
+| `eye` | œil | tab Tous presets users (admin) |
+| `globe` | globe lat/lng | tab ToneNET (admin) |
+| `wrench` | clé à molette | tab Maintenance (admin) |
+| `key` | clé | tab Clé API (admin) |
+| `lock` | cadenas fermé | section Mot de passe (réservé) |
+| `device` | smartphone | tab Mes appareils / matériel |
+| `package` | boîte 3D | tab Mes sources / Mes presets custom / packs |
+| `pen` | crayon | bouton renommer / éditer |
+| `trash` | poubelle | bouton supprimer (setlist, morceau) |
+| `broom` | balai | bouton vider (setlist) |
+| `doc` | document plié | bouton export PDF |
 
 ### Ajouter une nouvelle icône
 
@@ -284,10 +299,45 @@ grep -P "[\x{1F300}-\x{1F9FF}]|[\x{2600}-\x{27BF}]" src/app/screens/MonScreen.js
   (admin/live/target/guitar/bass/info/sliders). Sites migrés :
   AppHeader nav admin, HomeScreen bouton Mode scène, SongDetailCard
   4 sectionTitle (Mon setup, Recommandations IA, Basse, Infos morceau).
-- **Vague 2** (à venir) : audit complet — tabs MonProfilScreen,
-  AdminScreen, refs inline historiques (`🎸 X · 🔊 Y · 🎚 Z`),
-  modales (SplashPopup, OnboardingWizard), badges device
-  (`📦 Pedale`, `🔌 Plug`, `🏭 Anniversary`).
+- **Vague 2 majoritaire** (v8.14.270 → v8.14.272, 2026-05-27/28) :
+  Sébastien clarifie *"les seuls emojis que je veux conserver sont
+  dans le footer"*. +14 icônes ajoutées
+  (user/users/eye/globe/wrench/key/lock/device/package/pen/trash/
+  broom/doc). 7 écrans nettoyés :
+  - **MonProfilScreen** 8 tabs : 👤/🎸/🎻/📱/📦×2/⚙️ → NavIcon
+  - **AdminScreen** 6 tabs + header : 👥/👁/📦/🌐/🔧/🔑 → NavIcon
+  - **HomeScreen** : SplashPopup 3 étapes (🔍/🧠/🎸) +
+    OnboardingWizard 7 features (🔍/🧠/🎵/🎲/🎛️/📦/👥) + 3 config
+    items (🎸/📱/📦) + bouton Mode scène (🎤) + sectionTitle
+    Paramétrage (🎛) + refs inline (🎸/🔊/🎚) + compat buckets
+    (🟢/🟡/🟠) + bouton random (🎲) + Raisonnement IA (🧠) +
+    Analyse/Relancer/Affiner (⏳/🔄) → tous flat ou NavIcon
+  - **SongDetailCard** : EQ/FX sectionTitles (🎛️/🎚) → NavIcon
+    sliders ; output context buttons (↻/📢/🎧/🎚️) → labels courts
+    Profil/FRFR/Casque/Sono ; STEREO/Non installé/feedback (💬/📤)/
+    buckets/refs/deviceLabel (📦/🔌) → tous flat ; **Référence
+    bassiste symétrique guitariste** ajoutée dans Infos morceau
+  - **LiveScreen** : empty state 🎤 + STEREO + refs inline
+  - **ListScreen** : compat buckets + 🎤 Mode scène + boutons
+    ✏️/🗑/📄/🧹 → NavIcon pen/trash/doc/broom ; 🔒 (moi) → '(moi)' ;
+    🎵 empty state → NavIcon setlists ; ⬇/⏳/⚡ slot/pending/FX
+    → texte ; 🤖 Analyser/MAJ → texte
+  - **RecapScreen** : titres 🎸/🎵/⬇ + icon emoji 📦/🔌 missing
+    presets → flat
+  - **PBlock** : badges ⬇/↑/★/✦/→ → texte
+- **Vague 3 cleanup à venir** (~7 écrans secondaires) : MonProfilScreen
+  sub-sections (MonCompteSection ~54 occurrences emojis, dont section
+  Identité, Sécurité, Mes données, Activité, Communauté, Aide),
+  PresetBrowser fiches preset détail (~25 occurrences), BankOptimizerScreen
+  (~14, admin only), MaintenanceTab (~13, admin only), ExportImportScreen
+  (~12), MyCustomPresetsTab (~10), PresetCurationModal (~10). Aussi :
+  ProfilePickerScreen, ProfileSelector, AddSongModal, DemoBanner,
+  JamScreen, SynthesisScreen, TmpBrowser, BankEditor, divers résidus.
+- **Cohabitation i18n** : ~30 nouvelles clés `-flat` ajoutées sans
+  emojis (ex. `'song-detail.eq-settings-flat'` vs ancien
+  `'song-detail.eq-settings'` qui contenait `🎛️`). Anciennes clés
+  conservées pour rétro-compat. Cleanup unifié à faire Vague 4 quand
+  toutes les vagues 1-3 sont closes.
 
 ## Conventions Git
 
@@ -871,7 +921,161 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-27 soir, Phase 8 complète — Intégration basse + UI Mon Profil + sync multi-device)
+## État actuel (2026-05-28 nuit, fin session UX cleanup — Vague A bass restructure + bassStale auto-refetch + Vague 2 emojis majoritaire)
+
+**Backline v8.14.272 / SW backline-v372 / STATE_VERSION 13 / 1729 tests verts.**
+
+### Session 2026-05-27/28 — 32 deploys cumulés (v8.14.240 → v8.14.272)
+
+Continuation directe de la session du 2026-05-27 (Phase 8 V1 + 7.85
+audit Cowork). 12 nouveaux deploys aujourd'hui après v8.14.260
+(détection bass robuste TSR Bass Pack 1) :
+
+| # | Version | Sujet |
+|---|---|---|
+| 1 | 8.14.261 | Fix isBassPreset A-Peg pattern TSR Ampeg Pro 4 |
+| 2 | 8.14.262 | Fix isBassPreset détection robuste via entry.amp |
+| 3 | 8.14.263 | Fix isBassPreset variants TSR avec/sans tirets via normalizePresetName |
+| 4 | 8.14.264 | Fix doublon amp dans tuile preset (info.pack absent) |
+| 5 | 8.14.265 | Masque pastilles HB/SC/P90 sur bass presets dans Explorer |
+| 6 | 8.14.266 | Retrait pastilles HB/SC/P90 dans liste Explorer (option A validée) |
+| 7 | 8.14.267 | **Vague 1 retrait emojis** : 7 icônes SVG flat sur 3 sites prioritaires |
+| 8 | 8.14.268 | Fix recos basse manquantes pré-Phase 8.7 : détection bassStale + auto-refetch |
+| 9 | 8.14.269 | **Vague A bass restructure** : Ma guitare/Ma basse + Recos guitare/Recos basse |
+| 10 | 8.14.270 | **Vague 2 emojis (tabs)** : MonProfilScreen 8 tabs + AdminScreen 6 tabs |
+| 11 | 8.14.271 | Vague 2 emojis : SongDetailCard + HomeScreen complets + ref bass Infos morceau |
+| 12 | 8.14.272 | Vague 2 emojis : LiveScreen + ListScreen + RecapScreen + PBlock |
+
+### Vague A bass restructure (v8.14.269) — symétrie partielle UI
+
+Sébastien : *"renommer Recommandations IA en Recommandation guitare et
+remettre les mêmes éléments pour la basse : recos, réglages eq, effets.
+Renommer Mon setup en Ma guitare et mettre une liste déroulante avec
+la sélection pour la basse aussi"*.
+
+Étape 1 livrée (renommages + restructure visuelle) :
+- 'Mon setup' → 'Ma guitare'
+- 'Recommandations IA' → 'Recommandations guitare'
+- Bloc Basse splité en 2 sections symétriques :
+  - **'Ma basse'** : basse idéale élue (priorité bassReco match rig
+    sinon 1ère basse cochée)
+  - **'Recommandations basse'** : gated par bassReco présent
+    (bass_reason + capture_name 'Sur ta ToneX' + amp_settings
+    'Sur ton ampli' + settings_bass conseils de jeu)
+- Ordre final fiche dépliée : Header → Ma guitare → Recos guitare →
+  Feedback → Ma basse → Recos basse → Infos morceau
+- Référence bassiste/basse/ampli/effets ajoutée dans **Infos morceau**
+  bas de page (symétrique au guitariste). Source : aiC.bass_recommendation
+  (ref_bassist/ref_bass_guitar/ref_bass_amp) en priorité, fallback
+  bassHist seed.
+
+**Étape 2 vague B en attente (~3-5h dev)** : symétrie complète scoring.
+Extension prompt fetchAI : `cot_step2_basses` (ranking basses rig) +
+`bass_alternatives` (catalog captures ToneX bass) +
+`bass_preset_settings_v1` (knob settings ToneX bass) + `bass_fx_blocks`
+(FX bass) + `ref_bass_effects` top-level. UI : Scoring basses + Scoring
+preset basse + Réglages EQ basse + Réglages effets basse + Alternatives
+catalogue basse. Re-batch coûteux post-déploiement.
+
+### Détection bassStale (v8.14.268)
+
+Sébastien : *"pourquoi je ne retrouve pas les recos basses sur tous
+les morceaux ? Je ne veux pas limiter à 3 ou 4 morceaux"*.
+
+Diagnostic : les aiCache calculés avant le fix Phase 8.7 (v8.14.257,
+prompt assoupli) ont `bass_recommendation: null`. La section Basse
+était gated `bassHist OU bassReco` → invisible sur les 25+ morceaux
+hors seed.
+
+Fix : détection bassStale similaire à rigStale Phase 5.10.2.
+
+```js
+userHasBassRig = profile.instruments inclut 'bass' ET ≥1 basse/ampli coché
+bassStale = userHasBassRig ET aiCache existe ET bass_recommendation == null
+```
+
+**3 effets** :
+1. **SongDetailCard** useEffect : à l'ouverture d'un morceau stale →
+   re-fetchAI auto (1 seule fois — après fetch, bass_recommendation
+   garanti non-null par prompt Phase 8.7 → plus stale).
+2. **ListScreen** missingCount inclut les bassStale → bouton "🤖
+   Analyser/MAJ N" affiche le total correct → re-batch d'1 clic.
+3. Helper centralisé `isStaleSong` partagé entre missingCount et
+   batch (DRY).
+
+### Mini-fixes Explorer presets bass (v8.14.261 → 8.14.266)
+
+Suite de retours user 28/05 sur la détection bass + UX Explorer :
+
+- **v8.14.261** : Sébastien rapporte *"Des amplis Ampeg ne sont pas
+  reconnus pour basse : TSR - A-Peg Pro 4 - Classic A DI..."*. Pattern
+  `/^TSR A-Peg Pro/i` ajouté.
+- **v8.14.262** : *"TSR-The-Bass-Pack-1-w8fa9b ne contient que des
+  preset basses"* + *"TSR-Bass-Elliot-yp8vl7 aussi"*. Détection
+  robuste via `entry.amp \bBass\b` (excluding Bassman/Bassbreaker =
+  amplis GUITAR historiques). Couvre tous les amplis "Ampeg Bass",
+  "GK Bass", etc. quel que soit le naming TSR.
+- **v8.14.263** : Sébastien donne liste détaillée naming réel —
+  `"TSR - A-Peg Pro 4 - Fretless DI"` (banks user, avec tirets) vs
+  `"TSR A-Peg Pro 4 Fretless DI"` (catalog interne, sans tirets).
+  Refactor isBassPreset : test sur `normalizePresetName(name)` qui
+  strippe les tirets → variants matchent identiquement.
+- **v8.14.264** : Doublon amp dans tuile preset quand `info.pack`
+  absent (cas Factory BS ORNG). Fix : badge fallback conditionné sur
+  `info.pack` seul + garde `info.pack !== info.amp`.
+- **v8.14.265** : Pastilles HB/SC/P90 masquées sur bass presets dans
+  Explorer (HB/SC/P90 = types pickups GUITARE, non pertinent basse).
+- **v8.14.266** : Pastilles HB/SC/P90 retirées globalement (validation
+  Sébastien option A) — la compat guitar est couverte par bloc
+  'Guitares adaptées' qualitatif Phase 7.83 dans la fiche dépliée.
+
+### Vague 2 retrait emojis — règle stricte
+
+Sébastien clarifie 2026-05-28 : *"je n'aime pas les emojis, je veux
+des visuels flat comme ceux de Accueil, Setlist..."* puis *"les seuls
+emojis que je veux conserver sont dans le footer"*.
+
+Règle stricte établie dans CLAUDE.md section "Iconographie" :
+**JAMAIS d'emoji dans les éléments d'UI** (boutons, tabs, sectionTitles,
+labels, badges). Utiliser exclusivement icônes SVG flat outline via
+`src/app/components/NavIcon.jsx`.
+
+Footer (`© 2026 PathToTone · Made with 🎸 and ❤️`) volontairement
+conservé. Exceptions tolérées : prompts IA, docs markdown, données seed.
+
+**Vague 1 (v8.14.267)** : 7 icônes + 3 sites prioritaires.
+**Vague 2 majoritaire (v8.14.270/271/272)** : +14 icônes (total 21) +
+7 écrans nettoyés (MonProfilScreen tabs + AdminScreen tabs + HomeScreen
++ SongDetailCard + LiveScreen + ListScreen + RecapScreen + PBlock).
+
+Cf section "Iconographie" en tête de CLAUDE.md pour le tableau complet
+des 21 icônes + l'historique des 2 vagues + la liste précise des sites
+restants pour la **Vague 3 cleanup** (~7 écrans secondaires + i18n).
+
+### Dette résiduelle session 2026-05-28
+
+1. **Vague 3 emojis cleanup** (~7 écrans secondaires) :
+   - MonProfilScreen sub-sections (MonCompteSection ~54 emojis :
+     Identité, Sécurité, Mes données, Activité, Communauté, Aide)
+   - PresetBrowser fiches preset détail (~25)
+   - BankOptimizerScreen (~14, admin only)
+   - MaintenanceTab (~13, admin only)
+   - ExportImportScreen (~12)
+   - MyCustomPresetsTab (~10)
+   - PresetCurationModal (~10)
+   - Divers : ProfilePickerScreen, ProfileSelector, AddSongModal,
+     DemoBanner, JamScreen, SynthesisScreen, TmpBrowser, BankEditor
+2. **Vague 4 i18n cleanup** : ~30 clés `-flat` ajoutées, anciennes
+   conservées rétro-compat. Unifier quand vagues 1-3 closes.
+3. **Étape 2 vague B bass complète** (Sébastien validée 2026-05-28) :
+   symétrie scoring + EQ + FX bass dans SongDetailCard. Extension
+   prompt fetchAI (cot_step2_basses + bass_alternatives +
+   bass_preset_settings_v1 + bass_fx_blocks). ~3-5h dev + re-batch
+   coûteux post-déploiement.
+
+---
+
+## État précédent (2026-05-27 soir, Phase 8 complète — Intégration basse + UI Mon Profil + sync multi-device)
 
 **Backline v8.14.253 / SW backline-v353 / STATE_VERSION 13 / 1729 tests verts.**
 
