@@ -223,35 +223,46 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             que l'action prioritaire soit visible dans le 1er bloc — choix
             Sébastien). */}
         <div style={{ marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 10, borderBottom: `1px solid ${BORDER_SUBTLE}` }}>
-          {/* S9.10 — Score compatibilité à droite du GuitarSelect (sur même
-              ligne) pour gain de place et lecture immédiate. La ligne
-              "Compatibilité : X%" séparée plus bas est retirée (doublon). */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <StatusDot score={chosenGuitarScore} ideal={g && ig.includes(gId)} size={10}/>
-            <div style={{ flex: 1, minWidth: 0 }}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/></div>
-            {g && chosenGuitarScore != null && (() => {
-              // Phase 7.83 résidu (2026-05-27) — pill qualitatif 3 niveaux
-              // au lieu du score brut. Score brut accessible via title hover.
-              // Cohérent avec PresetBrowser "Guitares adaptées" Phase 7.83.
-              const bucket = bucketizeScore(chosenGuitarScore);
-              const shortLabels = {
-                ideal: t('compat.ideal-short', '🟢 Idéal'),
-                good: t('compat.good-short', '🟡 Bon'),
-                compromise: t('compat.compromise-short', '🟠 Limite'),
-              };
-              const longLabels = {
-                ideal: t('compat.ideal-match', '🟢 Mariage parfait'),
-                good: t('compat.good-match', '🟡 Bon match'),
-                compromise: t('compat.compromise', '🟠 Compromis'),
-              };
-              const titleText = `${longLabels[bucket.id]} — ${chosenGuitarScore}%${chosenGuitarScoreEstimated ? ' ' + t('song-detail.estimated', '(estimé)') : ''}`;
-              return (
-                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: bucket.color, background: bucket.bgColor, border: `1px solid ${bucket.borderColor}`, padding: '2px 8px', borderRadius: 'var(--r-sm)', flexShrink: 0, textAlign: 'center', fontSize: 'clamp(10px, 1.15vw, 12px)', whiteSpace: 'nowrap' }} title={titleText}>
+          {/* Phase 7.83 résidu cleanup (2026-05-27) — fusion des indicateurs
+              redondants. AVANT : StatusDot gauche (couleur+ideal) + bordure
+              colorée select (vert/jaune) + pill score droite (87%) + texte
+              "Choix optimal" / "Idéalement : X" sous le select = 4-5 indicateurs
+              disant la même chose. APRÈS : juste le select (bordure subtile
+              gardée pour scan rapide) + pill bucket qualitatif unique sous le
+              select + suggestion alternatives si pas idéal (info actionnable
+              unique). Pill `hideStatusText` retire les textes legacy du
+              GuitarSelect (RecapScreen les conserve via default false). */}
+          <div><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars} hideStatusText={true}/></div>
+          {g && chosenGuitarScore != null && (() => {
+            const bucket = bucketizeScore(chosenGuitarScore);
+            const shortLabels = {
+              ideal: t('compat.ideal-short', '🟢 Idéal'),
+              good: t('compat.good-short', '🟡 Bon'),
+              compromise: t('compat.compromise-short', '🟠 Limite'),
+            };
+            const longLabels = {
+              ideal: t('compat.ideal-match', '🟢 Mariage parfait'),
+              good: t('compat.good-match', '🟡 Bon match'),
+              compromise: t('compat.compromise', '🟠 Compromis'),
+            };
+            const titleText = `${longLabels[bucket.id]} — ${chosenGuitarScore}%${chosenGuitarScoreEstimated ? ' ' + t('song-detail.estimated', '(estimé)') : ''}`;
+            const isIdeal = ig.includes(gId);
+            const alternativesList = !isIdeal && ig.length > 0
+              ? ig.map((i) => guitars.find((x) => x.id === i)?.short || GUITARS.find((x) => x.id === i)?.short).filter(Boolean).join(', ')
+              : null;
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 2 }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: bucket.color, background: bucket.bgColor, border: `1px solid ${bucket.borderColor}`, padding: '2px 10px', borderRadius: 'var(--r-sm)', textAlign: 'center', fontSize: 'clamp(11px, 1.2vw, 13px)', whiteSpace: 'nowrap' }} title={titleText}>
                   {shortLabels[bucket.id]}
                 </span>
-              );
-            })()}
-          </div>
+                {alternativesList && (
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    {tFormat('guitar-select.warn', { list: alternativesList }, '⚠️ Idéalement : {list}')}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }} title={t('song-detail.output-context-label', '🔌 Sortie audio pour ce morceau')}>
             <span style={{ fontSize: TYPO.micro, color: TEXT_3, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.output-context-short', 'Sortie')}</span>
             {[

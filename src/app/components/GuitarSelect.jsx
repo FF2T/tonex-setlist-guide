@@ -15,7 +15,12 @@ import React from 'react';
 import { GUITARS } from '../../core/guitars.js';
 import { t, tFormat, useLocale } from '../../i18n/index.js';
 
-function GuitarSelect({ value, onChange, ig = [], guitars = GUITARS }) {
+// Phase 7.83 résidu cleanup (2026-05-27) — prop `hideStatusText` permet
+// au caller de gérer lui-même les messages "Choix optimal" / "Idéalement"
+// (cas SongDetailCard qui les remplace par un pill bucket Phase 7.83 +
+// suggestion alternatives unifiés sous le select). Default false →
+// comportement legacy préservé pour les autres call sites (RecapScreen).
+function GuitarSelect({ value, onChange, ig = [], guitars = GUITARS, hideStatusText = false }) {
   useLocale();
   const g = guitars.find((x) => x.id === value);
   const ideal = value && ig.includes(value);
@@ -42,8 +47,8 @@ function GuitarSelect({ value, onChange, ig = [], guitars = GUITARS }) {
           <option key={x.id} value={x.id}>{ig.includes(x.id) ? '★ ' : ''}{x.name} ({x.type})</option>
         ))}
       </select>
-      {ideal && <div style={{ fontSize: 11, color: 'var(--green)' }}>{t('guitar-select.ideal', '✓ Choix optimal')}</div>}
-      {warn && g && (
+      {!hideStatusText && ideal && <div style={{ fontSize: 11, color: 'var(--green)' }}>{t('guitar-select.ideal', '✓ Choix optimal')}</div>}
+      {!hideStatusText && warn && g && (
         <div style={{ fontSize: 11, color: 'var(--yellow)' }}>
           {tFormat('guitar-select.warn', { list: ig.map((i) => guitars.find((x) => x.id === i)?.short || GUITARS.find((x) => x.id === i)?.short).filter(Boolean).join(', ') }, '⚠️ Idéalement : {list}')}
         </div>
