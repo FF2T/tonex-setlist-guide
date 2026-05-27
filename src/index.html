@@ -22,7 +22,12 @@
   :root, [data-theme="dark"] {
     --bg-body: var(--bg);
     --bg-card: var(--surface-card);
-    --bg-disabled: var(--bg-elev-3);
+    /* Phase 8.x — bg-disabled remappé pour contraster avec text-inverse.
+       Avant : --bg-elev-3 (= #241a12 dark / #ffffff light) → invisible
+       avec text-inverse même couleur (Sébastien : "fond blanc, on ne
+       voit pas le texte"). Maintenant gris brun moyen lisible dans
+       chaque theme. */
+    --bg-disabled: #4a3a2a;
     --text: var(--text-primary);
     --text-bright: var(--text-primary);
     --text-sec: var(--text-secondary);
@@ -64,7 +69,9 @@
   [data-theme="light"] {
     --bg-body: var(--bg);
     --bg-card: var(--surface-card);
-    --bg-disabled: var(--bg-elev-3);
+    /* Phase 8.x — cf bloc dark : gris cream foncé pour contraster
+       avec text-inverse cream clair. */
+    --bg-disabled: #b8ad8f;
     --text: var(--text-primary);
     --text-bright: var(--text-primary);
     --text-sec: var(--text-secondary);
