@@ -358,17 +358,33 @@ function getCurationLabel(status) {
 //      Ampeg Pro, Bass Pack — cf TSR_PACK_GROUPS.Bass dans tsr-packs.js)
 const BASS_NAME_PATTERNS = [
   /^BS /,                        // Factory bass slots
-  /^TSR Bass Elliot/i,           // TSR pack Bass Elliot
+  /^TSR Bass Elliot/i,           // TSR pack Bass Elliot (fallback)
   /^TSR GK MBS150/i,             // TSR pack GK MBS150 (Bass)
-  /^TSR A-Peg Pro/i,             // TSR pack Ampeg Pro 4 — naming réel "A-Peg" (pas "Ampeg") dans le catalog gen_catalog
-  /^TSR Ampeg Pro/i,             // fallback si naming change un jour
-  /^TSR Bass Pack/i,             // TSR pack Bass Pack 1
+  /^TSR A-Peg Pro/i,             // TSR pack Ampeg Pro 4 — naming réel "A-Peg" dans gen_catalog
+  /^TSR Ampeg Pro/i,             // fallback si naming change
+  /^TSR Bass Pack/i,             // TSR pack Bass Pack 1 (fallback)
+  /^TSR Basyman/i,               // TSR Bassman bass capture (Bass Pack 1)
+  /^TSR D-Glaze AO/i,            // TSR D-Glaze bass capture (Bass Pack 1)
 ];
+
+// Phase 8.9 (v8.14.262) — Détection robuste via amp field.
+// Critère : amp contient le mot "Bass" entier (\bBass\b) MAIS pas
+// "Bassman" (Fender Tweed Bassman = ampli GUITAR historique malgré
+// son nom, utilisé par Stones/Hendrix/Hendrix early. Marshall l'a
+// cloné pour le JTM45). Couvre les captures avec amp:"Ampeg Bass",
+// amp:"GK Bass Head", etc. sans devoir lister chaque pattern de nom
+// TSR/ML/etc.
+function _isBassAmpField(amp) {
+  if (typeof amp !== 'string' || !amp) return false;
+  if (/Bassman|Bassbreaker/i.test(amp)) return false;
+  return /\bBass\b/i.test(amp);
+}
 
 function isBassPreset(name, entry) {
   if (entry?.instrument === 'bass') return true;
-  if (typeof name !== 'string' || !name) return false;
-  return BASS_NAME_PATTERNS.some((re) => re.test(name));
+  if (typeof name === 'string' && name && BASS_NAME_PATTERNS.some((re) => re.test(name))) return true;
+  if (_isBassAmpField(entry?.amp)) return true;
+  return false;
 }
 
 export { PRESET_CATALOG_MERGED, findCatalogEntry, guessPresetInfo, normalizePresetName, findCatalogSuggestions, getPresetCurationStatus, CURATION_COLORS, getCurationLabel, isBassPreset };
