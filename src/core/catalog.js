@@ -351,29 +351,26 @@ function getCurationLabel(status) {
 
 // Phase 8.8 — Détection captures bass dans le catalog (vs guitar).
 // Le catalog ne distingue pas nativement les 2 instruments, donc on
-// se base sur :
+// se base sur 3 critères :
 //   1. Champ explicite `entry.instrument: 'bass'` (custom user Phase 8.7+)
-//   2. Préfixe nom `^BS ` (Factory ToneX Pedal v2 banks 45-49)
-//   3. TSR bass packs reconnus par préfixe nom (Bass Elliot, GK MBS150,
-//      Ampeg Pro, Bass Pack — cf TSR_PACK_GROUPS.Bass dans tsr-packs.js)
-const BASS_NAME_PATTERNS = [
-  /^BS /,                        // Factory bass slots
-  /^TSR Bass Elliot/i,           // TSR pack Bass Elliot (fallback)
-  /^TSR GK MBS150/i,             // TSR pack GK MBS150 (Bass)
-  /^TSR A-Peg Pro/i,             // TSR pack Ampeg Pro 4 — naming réel "A-Peg" dans gen_catalog
-  /^TSR Ampeg Pro/i,             // fallback si naming change
-  /^TSR Bass Pack/i,             // TSR pack Bass Pack 1 (fallback)
-  /^TSR Basyman/i,               // TSR Bassman bass capture (Bass Pack 1)
-  /^TSR D-Glaze AO/i,            // TSR D-Glaze bass capture (Bass Pack 1)
+//   2. Préfixe nom (normalizé) — couvre Factory bass + TSR bass packs.
+//      Le normalizePresetName transforme "TSR - A-Peg Pro 4 - Fretless DI"
+//      ET "TSR A-Peg Pro 4 Fretless DI" en "tsr a peg pro 4 fretless di"
+//      → mêmes patterns matchent les deux variants de naming.
+//   3. Champ amp contenant \bBass\b (Phase 8.9 v8.14.262), excluant
+//      Bassman/Bassbreaker (= amplis GUITAR historiques). Filet de
+//      sécurité pour les packs où le naming ne révèle pas l'instrument.
+const BASS_NAME_PATTERNS_NORMALIZED = [
+  /^bs /,                        // Factory bass slots ("BS B15", "BS XULTR"…)
+  /^tsr bass elliot/,            // TSR Bass Elliot pack
+  /^tsr gk mbs/,                 // TSR GK MBS150 — normalize insère un espace : "mbs 150"
+  /^tsr a peg/,                  // TSR A-Peg Pro 4 (et variantes "TSR - A-Peg Pro 4 - ...")
+  /^tsr ampeg pro/,              // fallback si naming change
+  /^tsr bass pack/,              // TSR Bass Pack (fallback générique)
+  /^tsr basyman/,                // TSR Basyman (Bass Pack 1)
+  /^tsr d glaze/,                // TSR D-Glaze AO (Bass Pack 1, normalize "D-Glaze" → "d glaze")
 ];
 
-// Phase 8.9 (v8.14.262) — Détection robuste via amp field.
-// Critère : amp contient le mot "Bass" entier (\bBass\b) MAIS pas
-// "Bassman" (Fender Tweed Bassman = ampli GUITAR historique malgré
-// son nom, utilisé par Stones/Hendrix/Hendrix early. Marshall l'a
-// cloné pour le JTM45). Couvre les captures avec amp:"Ampeg Bass",
-// amp:"GK Bass Head", etc. sans devoir lister chaque pattern de nom
-// TSR/ML/etc.
 function _isBassAmpField(amp) {
   if (typeof amp !== 'string' || !amp) return false;
   if (/Bassman|Bassbreaker/i.test(amp)) return false;
@@ -382,7 +379,10 @@ function _isBassAmpField(amp) {
 
 function isBassPreset(name, entry) {
   if (entry?.instrument === 'bass') return true;
-  if (typeof name === 'string' && name && BASS_NAME_PATTERNS.some((re) => re.test(name))) return true;
+  if (typeof name === 'string' && name) {
+    const norm = normalizePresetName(name);
+    if (BASS_NAME_PATTERNS_NORMALIZED.some((re) => re.test(norm))) return true;
+  }
   if (_isBassAmpField(entry?.amp)) return true;
   return false;
 }
