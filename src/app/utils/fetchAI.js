@@ -217,7 +217,7 @@ function fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, fe
     if (ampsList) sections.push(`AMPLIS BASSE TRADITIONNELS DISPONIBLES :\n${ampsList}`);
     let body = sections.join('\n\n');
     if (bassSlotsSection) body += '\n' + bassSlotsSection;
-    return `\n${body}\n\nSi ce morceau a une ligne de basse notable (riff bassiste signature ou contribution importante), recommande aussi quelle basse + quel matériel basse utiliser. Sinon retourne bass_recommendation: null.`;
+    return `\n${body}\n\nL'utilisateur joue aussi la basse — RETOURNE TOUJOURS un objet bass_recommendation (jamais null). Recommande quelle basse de sa collection + quel matériel basse utiliser, peu importe si le morceau a une ligne de basse iconique ou de simple support. Pour les morceaux où la basse est purement support (rock standard), choisis la basse la plus polyvalente du rig et propose des réglages cohérents avec le style.`;
   })();
   const gProfiles = guitars.map((x) => {
     const p = findGuitarProfile(x.id);
@@ -444,7 +444,7 @@ Idem pour "settings_guitar" : ce sont des conseils de jeu et d'utilisation des c
 
 ÉTAPE 8 – RECOMMANDATION BASSE (Phase 8.4) — conditionnelle
 
-Si la section "COLLECTION DE BASSES DISPONIBLES" et/ou "AMPLIS BASSE TRADITIONNELS DISPONIBLES" apparaît ci-dessus, et SI le morceau a une ligne de basse notable (riff bassiste signature, contribution importante du bassiste sur ce morceau), retourne un objet "bass_recommendation" dans la sortie JSON. Sinon retourne null.
+Si la section "COLLECTION DE BASSES DISPONIBLES" et/ou "AMPLIS BASSE TRADITIONNELS DISPONIBLES" apparaît ci-dessus, retourne TOUJOURS un objet "bass_recommendation" dans la sortie JSON (jamais null). L'utilisateur joue aussi la basse et a besoin d'une reco pour CHAQUE morceau qu'il prépare — même si la ligne de basse est purement support, recommande la basse la plus pertinente du rig + des réglages cohérents avec le style.
 
 Format de bass_recommendation :
 {
@@ -460,12 +460,9 @@ Format de bass_recommendation :
 
 NOTE : capture_name et amp_settings ne sont PAS exclusifs. Si l'user a à la fois une capture bass installée pertinente ET un ampli basse traditionnel, retourne LES DEUX — l'UI affichera les 2 options côte à côte (Sur ta ToneX : Bank 47A "BS SVT" / Sur ton Rumble : amp_settings...). L'user choisit selon son contexte d'usage du moment.
 
-Critères pour déterminer "ligne de basse notable" :
-- Riff de basse signature reconnaissable (Under Pressure de Queen, Money de Pink Floyd, Hysteria de Muse, Roundabout de Yes)
-- Basse mise en avant dans l'arrangement (funk, reggae, motown)
-- Bassiste iconique du groupe (John Deacon Queen, Jack Bruce Cream, Geddy Lee Rush)
-
-Si le morceau a une ligne de basse purement support (rock standard sans basse marquante), retourne bass_recommendation: null. Si l'utilisateur joue la basse à ce morceau, il aura la reco guitare mais pas de section basse spécifique — c'est OK.
+Adapte le ton de la reco selon l'importance de la basse dans le morceau :
+- **Ligne iconique** (Under Pressure de Queen, Money de Pink Floyd, Hysteria de Muse, Roundabout de Yes, funk/reggae/motown, bassistes iconiques type John Deacon/Jack Bruce/Geddy Lee) : reco précise + bass_reason qui souligne la signature
+- **Ligne support solide** (rock standard, support rythmique sans riff signature) : reco de la basse la plus polyvalente du rig + amp_settings cohérents avec le genre. Le bass_reason peut juste mentionner "support solide rythmique" ou similaire — pas besoin de prétendre que c'est iconique si ça ne l'est pas.
 
 amp_settings : seulement si l'utilisateur a un ampli basse traditionnel coché. Valeurs typiques :
 - Rock vintage (Ampeg SVT) : gain 4-6, bass 6-7, low_mid 5-6, high_mid 4-5, treble 4-5, master 5-7
