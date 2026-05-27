@@ -794,12 +794,18 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 };
                 return (
                   <div style={{ marginBottom: 6 }}>
-                    {/* S9.7 — Score aligné droite via pill (même style que
-                        Scoring guitares pour cohérence verticale). */}
+                    {/* Phase 7.83 final8 (2026-05-27) — inverse amp ↔ preset
+                        cohérent avec la vue repliée. AMP encadré (ce que tu
+                        joues vraiment) + preset name à côté en mono dim. */}
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(11px, 1.25vw, 13px)' }}>
-                      <span style={{ ...compatLabelStyle(idealScore), flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
-                        {displayPresetName}
-                        <span style={{ marginLeft: 6 }}>
+                      <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+                        {entry?.amp
+                          ? <span style={{ ...compatLabelStyle(idealScore), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{entry.amp}</span>
+                          : <span style={{ ...compatLabelStyle(idealScore), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{displayPresetName}</span>}
+                        {entry?.amp && (
+                          <span style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', fontSize: 'clamp(9px, 1.05vw, 11px)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }} title={displayPresetName}>{displayPresetName}</span>
+                        )}
+                        <span style={{ marginLeft: 2, flexShrink: 0 }}>
                           <CurationDot name={displayPresetName} onClick={(n) => setCurationModalPreset(n)}/>
                         </span>
                       </span>
@@ -847,8 +853,20 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                           <div key={i}>
                             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(10px, 1.15vw, 12px)' }}>
                               <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
-                                <span style={{ ...compatLabelStyle(p.score), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{p.name}</span>
-                                <span style={{ color: 'var(--text-tertiary)', fontSize: 'clamp(9px, 1.05vw, 11px)', flexShrink: 0 }}>({entry?.amp || p.amp})</span>
+                                {/* Phase 7.83 final8 — amp encadré (ce que tu joues),
+                                    preset name à côté en mono dim. */}
+                                {(() => {
+                                  const ampName = entry?.amp || p.amp;
+                                  if (ampName) {
+                                    return (
+                                      <>
+                                        <span style={{ ...compatLabelStyle(p.score), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{ampName}</span>
+                                        <span style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', fontSize: 'clamp(9px, 1.05vw, 11px)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }} title={p.name}>{p.name}</span>
+                                      </>
+                                    );
+                                  }
+                                  return <span style={{ ...compatLabelStyle(p.score), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{p.name}</span>;
+                                })()}
                               </span>
                               <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(p.score), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(10px, 1.15vw, 12px)' }}>{p.score}%</span>
                             </div>
