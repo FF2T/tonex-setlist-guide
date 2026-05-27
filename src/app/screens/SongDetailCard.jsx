@@ -659,10 +659,11 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 return (
                   <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
                     <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.fx-settings', '🎚 Réglages effets')}</div>
-                    {/* Phase 7.83 final6 (2026-05-27) — grid responsive auto-fit
-                        pour limiter la largeur des barres sur desktop. Mobile :
-                        1 col. Desktop : 2-3 col selon largeur du conteneur. */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+                    {/* Phase 7.83 final7 (2026-05-27) — grid 2 col max desktop
+                        via classe reco-multicol (index.html). User retour :
+                        3+ cols causent des coupures dans les textes longs (reason
+                        IA prose). 1 col mobile, 2 col >= 720px. */}
+                    <div className="reco-multicol">
                       {onBlocks.map((k) => {
                         const block = aiC.fx_blocks[k];
                         const whyTxt = block.why ? getLocalizedText(block.why, locale) : null;
@@ -692,8 +693,8 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
               {cotInRig.length > 0 && (
                 <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
                   <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-guitars', 'Scoring guitares')}</div>
-                  {/* Phase 7.83 final6 — grid responsive auto-fit multi-col desktop */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 10 }}>
+                  {/* Phase 7.83 final7 — grid 2 col max desktop (cf .reco-multicol) */}
+                  <div className="reco-multicol">
                     {cotInRig.map((gt, i) => (
                       <div key={i}>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(11px, 1.25vw, 13px)' }}>
@@ -836,8 +837,8 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 return (
                   <div style={{ marginTop: 6 }}>
                     <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', color: 'var(--text-tertiary)', marginBottom: 4 }}>{t('song-detail.alternatives', 'Alternatives catalogue')}</div>
-                    {/* Phase 7.83 final6 — grid responsive multi-col desktop */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 8 }}>
+                    {/* Phase 7.83 final7 — grid 2 col max desktop (cf .reco-multicol) */}
+                    <div className="reco-multicol">
                       {filteredTop3.slice(1).map((p, i) => {
                         const loc = findInBanks(p.name, banksAnn) || findInBanks(p.name, banksPlug);
                         const entry = findCatalogEntry(p.name);

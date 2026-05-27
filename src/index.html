@@ -156,6 +156,13 @@
   @media(min-width:400px){.page-root{padding:var(--s-4)}}
   @media(min-width:640px){.page-root{padding:var(--s-5)}}
 
+  /* Phase 7.83 final7 (2026-05-27) — grid 2 col max pour les sections
+     fiche song "Réglages effets" / "Scoring guitares" / "Alternatives
+     catalog". Évite les coupures dans les textes longs (reason IA prose,
+     desc tweaks) sur desktop large. Mobile 1 col, tablet+ 2 col. */
+  .reco-multicol{display:grid;grid-template-columns:1fr;gap:10px}
+  @media(min-width:720px){.reco-multicol{grid-template-columns:1fr 1fr;gap:14px}}
+
   /* ── Tab bar (mobile bottom / desktop) ── */
   .tab-bar{display:grid;gap:var(--s-2)}
   .tab-bar.tabs-3{grid-template-columns:repeat(3,1fr)}
