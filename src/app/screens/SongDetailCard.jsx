@@ -269,12 +269,14 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 <button key={id || 'profile'}
                   data-testid={`song-output-context-${id || 'profile'}`}
                   onClick={() => {
+                    if (isDemo) return;
                     onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, outputContext: id || undefined } : x));
                     writeAiCache(null);
                     setLocalAiResult(null);
                   }}
-                  title={id ? tFormat('song-detail.output-context-tooltip-override', { label }, 'Override : {label}') : t('song-detail.output-context-tooltip-profile', 'Hérite du contexte profil.')}
-                  style={{ fontSize: TYPO.body, lineHeight: 1, padding: '4px 8px', background: active ? 'var(--accent-soft)' : 'transparent', border: `1px solid ${active ? 'var(--border-accent)' : BORDER_SUBTLE}`, color: active ? 'var(--accent)' : TEXT_2, borderRadius: 'var(--r-sm)', cursor: 'pointer', fontWeight: active ? WEIGHT.bold : WEIGHT.medium }}
+                  disabled={isDemo}
+                  title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : (id ? tFormat('song-detail.output-context-tooltip-override', { label }, 'Override : {label}') : t('song-detail.output-context-tooltip-profile', 'Hérite du contexte profil.'))}
+                  style={{ fontSize: TYPO.body, lineHeight: 1, padding: '4px 8px', background: active ? 'var(--accent-soft)' : 'transparent', border: `1px solid ${active ? 'var(--border-accent)' : BORDER_SUBTLE}`, color: active ? 'var(--accent)' : TEXT_2, borderRadius: 'var(--r-sm)', cursor: isDemo ? 'not-allowed' : 'pointer', fontWeight: active ? WEIGHT.bold : WEIGHT.medium, opacity: isDemo ? 0.5 : 1 }}
                 >{icon}</button>
               );
             })}
@@ -918,14 +920,16 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   {all.length > 1 && <button
                     data-testid="song-feedback-clear-all"
                     onClick={() => {
+                      if (isDemo) return;
                       if (!window.confirm(tFormat('song-detail.feedback-clear-confirm', { count: all.length, title: song.title }, 'Effacer tous les {count} feedbacks pour "{title}" ?\n\nL\'analyse IA va être recalculée sans tes corrections passées (~8s).'))) return;
                       // Phase 7.54 — feedback dans song (shared), aiCache dans profile
                       onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, feedback: [] } : x));
                       writeAiCache(null);
                       setLocalAiResult(null);
                     }}
-                    style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', background: 'none', border: '1px solid var(--a10)', color: 'var(--text-dim)', borderRadius: 'var(--r-sm)', padding: '1px 6px', cursor: 'pointer' }}
-                    title={t('song-detail.feedback-clear-tooltip', 'Effacer tous les feedbacks pour ce morceau')}
+                    disabled={isDemo}
+                    style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', background: 'none', border: '1px solid var(--a10)', color: 'var(--text-dim)', borderRadius: 'var(--r-sm)', padding: '1px 6px', cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.5 : 1 }}
+                    title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : t('song-detail.feedback-clear-tooltip', 'Effacer tous les feedbacks pour ce morceau')}
                   >{t('song-detail.feedback-clear-all', 'Tout effacer')}</button>}
                 </div>
                 {all.map((fb, i) => {
@@ -936,13 +940,15 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                       <button
                         data-testid={`song-feedback-delete-${i}`}
                         onClick={() => {
+                          if (isDemo) return;
                           // Phase 7.54 — feedback dans song (shared), aiCache dans profile
                           onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, feedback: (x.feedback || []).filter((_, j) => j !== i) } : x));
                           writeAiCache(null);
                           setLocalAiResult(null);
                         }}
-                        title={t('song-detail.feedback-delete-tooltip', 'Supprimer ce feedback + recalculer la reco IA sans lui')}
-                        style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 'clamp(11px, 1.25vw, 13px)', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}
+                        disabled={isDemo}
+                        title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : t('song-detail.feedback-delete-tooltip', 'Supprimer ce feedback + recalculer la reco IA sans lui')}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 'clamp(11px, 1.25vw, 13px)', cursor: isDemo ? 'not-allowed' : 'pointer', padding: '0 2px', lineHeight: 1, opacity: isDemo ? 0.5 : 1 }}
                       >✕</button>
                     </div>
                   );
@@ -962,12 +968,14 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 onChange={(e) => setQuickFeedback(e.target.value)}
                 placeholder={t('song-detail.feedback-placeholder', 'Ex : Préfère la Tele sur ce morceau, ou Mid 6 plutôt que 7…')}
                 rows={2}
-                disabled={reloading}
-                style={{ flex: 1, minWidth: 200, fontSize: 'clamp(11px, 1.25vw, 13px)', padding: '6px 8px', background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.4 }}
+                disabled={reloading || isDemo}
+                title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : undefined}
+                style={{ flex: 1, minWidth: 200, fontSize: 'clamp(11px, 1.25vw, 13px)', padding: '6px 8px', background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.4, opacity: isDemo ? 0.5 : 1, cursor: isDemo ? 'not-allowed' : 'text' }}
               />
               <button
                 data-testid="song-feedback-open"
                 onClick={() => {
+                  if (isDemo) return;
                   const fb = quickFeedback.trim();
                   if (!fb) return;
                   setReloading(true);
@@ -984,8 +992,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                     .catch((e) => { setLocalAiErr(e?.message || String(e)); })
                     .finally(() => setReloading(false));
                 }}
-                disabled={!quickFeedback.trim() || reloading}
-                style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', background: quickFeedback.trim() && !reloading ? 'var(--accent)' : 'var(--bg-disabled)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px 14px', cursor: quickFeedback.trim() && !reloading ? 'pointer' : 'not-allowed', fontWeight: 700, flexShrink: 0 }}
+                disabled={!quickFeedback.trim() || reloading || isDemo}
+                title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : undefined}
+                style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', background: quickFeedback.trim() && !reloading && !isDemo ? 'var(--accent)' : 'var(--bg-disabled)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px 14px', cursor: quickFeedback.trim() && !reloading && !isDemo ? 'pointer' : 'not-allowed', fontWeight: 700, flexShrink: 0, opacity: isDemo ? 0.5 : 1 }}
               >📤 {t('song-detail.feedback-send', 'Envoyer')}</button>
             </div>
           </div>

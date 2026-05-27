@@ -12,7 +12,7 @@ import { safeParseJSON } from '../utils/ai-helpers.js';
 import { getSharedGeminiKey } from '../utils/shared-key.js';
 import { TYPE_COLORS, TYPE_LABELS } from '../utils/ui-constants.js';
 
-function GuitarSearchAdd({ inp, aiKeys, onAdd }) {
+function GuitarSearchAdd({ inp, aiKeys, onAdd, disabled }) {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [suggestion, setSuggestion] = useState(null);
@@ -45,7 +45,7 @@ Réponds UNIQUEMENT en JSON (sans markdown) : {"name":"Nom complet (Marque Modè
   };
 
   return (
-    <div style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-soft)', borderRadius: 'var(--r-lg)', padding: 12 }}>
+    <div style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-soft)', borderRadius: 'var(--r-lg)', padding: 12, opacity: disabled ? 0.5 : 1, pointerEvents: disabled ? 'none' : 'auto' }} title={disabled ? t('demo.blocked', 'Action désactivée en mode démo') : undefined} aria-disabled={disabled ? 'true' : undefined}>
       <div style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600, marginBottom: 8 }}>{t('guitar-add.title', '+ Ajouter une guitare')}</div>
       {!manual ? <>
         <div style={{ display: 'flex', gap: 6, marginBottom: suggestion || err ? 8 : 0 }}>

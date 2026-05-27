@@ -94,13 +94,15 @@ import { exportSetlistPdf } from './SetlistPdfExport.js';
 
 // Sous-composant local pour les renames de setlist inline. Pas exporté
 // car ne sert qu'au ListScreen.
-function InlineRenameInput({ initialName, onSave, onCancel, inp, placeholder, buttonLabel }) {
+function InlineRenameInput({ initialName, onSave, onCancel, inp, placeholder, buttonLabel, disabled }) {
   const [val, setVal] = useState(initialName || '');
-  const submit = () => { if (val.trim()) { onSave(val.trim()); setVal(''); } };
+  const submit = () => { if (val.trim() && !disabled) { onSave(val.trim()); setVal(''); } };
+  const demoTitle = disabled ? t('demo.blocked', 'Action désactivée en mode démo') : undefined;
+  const canSubmit = val.trim() && !disabled;
   return (
-    <div style={{ display: 'flex', gap: 6 }}>
-      <input value={val} onChange={(e) => setVal(e.target.value)} placeholder={placeholder || ''} style={{ ...inp, flex: 1 }} autoFocus={!!initialName} onKeyDown={(e) => e.key === 'Enter' && submit()}/>
-      <button onClick={submit} disabled={!val.trim()} style={{ background: val.trim() ? 'var(--accent)' : 'var(--a7)', border: 'none', color: val.trim() ? 'var(--text-inverse)' : 'var(--text-dim)', borderRadius: 'var(--r-md)', padding: '4px 12px', fontSize: 11, fontWeight: 700, cursor: val.trim() ? 'pointer' : 'not-allowed' }}>{buttonLabel || t('list.ok', 'OK')}</button>
+    <div style={{ display: 'flex', gap: 6, opacity: disabled ? 0.5 : 1 }} title={demoTitle}>
+      <input value={val} onChange={(e) => setVal(e.target.value)} placeholder={placeholder || ''} disabled={disabled} style={{ ...inp, flex: 1, cursor: disabled ? 'not-allowed' : 'text' }} autoFocus={!!initialName && !disabled} onKeyDown={(e) => e.key === 'Enter' && submit()} title={demoTitle}/>
+      <button onClick={submit} disabled={!canSubmit} style={{ background: canSubmit ? 'var(--accent)' : 'var(--a7)', border: 'none', color: canSubmit ? 'var(--text-inverse)' : 'var(--text-dim)', borderRadius: 'var(--r-md)', padding: '4px 12px', fontSize: 11, fontWeight: 700, cursor: canSubmit ? 'pointer' : 'not-allowed' }} title={demoTitle}>{buttonLabel || t('list.ok', 'OK')}</button>
       {initialName && <button onClick={onCancel} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer' }}>✕</button>}
     </div>
   );
@@ -483,7 +485,7 @@ function ListScreen({
             <div key={sl.id} style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 {editSlId === sl.id
-                  ? <InlineRenameInput initialName={sl.name} onSave={(name) => renameSetlist(sl.id, name)} onCancel={() => setEditSlId(null)} inp={inp}/>
+                  ? <InlineRenameInput initialName={sl.name} onSave={(name) => renameSetlist(sl.id, name)} onCancel={() => setEditSlId(null)} inp={inp} disabled={isDemo}/>
                   : (
                     <>
                       <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{sl.name} <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>({sl.songIds.length})</span></span>
@@ -492,19 +494,20 @@ function ListScreen({
                         const doc = exportSetlistPdf(sl, songs, { profile, banksAnn, banksPlug });
                         doc.save(`${sl.name.replace(/[^a-z0-9_-]+/gi, '_') || 'setlist'}.pdf`);
                       }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer' }}>📄</button>}
-                      <button onClick={() => setEditSlId(sl.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer' }}>✏️</button>
+                      <button onClick={() => setEditSlId(sl.id)} disabled={isDemo} title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : undefined} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 11, cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.5 : 1 }}>✏️</button>
                       {sl.songIds.length > 0 && <button
                         data-testid={`setlist-empty-${sl.id}`}
-                        title={t('list.empty-setlist-title', 'Vider la setlist (garde la setlist mais retire tous les morceaux)')}
+                        title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : t('list.empty-setlist-title', 'Vider la setlist (garde la setlist mais retire tous les morceaux)')}
                         onClick={() => {
                           const n = sl.songIds.length;
                           const msg = tFormat('list.empty-setlist-confirm', { name: sl.name, songs: tPlural('list.songs-count', n, {}, { one: '1 morceau', other: '{count} morceaux' }) }, 'Vider "{name}" ?\n\n{songs} vont être retirés de cette setlist.\n\nLes morceaux restent disponibles dans la base globale (Setlists → onglet Morceaux). La setlist "{name}" continue d\'exister, juste vide.');
                           if (!window.confirm(msg)) return;
                           onSetlists((p) => p.map((s) => s.id === sl.id ? { ...s, songIds: [] } : s));
                         }}
-                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer' }}
+                        disabled={isDemo}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 11, cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.5 : 1 }}
                       >🧹</button>}
-                      {setlists.length > 1 && <button onClick={() => deleteSetlist(sl.id)} style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: 11, cursor: 'pointer' }}>🗑</button>}
+                      {setlists.length > 1 && <button onClick={() => deleteSetlist(sl.id)} disabled={isDemo} title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : undefined} style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: 11, cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.5 : 1 }}>🗑</button>}
                     </>
                   )}
               </div>
@@ -518,23 +521,24 @@ function ListScreen({
                       const isMe = pf.id === activeProfileId;
                       const isChecked = slProfileIds.includes(pf.id);
                       const onClick = () => {
-                        if (isMe) return;
+                        if (isMe || isDemo) return;
                         onSetlists((p) => p.map((s) => s.id === sl.id ? toggleSetlistProfile(s, pf.id, activeProfileId) : s));
                       };
+                      const pillDisabled = isMe || isDemo;
                       return (
                         <button
                           key={pf.id}
                           data-testid={`setlist-share-pill-${sl.id}-${pf.id}`}
                           onClick={onClick}
-                          disabled={isMe}
-                          title={isMe ? t('list.share-you', 'Toi (verrouillé)') : (isChecked ? t('list.share-remove', 'Cliquer pour retirer') : t('list.share-add', 'Cliquer pour partager'))}
+                          disabled={pillDisabled}
+                          title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : (isMe ? t('list.share-you', 'Toi (verrouillé)') : (isChecked ? t('list.share-remove', 'Cliquer pour retirer') : t('list.share-add', 'Cliquer pour partager')))}
                           style={{
                             background: isChecked ? (isMe ? 'var(--accent-soft)' : 'var(--accent-bg)') : 'var(--a4)',
                             border: `1px solid ${isChecked ? 'var(--accent-border)' : 'var(--a8)'}`,
                             color: isChecked ? 'var(--accent)' : 'var(--text-dim)',
                             borderRadius: 'var(--r-sm)', padding: '2px 6px', fontSize: 9,
-                            fontWeight: isChecked ? 700 : 500, cursor: isMe ? 'default' : 'pointer',
-                            opacity: isMe ? 0.85 : 1,
+                            fontWeight: isChecked ? 700 : 500, cursor: pillDisabled ? (isDemo ? 'not-allowed' : 'default') : 'pointer',
+                            opacity: isDemo ? 0.5 : (isMe ? 0.85 : 1),
                           }}
                         >
                           {isChecked ? '✓ ' : ''}{pf.name || pf.id}{isMe ? ' 🔒' : ''}
@@ -546,7 +550,7 @@ function ListScreen({
               })()}
             </div>
           ))}
-          <InlineRenameInput initialName="" onSave={(name) => { onSetlists((p) => [...p, { id: `sl_${Date.now()}`, name, songIds: [], profileIds: [activeProfileId] }]); }} onCancel={() => {}} inp={inp} placeholder={t('list.new-setlist-placeholder', 'Nouvelle setlist...')} buttonLabel={t('list.create', '+ Creer')}/>
+          <InlineRenameInput initialName="" onSave={(name) => { onSetlists((p) => [...p, { id: `sl_${Date.now()}`, name, songIds: [], profileIds: [activeProfileId] }]); }} onCancel={() => {}} inp={inp} placeholder={t('list.new-setlist-placeholder', 'Nouvelle setlist...')} buttonLabel={t('list.create', '+ Creer')} disabled={isDemo}/>
         </div>
       )}
 
@@ -593,7 +597,7 @@ function ListScreen({
           {/* Phase 7.71 — Bouton "Retirer non-cochés" supprimé (Phase 5.5)
               car dépendait des checkboxes. Mode édition (bouton ci-dessus)
               + corbeille par morceau remplace ce workflow. */}
-          <button onClick={() => setShowAdd(true)} style={{ fontSize: 10, color: 'var(--accent)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer', fontWeight: 600 }}>+</button>
+          <button onClick={() => setShowAdd(true)} disabled={isDemo} title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : t('list.add-song', 'Ajouter un morceau')} style={{ fontSize: 10, color: 'var(--accent)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: isDemo ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: isDemo ? 0.5 : 1 }}>+</button>
         </div>
       </div>
 
@@ -878,16 +882,18 @@ function ListScreen({
                   {activeSlId && editingSongs && <button
                     data-testid={`song-row-remove-${s.id}`}
                     onClick={(e) => { e.stopPropagation(); removeSongFromActiveSetlist(s.id, s.title); }}
-                    title={tFormat('list.remove-song-title', { title: s.title }, 'Retirer "{title}" de la setlist')}
+                    disabled={isDemo}
+                    title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : tFormat('list.remove-song-title', { title: s.title }, 'Retirer "{title}" de la setlist')}
                     style={{
                       background: 'var(--a3)',
                       border: '1px solid var(--a7)',
                       borderLeft: 'none',
                       borderRadius: isExpanded ? '0 10px 0 0' : '0 10px 10px 0',
-                      padding: '0 8px', cursor: 'pointer', color: 'var(--text-dim)',
+                      padding: '0 8px', cursor: isDemo ? 'not-allowed' : 'pointer', color: 'var(--text-dim)',
                       fontSize: 14, minWidth: 36, flexShrink: 0, transition: 'color 0.15s ease',
+                      opacity: isDemo ? 0.5 : 1,
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--red)'; }}
+                    onMouseEnter={(e) => { if (!isDemo) e.currentTarget.style.color = 'var(--red)'; }}
                     onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-dim)'; }}
                   >🗑️</button>}
                 </div>

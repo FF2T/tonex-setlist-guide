@@ -47,15 +47,17 @@ function PresetCurationModal({
   const entry = useMemo(() => findCatalogEntry(presetName), [presetName]);
   const status = useMemo(() => getPresetCurationStatus(presetName), [presetName]);
   const colors = status ? CURATION_COLORS[status] : null;
+  // Phase 7.83 demo-gating — en mode démo, modal reste en lecture seule.
+  const isDemo = profile?.isDemo === true;
   // Phase 7.79.3 — édition étendue à TOUTES les sources non-guessed.
   // Le routing custom/ToneNET/catalog statique est géré par saveUsagesForPreset
   // (preset-curation.js). Avant 7.79.3 c'était limité à custom/ToneNET + isAdmin.
-  const editable = !!entry && !entry.guessed;
+  const editable = !!entry && !entry.guessed && !isDemo;
   // Phase 7.79.3 — source de cascade pour badge + condition Restaurer.
   const usagesSource = entry?._usagesSource || null;
   const usagesCuratedBy = entry?._usagesCuratedBy || null;
   // Bouton "Restaurer" : user voit son propre override OU admin voit override Backline.
-  const canRemoveOverride = !!entry && !entry.guessed &&
+  const canRemoveOverride = !!entry && !entry.guessed && !isDemo &&
     (usagesSource === 'user' || (usagesSource === 'backline' && isAdmin));
 
   const [mode, setMode] = useState('view');

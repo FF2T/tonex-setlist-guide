@@ -300,6 +300,9 @@ function MonProfilScreen({
           <span>🎯</span><span>{t('preferences.section-ai', 'Préférences IA')}</span>
         </div>
         <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>{t('profile.reco.intro', 'Comment l\'IA propose les recommandations.')}</div>
+        {/* Phase 7.83 demo-gating — wrap section IA en mode démo (pointer-events none + opacity).
+            Le user voit ses préférences mais ne peut pas les modifier. */}
+        <div style={{ opacity: isDemo ? 0.5 : 1, pointerEvents: isDemo ? 'none' : 'auto' }} title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : undefined} aria-disabled={isDemo ? 'true' : undefined}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
           {[
             { id: 'balanced', icon: '⚖️', label: t('profile.reco.balanced-label', 'Équilibré (défaut)'), desc: t('profile.reco.balanced-desc', 'Mélange fidélité au morceau original et versatilité du rig. Comportement actuel.') },
@@ -484,6 +487,7 @@ function MonProfilScreen({
             style={{ background: 'var(--wine-400)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
           >🗑 Invalider tous les caches IA</button>
         </div>}
+        </div>{/* fin wrap demo-gating section IA */}
 
         {/* Phase 7.73.2 — Section 3 : Préférences musicales (NOUVEAU).
             Multi-select des styles préférés du user. Soft hint orientatif
@@ -495,7 +499,7 @@ function MonProfilScreen({
           <span>🎵</span><span>{t('preferences.section-musical-styles', 'Préférences musicales')}</span>
         </div>
         <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>{t('preferences.musical-styles-intro', 'Styles que tu joues le plus souvent. Sert d\'indication contextuelle pour l\'IA.')}</div>
-        <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 14, marginBottom: 16 }}>
+        <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 14, marginBottom: 16, opacity: isDemo ? 0.5 : 1, pointerEvents: isDemo ? 'none' : 'auto' }} title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : undefined} aria-disabled={isDemo ? 'true' : undefined}>
           {(() => {
             const STYLES = [
               { id: 'blues', label: t('preferences.musical-styles.blues', 'Blues'), icon: '🎤' },

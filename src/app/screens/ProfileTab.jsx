@@ -25,6 +25,8 @@ import defaultGuitarSvg from '../../assets/default.svg';
 
 function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, section, aiKeys, customGuitars, onCustomGuitars }) {
   const isAdmin = profile?.isAdmin === true;
+  const isDemo = profile?.isDemo === true;
+  const demoTitle = isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : undefined;
   const [editName, setEditName] = useState(profile.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editingGuitarId, setEditingGuitarId] = useState(null);
@@ -154,11 +156,11 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                     const isEdited = !!edits[g.id];
                     const isEditing = editingGuitarId === g.id;
                     return <div key={g.id}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: sel ? 'var(--accent-soft)' : 'var(--a3)', border: sel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '8px 12px', cursor: 'pointer' }} onClick={() => toggleGuitar(g.id)}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: sel ? 'var(--accent-soft)' : 'var(--a3)', border: sel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '8px 12px', cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.6 : 1 }} onClick={() => { if (!isDemo) toggleGuitar(g.id); }} title={demoTitle}>
                         <div style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: sel ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: sel ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{sel && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
                         <div style={{ flex: 1 }}><span style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{display.short}</span><span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 6 }}>{display.name}</span>{isEdited && <span style={{ fontSize: 9, color: 'var(--copper-400)', marginLeft: 4 }}>{t('profile-tab.modified', 'modifié')}</span>}</div>
                         <span style={{ fontSize: 10, color: 'var(--text-dim)', marginRight: 4 }}>{display.type}</span>
-                        {sel && <button onClick={(e) => { e.stopPropagation(); startEditGuitar(display, false); }} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '3px 7px', fontSize: 10, cursor: 'pointer' }}>✏️</button>}
+                        {sel && <button onClick={(e) => { e.stopPropagation(); if (!isDemo) startEditGuitar(display, false); }} disabled={isDemo} title={demoTitle} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '3px 7px', fontSize: 10, cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.5 : 1 }}>✏️</button>}
                       </div>
                       {isEditing && <div style={{ background: 'var(--a5)', borderRadius: '0 0 8px 8px', padding: '10px 12px', marginTop: -1, border: '1px solid var(--a8)', borderTop: 'none' }} onClick={(e) => e.stopPropagation()}>
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
@@ -178,15 +180,15 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                     const isEditing = editingGuitarId === g.id;
                     const sel = profile.myGuitars.includes(g.id);
                     return <div key={g.id}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: sel ? 'var(--accent-soft)' : 'var(--a3)', border: sel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '8px 12px', cursor: 'pointer' }} onClick={() => toggleGuitar(g.id)}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: sel ? 'var(--accent-soft)' : 'var(--a3)', border: sel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '8px 12px', cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.6 : 1 }} onClick={() => { if (!isDemo) toggleGuitar(g.id); }} title={demoTitle}>
                         <div style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: sel ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: sel ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{sel && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
                         <div style={{ flex: 1 }}><span style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{g.short}</span><span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 6 }}>{g.name}</span></div>
                         <span style={{ fontSize: 10, color: 'var(--text-dim)', marginRight: 4 }}>{g.type}</span>
                         {/* Phase 7.67 — Édition custom guitars ouverte aux non-admins.
                             Les customGuitars sont per-profile (profile.customGuitars),
                             donc pas de risque cross-profil. */}
-                        {sel && <button onClick={(e) => { e.stopPropagation(); startEditGuitar(g, true); }} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '3px 7px', fontSize: 10, cursor: 'pointer' }}>✏️</button>}
-                        <button onClick={(e) => { e.stopPropagation(); removeCustomGuitar(g.id); }} style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 11, padding: '2px 4px' }}>✕</button>
+                        {sel && <button onClick={(e) => { e.stopPropagation(); if (!isDemo) startEditGuitar(g, true); }} disabled={isDemo} title={demoTitle} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '3px 7px', fontSize: 10, cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.5 : 1 }}>✏️</button>}
+                        <button onClick={(e) => { e.stopPropagation(); if (!isDemo) removeCustomGuitar(g.id); }} disabled={isDemo} title={demoTitle} style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: isDemo ? 'not-allowed' : 'pointer', fontSize: 11, padding: '2px 4px', opacity: isDemo ? 0.5 : 1 }}>✕</button>
                       </div>
                       {isEditing && <div style={{ background: 'var(--a5)', borderRadius: '0 0 8px 8px', padding: '10px 12px', marginTop: -1, border: '1px solid var(--a8)', borderTop: 'none' }}>
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
@@ -224,7 +226,7 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
         {/* Phase 7.67 — Ajout de custom guitars ouvert aux non-admins
             (un beta-tester peut ajouter sa Schecter / Sire / Ibanez Gio
             via la recherche IA Gemini sans solliciter l'admin). */}
-        <GuitarSearchAdd inp={inp} aiKeys={aiKeys} onAdd={(name, short, type) => {
+        <GuitarSearchAdd inp={inp} aiKeys={aiKeys} disabled={isDemo} onAdd={(name, short, type) => {
           addCustomGuitar({ id: `cg_${Date.now()}`, name, short, type, brand: inferBrand(name) });
         }}/>
       </div>}
@@ -263,9 +265,10 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                 : (key === 'FactoryV1'
                     ? t('profile-tab.empty-list', 'liste à fournir')
                     : t('profile-tab.empty-custom', 'aucun pack custom'));
-              return <button key={key} onClick={() => { if (!locked && !unavailable) toggleSource(key); }}
-                disabled={unavailable}
-                style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: on ? 'var(--green-bg)' : 'var(--a3)', border: on ? '1px solid var(--green-border)' : '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '10px 14px', cursor: unavailable ? 'not-allowed' : (locked ? 'default' : 'pointer'), textAlign: 'left', opacity: unavailable ? 0.5 : (locked ? 0.85 : 1) }}>
+              return <button key={key} onClick={() => { if (!locked && !unavailable && !isDemo) toggleSource(key); }}
+                disabled={unavailable || isDemo}
+                title={isDemo ? demoTitle : undefined}
+                style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: on ? 'var(--green-bg)' : 'var(--a3)', border: on ? '1px solid var(--green-border)' : '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '10px 14px', cursor: isDemo ? 'not-allowed' : (unavailable ? 'not-allowed' : (locked ? 'default' : 'pointer')), textAlign: 'left', opacity: isDemo ? 0.5 : (unavailable ? 0.5 : (locked ? 0.85 : 1)) }}>
                 <div style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: on ? '2px solid var(--green)' : '2px solid var(--text-muted)', background: on ? 'var(--green)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>{on && <span style={{ color: 'var(--bg)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
                   <div style={{ fontSize: 12, color: on ? 'var(--text)' : 'var(--text-muted)', fontWeight: on ? 700 : 500, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
