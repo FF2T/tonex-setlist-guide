@@ -100,7 +100,7 @@ function InlineRenameInput({ initialName, onSave, onCancel, inp, placeholder, bu
   const demoTitle = disabled ? t('demo.blocked', 'Action désactivée en mode démo') : undefined;
   const canSubmit = val.trim() && !disabled;
   return (
-    <div style={{ display: 'flex', gap: 6, opacity: disabled ? 0.5 : 1 }} title={demoTitle}>
+    <div style={{ display: 'flex', gap: 6, opacity: disabled ? 0.5 : 1, maxWidth: 480 }} title={demoTitle}>
       <input value={val} onChange={(e) => setVal(e.target.value)} placeholder={placeholder || ''} disabled={disabled} style={{ ...inp, flex: 1, cursor: disabled ? 'not-allowed' : 'text' }} autoFocus={!!initialName && !disabled} onKeyDown={(e) => e.key === 'Enter' && submit()} title={demoTitle}/>
       <button onClick={submit} disabled={!canSubmit} style={{ background: canSubmit ? 'var(--accent)' : 'var(--a7)', border: 'none', color: canSubmit ? 'var(--text-inverse)' : 'var(--text-dim)', borderRadius: 'var(--r-md)', padding: '4px 12px', fontSize: 11, fontWeight: 700, cursor: canSubmit ? 'pointer' : 'not-allowed' }} title={demoTitle}>{buttonLabel || t('list.ok', 'OK')}</button>
       {initialName && <button onClick={onCancel} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer' }}>✕</button>}

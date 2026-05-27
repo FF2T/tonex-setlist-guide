@@ -332,27 +332,32 @@ function HomeScreen({
   const [showFeedback, setShowFeedback] = useState(false);
   const [showCotSearch, setShowCotSearch] = useState(false);
   const [feedback, setFeedback] = useState('');
+  // Phase 7.85 — Message info démo affiché quand une song est cliquée
+  // mais n'a pas d'aiCache (cas URL ?demo=1&song=X pointant le seed
+  // INIT_SONG_DB_META sans aiCache). Distinct de songErr (réservé aux
+  // erreurs IA techniques classifiées par AIErrorPanel).
+  const [demoInfoMsg, setDemoInfoMsg] = useState(null);
 
-  // Phase 7.55.3 — Pool de 4 morceaux suggérés en mode démo (chips).
-  // Choisis parmi les songs présentes dans le seed INIT_SONG_DB_META
-  // (ids stables, jamais renommés). Si une song est absente du songDb
-  // actuel (cas dégénéré), elle est skip silencieusement.
-  // Phase 7.55.7 S3 — pinkfloyd_wywh remplacé par ledzep_stairway :
-  // l'ancien id ne correspondait à AUCUNE entrée du seed ni du snapshot
-  // démo bundlé (héritage Phase 7.55-A 11 songs avant la réduction Phase
-  // 7.60.1 à 8 songs). Résultat Cowork v8.14.191 : 3 chips affichés au
-  // lieu de 4. ledzep_stairway existe dans INIT_SONG_DB_META → résolvable
-  // partout. Diversifie le set (1 hard rock AC/DC, 1 blues B.B. King,
-  // 1 hard rock Deep Purple, 1 folk/prog Led Zep).
+  // Phase 7.85 — Pioche DYNAMIQUE des chips démo parmi les songs ayant
+  // un aiCache.result.cot_step1 complet. Garantit que chaque chip mène
+  // à une fiche cliquable (sinon click silencieux côté handleSongConfirm
+  // qui retourne ligne 403 si pas d'aiCache et mode démo).
+  //
+  // Historique : Phase 7.55.3 utilisait des ids hardcodés (acdc_hth,
+  // ledzep_stairway, etc.) qui se désynchronisaient à chaque re-export
+  // du snapshot. Phase 7.60.1 a remplacé acdc_hth → acdc_bib pour balance
+  // 4 pack creators, mais le code targetIds est resté inchangé →
+  // résultat : seed INIT_SONG_DB_META fournit la song pour le chip mais
+  // sans aiCache → click silencieux (rapport Cowork v8.14.239).
+  //
+  // Approche actuelle : filter songDb par aiCache présent. Ordre suit
+  // l'ordre du songDb (= ordre setlist démo). Limit 4.
   const demoSuggestSongs = useMemo(() => {
     if (!isDemo) return [];
-    const targetIds = ['acdc_hth', 'bbking_thrill', 'deeppurple_smoke', 'ledzep_stairway'];
-    const found = [];
-    for (const id of targetIds) {
-      const s = songDb?.find?.((x) => x.id === id);
-      if (s) found.push({ id: s.id, title: s.title, artist: s.artist });
-    }
-    return found;
+    const withAiCache = (songDb || []).filter((s) =>
+      s?.aiCache?.result?.cot_step1 && s.title && s.artist
+    );
+    return withAiCache.slice(0, 4).map((s) => ({ id: s.id, title: s.title, artist: s.artist }));
   }, [isDemo, songDb]);
 
   // Phase 7.55.3 — Handler centralisé pour onConfirm SongSearchBar +
@@ -364,6 +369,7 @@ function HomeScreen({
     const canonArtist = existing ? existing.artist : artist;
     setConfirmedSong({ title: canonTitle, artist: canonArtist });
     setSongResult(null); setSongBaseAI(null); setSongErr(null); setSelectedGuitar(null);
+    setDemoInfoMsg(null);
     if (existing?.aiCache?.result?.cot_step1) {
       // Phase 7.68 — Aligne HomeScreen sur SongDetailCard pour fixer le
       // bug rapporté Bruno (recos différentes Accueil vs Setlists).
@@ -400,7 +406,14 @@ function HomeScreen({
       }
       return;
     }
-    if (isDemo) return; // Phase 7.51.2 — pas de fetchAI en mode démo
+    if (isDemo) {
+      // Phase 7.85 — Defense in depth : si song existe (seed ou autre)
+      // mais sans aiCache, on signale au lieu de retourner silencieusement.
+      // Cas typique : URL ?demo=1&song=acdc_hth (Phase 7.55-G) pointant
+      // une song du seed sans aiCache.
+      setDemoInfoMsg(t('demo.no-analysis', 'Pas d\'analyse IA disponible en démo pour ce morceau. Essaye un des morceaux suggérés.'));
+      return;
+    }
     setSongLoading(true);
     const song = { id: `tmp_${Date.now()}`, title: canonTitle, artist: canonArtist };
     fetchAI(song, '', banksAnn, banksPlug, aiProvider, aiKeys, allGuitars, null, null, profile?.recoMode || 'balanced', guitarBias, profile?.outputContext || 'frfr', profile?.preferredStyles || [])
@@ -499,7 +512,10 @@ function HomeScreen({
               );
             })()}
 
-            <div style={{ width: '100%' }}>
+            {/* Phase 7.85 — maxWidth 580px + margin auto pour éviter
+                que l'input s'étire sur tout le viewport desktop/iPad
+                (rapport Cowork B04 : 1200px devenait absurde). */}
+            <div style={{ width: '100%', maxWidth: 580, margin: '0 auto' }}>
               <SongSearchBar songDb={visibleSongDb} aiProvider={aiProvider} aiKeys={aiKeys} isDemo={isDemo} onConfirm={handleSongConfirm}/>
             </div>
             {/* Phase 7.55.3 — chips morceaux suggérés + bouton random
@@ -554,6 +570,20 @@ function HomeScreen({
                 spending cap..." par "🤖 L'IA Gemini a atteint son quota
                 mensuel" + hints + lien Gemini billing. */}
             {songErr && <AIErrorPanel error={songErr}/>}
+            {/* Phase 7.85 — Message info démo (distinct des erreurs IA techniques). */}
+            {demoInfoMsg && (
+              <div style={{
+                background: 'var(--info-bg, rgba(96, 165, 250, 0.12))',
+                border: '1px solid var(--info-border, rgba(96, 165, 250, 0.4))',
+                borderRadius: 'var(--r-lg)',
+                padding: 14,
+                marginBottom: 8,
+                fontSize: 13,
+                color: 'var(--text-sec)',
+              }}>
+                💡 {demoInfoMsg}
+              </div>
+            )}
 
             {songResult && confirmedSong && (() => {
               const existing = songDb.find((s) => normalizePresetName(s.title) === normalizePresetName(confirmedSong.title));

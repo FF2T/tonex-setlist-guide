@@ -312,6 +312,15 @@
   /* S9.4 — Device line : grid 4 col mobile aussi (label/slot/score/preset) */
   .songrow-pl-meta-devices{flex-direction:column;align-items:stretch;gap:3px}
   .songrow-pl-device-line{display:grid;grid-template-columns:48px 40px 40px 1fr;align-items:center;gap:6px;min-width:0;width:100%}
+  /* Phase 7.85 — Mobile (<640px) : le preset name passe en row 2 spanning
+     toutes les colonnes pour avoir la largeur entière (~315px sur iPhone
+     375) au lieu de 127-169px sur 1fr. Évite la troncature aggressive
+     des noms de presets (rapport Cowork B01 P0 : "Marshall JTM-50 19..."
+     coupé). Sur tablette/desktop le grid 4-col reste inchangé. */
+  @media(max-width:639px){
+    .songrow-pl-device-line{grid-template-columns:48px 40px 40px 1fr}
+    .songrow-pl-device-line .songrow-pl-preset{grid-column:1 / -1;margin-top:1px}
+  }
   .songrow-pl-device{color:var(--text-secondary);font-weight:600;font-family:var(--font-mono);font-size:11px}
   /* S9.4 — Pills slot/score mobile : min-width fixe pour alignement */
   .songrow-pl-slot-pill{text-align:center;min-width:40px;box-sizing:border-box}
@@ -325,7 +334,7 @@
      Sébastien 25/05 : "numéro de banque clair sur fond foncé comme
      les scores serait bien". */
   .songrow-pl-slot-pill{font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--brass-100);background:var(--tolex-800);border:1px solid var(--brass-700);padding:2px 7px;border-radius:var(--r-sm);letter-spacing:0.5px;line-height:1.3;white-space:nowrap}
-  .songrow-pl-preset{color:var(--text-primary);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:300px}
+  .songrow-pl-preset{color:var(--text-primary);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
   /* Score inline (guitare/preset) : pill plein compact même style que topscore. */
   /* S9.9 — Score pill alignée sur slot pill : même padding + border
      transparente pour compenser la border du slot (sinon le slot

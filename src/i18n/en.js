@@ -53,6 +53,7 @@ const en = {
   'demo.suggest-label': 'Try:',
   'demo.random-button': '🎲 Random',
   'demo.random-title': 'Pick a random song',
+  'demo.no-analysis': 'No AI analysis available in demo mode for this song. Try one of the suggested songs.',
 
   // landing (Phase 7.60)
   'landing.h1': 'Backline — your ToneX copilot',

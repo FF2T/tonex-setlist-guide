@@ -53,11 +53,15 @@ function AdminScreen({
         border: tab === id ? '1px solid var(--accent-border)' : '1px solid var(--a8)',
         color: tab === id ? 'var(--accent)' : 'var(--text-sec)',
         borderRadius: 'var(--r-md)',
-        padding: '6px 12px',
+        padding: '8px 12px',
         fontSize: 12,
         fontWeight: tab === id ? 700 : 500,
         cursor: 'pointer',
         whiteSpace: 'nowrap',
+        minHeight: 44,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
       }}
     >
       {label}

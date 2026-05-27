@@ -51,6 +51,7 @@ const es = {
   'demo.suggest-label': 'Prueba:',
   'demo.random-button': '🎲 Aleatorio',
   'demo.random-title': 'Elegir una canción al azar',
+  'demo.no-analysis': 'No hay análisis IA disponible en modo demo para esta canción. Prueba una de las sugeridas.',
 
   // landing (Phase 7.60)
   'landing.h1': 'Backline — el copiloto de tu ToneX',

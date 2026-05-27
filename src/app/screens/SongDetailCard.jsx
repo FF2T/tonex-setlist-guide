@@ -800,12 +800,18 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                         cohérent avec la vue repliée. AMP encadré (ce que tu
                         joues vraiment) + preset name à côté en mono dim. */}
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(11px, 1.25vw, 13px)' }}>
-                      <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+                      {/* Phase 7.85 — flexWrap + retrait truncate sur les 2 spans
+                          enfants : mobile <430px les 2 labels (amp encadré + preset
+                          name) passent sur 2 lignes au lieu de tronquer à 96/109px
+                          chacun (rapport Cowork B02 P0). Desktop reste sur 1 ligne
+                          tant que la place le permet. wordBreak break-word pour
+                          gérer les noms de capture très longs sans déborder. */}
+                      <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         {entry?.amp
-                          ? <span style={{ ...compatLabelStyle(idealScore), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{entry.amp}</span>
-                          : <span style={{ ...compatLabelStyle(idealScore), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{displayPresetName}</span>}
+                          ? <span style={{ ...compatLabelStyle(idealScore), wordBreak: 'break-word' }}>{entry.amp}</span>
+                          : <span style={{ ...compatLabelStyle(idealScore), wordBreak: 'break-word' }}>{displayPresetName}</span>}
                         {entry?.amp && (
-                          <span style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', fontSize: 'clamp(9px, 1.05vw, 11px)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }} title={displayPresetName}>{displayPresetName}</span>
+                          <span style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', fontSize: 'clamp(9px, 1.05vw, 11px)', wordBreak: 'break-word' }} title={displayPresetName}>{displayPresetName}</span>
                         )}
                         <span style={{ marginLeft: 2, flexShrink: 0 }}>
                           <CurationDot name={displayPresetName} onClick={(n) => setCurationModalPreset(n)}/>
@@ -962,7 +968,12 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
               la textarea. Le FeedbackPanel reste importable si besoin futur. */}
           <div>
             <div style={{ fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-muted)', marginBottom: 4, fontWeight: 600 }}>{t('song-detail.give-feedback', '💬 Donner un feedback à l\'IA')}</div>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            {/* Phase 7.85 — Layout column + bouton alignSelf:flex-end pour
+                éviter le chevauchement textarea/bouton observé Cowork B03 P0
+                (toutes résolutions). Plus robuste qu'un flex-row + flexWrap
+                qui pouvait causer des layouts dégénérés. minHeight 44 sur le
+                bouton pour cible touch iOS HIG. */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <textarea
                 value={quickFeedback}
                 onChange={(e) => setQuickFeedback(e.target.value)}
@@ -970,7 +981,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 rows={2}
                 disabled={reloading || isDemo}
                 title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : undefined}
-                style={{ flex: 1, minWidth: 200, fontSize: 'clamp(11px, 1.25vw, 13px)', padding: '6px 8px', background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.4, opacity: isDemo ? 0.5 : 1, cursor: isDemo ? 'not-allowed' : 'text' }}
+                style={{ width: '100%', fontSize: 'clamp(11px, 1.25vw, 13px)', padding: '6px 8px', background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.4, boxSizing: 'border-box', opacity: isDemo ? 0.5 : 1, cursor: isDemo ? 'not-allowed' : 'text' }}
               />
               <button
                 data-testid="song-feedback-open"
@@ -994,7 +1005,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 }}
                 disabled={!quickFeedback.trim() || reloading || isDemo}
                 title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : undefined}
-                style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', background: quickFeedback.trim() && !reloading && !isDemo ? 'var(--accent)' : 'var(--bg-disabled)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px 14px', cursor: quickFeedback.trim() && !reloading && !isDemo ? 'pointer' : 'not-allowed', fontWeight: 700, flexShrink: 0, opacity: isDemo ? 0.5 : 1 }}
+                style={{ alignSelf: 'flex-end', fontSize: 'clamp(11px, 1.25vw, 13px)', background: quickFeedback.trim() && !reloading && !isDemo ? 'var(--accent)' : 'var(--bg-disabled)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px 16px', cursor: quickFeedback.trim() && !reloading && !isDemo ? 'pointer' : 'not-allowed', fontWeight: 700, minHeight: 44, opacity: isDemo ? 0.5 : 1 }}
               >📤 {t('song-detail.feedback-send', 'Envoyer')}</button>
             </div>
           </div>
@@ -1054,8 +1065,12 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           </div>
         )}
       </div>
-      {/* S9.10 — Bouton Fermer en fin de fiche après Infos morceau */}
-      <button onClick={onClose} style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0, marginTop: 8 }}>{t('song-detail.close', 'Fermer ↑')}</button>
+      {/* S9.10 — Bouton Fermer en fin de fiche après Infos morceau.
+          Phase 7.85 — padding vertical 8px + minHeight 44 pour cible
+          touch iOS HIG (rapport Cowork B07 : 1212×16px = bande fine
+          cliquable mais inconfortable). maxWidth auto-fit pour éviter
+          que le clic prenne toute la largeur (pas critique mais propre). */}
+      <button onClick={onClose} style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: '8px 16px', marginTop: 8, minHeight: 44, alignSelf: 'center' }}>{t('song-detail.close', 'Fermer ↑')}</button>
     </div>
   );
 }
