@@ -64,6 +64,25 @@ function _compatPillProps(score, t) {
     title: `${longLabels[bucket.id]} — ${score}%`,
   };
 }
+
+// Phase 7.83 final3 (2026-05-27) — style inline fond plein bucket compat
+// (pattern score pills). Appliqué aux libellés guitare + preset en vue
+// repliée pour cohérence avec SongDetailCard fiche dépliée. Strip aussi
+// "(HB)/(SC)/(P90)" résiduel que Gemini peut injecter dans des noms.
+function _compatLabelStyle(score) {
+  if (score == null) return null;
+  const b = bucketizeScore(score);
+  return {
+    background: b.color,
+    color: 'var(--text-inverse)',
+    padding: '2px 8px',
+    borderRadius: 'var(--r-sm)',
+    fontWeight: 700,
+  };
+}
+function _cleanGuitarLabel(n) {
+  return (n || '').replace(/\s*\((?:HB|SC|P90)\)\s*$/i, '').trim();
+}
 import StatusDot from '../components/StatusDot.jsx';
 import SongCollapsedDeviceRows from '../components/SongCollapsedDeviceRows.jsx';
 import { formatRowPotardsFX } from '../utils/setlist-row-extras.js';
@@ -799,7 +818,16 @@ function ListScreen({
                                           ? <span className="songrow-pl-score-pill-inline" style={{ background: p.color }} title={p.title}>{p.label}</span>
                                           : <span className="songrow-pl-score-pill-empty" aria-hidden="true"/>;
                                       })()}
-                                      <span className="songrow-pl-guitar">{rowData.guitarLabel}</span>
+                                      {(() => {
+                                        const cleanLabel = _cleanGuitarLabel(rowData.guitarLabel);
+                                        const labelStyle = _compatLabelStyle(rowData.guitarScore);
+                                        const titleText = rowData.guitarScore != null
+                                          ? `${rowData.guitarLabel} — ${rowData.guitarScore}%`
+                                          : rowData.guitarLabel;
+                                        return labelStyle
+                                          ? <span className="songrow-pl-guitar" style={labelStyle} title={titleText}>{cleanLabel}</span>
+                                          : <span className="songrow-pl-guitar">{cleanLabel}</span>;
+                                      })()}
                                     </>
                                   )}
                                 </div>
@@ -814,7 +842,18 @@ function ListScreen({
                                           ? <span className="songrow-pl-score-pill-inline" style={{ background: p.color }} title={p.title}>{p.label}</span>
                                           : <span className="songrow-pl-score-pill-empty" aria-hidden="true"/>;
                                       })()}
-                                      <span className="songrow-pl-preset" title={d.ampLabel && d.ampLabel !== d.presetName ? d.presetName : undefined}>{d.ampLabel || d.presetName}</span>
+                                      {(() => {
+                                        const presetDisplay = d.ampLabel || d.presetName;
+                                        const labelStyle = _compatLabelStyle(d.presetScore);
+                                        // Tooltip : ampLabel ≠ presetName → preset name brut + score si dispo.
+                                        const tooltipParts = [];
+                                        if (d.ampLabel && d.ampLabel !== d.presetName) tooltipParts.push(d.presetName);
+                                        if (d.presetScore != null) tooltipParts.push(`${d.presetScore}%`);
+                                        const titleText = tooltipParts.join(' — ') || undefined;
+                                        return labelStyle
+                                          ? <span className="songrow-pl-preset" style={labelStyle} title={titleText}>{presetDisplay}</span>
+                                          : <span className="songrow-pl-preset" title={titleText}>{presetDisplay}</span>;
+                                      })()}
                                     </div>
                                   ))}
                                 </div>

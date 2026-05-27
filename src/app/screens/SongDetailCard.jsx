@@ -534,15 +534,17 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         // "(HB)"/"(SC)"/"(P90)" que Gemini ajoute parfois dans
         // cot_step2_guitars[i].name — info redondante avec le rig user
         // qui connaît son matériel.
+        // Phase 7.83 final3 (2026-05-27) — style plein (pattern score pills)
+        // au lieu de pastel + bordure. User : "prends le même style que les
+        // scores par cohérence".
         const compatLabelStyle = (score) => {
           const b = bucketizeScore(score);
           return {
-            background: b.bgColor,
-            border: `1px solid ${b.borderColor}`,
-            color: b.color,
+            background: b.color,
+            color: 'var(--text-inverse)',
             padding: '2px 8px',
             borderRadius: 'var(--r-sm)',
-            fontWeight: 600,
+            fontWeight: 700,
             display: 'inline-block',
           };
         };
