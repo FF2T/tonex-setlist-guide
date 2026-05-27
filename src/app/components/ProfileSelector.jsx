@@ -53,8 +53,8 @@ function ProfileSelector({ profiles, activeProfileId, onSwitch, onSettings, onVi
       <button onClick={() => { setOpen(!open); setLoginId(null); }}
         title={t('profile-selector.switch-tooltip', `${active?.name || '?'} — changer de profil`)}
         aria-label={t('profile-selector.switch-aria', `Profil ${active?.name || ''} — changer`)}
-        style={{ background: color, border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-pill)', height: 34, padding: '0 4px 0 0', fontSize: 15, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, gap: 2 }}>
-        <span style={{ width: 30, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{(active?.name || '?')[0].toUpperCase()}</span>
+        style={{ background: color, border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-pill)', height: 44, padding: '0 6px 0 0', fontSize: 16, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, gap: 2 }}>
+        <span style={{ width: 38, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{(active?.name || '?')[0].toUpperCase()}</span>
         <span style={{ fontSize: 9, opacity: 0.7, lineHeight: 1, marginRight: 2 }}>▾</span>
       </button>
       {open && <div style={{ position: 'absolute', top: 40, left: 0, background: 'var(--bg-card)', border: '1px solid var(--a12)', borderRadius: 'var(--r-lg)', padding: 8, zIndex: 50, minWidth: 200, boxShadow: 'var(--shadow-lg)' }}>

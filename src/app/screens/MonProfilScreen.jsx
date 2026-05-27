@@ -459,7 +459,7 @@ function MonProfilScreen({
                   onSongDb((p) => p.map((s) => (mySongIds.has(s.id) && s.aiCache) ? { ...s, aiCache: null } : s));
                   window.alert(`✓ ${myCount} cache${myCount > 1 ? 's' : ''} invalidé${myCount > 1 ? 's' : ''}. Va dans Setlists et clique "🤖 Analyser/MAJ".`);
                 }}
-                style={{ background: myCount === 0 ? 'var(--bg-disabled)' : 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 11, fontWeight: 700, cursor: myCount === 0 ? 'not-allowed' : 'pointer', opacity: myCount === 0 ? 0.5 : 1 }}
+                style={{ background: myCount === 0 ? 'var(--bg-disabled)' : 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '12px 16px', fontSize: 13, fontWeight: 700, cursor: myCount === 0 ? 'not-allowed' : 'pointer', opacity: myCount === 0 ? 0.5 : 1, minHeight: 44 }}
               >🔄 Réinitialiser mes analyses ({myCount})</button>
             </div>
           );
@@ -552,17 +552,20 @@ function MonProfilScreen({
           via DeviceCSVPanel ci-dessus dans les tabs pedale/ann/plug). */}
       {/* Phase 7.72 — Tab Profils migré dans AdminScreen. */}
       <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--a8)', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-        <button onClick={() => { if (typeof window.setShowOnboarding === 'function') window.setShowOnboarding(true); else { const e = new CustomEvent('showOnboarding'); window.dispatchEvent(e); } }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>{t('profile.footer-help', 'Aide')}</button>
+        {/* Phase 7.85 — Footer liens : padding 10x4 + minHeight 44 iOS HIG
+            (Cowork B15 P1 : "Aide" 26×15, "Envoyer un feedback" 120×15,
+            "Mise à jour" 62×15 = micro-cibles sous seuil touch). */}
+        <button onClick={() => { if (typeof window.setShowOnboarding === 'function') window.setShowOnboarding(true); else { const e = new CustomEvent('showOnboarding'); window.dispatchEvent(e); } }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline', padding: '10px 6px', minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>{t('profile.footer-help', 'Aide')}</button>
         {/* Phase 7.73.0 — Bouton feedback Tally. Pré-rempli avec
             profile_name + app_version. Ouvre dans un nouvel onglet. */}
         <a
           href={buildFeedbackUrl(profile?.name, (typeof window !== 'undefined' && window.__BACKLINE_APP_VERSION) || '')}
           target="_blank"
           rel="noopener noreferrer"
-          style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}
+          style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline', padding: '10px 6px', minHeight: 44, display: 'inline-flex', alignItems: 'center' }}
         >{t('profile.footer-feedback', '💬 Envoyer un feedback')}</a>
-        <button onClick={() => { location.reload(true); }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>{t('profile.footer-update', 'Mise à jour')}</button>
-        {onLogout && <button onClick={onLogout} style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '8px 16px', fontSize: 12, cursor: 'pointer', marginLeft: 'auto' }}>{t('profile.footer-logout', 'Se déconnecter')}</button>}
+        <button onClick={() => { location.reload(true); }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline', padding: '10px 6px', minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>{t('profile.footer-update', 'Mise à jour')}</button>
+        {onLogout && <button onClick={onLogout} style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '12px 18px', fontSize: 13, cursor: 'pointer', marginLeft: 'auto', minHeight: 44 }}>{t('profile.footer-logout', 'Se déconnecter')}</button>}
       </div>
     </div>
   );
@@ -629,7 +632,7 @@ function PasswordTab({ profile, onProfiles, activeProfileId, inp }) {
         data-testid="password-change-submit"
         disabled={submitting}
         onClick={onSubmit}
-        style={{ background: submitting ? 'var(--bg-disabled)' : 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.6 : 1 }}
+        style={{ background: submitting ? 'var(--bg-disabled)' : 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '12px 18px', fontSize: 13, fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.6 : 1, minHeight: 44 }}
       >{submitting ? 'En cours…' : 'Enregistrer le nouveau mot de passe'}</button>
     </div>
 
@@ -849,7 +852,7 @@ function MonCompteSection({
         ) : (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
             <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600, flex: 1 }}>{profile?.name || '—'}</div>
-            <button onClick={() => { setEditingName(true); setNameDraft(profile?.name || ''); }} style={{ background: 'transparent', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '4px 10px', fontSize: 10, cursor: 'pointer' }}>{t('mon-compte.edit', 'Modifier')}</button>
+            <button onClick={() => { setEditingName(true); setNameDraft(profile?.name || ''); }} style={{ background: 'transparent', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '10px 14px', fontSize: 12, cursor: 'pointer', minHeight: 44 }}>{t('mon-compte.edit', 'Modifier')}</button>
           </div>
         )}
 
@@ -922,7 +925,7 @@ function MonCompteSection({
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
           <button
             onClick={exportMyData}
-            style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+            style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '12px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 44 }}
           >⬇ {t('mon-compte.data-export', 'Exporter mes données (JSON)')}</button>
         </div>
         <div style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.5 }}>
@@ -937,7 +940,7 @@ function MonCompteSection({
         </div>
         <button
           onClick={resetMyProfile}
-          style={{ background: 'transparent', border: '1px solid var(--wine-400)', color: 'var(--wine-400)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+          style={{ background: 'transparent', border: '1px solid var(--wine-400)', color: 'var(--wine-400)', borderRadius: 'var(--r-md)', padding: '12px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 44 }}
         >🗑 {t('mon-compte.reset-button', 'Réinitialiser mon profil')}</button>
       </div>
 

@@ -534,11 +534,14 @@ function HomeScreen({
                       background: 'var(--accent-soft)',
                       border: '1px solid var(--border-accent)',
                       color: 'var(--accent)',
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: 600,
-                      padding: '4px 10px',
+                      padding: '10px 14px',
                       borderRadius: 999,
                       cursor: 'pointer',
+                      minHeight: 44,
+                      display: 'inline-flex',
+                      alignItems: 'center',
                     }}
                   >{s.title}</button>
                 ))}
@@ -554,11 +557,14 @@ function HomeScreen({
                     background: 'transparent',
                     border: '1px dashed var(--border-subtle)',
                     color: 'var(--text-secondary)',
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: 600,
-                    padding: '4px 10px',
+                    padding: '10px 14px',
                     borderRadius: 999,
                     cursor: 'pointer',
+                    minHeight: 44,
+                    display: 'inline-flex',
+                    alignItems: 'center',
                   }}
                   title={t('demo.random-title', 'Tirer un morceau au hasard')}
                 >{t('demo.random-button', '🎲 Au hasard')}</button>

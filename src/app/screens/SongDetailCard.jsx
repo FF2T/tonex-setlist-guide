@@ -276,7 +276,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   }}
                   disabled={isDemo}
                   title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : (id ? tFormat('song-detail.output-context-tooltip-override', { label }, 'Override : {label}') : t('song-detail.output-context-tooltip-profile', 'Hérite du contexte profil.'))}
-                  style={{ fontSize: TYPO.body, lineHeight: 1, padding: '4px 8px', background: active ? 'var(--accent-soft)' : 'transparent', border: `1px solid ${active ? 'var(--border-accent)' : BORDER_SUBTLE}`, color: active ? 'var(--accent)' : TEXT_2, borderRadius: 'var(--r-sm)', cursor: isDemo ? 'not-allowed' : 'pointer', fontWeight: active ? WEIGHT.bold : WEIGHT.medium, opacity: isDemo ? 0.5 : 1 }}
+                  style={{ fontSize: 18, lineHeight: 1, padding: '10px 12px', background: active ? 'var(--accent-soft)' : 'transparent', border: `1px solid ${active ? 'var(--border-accent)' : BORDER_SUBTLE}`, color: active ? 'var(--accent)' : TEXT_2, borderRadius: 'var(--r-sm)', cursor: isDemo ? 'not-allowed' : 'pointer', fontWeight: active ? WEIGHT.bold : WEIGHT.medium, opacity: isDemo ? 0.5 : 1, minHeight: 44, minWidth: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                 >{icon}</button>
               );
             })}

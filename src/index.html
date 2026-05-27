@@ -304,7 +304,10 @@
   .songrow-pl-meta-artist{font-weight:600;color:var(--text-secondary)}
   .songrow-pl-guitar{color:var(--text-secondary);font-weight:500}
   /* S9.4 — Guitare cell : grid 2 col mobile aussi (score gauche + label flex) */
-  .songrow-pl-meta-guitar{display:grid;grid-template-columns:40px 1fr;align-items:center;gap:6px}
+  /* Phase 7.85 — Simplifié de grid 40px 1fr à 1 col après retrait du
+     spacer transparent JSX. Label guitare aligne à gauche naturellement
+     (retour Sébastien v8.14.240 : décalage visuel sur iPhone). */
+  .songrow-pl-meta-guitar{display:flex;align-items:center;gap:6px}
   /* Phase 7.83 cleanup (2026-05-27) — autorise wrap multi-lignes pour
      le nom complet de guitare (Fender Stratocaster American Vintage II 1961
      trop long pour 1 ligne mobile). Grid 2 col gardé (score gauche + label flex). */
@@ -394,7 +397,7 @@
        besoin d'alignements". */
     /* S8.7 — Score guitare à GAUCHE par cohérence avec devices.
        Grid `auto 1fr` : pill score (44px fixe) + label flex. */
-    .songrow-pl-meta-guitar{display:grid;grid-template-columns:44px 1fr;align-items:center;gap:8px}
+    .songrow-pl-meta-guitar{display:flex;align-items:center;gap:8px}
     /* Phase 7.83 cleanup (2026-05-27) — autorise wrap multi-lignes pour
      le nom complet de guitare (Fender Stratocaster American Vintage II 1961
      trop long pour 1 ligne mobile). Grid 2 col gardé (score gauche + label flex). */

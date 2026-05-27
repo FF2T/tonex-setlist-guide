@@ -102,7 +102,9 @@ function InlineRenameInput({ initialName, onSave, onCancel, inp, placeholder, bu
   return (
     <div style={{ display: 'flex', gap: 6, opacity: disabled ? 0.5 : 1, maxWidth: 480 }} title={demoTitle}>
       <input value={val} onChange={(e) => setVal(e.target.value)} placeholder={placeholder || ''} disabled={disabled} style={{ ...inp, flex: 1, cursor: disabled ? 'not-allowed' : 'text' }} autoFocus={!!initialName && !disabled} onKeyDown={(e) => e.key === 'Enter' && submit()} title={demoTitle}/>
-      <button onClick={submit} disabled={!canSubmit} style={{ background: canSubmit ? 'var(--accent)' : 'var(--a7)', border: 'none', color: canSubmit ? 'var(--text-inverse)' : 'var(--text-dim)', borderRadius: 'var(--r-md)', padding: '4px 12px', fontSize: 11, fontWeight: 700, cursor: canSubmit ? 'pointer' : 'not-allowed' }} title={demoTitle}>{buttonLabel || t('list.ok', 'OK')}</button>
+      {/* Phase 7.85 — minHeight 44 iOS HIG (rapport Cowork B11 : "+ Créer"
+          25×36px sous seuil touch). */}
+      <button onClick={submit} disabled={!canSubmit} style={{ background: canSubmit ? 'var(--accent)' : 'var(--a7)', border: 'none', color: canSubmit ? 'var(--text-inverse)' : 'var(--text-dim)', borderRadius: 'var(--r-md)', padding: '10px 14px', fontSize: 12, fontWeight: 700, cursor: canSubmit ? 'pointer' : 'not-allowed', minHeight: 44 }} title={demoTitle}>{buttonLabel || t('list.ok', 'OK')}</button>
       {initialName && <button onClick={onCancel} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer' }}>✕</button>}
     </div>
   );
@@ -476,8 +478,10 @@ function ListScreen({
             de la barre Setlists restait actif → le visiteur démo pouvait
             quand même entrer en LiveScreen et tomber sur le bug #6
             "preset not determined"). Cohérence avec HomeScreen. */}
-        {typeof onLive === 'function' && !isDemo && activeSongs.length > 0 && <button data-testid="list-screen-live" onClick={() => onLive(activeSlId || null)} title={t('list.live-mode', 'Mode scène plein écran')} style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-md)', padding: '8px 10px', fontSize: 13, cursor: 'pointer', flexShrink: 0, fontWeight: 700 }}>🎤</button>}
-        <button onClick={() => setEditingSetlists(!editingSetlists)} style={{ background: editingSetlists ? 'var(--accent-bg)' : 'var(--a5)', border: '1px solid ' + (editingSetlists ? 'var(--accent-border)' : 'var(--a10)'), color: editingSetlists ? 'var(--accent)' : 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '8px 10px', fontSize: 11, cursor: 'pointer', flexShrink: 0 }}>{editingSetlists ? '✕' : '✏️'}</button>
+        {/* Phase 7.85 — minHeight 44 + minWidth 44 iOS HIG sur boutons icônes
+            (rapport Cowork B12 P1 : ✏️ 34×33px sous seuil 44). */}
+        {typeof onLive === 'function' && !isDemo && activeSongs.length > 0 && <button data-testid="list-screen-live" onClick={() => onLive(activeSlId || null)} title={t('list.live-mode', 'Mode scène plein écran')} style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-md)', padding: '8px 12px', fontSize: 15, cursor: 'pointer', flexShrink: 0, fontWeight: 700, minHeight: 44, minWidth: 44 }}>🎤</button>}
+        <button onClick={() => setEditingSetlists(!editingSetlists)} style={{ background: editingSetlists ? 'var(--accent-bg)' : 'var(--a5)', border: '1px solid ' + (editingSetlists ? 'var(--accent-border)' : 'var(--a10)'), color: editingSetlists ? 'var(--accent)' : 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '8px 12px', fontSize: 13, cursor: 'pointer', flexShrink: 0, minHeight: 44, minWidth: 44 }}>{editingSetlists ? '✕' : '✏️'}</button>
       </div>
       {editingSetlists && (
         <div style={{ background: 'var(--a3)', border: '1px solid var(--a7)', borderRadius: 'var(--r-md)', padding: 10, marginBottom: 8 }}>
@@ -813,16 +817,13 @@ function ListScreen({
                                 <div className="songrow-pl-meta-cell songrow-pl-meta-guitar">
                                   {rowData.guitarLabel && (
                                     <>
-                                      {/* S8.7 — Score à GAUCHE du label guitare
-                                          par cohérence avec les devices
-                                          ([slot][score][preset]). */}
-                                      {/* Phase 7.83 final4 — pill "Idéal" séparé retiré : le
-                                          libellé encadré du même fond bucket dit déjà la même
-                                          chose. Le score brut chiffré reste accessible via tooltip
-                                          hover. */}
-                                      {rowData.guitarScore != null
-                                        ? <span className="songrow-pl-score-pill-inline" style={{ background: 'transparent', border: 'none', padding: 0 }} aria-hidden="true"/>
-                                        : <span className="songrow-pl-score-pill-empty" aria-hidden="true"/>}
+                                      {/* Phase 7.85 — Spacer transparent retiré (servait à
+                                          préserver la col 1 du grid 40px 1fr quand le pill
+                                          score séparée existait, Phase 7.83 final4 l'a
+                                          retiré). Maintenant le label guitare s'aligne à
+                                          gauche sans décalage de 40-44px (retour Sébastien
+                                          v8.14.240 : "décalage visuel iPhone"). Le grid CSS
+                                          est aussi simplifié à 1 col. */}
                                       {(() => {
                                         const cleanLabel = _cleanGuitarLabel(rowData.guitarLabel);
                                         const labelStyle = _compatLabelStyle(rowData.guitarScore);

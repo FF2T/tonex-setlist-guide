@@ -47,7 +47,7 @@ function AppHeader({ profiles, activeProfileId, onProfile, onSwitch, onViewProfi
             onUpgradePassword={onUpgradePassword}
           />
         ) : (
-          <button onClick={onProfile} style={{ background: c, color: 'var(--text-inverse)', border: 'none', borderRadius: 'var(--r-pill,50%)', width: 32, height: 32, fontSize: 14, fontWeight: 800, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }} title={profileName}>{profileName[0]?.toUpperCase() || '?'}</button>
+          <button onClick={onProfile} style={{ background: c, color: 'var(--text-inverse)', border: 'none', borderRadius: 'var(--r-pill,50%)', width: 44, height: 44, fontSize: 16, fontWeight: 800, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }} title={profileName}>{profileName[0]?.toUpperCase() || '?'}</button>
         )}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
           <BacklineIcon size={20} color="var(--brass-300)"/>
