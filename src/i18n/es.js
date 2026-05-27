@@ -514,6 +514,10 @@ const es = {
   'compat.good-match': '🟡 Buena combinación',
   'compat.compromise': '🟠 Compromiso',
   'compat.score-tooltip': 'Puntuación: {score}%',
+  // Phase 7.83 résidu (2026-05-27) — versiones cortas para pills compactos
+  'compat.ideal-short': '🟢 Ideal',
+  'compat.good-short': '🟡 Bueno',
+  'compat.compromise-short': '🟠 Límite',
 
   // preset-detail (Phase 7.84)
   'preset-detail.style.blues': 'Blues',

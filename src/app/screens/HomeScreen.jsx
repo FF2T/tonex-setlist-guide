@@ -32,6 +32,7 @@ import { getActiveDevicesForRender } from '../utils/devices-render.js';
 import { fetchAI } from '../utils/fetchAI.js';
 import { getSharedGeminiKey } from '../utils/shared-key.js';
 import { scoreColor } from '../components/score-utils.js';
+import { bucketizeScore } from '../../core/scoring/compat-buckets.js';
 import StatusDot from '../components/StatusDot.jsx';
 import BacklineIcon from '../components/BacklineIcon.jsx';
 import AIErrorPanel from '../components/AIErrorPanel.jsx';
@@ -684,7 +685,27 @@ function HomeScreen({
                           {(selectedGuitar || displayIdealGuitarName) && <span style={{ fontSize: 11, background: 'var(--a5)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '4px 10px', color: 'var(--text-bright)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}><StatusDot score={chosenGuitarScore} ideal={!selectedGuitar || matchGuitarName(songResult.cot_step2_guitars?.[0]?.name, selectedGuitar)}/>{selectedGuitar ? `${selectedGuitar.name} (${selectedGuitar.type})` : displayIdealGuitarName}</span>}
                           <button onClick={() => setShowGuitarPick((p) => !p)} style={{ fontSize: 10, background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '3px 8px', cursor: 'pointer' }}>{t('home.song.change', 'Changer')}</button>
                         </div>
-                        {selectedGuitar && chosenGuitarScore && <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>{t('home.song.compat', 'Compatibilité :')} <b style={{ color: scoreColor(chosenGuitarScore) }}>{chosenGuitarScore}%</b>{chosenGuitarScoreEstimated && <>{' '}<span style={{ marginLeft: 6, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>{t('home.song.estimated', '(estimé)')}</span></>}</div>}
+                        {selectedGuitar && chosenGuitarScore && (() => {
+                          // Phase 7.83 résidu (2026-05-27) — bucket qualitatif au lieu du score brut.
+                          const bucket = bucketizeScore(chosenGuitarScore);
+                          const shortLabels = {
+                            ideal: t('compat.ideal-short', '🟢 Idéal'),
+                            good: t('compat.good-short', '🟡 Bon'),
+                            compromise: t('compat.compromise-short', '🟠 Limite'),
+                          };
+                          const longLabels = {
+                            ideal: t('compat.ideal-match', '🟢 Mariage parfait'),
+                            good: t('compat.good-match', '🟡 Bon match'),
+                            compromise: t('compat.compromise', '🟠 Compromis'),
+                          };
+                          const titleText = `${longLabels[bucket.id]} — ${chosenGuitarScore}%${chosenGuitarScoreEstimated ? ' ' + t('home.song.estimated', '(estimé)') : ''}`;
+                          return (
+                            <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4 }}>
+                              {t('home.song.compat', 'Compatibilité :')}{' '}
+                              <span style={{ color: bucket.color, fontWeight: 700 }} title={titleText}>{shortLabels[bucket.id]}</span>
+                            </div>
+                          );
+                        })()}
                         {selectedGuitar && (() => {
                           // Phase 7.82 — localGuitarSettings retourne un objet
                           // structuré ; composition i18n côté UI.

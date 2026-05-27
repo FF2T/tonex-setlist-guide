@@ -516,6 +516,10 @@ const en = {
   'compat.good-match': '🟡 Good match',
   'compat.compromise': '🟠 Compromise',
   'compat.score-tooltip': 'Score: {score}%',
+  // Phase 7.83 résidu (2026-05-27) — versions courtes pour pills compacts (SongDetailCard, HomeScreen)
+  'compat.ideal-short': '🟢 Ideal',
+  'compat.good-short': '🟡 Good',
+  'compat.compromise-short': '🟠 Limit',
 
   // preset-detail (Phase 7.84)
   'preset-detail.style.blues': 'Blues',

@@ -19,6 +19,7 @@ import React, { useState, useEffect } from 'react';
 import { t, tFormat, getLocale, useLocale } from '../../i18n/index.js';
 import { GUITARS } from '../../core/guitars.js';
 import { SCORING_VERSION } from '../../core/scoring/index.js';
+import { bucketizeScore } from '../../core/scoring/compat-buckets.js';
 import {
   findGuitarByAIName, findCotEntryForGuitar, localGuitarSongScore,
   localGuitarSettings, guitarChoiceFeedback,
@@ -228,11 +229,28 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <StatusDot score={chosenGuitarScore} ideal={g && ig.includes(gId)} size={10}/>
             <div style={{ flex: 1, minWidth: 0 }}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars}/></div>
-            {g && chosenGuitarScore != null && (
-              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(chosenGuitarScore), padding: '3px 8px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(10px, 1.15vw, 12px)' }} title={chosenGuitarScoreEstimated ? t('song-detail.estimated', '(estimé)') : t('song-detail.compat', 'Compatibilité :')}>
-                {chosenGuitarScore}%{chosenGuitarScoreEstimated ? '*' : ''}
-              </span>
-            )}
+            {g && chosenGuitarScore != null && (() => {
+              // Phase 7.83 résidu (2026-05-27) — pill qualitatif 3 niveaux
+              // au lieu du score brut. Score brut accessible via title hover.
+              // Cohérent avec PresetBrowser "Guitares adaptées" Phase 7.83.
+              const bucket = bucketizeScore(chosenGuitarScore);
+              const shortLabels = {
+                ideal: t('compat.ideal-short', '🟢 Idéal'),
+                good: t('compat.good-short', '🟡 Bon'),
+                compromise: t('compat.compromise-short', '🟠 Limite'),
+              };
+              const longLabels = {
+                ideal: t('compat.ideal-match', '🟢 Mariage parfait'),
+                good: t('compat.good-match', '🟡 Bon match'),
+                compromise: t('compat.compromise', '🟠 Compromis'),
+              };
+              const titleText = `${longLabels[bucket.id]} — ${chosenGuitarScore}%${chosenGuitarScoreEstimated ? ' ' + t('song-detail.estimated', '(estimé)') : ''}`;
+              return (
+                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: bucket.color, background: bucket.bgColor, border: `1px solid ${bucket.borderColor}`, padding: '2px 8px', borderRadius: 'var(--r-sm)', flexShrink: 0, textAlign: 'center', fontSize: 'clamp(10px, 1.15vw, 12px)', whiteSpace: 'nowrap' }} title={titleText}>
+                  {shortLabels[bucket.id]}
+                </span>
+              );
+            })()}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }} title={t('song-detail.output-context-label', '🔌 Sortie audio pour ce morceau')}>
             <span style={{ fontSize: TYPO.micro, color: TEXT_3, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.output-context-short', 'Sortie')}</span>
