@@ -298,7 +298,10 @@
   .songrow-pl-guitar{color:var(--text-secondary);font-weight:500}
   /* S9.4 — Guitare cell : grid 2 col mobile aussi (score gauche + label flex) */
   .songrow-pl-meta-guitar{display:grid;grid-template-columns:40px 1fr;align-items:center;gap:6px}
-  .songrow-pl-meta-guitar .songrow-pl-guitar{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  /* Phase 7.83 cleanup (2026-05-27) — autorise wrap multi-lignes pour
+     le nom complet de guitare (Fender Stratocaster American Vintage II 1961
+     trop long pour 1 ligne mobile). Grid 2 col gardé (score gauche + label flex). */
+  .songrow-pl-meta-guitar .songrow-pl-guitar{min-width:0;line-height:1.35;word-break:break-word}
   /* S9.4 — Device line : grid 4 col mobile aussi (label/slot/score/preset) */
   .songrow-pl-meta-devices{flex-direction:column;align-items:stretch;gap:3px}
   .songrow-pl-device-line{display:grid;grid-template-columns:48px 40px 40px 1fr;align-items:center;gap:6px;min-width:0;width:100%}
@@ -376,7 +379,10 @@
     /* S8.7 — Score guitare à GAUCHE par cohérence avec devices.
        Grid `auto 1fr` : pill score (44px fixe) + label flex. */
     .songrow-pl-meta-guitar{display:grid;grid-template-columns:44px 1fr;align-items:center;gap:8px}
-    .songrow-pl-meta-guitar .songrow-pl-guitar{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+    /* Phase 7.83 cleanup (2026-05-27) — autorise wrap multi-lignes pour
+     le nom complet de guitare (Fender Stratocaster American Vintage II 1961
+     trop long pour 1 ligne mobile). Grid 2 col gardé (score gauche + label flex). */
+  .songrow-pl-meta-guitar .songrow-pl-guitar{min-width:0;line-height:1.35;word-break:break-word}
     /* Devices empilés + chaque ligne en grid 4 col (label fixe |
        slot pill fixe | preset flex | score pill fixe) */
     .songrow-pl-meta-devices{flex-direction:column;align-items:stretch;gap:4px}

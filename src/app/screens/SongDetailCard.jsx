@@ -252,7 +252,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
               : null;
             return (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 2 }}>
-                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: bucket.color, background: bucket.bgColor, border: `1px solid ${bucket.borderColor}`, padding: '2px 10px', borderRadius: 'var(--r-sm)', textAlign: 'center', fontSize: 'clamp(11px, 1.2vw, 13px)', whiteSpace: 'nowrap' }} title={titleText}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: bucket.color, padding: '3px 9px', borderRadius: 'var(--r-sm)', textAlign: 'center', fontSize: 'clamp(11px, 1.2vw, 13px)', whiteSpace: 'nowrap', lineHeight: 1.3 }} title={titleText}>
                   {shortLabels[bucket.id]}
                 </span>
                 {alternativesList && (
