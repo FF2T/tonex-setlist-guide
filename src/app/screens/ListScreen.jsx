@@ -39,6 +39,31 @@ import { resolveDisplayGuitar } from '../utils/display-guitar.js';
 import { fetchAI } from '../utils/fetchAI.js';
 import { CC, CL, TYPE_COLORS } from '../utils/ui-constants.js';
 import { scoreColor, scoreBg, scoreLabel } from '../components/score-utils.js';
+import { bucketizeScore } from '../../core/scoring/compat-buckets.js';
+
+// Phase 7.83 polish (2026-05-27) — helper pour les pills score vue repliée :
+// retourne { label, color, title } cohérent avec SongDetailCard. Score brut
+// préservé en tooltip pour les power-users.
+function _compatPillProps(score, t) {
+  if (score == null) return null;
+  const bucket = bucketizeScore(score);
+  const labels = {
+    ideal: t('compat.ideal-short', '🟢 Idéal'),
+    good: t('compat.good-short', '🟡 Bon'),
+    compromise: t('compat.compromise-short', '🟠 Limite'),
+  };
+  const longLabels = {
+    ideal: t('compat.ideal-match', '🟢 Mariage parfait'),
+    good: t('compat.good-match', '🟡 Bon match'),
+    compromise: t('compat.compromise', '🟠 Compromis'),
+  };
+  const stripEmoji = (s) => s.replace(/^[🟢🟡🟠]\s*/u, '');
+  return {
+    label: stripEmoji(labels[bucket.id]),
+    color: bucket.color,
+    title: `${longLabels[bucket.id]} — ${score}%`,
+  };
+}
 import StatusDot from '../components/StatusDot.jsx';
 import SongCollapsedDeviceRows from '../components/SongCollapsedDeviceRows.jsx';
 import { formatRowPotardsFX } from '../utils/setlist-row-extras.js';
@@ -736,7 +761,7 @@ function ListScreen({
                         }
                       }
                       const rowData = getRowPlaylistData(s, aiC, playlistG, playlistScore, playlistIsOptimal);
-                      const topScoreColor = rowData.topScore != null ? scoreColor(rowData.topScore) : null;
+                      const topPill = _compatPillProps(rowData.topScore, t);
                       return (
                         <div className="songrow-pl-row">
                           <span className="songrow-pl-number">{playlistNumber}</span>
@@ -745,8 +770,8 @@ function ListScreen({
                               <span className="songrow-pl-title">{rowData.title}</span>
                               {!s.aiCache && <span className="songrow-pl-pending" title={t('list.pending-analysis', 'Pas encore analysé')}>⏳</span>}
                               {rowData.isOptimalGuitar && <span className="songrow-pl-optimal" title={t('list.optimal-guitar', 'Guitare idéale')}>★</span>}
-                              {rowData.topScore != null && (
-                                <span className="songrow-pl-topscore-pill" style={{ background: topScoreColor }}>{rowData.topScore}%</span>
+                              {topPill && (
+                                <span className="songrow-pl-topscore-pill" style={{ background: topPill.color }} title={topPill.title}>{topPill.label}</span>
                               )}
                               <span className="songrow-pl-chevron">{isExpanded ? '▲' : '▼'}</span>
                             </div>
@@ -768,11 +793,12 @@ function ListScreen({
                                       {/* S8.7 — Score à GAUCHE du label guitare
                                           par cohérence avec les devices
                                           ([slot][score][preset]). */}
-                                      {rowData.guitarScore != null ? (
-                                        <span className="songrow-pl-score-pill-inline" style={{ background: scoreColor(rowData.guitarScore) }}>{rowData.guitarScore}%</span>
-                                      ) : (
-                                        <span className="songrow-pl-score-pill-empty" aria-hidden="true"/>
-                                      )}
+                                      {(() => {
+                                        const p = _compatPillProps(rowData.guitarScore, t);
+                                        return p
+                                          ? <span className="songrow-pl-score-pill-inline" style={{ background: p.color }} title={p.title}>{p.label}</span>
+                                          : <span className="songrow-pl-score-pill-empty" aria-hidden="true"/>;
+                                      })()}
                                       <span className="songrow-pl-guitar">{rowData.guitarLabel}</span>
                                     </>
                                   )}
@@ -782,11 +808,12 @@ function ListScreen({
                                     <div key={d.deviceKey} className="songrow-pl-device-line">
                                       <span className="songrow-pl-device">{d.deviceLabel}</span>
                                       <span className="songrow-pl-slot-pill">{d.slot}</span>
-                                      {d.presetScore != null ? (
-                                        <span className="songrow-pl-score-pill-inline" style={{ background: scoreColor(d.presetScore) }}>{d.presetScore}%</span>
-                                      ) : (
-                                        <span className="songrow-pl-score-pill-empty" aria-hidden="true"/>
-                                      )}
+                                      {(() => {
+                                        const p = _compatPillProps(d.presetScore, t);
+                                        return p
+                                          ? <span className="songrow-pl-score-pill-inline" style={{ background: p.color }} title={p.title}>{p.label}</span>
+                                          : <span className="songrow-pl-score-pill-empty" aria-hidden="true"/>;
+                                      })()}
                                       <span className="songrow-pl-preset" title={d.ampLabel && d.ampLabel !== d.presetName ? d.presetName : undefined}>{d.ampLabel || d.presetName}</span>
                                     </div>
                                   ))}

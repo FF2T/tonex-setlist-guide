@@ -47,8 +47,8 @@ function ViewProfileScreen({ profile, onBack, onNavigate }) {
       <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 12, marginBottom: 10 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>{tFormat('view-profile.guitars-count', { count: guitars.length + customG.length }, 'Guitares ({count})')}</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-          {guitars.map((g) => <span key={g.id} style={{ fontSize: 10, background: 'var(--a5)', borderRadius: 'var(--r-sm)', padding: '2px 8px', color: 'var(--text-sec)' }}>{g.short} ({g.type})</span>)}
-          {customG.map((g) => <span key={g.id} style={{ fontSize: 10, background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '2px 8px', color: 'var(--text-bright)' }}>{g.short} ({g.type})</span>)}
+          {guitars.map((g) => <span key={g.id} style={{ fontSize: 10, background: 'var(--a5)', borderRadius: 'var(--r-sm)', padding: '2px 8px', color: 'var(--text-sec)' }}>{g.short}</span>)}
+          {customG.map((g) => <span key={g.id} style={{ fontSize: 10, background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '2px 8px', color: 'var(--text-bright)' }}>{g.short}</span>)}
         </div>
       </div>
 

@@ -224,7 +224,7 @@ describe('GuitarSelect — sans aiCache, ig vide → toujours toutes guitares li
         <option value="">— Choisir une guitare —</option>
         {guitars.map((x) => (
           <option key={x.id} value={x.id}>
-            {ig.includes(x.id) ? '★ ' : ''}{x.name} ({x.type})
+            {ig.includes(x.id) ? '★ ' : ''}{x.name}
           </option>
         ))}
       </select>

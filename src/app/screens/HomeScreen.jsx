@@ -682,16 +682,18 @@ function HomeScreen({
                       <div style={{ marginBottom: 8 }}>
                         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{t('home.song.guitar-chosen', 'Guitare choisie')}</div>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 4 }}>
-                          {(selectedGuitar || displayIdealGuitarName) && <span style={{ fontSize: 11, background: 'var(--a5)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '4px 10px', color: 'var(--text-bright)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}><StatusDot score={chosenGuitarScore} ideal={!selectedGuitar || matchGuitarName(songResult.cot_step2_guitars?.[0]?.name, selectedGuitar)}/>{selectedGuitar ? `${selectedGuitar.name} (${selectedGuitar.type})` : displayIdealGuitarName}</span>}
+                          {(selectedGuitar || displayIdealGuitarName) && <span style={{ fontSize: 11, background: 'var(--a5)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: '4px 10px', color: 'var(--text-bright)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}><StatusDot score={chosenGuitarScore} ideal={!selectedGuitar || matchGuitarName(songResult.cot_step2_guitars?.[0]?.name, selectedGuitar)}/>{selectedGuitar ? selectedGuitar.name : displayIdealGuitarName}</span>}
                           <button onClick={() => setShowGuitarPick((p) => !p)} style={{ fontSize: 10, background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '3px 8px', cursor: 'pointer' }}>{t('home.song.change', 'Changer')}</button>
                         </div>
                         {selectedGuitar && chosenGuitarScore && (() => {
                           // Phase 7.83 résidu (2026-05-27) — bucket qualitatif au lieu du score brut.
                           const bucket = bucketizeScore(chosenGuitarScore);
+                          // Phase 7.83 polish — strip emoji (fond coloré redondant).
+                          const stripEmoji = (s) => s.replace(/^[🟢🟡🟠]\s*/u, '');
                           const shortLabels = {
-                            ideal: t('compat.ideal-short', '🟢 Idéal'),
-                            good: t('compat.good-short', '🟡 Bon'),
-                            compromise: t('compat.compromise-short', '🟠 Limite'),
+                            ideal: stripEmoji(t('compat.ideal-short', '🟢 Idéal')),
+                            good: stripEmoji(t('compat.good-short', '🟡 Bon')),
+                            compromise: stripEmoji(t('compat.compromise-short', '🟠 Limite')),
                           };
                           const longLabels = {
                             ideal: t('compat.ideal-match', '🟢 Mariage parfait'),
@@ -723,7 +725,7 @@ function HomeScreen({
                                 setShowGuitarPick(false); setSelectedGuitar(g);
                                 const base = songBaseAI || songResult;
                                 if (base) setSongResult(enrichAIResult({ ...base }, g.type || 'HB', g.id, banksAnn, banksPlug));
-                              }} style={{ fontSize: 10, background: 'var(--a5)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '4px 8px', cursor: 'pointer', color: 'var(--text-sec)' }}>{g.short} ({g.type})</button>)}
+                              }} style={{ fontSize: 10, background: 'var(--a5)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '4px 8px', cursor: 'pointer', color: 'var(--text-sec)' }}>{g.short}</button>)}
                             </div>
                           </div>
                         )}

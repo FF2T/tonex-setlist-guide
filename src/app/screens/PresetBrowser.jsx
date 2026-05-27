@@ -539,7 +539,7 @@ function PresetDetailInline({ name, info, banksAnn, banksPlug, presetContext, gu
                         >
                           <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: lvl.color, flexShrink: 0 }}/>
                           <span style={{ fontWeight: 600, color: 'var(--text-bright)', flex: 1 }}>
-                            {g.name} <span style={{ fontSize: 9, color: 'var(--text-dim)' }}>({g.type})</span>
+                            {g.name}
                           </span>
                           <div style={{ width: 60, height: 4, background: 'var(--a8)', borderRadius: 'var(--r-xs)', overflow: 'hidden', flexShrink: 0 }}>
                             <div style={{ width: `${g.score}%`, height: '100%', background: lvl.color, borderRadius: 'var(--r-xs)' }}/>

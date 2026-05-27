@@ -235,10 +235,15 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           <div><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars} hideStatusText={true}/></div>
           {g && chosenGuitarScore != null && (() => {
             const bucket = bucketizeScore(chosenGuitarScore);
+            // Phase 7.83 polish (2026-05-27) — strip emoji du label affiché
+            // (le fond coloré du pill dit déjà la couleur, le rond emoji
+            // est redondant). Le label complet avec emoji reste dans le
+            // tooltip.
+            const stripEmoji = (s) => s.replace(/^[🟢🟡🟠]\s*/u, '');
             const shortLabels = {
-              ideal: t('compat.ideal-short', '🟢 Idéal'),
-              good: t('compat.good-short', '🟡 Bon'),
-              compromise: t('compat.compromise-short', '🟠 Limite'),
+              ideal: stripEmoji(t('compat.ideal-short', '🟢 Idéal')),
+              good: stripEmoji(t('compat.good-short', '🟡 Bon')),
+              compromise: stripEmoji(t('compat.compromise-short', '🟠 Limite')),
             };
             const longLabels = {
               ideal: t('compat.ideal-match', '🟢 Mariage parfait'),

@@ -44,7 +44,7 @@ function GuitarSelect({ value, onChange, ig = [], guitars = GUITARS, hideStatusT
       >
         <option value="">{t('guitar-select.placeholder', '— Choisir une guitare —')}</option>
         {guitars.map((x) => (
-          <option key={x.id} value={x.id}>{ig.includes(x.id) ? '★ ' : ''}{x.name} ({x.type})</option>
+          <option key={x.id} value={x.id}>{ig.includes(x.id) ? '★ ' : ''}{x.name}</option>
         ))}
       </select>
       {!hideStatusText && ideal && <div style={{ fontSize: 11, color: 'var(--green)' }}>{t('guitar-select.ideal', '✓ Choix optimal')}</div>}
