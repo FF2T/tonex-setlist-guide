@@ -57,14 +57,21 @@ function AppHeader({ profiles, activeProfileId, onProfile, onSwitch, onViewProfi
           ? <span title={t('nav.no-sync-tooltip', 'Mode local — aucune sync Firestore')} style={{ fontSize: 10, color: 'var(--text-dim)' }}>🔒</span>
           : syncStatus && <span style={{ fontSize: 10, color: syncStatus === 'synced' ? 'var(--status-success,var(--green))' : syncStatus === 'syncing' ? 'var(--status-warning,var(--yellow))' : 'var(--text-dim)' }}>{syncStatus === 'synced' ? '☁️' : syncStatus === 'syncing' ? '⏳' : '⚠️'}</span>
         }
-        <span style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'var(--font-mono,monospace)' }}>v{appVersion}</span>
+        {/* Phase 7.85 — whiteSpace:nowrap + flexShrink:0 pour éviter
+            la troncature future (rapport Cowork B23 : risque tronc si
+            numéro 2 chiffres v10.x.y). */}
+        <span style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'var(--font-mono,monospace)', whiteSpace: 'nowrap', flexShrink: 0 }}>v{appVersion}</span>
       </div>
       <div className="nav-desktop" style={{ display: 'none', gap: 4, marginBottom: 12 }}>
         {visibleNav.map((item) => {
           const active = screen === item.id;
           // S9.16 audit Cowork : minHeight 44 (iOS HIG) + padding/fontSize bumpés
           // pour lisibilité desktop (clamp evite hardcode tablette).
-          return <button key={item.id} onClick={() => { onNavigate(item.id); }} style={{ minHeight: 44, background: active ? 'var(--accent-soft,rgba(129,140,248,0.1))' : 'transparent', border: active ? '1px solid var(--border-accent,rgba(129,140,248,0.3))' : '1px solid transparent', color: active ? 'var(--accent,#818cf8)' : 'var(--text-tertiary,var(--text-muted))', borderRadius: 'var(--r-md,8px)', padding: '10px 16px', fontSize: 'clamp(12px, 1.25vw, 14px)', fontWeight: active ? 700 : 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}><NavIcon id={item.id} size={18}/>{item.label}</button>;
+          // Phase 7.85 — État actif renforcé (rapport Cowork B21 P2 :
+          // "seul fond léger distingue"). Background plus opaque +
+          // border 2px accent + box-shadow inset bottom 2px pour
+          // souligner visuellement.
+          return <button key={item.id} onClick={() => { onNavigate(item.id); }} style={{ minHeight: 44, background: active ? 'var(--accent-bg,rgba(129,140,248,0.18))' : 'transparent', border: active ? '1px solid var(--accent,#818cf8)' : '1px solid transparent', color: active ? 'var(--accent,#818cf8)' : 'var(--text-tertiary,var(--text-muted))', borderRadius: 'var(--r-md,8px)', padding: '10px 16px', fontSize: 'clamp(12px, 1.25vw, 14px)', fontWeight: active ? 700 : 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, boxShadow: active ? 'inset 0 -2px 0 var(--accent,#818cf8)' : 'none' }}><NavIcon id={item.id} size={18}/>{item.label}</button>;
         })}
       </div>
     </div>

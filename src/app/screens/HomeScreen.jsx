@@ -565,6 +565,11 @@ function HomeScreen({
                     minHeight: 44,
                     display: 'inline-flex',
                     alignItems: 'center',
+                    // Phase 7.85 — marginLeft 8px crée un séparateur visuel
+                    // avec les chips suggérés (rapport Cowork B25 P2 : "Au
+                    // hasard" se mélangeait visuellement aux chips quand
+                    // wrap sur 2 lignes iPhone 14+).
+                    marginLeft: 8,
                   }}
                   title={t('demo.random-title', 'Tirer un morceau au hasard')}
                 >{t('demo.random-button', '🎲 Au hasard')}</button>

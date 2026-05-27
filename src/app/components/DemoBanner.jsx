@@ -49,7 +49,11 @@ function DemoBanner({ onExit }) {
         zIndex: 50,
         background: 'linear-gradient(90deg, var(--brass-100) 0%, var(--brass-200) 100%)',
         color: 'var(--tolex-900)',
-        padding: '8px 16px',
+        // Phase 7.85 — padding compact desktop (rapport Cowork B19 : banner
+        // 105px de haut sur 1 ligne suffit ~50px). flexWrap conservé pour
+        // mobile mais marginLeft:auto retiré sur le bouton (poussait le
+        // wrap à 3 lignes inutilement sur iPad portrait).
+        padding: '6px 14px',
         fontSize: 12,
         fontWeight: 600,
         textAlign: 'center',
@@ -80,8 +84,10 @@ function DemoBanner({ onExit }) {
         type="button"
         onClick={handleExit}
         // Phase 7.55.7 fix Cowork — cible touch 36px (vs 21px)
+        // Phase 7.85 — marginLeft:auto retiré pour ne plus forcer le wrap
+        // à 3 lignes sur iPad portrait (rapport Cowork B19 + demo banner
+        // wrap iPad). Le bouton reste collé au lien.
         style={{
-          marginLeft: 'auto',
           background: 'rgba(0,0,0,0.08)',
           border: '1px solid var(--brass-400)',
           color: 'var(--tolex-900)',
