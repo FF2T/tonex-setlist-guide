@@ -27,6 +27,7 @@ import {
   getLocalizedText,
 } from '../utils/ai-helpers.js';
 import { findInBanks } from '../utils/preset-helpers.js';
+import NavIcon from '../components/NavIcon.jsx';
 import { resolveDisplayGuitar, filterCotGuitarsToRig } from '../utils/display-guitar.js';
 import { getActiveDevicesForRender } from '../utils/devices-render.js';
 import { fetchAI } from '../utils/fetchAI.js';
@@ -507,7 +508,7 @@ function HomeScreen({
               if (!liveSl) return null;
               return (
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
-                  <button data-testid="home-screen-live" onClick={() => onLive(liveSl.id)} title={tFormat('home.live-title', { name: liveSl.name }, 'Mode scène plein écran sur "{name}"')} style={{ background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-lg)', padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)', fontFamily: 'var(--font-ui)' }}>{tFormat('home.live-button', { name: liveSl.name }, '🎤 Mode scène — {name}')}</button>
+                  <button data-testid="home-screen-live" onClick={() => onLive(liveSl.id)} title={tFormat('home.live-title', { name: liveSl.name }, 'Mode scène plein écran sur "{name}"')} style={{ background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-lg)', padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)', fontFamily: 'var(--font-ui)', display: 'inline-flex', alignItems: 'center', gap: 8 }}><NavIcon id="live" size={18}/>{tFormat('home.live-button-flat', { name: liveSl.name }, 'Mode scène — {name}')}</button>
                 </div>
               );
             })()}

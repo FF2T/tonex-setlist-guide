@@ -45,6 +45,7 @@ import { fetchAI } from '../utils/fetchAI.js';
 import { scoreColor } from '../components/score-utils.js';
 import StatusDot from '../components/StatusDot.jsx';
 import GuitarSelect from '../components/GuitarSelect.jsx';
+import NavIcon from '../components/NavIcon.jsx';
 import PBlock from '../components/PBlock.jsx';
 import FeedbackPanel from '../components/FeedbackPanel.jsx';
 import AIErrorPanel from '../components/AIErrorPanel.jsx';
@@ -190,7 +191,10 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   // utilise sectionTitleStyle() + marginBottom 8 (vs défaut 6).
   const sectionStyle = sectionCard();
   const customSectionStyle = { ...sectionCard(), background: BG_2 };
-  const sectionTitle = (icon, label) => <div style={{ ...sectionTitleStyle(), marginBottom: 8 }}>{icon} {label}</div>;
+  // Vague 1 retrait emojis (2026-05-27) — icon peut être une string emoji
+  // (legacy) ou un JSX element (NavIcon). Le rendering use display:flex
+  // pour aligner verticalement quand icon est un SVG.
+  const sectionTitle = (icon, label) => <div style={{ ...sectionTitleStyle(), marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>{icon}<span>{label}</span></div>;
 
   return (
     <div className="song-row-detail" style={{ background: 'var(--bg-elev-1)', borderRadius: '0 0 12px 12px', padding: '10px 12px', marginBottom: 8, marginTop: -2, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -219,7 +223,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           concentre sur ce que je joue concrètement avec MA guitare choisie
           et MON contexte d'écoute. */}
       <div style={customSectionStyle}>
-        {sectionTitle('🎸', t('song-detail.setup-block', 'Mon setup'))}
+        {sectionTitle(<NavIcon id="guitar" size={16}/>, t('song-detail.setup-block', 'Mon setup'))}
         {/* Phase 7.55.7 S9.2 — GuitarSelect + outputContext + 💬 feedback
             intégrés en tête du Bloc "Mon setup" (déplacés du sticky pour
             que l'action prioritaire soit visible dans le 1er bloc — choix
@@ -511,7 +515,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
               idéal, alternatives catalogue, settings_preset prose, et toggle
               Mode reco avancé en bas (replié — Phase 7.3 boutons). */}
           <div style={sectionStyle}>
-            {sectionTitle('🎯', t('song-detail.reco-block', 'Recommandations IA'))}
+            {sectionTitle(<NavIcon id="target" size={16}/>, t('song-detail.reco-block', 'Recommandations IA'))}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {/* S9.8 NOUVEL ORDRE :
                   1. Recommandations (settings_preset + settings_guitar)
@@ -1077,7 +1081,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           : null;
         return (
           <div style={sectionStyle}>
-            {sectionTitle('🎻', t('song-detail.bass-section', 'Basse'))}
+            {sectionTitle(<NavIcon id="bass" size={16}/>, t('song-detail.bass-section', 'Basse'))}
             {/* Reco IA basse (si présente) */}
             {bassReco && (
               <div style={{ marginBottom: 8 }}>
@@ -1165,7 +1169,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           fiche (choix Sébastien 25/05). Le contexte/référence vient
           après les actions (Mon Setup + Recos IA + Feedback). */}
       <div style={sectionStyle}>
-        {sectionTitle('📚', t('song-detail.info-section', 'Infos morceau'))}
+        {sectionTitle(<NavIcon id="info" size={16}/>, t('song-detail.info-section', 'Infos morceau'))}
         {(songInfo.year || songInfo.album || songInfo.key || songInfo.bpm) && <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-muted)', marginBottom: 4 }}>{songInfo.year}{songInfo.album ? ' · ' + songInfo.album : ''}{songInfo.key ? ' · ' + songInfo.key : ''}{songInfo.bpm ? ' · ' + songInfo.bpm + ' BPM' : ''}</div>}
         {songInfo.desc && <div className="prose-readable" style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', lineHeight: 1.5, marginBottom: 6 }}>{getLocalizedText(songInfo.desc, locale)}</div>}
         {aiC && (aiC.ref_guitarist || aiC.ref_guitar || aiC.ref_amp) && (
