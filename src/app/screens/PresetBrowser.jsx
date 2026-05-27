@@ -626,7 +626,7 @@ function PresetList({ filtered, selected, setSelected, banksAnn, banksPlug, full
                   <div style={{ fontSize: 12, color: isSel ? 'var(--accent)' : 'var(--text-bright)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
                   <div style={{ display: 'flex', gap: 5, alignItems: 'center', marginTop: 2, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{info.amp}</span>
-                    {(info.pack || info.amp) && <span style={{ fontSize: 9, color: 'var(--text-muted)', background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '1px 5px' }}>{info.pack || info.amp}</span>}
+                    {info.pack && info.pack !== info.amp && <span style={{ fontSize: 9, color: 'var(--text-muted)', background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '1px 5px' }}>{info.pack}</span>}
                     {annLoc && <span style={{ fontSize: 9, color: 'var(--accent)', background: 'var(--accent-bg)', borderRadius: 'var(--r-sm)', padding: '1px 5px', fontWeight: 700 }}>📦{annLoc.bank}{annLoc.slot}</span>}
                     {plugLoc && <span style={{ fontSize: 9, color: 'var(--accent)', background: 'rgba(165,180,252,0.1)', borderRadius: 'var(--r-sm)', padding: '1px 5px', fontWeight: 700 }}>🔌{plugLoc.bank}{plugLoc.slot}</span>}
                   </div>
