@@ -776,17 +776,26 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
     pedales: { label: t('sound.pedals-label', 'Pédales de drive'), desc: t('sound.pedals-desc', 'Captures pédales seules'), filter: (i) => (i.amp || '').includes('drive') || (i.amp || '').includes('Pedal') || (i.amp || '').toLowerCase().includes('pédale') },
   };
 
+  // Phase 8.9 — ampBrands respecte le filtre instrument haut niveau.
+  // Sans ça, une tuile "Marshall" affichait "126 presets" alors que
+  // 0 captures Marshall sont bass → tuile vide en mode bass-only.
+  // Le count est recalculé sur les entries filtrées par isBassPreset.
   const ampBrands = useMemo(() => {
     const brands = {};
-    Object.values(fullCatalog).forEach((info) => {
+    Object.entries(fullCatalog).forEach(([name, info]) => {
       if (!info.amp) return;
+      if (instrumentFilter !== 'all') {
+        const isBass = isBassPreset(name, info);
+        if (instrumentFilter === 'bass' && !isBass) return;
+        if (instrumentFilter === 'guitar' && isBass) return;
+      }
       let brand = info.amp.split(' ')[0];
       if (brand === 'Dr.' || brand === 'Two' || brand === 'Bad' || brand === 'Divided') brand = info.amp.split(' ').slice(0, 2).join(' ');
       if (!brands[brand]) brands[brand] = 0;
       brands[brand]++;
     });
     return Object.entries(brands).sort((a, b) => b[1] - a[1]);
-  }, [fullCatalog]);
+  }, [fullCatalog, instrumentFilter]);
 
   const filtered = useMemo(() => Object.entries(fullCatalog).filter(([name, info]) => {
     // Phase 8.9 — filtre instrument haut niveau (avant tout autre filtre)
@@ -814,19 +823,30 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
   }), [soundProfile, filterBrand, filterModel, search, instrumentFilter, fullCatalog, mergedContext]);
 
   const [randomPick, setRandomPick] = useState(null);
+  // Phase 8.9 — random preset respecte filter instrument
   const pickRandom = () => {
-    const pool = Object.entries(fullCatalog);
+    const pool = Object.entries(fullCatalog).filter(([name, info]) => {
+      if (instrumentFilter === 'all') return true;
+      const isBass = isBassPreset(name, info);
+      return instrumentFilter === 'bass' ? isBass : !isBass;
+    });
     if (!pool.length) return;
     const [name, info] = pool[Math.floor(Math.random() * pool.length)];
     setRandomPick({ name, info });
     setSelected(null);
   };
 
+  // Phase 8.9 — ampFamilies respecte aussi le filtre instrument.
   const ampFamilies = useMemo(() => {
     if (!filterBrand) return [];
     const fams = {};
-    Object.values(fullCatalog).forEach((info) => {
+    Object.entries(fullCatalog).forEach(([name, info]) => {
       if (!info.amp) return;
+      if (instrumentFilter !== 'all') {
+        const isBass = isBassPreset(name, info);
+        if (instrumentFilter === 'bass' && !isBass) return;
+        if (instrumentFilter === 'guitar' && isBass) return;
+      }
       let b = info.amp.split(' ')[0];
       if (b === 'Dr.' || b === 'Two' || b === 'Bad' || b === 'Divided') b = info.amp.split(' ').slice(0, 2).join(' ');
       if (b !== filterBrand) return;
@@ -838,7 +858,7 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
       fams[fam].amps.add(info.amp);
     });
     return Object.entries(fams).map(([fam, data]) => [fam, { count: data.count, amps: [...data.amps].sort() }]).sort((a, b) => b[1].count - a[1].count);
-  }, [fullCatalog, filterBrand, soundProfile]);
+  }, [fullCatalog, filterBrand, soundProfile, instrumentFilter]);
 
   const hasFilter = soundProfile !== 'all' || filterBrand || search.trim();
   return (
@@ -974,7 +994,8 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
 
       {!hasFilter && (
         <div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 10 }}>{tFormat('preset-browser.browse-by-amp', { count: Object.keys(fullCatalog).length }, 'Parcourir par ampli — {count} presets')}</div>
+          {/* Phase 8.9 — count total reflète aussi le filtre instrument */}
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 10 }}>{tFormat('preset-browser.browse-by-amp', { count: ampBrands.reduce((s, [, n]) => s + n, 0) }, 'Parcourir par ampli — {count} presets')}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6 }}>
             {ampBrands.slice(0, 18).map(([brand, count]) => (
               <button key={brand} onClick={() => { setFilterBrand(brand); setFilterModel(''); }}
