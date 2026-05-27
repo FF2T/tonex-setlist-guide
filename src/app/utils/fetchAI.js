@@ -84,7 +84,7 @@ function buildInstalledSlotsSection(banksAnn, banksPlug) {
   return lines.join('\n');
 }
 
-function fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, feedback, availableSources, recoMode, guitarBias, outputContext, preferredStyles) {
+function fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, feedback, availableSources, recoMode, guitarBias, outputContext, preferredStyles, basses, bassAmps) {
   guitars = guitars || GUITARS;
   const g = guitars.find((x) => x.id === gId);
   const gType = g?.type || 'HB';
@@ -152,6 +152,23 @@ function fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, fe
     const labels = preferredStyles.map((s) => STYLE_LABELS[s] || s).join(', ');
     return `\nPRÉFÉRENCES MUSICALES USER : tu joues principalement ${labels}. Soft hint contextuel — utile pour ajuster le ton de tes conseils (ex. analogies dans cot_step1, références d'autres morceaux du même style). Ne filtre PAS le scoring du morceau actuel selon ces préférences (le morceau garde son style spécifique).`;
   })();
+  // Phase 8.4 — Intégration basse. Si l'utilisateur a au moins 1 basse
+  // OU 1 ampli basse traditionnel, active la section "RECOMMANDATION
+  // BASSE". L'IA détermine elle-même si le morceau a une ligne de basse
+  // notable (sa connaissance du catalogue musical historique). Si le
+  // morceau n'a pas de ligne de basse mémorable (ex. solo guitare
+  // acoustique), elle retourne bass_recommendation: null.
+  const hasBassContext = (Array.isArray(basses) && basses.length > 0)
+    || (Array.isArray(bassAmps) && bassAmps.length > 0);
+  const bassContextLine = (() => {
+    if (!hasBassContext) return '';
+    const bassesList = (basses || []).map((b) => `- ${b.name} (${b.type}, ${b.brand})`).join('\n');
+    const ampsList = (bassAmps || []).map((a) => `- ${a.name} (${a.brand}, ${a.wattage}W, channels: ${(a.channels || []).join('/')}, EQ: ${(a.eq || []).join('/')})`).join('\n');
+    const sections = [];
+    if (bassesList) sections.push(`COLLECTION DE BASSES DISPONIBLES :\n${bassesList}`);
+    if (ampsList) sections.push(`AMPLIS BASSE TRADITIONNELS DISPONIBLES :\n${ampsList}`);
+    return `\n${sections.join('\n\n')}\n\nSi ce morceau a une ligne de basse notable (riff bassiste signature ou contribution importante), recommande aussi quelle basse + quel matériel basse utiliser. Sinon retourne bass_recommendation: null.`;
+  })();
   const gProfiles = guitars.map((x) => {
     const p = findGuitarProfile(x.id);
     return `- ${x.name} (${x.type}) : ${p ? p.desc : 'profil inconnu'}`;
@@ -162,7 +179,7 @@ Guitare sélectionnée : ${g ? g.name + ' (' + g.type + ')' : 'non précisée'}.
 
 COLLECTION DE GUITARES DISPONIBLES :
 ${gProfiles}
-${feedbackLine}${modeLine}${biasLine}${tmpCatalogLine}${installedSlotsLine}${outputContextLine}${preferredStylesLine}
+${feedbackLine}${modeLine}${biasLine}${tmpCatalogLine}${installedSlotsLine}${outputContextLine}${preferredStylesLine}${bassContextLine}
 INSTRUCTIONS : Tu dois suivre un raisonnement structuré AVANT de donner ta recommandation. Ce raisonnement DOIT apparaître dans le JSON de sortie.
 
 ÉTAPE 1 – PROFIL TONAL DU MORCEAU
@@ -375,6 +392,34 @@ Le champ "settings_guitar" est de la PROSE complémentaire à playing_hints (qui
 
 Idem pour "settings_guitar" : ce sont des conseils de jeu et d'utilisation des contrôles guitare (volume, tone, micros, attaque, palm muting…), pas des corrections de la guitare elle-même.
 
+ÉTAPE 8 – RECOMMANDATION BASSE (Phase 8.4) — conditionnelle
+
+Si la section "COLLECTION DE BASSES DISPONIBLES" et/ou "AMPLIS BASSE TRADITIONNELS DISPONIBLES" apparaît ci-dessus, et SI le morceau a une ligne de basse notable (riff bassiste signature, contribution importante du bassiste sur ce morceau), retourne un objet "bass_recommendation" dans la sortie JSON. Sinon retourne null.
+
+Format de bass_recommendation :
+{
+  "ideal_bass": "nom EXACT d'une basse de la collection" (string, OBLIGATOIRE si non-null),
+  "bass_reason": {"fr":"1-2 phrases justifiant le choix de cette basse","en":"...","es":"..."} (TRILINGUE),
+  "ref_bassist": "nom du bassiste original" (string),
+  "ref_bass_guitar": "modèle basse historique" (string),
+  "ref_bass_amp": "modèle ampli basse historique" (string),
+  "amp_settings": {"gain": 0-10, "bass": 0-10, "low_mid": 0-10, "high_mid": 0-10, "treble": 0-10, "master": 0-10, "channel": "Clean" | "Drive" | autre} (OPTIONNEL si user a un ampli basse traditionnel coché — réglages 0-10 sur les boutons),
+  "settings_bass": {"fr":"conseils de jeu basse (doigts/médiator, position chevalet/manche, technique)","en":"...","es":"..."} (TRILINGUE, OPTIONNEL)
+}
+
+Critères pour déterminer "ligne de basse notable" :
+- Riff de basse signature reconnaissable (Under Pressure de Queen, Money de Pink Floyd, Hysteria de Muse, Roundabout de Yes)
+- Basse mise en avant dans l'arrangement (funk, reggae, motown)
+- Bassiste iconique du groupe (John Deacon Queen, Jack Bruce Cream, Geddy Lee Rush)
+
+Si le morceau a une ligne de basse purement support (rock standard sans basse marquante), retourne bass_recommendation: null. Si l'utilisateur joue la basse à ce morceau, il aura la reco guitare mais pas de section basse spécifique — c'est OK.
+
+amp_settings : seulement si l'utilisateur a un ampli basse traditionnel coché. Valeurs typiques :
+- Rock vintage (Ampeg SVT) : gain 4-6, bass 6-7, low_mid 5-6, high_mid 4-5, treble 4-5, master 5-7
+- Pop/funk (Markbass) : gain 3-5, bass 5, low_mid 6, high_mid 6, treble 6, master 5-7
+- Hard rock (Rumble + Overdrive) : gain 6-7, bass 6, low_mid 6, high_mid 5, treble 5, master 6-7
+- Reggae/dub : gain 3-4, bass 8, low_mid 7, high_mid 3, treble 2, master 5-6
+
 CONSIGNE DE REGISTRE (Phase 7.50) — IMPÉRATIVE :
 Tutoie systématiquement l'utilisateur dans TOUS les champs texte (cot_step1, cot_step3_amp, song_desc, guitar_reason, settings_preset, settings_guitar, cot_step2_guitars[].reason, cot_step4_score.*.reason).
 - FR : utilise "tu", "ta", "ton", "tes", "te". JAMAIS "vous", "votre", "vos". Verbes à la 2e personne du singulier informel (ex : "essaie", "pousse", "garde", "mets"). PAS "essayez", "poussez", "gardez", "mettez".
@@ -387,7 +432,7 @@ OUTPUT TRILINGUE — Format des champs texte :
 Les champs marqués "TEXTE TRILINGUE" ci-dessous DOIVENT être un objet à 3 clés {"fr":"...","en":"...","es":"..."} avec la même information traduite dans chaque langue. Garde le sens et le niveau de détail constant entre les 3 versions. Les NOMS PROPRES (noms d'artistes, modèles d'amplis "Marshall JCM800", noms de guitares "Stratocaster '62", titres de morceaux) restent identiques dans les 3 langues. Les autres champs (noms, scores numériques, énums) restent des valeurs scalaires.
 
 Réponds en JSON pur (sans backticks ni markdown) :
-{"cot_step1":{"fr":"3-5 phrases analysant le profil tonal","en":"3-5 sentences analyzing the tonal profile","es":"3-5 frases analizando el perfil tonal"},"cot_step2_guitars":[{"name":"nom exact guitare","score":85,"reason":{"fr":"justification","en":"justification","es":"justificación"}},{"name":"2e guitare","score":75,"reason":{"fr":"...","en":"...","es":"..."}}],"cot_step3_amp":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"cot_step4_score":{"guitar_score":85,"micro":{"score":90,"reason":{"fr":"...","en":"...","es":"..."}},"body":{"score":80,"reason":{"fr":"...","en":"...","es":"..."}},"history":{"score":95,"reason":{"fr":"...","en":"...","es":"..."}},"amp_match":{"score":85,"reason":{"fr":"...","en":"...","es":"..."}}},"song_year":1970,"song_album":"album","song_desc":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"song_key":"Em","song_bpm":120,"song_style":"blues/rock/hard_rock/jazz/metal/pop","target_gain":5,"tonal_school":"fender_clean/marshall_crunch/vox_chime/dumble_smooth/mesa_heavy/hiwatt_clean","pickup_preference":"HB/SC/P90/any","ideal_guitar":"nom complet guitare idéale","guitar_reason":{"fr":"...","en":"...","es":"..."},"settings_preset":{"fr":"conseils","en":"settings","es":"ajustes"},"settings_guitar":{"fr":"conseils de jeu","en":"playing tips","es":"consejos de juego"},"ref_guitarist":"guitariste","ref_guitar":"modèle guitare","ref_amp":"modèle ampli","ref_effects":"effets ou 'Aucun effet'","preset_tmp":"nom exact patch TMP OU null","preset_ann_name":"nom EXACT capture OU null","preset_plug_name":"nom EXACT capture OU null","preset_settings_v1":{"cab_enabled":true,"main":{"gain":{"value":6.2,"why":{"fr":"...","en":"...","es":"..."}},"bass":{"value":4.5,"why":{"fr":"...","en":"...","es":"..."}},"mid":{"value":7.0,"why":{"fr":"...","en":"...","es":"..."}},"treble":{"value":5.3,"why":{"fr":"...","en":"...","es":"..."}},"volume":{"value":6.0,"why":{"fr":"...","en":"...","es":"..."}}},"alt":{"presence":{"value":4.7,"why":{"fr":"...","en":"...","es":"..."}},"depth":{"value":5.0,"why":{"fr":"...","en":"...","es":"..."}},"reverb_mix":{"value":16,"why":{"fr":"...","en":"...","es":"..."}},"comp_threshold":{"value":-18,"why":{"fr":"...","en":"...","es":"..."}},"gate_threshold":{"value":-56,"why":{"fr":"...","en":"...","es":"..."}}},"why":{"fr":"...","en":"...","es":"..."},"tweaks":[{"symptom":{"fr":"trop brillant sur FRFR","en":"too bright on FRFR","es":"demasiado brillante en FRFR"},"fix":"Treble -0.5 + Presence -0.3"},{"symptom":{"fr":"noyé dans le mix groupe","en":"buried in band mix","es":"enterrado en la mezcla"},"fix":"Mid +0.5 + Volume +0.3"}]},"playing_hints":{"pickup":"Bridge","guitar_volume":"8-10","guitar_tone":"10 (open)","stereo":false},"fx_blocks":{"noise_gate":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}},"compressor":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}},"modulation":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}},"delay":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}},"reverb":{"enabled":true,"type":"Spring 2","time":2,"pre_delay":5,"color":0,"mix":10,"why":{"fr":"...","en":"...","es":"..."}}}} (note : cab_enabled DOIT être true ; CHAQUE knob doit avoir value+why trilingue Phase 7.86 ; tweaks = MIN 3 MAX 8 ajustements empiriques spécifiques au morceau Phase 9.4/9.4.1 ; playing_hints = 4 champs scalaires Phase 9.5 ; fx_blocks Phase 9.2 N1 + Phase 9.7 N2 = 5 blocs avec enabled bool + type/mode enum + sub-params numériques quand enabled=true + why trilingue par bloc)
+{"cot_step1":{"fr":"3-5 phrases analysant le profil tonal","en":"3-5 sentences analyzing the tonal profile","es":"3-5 frases analizando el perfil tonal"},"cot_step2_guitars":[{"name":"nom exact guitare","score":85,"reason":{"fr":"justification","en":"justification","es":"justificación"}},{"name":"2e guitare","score":75,"reason":{"fr":"...","en":"...","es":"..."}}],"cot_step3_amp":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"cot_step4_score":{"guitar_score":85,"micro":{"score":90,"reason":{"fr":"...","en":"...","es":"..."}},"body":{"score":80,"reason":{"fr":"...","en":"...","es":"..."}},"history":{"score":95,"reason":{"fr":"...","en":"...","es":"..."}},"amp_match":{"score":85,"reason":{"fr":"...","en":"...","es":"..."}}},"song_year":1970,"song_album":"album","song_desc":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"song_key":"Em","song_bpm":120,"song_style":"blues/rock/hard_rock/jazz/metal/pop","target_gain":5,"tonal_school":"fender_clean/marshall_crunch/vox_chime/dumble_smooth/mesa_heavy/hiwatt_clean","pickup_preference":"HB/SC/P90/any","ideal_guitar":"nom complet guitare idéale","guitar_reason":{"fr":"...","en":"...","es":"..."},"settings_preset":{"fr":"conseils","en":"settings","es":"ajustes"},"settings_guitar":{"fr":"conseils de jeu","en":"playing tips","es":"consejos de juego"},"ref_guitarist":"guitariste","ref_guitar":"modèle guitare","ref_amp":"modèle ampli","ref_effects":"effets ou 'Aucun effet'","preset_tmp":"nom exact patch TMP OU null","preset_ann_name":"nom EXACT capture OU null","preset_plug_name":"nom EXACT capture OU null","preset_settings_v1":{"cab_enabled":true,"main":{"gain":{"value":6.2,"why":{"fr":"...","en":"...","es":"..."}},"bass":{"value":4.5,"why":{"fr":"...","en":"...","es":"..."}},"mid":{"value":7.0,"why":{"fr":"...","en":"...","es":"..."}},"treble":{"value":5.3,"why":{"fr":"...","en":"...","es":"..."}},"volume":{"value":6.0,"why":{"fr":"...","en":"...","es":"..."}}},"alt":{"presence":{"value":4.7,"why":{"fr":"...","en":"...","es":"..."}},"depth":{"value":5.0,"why":{"fr":"...","en":"...","es":"..."}},"reverb_mix":{"value":16,"why":{"fr":"...","en":"...","es":"..."}},"comp_threshold":{"value":-18,"why":{"fr":"...","en":"...","es":"..."}},"gate_threshold":{"value":-56,"why":{"fr":"...","en":"...","es":"..."}}},"why":{"fr":"...","en":"...","es":"..."},"tweaks":[{"symptom":{"fr":"trop brillant sur FRFR","en":"too bright on FRFR","es":"demasiado brillante en FRFR"},"fix":"Treble -0.5 + Presence -0.3"},{"symptom":{"fr":"noyé dans le mix groupe","en":"buried in band mix","es":"enterrado en la mezcla"},"fix":"Mid +0.5 + Volume +0.3"}]},"playing_hints":{"pickup":"Bridge","guitar_volume":"8-10","guitar_tone":"10 (open)","stereo":false},"fx_blocks":{"noise_gate":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}},"compressor":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}},"modulation":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}},"delay":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}},"reverb":{"enabled":true,"type":"Spring 2","time":2,"pre_delay":5,"color":0,"mix":10,"why":{"fr":"...","en":"...","es":"..."}}},"bass_recommendation":null} (note : cab_enabled DOIT être true ; CHAQUE knob doit avoir value+why trilingue Phase 7.86 ; tweaks = MIN 3 MAX 8 ajustements empiriques spécifiques au morceau Phase 9.4/9.4.1 ; playing_hints = 4 champs scalaires Phase 9.5 ; fx_blocks Phase 9.2 N1 + Phase 9.7 N2 = 5 blocs avec enabled bool + type/mode enum + sub-params numériques quand enabled=true + why trilingue par bloc)
 
 Champs TEXTE TRILINGUE (à fournir en {fr, en, es}) :
 - cot_step1, cot_step3_amp, song_desc, guitar_reason, settings_preset, settings_guitar

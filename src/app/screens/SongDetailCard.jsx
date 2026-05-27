@@ -31,7 +31,9 @@ import { getSongInfo } from '../../core/songs.js';
 import { getSourceInfo } from '../../core/sources.js';
 import { AMP_TAXONOMY, EXTERNAL_PACK_CATALOG } from '../../data/data_context.js';
 import { TSR_PACK_ZIPS } from '../../data/tsr-packs.js';
-import { getIg, getSongHist } from '../utils/song-helpers.js';
+import { getIg, getSongHist, getSongBassHist } from '../utils/song-helpers.js';
+import { findBass } from '../../core/basses.js';
+import { findBassAmp } from '../../core/bass-amps.js';
 import {
   enrichAIResult, mergeBestResults, updateAiCache, computeRigSnapshot,
   getBestResult, getLocalizedText,
@@ -116,7 +118,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
     // Phase 3.6). findGuitarByAIName ligne suivante garde allRigsGuitars
     // en fallback pour résoudre les aiCache historiques pré-Phase 7.66
     // qui contiennent un ideal_guitar hors rig actif.
-    fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, historicalFeedback, null, effectiveRecoMode, guitarBias, song.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || [])
+    fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, historicalFeedback, null, effectiveRecoMode, guitarBias, song.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || [], (profile?.myBasses || []).map((id) => findBass(id)).filter(Boolean), (profile?.myBassAmps || []).map((id) => findBassAmp(id)).filter(Boolean))
       .then((r) => {
         setLocalAiResult(r);
         setLocalAiErr(null);
@@ -992,7 +994,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   setReloading(true);
                   const prev = aiC;
                   const effectiveRecoMode = song.recoMode || profile?.recoMode || 'balanced';
-                  fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, fb, null, effectiveRecoMode, guitarBias, song.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || [])
+                  fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, fb, null, effectiveRecoMode, guitarBias, song.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || [], (profile?.myBasses || []).map((id) => findBass(id)).filter(Boolean), (profile?.myBassAmps || []).map((id) => findBassAmp(id)).filter(Boolean))
                     .then((r) => {
                       const pick = mergeBestResults(prev, r);
                       setLocalAiResult(pick);
@@ -1030,6 +1032,113 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           onClose={() => setCurationModalPreset(null)}
         />
       )}
+
+      {/* Phase 8.3 — Section 🎻 Basse. Gated par :
+          - profile.instruments.includes('bass') (profil multi-instrument
+            OU bassiste pur)
+          - ET (seed bass info OU aiCache.bass_recommendation présent)
+          Si le morceau n'a pas de ligne de basse notable, section
+          masquée. */}
+      {(() => {
+        const hasBassInstrument = Array.isArray(profile?.instruments)
+          && profile.instruments.includes('bass');
+        if (!hasBassInstrument) return null;
+        const bassHist = getSongBassHist(song);
+        const bassReco = aiC?.bass_recommendation;
+        if (!bassHist && !bassReco) return null;
+        // Resolve basses + ampli reco depuis id (helpers Phase 8.1)
+        const userBasses = (profile?.myBasses || [])
+          .map((id) => findBass(id))
+          .filter(Boolean);
+        const userBassAmps = (profile?.myBassAmps || [])
+          .map((id) => findBassAmp(id))
+          .filter(Boolean);
+        // ideal_bass de l'IA : peut être un name complet (match against
+        // BASSES catalog) ou juste un nom indicatif. Resolve via findBass
+        // par name si possible.
+        let idealBassObj = null;
+        if (bassReco?.ideal_bass) {
+          // Try match by name (case-insensitive substring)
+          const n = String(bassReco.ideal_bass).toLowerCase();
+          idealBassObj = userBasses.find(
+            (b) => String(b.name).toLowerCase().includes(n)
+              || n.includes(String(b.name).toLowerCase())
+          ) || null;
+        }
+        const ampSettings = bassReco?.amp_settings;
+        const hasAmpSettings = ampSettings
+          && typeof ampSettings === 'object'
+          && Object.keys(ampSettings).length > 0;
+        const settingsBass = bassReco?.settings_bass
+          ? getLocalizedText(bassReco.settings_bass, locale)
+          : null;
+        const bassReason = bassReco?.bass_reason
+          ? getLocalizedText(bassReco.bass_reason, locale)
+          : null;
+        return (
+          <div style={sectionStyle}>
+            {sectionTitle('🎻', t('song-detail.bass-section', 'Basse'))}
+            {/* Reco IA basse (si présente) */}
+            {bassReco && (
+              <div style={{ marginBottom: 8 }}>
+                {idealBassObj && (
+                  <div style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', marginBottom: 4 }}>
+                    <b style={{ color: 'var(--text-muted)' }}>{t('song-detail.bass-ideal', 'Basse idéale :')}</b>{' '}
+                    {idealBassObj.name}
+                  </div>
+                )}
+                {!idealBassObj && bassReco.ideal_bass && (
+                  <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: 4 }}>
+                    {tFormat('song-detail.bass-ideal-out-of-rig', { name: bassReco.ideal_bass }, 'Basse idéale (hors collection) : {name}')}
+                  </div>
+                )}
+                {bassReason && (
+                  <div className="prose-readable" style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', lineHeight: 1.4, marginBottom: 6 }}>
+                    {bassReason}
+                  </div>
+                )}
+                {/* Mode ampli traditionnel : amp_settings si user a un ampli basse coché */}
+                {userBassAmps.length > 0 && hasAmpSettings && (
+                  <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px', marginBottom: 6 }}>
+                    <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>
+                      {tFormat('song-detail.bass-amp-settings', { amp: userBassAmps[0].short }, 'Sur ton {amp}')}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', fontFamily: 'var(--font-mono)' }}>
+                      {Object.entries(ampSettings).map(([k, v]) => (
+                        <span key={k}><b style={{ color: 'var(--text-muted)' }}>{k.replace(/_/g, ' ')}</b>: {v}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Conseils de jeu basse (settings_bass prose) */}
+                {settingsBass && (
+                  <div className="prose-readable" style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', lineHeight: 1.45 }}>
+                    <b style={{ color: 'var(--text-muted)' }}>{t('song-detail.bass-playing-tips', 'Jeu :')}</b>{' '}
+                    {settingsBass}
+                  </div>
+                )}
+              </div>
+            )}
+            {/* Référence historique (toujours visible si seed bass info) */}
+            {bassHist && (
+              <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', lineHeight: 1.5, paddingTop: bassReco ? 4 : 0, borderTop: bassReco ? '1px solid var(--a6)' : 'none' }}>
+                <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 'clamp(10px, 1.15vw, 12px)' }}>
+                  {t('song-detail.bass-original-ref', 'Référence originale :')}
+                </span><br/>
+                <span style={{ fontWeight: 600, color: 'var(--text-sec)' }}>{bassHist.bassist}</span>{' · '}
+                🎻 {bassHist.bass_guitar}{' · '}
+                🔊 {bassHist.bass_amp}
+                {bassHist.effects && (() => {
+                  const fx = getLocalizedText(bassHist.effects, locale);
+                  return fx && fx !== 'Aucun effet' && !/no effect|ningún efecto/i.test(fx)
+                    ? <> · 🎚 {fx}</>
+                    : null;
+                })()}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Phase 7.55.7 S9.2 — Bloc Infos morceau déplacé EN BAS de la
           fiche (choix Sébastien 25/05). Le contexte/référence vient

@@ -819,6 +819,13 @@ const es = {
   'song-detail.guitar-settings': 'Guitarra:',
   'song-detail.improvable': 'Mejorable — {score}% máx',
   'song-detail.info-section': 'Info de la canción',
+  // Phase 8.3 — Bass section
+  'song-detail.bass-section': 'Bajo',
+  'song-detail.bass-ideal': 'Bajo ideal:',
+  'song-detail.bass-ideal-out-of-rig': 'Bajo ideal (fuera de tu colección): {name}',
+  'song-detail.bass-amp-settings': 'En tu {amp}',
+  'song-detail.bass-playing-tips': 'Tocado:',
+  'song-detail.bass-original-ref': 'Referencia original:',
   'song-detail.install': 'Instalar',
   'song-detail.install-target': 'Instalar "{preset}" en:',
   'song-detail.installed-bank': '✓ Instalado — Banco {bank}{slot}',

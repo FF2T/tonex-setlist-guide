@@ -761,7 +761,47 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-27 soir, Phase 7.85 close — Audit responsive Cowork 4 batchs + retours user)
+## État actuel (2026-05-27 soir tard, Phase 8 V1 close — Intégration basse MVP)
+
+**Backline v8.14.250 / SW backline-v350 / STATE_VERSION 13 / 1729 tests verts.**
+
+### Phase 8 V1 — Intégration basse (3 sous-phases livrées)
+
+| Sous-phase | Livrable |
+|---|---|
+| **8.1** Data layer (commit `795cdaa`) | `core/basses.js` (8 modèles iconiques + 2 Sébastien : Jazz Bass Player Plus + Precision American Vintage II) · `core/bass-amps.js` (4 amplis trad : Fender Rumble 100 + Ampeg SVT + Markbass + Aguilar) · STATE_VERSION 12→13 avec `migrateV12toV13` additive · `profile.instruments` + `myBasses` + `customBasses` + `myBassAmps` + `customBassAmps` · 3 morceaux bass-jouables ajoutés au seed (Sunshine of Your Love · Under Pressure · I Love Rock 'n' Roll) avec `bass: {bassist, bass_guitar, bass_amp, effects}` dans SONG_HISTORY · 19 tests Vitest |
+| **8.4** Prompt fetchAI étendu | Signature étendue `fetchAI(..., basses, bassAmps)` (params optionnels) · Section conditionnelle "COLLECTION DE BASSES" + "AMPLIS BASSE TRADITIONNELS" injectée si user a basses cochées · Nouvelle ÉTAPE 8 dans le prompt : Gemini retourne `bass_recommendation: {ideal_bass, bass_reason, ref_bassist, ref_bass_guitar, ref_bass_amp, amp_settings, settings_bass}` ou `null` si pas de ligne de basse notable · JSON template output mis à jour |
+| **8.3** UI SongDetailCard | Nouveau helper `getSongBassHist(song)` retourne `SONG_HISTORY[song.id].bass || null` · Section "🎻 Basse" entre Feedback IA et Infos morceau · Gated par `profile.instruments.includes('bass')` ET (seed bass OU `aiC.bass_recommendation`) · Affichage hiérarchique : basse idéale + reason + Sur ton ampli {amp} avec amp_settings 0-10 + conseils de jeu prose + référence originale historique · 2 call sites fetchAI dans SongDetailCard mis à jour pour passer `basses` + `bassAmps` |
+
+### Comportement utilisateur post-déploiement
+
+- **Admin Sébastien** (profil v13 migré automatiquement au reload) :
+  - `instruments` posé à `['guitar', 'bass']` (multi-instrument)
+  - `myBasses` posé à `['jazz_bass_player_plus', 'precision_avri']` (2 Fender Sébastien)
+  - `myBassAmps` posé à `['rumble_100']`
+  - À l'ouverture d'une fiche song bass-jouable (Sunshine of Your Love, Under Pressure, I Love Rock 'n' Roll) → section "🎻 Basse" visible avec référence historique. Au prochain re-fetch IA (clic feedback ou "🤖 Analyser/MAJ") → l'IA peut retourner `bass_recommendation` avec amp_settings pour le Rumble 100.
+- **Non-admin existants** (Bruno/Francisco/etc.) : `instruments=['guitar']` par défaut → comportement strictement inchangé. Pas de section basse visible (toggle bass désactivé tant que UI Mon Profil pas étendue Phase 8.6).
+
+### Hors scope Phase 8 V1 (notés pour Phase 8.6+ future)
+
+- **UI Mon Profil — toggle bass** (~1-2h) : permettre à un user non-admin d'activer `instruments.includes('bass')` + cocher ses basses + bass amps. Aujourd'hui Sébastien admin a les valeurs hardcodées via `makeDefaultProfile`. Les autres profils restent guitar-only.
+- **Custom basses + custom bass amps** (~2-3h) : parallèle à `profile.customGuitars` + `customPacks`. UI dans Mon Profil pour ajouter une basse hors catalog (ex. Bass Elliot pour un futur beta-tester).
+- **Scoring V9 dédié basse** (`core/scoring/bass.js`) : reporté. L'IA Gemini fait le scoring contextuel via prompt étendu — qualité MVP suffisante. À monitorer en pratique. Si signal user que les recos basse manquent de cohérence, Phase 8.7 ajoute scoring local.
+- **LiveScreen multi-instrument** : section basse dans le mode scène plein écran. Non implémenté V1.
+- **HomeScreen fiche dépliée** : section basse non ajoutée V1 (seul SongDetailCard via Setlists vue dépliée affiche bass).
+- **Pédales basse curées** : Compresseur Aguilar TLC, Octaver Boss OC-2, EBS MultiComp etc. Phase 8.8 si bandwidth.
+- **Ampli traditionnel guitare + pédalier** : pivot Phase 13 séparée (non démarrée). Le pattern Phase 8.1 BASS_AMPS est réutilisable pour amplis guitare trad quand on l'attaque.
+
+### Bilan tests
+
+- **1729/1729 tests verts** à chaque étape (zéro régression)
+- Bundle 2565 → 2581 KB (+16 KB pour catalogs + UI section + i18n + prompt étendu)
+- **STATE_VERSION 12 → 13** (migration additive, idempotente)
+- Cohabitation v12/v13 sur Firestore : un device pré-Phase 8 reçoit un state v13 → ignore champs inconnus (`instruments` etc.) sans erreur. Un device post-Phase 8 reçoit un state v12 → `ensureProfileV13` au pull comble les champs.
+
+---
+
+## État précédent (2026-05-27 soir, Phase 7.85 close — Audit responsive Cowork 4 batchs + retours user)
 
 **Backline v8.14.243 / SW backline-v343 / STATE_VERSION 12 / 1710 tests verts.**
 

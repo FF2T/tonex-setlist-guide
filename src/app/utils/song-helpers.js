@@ -102,7 +102,20 @@ function getSongHist(song, aiResult = null) {
   return SONG_HISTORY[song.id] || null;
 }
 
+// Phase 8.1 — Retourne {bassist, bass_guitar, bass_amp, effects}
+// depuis SONG_HISTORY[song.id].bass si présent. Distinct de getSongHist
+// (qui retourne le info guitare). Le champ `bass` est OPTIONNEL au seed
+// (seuls les morceaux bass-jouables avec ligne basse notable l'ont).
+// Retourne null si absent → UI bass section sera masquée.
+function getSongBassHist(song) {
+  if (!song || !song.id) return null;
+  const entry = SONG_HISTORY[song.id];
+  if (!entry || !entry.bass) return null;
+  return entry.bass;
+}
+
 export {
   getPA, getPP, getSet, getGr, getIg, getTsr, getTsrRef, getSongHist,
+  getSongBassHist,
   normalizeSongTitle, normalizeArtist, findDuplicateSong,
 };
