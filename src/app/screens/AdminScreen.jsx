@@ -17,6 +17,7 @@
 import React, { useState } from 'react';
 import { t } from '../../i18n/index.js';
 import Breadcrumb from '../components/Breadcrumb.jsx';
+import NavIcon from '../components/NavIcon.jsx';
 import ProfilesAdmin from './ProfilesAdmin.jsx';
 import AllUserPresetsTab from './AllUserPresetsTab.jsx';
 import AdminPacksTab from './AdminPacksTab.jsx';
@@ -45,7 +46,7 @@ function AdminScreen({
 
   const inp = { background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '6px 10px', fontSize: 12, boxSizing: 'border-box' };
 
-  const tabBtn = (id, label) => (
+  const tabBtn = (id, label, iconId) => (
     <button
       onClick={() => setTab(id)}
       style={{
@@ -62,9 +63,10 @@ function AdminScreen({
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
+        gap: 6,
       }}
     >
-      {label}
+      {iconId && <NavIcon id={iconId} size={14}/>}{label}
     </button>
   );
 
@@ -73,13 +75,14 @@ function AdminScreen({
       <Breadcrumb
         crumbs={[
           { label: t('common.home', 'Accueil'), screen: 'list' },
-          { label: t('admin.breadcrumb', '⚙️ Admin') },
+          { label: t('admin.breadcrumb-flat', 'Admin') },
         ]}
         onNavigate={onNavigate}
       />
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+        <NavIcon id="admin" size={20}/>
         <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: 'var(--text-primary)' }}>
-          {t('admin.title', '⚙️ Espace Admin')}
+          {t('admin.title-flat', 'Espace Admin')}
         </div>
         <span style={{ fontSize: 10, background: 'var(--brass-300)', color: 'var(--tolex-900)', borderRadius: 'var(--r-sm)', padding: '2px 8px', fontWeight: 700 }}>ADMIN</span>
       </div>
@@ -88,12 +91,12 @@ function AdminScreen({
       </div>
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
-        {tabBtn('profiles', t('admin.tab.profiles', '👥 Profils'))}
-        {tabBtn('alluserpresets', t('admin.tab.alluserpresets', '👁 Tous presets users'))}
-        {tabBtn('adminpacks', t('admin.tab.adminpacks', '📦 Packs admin'))}
-        {tabBtn('tonenet', t('admin.tab.tonenet', '🌐 ToneNET'))}
-        {tabBtn('maintenance', t('admin.tab.maintenance', '🔧 Maintenance'))}
-        {tabBtn('ia', t('admin.tab.ia', '🔑 Clé API partagée'))}
+        {tabBtn('profiles', t('admin.tab.profiles-flat', 'Profils'), 'users')}
+        {tabBtn('alluserpresets', t('admin.tab.alluserpresets-flat', 'Tous presets users'), 'eye')}
+        {tabBtn('adminpacks', t('admin.tab.adminpacks-flat', 'Packs admin'), 'package')}
+        {tabBtn('tonenet', t('admin.tab.tonenet-flat', 'ToneNET'), 'globe')}
+        {tabBtn('maintenance', t('admin.tab.maintenance-flat', 'Maintenance'), 'wrench')}
+        {tabBtn('ia', t('admin.tab.ia-flat', 'Clé API partagée'), 'key')}
       </div>
 
       {tab === 'profiles' && <ProfilesAdmin profiles={profiles} onProfiles={onProfiles}/>}

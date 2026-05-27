@@ -20,6 +20,7 @@ import { resizeImageToDataUrl } from '../utils/image-resize.js';
 import { buildFeedbackUrl } from '../../core/branding.js';
 import { formatDateJJMMAA } from '../../core/date-utils.js';
 import Breadcrumb from '../components/Breadcrumb.jsx';
+import NavIcon from '../components/NavIcon.jsx';
 import BankEditor from '../components/BankEditor.jsx';
 import ProfileTab from './ProfileTab.jsx';
 import MesAppareilsTab from './MesAppareilsTab.jsx';
@@ -69,8 +70,11 @@ function MonProfilScreen({
   const [expandedSongId, setExpandedSongId] = useState(null);
   const toggleSongInSetlist = (songId, slId) => onSetlists((p) => p.map((sl) => sl.id !== slId ? sl : { ...sl, songIds: sl.songIds.includes(songId) ? sl.songIds.filter((x) => x !== songId) : [...sl.songIds, songId] }));
   const inp = { background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '6px 10px', fontSize: 12, boxSizing: 'border-box' };
-  const tabBtn = (id, label) => (
-    <button onClick={() => setTab(id)} style={{ background: tab === id ? 'var(--accent-bg)' : 'var(--a5)', border: tab === id ? '1px solid var(--border-accent)' : '1px solid var(--a8)', color: tab === id ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{label}</button>
+  // Vague 2 retrait emojis (2026-05-27) — 3e param iconId optionnel.
+  // Si fourni, rend <NavIcon/> + label. Sinon comportement legacy
+  // (label string seul, accepte emoji ou texte pur).
+  const tabBtn = (id, label, iconId) => (
+    <button onClick={() => setTab(id)} style={{ background: tab === id ? 'var(--accent-bg)' : 'var(--a5)', border: tab === id ? '1px solid var(--border-accent)' : '1px solid var(--a8)', color: tab === id ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>{iconId && <NavIcon id={iconId} size={14}/>}{label}</button>
   );
   const createSetlist = () => { if (!newSlName.trim()) return; onSetlists((p) => [...p, { id: `sl_${Date.now()}`, name: newSlName.trim(), songIds: [], profileIds: [activeProfileId] }]); setNewSlName(''); };
   const deleteSetlist = (id) => {
@@ -133,21 +137,21 @@ function MonProfilScreen({
             Regroupe Identité + Sécurité (migration PasswordTab) + Mes
             données (export/import perso). Le tab "🔐 Mot de passe"
             séparé est retiré (migré dans Sécurité de Mon compte). */}
-        {!isDemo && tabBtn('monCompte', t('profile.tab.mon-compte', '👤 Mon compte'))}
+        {!isDemo && tabBtn('monCompte', t('profile.tab.mon-compte-flat', 'Mon compte'), 'user')}
         {/* Phase 7.73.2 — Renommages "Guitares" → "Mes guitares" /
             "Sources" → "Mes sources" pour cohérence avec "Mes appareils"
             / "Mes presets custom". */}
-        {!isDemo && tabBtn('profile', t('profile.tab.guitars', '🎸 Mes guitares'))}
-        {/* Phase 8.6 — Tab "🎻 Mes basses" : toggle activation bass +
+        {!isDemo && tabBtn('profile', t('profile.tab.guitars-flat', 'Mes guitares'), 'guitar')}
+        {/* Phase 8.6 — Tab "Mes basses" : toggle activation bass +
             liste basses/amplis basse cochables. Visible à tous (admin
             et non-admin), permet activation sans snippet console. */}
-        {!isDemo && tabBtn('basses', t('profile.tab.basses', '🎻 Mes basses'))}
-        {!isDemo && tabBtn('devices', t('profile.tab.devices', '📱 Mes appareils'))}
-        {!isDemo && tabBtn('sources', t('profile.tab.sources', '📦 Mes sources'))}
-        {/* Phase 7.67 — Tab "📦 Mes presets custom" accessible à TOUS
+        {!isDemo && tabBtn('basses', t('profile.tab.basses-flat', 'Mes basses'), 'bass')}
+        {!isDemo && tabBtn('devices', t('profile.tab.devices-flat', 'Mes appareils'), 'device')}
+        {!isDemo && tabBtn('sources', t('profile.tab.sources-flat', 'Mes sources'), 'package')}
+        {/* Phase 7.67 — Tab "Mes presets custom" accessible à TOUS
             les profils (non-admin inclus) pour documenter customPacks
             personnels avec metadata enrichie + usages artistes. */}
-        {!isDemo && tabBtn('custompacks', t('profile.tab.custom-packs', '📦 Mes presets custom'))}
+        {!isDemo && tabBtn('custompacks', t('profile.tab.custom-packs-flat', 'Mes presets custom'), 'package')}
         {/* Phase 7.72 — Tab ToneNET migré dans l'écran Admin séparé.
             Accessible via le bouton "⚙️ Admin" dans la nav. */}
         {/* Phase 7.75 — Tabs pedale/ann/plug/tmp consolidés dans Mes
@@ -155,7 +159,7 @@ function MonProfilScreen({
         {/* Phase 7.73.2 — Tabs "🎨 Affichage" + "🎯 Préférences IA"
             fusionnés dans le nouveau tab "⚙️ Préférences" (3 sous-
             sections : Affichage + Préférences IA + Préférences musicales). */}
-        {tabBtn('preferences', t('profile.tab.preferences', '⚙️ Préférences'))}
+        {tabBtn('preferences', t('profile.tab.preferences-flat', 'Préférences'), 'admin')}
         {/* Phase 7.73.2 Session B — Tab "🔐 Mot de passe" retiré
             (migré dans Mon compte → 🔐 Sécurité). */}
         {/* Phase 7.72 — Tabs Clé API + Maintenance migrés dans Admin séparé. */}
