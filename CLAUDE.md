@@ -179,6 +179,116 @@ public/
 - Le contenu utilisateur (descriptions de morceaux, notes, packs) est
   en français.
 
+## Iconographie — pas d'emojis dans l'UI (règle 2026-05-27)
+
+⚠️ **Règle stricte** : **JAMAIS d'emoji dans les éléments d'UI**
+(boutons, tabs, sectionTitles, labels, badges). Utiliser exclusivement
+des **icônes SVG flat outline** via le composant
+`src/app/components/NavIcon.jsx`.
+
+### Pourquoi
+
+- **Cohérence visuelle** : rendu identique sur tous les OS (les emojis
+  s'affichent différemment selon Apple/Google/MS).
+- **Ton pro** : les SVG outline donnent un look design system
+  professionnel, les emojis donnent un look amateur / chat.
+- **Color theming** : `stroke=currentColor` suit automatiquement
+  le thème actif (clair/sombre, état actif/inactif), les emojis ne
+  peuvent pas être teintés.
+- **Accessibilité** : un SVG peut avoir un `<title>` et `aria-label`,
+  un emoji est lu littéralement par les lecteurs d'écran (parfois mal).
+- **Cohérence avec la navbar** : la barre de nav (Accueil/Setlists/
+  Explorer/Jammer/Optimiser/Admin) utilise déjà NavIcon depuis Phase 1.
+
+### Pattern d'utilisation
+
+```jsx
+import NavIcon from '../components/NavIcon.jsx';
+
+// Bouton avec icône inline
+<button style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+  <NavIcon id="live" size={18}/>
+  Mode scène
+</button>
+
+// SectionTitle (helper qui accepte JSX comme icône)
+{sectionTitle(<NavIcon id="guitar" size={16}/>, t('song-detail.setup-block', 'Mon setup'))}
+```
+
+### Icônes disponibles (`src/app/components/NavIcon.jsx`)
+
+Style cohérent : outline, `stroke=currentColor`, viewBox 24×24,
+`strokeWidth=1.8`.
+
+| id | Visuel | Usage |
+|---|---|---|
+| `list` | maison | nav Accueil |
+| `setlists` | note musique + cercles | nav Setlists |
+| `explore` | loupe | nav Explorer |
+| `jam` | rectangle arrondi + flèches | nav Jammer |
+| `optimizer` | barres verticales | nav Optimiser (admin) |
+| `admin` | engrenage | nav Admin (admin) |
+| `live` | micro | bouton Mode scène |
+| `target` | cible concentrique | section Recommandations IA |
+| `guitar` | silhouette guitare | section Mon setup |
+| `bass` | corps allongé + 4 chevilles | section Basse |
+| `info` | i dans cercle | section Infos morceau |
+| `sliders` | 3 sliders horizontaux | réglages effets / paramétrage |
+
+### Ajouter une nouvelle icône
+
+1. Ouvrir `src/app/components/NavIcon.jsx`.
+2. Ajouter un `if(id==="monid") return <svg style={st} viewBox="0 0 24 24">…</svg>;`
+   AVANT le `return null;` final.
+3. Respecter le style : outline only, `stroke=currentColor`,
+   viewBox 24×24, strokeWidth 1.8. Pas de `fill` sauf pour des dots
+   ou détails (cf `sliders`).
+4. Documenter l'icône dans le tableau ci-dessus en mettant à jour
+   CLAUDE.md.
+5. Pour les icônes complexes : s'inspirer de Feather Icons / Lucide
+   (même style outline, MIT license, base de données très complète).
+6. Si l'icône n'a pas de sens flat (ex. drapeau de pays, logo de
+   marque), discuter d'une exception avant.
+
+### Exceptions tolérées (PAS dans l'UI)
+
+Les emojis restent acceptables dans :
+
+1. **Prompts IA Gemini** (`src/app/utils/fetchAI.js`) : les prompts
+   peuvent inclure des emojis comme signaux sémantiques pour le LLM
+   (ex. `🎯` pour priorité). Pas rendu côté UI.
+2. **Données seed** (`SONG_HISTORY` dans `core/songs.js`) :
+   les descriptions historiques peuvent contenir des emojis si l'auteur
+   original les a utilisés. Préférer du texte clair en pratique.
+3. **CHANGELOG / docs markdown** (CLAUDE.md, README, etc.) : ⚠️ / ✅ /
+   ❌ etc. pour signaler visuellement les sections importantes — c'est
+   de la doc, pas de l'UI.
+4. **i18n fallback FR transitoirement** : si un emoji est encore dans
+   un fallback inline `t('key', '⚙️ Admin')`, c'est une dette
+   héritée à migrer. Pas une raison d'en remettre des nouveaux.
+
+### Détection automatique
+
+Pas de test régression automatique en place (les emojis ont trop
+de faux positifs : code points multibyte, sequences ZWJ, etc.). La
+règle dépend de la discipline humaine + revue de code. Pour vérifier
+manuellement un fichier UI avant commit :
+
+```bash
+grep -P "[\x{1F300}-\x{1F9FF}]|[\x{2600}-\x{27BF}]" src/app/screens/MonScreen.jsx
+```
+
+### Historique
+
+- **Vague 1** (v8.14.267, 2026-05-27) : 7 icônes ajoutées
+  (admin/live/target/guitar/bass/info/sliders). Sites migrés :
+  AppHeader nav admin, HomeScreen bouton Mode scène, SongDetailCard
+  4 sectionTitle (Mon setup, Recommandations IA, Basse, Infos morceau).
+- **Vague 2** (à venir) : audit complet — tabs MonProfilScreen,
+  AdminScreen, refs inline historiques (`🎸 X · 🔊 Y · 🎚 Z`),
+  modales (SplashPopup, OnboardingWizard), badges device
+  (`📦 Pedale`, `🔌 Plug`, `🏭 Anniversary`).
+
 ## Conventions Git
 
 - Une branche par phase : `phase-1-vite-core`, `phase-2-device-registry`,

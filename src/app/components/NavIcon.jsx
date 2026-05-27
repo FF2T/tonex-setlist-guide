@@ -2,6 +2,12 @@
 // Icônes SVG utilisées dans la barre de nav (mobile + desktop) +
 // icônes de section / bouton flat outline (vague 1 retrait emojis 2026-05-27).
 // Style cohérent : outline, stroke currentColor, strokeWidth 1.8, viewBox 24×24.
+//
+// ⚠️ RÈGLE PROJET — PAS D'EMOJIS DANS L'UI.
+// Tout nouveau besoin d'icône passe par ce fichier (étendre avec un
+// nouvel `if(id==="monid")`). Voir section "Iconographie" de CLAUDE.md
+// pour le contexte, le tableau des icônes disponibles, et les exceptions
+// tolérées (prompts IA, docs markdown, données seed historiques).
 
 import React from 'react';
 
