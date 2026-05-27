@@ -761,7 +761,180 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-25/26, Phase 7.55.7 close — Refonte Setlists vue repliée + dépliée, 29 sessions S1-S9.15)
+## État actuel (2026-05-27, session pollution profile + polish UX fiche song)
+
+**Backline v8.14.238 / SW backline-v338 / STATE_VERSION 12 / 1710 tests verts.**
+
+### Session 2026-05-26 nuit + 2026-05-27 — 15 commits déployés en prod
+
+| Phase | Version | Sujet |
+|---|---|---|
+| demo-snapshot | 8.14.224 | Re-export snapshot démo bundlé (v10 → v11, 8 morceaux préservés, profileIds curateur préservé Phase 7.52.16) |
+| dette-ux JJMMAA | 8.14.225 | Helper `formatDateJJMMAA` dans `core/date-utils.js` (FR Mac Finder friendly) + migration 2 sites exportJSON / Mon compte export perso |
+| **7.74.10** | **8.14.226** | **Timestamps dédiés `language` / `enabledDevices` / `availableSources` (pattern Phase 7.74.9 étendu). STATE_VERSION 11 → 12. Cause racine pollution language FR→EN fermée.** |
+| **7.74.11** | **8.14.227** | **Fingerprint device dans payload Firestore. `getDeviceId()` génère ID format `${platform}-${YYMMDD}-${rand6}`. UI Admin → Maintenance → 🆔 Cet appareil pour rename humain. Logs sync + mergeLogs enrichis `[from device "X"=id]`.** |
+| 7.83 résidu | 8.14.228 | Pill compat fiche song : bucket qualitatif `[🟢 Idéal]` au lieu de score brut `[87%]` |
+| 7.83 polish | 8.14.230 | Pill plein vert (au lieu pastel) + wrap multi-lignes nom guitare vue repliée |
+| 7.83 final | 8.14.231 | Strip emoji pill + bucket labels vue repliée 3 pills + retrait `(HB)/(SC)/(P90)` partout |
+| 7.83 final2 | 8.14.232 | Encadrement libellé guitare/preset couleur bucket compat + strip (HB) Gemini résiduel |
+| 7.83 final3 | 8.14.233 | Style plein (au lieu pastel+bordure) + encadrement appliqué vue repliée ListScreen |
+| 7.83 final4 | 8.14.234 | Pills "Idéal" séparés retirés (redondants avec libellé encadré) + score chiffré "99%" à gauche du select |
+| 7.83 final5 | 8.14.235 | Mode IA fiche song retiré (jargon peu clair) + **histogramme barres horizontales** réglages effets |
+| 7.83 final6 | 8.14.236 | Grid multi-col responsive 3 sections (Réglages effets / Scoring guitares / Alternatives) |
+| 7.83 final7 | 8.14.237 | Grid 2 cols max via classe `.reco-multicol` (3+ cols coupaient les textes longs) |
+| 7.83 final8 | 8.14.238 | Scoring preset : **amp encadré (réel) + preset name à côté en mono dim** (cohérent vue repliée) |
+
+### Phase 7.74.10 — Timestamps dédiés multi-champs (v8.14.226)
+
+Pattern Phase 7.74.9 `banksModified` étendu à 3 nouveaux champs sensibles.
+Cause racine pollution observée 2026-05-26 (Mac repasse FR → EN
+involontairement) : `language` n'avait pas de timestamp dédié, adopté
+en bloc dès `remote.lastModified > local.lastModified`. Garde-fou
+Phase 7.74.4 délai 60s inopérant au-delà.
+
+**5 champs LWW protégés désormais** :
+| Champ | Timestamp dédié | Phase |
+|---|---|---|
+| `banksAnn` / `banksPlug` | `banksModified` | 7.74.9 |
+| `language` | `languageModified` | **7.74.10** |
+| `enabledDevices` | `enabledDevicesModified` | **7.74.10** |
+| `availableSources` | `availableSourcesModified` | **7.74.10** |
+
+Le merge LWW adopte ces champs UNIQUEMENT si `remote.{field}Modified
+> local.{field}Modified`. Stamps appliqués automatiquement via
+`setProfileField` (main.jsx) / `stampedProfileUpdate` (state.js) /
+`_profileLanguageUpdater` (i18n) / `ProfileTab.updateProfile`.
+
+Migration `migrateV11toV12` backfill 0 sur tous profils (idempotente).
+7 tests Vitest dédiés.
+
+### Phase 7.74.11 — Fingerprint device chasse au fantôme (v8.14.227)
+
+Diagnostic 2026-05-27 : Firestore propre, mais `mergeLogs` Mac contiennent
+encore `[merge-defense] banksAnn mass-change BLOCKED : remote.banksModified=0`
+→ un device dormant pousse encore un état pré-v11 (Phase 7.74.9 du
+2026-05-21 jamais reçue). Probablement un mobile beta-testeur (Bruno /
+Francisco / Franck / Emmanuel) jamais rouvert depuis 5+ jours.
+
+**Solution structurelle** : chaque device génère un `_deviceId` unique
+persistant (`localStorage.tonex_device_id`, format `${platform}-${YYMMDD}-${rand6}`).
+Inclus dans tous les pushes Firestore + 4 metadata sidecar :
+- `_deviceId` : ID technique
+- `_deviceLabel` : rename humain optionnel ("Mac Sébastien")
+- `_deviceUA` : User-Agent (60 chars)
+- `_pushAt` : ISO timestamp
+
+Logs `[firestore] Pulled from device "X" (id=..., ua=..., pushed=..., v=...)`
+capturés par wrapper Phase 7.74.5. `mergeProfileLWW` accepte options
+`remoteDeviceId / remoteDeviceLabel` → logs BLOCKED/ADOPTED préfixés
+`[from device "X"=id]`.
+
+UI Admin → Maintenance → section **"🆔 Cet appareil"** : ID + UA + Label
++ bouton Renommer + boutons Voir/Effacer/Activer logs sync.
+
+**Workflow de chasse** :
+1. Sébastien Mac + iPhone nommés ("Mac Sébastien" / "iPhone Sébastien") ✅ fait 2026-05-27
+2. Ping beta-testeurs pour qu'ils ouvrent Backline sur tous leurs devices
+3. Attendre 24-48h
+4. Dump `window.__getMergeDebugLogs()` Mac → identifier le device fantôme via UA + pattern d'ID
+5. Réveiller manuellement (Cmd+Shift+R) → il passe en v12 → fini de polluer
+
+7 tests Vitest dédiés (`getDeviceId` génération + idempotence + format,
+`setDeviceLabel`/`getDeviceLabel` round-trip, `mergeProfileLWW` accepte
+options remoteDeviceId/Label).
+
+### Phase 7.83 — Refonte cohérente compat fiche song (final → final8, 11 commits)
+
+Refonte intensive de la fiche song dépliée (`SongDetailCard`) + vue
+repliée (`ListScreen`) suite à audit progressif user. Vision finale :
+
+**Fiche dépliée Bloc 🎯 Recommandations IA** :
+
+```
+Mon Setup
+─────────────────────────────────────
+[99%] [▼ Gibson Les Paul Standard '60s]
+⚠️ Idéalement : Strat 61, ES-335    (si pas idéal)
+
+🎛️ Réglages EQ
+  why global + tweaks "Si X → fix Y"
+
+🎚 Réglages effets                    ← grid 2 col max desktop
+┌────────────────┬────────────────┐
+│ GATE           │ COMP           │
+│ Threshold ▓▓░ -56dB│ Threshold ▓▓░ -18dB│
+│ Release   ░░░ 140ms│ Gain      ▓▓░ 2dB │
+│ Depth     ▓▓░ -75dB│ Attack    ▓░░ 10ms│
+└────────────────┴────────────────┘
+
+Scoring guitares                       ← grid 2 col max
+┌──────────────────┬──────────────────┐
+│ [LP60]      99%  │ [Strat61]   82%  │
+│ raison IA prose  │ raison IA prose  │
+└──────────────────┴──────────────────┘
+
+Scoring preset
+[Marshall JCM800] TSR Mars 800SL Cn1&2 🔵   93%
+ ↑ amp encadré bucket                       ↑ pill score
+
+Alternatives catalogue                  ← grid 2 col max
+[Marshall Super Lead] WT Mars Super100  71%
+[Vox AC30 TB]         AA VX TB30 BR     63%
+```
+
+**Vue repliée ListScreen — libellés encadrés cohérents** :
+```
+[1] Hells Bells [Idéal] ▼
+   AC/DC
+   [Gibson Les Paul Standard '60s]   ← guitare encadrée bucket
+   📦 Ann [13C] [Marshall JCM800]    ← amp encadré bucket
+```
+
+Bucket compatibilité : 🟢 ≥75 (Idéal) / 🟡 ≥55 (Bon) / 🟠 <55 (Limite).
+Style pills : fond plein bucket.color + texte `var(--text-inverse)` +
+mono bold (pattern songrow-pl-score-pill-inline étendu).
+
+11 commits incrementaux suite à un dialogue UX itératif user :
+- Strip emoji du label (redondant avec fond coloré)
+- Retrait `(HB)/(SC)/(P90)` partout (info pas utile à l'affichage)
+- Pills "Idéal" séparés retirés (libellé encadré suffit)
+- Score chiffré "99%" placé à gauche du select (cohérent vue repliée)
+- Mode IA fiche song retiré (jargon `↻ Profil / ⚖️ Équilibré / 🎯
+  Fidèle / 🎨 Interprétation` peu clair pour user, override par
+  morceau toujours dispo côté data)
+- Histogramme barres horizontales pour les sub-params FX (ranges
+  officiels manuel TONEX p.22-28)
+- Grid 2 cols max via classe CSS `.reco-multicol` (media query
+  `min-width: 720px`, 3+ cols coupaient les textes longs)
+- Amp encadré (réel) + preset name à côté en mono dim (cohérence
+  avec vue repliée ListScreen qui affiche `ampLabel || presetName`)
+
+### Action en attente côté user
+
+Pour identifier le device fantôme qui pollue (cause #9+) :
+1. Pinger Bruno / Francisco / Franck / Emmanuel : "ouvre Backline sur
+   tous tes devices + reload"
+2. Attendre 24-48h
+3. Capturer `window.__getMergeDebugLogs()` Mac → identifier device
+   coupable via UA + ID pattern
+4. Réveiller manuellement ce device → fin pollution
+
+### Dette résiduelle session
+
+- Phase 8 (bass + drums + pédales modélisées) : ~20-40h, validée 2
+  signaux Francisco. Pas démarrée.
+- Phase 11 (Studio-driven enrichment) : ~15-20h dev + démarches.
+  Trigger : Paul Drew TSR réponse positive Mail 3 (statut inconnu).
+- Phase 12 (catalog GLOBAL vs USER granularité par pack) : ~12-17h,
+  bump SCORING_VERSION 9 → 10.
+- Phase 7.80.1 (audit responsive iPhone/iPad complet) : ~6-10h audit
+  + ~10-15h fixes.
+- Audit UX grisé mode démo (rename setlist, custom guitar add) : ~1h.
+- Phase 7.84 résidu descriptions ampli ES (167 entries) : ~3-4h prose.
+
+---
+
+## État précédent (2026-05-25/26, Phase 7.55.7 close — Refonte Setlists vue repliée + dépliée, 29 sessions S1-S9.15)
 
 **Backline v8.14.220 / SW backline-v320 / STATE_VERSION 11 / 1690 tests verts.**
 
