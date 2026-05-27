@@ -761,7 +761,91 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-27, session pollution profile + polish UX fiche song)
+## État actuel (2026-05-27 soir, Phase 7.85 close — Audit responsive Cowork 4 batchs + retours user)
+
+**Backline v8.14.243 / SW backline-v343 / STATE_VERSION 12 / 1710 tests verts.**
+
+### Session 2026-05-27 soir — 4 deploys Phase 7.85 (audit responsive Cowork + retours user)
+
+| Batch | Version | Sujet |
+|---|---|---|
+| 1 | 8.14.240 | Tabs Mon Profil + Admin 44px iOS HIG · Bug fonctionnel recherche démo (chips dynamiques + defense in depth) · B04 SongSearchBar maxWidth 580 · B07 Fermer ↑ padding 44 · B20 Input rename setlist maxWidth 480 · **B01 P0** songrow-pl-preset row 2 mobile (no truncate) · **B02 P0** Scoring Preset flex-wrap word-break · **B03 P0** Feedback IA layout column robuste |
+| 2 | 8.14.241 | Retour user : alignement guitare vue repliée setlist (grid → flex simple) · Mes guitares inversion nom complet/court · **Lot B 11 touch targets 44×44** (B08 chips démo · B09 Au hasard · B10 avatar header · B11 + InlineRenameInput · B12 ✏️/🎤 toolbar · B13 SORTIE 4 boutons Mon Setup · B14 Modifier nom · B15 footer liens · B16 Se déconnecter · B17 Réinitialiser · B18 Enregistrer/Exporter) |
+| 3 | 8.14.242 | **Lot polish P2** : B19 + B24 + demo banner wrap iPad (padding compact + retrait marginLeft:auto bouton ✕) · B23 version label nowrap · B25 séparateur "Au hasard" · B21 nav top desktop état actif renforcé (border accent + boxShadow inset) |
+| 4 | 8.14.243 | **Lot A2** : retour user mobile densité · `.prose-readable` class CSS (max-width 65ch) appliquée 7 paragraphes prose SongDetailCard + 3 HomeScreen · `.song-row-detail` max-width 960px + centrage tablet+ (B05 + B22) |
+
+### Audit Cowork — couverture finale
+
+- **4 P0 fixés** : recherche démo + B01 noms presets row 2 + B02 Scoring Preset double tronc + B03 Feedback IA chevauche
+- **17 P1 fixés** : tous touch targets 44×44 + alignement guitare + max-width sections
+- **5 P2 fixés** : banner desktop hauteur + nav top active + version label + chips wrap + iPad banner wrap
+- **B06 non touché** (ListScreen iPad portrait centrage) — `.page-root` gère déjà le centrage 92% à 640px+, le décalage Cowork peut être un cas spécifique de mesure non reproduit. À investiguer avec screenshot si récidive.
+
+### Retours user direct intégrés (hors audit Cowork)
+
+- **Alignement guitare vue repliée setlist** (iPhone) : décalage 40px causé par spacer transparent JSX (col 1 grid vide depuis Phase 7.83 final4). Retiré + simplification CSS `display: flex`.
+- **Mes guitares (ProfileTab)** : inversion nom complet (gros) / nom court (petit). Le full name devient l'info principale.
+- **Densité mobile prose** (sub-text "il y a bcp de caractères par ligne"). Class `.prose-readable` (max-width 65ch) appliquée aux paragraphes long pour plafonner à ~65 chars/ligne (optimum lecture typographique). Effet neutre sur mobile étroit (largeur naturelle déjà sous 65ch), plafond visible sur tablet/desktop.
+
+### Architecture livrée Phase 7.85
+
+```
+src/main.jsx                                APP_VERSION 8.14.239 → 8.14.243
+public/sw.js                                CACHE backline-v339 → backline-v343
+src/app/screens/MonProfilScreen.jsx         tabBtn 44px + boutons Mon compte
+                                            (Modifier/Se déconnecter/Réinitialiser/
+                                            Enregistrer pwd/Exporter mes données +
+                                            footer liens Aide/Feedback/Mise à jour)
+src/app/screens/AdminScreen.jsx             tabBtn 44px
+src/app/screens/HomeScreen.jsx              demoSuggestSongs dynamique (bug
+                                            recherche démo fix) + chips 44 +
+                                            "Au hasard" 44 + séparateur +
+                                            SongSearchBar wrapper maxWidth 580
+                                            + state demoInfoMsg defense in depth
+                                            + prose-readable sur cot/desc
+src/app/screens/SongDetailCard.jsx          B02 flex-wrap word-break · B03 layout
+                                            column · B07 Fermer ↑ padding 44 ·
+                                            B13 SORTIE 44 · prose-readable sur 7
+                                            paragraphes prose long
+src/app/screens/ListScreen.jsx              spacer transparent songrow-pl-meta-
+                                            guitar retiré · B11 + InlineRename 44 ·
+                                            B12 ✏️/🎤 toolbar 44 · maxWidth 480
+                                            sur InlineRenameInput
+src/app/screens/ProfileTab.jsx              inversion nom complet/court sur 2
+                                            listes (standards + customs)
+src/app/components/AppHeader.jsx            avatar 32→44 · version label nowrap ·
+                                            nav top desktop état actif renforcé
+src/app/components/ProfileSelector.jsx      avatar dropdown trigger 34→44
+src/app/components/DemoBanner.jsx           padding 8x16→6x14 · retrait
+                                            marginLeft:auto bouton ✕
+src/index.html                              .songrow-pl-device-line @media mobile :
+                                            preset en row 2 grid (B01) ·
+                                            .songrow-pl-preset retire max-width
+                                            300px legacy (le grid règle) ·
+                                            .songrow-pl-meta-guitar grid → flex
+                                            simple ·
+                                            .song-row-detail max-width 960 +
+                                            centrage tablet+ (B05 + B22) ·
+                                            .prose-readable class utility 65ch
+src/i18n/en.js, es.js                       +demo.no-analysis (Phase 7.85)
+```
+
+### Bilan tests
+
+- **1710/1710 tests Vitest verts** à chaque étape (zéro régression)
+- Bundle 2562 → 2565 KB stable
+- Pas de bump STATE_VERSION (purement UI)
+- Pas de migration localStorage
+
+### Dette résiduelle Phase 7.85
+
+- **B06 ListScreen iPad portrait centrage** non reproduit en static analysis — `.page-root` margin:auto centre normalement. Si récidive avec screenshot Cowork, creuser.
+- **Lot A2 follow-up** : si retour user mobile densité persiste après v8.14.243, bumper fontSize min des clamp `clamp(10px, ...)` à `clamp(11-12px, ...)` sur les paragraphes prose denses. À surveiller.
+- **Mail Jason Sadites (JS)** : démarchage Plan B reporté (silence Paul Drew TSR Mail 3 du 21/05 à J+6). À envoyer fin mai / début juin selon timing BETA_TESTING.md.
+
+---
+
+## État précédent (2026-05-27, session pollution profile + polish UX fiche song)
 
 **Backline v8.14.239 / SW backline-v339 / STATE_VERSION 12 / 1710 tests verts.**
 

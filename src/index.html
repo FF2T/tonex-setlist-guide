@@ -235,8 +235,16 @@
     .guitar-grid{grid-template-columns:repeat(4,1fr);gap:var(--s-3)}
     .guitar-card{padding:var(--s-4) var(--s-3)}
     .modal-box{padding:var(--s-6);max-width:90%}
-    .song-row-detail{padding:var(--s-4) var(--s-5)}
+    /* Phase 7.85 — max-width 960px + centrage à partir de tablet
+       (rapport Cowork B22 : SongDetailCard iPad portrait 640px pas centrée,
+       80px vide droite ; B05 : paragraphes 100+ chars/ligne desktop). */
+    .song-row-detail{padding:var(--s-4) var(--s-5);max-width:960px;margin-left:auto;margin-right:auto}
   }
+  /* Phase 7.85 — class utility pour plafonner les paragraphes prose à
+     65 chars/ligne (optimum lecture typographique). Effet neutre sur
+     mobile étroit (la largeur naturelle est déjà sous 65ch), plafond
+     visible sur tablet/desktop. Aussi fix retour mobile densité. */
+  .prose-readable{max-width:65ch}
   /* ── Desktop ── */
   @media(min-width:1024px){
     .page-root{max-width:90%;padding:var(--s-8);font-size:var(--fs-md)}

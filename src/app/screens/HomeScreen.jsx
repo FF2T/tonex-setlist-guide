@@ -635,7 +635,7 @@ function HomeScreen({
                     {/* Section Infos */}
                     <div style={sectionStyle}>
                       {sectionTitle('📖', t('home.song.info-section', 'Infos morceau'))}
-                      {info.desc && <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.5, marginBottom: 6 }}>{getLocalizedText(info.desc, locale)}</div>}
+                      {info.desc && <div className="prose-readable" style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.5, marginBottom: 6 }}>{getLocalizedText(info.desc, locale)}</div>}
                       {(songResult.ref_guitarist || songResult.ref_guitar || songResult.ref_amp) && (
                         <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.6 }}>
                           <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 10 }}>{songResult.ref_guitarist || t('home.song.ref-default', 'Référence')}</span><br/>
@@ -656,7 +656,7 @@ function HomeScreen({
                           <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
                             {songResult.cot_step1 && <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
                               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('home.song.cot-tonal', 'Profil tonal')}</div>
-                              <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{getLocalizedText(songResult.cot_step1, locale)}</div>
+                              <div className="prose-readable" style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{getLocalizedText(songResult.cot_step1, locale)}</div>
                             </div>}
                             {cotInRigHS.length > 0 && <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
                               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('home.song.cot-guitars', 'Scoring guitares')}</div>
@@ -668,7 +668,7 @@ function HomeScreen({
                             </div>}
                             {songResult.cot_step3_amp && <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
                               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('home.song.cot-amp', 'Profil ampli')}</div>
-                              <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{getLocalizedText(songResult.cot_step3_amp, locale)}</div>
+                              <div className="prose-readable" style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.4 }}>{getLocalizedText(songResult.cot_step3_amp, locale)}</div>
                             </div>}
                           </div>
                         )}
