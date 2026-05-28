@@ -8,6 +8,7 @@
 
 import React, { useState, useRef, useMemo } from 'react';
 import { t, tFormat } from '../../i18n/index.js';
+import Button from '../components/Button.jsx';
 import { CC, CL } from '../utils/ui-constants.js';
 import { downloadFile, generateCSV, exportJSON, parseCSV } from '../utils/csv-helpers.js';
 import { findCatalogEntry, findCatalogSuggestions, PRESET_CATALOG_MERGED, normalizePresetName } from '../../core/catalog.js';
@@ -283,8 +284,8 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
       {isAdmin && !compact && <div style={{ background: 'var(--green-bg)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', marginBottom: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('export.json-section-flat', 'Sauvegarde complète (JSON) — admin')}</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button onClick={doExportJSON} style={{ background: 'var(--green)', border: 'none', color: 'var(--text)', borderRadius: 'var(--r-lg)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{t('export.export-json-flat', 'Exporter JSON')}</button>
-          <button onClick={() => jsonRef.current?.click()} style={{ background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.35)', color: 'var(--green)', borderRadius: 'var(--r-lg)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{t('export.import-json-flat', 'Importer JSON')}</button>
+          <Button variant="primary" onClick={doExportJSON} style={{ background: 'var(--green)', color: 'var(--text)' }}>{t('export.export-json-flat', 'Exporter JSON')}</Button>
+          <Button variant="secondary" onClick={() => jsonRef.current?.click()} style={{ background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.35)', color: 'var(--green)' }}>{t('export.import-json-flat', 'Importer JSON')}</Button>
           <input ref={jsonRef} type="file" accept=".json" onChange={handleJSONFile} style={{ display: 'none' }}/>
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>{t('export.json-hint', 'Sauvegarde complète : setlists, morceaux, presets, banks. Parfait pour sauvegarder ou transférer entre appareils.')}</div>
@@ -295,7 +296,7 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
         <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           {(!restrictToDevice || restrictToDevice === 'ann') && xBtnCompact(() => doExportCSV(banksAnn, 'ToneX Anniversary', 'Anniversary'), 'Anniversary', t('export.export-compact-ann-flat', 'CSV Ann.'), 'var(--brass-300)')}
           {(!restrictToDevice || restrictToDevice === 'plug') && xBtnCompact(() => doExportCSV(banksPlug, 'ToneX Plug', 'Plug'), 'Plug', t('export.export-compact-plug-flat', 'CSV Plug'), 'var(--accent)')}
-          <button onClick={() => csvRef.current?.click()} style={{ background: 'var(--yellow-bg)', border: '1px solid rgba(251,191,36,0.35)', color: 'var(--yellow)', borderRadius: 'var(--r-md)', padding: '5px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>{t('export.import-compact-flat', 'Importer CSV')}</button>
+          <Button variant="secondary" size="sm" onClick={() => csvRef.current?.click()} style={{ background: 'var(--yellow-bg)', border: '1px solid rgba(251,191,36,0.35)', color: 'var(--yellow)' }}>{t('export.import-compact-flat', 'Importer CSV')}</Button>
           <input ref={csvRef} type="file" accept=".csv,.txt" onChange={handleCSVFile} style={{ display: 'none' }}/>
           {importErr && <span style={{ fontSize: 11, color: 'var(--red)' }}>⚠ {importErr}</span>}
         </div>
@@ -316,7 +317,7 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
             mais modale presets inconnus + preview banks rendus dans tous les cas */}
       <div style={!compact ? { background: 'var(--a3)', border: '1px solid var(--a7)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 16 } : { marginBottom: 8 }}>
         {!compact && <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-sec)', marginBottom: 12, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('export.csv-import', 'Import CSV (Banks)')}</div>}
-        {!compact && <button onClick={() => csvRef.current?.click()} style={{ background: 'var(--yellow-bg)', border: '1px solid rgba(251,191,36,0.35)', color: 'var(--yellow)', borderRadius: 'var(--r-lg)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 8 }}>{t('export.load-csv', '📂 Charger CSV')}</button>}
+        {!compact && <Button variant="secondary" onClick={() => csvRef.current?.click()} style={{ background: 'var(--yellow-bg)', border: '1px solid rgba(251,191,36,0.35)', color: 'var(--yellow)', marginBottom: 8 }}>{t('export.load-csv-flat', 'Charger CSV')}</Button>}
         {!compact && <input ref={csvRef} type="file" accept=".csv,.txt" onChange={handleCSVFile} style={{ display: 'none' }}/>}
         {!compact && importErr && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--red)', background: 'rgba(239,68,68,0.1)', borderRadius: 'var(--r-md)', padding: '8px 12px' }}>{importErr}</div>}
         {/* Phase 7.69 — Modale "Presets inconnus détectés".
@@ -494,8 +495,8 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
               );
             })()}
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={cancelUnknownModal} style={{ flex: 1, background: 'var(--a7)', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '9px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{t('export.cancel', 'Annuler import')}</button>
-              <button onClick={finalizeUnknownChoices} style={{ flex: 2, background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '9px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{t('export.unknown-continue', 'Continuer →')}</button>
+              <Button variant="secondary" fullWidth onClick={cancelUnknownModal} style={{ flex: 1 }}>{t('export.cancel-import', 'Annuler import')}</Button>
+              <Button variant="primary" fullWidth onClick={finalizeUnknownChoices} style={{ flex: 2 }}>{t('export.unknown-continue-flat', 'Continuer')}</Button>
             </div>
           </div>
         )}
@@ -549,14 +550,16 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
             </div>
           )}
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => setImportData(null)} style={{ flex: 1, background: 'var(--a7)', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '9px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{t('export.cancel', 'Annuler')}</button>
-            <button
+            <Button variant="secondary" fullWidth onClick={() => setImportData(null)} style={{ flex: 1 }}>{t('export.cancel', 'Annuler')}</Button>
+            <Button
+              variant={importMode === 'replace' ? 'danger' : 'primary'}
+              fullWidth
               onClick={() => {
                 if (importMode === 'replace' && !window.confirm(t('export.confirm-replace', 'Tu vas REMPLACER toutes tes banks par le contenu du CSV. Confirmer ?'))) return;
                 confirmCSV();
               }}
-              style={{ flex: 2, background: importMode === 'replace' ? 'var(--wine-400, #a82135)' : 'var(--accent)', border: 'none', color: 'var(--text)', borderRadius: 'var(--r-md)', padding: '9px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-            >{importMode === 'replace' ? t('export.import-replace', '⚠️ Confirmer le remplacement') : t('export.import', '✅ Importer')}</button>
+              style={{ flex: 2 }}
+            >{importMode === 'replace' ? t('export.import-replace-flat', 'Confirmer le remplacement') : t('export.import-flat', 'Importer')}</Button>
           </div>
         </div>}
       </div>

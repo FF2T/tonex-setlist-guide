@@ -19,6 +19,7 @@
 // Sync : LWW par pack id (cf main.jsx applyRemoteData).
 
 import React, { useState, useMemo } from 'react';
+import Button from '../components/Button.jsx';
 import { t, tFormat } from '../../i18n/index.js';
 import { parsePackListing } from '../utils/parse-pack-listing.js';
 import { detectPresetMetadata, findDuplicates } from '../utils/detect-preset-metadata.js';
@@ -284,15 +285,17 @@ function AdminPacksTab({ adminPacks, onAdminPacks, profile, inp, aiKeys, aiProvi
               <div style={{ fontSize: 11, color: 'var(--text-sec)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <span style={{ flex: 1 }}>
                   {tFormat('adminpacks.preview-summary', { count: parsed.presets.length, skipped: skipNames.size }, '{count} preset(s) détecté(s), {skipped} skippé(s) (déjà dans le catalog)')}
-                  {aiEnriched && <span style={{ marginLeft: 6, color: 'var(--green)', fontSize: 10, fontWeight: 600 }}>✨ Enrichi IA</span>}
+                  {aiEnriched && <span style={{ marginLeft: 6, color: 'var(--green)', fontSize: 10, fontWeight: 600 }}>{t('adminpacks.enriched-badge', 'Enrichi IA')}</span>}
                 </span>
                 {/* Phase 7.69.9 — bouton enrichissement IA. Recommandé
                     avant la création pour amp/gain/style/scores/usages
                     précis + ampContext (descriptions amps pour Explorer). */}
-                <button
+                <Button
+                  variant="primary"
+                  size="sm"
                   onClick={enrichWithAI}
                   disabled={aiLoading}
-                  style={{ background: aiEnriched ? 'var(--green-bg)' : 'var(--brass-300)', border: aiEnriched ? '1px solid var(--green-border)' : 'none', color: aiEnriched ? 'var(--green)' : 'var(--tolex-900)', borderRadius: 'var(--r-sm)', padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: aiLoading ? 'wait' : 'pointer' }}
+                  style={aiEnriched ? { background: 'var(--green-bg)', border: '1px solid var(--green-border)', color: 'var(--green)' } : { background: 'var(--brass-300)', color: 'var(--tolex-900)' }}
                   title={t('adminpacks.ai-enrich-hint', 'Demander à Gemini d\'inférer amp/gain/style/scores + descriptions amps pour Explorer')}
                 >
                   {aiLoading
@@ -300,7 +303,7 @@ function AdminPacksTab({ adminPacks, onAdminPacks, profile, inp, aiKeys, aiProvi
                     : aiEnriched
                       ? t('adminpacks.ai-redo', 'Re-enrichir IA')
                       : t('adminpacks.ai-enrich', 'Enrichir avec Gemini')}
-                </button>
+                </Button>
               </div>
               {aiError && (
                 <div style={{ fontSize: 11, color: 'var(--red)', background: 'rgba(239,68,68,0.1)', padding: '4px 8px', borderRadius: 'var(--r-sm)', marginBottom: 6 }}>
