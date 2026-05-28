@@ -1017,6 +1017,15 @@ const es = {
   'mycustompresets.field-scores-qual': 'Compatibilidad por tipo de pastilla',
   'mycustompresets.scores-simple': '← Modo simple',
   'mycustompresets.scores-advanced': 'Modo avanzado (0-100) →',
+  // Phase A (2026-05-28) — amplis guitare traditionnels
+  'profile-tab.my-guitar-amps': 'Mis amplificadores de guitarra tradicionales',
+  'profile-tab.my-guitar-amps-hint': 'Marca los amplificadores de guitarra físicos que posees (además del ToneX). Backline propondrá ajustes adaptados a tu equipo.',
+  'profile-tab.custom-guitar-amps-section': 'Mis amplificadores de guitarra custom',
+  'profile-tab.add-custom-guitar-amp': 'Añadir un amplificador de guitarra fuera del catálogo',
+  'profile-tab.add-guitar-amp-name-placeholder': 'Nombre (ej. Orange Rockerverb)',
+  'profile-tab.add-custom-amp-flat': 'Añadir un amplificador de bajo fuera del catálogo',
+  'song-detail.guitar-amp-block': 'En tu amplificador',
+  'song-detail.guitar-amp-block-named': 'En tu {amp}',
   // Vague 4 (2026-05-28) — traductions des clés -flat (libellés sans emoji)
   "admin.breadcrumb-flat": "Admin",
   "admin.tab.adminpacks-flat": "Packs admin",

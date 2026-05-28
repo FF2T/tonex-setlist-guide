@@ -1181,6 +1181,54 @@ describe('enrichAIResult — vague B (validation bass_recommendation)', () => {
   });
 });
 
+describe('enrichAIResult — Phase A (validation guitar_amp_settings)', () => {
+  const emptyBanks = {};
+  const base = () => ({
+    song_style: 'rock', target_gain: 5,
+    cot_step2_guitars: [], preset_ann: null, preset_plug: null,
+    ideal_preset: null, ideal_preset_score: 0, ideal_top3: [],
+  });
+
+  it('clampe les valeurs de settings dans 0-10', () => {
+    const aiResult = {
+      ...base(),
+      guitar_amp_settings: { amp: 'Marshall Super Lead Plexi 1959', channel: 'Bright',
+        settings: { volume_i: 15, volume_ii: 6, treble: -3, presence: 7 }, why: { fr: 'x', en: 'x', es: 'x' } },
+    };
+    const out = enrichAIResult(aiResult, 'HB', null, emptyBanks, emptyBanks, undefined, null);
+    expect(out.guitar_amp_settings.settings.volume_i).toBe(10);
+    expect(out.guitar_amp_settings.settings.volume_ii).toBe(6);
+    expect(out.guitar_amp_settings.settings.treble).toBe(0);
+    expect(out.guitar_amp_settings.amp).toBe('Marshall Super Lead Plexi 1959');
+    expect(out._guitarAmpValidated).toBe(true);
+  });
+
+  it('droppe les valeurs non-numériques de settings', () => {
+    const aiResult = {
+      ...base(),
+      guitar_amp_settings: { amp: 'Fender Blues Junior', settings: { volume: 5, treble: 'loud', master: 6 } },
+    };
+    const out = enrichAIResult(aiResult, 'SC', null, emptyBanks, emptyBanks, undefined, null);
+    expect(out.guitar_amp_settings.settings.volume).toBe(5);
+    expect(out.guitar_amp_settings.settings.treble).toBeUndefined();
+    expect(out.guitar_amp_settings.settings.master).toBe(6);
+  });
+
+  it('idempotent via _guitarAmpValidated', () => {
+    const aiResult = { ...base(), guitar_amp_settings: { amp: 'X', settings: { gain: 5 } } };
+    const out1 = enrichAIResult(aiResult, 'HB', null, emptyBanks, emptyBanks, undefined, null);
+    out1.guitar_amp_settings.settings.gain = 999; // mutation hors clamp
+    const out2 = enrichAIResult(out1, 'HB', null, emptyBanks, emptyBanks, undefined, null);
+    expect(out2.guitar_amp_settings.settings.gain).toBe(999); // pas re-clampé
+  });
+
+  it('no-op si guitar_amp_settings null/absent', () => {
+    const out = enrichAIResult({ ...base(), guitar_amp_settings: null }, 'HB', null, emptyBanks, emptyBanks, undefined, null);
+    expect(out.guitar_amp_settings).toBeNull();
+    expect(out._guitarAmpValidated).toBeUndefined();
+  });
+});
+
 describe('stripSlotPrefix — Phase 7.56 / vague B', () => {
   it('retire le préfixe position + espace', () => {
     expect(stripSlotPrefix('40B TSR Basyman Bass 4x10')).toBe('TSR Basyman Bass 4x10');

@@ -981,7 +981,45 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-28 jeudi, Étape 2 vague B basse + dropdowns homogénéisés + i18n EN/ES complétée + UX cleanup CLOSE)
+## État actuel (2026-05-28 jeudi, Phase A — amplis guitare traditionnels + symétrie titres)
+
+**Backline v8.14.290 / SW backline-v390 / STATE_VERSION 13 / 1754 tests verts. Bundle 2637 KB.**
+
+### Phase A — Symétrie titres + amplis guitare traditionnels custom (v8.14.290)
+
+Première phase d'un chantier "rig multi-instrument" en 3 phases (A→B→C, cf
+`/Users/sebastien/.claude/plans/misty-jumping-crayon.md`). Phase A livrée :
+
+- **Symétrie titres** : "Mon setup" → "Ma guitare", "Recommandations IA" →
+  "Recommandations guitare" (parité avec "Ma basse"/"Recommandations basse").
+  Sous-cadre interne "Recommandations" : titre + emoji 💡 retirés (collision +
+  règle no-emoji). EN/ES déjà alignés.
+- **Amplis guitare traditionnels** (mirror complet du pattern amplis basse
+  Phase 8.1) : nouveau `core/guitar-amps.js` (Marshall Plexi + Fender Blues
+  Junior + Deluxe/Twin Reverb + Vox AC30 + JCM800 + Mesa Dual Rectifier),
+  **potards réels par ampli** (`knobs`). `profile.myGuitarAmps` +
+  `customGuitarAmps`. UI sous-section "Mes amplis guitare" dans l'onglet Mes
+  guitares (catalogue cochable + ajout custom), calquée sur les amplis basse.
+  `window.__allGuitarAmps` + syncHash.
+- **IA** : `fetchAI` 16e param `guitarAmps` + section "AMPLIS GUITARE
+  TRADITIONNELS" + champ `guitar_amp_settings` (potards 0-10 de l'ampli réel
+  coché, par morceau, parallèle à `bass_recommendation.amp_settings`). Validé
+  dans `enrichAIResult` (clamp 0-10, flag `_guitarAmpValidated`). Câblé aux 2
+  call sites SongDetailCard.
+- **Affichage** : cadre "Sur ton ampli" (NavIcon `amp`, zéro emoji) dans
+  Recommandations guitare, gated par ampli guitare coché + guitar_amp_settings.
+- **Bonus** : retrait du "➕" emoji du form custom ampli basse existant.
+- **Pas de backfill** profil admin (Sébastien coche Plexi + Blues Junior
+  lui-même). Champs additifs → pas de bump STATE_VERSION. +12 tests → 1754.
+
+**Hors scope (Phases suivantes)** : Phase B = contexte de jeu (instrument ×
+rig) + filtrage de la vue morceau (masquer ToneX/ampli/TMP hors contexte) +
+réharmonisation de l'ordre des sous-cadres. Phase C = pédalier physique
+(`core/pedals.js` + `pedalboard_settings` IA + cadre "Sur ton pédalier").
+
+---
+
+## État précédent (2026-05-28, Étape 2 vague B basse + dropdowns + i18n EN/ES + UX cleanup)
 
 **Backline v8.14.289 / SW backline-v389 / STATE_VERSION 13 / 1742 tests verts. Bundle 2620 KB.**
 

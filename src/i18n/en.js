@@ -1022,6 +1022,15 @@ const en = {
   'mycustompresets.field-scores-qual': 'Compatibility by pickup type',
   'mycustompresets.scores-simple': '← Simple mode',
   'mycustompresets.scores-advanced': 'Advanced mode (0-100) →',
+  // Phase A (2026-05-28) — amplis guitare traditionnels
+  'profile-tab.my-guitar-amps': 'My traditional guitar amps',
+  'profile-tab.my-guitar-amps-hint': 'Check the physical guitar amps you own (on top of the ToneX). Backline will suggest settings tailored to your gear.',
+  'profile-tab.custom-guitar-amps-section': 'My custom guitar amps',
+  'profile-tab.add-custom-guitar-amp': 'Add a guitar amp not in the catalog',
+  'profile-tab.add-guitar-amp-name-placeholder': 'Name (e.g. Orange Rockerverb)',
+  'profile-tab.add-custom-amp-flat': 'Add a bass amp not in the catalog',
+  'song-detail.guitar-amp-block': 'On your amp',
+  'song-detail.guitar-amp-block-named': 'On your {amp}',
   // Vague 4 (2026-05-28) — traductions des clés -flat (libellés sans emoji)
   "admin.breadcrumb-flat": "Admin",
   "admin.tab.adminpacks-flat": "Admin packs",

@@ -705,6 +705,24 @@ function enrichAIResult(aiResult, gType, gId, banksAnn, banksPlug, availableSour
     aiResult._bassFieldsValidated = true;
   }
 
+  // Phase A — Validation guitar_amp_settings (réglages ampli guitare réel,
+  // parallèle à bass_recommendation.amp_settings). Clamp les valeurs de
+  // settings dans 0-10, garde amp/channel/why. Idempotent via flag. No-op
+  // si absent/null (rétro-compat + cas user sans ampli guitare coché).
+  const gas = aiResult.guitar_amp_settings;
+  if (gas && typeof gas === 'object' && !aiResult._guitarAmpValidated) {
+    if (gas.settings && typeof gas.settings === 'object') {
+      const clean = {};
+      for (const [k, v] of Object.entries(gas.settings)) {
+        const n = Number(v);
+        if (!Number.isFinite(n)) continue;
+        clean[k] = Math.max(0, Math.min(10, n));
+      }
+      gas.settings = clean;
+    }
+    aiResult._guitarAmpValidated = true;
+  }
+
   return aiResult;
 }
 

@@ -34,6 +34,7 @@ import { TSR_PACK_ZIPS } from '../../data/tsr-packs.js';
 import { getIg, getSongHist, getSongBassHist } from '../utils/song-helpers.js';
 import { findBass } from '../../core/basses.js';
 import { findBassAmp } from '../../core/bass-amps.js';
+import { findGuitarAmp } from '../../core/guitar-amps.js';
 import {
   enrichAIResult, mergeBestResults, updateAiCache, computeRigSnapshot,
   getBestResult, getLocalizedText, stripSlotPrefix,
@@ -241,7 +242,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
     // Phase 3.6). findGuitarByAIName ligne suivante garde allRigsGuitars
     // en fallback pour résoudre les aiCache historiques pré-Phase 7.66
     // qui contiennent un ideal_guitar hors rig actif.
-    fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, historicalFeedback, null, effectiveRecoMode, guitarBias, song.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || [], (profile?.myBasses || []).map((id) => findBass(id)).filter(Boolean), (profile?.myBassAmps || []).map((id) => findBassAmp(id)).filter(Boolean))
+    fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, historicalFeedback, null, effectiveRecoMode, guitarBias, song.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || [], (profile?.myBasses || []).map((id) => findBass(id)).filter(Boolean), (profile?.myBassAmps || []).map((id) => findBassAmp(id)).filter(Boolean), (profile?.myGuitarAmps || []).map((id) => findGuitarAmp(id)).filter(Boolean))
       .then((r) => {
         setLocalAiResult(r);
         setLocalAiErr(null);
@@ -345,7 +346,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           concentre sur ce que je joue concrètement avec MA guitare choisie
           et MON contexte d'écoute. */}
       <div style={customSectionStyle}>
-        {sectionTitle(<NavIcon id="guitar" size={16}/>, t('song-detail.setup-block', 'Mon setup'))}
+        {sectionTitle(<NavIcon id="guitar" size={16}/>, t('song-detail.setup-block', 'Ma guitare'))}
         {/* Phase 7.55.7 S9.2 — GuitarSelect + outputContext + 💬 feedback
             intégrés en tête du Bloc "Mon setup" (déplacés du sticky pour
             que l'action prioritaire soit visible dans le 1er bloc — choix
@@ -641,7 +642,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
               idéal, alternatives catalogue, settings_preset prose, et toggle
               Mode reco avancé en bas (replié — Phase 7.3 boutons). */}
           <div style={sectionStyle}>
-            {sectionTitle(<NavIcon id="target" size={16}/>, t('song-detail.reco-block', 'Recommandations IA'))}
+            {sectionTitle(<NavIcon id="target" size={16}/>, t('song-detail.reco-block', 'Recommandations guitare'))}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {/* S9.8 NOUVEL ORDRE :
                   1. Recommandations (settings_preset + settings_guitar)
@@ -671,7 +672,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 }
                 return (
                   <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                    <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.recommendations', '💡 Recommandations')}</div>
+                    {/* Phase A — titre "Recommandations" retiré (collision avec
+                        la section "Recommandations guitare" + emoji). Le contenu
+                        Preset/Guitare reste, sans en-tête redondant. */}
                     {aiC.settings_preset && <div className="prose-readable" style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', lineHeight: 1.45, marginBottom: hasGuitarBlock ? 6 : 0 }}><b style={{ color: 'var(--text-muted)' }}>{t('song-detail.preset-settings', 'Preset :')}</b> {getLocalizedText(aiC.settings_preset, locale)}</div>}
                     {hasGuitarBlock && (
                       <div className="prose-readable" style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', lineHeight: 1.45 }}>
@@ -932,6 +935,28 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   retirés ici : déplacés en haut du Bloc 2 (SECTIONS 1-3) dans
                   le nouvel ordre (Recommandations → Réglages EQ → Réglages
                   effets → Scoring guitares → Scoring preset). */}
+              {/* Phase A — Cadre "Sur ton ampli" (ampli guitare traditionnel
+                  RÉEL, distinct des cadres ToneX EQ/effets/preset). Gated par
+                  ampli guitare coché + guitar_amp_settings de l'IA. Phase B
+                  regroupera/filtrera par contexte ; ici il s'ajoute en fin. */}
+              {(profile?.myGuitarAmps?.length > 0) && aiC.guitar_amp_settings && aiC.guitar_amp_settings.settings && Object.keys(aiC.guitar_amp_settings.settings).length > 0 && (() => {
+                const gas = aiC.guitar_amp_settings;
+                const whyTxt = gas.why ? getLocalizedText(gas.why, locale) : null;
+                return (
+                  <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+                    <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <NavIcon id="amp" size={14}/>{gas.amp ? tFormat('song-detail.guitar-amp-block-named', { amp: gas.amp }, 'Sur ton {amp}') : t('song-detail.guitar-amp-block', 'Sur ton ampli')}
+                      {gas.channel ? <span style={{ fontWeight: 400, color: 'var(--text-dim)', textTransform: 'none' }}>· {gas.channel}</span> : null}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', fontFamily: 'var(--font-mono)' }}>
+                      {Object.entries(gas.settings).map(([k, v]) => (
+                        <span key={k}><b style={{ color: 'var(--text-muted)' }}>{k.replace(/_/g, ' ')}</b> {v}</span>
+                      ))}
+                    </div>
+                    {whyTxt && <div className="prose-readable" style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', marginTop: 4, lineHeight: 1.4, fontStyle: 'italic' }}>{whyTxt}</div>}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </>
@@ -1028,7 +1053,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   setReloading(true);
                   const prev = aiC;
                   const effectiveRecoMode = song.recoMode || profile?.recoMode || 'balanced';
-                  fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, fb, null, effectiveRecoMode, guitarBias, song.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || [], (profile?.myBasses || []).map((id) => findBass(id)).filter(Boolean), (profile?.myBassAmps || []).map((id) => findBassAmp(id)).filter(Boolean))
+                  fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, fb, null, effectiveRecoMode, guitarBias, song.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || [], (profile?.myBasses || []).map((id) => findBass(id)).filter(Boolean), (profile?.myBassAmps || []).map((id) => findBassAmp(id)).filter(Boolean), (profile?.myGuitarAmps || []).map((id) => findGuitarAmp(id)).filter(Boolean))
                     .then((r) => {
                       const pick = mergeBestResults(prev, r);
                       setLocalAiResult(pick);

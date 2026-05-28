@@ -20,6 +20,7 @@ import Button from '../components/Button.jsx';
 import { GUITARS, GUITAR_BRANDS } from '../../core/guitars.js';
 import { BASSES, BASS_BRANDS } from '../../core/basses.js';
 import { BASS_AMPS, BASS_AMP_BRANDS } from '../../core/bass-amps.js';
+import { GUITAR_AMPS, GUITAR_AMP_BRANDS } from '../../core/guitar-amps.js';
 import { SOURCE_LABELS, SOURCE_DESCRIPTIONS, SOURCE_INFO, SOURCE_REQUIRES_DEVICE } from '../../core/sources.js';
 import { FACTORY_BANKS_PEDALE_V1 } from '../../devices/tonex-pedal/index.js';
 import GuitarSearchAdd from '../components/GuitarSearchAdd.jsx';
@@ -47,6 +48,10 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
   const [newAmpName, setNewAmpName] = useState('');
   const [newAmpBrand, setNewAmpBrand] = useState('');
   const [newAmpWattage, setNewAmpWattage] = useState('');
+  // Phase A — state form ajout custom ampli guitare
+  const [newGAmpName, setNewGAmpName] = useState('');
+  const [newGAmpBrand, setNewGAmpBrand] = useState('');
+  const [newGAmpWattage, setNewGAmpWattage] = useState('');
 
   const updateProfile = (field, value) => onProfiles((p) => {
     const cur = p[activeProfileId];
@@ -127,6 +132,35 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
   const removeCustomBassAmp = (id) => {
     updateProfile('customBassAmps', (prev) => (prev || []).filter((a) => a.id !== id));
     updateProfile('myBassAmps', (prev) => (prev || []).filter((x) => x !== id));
+  };
+  // Phase A — Helpers amplis guitare traditionnels (parallèles aux amplis basse)
+  const toggleGuitarAmp = (id) => {
+    updateProfile('myGuitarAmps', (prev) => (prev || []).includes(id) ? prev.filter((x) => x !== id) : [...(prev || []), id]);
+  };
+  const addCustomGuitarAmp = () => {
+    if (!newGAmpName.trim()) return;
+    const name = newGAmpName.trim();
+    const brand = newGAmpBrand.trim() || 'Custom';
+    const wattage = Number(newGAmpWattage) || 50;
+    const ca = {
+      id: `cgamp_${Date.now()}`,
+      name,
+      short: name.length > 20 ? name.slice(0, 18) + '…' : name,
+      brand,
+      wattage,
+      channels: ['Single'],
+      knobs: ['gain', 'treble', 'middle', 'bass', 'presence', 'master'],
+      eq: ['Treble', 'Middle', 'Bass', 'Presence'],
+      features: [],
+      refs: { fr: '', en: '', es: '' },
+    };
+    updateProfile('customGuitarAmps', (prev) => [...(prev || []), ca]);
+    updateProfile('myGuitarAmps', (prev) => [...(prev || []), ca.id]);
+    setNewGAmpName(''); setNewGAmpBrand(''); setNewGAmpWattage('');
+  };
+  const removeCustomGuitarAmp = (id) => {
+    updateProfile('customGuitarAmps', (prev) => (prev || []).filter((a) => a.id !== id));
+    updateProfile('myGuitarAmps', (prev) => (prev || []).filter((x) => x !== id));
   };
   const addCustomGuitar = (cg) => {
     onCustomGuitars((prev) => [...(prev || []), cg]);
@@ -304,6 +338,65 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
         <GuitarSearchAdd inp={inp} aiKeys={aiKeys} disabled={isDemo} onAdd={(name, short, type) => {
           addCustomGuitar({ id: `cg_${Date.now()}`, name, short, type, brand: inferBrand(name) });
         }}/>
+
+        {/* Phase A — Mes amplis guitare traditionnels (mirror amplis basse).
+            Matériel physique non-ToneX (Marshall Plexi, Blues Junior…) pour
+            lequel l'IA proposera des réglages de potards 0-10 par morceau. */}
+        <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--a8)' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4, display: 'inline-flex', alignItems: 'center', gap: 6 }}><NavIcon id="amp" size={15}/>{t('profile-tab.my-guitar-amps', 'Mes amplis guitare traditionnels')}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>{t('profile-tab.my-guitar-amps-hint', 'Coche les amplis guitare physiques que tu possèdes (en plus du ToneX). Backline proposera des réglages adaptés à ton matériel.')}</div>
+          {GUITAR_AMP_BRANDS.map((brand) => {
+            const brandAmps = GUITAR_AMPS.filter((a) => a.brand === brand);
+            if (brandAmps.length === 0) return null;
+            return (
+              <div key={brand} style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{brand}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {brandAmps.map((a) => {
+                    const sel = (profile.myGuitarAmps || []).includes(a.id);
+                    return (
+                      <div key={a.id} onClick={() => { if (!isDemo) toggleGuitarAmp(a.id); }} title={demoTitle} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: sel ? 'var(--accent-soft)' : 'var(--a3)', border: sel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '8px 12px', cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.6 : 1 }}>
+                        <div style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: sel ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: sel ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{sel && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{a.name} <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400 }}>· {a.wattage}W</span></div>
+                          <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.4 }}>{a.features?.join(' · ') || ''}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+          {(profile?.customGuitarAmps || []).length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('profile-tab.custom-guitar-amps-section', 'Mes amplis guitare custom')}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {(profile.customGuitarAmps || []).map((a) => {
+                  const sel = (profile.myGuitarAmps || []).includes(a.id);
+                  return (
+                    <div key={a.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: sel ? 'var(--accent-soft)' : 'var(--a3)', border: sel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '8px 12px' }}>
+                      <div onClick={() => { if (!isDemo) toggleGuitarAmp(a.id); }} title={demoTitle} style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: sel ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: sel ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, cursor: isDemo ? 'not-allowed' : 'pointer' }}>{sel && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
+                      <div style={{ flex: 1, minWidth: 0, cursor: isDemo ? 'not-allowed' : 'pointer' }} onClick={() => { if (!isDemo) toggleGuitarAmp(a.id); }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{a.name} <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400 }}>· {a.brand} · {a.wattage}W</span></div>
+                      </div>
+                      <button onClick={() => { if (!isDemo) removeCustomGuitarAmp(a.id); }} disabled={isDemo} title={demoTitle} style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: isDemo ? 'not-allowed' : 'pointer', fontSize: 12, padding: '2px 4px', minHeight: 28, minWidth: 28, opacity: isDemo ? 0.5 : 1 }}>✕</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <div style={{ background: 'var(--a3)', border: '1px dashed var(--a8)', borderRadius: 'var(--r-md)', padding: 10, marginTop: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>{t('profile-tab.add-custom-guitar-amp', 'Ajouter un ampli guitare hors catalog')}</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
+              <input placeholder={t('profile-tab.add-guitar-amp-name-placeholder', 'Nom (ex. Orange Rockerverb)')} value={newGAmpName} onChange={(e) => setNewGAmpName(e.target.value)} disabled={isDemo} style={{ ...inp, flex: '1 1 200px', fontSize: 12, padding: '6px 10px' }}/>
+              <input placeholder={t('profile-tab.add-amp-brand-placeholder', 'Marque')} value={newGAmpBrand} onChange={(e) => setNewGAmpBrand(e.target.value)} disabled={isDemo} style={{ ...inp, flex: '1 1 100px', fontSize: 12, padding: '6px 10px' }}/>
+              <input type="number" placeholder="Watt" value={newGAmpWattage} onChange={(e) => setNewGAmpWattage(e.target.value)} disabled={isDemo} min={1} max={2000} style={{ ...inp, flex: '0 0 70px', fontSize: 12, padding: '6px 8px' }}/>
+            </div>
+            <Button variant="primary" disabled={isDemo || !newGAmpName.trim()} title={demoTitle} onClick={() => { if (!isDemo) addCustomGuitarAmp(); }}>{t('profile-tab.add-amp-submit', 'Ajouter')}</Button>
+          </div>
+        </div>
       </div>}
 
       {/* Phase 8.6 — Tab "🎻 Mes basses" : toggle "Activer la basse" +
@@ -446,7 +539,7 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                   )}
                   {/* Phase 8.7 — Form ajout custom ampli basse */}
                   <div style={{ background: 'var(--a3)', border: '1px dashed var(--a8)', borderRadius: 'var(--r-md)', padding: 10, marginTop: 8 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>{t('profile-tab.add-custom-amp', '➕ Ajouter un ampli basse hors catalog')}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>{t('profile-tab.add-custom-amp-flat', 'Ajouter un ampli basse hors catalog')}</div>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
                       <input placeholder={t('profile-tab.add-amp-name-placeholder', 'Nom (ex. Hartke HD500)')} value={newAmpName} onChange={(e) => setNewAmpName(e.target.value)} disabled={isDemo} style={{ ...inp, flex: '1 1 200px', fontSize: 12, padding: '6px 10px' }}/>
                       <input placeholder={t('profile-tab.add-amp-brand-placeholder', 'Marque')} value={newAmpBrand} onChange={(e) => setNewAmpBrand(e.target.value)} disabled={isDemo} style={{ ...inp, flex: '1 1 100px', fontSize: 12, padding: '6px 10px' }}/>
