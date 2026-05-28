@@ -11,6 +11,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { t, tFormat, tPlural, useLocale, getLocale } from '../../i18n/index.js';
 import { GUITARS } from '../../core/guitars.js';
 import { normalizePresetName, findCatalogEntry, isBassPreset } from '../../core/catalog.js';
+import NavIcon from '../components/NavIcon.jsx';
 import { SOURCE_LABELS } from '../../core/sources.js';
 import { cleanUsages } from './ToneNetTab.jsx';
 import {
@@ -213,9 +214,9 @@ function UsagesSection({ presetName, ampRefs, isAdmin, songDb, onSaveUsages, onR
   const renderSourceBadge = () => {
     if (!usagesSource || usagesSource === 'default') return null;
     const labels = {
-      user: { emoji: '👤', label: t('cascade.source-user', 'Toi'), color: '#7dd3fc', bg: 'rgba(125,211,252,0.15)' },
-      studio: { emoji: '🏷️', label: usagesCuratedBy ? tFormat('cascade.source-studio-by', { studio: usagesCuratedBy }, 'Studio ({studio})') : t('cascade.source-studio', 'Studio'), color: '#1e40af', bg: 'rgba(30,64,175,0.15)' },
-      backline: { emoji: '⚙️', label: t('cascade.source-backline', 'Backline'), color: '#3b82f6', bg: 'rgba(59,130,246,0.15)' },
+      user: { label: t('cascade.source-user', 'Toi'), color: '#7dd3fc', bg: 'rgba(125,211,252,0.15)' },
+      studio: { label: usagesCuratedBy ? tFormat('cascade.source-studio-by', { studio: usagesCuratedBy }, 'Studio ({studio})') : t('cascade.source-studio', 'Studio'), color: '#1e40af', bg: 'rgba(30,64,175,0.15)' },
+      backline: { label: t('cascade.source-backline', 'Backline'), color: '#3b82f6', bg: 'rgba(59,130,246,0.15)' },
     };
     const lvl = labels[usagesSource];
     if (!lvl) return null;
@@ -224,7 +225,7 @@ function UsagesSection({ presetName, ampRefs, isAdmin, songDb, onSaveUsages, onR
         title={t(`cascade.source-${usagesSource}-tooltip`, '')}
         style={{ marginLeft: 8, fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 'var(--r-sm)', color: lvl.color, background: lvl.bg, display: 'inline-flex', alignItems: 'center', gap: 3 }}
       >
-        {lvl.emoji} {lvl.label}
+        {lvl.label}
       </span>
     );
   };
@@ -232,7 +233,7 @@ function UsagesSection({ presetName, ampRefs, isAdmin, songDb, onSaveUsages, onR
   return (
     <div style={sectionStyle}>
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
-        {sectionTitle('🎯', t('usages.section', 'Usages curés (preset)'))}
+        {sectionTitle(<NavIcon id="target" size={13}/>, t('usages.section', 'Usages curés (preset)'))}
         {renderSourceBadge()}
       </div>
       {!isEditing && (
@@ -260,7 +261,7 @@ function UsagesSection({ presetName, ampRefs, isAdmin, songDb, onSaveUsages, onR
                 onClick={() => setIsEditing(true)}
                 style={{ background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-sm)', padding: '4px 10px', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}
               >
-                ✏️ {existingUsages.length === 0 ? t('usages.curate', 'Curer ce preset') : t('usages.edit', 'Modifier ces usages')}
+                {existingUsages.length === 0 ? t('usages.curate', 'Curer ce preset') : t('usages.edit', 'Modifier ces usages')}
               </button>
             )}
             {canRemoveOverride && (
@@ -269,7 +270,7 @@ function UsagesSection({ presetName, ampRefs, isAdmin, songDb, onSaveUsages, onR
                 title={t('cascade.restore-tooltip', 'Retire ton override et reprend le niveau de cascade suivant (Backline ou Catalog).')}
                 style={{ background: 'var(--a7)', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '4px 10px', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}
               >
-                🔄 {t('cascade.restore', 'Restaurer la version par défaut')}
+                {t('cascade.restore', 'Restaurer la version par défaut')}
               </button>
             )}
           </div>
@@ -381,7 +382,9 @@ function PresetDetailInline({ name, info, banksAnn, banksPlug, presetContext, gu
   const plugLoc = findInBanks(name, banksPlug);
   const allGuitars = guitars || GUITARS;
   const sectionStyle = { background: 'var(--a3)', border: '1px solid var(--a7)', borderRadius: 'var(--r-lg)', padding: '10px 12px', marginBottom: 8 };
-  const sectionTitle = (icon, label) => <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>{icon} {label}</div>;
+  // Vague 3 emojis — icon peut être JSX (NavIcon) ou null. Si null,
+  // pas d'espace parasite (gap flex géré conditionnellement).
+  const sectionTitle = (icon, label) => <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: icon ? 5 : 0 }}>{icon}<span>{label}</span></div>;
   const STYLE_LABELS = {
     blues: t('preset-detail.style.blues', 'Blues'),
     rock: t('preset-detail.style.rock', 'Rock'),
@@ -444,7 +447,7 @@ function PresetDetailInline({ name, info, banksAnn, banksPlug, presetContext, gu
   return (
     <div style={{ background: 'var(--bg-elev-1)', border: '1px solid var(--a7)', borderRadius: '0 0 9px 9px', padding: 12, marginTop: -1, animation: 'slideDown .2s ease-out', display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div style={sectionStyle}>
-        {sectionTitle('🔊', t('preset-detail.section.amp-info', 'Infos ampli / preset'))}
+        {sectionTitle(null, t('preset-detail.section.amp-info', 'Infos ampli / preset'))}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-bright)', marginBottom: 2 }}>{ctx?.emoji && <span style={{ marginRight: 4 }}>{ctx.emoji}</span>}{info.amp}</div>
@@ -470,15 +473,15 @@ function PresetDetailInline({ name, info, banksAnn, banksPlug, presetContext, gu
         })()}
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 6 }}>
           {annLoc
-            ? <span style={{ fontSize: 10, color: 'var(--green)', background: 'var(--green-bg)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-md)', padding: '3px 8px', fontWeight: 600 }}>📦 {tFormat('preset-detail.installed-pedal', { bank: annLoc.bank, slot: annLoc.slot }, 'Banque {bank}{slot}')}</span>
-            : <span style={{ fontSize: 10, color: 'var(--text-dim)', background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '3px 8px' }}>📦 {t('preset-detail.not-installed', 'Non installé')}</span>}
+            ? <span style={{ fontSize: 10, color: 'var(--green)', background: 'var(--green-bg)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-md)', padding: '3px 8px', fontWeight: 600 }}>{tFormat('preset-detail.installed-pedal-flat', { bank: annLoc.bank, slot: annLoc.slot }, 'Pédale — Banque {bank}{slot}')}</span>
+            : <span style={{ fontSize: 10, color: 'var(--text-dim)', background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '3px 8px' }}>{t('preset-detail.not-installed-pedal', 'Pédale — non installé')}</span>}
           {plugLoc
-            ? <span style={{ fontSize: 10, color: 'var(--green)', background: 'var(--green-bg)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-md)', padding: '3px 8px', fontWeight: 600 }}>🔌 {tFormat('preset-detail.installed-plug', { bank: plugLoc.bank, slot: plugLoc.slot }, 'Banque {bank}{slot}')}</span>
-            : <span style={{ fontSize: 10, color: 'var(--text-dim)', background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '3px 8px' }}>🔌 {t('preset-detail.not-installed', 'Non installé')}</span>}
+            ? <span style={{ fontSize: 10, color: 'var(--green)', background: 'var(--green-bg)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-md)', padding: '3px 8px', fontWeight: 600 }}>{tFormat('preset-detail.installed-plug-flat', { bank: plugLoc.bank, slot: plugLoc.slot }, 'Plug — Banque {bank}{slot}')}</span>
+            : <span style={{ fontSize: 10, color: 'var(--text-dim)', background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '3px 8px' }}>{t('preset-detail.not-installed-plug', 'Plug — non installé')}</span>}
         </div>
       </div>
       <div style={sectionStyle}>
-        {sectionTitle('🎛', t('preset-detail.section.style-gain', 'Style & gain'))}
+        {sectionTitle(<NavIcon id="sliders" size={13}/>, t('preset-detail.section.style-gain', 'Style & gain'))}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div style={{ fontSize: 11, color: 'var(--text-sec)' }}><span style={{ color: 'var(--text-muted)', fontSize: 10 }}>{t('preset-browser.gain', 'Gain')}</span> <span style={{ fontWeight: 600 }}>{GAIN_LABELS[info.gain] || info.gain}</span></div>
           <div style={{ fontSize: 11, color: 'var(--text-sec)' }}><span style={{ color: 'var(--text-muted)', fontSize: 10 }}>{t('preset-browser.style', 'Style catalogue')}</span> <span style={{ fontWeight: 600 }}>{STYLE_LABELS[info.style] || info.style}</span></div>
@@ -487,7 +490,7 @@ function PresetDetailInline({ name, info, banksAnn, banksPlug, presetContext, gu
       </div>
       {filteredRefs && filteredRefs.length > 0 && (
         <div style={sectionStyle}>
-          {sectionTitle('🎵', tFormat('preset-detail.section.iconic-songs', { register: GAIN_SHORT[info.gain] }, 'Morceaux mythiques — registre {register}'))}
+          {sectionTitle(null, tFormat('preset-detail.section.iconic-songs', { register: GAIN_SHORT[info.gain] }, 'Morceaux mythiques — registre {register}'))}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             {filteredRefs.map((r) => (
               <div key={r.a} style={{ fontSize: 11, color: 'var(--text-sec)' }}>
@@ -514,15 +517,15 @@ function PresetDetailInline({ name, info, banksAnn, banksPlug, presetContext, gu
           ajouter une section "Basses adaptées" symétrique. */}
       {!isBassPreset(name, info) && (
       <div style={sectionStyle}>
-        {sectionTitle('🎸', t('preset-detail.section.suitable-guitars', 'Guitares adaptées'))}
+        {sectionTitle(<NavIcon id="guitar" size={13}/>, t('preset-detail.section.suitable-guitars', 'Guitares adaptées'))}
         {/* Phase 7.83 — Buckets qualitatifs 3 niveaux (Mariage parfait / Bon match / Compromis)
             au lieu de scores % bruts. Le % reste accessible via title HTML pour power-users. */}
         {(() => {
           const grouped = groupByBucket(guitarScores);
           const BUCKET_LABELS = {
-            ideal: t('compat.ideal-match', '🟢 Mariage parfait'),
-            good: t('compat.good-match', '🟡 Bon match'),
-            compromise: t('compat.compromise', '🟠 Compromis'),
+            ideal: t('compat.ideal-match-flat', 'Mariage parfait'),
+            good: t('compat.good-match-flat', 'Bon match'),
+            compromise: t('compat.compromise-flat', 'Compromis'),
           };
           const sectionsToRender = ['ideal', 'good', 'compromise'].filter((k) => grouped[k].length > 0);
           if (sectionsToRender.length === 0) return null;
@@ -627,8 +630,8 @@ function PresetList({ filtered, selected, setSelected, banksAnn, banksPlug, full
                   <div style={{ display: 'flex', gap: 5, alignItems: 'center', marginTop: 2, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{info.amp}</span>
                     {info.pack && info.pack !== info.amp && <span style={{ fontSize: 9, color: 'var(--text-muted)', background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '1px 5px' }}>{info.pack}</span>}
-                    {annLoc && <span style={{ fontSize: 9, color: 'var(--accent)', background: 'var(--accent-bg)', borderRadius: 'var(--r-sm)', padding: '1px 5px', fontWeight: 700 }}>📦{annLoc.bank}{annLoc.slot}</span>}
-                    {plugLoc && <span style={{ fontSize: 9, color: 'var(--accent)', background: 'rgba(165,180,252,0.1)', borderRadius: 'var(--r-sm)', padding: '1px 5px', fontWeight: 700 }}>🔌{plugLoc.bank}{plugLoc.slot}</span>}
+                    {annLoc && <span title={t('preset-list.installed-pedal', 'Installé sur Pédale/Anniversary')} style={{ fontSize: 9, color: 'var(--accent)', background: 'var(--accent-bg)', borderRadius: 'var(--r-sm)', padding: '1px 5px', fontWeight: 700 }}>Ped {annLoc.bank}{annLoc.slot}</span>}
+                    {plugLoc && <span title={t('preset-list.installed-plug', 'Installé sur Plug')} style={{ fontSize: 9, color: 'var(--accent)', background: 'rgba(165,180,252,0.1)', borderRadius: 'var(--r-sm)', padding: '1px 5px', fontWeight: 700 }}>Plug {plugLoc.bank}{plugLoc.slot}</span>}
                   </div>
                 </div>
                 {/* Phase 8.x — pastilles HB/SC/P90 retirées (cf commentaire header). */}
@@ -864,10 +867,10 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
           style avec accent visuel sur le bouton actif. */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
         {[
-          { id: 'all',    label: t('preset-browser.instrument-all',    '🎵 Tous'),     icon: '🎵' },
-          { id: 'guitar', label: t('preset-browser.instrument-guitar', '🎸 Guitare'),  icon: '🎸' },
-          { id: 'bass',   label: t('preset-browser.instrument-bass',   '🎻 Basse'),    icon: '🎻' },
-        ].map(({ id, label }) => {
+          { id: 'all',    label: t('preset-browser.instrument-all-flat',    'Tous'),     iconId: null },
+          { id: 'guitar', label: t('preset-browser.instrument-guitar-flat', 'Guitare'),  iconId: 'guitar' },
+          { id: 'bass',   label: t('preset-browser.instrument-bass-flat',   'Basse'),    iconId: 'bass' },
+        ].map(({ id, label, iconId }) => {
           const active = instrumentFilter === id;
           return (
             <button
@@ -885,8 +888,9 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
                 cursor: 'pointer',
                 minHeight: 44,
                 boxShadow: active ? 'inset 0 -2px 0 var(--accent, #818cf8)' : 'none',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               }}
-            >{label}</button>
+            >{iconId && <NavIcon id={iconId} size={15}/>}{label}</button>
           );
         })}
       </div>
@@ -895,7 +899,7 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
         <input
           type="search"
           enterKeyHint="search"
-          placeholder={t('preset-browser.search-placeholder', '🔍 Rechercher artiste, morceau, ampli...')}
+          placeholder={t('preset-browser.search-placeholder-flat', 'Rechercher artiste, morceau, ampli...')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
@@ -910,7 +914,7 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
       <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 14, fontStyle: 'italic' }}>{t('preset-browser.live-filter', 'Résultats filtrés en temps réel')}</div>
 
       <button onClick={pickRandom} style={{ width: '100%', background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-lg)', padding: '12px', fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 16 }}>
-        {t('preset-browser.random', '🎲 Preset aléatoire')}
+        {t('preset-browser.random-flat', 'Preset aléatoire')}
       </button>
 
       {randomPick && (
