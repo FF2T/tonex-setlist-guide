@@ -981,9 +981,26 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-28 jeudi, Étape 2 vague B — Symétrie scoring/EQ/FX basse + UX cleanup CLOSE)
+## État actuel (2026-05-28 jeudi, Étape 2 vague B — Symétrie scoring/EQ/FX basse + dropdown sélection basse + UX cleanup CLOSE)
 
-**Backline v8.14.283 / SW backline-v383 / STATE_VERSION 13 / 1735 tests verts. Bundle 2620 KB.**
+**Backline v8.14.284 / SW backline-v384 / STATE_VERSION 13 / 1735 tests verts. Bundle 2620 KB.**
+
+### Dropdown sélection basse (v8.14.284)
+
+Retour Sébastien post-v8.14.283 : *"je ne vois pas de liste déroulante pour
+la basse (alors qu'il y en a une pour la guitare)"*. La section *Ma basse*
+affichait la basse élue en texte statique au lieu d'un sélecteur (demandé en
+vague A mais pas implémenté). Ajout d'une **liste déroulante** symétrique à
+`GuitarSelect` :
+- `<select>` listant `userBasses` (basses cochées du profil), option idéale IA
+  suffixée "— idéale", étoile ★ si la basse sélectionnée est l'idéale.
+- Choix persisté dans `setlist.basses[songId]` (symétrique à `setlist.guitars`,
+  via nouveaux props `savedBassId` / `onBassChange` câblés depuis ListScreen).
+  Inclus automatiquement dans le hash setlist (Phase 7.54.2 full JSON.stringify)
+  → sync Firestore + LWW sans plumbing supplémentaire.
+- **Pas de re-fetch au changement** (contrairement à la guitare) : `cot_step2_basses`
+  contient déjà le scoring de toutes les basses du rig, le choix est purement
+  "quelle basse je joue". Fallback gracieux (état local) si `onBassChange` absent.
 
 ### Étape 2 vague B — Symétrie scoring/EQ/FX basse (v8.14.283)
 

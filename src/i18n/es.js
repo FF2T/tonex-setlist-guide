@@ -1082,6 +1082,7 @@ const es = {
   'song-detail.setup-block': 'Mi guitarra',
   'song-detail.bass-block': 'Mi bajo',
   'song-detail.bass-reco-block': 'Recomendaciones bajo',
+  'song-detail.bass-ideal-suffix': '— ideal',
   'song-detail.bass-cot': 'Puntuación bajos',
   'song-detail.bass-scoring-preset': 'Puntuación preset bajo',
   'song-detail.bass-alternatives': 'Alternativas catálogo',

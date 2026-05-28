@@ -147,7 +147,7 @@ function FxBlocksCadre({ fxBlocks, locale, title }) {
   );
 }
 
-function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, onClose, guitars, allRigsGuitars, availableSources, savedGuitarId, onGuitarChange, aiProvider, aiKeys, onSongDb, onAiCacheUpdate, profile, guitarBias, onTmpPatchOverride, songDb, onProfiles, activeProfileId, toneNetPresets, onToneNetPresets, onSharedUsagesOverrides }) {
+function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, onClose, guitars, allRigsGuitars, availableSources, savedGuitarId, onGuitarChange, savedBassId, onBassChange, aiProvider, aiKeys, onSongDb, onAiCacheUpdate, profile, guitarBias, onTmpPatchOverride, songDb, onProfiles, activeProfileId, toneNetPresets, onToneNetPresets, onSharedUsagesOverrides }) {
   // Phase 7.54 — Helper interne : écrit aiCache via onAiCacheUpdate
   // (profile.aiCache) si disponible, sinon fallback onSongDb (shared).
   // Pour les invalidations (value=null), utilise aussi onAiCacheUpdate
@@ -159,6 +159,11 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   const locale = useLocale();
   const ig = getIg(song, guitars);
   const [gId, setGId] = useState(savedGuitarId || ig[0] || '');
+  // Vague B — sélection basse (liste déroulante "Ma basse", symétrique à
+  // GuitarSelect). '' = pas de choix explicite → fallback ideal_bass / 1ère
+  // basse cochée. Pas de re-fetch au changement (cot_step2_basses contient
+  // déjà le scoring de toutes les basses du rig).
+  const [selectedBassId, setSelectedBassId] = useState(savedBassId || '');
   const [reloading, setReloading] = useState(false);
   const [localAiResult, setLocalAiResult] = useState(null);
   const [localAiErr, setLocalAiErr] = useState(null);
@@ -1103,8 +1108,17 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           ? getLocalizedText(bassReco.bass_reason, locale)
           : null;
         // Vague A bass restructure (2026-05-27) — basse idéale élue :
-        // priorité à l'IA si elle matche le rig, sinon 1ère basse cochée.
-        const selectedBass = idealBassObj || userBasses[0] || null;
+        // priorité au choix user (selectedBassId, persisté setlist.basses),
+        // sinon basse idéale IA si elle matche le rig, sinon 1ère basse cochée.
+        const effectiveBassId = selectedBassId || idealBassObj?.id || userBasses[0]?.id || '';
+        const selectedBass = userBasses.find((b) => b.id === effectiveBassId)
+          || idealBassObj || userBasses[0] || null;
+        // L'étoile ★ marque la basse idéale IA (uniquement si c'est elle qui est sélectionnée).
+        const selectedIsIdeal = idealBassObj && selectedBass && selectedBass.id === idealBassObj.id;
+        const handleBassChange = (v) => {
+          setSelectedBassId(v);
+          if (onBassChange) onBassChange(song.id, v);
+        };
         // Vague B — champs scoring/EQ/FX basse (symétrie bloc guitare).
         const cotBasses = Array.isArray(bassReco?.cot_step2_basses) ? bassReco.cot_step2_basses : [];
         const bassAlts = Array.isArray(bassReco?.bass_alternatives) ? bassReco.bass_alternatives : [];
@@ -1117,16 +1131,24 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         };
         return (
           <>
-            {/* Section "Ma basse" — analogue à "Ma guitare" */}
+            {/* Section "Ma basse" — analogue à "Ma guitare" (liste déroulante
+                de sélection symétrique à GuitarSelect, vague B). */}
             <div style={sectionStyle}>
               {sectionTitle(<NavIcon id="bass" size={16}/>, t('song-detail.bass-block', 'Ma basse'))}
-              {selectedBass ? (
-                <div style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)' }}>
-                  {idealBassObj && <span style={{ color: 'var(--accent)', marginRight: 6 }}>★</span>}
-                  <b style={{ color: 'var(--text-bright)' }}>{selectedBass.name}</b>
-                  <span style={{ marginLeft: 8, fontSize: 'clamp(10px, 1.15vw, 12px)', color: 'var(--text-dim)' }}>
-                    ({selectedBass.type}, {selectedBass.brand})
-                  </span>
+              {userBasses.length > 0 ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <select
+                    value={effectiveBassId}
+                    onChange={(e) => handleBassChange(e.target.value)}
+                    style={{ flex: 1, minWidth: 0, fontSize: 'clamp(12px, 1.35vw, 14px)', background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '8px 10px', fontWeight: 600 }}
+                  >
+                    {userBasses.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} ({b.type}, {b.brand}){idealBassObj && b.id === idealBassObj.id ? ` ${t('song-detail.bass-ideal-suffix', '— idéale')}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedIsIdeal && <span style={{ color: 'var(--accent)', fontSize: 'clamp(12px, 1.35vw, 14px)', flexShrink: 0 }} title={t('song-detail.bass-ideal', 'Basse idéale')}>★</span>}
                 </div>
               ) : (
                 <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', fontStyle: 'italic' }}>
