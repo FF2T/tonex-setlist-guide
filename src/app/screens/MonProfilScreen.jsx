@@ -22,6 +22,7 @@ import { formatDateJJMMAA } from '../../core/date-utils.js';
 import Breadcrumb from '../components/Breadcrumb.jsx';
 import NavIcon from '../components/NavIcon.jsx';
 import TabButton from '../components/TabButton.jsx';
+import Button from '../components/Button.jsx';
 import BankEditor from '../components/BankEditor.jsx';
 import ProfileTab from './ProfileTab.jsx';
 import MesAppareilsTab from './MesAppareilsTab.jsx';
@@ -444,8 +445,9 @@ function MonProfilScreen({
             <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 14, marginBottom: 10 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Réinitialiser mes analyses IA</div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.4 }}>Invalide les caches IA UNIQUEMENT pour les morceaux de tes setlists ({myCount} morceau{myCount > 1 ? 'x' : ''} concerné{myCount > 1 ? 's' : ''}). Pratique pour forcer une ré-analyse après un changement de banks, de sources ou de mode reco. Au prochain ouverture (ou via "Analyser/MAJ" en Setlists), une nouvelle analyse sera lancée.</div>
-              <button
-                data-testid="reco-invalidate-mine"
+              <Button
+                testId="reco-invalidate-mine"
+                variant="primary"
                 disabled={myCount === 0}
                 onClick={() => {
                   if (!myCount) { window.alert('Aucun cache IA à invalider sur tes morceaux.'); return; }
@@ -464,16 +466,16 @@ function MonProfilScreen({
                   onSongDb((p) => p.map((s) => (mySongIds.has(s.id) && s.aiCache) ? { ...s, aiCache: null } : s));
                   window.alert(`${myCount} cache${myCount > 1 ? 's' : ''} invalidé${myCount > 1 ? 's' : ''}. Va dans Setlists et clique "Analyser/MAJ".`);
                 }}
-                style={{ background: myCount === 0 ? 'var(--bg-disabled)' : 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '12px 16px', fontSize: 13, fontWeight: 700, cursor: myCount === 0 ? 'not-allowed' : 'pointer', opacity: myCount === 0 ? 0.5 : 1, minHeight: 44 }}
-              >{tFormat('profile.reset-my-analyses', { count: myCount }, 'Réinitialiser mes analyses ({count})')}</button>
+              >{tFormat('profile.reset-my-analyses', { count: myCount }, 'Réinitialiser mes analyses ({count})')}</Button>
             </div>
           );
         })()}
         {profile.isAdmin && <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 14 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Appliquer le mode à toute la base (admin)</div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.4 }}>Invalide TOUS les caches IA — y compris les morceaux des autres profils. À utiliser après un changement structurel (prompt, scoring) qui affecte tous les profils.</div>
-          <button
-            data-testid="reco-invalidate-all"
+          <Button
+            testId="reco-invalidate-all"
+            variant="danger"
             onClick={() => {
               const n = (songDb || []).filter((s) => s.aiCache).length;
               if (!n) { window.alert('Aucun cache IA à invalider.'); return; }
@@ -489,8 +491,7 @@ function MonProfilScreen({
               onSongDb((p) => p.map((s) => s.aiCache ? { ...s, aiCache: null } : s));
               window.alert(`${n} caches invalidés. Reviens dans Setlists et clique "Analyser/MAJ".`);
             }}
-            style={{ background: 'var(--wine-400)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '12px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 44 }}
-          >{t('profile.invalidate-all-caches', 'Invalider tous les caches IA')}</button>
+          >{t('profile.invalidate-all-caches', 'Invalider tous les caches IA')}</Button>
         </div>}
         </div>{/* fin wrap demo-gating section IA */}
 
@@ -831,11 +832,11 @@ function MonCompteSection({
             <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--a8)', border: '2px solid var(--a10)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 700, color: 'var(--text-sec)' }}>{(profile?.name || '?').charAt(0).toUpperCase()}</div>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>
+            <label style={{ background: 'var(--a5)', border: '1px solid var(--a8)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 11, cursor: 'pointer', fontWeight: 700, minHeight: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
               {profile?.avatar ? t('mon-compte.avatar-change', 'Changer') : t('mon-compte.avatar-add', 'Ajouter un avatar')}
               <input type="file" accept="image/*" onChange={onAvatarUpload} style={{ display: 'none' }}/>
             </label>
-            {profile?.avatar && <button onClick={removeAvatar} style={{ background: 'transparent', border: '1px solid var(--a10)', color: 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '4px 10px', fontSize: 10, cursor: 'pointer' }}>{t('mon-compte.avatar-remove', 'Retirer')}</button>}
+            {profile?.avatar && <Button variant="ghost" size="sm" onClick={removeAvatar}>{t('mon-compte.avatar-remove', 'Retirer')}</Button>}
           </div>
         </div>
         {avatarErr && <div style={{ fontSize: 11, color: 'var(--wine-400)', marginBottom: 10 }}>{avatarErr}</div>}
@@ -851,13 +852,13 @@ function MonCompteSection({
               autoFocus
               style={{ ...inp, flex: 1 }}
             />
-            <button onClick={saveName} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>✓</button>
-            <button onClick={cancelName} style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 11, cursor: 'pointer' }}>✕</button>
+            <Button variant="primary" size="sm" onClick={saveName}>{t('mon-compte.save', 'OK')}</Button>
+            <Button variant="secondary" size="sm" onClick={cancelName}>{t('mon-compte.cancel', 'Annuler')}</Button>
           </div>
         ) : (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
             <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600, flex: 1 }}>{profile?.name || '—'}</div>
-            <button onClick={() => { setEditingName(true); setNameDraft(profile?.name || ''); }} style={{ background: 'transparent', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '10px 14px', fontSize: 12, cursor: 'pointer', minHeight: 44 }}>{t('mon-compte.edit', 'Modifier')}</button>
+            <Button variant="ghost" onClick={() => { setEditingName(true); setNameDraft(profile?.name || ''); }}>{t('mon-compte.edit', 'Modifier')}</Button>
           </div>
         )}
 
@@ -913,10 +914,7 @@ function MonCompteSection({
             : t('mon-compte.trusted-no', 'Cet appareil n\'est pas de confiance : ton mot de passe sera demandé à chaque connexion. La confiance se gagne en cochant "Mémoriser cet appareil" au login.')}
         </div>
         {trusted && (
-          <button
-            onClick={revokeTrusted}
-            style={{ background: 'var(--wine-400)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
-          >{t('mon-compte.trusted-revoke', 'Révoquer pour cet appareil')}</button>
+          <Button variant="danger" onClick={revokeTrusted}>{t('mon-compte.trusted-revoke', 'Révoquer pour cet appareil')}</Button>
         )}
       </div>
 
@@ -928,10 +926,7 @@ function MonCompteSection({
       <div style={sectionIntroStyle}>{t('mon-compte.data-intro', 'Export, import et réinitialisation de TES données (profil actif uniquement).')}</div>
       <div style={cardStyle}>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-          <button
-            onClick={exportMyData}
-            style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '12px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 44 }}
-          >{t('mon-compte.data-export', 'Exporter mes données (JSON)')}</button>
+          <Button variant="primary" onClick={exportMyData}>{t('mon-compte.data-export', 'Exporter mes données (JSON)')}</Button>
         </div>
         <div style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.5 }}>
           {t('mon-compte.data-export-hint', 'Inclut ton profil, tes setlists, tes morceaux, tes banks, tes presets ToneNET et tes guitares custom. Ne contient pas tes données autres profils.')}
@@ -943,10 +938,7 @@ function MonCompteSection({
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.4 }}>
           {t('mon-compte.reset-hint', 'Vide ton rig, tes banks, tes setlists et ton historique IA. Garde ton nom, email, mot de passe et historique de connexion. Action irréversible.')}
         </div>
-        <button
-          onClick={resetMyProfile}
-          style={{ background: 'transparent', border: '1px solid var(--wine-400)', color: 'var(--wine-400)', borderRadius: 'var(--r-md)', padding: '12px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 44 }}
-        >{t('mon-compte.reset-button', 'Réinitialiser mon profil')}</button>
+        <Button variant="danger-ghost" onClick={resetMyProfile}>{t('mon-compte.reset-button', 'Réinitialiser mon profil')}</Button>
       </div>
 
       {/* ─── Section 4 : 📊 Activité (Phase 7.73.2 Session C) ─── */}
@@ -1051,20 +1043,22 @@ function MonCompteSection({
       <div style={cardStyle}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {/* Relancer le tutoriel (pattern footer existant Phase 1) */}
-          <button
+          <Button
+            variant="secondary"
+            fullWidth
             onClick={() => {
               if (typeof window.setShowOnboarding === 'function') window.setShowOnboarding(true);
               else { const e = new CustomEvent('showOnboarding'); window.dispatchEvent(e); }
             }}
-            style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}
-          >{t('mon-compte.help-relaunch-tutorial', 'Relancer le tutoriel d\'introduction')}</button>
+          >{t('mon-compte.help-relaunch-tutorial', 'Relancer le tutoriel d\'introduction')}</Button>
 
-          {/* Feedback Tally (Phase 7.73.0) */}
+          {/* Feedback Tally (Phase 7.73.0) — <a> stylé comme Button secondary
+              pour cohérence visuelle (lien externe, pas un bouton). */}
           <a
             href={buildFeedbackUrl(profile?.name, (typeof window !== 'undefined' && window.__BACKLINE_APP_VERSION) || '')}
             target="_blank"
             rel="noopener noreferrer"
-            style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'none', textAlign: 'left' }}
+            style={{ background: 'var(--a5)', border: '1px solid var(--a8)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '10px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', textDecoration: 'none', minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
           >{t('mon-compte.help-send-feedback', 'Envoyer un feedback à l\'équipe')}</a>
           {/* Phase 7.73.2.1 (2026-05-23) — Bouton mailto retiré pour
               privacy (l'email admin était exposé en clair via mailto:).
