@@ -179,12 +179,55 @@ public/
 - Le contenu utilisateur (descriptions de morceaux, notes, packs) est
   en français.
 
+## Composants UI partagés (Button, TabButton — Vague 3 UX 2026-05-28)
+
+Pour garantir l'homogénéité des tailles/styles (signalé par Sébastien :
+boutons hétérogènes, onglets de tailles différentes), **2 composants
+partagés** existent. Les utiliser systématiquement pour tout nouveau
+bouton/onglet plutôt que des styles inline ad-hoc.
+
+### `src/app/components/Button.jsx`
+
+Bouton d'action unifié. Props : `{ children, onClick, variant, size,
+iconId, disabled, title, testId, fullWidth, style }`.
+
+- **5 variants** : `primary` (accent rempli) · `secondary` (neutre
+  rempli a5) · `ghost` (neutre transparent) · `danger` (wine rempli) ·
+  `danger-ghost` (wine outline).
+- **2 tailles** : `md` (défaut, padding 10×16, minHeight 44 touch HIG) ·
+  `sm` (compact, padding 6×12, minHeight 32).
+- État `disabled` géré (bg-disabled + opacity 0.5 + cursor not-allowed).
+- Icône NavIcon optionnelle (`iconId`), gap 6.
+- Couleurs spéciales (gradient brass, vert JSON export) : passer via
+  le prop `style` qui merge par-dessus le variant.
+
+### `src/app/components/TabButton.jsx`
+
+Bouton d'onglet unifié (MonProfilScreen + AdminScreen). Props :
+`{ active, label, iconId, onClick, testId }`. padding 10×14, fontSize
+12, minHeight 44, fontWeight active?700:500, whiteSpace nowrap,
+boxShadow inset accent quand actif, icône NavIcon optionnelle.
+
+### Migrés (Vague 3 UX)
+
+Button : Mon compte (8) · Préférences (2) · MaintenanceTab (25, 0
+`<button>` restant) · ExportImportScreen · AdminPacksTab · ToneNetTab ·
+MyCustomPresetsTab · ProfileTab. TabButton : MonProfilScreen (8 tabs) +
+AdminScreen (6 tabs). Micro-boutons `×` de suppression inline laissés
+(déjà cohérents entre eux).
+
 ## Iconographie — pas d'emojis dans l'UI (règle 2026-05-27)
 
 ⚠️ **Règle stricte** : **JAMAIS d'emoji dans les éléments d'UI**
 (boutons, tabs, sectionTitles, labels, badges). Utiliser exclusivement
 des **icônes SVG flat outline** via le composant
 `src/app/components/NavIcon.jsx`.
+
+> **Vague 3 close (v8.14.282, 2026-05-28)** : tout l'UI est désormais
+> sans emoji — seul le footer (`© 2026 PathToTone · Made with 🎸 and
+> ❤️`) en conserve, volontairement (validé Sébastien). Le `device.icon`
+> emoji (🏭/🔌/📦/🎚️) est remplacé par `device.iconId` → NavIcon `amp`
+> partout. 26 icônes NavIcon disponibles. Cf section Historique en bas.
 
 ### Pourquoi
 
@@ -220,7 +263,10 @@ import NavIcon from '../components/NavIcon.jsx';
 Style cohérent : outline, `stroke=currentColor`, viewBox 24×24,
 `strokeWidth=1.8`.
 
-**21 icônes disponibles** (vagues 1 + 2 cumulées) :
+**26 icônes disponibles** (vagues 1 + 2 + 3 cumulées) — en plus du
+tableau ci-dessous : `pen` (crayon édition) · `trash` (poubelle) ·
+`broom` (vider) · `doc` (export PDF) · `amp` (cabinet + grille HP, pour
+les devices ToneX via `device.iconId`) :
 
 | id | Visuel | Usage |
 |---|---|---|
@@ -325,19 +371,33 @@ grep -P "[\x{1F300}-\x{1F9FF}]|[\x{2600}-\x{27BF}]" src/app/screens/MonScreen.js
   - **RecapScreen** : titres 🎸/🎵/⬇ + icon emoji 📦/🔌 missing
     presets → flat
   - **PBlock** : badges ⬇/↑/★/✦/→ → texte
-- **Vague 3 cleanup à venir** (~7 écrans secondaires) : MonProfilScreen
-  sub-sections (MonCompteSection ~54 occurrences emojis, dont section
-  Identité, Sécurité, Mes données, Activité, Communauté, Aide),
-  PresetBrowser fiches preset détail (~25 occurrences), BankOptimizerScreen
-  (~14, admin only), MaintenanceTab (~13, admin only), ExportImportScreen
-  (~12), MyCustomPresetsTab (~10), PresetCurationModal (~10). Aussi :
-  ProfilePickerScreen, ProfileSelector, AddSongModal, DemoBanner,
-  JamScreen, SynthesisScreen, TmpBrowser, BankEditor, divers résidus.
-- **Cohabitation i18n** : ~30 nouvelles clés `-flat` ajoutées sans
+- **Vague 3 CLOSE** (v8.14.273 → v8.14.282, 2026-05-28) : tous les
+  écrans + composants nettoyés. +5 icônes (pen/trash/broom/doc/amp).
+  - **MonProfilScreen** (54 emojis → 0) : titre, section headers,
+    boutons, cards radio (recoMode/output/styles), badges, stats,
+    hints, messages confirm/alert, thème/langue (🌙/☀️/🇫🇷 → labels)
+  - **PresetBrowser** (25) : sectionTitles → NavIcon, cascade badges,
+    boutons, badges install, compat buckets, filtre instrument, search,
+    random
+  - **Device icons** (source centrale 🏭/🔌/📦/🎚️) : `device.iconId`
+    ajouté aux 4 catalogs (anniversary/plug/pedal → `amp`, tmp →
+    `sliders`), 8 call sites `{d.icon}` → `<NavIcon id={d.iconId}/>`
+  - **Paquet écrans** : Jam, Synthesis, ProfileTab, Landing,
+    ProfilePicker (→ BacklineIcon), ViewProfile, MesAppareils,
+    MyCustomPresets, ToneNet, ProfilesAdmin, AllUserPresets,
+    AdminPacks, Maintenance, ExportImport, BankOptimizer,
+    PresetCurationModal (pastilles statut → dot CSS), DemoBanner,
+    ProfileSelector
+  - **main.jsx** : titre page "🎛️ Explorer les presets" → flat ;
+    PresetBrowser `ctx.emoji` ampli (🎸 devant "Orange AD200") retiré
+- **Cohabitation i18n** : ~80 nouvelles clés `-flat` ajoutées sans
   emojis (ex. `'song-detail.eq-settings-flat'` vs ancien
   `'song-detail.eq-settings'` qui contenait `🎛️`). Anciennes clés
-  conservées pour rétro-compat. Cleanup unifié à faire Vague 4 quand
-  toutes les vagues 1-3 sont closes.
+  conservées pour rétro-compat (les emojis y subsistent mais ne sont
+  jamais rendus car les call sites pointent sur les clés `-flat`).
+  **Vague 4 i18n cleanup** (dette) : retirer les anciennes clés à
+  emojis des dicts EN/ES une fois certain qu'aucun call site ne les
+  référence. Purement technique, zéro impact visuel.
 
 ## Conventions Git
 
@@ -921,15 +981,15 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-28 jeudi, UX cleanup — Vague A bass restructure + bassStale auto-refetch + Vague 2 emojis majoritaire)
+## État actuel (2026-05-28 jeudi, UX cleanup CLOSE — emojis retirés de toute l'UI + composants Button/TabButton)
 
-**Backline v8.14.272 / SW backline-v372 / STATE_VERSION 13 / 1729 tests verts.**
+**Backline v8.14.282 / SW backline-v382 / STATE_VERSION 13 / 1729 tests verts. Bundle 2607 KB.**
 
-### Session 2026-05-27/28 — 32 deploys cumulés (v8.14.240 → v8.14.272)
+### Session 2026-05-27/28 — 42 deploys cumulés (v8.14.240 → v8.14.282)
 
 Continuation directe de la session du 2026-05-27 (Phase 8 V1 + 7.85
-audit Cowork). 12 nouveaux deploys aujourd'hui après v8.14.260
-(détection bass robuste TSR Bass Pack 1) :
+audit Cowork). 22 deploys aujourd'hui après v8.14.260 (détection bass
+robuste TSR Bass Pack 1) :
 
 | # | Version | Sujet |
 |---|---|---|
@@ -945,6 +1005,16 @@ audit Cowork). 12 nouveaux deploys aujourd'hui après v8.14.260
 | 10 | 8.14.270 | **Vague 2 emojis (tabs)** : MonProfilScreen 8 tabs + AdminScreen 6 tabs |
 | 11 | 8.14.271 | Vague 2 emojis : SongDetailCard + HomeScreen complets + ref bass Infos morceau |
 | 12 | 8.14.272 | Vague 2 emojis : LiveScreen + ListScreen + RecapScreen + PBlock |
+| 13 | 8.14.273 | **Vague 3 emojis** : MonProfilScreen sub-sections (MonCompteSection 54 emojis → 0) |
+| 14 | 8.14.274 | Vague 3 : PresetBrowser fiches preset (25 emojis) + ctx.emoji ampli retiré |
+| 15 | 8.14.275 | Vague 3 : device.iconId (4 catalogs + registry) → NavIcon `amp`/`sliders` sur 8 call sites |
+| 16 | 8.14.276 | Vague 3 : Jam + Synthesis + ProfileTab + Landing + ProfilePicker (BacklineIcon) + ViewProfile |
+| 17 | 8.14.277 | Vague 3 : MesAppareils + MyCustomPresets + ToneNet + ProfilesAdmin + AllUserPresets |
+| 18 | 8.14.278 | Vague 3 : AdminPacks + Maintenance + ExportImport + BankOptimizer + PresetCurationModal + DemoBanner + ProfileSelector |
+| 19 | 8.14.279 | Vague 3 : titre page "Explorer les presets" main.jsx → flat (dernier emoji UI) |
+| 20 | 8.14.280 | **Button.jsx + TabButton.jsx** : composants partagés (5 variants × 2 sizes) |
+| 21 | 8.14.281 | Migration Button : Mon compte + Préférences + Maintenance (25 boutons) + tabs unifiés |
+| 22 | 8.14.282 | Uniformisation boutons : ExportImport + AdminPacks + ToneNet + MyCustomPresets + ProfileTab |
 
 ### Vague A bass restructure (v8.14.269) — symétrie partielle UI
 
@@ -1044,34 +1114,52 @@ Footer (`© 2026 PathToTone · Made with 🎸 and ❤️`) volontairement
 conservé. Exceptions tolérées : prompts IA, docs markdown, données seed.
 
 **Vague 1 (v8.14.267)** : 7 icônes + 3 sites prioritaires.
-**Vague 2 majoritaire (v8.14.270/271/272)** : +14 icônes (total 21) +
-7 écrans nettoyés (MonProfilScreen tabs + AdminScreen tabs + HomeScreen
-+ SongDetailCard + LiveScreen + ListScreen + RecapScreen + PBlock).
+**Vague 2 (v8.14.270/271/272)** : +14 icônes (total 21) + 7 écrans.
+**Vague 3 CLOSE (v8.14.273 → 279)** : +5 icônes (total 26) + TOUS les
+écrans + composants restants. `device.iconId` (4 catalogs + registry)
+→ NavIcon `amp`/`sliders`. Dernier emoji UI (titre page "Explorer les
+presets" main.jsx) retiré v8.14.279. **L'UI est désormais 100%
+emoji-free sauf le footer** (`© 2026 PathToTone · Made with 🎸 and ❤️`).
 
-Cf section "Iconographie" en tête de CLAUDE.md pour le tableau complet
-des 21 icônes + l'historique des 2 vagues + la liste précise des sites
-restants pour la **Vague 3 cleanup** (~7 écrans secondaires + i18n).
+### Composants partagés Button / TabButton (v8.14.280 → 282)
+
+Suite au constat Sébastien *"les boutons sont encore hétérogènes dans
+l'onglet Mon compte. A voir dans les autres écrans aussi"* :
+
+- **`src/app/components/Button.jsx`** : 5 variants (primary / secondary
+  / ghost / danger / danger-ghost) × 2 sizes (md : padding 10×16,
+  minHeight 44 ; sm : padding 6×12, minHeight 32). Props `{children,
+  onClick, variant, size, iconId, disabled, title, testId, fullWidth,
+  style}`. État disabled = bg-disabled + opacity 0.5 + cursor
+  not-allowed. iconId optionnel → NavIcon inline.
+- **`src/app/components/TabButton.jsx`** : bouton d'onglet unifié.
+  Props `{active, label, iconId, onClick, testId}`. padding 10×14,
+  fontSize 12, minHeight 44 (cible tactile iOS HIG), whiteSpace nowrap,
+  boxShadow inset accent quand actif.
+
+Migrés : MonProfilScreen (tabs → TabButton + Mon compte + Préférences
+→ Button), AdminScreen (tabs → TabButton), MaintenanceTab (25 boutons,
+0 `<button>` restant), ExportImportScreen, AdminPacksTab, ToneNetTab,
+MyCustomPresetsTab, ProfileTab.
+
+Cf section "Composants UI partagés" + "Iconographie" en tête de
+CLAUDE.md pour le tableau des 26 icônes + l'historique des 3 vagues.
 
 ### Dette résiduelle session 2026-05-28
 
-1. **Vague 3 emojis cleanup** (~7 écrans secondaires) :
-   - MonProfilScreen sub-sections (MonCompteSection ~54 emojis :
-     Identité, Sécurité, Mes données, Activité, Communauté, Aide)
-   - PresetBrowser fiches preset détail (~25)
-   - BankOptimizerScreen (~14, admin only)
-   - MaintenanceTab (~13, admin only)
-   - ExportImportScreen (~12)
-   - MyCustomPresetsTab (~10)
-   - PresetCurationModal (~10)
-   - Divers : ProfilePickerScreen, ProfileSelector, AddSongModal,
-     DemoBanner, JamScreen, SynthesisScreen, TmpBrowser, BankEditor
-2. **Vague 4 i18n cleanup** : ~30 clés `-flat` ajoutées, anciennes
-   conservées rétro-compat. Unifier quand vagues 1-3 closes.
-3. **Étape 2 vague B bass complète** (Sébastien validée 2026-05-28) :
+1. **Vague 4 i18n cleanup** (purement technique) : ~80 clés `-flat`
+   ajoutées sans emojis, anciennes clés à emojis conservées en
+   rétro-compat dans les dicts EN/ES. Retirer les anciennes une fois
+   certain qu'aucun call site ne les référence. Zéro impact visuel.
+2. **Étape 2 vague B bass complète** (Sébastien validée 2026-05-28) :
    symétrie scoring + EQ + FX bass dans SongDetailCard. Extension
    prompt fetchAI (cot_step2_basses + bass_alternatives +
    bass_preset_settings_v1 + bass_fx_blocks). ~3-5h dev + re-batch
    coûteux post-déploiement.
+3. **Propagation Button aux écrans restants** (opportuniste) :
+   quelques `<button>` inline subsistent dans les écrans secondaires
+   (BankEditor, AddSongModal, PresetCurationModal, FeedbackPanel…).
+   À migrer au fil de l'eau quand on touche ces fichiers.
 
 ---
 
