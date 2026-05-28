@@ -275,10 +275,9 @@ function MonProfilScreen({
         <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>{t('profile.display.theme', 'Thème')}</div>
           <div style={{ display: 'flex', gap: 8 }}>
-            {[{ v: 'dark', emoji: '🌙', label: t('profile.display.theme-dark', 'Sombre'), desc: t('profile.display.theme-dark-desc', 'Fond sombre') }, { v: 'light', emoji: '☀️', label: t('profile.display.theme-light', 'Clair'), desc: t('profile.display.theme-light-desc', 'Fond clair') }].map(({ v, emoji, label, desc }) => (
+            {[{ v: 'dark', label: t('profile.display.theme-dark', 'Sombre'), desc: t('profile.display.theme-dark-desc', 'Fond sombre') }, { v: 'light', label: t('profile.display.theme-light', 'Clair'), desc: t('profile.display.theme-light-desc', 'Fond clair') }].map(({ v, label, desc }) => (
               <button key={v} onClick={() => onTheme(v)} style={{ flex: 1, background: theme === v ? 'var(--accent-bg)' : 'var(--a5)', border: theme === v ? '1px solid var(--border-accent)' : '1px solid var(--a10)', color: theme === v ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-lg)', padding: '14px 8px', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'center' }}>
-                <div style={{ fontSize: 22, marginBottom: 4 }}>{emoji}</div>
-                <div>{label}</div>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>{label}</div>
                 <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{desc}</div>
               </button>
             ))}
@@ -288,7 +287,7 @@ function MonProfilScreen({
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>{t('profile.display.language', 'Langue')}</div>
           <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 12, lineHeight: 1.5 }}>{t('profile.display.language-hint', 'L\'interface est encore majoritairement en français. Les traductions sont en cours de déploiement progressif.')}</div>
           <div style={{ display: 'flex', gap: 8 }}>
-            {SUPPORTED_LOCALES.map(({ id, label, flag }) => {
+            {SUPPORTED_LOCALES.map(({ id, label }) => {
               const active = locale === id;
               return <button
                 key={id}
@@ -296,8 +295,7 @@ function MonProfilScreen({
                 onClick={() => { setLocale(id); }}
                 style={{ flex: 1, background: active ? 'var(--accent-bg)' : 'var(--a5)', border: active ? '1px solid var(--border-accent)' : '1px solid var(--a10)', color: active ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-lg)', padding: '14px 8px', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'center' }}
               >
-                <div style={{ fontSize: 22, marginBottom: 4 }}>{flag}</div>
-                <div>{label}</div>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>{label}</div>
               </button>;
             })}
           </div>
@@ -925,7 +923,7 @@ function MonCompteSection({
       {/* ─── Section 3 : 💾 Mes données ─── */}
       <hr style={{ border: 'none', borderTop: '1px solid var(--a10)', margin: '20px 0 16px 0' }}/>
       <div style={sectionTitleStyle}>
-        <span>💾</span><span>{t('mon-compte.section-data', 'Mes données')}</span>
+        <span>{t('mon-compte.section-data', 'Mes données')}</span>
       </div>
       <div style={sectionIntroStyle}>{t('mon-compte.data-intro', 'Export, import et réinitialisation de TES données (profil actif uniquement).')}</div>
       <div style={cardStyle}>

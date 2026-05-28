@@ -125,6 +125,7 @@ describe('getDeviceMeta', () => {
       id: 'tonex-anniversary',
       label: 'ToneX Pedal Anniversary',
       icon: '🏭',
+      iconId: 'amp',
       description: expect.stringContaining('Anniversary'),
       defaultEnabled: false,
       requiresPro: false,

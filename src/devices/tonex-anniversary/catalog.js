@@ -43,6 +43,7 @@ const TONEX_ANNIVERSARY_CATALOG = {
   id: 'tonex-anniversary',
   label: 'ToneX Pedal Anniversary',
   icon: '🏭',
+  iconId: 'amp',
   description: 'Édition Anniversary — accès aux 150 captures Anniversary exclusives en plus du catalogue Pedal standard.',
   initBanks: INIT_BANKS_ANN,
   factoryBanks: FACTORY_BANKS_ANNIVERSARY,

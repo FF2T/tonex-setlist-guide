@@ -68,6 +68,7 @@ function getDeviceMeta(id) {
     id: d.id,
     label: d.label,
     icon: d.icon,
+    iconId: d.iconId,
     description: d.description,
     defaultEnabled: !!d.defaultEnabled,
     requiresPro: !!d.requiresPro,

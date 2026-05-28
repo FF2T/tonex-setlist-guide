@@ -784,7 +784,7 @@ function HomeScreen({
                           return (
                             <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px', flexWrap: 'wrap' }}>
                               <StatusDot score={presetData.score} ideal={presetData.label === songResult.ideal_preset}/>
-                              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, flexShrink: 0 }}>{d.icon} {d.label}</span>
+                              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}><NavIcon id={d.iconId || 'amp'} size={12}/>{d.label}</span>
                               <span style={{ fontSize: 11, color: 'var(--text)', fontWeight: 600, flex: 1 }}>{presetData.label}</span>
                               {presetData.score && <span style={{ fontSize: 10, fontWeight: 700, color: scoreColor(presetData.score) }}>{presetData.score}%</span>}
                               {presetData.bank != null && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{tFormat('home.song.bank', { bank: presetData.bank, slot: presetData.col }, 'Banque {bank}{slot}')}</span>}

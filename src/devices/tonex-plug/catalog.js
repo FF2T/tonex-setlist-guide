@@ -7,6 +7,7 @@ const TONEX_PLUG_CATALOG = {
   id: 'tonex-plug',
   label: 'ToneX Plug',
   icon: '🔌',
+  iconId: 'amp',
   description: 'ToneX Plug — version logicielle, 10 banks A/B/C.',
   initBanks: INIT_BANKS_PLUG,
   factoryBanks: FACTORY_BANKS_PLUG,

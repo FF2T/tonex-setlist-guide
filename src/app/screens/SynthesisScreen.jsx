@@ -7,6 +7,7 @@
 // ils restent visibles dans Recap/Setlists collapsed.
 
 import React from 'react';
+import NavIcon from '../components/NavIcon.jsx';
 import { t, tFormat, tPlural } from '../../i18n/index.js';
 import { GUITARS } from '../../core/guitars.js';
 import { getActiveDevicesForRender } from '../utils/devices-render.js';
@@ -69,7 +70,7 @@ function SynthesisScreen({ songs, gps, aiR, onBack, onNavigate, songDb, banksAnn
             <th style={th}>{t('synthesis.col-song', 'Morceau')}</th>
             <th style={th}>{t('synthesis.col-guitar', 'Guitare')}</th>
             {enabledDevices.map((d) => (
-              <th key={d.id} style={{ ...th, color: d.id === 'tonex-plug' ? 'var(--accent)' : 'var(--text-sec)' }}>{d.icon} {d.label}</th>
+              <th key={d.id} style={{ ...th, color: d.id === 'tonex-plug' ? 'var(--accent)' : 'var(--text-sec)' }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><NavIcon id={d.iconId || 'amp'} size={13}/>{d.label}</span></th>
             ))}
           </tr></thead>
           <tbody>

@@ -443,7 +443,7 @@ function LiveScreen({
                 fontStyle: 'italic',
               }}
             >
-              <span style={{ marginRight: 6 }}>{d.icon}</span>
+              <span style={{ marginRight: 6, display: 'inline-flex', verticalAlign: 'middle' }}><NavIcon id={d.iconId || 'amp'} size={14}/></span>
               {tFormat('live.no-live-mode', { label: d.label }, '{label} — pas de mode live disponible.')}
             </div>
           );

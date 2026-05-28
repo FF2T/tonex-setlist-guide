@@ -734,6 +734,7 @@ const TONEMASTER_PRO_CATALOG = {
   id: 'tonemaster-pro',
   label: 'Tone Master Pro',
   icon: '🎚️',
+  iconId: 'sliders',
   description: 'Tone Master Pro — chaîne de 9 blocs, ~20 patches factory.',
   initBanks: {},      // pas de banks au sens ToneX
   factoryBanks: {},   // idem

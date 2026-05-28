@@ -11,6 +11,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { t, tFormat, tPlural } from '../../i18n/index.js';
+import NavIcon from '../components/NavIcon.jsx';
 import { GUITARS } from '../../core/guitars.js';
 import { findGuitarByAIName } from '../../core/scoring/guitar.js';
 import { findCatalogEntry } from '../../core/catalog.js';
@@ -242,7 +243,7 @@ function RecapScreen({
               <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                 {perDevice.map(({ d, presetData, loc }) => (
                   <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
-                    <span style={{ color: d.deviceKey === 'plug' ? 'var(--accent)' : 'var(--green)', fontWeight: 700, flexShrink: 0 }}>{d.icon}</span>
+                    <span style={{ color: d.deviceKey === 'plug' ? 'var(--accent)' : 'var(--green)', flexShrink: 0, display: 'inline-flex' }}><NavIcon id={d.iconId || 'amp'} size={13}/></span>
                     <span style={{ color: 'var(--text-bright)', fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{presetData.label}</span>
                     {presetData.score && <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: scoreColor(presetData.score), flexShrink: 0 }}>{presetData.score}%</span>}
                     {loc ? <span style={{ fontSize: 9, color: CC[loc.slot], fontWeight: 700, flexShrink: 0 }}>{loc.bank}{loc.slot}</span> : <span style={{ fontSize: 9, color: 'var(--yellow)', flexShrink: 0 }}>{t('recap.not-installed', 'non installé')}</span>}
@@ -251,7 +252,7 @@ function RecapScreen({
                 {enabledDevices.filter((d) => typeof d.RecommendBlock === 'function').map((d) => (
                   <div key={d.id} style={{ borderTop: '1px solid var(--a8)', marginTop: 4, paddingTop: 6 }}>
                     <div style={{ fontSize: 9, fontWeight: 700, color: d.deviceColor || 'var(--brass-400)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span>{d.icon}</span><span>{d.label}</span>
+                      <NavIcon id={d.iconId || 'amp'} size={11}/><span>{d.label}</span>
                     </div>
                     <d.RecommendBlock song={song} guitar={guitar} profile={profile} allGuitars={allGuitars} onPatchOverride={onTmpPatchOverride}/>
                   </div>

@@ -11,6 +11,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { t, tFormat } from '../../i18n/index.js';
+import NavIcon from '../components/NavIcon.jsx';
 import { getAllDevices } from '../../devices/registry.js';
 import { stampedProfileUpdate } from '../../core/state.js';
 import BankEditor from '../components/BankEditor.jsx';
@@ -379,7 +380,7 @@ function MesAppareilsTab({
             onClick={() => toggleCollapsed(d.id)}
             style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0 }}
           >
-            <span style={{ fontSize: 18, flexShrink: 0 }}>{d.icon}</span>
+            <span style={{ flexShrink: 0, display: 'inline-flex', color: 'var(--text-sec)' }}><NavIcon id={d.iconId || 'amp'} size={18}/></span>
             <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{d.label}</span>
           </button>
           {unknownsCount > 0 && (
@@ -464,7 +465,7 @@ function MesAppareilsTab({
                 }}>
                   {on && <span style={{ color: 'var(--bg)', fontSize: 10, fontWeight: 900 }}>✓</span>}
                 </div>
-                <span style={{ fontSize: 18, flexShrink: 0 }}>{d.icon}</span>
+                <span style={{ flexShrink: 0, display: 'inline-flex', color: 'var(--text-sec)' }}><NavIcon id={d.iconId || 'amp'} size={18}/></span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: on ? 'var(--text)' : 'var(--text-sec)' }}>{d.label}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{d.description}</div>

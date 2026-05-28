@@ -59,6 +59,9 @@ function NavIcon({id,size}){
   if(id==="broom") return <svg style={st} viewBox="0 0 24 24"><path d="M19.36 2.72l1.42 1.42-5.72 5.71"/><path d="M14.85 8.66l-3.18 3.19a2 2 0 0 0-.58 1.41V18l-3 3 5.5-5.5 5-5"/><line x1="11" y1="13" x2="15" y2="9"/></svg>;
   // Doc / PDF (export setlist).
   if(id==="doc") return <svg style={st} viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>;
+  // Amp / combo (devices ToneX : Pédale / Anniversary / Plug).
+  // Cabinet rectangulaire + grille HP (gros cercle) + petits réglages.
+  if(id==="amp") return <svg style={st} viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="13" r="4"/><circle cx="18" cy="8" r="0.8" fill="currentColor"/><circle cx="18" cy="13" r="0.8" fill="currentColor"/></svg>;
   return null;
 }
 

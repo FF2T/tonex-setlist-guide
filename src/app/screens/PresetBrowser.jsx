@@ -450,7 +450,7 @@ function PresetDetailInline({ name, info, banksAnn, banksPlug, presetContext, gu
         {sectionTitle(null, t('preset-detail.section.amp-info', 'Infos ampli / preset'))}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-bright)', marginBottom: 2 }}>{ctx?.emoji && <span style={{ marginRight: 4 }}>{ctx.emoji}</span>}{info.amp}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-bright)', marginBottom: 2 }}>{info.amp}</div>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>{name}{info.channel ? ' · ' + info.channel : ''}</div>
           </div>
         </div>

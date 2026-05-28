@@ -17,6 +17,7 @@ const TONEX_PEDAL_CATALOG = {
   id: 'tonex-pedal',
   label: 'ToneX Pedal',
   icon: '📦',
+  iconId: 'amp',
   description: 'ToneX Pedal — captures TSR/ML/Factory, 50 banks A/B/C.',
   initBanks: INIT_BANKS_ANN,
   factoryBanks: FACTORY_BANKS_PEDALE,
