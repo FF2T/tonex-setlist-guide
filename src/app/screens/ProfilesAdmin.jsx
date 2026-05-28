@@ -6,6 +6,7 @@
 
 import React, { useState } from 'react';
 import { t, tFormat, getLocale } from '../../i18n/index.js';
+import NavIcon from '../components/NavIcon.jsx';
 import { makeDefaultProfile, isTrusted, setTrusted, stampedProfileUpdate } from '../../core/state.js';
 import { hashPassword } from '../../core/crypto-utils.js';
 
@@ -73,7 +74,7 @@ function ProfilesAdmin({ profiles, onProfiles }) {
             ) : (
               <>
                 <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{p.name}{p.isAdmin && <span style={{ fontSize: 9, color: 'var(--brass-300)', marginLeft: 6, fontWeight: 700 }}>{t('profiles.admin-label', 'ADMIN')}</span>}</div>
-                <button onClick={() => { setEditNameId(p.id); setEditNameVal(p.name); }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer', padding: '2px 4px' }}>✏️</button>
+                <button title={t('profiles.rename', 'Renommer')} onClick={() => { setEditNameId(p.id); setEditNameVal(p.name); }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer', padding: '2px 4px', display: 'inline-flex', alignItems: 'center' }}><NavIcon id="pen" size={13}/></button>
                 <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{p.password ? (isTrusted(p.id) ? '🔓' : '🔒') : '🔓'}</span>
                 <button onClick={() => toggleAdmin(p.id)} title={p.isAdmin ? t('profiles.demote-title', 'Retirer le statut admin') : t('profiles.promote-title', 'Promouvoir admin')} style={{ background: p.isAdmin ? 'var(--brass-200)' : 'var(--a7)', border: 'none', color: p.isAdmin ? 'var(--ink)' : 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '3px 7px', fontSize: 10, cursor: 'pointer', fontWeight: p.isAdmin ? 700 : 500 }}>{p.isAdmin ? t('profiles.admin-on', '★ Admin') : t('profiles.admin-off', '☆ Admin')}</button>
                 <button onClick={() => { setEditPwdId(editPwdId === p.id ? null : p.id); setEditPwdVal(p.password || ''); }} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '3px 7px', fontSize: 10, cursor: 'pointer' }}>{t('profiles.password', 'Mot de passe')}</button>
@@ -99,7 +100,7 @@ function ProfilesAdmin({ profiles, onProfiles }) {
               }
               if (entry && entry.type === 'admin_switch') {
                 const dt = new Date(entry.ts).toLocaleString(getLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-                return <div key={i} style={{ fontSize: 11, color: 'var(--copper-300, #d97a3a)', lineHeight: 1.6 }} title={t('profiles.admin-switch-title', 'Accès admin sur ce profil')}>🔍 {entry.adminName || entry.adminId} <span style={{ color: 'var(--text-muted)' }}>({t('profiles.admin-mode', 'mode admin')}) · {dt}</span></div>;
+                return <div key={i} style={{ fontSize: 11, color: 'var(--copper-300, #d97a3a)', lineHeight: 1.6, fontWeight: 600 }} title={t('profiles.admin-switch-title', 'Accès admin sur ce profil')}>{entry.adminName || entry.adminId} <span style={{ color: 'var(--text-muted)' }}>({t('profiles.admin-mode', 'mode admin')}) · {dt}</span></div>;
               }
               return null;
             })}

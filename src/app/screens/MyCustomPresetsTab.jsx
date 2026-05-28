@@ -23,6 +23,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { t, tFormat, useLocale } from '../../i18n/index.js';
+import NavIcon from '../components/NavIcon.jsx';
 import { PRESET_CATALOG_MERGED } from '../../core/catalog.js';
 import { inferPresetInfo } from '../utils/infer-preset.js';
 import { STYLE_SCORES } from '../utils/detect-preset-metadata.js';
@@ -50,9 +51,9 @@ function getLevelForScore(score) {
 
 // Label localisé pour un niveau, partagé avec PresetBrowser (Phase 7.83).
 function getLevelLabel(levelId) {
-  if (levelId === 'ideal') return t('compat.ideal-match', '🟢 Mariage parfait');
-  if (levelId === 'good') return t('compat.good-match', '🟡 Bon match');
-  return t('compat.compromise', '🟠 Compromis');
+  if (levelId === 'ideal') return t('compat.ideal-match-flat', 'Mariage parfait');
+  if (levelId === 'good') return t('compat.good-match-flat', 'Bon match');
+  return t('compat.compromise-flat', 'Compromis');
 }
 
 // Liste fermée des valeurs `creator` possibles. Auto-détection via
@@ -365,12 +366,12 @@ function MyCustomPresetsTab({ profile, onProfiles, activeProfileId, songDb, inp 
   return (
     <div>
       <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>
-        {t('mycustompresets.intro', 'Liste de tous tes presets persos avec leurs metadata. Les usages artiste/morceau aident l\'IA à pinner le bon preset pour chaque song. Activable/désactivable via le toggle "Mes presets custom" dans 📦 Sources.')}
+        {t('mycustompresets.intro-flat', 'Liste de tous tes presets persos avec leurs metadata. Les usages artiste/morceau aident l\'IA à pinner le bon preset pour chaque song. Activable/désactivable via le toggle "Mes presets custom" dans Sources.')}
       </div>
 
       {flatList.length === 0 && (
         <div style={{ ...sectionStyle, textAlign: 'center', color: 'var(--text-muted)' }}>
-          <div style={{ fontSize: 24, marginBottom: 8 }}>📦</div>
+          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center', color: 'var(--text-dim)' }}><NavIcon id="package" size={24}/></div>
           <div style={{ fontSize: 12 }}>{t('mycustompresets.empty', 'Aucun preset custom pour le moment.')}</div>
           <div style={{ fontSize: 11, marginTop: 4 }}>{t('mycustompresets.empty-hint', 'Clique "+ Ajouter un preset" pour commencer.')}</div>
         </div>
@@ -403,11 +404,11 @@ function MyCustomPresetsTab({ profile, onProfiles, activeProfileId, songDb, inp 
                       <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
                         {preset.amp || '—'} · {preset.gain} gain · {preset.style}
                         {Array.isArray(preset.usages) && preset.usages.length > 0 && (
-                          <span style={{ marginLeft: 6, color: 'var(--accent)' }} title={preset.usages.map((u) => u.artist).join(', ')}>🎯 {preset.usages.length}</span>
+                          <span style={{ marginLeft: 6, color: 'var(--accent)', display: 'inline-flex', alignItems: 'center', gap: 3 }} title={preset.usages.map((u) => u.artist).join(', ')}><NavIcon id="target" size={11}/>{preset.usages.length}</span>
                         )}
                       </div>
                     </div>
-                    <button onClick={() => startEdit(item)} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '3px 7px', fontSize: 10, cursor: 'pointer' }}>✏️</button>
+                    <button onClick={() => startEdit(item)} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '3px 7px', fontSize: 10, cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}><NavIcon id="pen" size={12}/></button>
                     <button onClick={() => deletePreset(item)} style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: 'pointer', fontSize: 11, padding: '2px 4px' }}>✕</button>
                   </div>
                   {isEditing && (
@@ -505,7 +506,7 @@ function PresetForm({
             ))}
           </select>
           <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
-            {t('mycustompresets.creator-hint', 'Ce champ est juste un label. Le filtrage des presets se fait via le toggle "Mes presets custom" dans 📦 Sources.')}
+            {t('mycustompresets.creator-hint-flat', 'Ce champ est juste un label. Le filtrage des presets se fait via le toggle "Mes presets custom" dans Sources.')}
           </div>
         </div>
 

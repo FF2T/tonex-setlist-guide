@@ -7,6 +7,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { t, tFormat, tPlural } from '../../i18n/index.js';
+import NavIcon from '../components/NavIcon.jsx';
 import { inferPresetInfo } from '../utils/infer-preset.js';
 
 const GAIN_OPTS = ['low', 'mid', 'high'];
@@ -258,14 +259,14 @@ function ToneNetTab({ toneNetPresets, onToneNetPresets, onDeletedToneNetIds, inp
                 <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{p.amp && p.amp !== 'ToneNET' ? p.amp + ' · ' : ''}{p.channel ? p.channel + ' · ' : ''}{p.gain} gain · {STYLE_OPTS.find((s) => s.v === p.style)?.l || p.style}{p.cab ? ' · ' + p.cab : ''}</div>
                 {p.comment && <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontStyle: 'italic', marginTop: 1 }}>{p.comment}</div>}
                 {Array.isArray(p.usages) && p.usages.length > 0 && (
-                  <div style={{ fontSize: 10, color: 'var(--accent)', marginTop: 2 }}>
-                    🎯 {p.usages.map((u) => u.artist + (u.songs?.length ? ` (${u.songs.length})` : '')).join(' · ')}
+                  <div style={{ fontSize: 10, color: 'var(--accent)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <NavIcon id="target" size={11}/>{p.usages.map((u) => u.artist + (u.songs?.length ? ` (${u.songs.length})` : '')).join(' · ')}
                   </div>
                 )}
               </div>
               <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                <button onClick={() => startEdit(p)} style={{ background: 'var(--bg-elev-2)', border: 'none', borderRadius: 'var(--r-sm)', padding: '4px 8px', fontSize: 10, color: 'var(--text-secondary)', cursor: 'pointer' }}>✏️</button>
-                <button onClick={() => deletePreset(p.id)} style={{ background: 'var(--red-bg)', border: 'none', borderRadius: 'var(--r-sm)', padding: '4px 8px', fontSize: 10, color: 'var(--danger)', cursor: 'pointer' }}>🗑</button>
+                <button onClick={() => startEdit(p)} style={{ background: 'var(--bg-elev-2)', border: 'none', borderRadius: 'var(--r-sm)', padding: '4px 8px', fontSize: 10, color: 'var(--text-secondary)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}><NavIcon id="pen" size={12}/></button>
+                <button onClick={() => deletePreset(p.id)} style={{ background: 'var(--red-bg)', border: 'none', borderRadius: 'var(--r-sm)', padding: '4px 8px', fontSize: 10, color: 'var(--danger)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}><NavIcon id="trash" size={12}/></button>
               </div>
             </div>
           ))}

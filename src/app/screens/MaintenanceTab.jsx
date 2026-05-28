@@ -193,14 +193,14 @@ function MaintenanceTab({ songDb, onSongDb, onAiCacheUpdate, onProfiles, activeP
       {fullState && onImportState && (
         <div style={{ background: 'var(--green-bg)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span>💾</span><span>{t('maintenance.json-section', 'Sauvegarde complète (JSON)')}</span>
+            <span>{t('maintenance.json-section', 'Sauvegarde complète (JSON)')}</span>
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>
             {t('maintenance.json-hint', 'Sauvegarde complète du state : setlists, morceaux, presets, banks, tous les profils. Parfait pour sauvegarder ou transférer entre appareils.')}
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button onClick={handleExportJSON} style={{ background: 'var(--green)', border: 'none', color: 'var(--text)', borderRadius: 'var(--r-lg)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-              {t('maintenance.export-json', '⬇ Exporter JSON')}
+              {t('maintenance.export-json-flat', 'Exporter JSON')}
             </button>
             <button onClick={handleImportJSONClick} style={{ background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.35)', color: 'var(--green)', borderRadius: 'var(--r-lg)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
               {t('maintenance.import-json', '📂 Importer JSON')}
@@ -249,7 +249,7 @@ function MaintenanceTab({ songDb, onSongDb, onAiCacheUpdate, onProfiles, activeP
         return (
           <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span>🆔</span><span>{t('maintenance.device-section', 'Cet appareil')}</span>
+              <span>{t('maintenance.device-section', 'Cet appareil')}</span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>
               {t('maintenance.device-hint', "L'ID unique de cet appareil apparaît dans les logs sync. Renomme-le pour identifier rapidement les appareils dans la chasse aux pollutions profile.")}
@@ -262,13 +262,13 @@ function MaintenanceTab({ songDb, onSongDb, onAiCacheUpdate, onProfiles, activeP
             {!editingDeviceLabel ? (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button onClick={() => { setEditingDeviceLabel(true); setDeviceLabelSaved(false); }} style={{ background: 'var(--a6)', border: '1px solid var(--a8)', color: 'var(--text)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
-                  ✏️ {label ? t('maintenance.device-rename', 'Renommer') : t('maintenance.device-name', 'Nommer cet appareil')}
+                  {label ? t('maintenance.device-rename', 'Renommer') : t('maintenance.device-name', 'Nommer cet appareil')}
                 </button>
                 <button onClick={showLogs} style={{ background: 'var(--a6)', border: '1px solid var(--a8)', color: 'var(--text)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
-                  🔍 {t('maintenance.device-show-logs', 'Voir les logs sync')}
+                  {t('maintenance.device-show-logs', 'Voir les logs sync')}
                 </button>
                 <button onClick={clearLogs} style={{ background: 'var(--a6)', border: '1px solid var(--a8)', color: 'var(--text)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
-                  🗑 {t('maintenance.device-clear-logs', 'Effacer les logs')}
+                  {t('maintenance.device-clear-logs', 'Effacer les logs')}
                 </button>
                 <button onClick={togglePersist} style={{ background: persistActive ? 'rgba(74,222,128,0.15)' : 'var(--a6)', border: '1px solid ' + (persistActive ? 'rgba(74,222,128,0.35)' : 'var(--a8)'), color: persistActive ? 'var(--green)' : 'var(--text)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>
                   {persistActive ? '✅ ' + t('maintenance.device-logger-on', 'Logger actif') : '⏸ ' + t('maintenance.device-logger-off', 'Activer logger')}
@@ -310,7 +310,7 @@ function MaintenanceTab({ songDb, onSongDb, onAiCacheUpdate, onProfiles, activeP
 
       <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span>🤖</span><span>{t('maintenance.my-analyses', 'Mes analyses IA')}</span>
+          <span>{t('maintenance.my-analyses', 'Mes analyses IA')}</span>
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 14 }}>{tFormat('maintenance.cached-count', { cached: songsPlural(cachedCount), total: songDb.length }, '{cached} en cache sur {total}')}</div>
         {recalculating ? <div>
@@ -328,11 +328,11 @@ function MaintenanceTab({ songDb, onSongDb, onAiCacheUpdate, onProfiles, activeP
           : done ? <div style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600 }}>{t('maintenance.done', 'Terminé !')}</div>
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
-                <button onClick={refreshAI} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{t('maintenance.refresh-button', "🔄 Rafraîchir l'IA (tous morceaux)")}</button>
+                <button onClick={refreshAI} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{t('maintenance.refresh-button-flat', "Rafraîchir l'IA (tous morceaux)")}</button>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5, lineHeight: 1.4 }}>{t('maintenance.refresh-hint', "Vide le cache et relance l'IA passivement à l'ouverture de chaque morceau. À utiliser après avoir ajouté des guitares ou changé ton matériel.")}</div>
               </div>
               <div>
-                <button onClick={recalcAllConfirmed} style={{ background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>{tFormat('maintenance.recalc-button', { songs: songsPlural(songDb.length) }, '⚡ Forcer le recalcul IA en bloc — {songs}')}</button>
+                <button onClick={recalcAllConfirmed} style={{ background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>{tFormat('maintenance.recalc-button-flat', { songs: songsPlural(songDb.length) }, 'Forcer le recalcul IA en bloc — {songs}')}</button>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5, lineHeight: 1.4 }}>{t('maintenance.recalc-hint', "Lance immédiatement l'IA pour tous les morceaux, en bloc. Long et consomme du quota API.")}</div>
               </div>
             </div>}
@@ -419,7 +419,7 @@ function MaintenanceTab({ songDb, onSongDb, onAiCacheUpdate, onProfiles, activeP
             if (!window.confirm(tFormat('maintenance.clear-backups-confirm', { backups: tPlural('maintenance.backups-plural', n, {}, { one: '1 sauvegarde', other: '{count} sauvegardes' }) }, 'Vider les {backups} stockées localement ? Les données actuelles ne sont pas affectées.'))) return;
             clearBackups();
             location.reload();
-          }} style={{ background: 'var(--a5)', border: '1px solid var(--a8)', color: 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 11, cursor: 'pointer' }}>{t('maintenance.clear-backups', '🗑 Vider les sauvegardes')}</button>
+          }} style={{ background: 'var(--a5)', border: '1px solid var(--a8)', color: 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 11, cursor: 'pointer' }}>{t('maintenance.clear-backups-flat', 'Vider les sauvegardes')}</button>
         </div>
       </div>
 
@@ -429,7 +429,7 @@ function MaintenanceTab({ songDb, onSongDb, onAiCacheUpdate, onProfiles, activeP
           MAX_BACKUPS, pas de throttle. Suppression manuelle uniquement. */}
       {profile?.isAdmin && (
         <div style={{ background: 'var(--a4)', border: '1px solid var(--brass-400)', borderLeftWidth: 3, borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{t('maintenance.manual-snapshots', '💾 Snapshots manuels')}</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{t('maintenance.manual-snapshots-flat', 'Snapshots manuels')}</div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>{t('maintenance.manual-snapshots-hint', 'Sauvegarde explicite avant une opération risquée (pré-calcul beta, switch profil, import CSV). Pas de rotation auto — tu supprimes à la main.')}</div>
           <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
             <button
@@ -446,7 +446,7 @@ function MaintenanceTab({ songDb, onSongDb, onAiCacheUpdate, onProfiles, activeP
                 }
               }}
               style={{ background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-            >{t('maintenance.snapshot-create', '💾 Créer un snapshot')}</button>
+            >{t('maintenance.snapshot-create-flat', 'Créer un snapshot')}</button>
           </div>
           {(() => {
             const snaps = listManualSnapshots();
@@ -522,7 +522,7 @@ function MaintenanceTab({ songDb, onSongDb, onAiCacheUpdate, onProfiles, activeP
                 if (onDeletedSetlistIds && Object.keys(tombstonesStrict).length) {
                   onDeletedSetlistIds((prev) => ({ ...(prev || {}), ...tombstonesStrict }));
                 }
-              }} style={{ background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>{t('maintenance.merge-strict', '🧹 Fusionner strict')}</button>}
+              }} style={{ background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>{t('maintenance.merge-strict-flat', 'Fusionner strict')}</button>}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', borderTop: '1px solid var(--a7)', paddingTop: 8 }}>
               <div style={{ fontSize: 11, color: 'var(--text-sec)', flex: 1, minWidth: 160 }}>
@@ -539,7 +539,7 @@ function MaintenanceTab({ songDb, onSongDb, onAiCacheUpdate, onProfiles, activeP
                 if (onDeletedSetlistIds && Object.keys(tombstonesLoose).length) {
                   onDeletedSetlistIds((prev) => ({ ...(prev || {}), ...tombstonesLoose }));
                 }
-              }} style={{ background: 'var(--wine-400)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>{t('maintenance.merge-aggressive', '⚡ Fusionner aggressif')}</button>}
+              }} style={{ background: 'var(--wine-400)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>{t('maintenance.merge-aggressive-flat', 'Fusionner aggressif')}</button>}
             </div>
           </div>;
         })()}
@@ -586,7 +586,7 @@ function MaintenanceTab({ songDb, onSongDb, onAiCacheUpdate, onProfiles, activeP
 
       {/* Phase 7.51.4 + 7.51.6 — Exporter snapshot démo (admin) */}
       <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginTop: 20 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{t('maintenance.demo-export-title', '📦 Exporter snapshot démo (admin)')}</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{t('maintenance.demo-export-title-flat', 'Exporter snapshot démo (admin)')}</div>
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>
           {t('maintenance.demo-export-hint', 'Génère un JSON à partir d\'un profil choisi (ses setlists + songs + aiCache) à utiliser pour remplacer src/data/demo-profile.json. Le profil exporté est forcé id=demo, isDemo=true, isAdmin=false, password=null. Les aiKeys + loginHistory sont vidés.')}
         </div>
@@ -622,7 +622,7 @@ function MaintenanceTab({ songDb, onSongDb, onAiCacheUpdate, onProfiles, activeP
             URL.revokeObjectURL(url);
           }}
           style={{ background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}
-        >{t('maintenance.demo-export-button', '📦 Exporter snapshot démo')}</button>
+        >{t('maintenance.demo-export-button-flat', 'Exporter snapshot démo')}</button>
         <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 8, fontFamily: 'var(--font-mono)', lineHeight: 1.5 }}>
           {t('maintenance.demo-export-workflow', 'Workflow : cure un profil dédié → choisis-le dans la liste → clique ce bouton → remplace src/data/demo-profile.json par le téléchargé → commit + push + bump version.')}
         </div>

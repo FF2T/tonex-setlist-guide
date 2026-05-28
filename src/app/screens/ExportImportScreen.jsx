@@ -281,10 +281,10 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
           fullState contient TOUS les profils — pas pour beta-testeur.
           Phase 7.75 — caché aussi en mode compact (intégration MesAppareilsTab). */}
       {isAdmin && !compact && <div style={{ background: 'var(--green-bg)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', marginBottom: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('export.json-section', '💾 Sauvegarde complète (JSON) — admin')}</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', marginBottom: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('export.json-section-flat', 'Sauvegarde complète (JSON) — admin')}</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button onClick={doExportJSON} style={{ background: 'var(--green)', border: 'none', color: 'var(--text)', borderRadius: 'var(--r-lg)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{t('export.export-json', '⬇ Exporter JSON')}</button>
-          <button onClick={() => jsonRef.current?.click()} style={{ background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.35)', color: 'var(--green)', borderRadius: 'var(--r-lg)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{t('export.import-json', '📂 Importer JSON')}</button>
+          <button onClick={doExportJSON} style={{ background: 'var(--green)', border: 'none', color: 'var(--text)', borderRadius: 'var(--r-lg)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{t('export.export-json-flat', 'Exporter JSON')}</button>
+          <button onClick={() => jsonRef.current?.click()} style={{ background: 'rgba(74,222,128,0.15)', border: '1px solid rgba(74,222,128,0.35)', color: 'var(--green)', borderRadius: 'var(--r-lg)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{t('export.import-json-flat', 'Importer JSON')}</button>
           <input ref={jsonRef} type="file" accept=".json" onChange={handleJSONFile} style={{ display: 'none' }}/>
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>{t('export.json-hint', 'Sauvegarde complète : setlists, morceaux, presets, banks. Parfait pour sauvegarder ou transférer entre appareils.')}</div>
@@ -293,9 +293,9 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
       {/* Export CSV — Phase 7.75 compact mode = 1 ligne, petits boutons */}
       {compact ? (
         <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          {(!restrictToDevice || restrictToDevice === 'ann') && xBtnCompact(() => doExportCSV(banksAnn, 'ToneX Anniversary', 'Anniversary'), 'Anniversary', t('export.export-compact-ann', '⬇ CSV Ann.'), 'var(--brass-300)')}
-          {(!restrictToDevice || restrictToDevice === 'plug') && xBtnCompact(() => doExportCSV(banksPlug, 'ToneX Plug', 'Plug'), 'Plug', t('export.export-compact-plug', '⬇ CSV Plug'), 'var(--accent)')}
-          <button onClick={() => csvRef.current?.click()} style={{ background: 'var(--yellow-bg)', border: '1px solid rgba(251,191,36,0.35)', color: 'var(--yellow)', borderRadius: 'var(--r-md)', padding: '5px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>{t('export.import-compact', '📂 Importer CSV')}</button>
+          {(!restrictToDevice || restrictToDevice === 'ann') && xBtnCompact(() => doExportCSV(banksAnn, 'ToneX Anniversary', 'Anniversary'), 'Anniversary', t('export.export-compact-ann-flat', 'CSV Ann.'), 'var(--brass-300)')}
+          {(!restrictToDevice || restrictToDevice === 'plug') && xBtnCompact(() => doExportCSV(banksPlug, 'ToneX Plug', 'Plug'), 'Plug', t('export.export-compact-plug-flat', 'CSV Plug'), 'var(--accent)')}
+          <button onClick={() => csvRef.current?.click()} style={{ background: 'var(--yellow-bg)', border: '1px solid rgba(251,191,36,0.35)', color: 'var(--yellow)', borderRadius: 'var(--r-md)', padding: '5px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>{t('export.import-compact-flat', 'Importer CSV')}</button>
           <input ref={csvRef} type="file" accept=".csv,.txt" onChange={handleCSVFile} style={{ display: 'none' }}/>
           {importErr && <span style={{ fontSize: 11, color: 'var(--red)' }}>⚠ {importErr}</span>}
         </div>
@@ -303,9 +303,9 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
         <div style={{ background: 'var(--a3)', border: '1px solid var(--a7)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 12 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-sec)', marginBottom: 12, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('export.csv-export', 'Export CSV (Banks)')}</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {(!restrictToDevice || restrictToDevice === 'ann') && xBtn(() => doExportCSV(banksAnn, 'ToneX Anniversary', 'Anniversary'), 'Anniversary', t('export.export-ann', '⬇ Anniversary'), 'var(--brass-300)')}
-            {(!restrictToDevice || restrictToDevice === 'plug') && xBtn(() => doExportCSV(banksPlug, 'ToneX Plug', 'Plug'), 'Plug', t('export.export-plug', '⬇ Plug'), 'var(--accent)')}
-            {!restrictToDevice && xBtn(doExportAll, 'all', t('export.export-both', '⬇ Les deux'), 'var(--brass-500)')}
+            {(!restrictToDevice || restrictToDevice === 'ann') && xBtn(() => doExportCSV(banksAnn, 'ToneX Anniversary', 'Anniversary'), 'Anniversary', t('export.export-ann-flat', 'Anniversary'), 'var(--brass-300)')}
+            {(!restrictToDevice || restrictToDevice === 'plug') && xBtn(() => doExportCSV(banksPlug, 'ToneX Plug', 'Plug'), 'Plug', t('export.export-plug-flat', 'Plug'), 'var(--accent)')}
+            {!restrictToDevice && xBtn(doExportAll, 'all', t('export.export-both-flat', 'Les deux'), 'var(--brass-500)')}
           </div>
         </div>
       )}
@@ -418,7 +418,7 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
                   <div style={{ marginBottom: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>
-                        🎯 {tFormat('export.unknown-section-remap', { n: toRemap.length }, 'À remapper vers le catalog ({n})')}
+                        {tFormat('export.unknown-section-remap', { n: toRemap.length }, 'À remapper vers le catalog ({n})')}
                       </div>
                       {onAddCustomPresets && Object.keys(unknownSuggestions).length > 0 && (
                         <button
@@ -504,8 +504,8 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
         {importData && !unknownPresets && <div style={{ marginTop: 14, background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-lg)', padding: 14 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)', marginBottom: 10 }}>{t('export.preview', 'Aperçu')}</div>
           <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-            {Object.keys(importData.ann).length > 0 && <div style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 'var(--r-md)', padding: '6px 12px' }}><div style={{ fontSize: 12, color: 'var(--text-sec)', fontWeight: 700 }}>{t('export.pedale-label', '📦 Pedale')}</div><div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{tFormat('export.banks-count', { count: Object.keys(importData.ann).length }, '{count} banks')}</div></div>}
-            {Object.keys(importData.plug).length > 0 && <div style={{ background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-md)', padding: '6px 12px' }}><div style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 700 }}>{t('export.plug-label', '🔌 Plug')}</div><div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{tFormat('export.banks-count', { count: Object.keys(importData.plug).length }, '{count} banks')}</div></div>}
+            {Object.keys(importData.ann).length > 0 && <div style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 'var(--r-md)', padding: '6px 12px' }}><div style={{ fontSize: 12, color: 'var(--text-sec)', fontWeight: 700 }}>{t('export.pedale-label-flat', 'Pédale')}</div><div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{tFormat('export.banks-count', { count: Object.keys(importData.ann).length }, '{count} banks')}</div></div>}
+            {Object.keys(importData.plug).length > 0 && <div style={{ background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-md)', padding: '6px 12px' }}><div style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 700 }}>{t('export.plug-label-flat', 'Plug')}</div><div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{tFormat('export.banks-count', { count: Object.keys(importData.plug).length }, '{count} banks')}</div></div>}
           </div>
           {/* Phase 7.67 — Aperçu détaillé des 5 premières banks pour vérification.
               Détecte aussi les banks > 49 (filtrées au parse mais on signale au user). */}
@@ -514,7 +514,7 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
             const keys = Object.keys(data || {}).map(Number).sort((a, b) => a - b);
             if (!keys.length) return null;
             const sample = keys.slice(0, 5);
-            const label = k === 'ann' ? t('export.pedale-label-long', '📦 Pedale / Anniversary') : t('export.plug-label-long', '🔌 Plug');
+            const label = k === 'ann' ? t('export.pedale-label-long-flat', 'Pédale / Anniversary') : t('export.plug-label-long-flat', 'Plug');
             return (
               <div key={k} style={{ marginBottom: 10, background: 'var(--a3)', border: '1px solid var(--a7)', borderRadius: 'var(--r-md)', padding: 8 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-sec)', marginBottom: 6 }}>{label} — {t('export.preview-first-banks', '5 premières banks')}</div>
@@ -539,7 +539,7 @@ function ExportImportScreen({ banksAnn, onBanksAnn, banksPlug, onBanksPlug, onBa
             );
           })}
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            {[{ v: 'replace', l: t('export.mode-replace', '🔄 Remplacer (destructif)'), warn: true }, { v: 'merge', l: t('export.mode-merge', '🔀 Fusionner') }].map(({ v, l, warn }) => (
+            {[{ v: 'replace', l: t('export.mode-replace-flat', 'Remplacer (destructif)'), warn: true }, { v: 'merge', l: t('export.mode-merge-flat', 'Fusionner') }].map(({ v, l, warn }) => (
               <button key={v} onClick={() => setImportMode(v)} style={{ flex: 1, background: importMode === v ? (warn ? 'var(--wine-300)' : 'var(--accent-bg)') : 'var(--a5)', border: importMode === v ? `1px solid ${warn ? 'var(--wine-400)' : 'var(--border-accent)'}` : '1px solid var(--a10)', color: importMode === v ? (warn ? 'var(--text-inverse)' : 'var(--accent)') : 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '8px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{l}</button>
             ))}
           </div>

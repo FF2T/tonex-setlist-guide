@@ -14,6 +14,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { t, tFormat, tPlural } from '../../i18n/index.js';
+import NavIcon from '../components/NavIcon.jsx';
 import {
   computePickupScore, computeFinalScore, computeSimpleScore,
   computeRefAmpScore, computeStyleMatchScore,
@@ -51,11 +52,11 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
   // Phase 7.50 (B-UX-02) : label dynamique selon le device pedal réellement coché.
   const enabledSet = new Set(profile?.enabledDevices || []);
   const annLabelShort = enabledSet.has('tonex-anniversary')
-    ? t('optimizer.anniversary-label', '🏭 Anniversary')
-    : (enabledSet.has('tonex-pedal') ? t('optimizer.pedal-label', '📦 ToneX Pedal') : t('optimizer.pedal-fallback', '📦 Pédale'));
+    ? t('optimizer.anniversary-label-flat', 'Anniversary')
+    : (enabledSet.has('tonex-pedal') ? t('optimizer.pedal-label-flat', 'ToneX Pedal') : t('optimizer.pedal-fallback-flat', 'Pédale'));
   const annLabelTiny = enabledSet.has('tonex-anniversary')
-    ? t('optimizer.anniversary-short', '🏭 Anniversary')
-    : (enabledSet.has('tonex-pedal') ? t('optimizer.pedal-short', '📦 Pedal') : t('optimizer.pedal-tiny-fallback', '📦 Pédale'));
+    ? t('optimizer.anniversary-short-flat', 'Anniversary')
+    : (enabledSet.has('tonex-pedal') ? t('optimizer.pedal-short-flat', 'Pedal') : t('optimizer.pedal-tiny-fallback-flat', 'Pédale'));
   const [slId, setSlId] = useState(setlists[0]?.id || '');
   const [showReconfig, setShowReconfig] = useState(null);
   const sl = setlists.find((s) => s.id === slId);
@@ -356,7 +357,8 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
   };
 
   const sectionStyle = { background: 'var(--bg-elev-1)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--r-lg)', padding: 'var(--s-4)', marginBottom: 'var(--s-4)', contentVisibility: 'auto', containIntrinsicSize: '0 600px' };
-  const eyebrow = (icon, label) => <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-xs)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', color: 'var(--accent)', marginBottom: 'var(--s-3)', display: 'flex', alignItems: 'center', gap: 5 }}>{icon} {label}</div>;
+  // Vague 3 emojis — icon retiré (texte seul, label suffit).
+  const eyebrow = (icon, label) => <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-xs)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', color: 'var(--accent)', marginBottom: 'var(--s-3)' }}>{label}</div>;
 
   const renderStats = (a) => (
     <div style={{ display: 'flex', gap: 'var(--s-2)', marginBottom: 'var(--s-3)' }}>
@@ -377,7 +379,7 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
   return (
     <div>
       <Breadcrumb crumbs={[{ label: t('common.home', 'Accueil'), screen: 'list' }, { label: t('optimizer.breadcrumb', 'Optimiseur') }]} onNavigate={onNavigate}/>
-      <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 'var(--s-4)' }}>{t('optimizer.title', '🔧 Optimiseur de Banks')}</div>
+      <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 'var(--s-4)', display: 'flex', alignItems: 'center', gap: 8 }}><NavIcon id="wrench" size={20}/>{t('optimizer.title-flat', 'Optimiseur de Banks')}</div>
 
       <div style={{ marginBottom: 'var(--s-3)' }}>
         <select value={slId} onChange={(e) => setSlId(e.target.value)} style={{ width: '100%', background: 'var(--bg-elev-1)', color: 'var(--text-primary)', border: '1px solid var(--border-strong)', borderRadius: 'var(--r-md)', padding: '8px 12px', fontSize: 13 }}>
@@ -452,7 +454,7 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
                         );
                       })}
                     </div>
-                    {actions.length > 1 && <button onClick={() => applyAllForDevice(actions, deviceLabel, curMean, projMean)} style={{ width: '100%', background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-sm)', padding: '7px', fontSize: 11, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>{tFormat('optimizer.apply-all', { device: deviceLabel, count: actions.length }, '⚡ Tout appliquer {device} ({count})')}</button>}
+                    {actions.length > 1 && <button onClick={() => applyAllForDevice(actions, deviceLabel, curMean, projMean)} style={{ width: '100%', background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-sm)', padding: '7px', fontSize: 11, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>{tFormat('optimizer.apply-all-flat', { device: deviceLabel, count: actions.length }, 'Tout appliquer {device} ({count})')}</button>}
                   </>
                 )}
             </div>
@@ -463,7 +465,7 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
             {eyebrow('⚡', 'Actions prioritaires')}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s-2)' }}>
               {hasPedalDevice && renderDeviceBlock('ann', annLabelShort, annMean, annProjected, annPriority, annAnalysis.songRows)}
-              {hasPlugDevice && renderDeviceBlock('plug', '🔌 Plug', plugMean, plugProjected, plugPriority, plugAnalysis.songRows)}
+              {hasPlugDevice && renderDeviceBlock('plug', 'Plug', plugMean, plugProjected, plugPriority, plugAnalysis.songRows)}
             </div>
           </div>
         );
@@ -474,10 +476,10 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
         {eyebrow('📊', 'Diagnostic')}
         {songs.length === 0 ? <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-tertiary)' }}>{t('optimizer.empty-setlist', 'Setlist vide')}</div> : (
           <>
-            <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 'var(--s-3)' }}>🎸 {allGuitars.map((g) => g.short || g.name).join(', ')} · {songs.length} morceau{songs.length > 1 ? 'x' : ''}</div>
+            <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 'var(--s-3)' }}>{allGuitars.map((g) => g.short || g.name).join(', ')} · {songs.length} morceau{songs.length > 1 ? 'x' : ''}</div>
             <div style={{ display: 'grid', gridTemplateColumns: hasPedalDevice && hasPlugDevice ? '1fr 1fr' : '1fr', gap: 'var(--s-3)', marginBottom: 'var(--s-3)' }}>
               {hasPedalDevice && <div>{renderStats(annAnalysis)}<div style={{ fontSize: 9, color: 'var(--text-tertiary)', textAlign: 'center' }}>{annLabelTiny}</div></div>}
-              {hasPlugDevice && <div>{renderStats(plugAnalysis)}<div style={{ fontSize: 9, color: 'var(--text-tertiary)', textAlign: 'center' }}>🔌 Plug</div></div>}
+              {hasPlugDevice && <div>{renderStats(plugAnalysis)}<div style={{ fontSize: 9, color: 'var(--text-tertiary)', textAlign: 'center' }}>Plug</div></div>}
             </div>
             {/* Carte visuelle compacte */}
             {(() => {
@@ -520,7 +522,7 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
               return (
                 <div>
                   {hasAnn && hasPedalDevice && miniGrid(banksAnn, 50, 0, 'ann', annLabelTiny)}
-                  {hasPlug && hasPlugDevice && miniGrid(banksPlug, 10, 1, 'plug', '🔌 Plug')}
+                  {hasPlug && hasPlugDevice && miniGrid(banksPlug, 10, 1, 'plug', 'Plug')}
                   <div style={{ display: 'flex', gap: 'var(--s-3)', marginTop: 4, fontSize: 8, color: 'var(--text-tertiary)' }}>
                     <span><span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: 1, background: 'var(--green)', marginRight: 2, verticalAlign: 'middle' }}/>80%+</span>
                     <span><span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: 1, background: 'var(--accent-primary,#818cf8)', marginRight: 2, verticalAlign: 'middle' }}/>65-79%</span>
@@ -590,7 +592,7 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
               const songCount = plan.filter((p) => p.type === 'song').length;
               return (
                 <div style={{ marginBottom: 'var(--s-4)' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 'var(--s-2)' }}>{emoji} {label} — {stdCount} standard{stdCount > 1 ? 's' : ''} + {songCount} morceau{songCount > 1 ? 'x' : ''}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 'var(--s-2)' }}>{label} — {stdCount} standard{stdCount > 1 ? 's' : ''} + {songCount} morceau{songCount > 1 ? 'x' : ''}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 4, marginBottom: 'var(--s-3)' }}>
                     {plan.map((p) => {
                       const isSong = p.type === 'song';

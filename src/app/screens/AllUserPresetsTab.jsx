@@ -20,6 +20,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { t, tFormat } from '../../i18n/index.js';
+import NavIcon from '../components/NavIcon.jsx';
 import MyCustomPresetsTab from './MyCustomPresetsTab.jsx';
 
 function AllUserPresetsTab({ profiles, onProfiles, songDb, inp }) {
@@ -91,7 +92,7 @@ function AllUserPresetsTab({ profiles, onProfiles, songDb, inp }) {
 
       {aggregated.length === 0 && (
         <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, textAlign: 'center', color: 'var(--text-muted)' }}>
-          <div style={{ fontSize: 24, marginBottom: 8 }}>📦</div>
+          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'center', color: 'var(--text-dim)' }}><NavIcon id="package" size={24}/></div>
           <div style={{ fontSize: 12 }}>{t('alluserpresets.empty', 'Aucun profil n\'a documenté de preset custom pour le moment.')}</div>
         </div>
       )}

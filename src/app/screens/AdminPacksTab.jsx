@@ -103,7 +103,7 @@ function AdminPacksTab({ adminPacks, onAdminPacks, profile, inp, aiKeys, aiProvi
     if (!parsed) return;
     const key = aiKeys?.gemini || getSharedGeminiKey() || aiKeys?.anthropic;
     if (!key) {
-      setAiError(t('adminpacks.ai-error-key', 'Clé API absente — configure-la dans 🔑 Clé API.'));
+      setAiError(t('adminpacks.ai-error-key-flat', 'Clé API absente — configure-la dans l\'onglet Clé API.'));
       return;
     }
     const provider = (aiKeys?.gemini || getSharedGeminiKey()) ? 'gemini' : 'anthropic';
@@ -296,10 +296,10 @@ function AdminPacksTab({ adminPacks, onAdminPacks, profile, inp, aiKeys, aiProvi
                   title={t('adminpacks.ai-enrich-hint', 'Demander à Gemini d\'inférer amp/gain/style/scores + descriptions amps pour Explorer')}
                 >
                   {aiLoading
-                    ? '⏳ ' + t('adminpacks.ai-loading', 'Enrichissement…')
+                    ? t('adminpacks.ai-loading', 'Enrichissement…')
                     : aiEnriched
-                      ? '✨ ' + t('adminpacks.ai-redo', 'Re-enrichir IA')
-                      : '🤖 ' + t('adminpacks.ai-enrich', 'Enrichir avec Gemini')}
+                      ? t('adminpacks.ai-redo', 'Re-enrichir IA')
+                      : t('adminpacks.ai-enrich', 'Enrichir avec Gemini')}
                 </button>
               </div>
               {aiError && (
