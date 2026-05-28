@@ -981,9 +981,37 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-28 jeudi, V9.1.1 — Phase B : contexte de jeu instrument × rig + filtrage vue morceau)
+## État actuel (2026-05-28 jeudi, V9.1.2 — Phase B : contexte de jeu + ajout ampli custom enrichi par l'IA)
 
-**Backline v9.1.1 / SW backline-v394 / STATE_VERSION 13 / 1772 tests verts. Bundle 2639 KB.**
+**Backline v9.1.2 / SW backline-v395 / STATE_VERSION 13 / 1782 tests verts. Bundle 2643 KB.**
+
+### v9.1.2 — Ajout ampli custom enrichi par l'IA (Phase B.1) (2026-05-28)
+
+Retour Sébastien : *"lors de l'ajout ampli custom, l'IA devrait le valider
+comme fait sur un morceau"*. Avant, les formulaires custom amp (guitare Phase A
++ basse Phase 8) posaient des **defaults génériques** (knobs/channels/eq fixes)
+→ l'IA per-morceau ne connaissait pas les vrais potards de l'ampli.
+
+- **Nouveau composant `AmpSearchAdd.jsx`** (mirror `GuitarSearchAdd`,
+  paramétré `instrument='guitar'|'bass'`) : recherche IA Gemini qui identifie
+  l'ampli depuis son nom et en déduit marque / wattage / canaux / **vrais
+  potards** / EQ / features / refs trilingue ; confirmation utilisateur ;
+  fallback saisie manuelle (nom + marque + watt).
+- **Helper pur `sanitizeAmpSuggestion(raw, instrument)`** (`ai-helpers.js`,
+  exporté, +11 tests) : valide/normalise la sortie IA. knobs → snake_case
+  lowercase dédupliqués cap 8 (cohérent catalog + rendu `k.replace(/_/g,' ')`),
+  wattage clampé 1-2000 (défaut 50 guitare / 100 basse), channels/eq/features
+  labels conservés, refs forcé trilingue. Fallback knobs par instrument si
+  absents. null si pas de nom.
+- **ProfileTab** : les 2 formulaires manuels remplacés par
+  `<AmpSearchAdd instrument="guitar"/>` + `<AmpSearchAdd instrument="bass"/>`.
+  `addCustomGuitarAmp`/`addCustomBassAmp` reçoivent désormais l'objet ampli
+  enrichi (ajoutent juste l'id `cgamp_`/`camp_`). États form locaux retirés.
+- **Pourquoi ça compte** : `fetchAI` sérialise `amp.knobs` dans le prompt
+  morceau (ligne 230 `potards: ...`) → des potards précis = des réglages
+  "Sur ton ampli" pertinents par morceau (au lieu des defaults génériques).
+- i18n EN/ES (`amp-add.*`, 15 clés). +11 tests → 1782. Pas de bump
+  STATE_VERSION (champs additifs sur customGuitarAmps/customBassAmps).
 
 ### v9.1.1 — Retrait badge "Idéal" header morceau (2026-05-28)
 

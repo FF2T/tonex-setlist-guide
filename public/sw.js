@@ -9,7 +9,7 @@
 // Bump CACHE à chaque release. Le filtre k !== CACHE dans activate purge
 // les anciens caches automatiquement.
 
-const CACHE = 'backline-v394';
+const CACHE = 'backline-v395';
 
 self.addEventListener('install', (e) => {
   e.waitUntil(

@@ -7,7 +7,7 @@
 // - inputs falsy/edge cases
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { getLocalizedText, findSlotByUsageMatch, findCatalogEntryByUsages, findSlotByName, stripSlotPrefix, enrichAIResult, updateAiCache, computeRigSnapshot } from './ai-helpers.js';
+import { getLocalizedText, findSlotByUsageMatch, findCatalogEntryByUsages, findSlotByName, stripSlotPrefix, sanitizeAmpSuggestion, enrichAIResult, updateAiCache, computeRigSnapshot } from './ai-helpers.js';
 import { PRESET_CATALOG_MERGED } from '../../core/catalog.js';
 
 describe('getLocalizedText', () => {
@@ -1243,6 +1243,83 @@ describe('stripSlotPrefix — Phase 7.56 / vague B', () => {
   it('safe sur non-string', () => {
     expect(stripSlotPrefix(null)).toBe(null);
     expect(stripSlotPrefix(undefined)).toBe(undefined);
+  });
+});
+
+describe('sanitizeAmpSuggestion — Phase B.1 (ajout ampli custom via IA)', () => {
+  it('enrichit un ampli guitare complet (knobs normalisés snake_case)', () => {
+    const out = sanitizeAmpSuggestion({
+      name: 'Vox AC30', brand: 'Vox', wattage: 30,
+      channels: ['Normal', 'Top Boost'],
+      knobs: ['Volume', 'Treble', 'Bass', 'Cut', 'Master'],
+      eq: ['Treble', 'Bass'], features: ['Tremolo', 'Reverb'],
+      refs: { fr: 'Brian May', en: 'Brian May', es: 'Brian May' },
+    }, 'guitar');
+    expect(out.name).toBe('Vox AC30');
+    expect(out.brand).toBe('Vox');
+    expect(out.wattage).toBe(30);
+    expect(out.knobs).toEqual(['volume', 'treble', 'bass', 'cut', 'master']);
+    expect(out.channels).toEqual(['Normal', 'Top Boost']);
+    expect(out.features).toEqual(['Tremolo', 'Reverb']);
+    expect(out.refs.fr).toBe('Brian May');
+    expect(out.short).toBe('Vox AC30');
+  });
+
+  it('normalise les potards multi-mots / casse (Volume I → volume_i)', () => {
+    const out = sanitizeAmpSuggestion({ name: 'Marshall Plexi', knobs: ['Volume I', 'Volume II', 'Presence'] }, 'guitar');
+    expect(out.knobs).toEqual(['volume_i', 'volume_ii', 'presence']);
+  });
+
+  it('dédublonne les potards + cap 8', () => {
+    const out = sanitizeAmpSuggestion({ name: 'X', knobs: ['gain', 'gain', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] }, 'guitar');
+    expect(out.knobs.length).toBeLessThanOrEqual(8);
+    expect(out.knobs.filter((k) => k === 'gain').length).toBe(1);
+  });
+
+  it('fallback knobs guitare si absents', () => {
+    const out = sanitizeAmpSuggestion({ name: 'Mystère Amp' }, 'guitar');
+    expect(out.knobs).toEqual(['gain', 'treble', 'middle', 'bass', 'presence', 'master']);
+    expect(out.channels).toEqual(['Single']);
+    expect(out.wattage).toBe(50);
+    expect(out.brand).toBe('Custom');
+  });
+
+  it('fallback knobs + wattage + channel basse', () => {
+    const out = sanitizeAmpSuggestion({ name: 'Ampli basse X' }, 'bass');
+    expect(out.knobs).toEqual(['gain', 'bass', 'low_mid', 'high_mid', 'treble', 'master']);
+    expect(out.channels).toEqual(['Clean']);
+    expect(out.wattage).toBe(100);
+  });
+
+  it('clampe le wattage hors bornes', () => {
+    expect(sanitizeAmpSuggestion({ name: 'A', wattage: 99999 }, 'guitar').wattage).toBe(2000);
+    expect(sanitizeAmpSuggestion({ name: 'A', wattage: -5 }, 'guitar').wattage).toBe(50);
+    expect(sanitizeAmpSuggestion({ name: 'A', wattage: 18.6 }, 'guitar').wattage).toBe(19);
+  });
+
+  it('refs partiel / absent → objet trilingue complet', () => {
+    expect(sanitizeAmpSuggestion({ name: 'A', refs: { fr: 'X' } }, 'guitar').refs).toEqual({ fr: 'X', en: '', es: '' });
+    expect(sanitizeAmpSuggestion({ name: 'A' }, 'guitar').refs).toEqual({ fr: '', en: '', es: '' });
+  });
+
+  it('short tronqué à 18 chars + … si nom long', () => {
+    const out = sanitizeAmpSuggestion({ name: 'Mesa Boogie Dual Rectifier Roadster' }, 'guitar');
+    expect(out.short).toBe('Mesa Boogie Dual R…');
+    expect(out.short.length).toBe(19);
+  });
+
+  it('null-safe : raw invalide ou sans nom → null', () => {
+    expect(sanitizeAmpSuggestion(null, 'guitar')).toBe(null);
+    expect(sanitizeAmpSuggestion({}, 'guitar')).toBe(null);
+    expect(sanitizeAmpSuggestion({ name: '   ' }, 'guitar')).toBe(null);
+    expect(sanitizeAmpSuggestion('Vox', 'guitar')).toBe(null);
+  });
+
+  it('ignore les entrées non-string dans les arrays', () => {
+    const out = sanitizeAmpSuggestion({ name: 'A', knobs: ['gain', 42, null, '  '], channels: ['Clean', 7], features: [{}, 'Reverb'] }, 'guitar');
+    expect(out.knobs).toEqual(['gain']);
+    expect(out.channels).toEqual(['Clean']);
+    expect(out.features).toEqual(['Reverb']);
   });
 });
 

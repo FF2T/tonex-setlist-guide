@@ -816,6 +816,59 @@ function getLocalizedText(value, locale) {
   return '';
 }
 
+// Phase B.1 — Valide / normalise la sortie IA pour l'ajout d'un ampli
+// traditionnel custom (guitare ou basse). Mirror conceptuel de la validation
+// faite sur les recos morceau (enrichAIResult). Retourne un objet ampli prêt
+// à stocker dans profile.customGuitarAmps / customBassAmps (SANS id — ajouté
+// par le caller). null si la suggestion est inexploitable (pas de nom).
+// - knobs : normalisés snake_case lowercase (cohérent catalog + rendu
+//   "Sur ton ampli" qui fait k.replace(/_/g,' ')). Sert au prompt fetchAI
+//   (potards réels passés à l'IA pour les réglages par morceau).
+// - wattage : clampé 1-2000, défaut 50 (guitare) / 100 (basse).
+// - channels / eq / features : labels d'affichage conservés tels quels.
+// - refs : objet trilingue {fr,en,es} (artistes/morceaux connus pour cet ampli).
+function sanitizeAmpSuggestion(raw, instrument) {
+  if (!raw || typeof raw !== 'object') return null;
+  const name = typeof raw.name === 'string' ? raw.name.trim() : '';
+  if (!name) return null;
+  const isBass = instrument === 'bass';
+  const brand = (typeof raw.brand === 'string' && raw.brand.trim()) ? raw.brand.trim() : 'Custom';
+  let wattage = Number(raw.wattage);
+  if (!Number.isFinite(wattage) || wattage <= 0) wattage = isBass ? 100 : 50;
+  wattage = Math.min(2000, Math.max(1, Math.round(wattage)));
+  // knobs : snake_case lowercase, dédupliqués, cap 8.
+  const knobsRaw = Array.isArray(raw.knobs)
+    ? raw.knobs.filter((x) => typeof x === 'string' && x.trim())
+      .map((x) => x.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''))
+      .filter(Boolean)
+    : [];
+  const knobs = [...new Set(knobsRaw)].slice(0, 8);
+  const fallbackKnobs = isBass
+    ? ['gain', 'bass', 'low_mid', 'high_mid', 'treble', 'master']
+    : ['gain', 'treble', 'middle', 'bass', 'presence', 'master'];
+  // channels / eq / features : labels d'affichage trimés, cap.
+  const labelArr = (v, max) => (Array.isArray(v)
+    ? v.filter((x) => typeof x === 'string' && x.trim()).map((x) => x.trim()).slice(0, max)
+    : []);
+  const channels = labelArr(raw.channels, 6);
+  const eq = labelArr(raw.eq, 8);
+  const features = labelArr(raw.features, 8);
+  const refs = (raw.refs && typeof raw.refs === 'object')
+    ? { fr: String(raw.refs.fr || ''), en: String(raw.refs.en || ''), es: String(raw.refs.es || '') }
+    : { fr: '', en: '', es: '' };
+  return {
+    name,
+    short: name.length > 20 ? name.slice(0, 18) + '…' : name,
+    brand,
+    wattage,
+    channels: channels.length ? channels : (isBass ? ['Clean'] : ['Single']),
+    knobs: knobs.length ? knobs : fallbackKnobs,
+    eq,
+    features,
+    refs,
+  };
+}
+
 function safeParseJSON(t) {
   let s = t.replace(/```json|```/g, '').trim();
   try { return JSON.parse(s); } catch (e) {
@@ -842,6 +895,7 @@ export {
   enrichAIResult,
   findSlotByName,
   stripSlotPrefix,
+  sanitizeAmpSuggestion,
   findSlotByUsageMatch,
   findCatalogEntryByUsages,
   mergeBestResults,
