@@ -981,9 +981,29 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-28 jeudi, Étape 2 vague B — Symétrie scoring/EQ/FX basse + dropdowns guitare/basse homogénéisés + UX cleanup CLOSE)
+## État actuel (2026-05-28 jeudi, Étape 2 vague B — Symétrie scoring/EQ/FX basse + dropdowns homogénéisés + hotfix TDZ + UX cleanup CLOSE)
 
-**Backline v8.14.285 / SW backline-v385 / STATE_VERSION 13 / 1735 tests verts. Bundle 2621 KB.**
+**Backline v8.14.286 / SW backline-v386 / STATE_VERSION 13 / 1737 tests verts. Bundle 2621 KB.**
+
+### Hotfix TDZ écran noir vue dépliée (v8.14.286)
+
+Écran noir en prod sur la vue dépliée (v8.14.285) :
+`ReferenceError: Cannot access 'it' before initialization`. Même classe que
+le hotfix Phase 7.79.3b : `selectedBassScore` (IIFE exécutée à la déclaration)
+lisait `cotBasses` déclaré PLUS BAS dans l'IIFE du bloc "Recommandations basse"
+→ TDZ au render. Bug **runtime-only** invisible aux tests Vitest (helpers purs),
+au build Vite minifié, ET au smoke test main.jsx (qui monte `<App/>` mais
+n'atteint jamais la vue dépliée bass).
+
+- **Fix** : remontée du bloc des champs bass (`cotBasses`/`bassAlts`/`bassEq`/
+  `bassFx`/`bassCompatStyle`) AVANT les consts qui les consomment
+  (`effectiveBassId`/`selectedBassScore`).
+- **Garde-fou ajouté** : `src/app/screens/SongDetailCard.bass.smoke.test.jsx`
+  — monte SongDetailCard sur le chemin basse complet (profil bass-actif +
+  bass_recommendation avec cot_step2_basses/alternatives/EQ/FX). Aurait
+  attrapé le TDZ (render throw → test rouge). +2 tests → 1737 verts.
+- **Leçon** : tout `const`/IIFE qui consomme une variable doit être déclaré
+  APRÈS elle. Cf piège Phase 7.79.3b (`docs/CASCADE.md`) — même cause.
 
 ### Homogénéisation listes déroulantes guitare ↔ basse (v8.14.285)
 
