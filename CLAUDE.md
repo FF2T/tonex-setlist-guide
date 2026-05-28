@@ -1261,10 +1261,16 @@ CLAUDE.md pour le tableau des 26 icônes + l'historique des 3 vagues.
 
 ### Dette résiduelle session 2026-05-28
 
-1. **Vague 4 i18n cleanup** (purement technique) : ~80 clés `-flat`
-   ajoutées sans emojis, anciennes clés à emojis conservées en
-   rétro-compat dans les dicts EN/ES. Retirer les anciennes une fois
-   certain qu'aucun call site ne les référence. Zéro impact visuel.
+1. ~~**Vague 4 i18n cleanup**~~ ✅ FAIT (non déployé seul, partira avec
+   le prochain deploy feature). 115 anciennes clés à emoji **mortes**
+   (0 référence, superseded par les call sites `-flat`) retirées de
+   en.js + es.js (994 → 879 clés, bundle -12 KB). Détection : valeur
+   contient un emoji ET 0 référence dans `src/` hors i18n, en excluant
+   les clés dynamiques `cascade.source-*`. Zéro impact comportemental
+   (clés non référencées). **Finding annexe** : les clés `-flat`
+   (~80) ne sont PAS dans en.js/es.js → les visiteurs EN/ES voient
+   le fallback FR inline pour ces strings. Vrai gap i18n (pré-existant,
+   hors scope cleanup) — traduire EN/ES si beta anglophone/hispanophone.
 2. ~~**Étape 2 vague B bass complète**~~ ✅ LIVRÉE v8.14.283
    (cf section "Étape 2 vague B" en tête). Re-batch auto via bassStale.
 3. **Propagation Button aux écrans restants** (opportuniste) :
