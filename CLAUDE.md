@@ -981,9 +981,19 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-28 jeudi, Étape 2 vague B — Symétrie scoring/EQ/FX basse + dropdowns homogénéisés + fixes cohérence + UX cleanup CLOSE)
+## État actuel (2026-05-28 jeudi, Étape 2 vague B basse + dropdowns homogénéisés + i18n EN/ES complétée + UX cleanup CLOSE)
 
-**Backline v8.14.288 / SW backline-v388 / STATE_VERSION 13 / 1742 tests verts. Bundle 2621 KB.**
+**Backline v8.14.289 / SW backline-v389 / STATE_VERSION 13 / 1742 tests verts. Bundle 2620 KB.**
+
+### Vague 4 i18n — cleanup + traductions EN/ES (v8.14.289)
+
+- **Cleanup** : 115 anciennes clés à emoji **mortes** (0 référence,
+  superseded par les call sites `-flat`) retirées de en.js + es.js.
+- **Traductions** : les 110 clés `-flat` référencées n'étaient PAS dans
+  en.js/es.js → visiteurs EN/ES voyaient le fallback FR. Traduites EN +
+  ES (989 clés chacun). Les anglophones/hispanophones voient désormais
+  les bons libellés (tabs, Explorer, Optimiseur, Maintenance, recap, etc.).
+- Net : en.js/es.js passent de 994 → 989 clés (−115 mortes +110 flat).
 
 ### Fixes cohérence Scoring preset basse (v8.14.287 → 288)
 
@@ -1261,16 +1271,17 @@ CLAUDE.md pour le tableau des 26 icônes + l'historique des 3 vagues.
 
 ### Dette résiduelle session 2026-05-28
 
-1. ~~**Vague 4 i18n cleanup**~~ ✅ FAIT (non déployé seul, partira avec
-   le prochain deploy feature). 115 anciennes clés à emoji **mortes**
-   (0 référence, superseded par les call sites `-flat`) retirées de
-   en.js + es.js (994 → 879 clés, bundle -12 KB). Détection : valeur
+1. ~~**Vague 4 i18n cleanup**~~ ✅ FAIT (déployé v8.14.289). 115
+   anciennes clés à emoji **mortes** (0 référence, superseded par les
+   call sites `-flat`) retirées de en.js + es.js. Détection : valeur
    contient un emoji ET 0 référence dans `src/` hors i18n, en excluant
-   les clés dynamiques `cascade.source-*`. Zéro impact comportemental
-   (clés non référencées). **Finding annexe** : les clés `-flat`
-   (~80) ne sont PAS dans en.js/es.js → les visiteurs EN/ES voient
-   le fallback FR inline pour ces strings. Vrai gap i18n (pré-existant,
-   hors scope cleanup) — traduire EN/ES si beta anglophone/hispanophone.
+   les clés dynamiques `cascade.source-*`.
+2. ~~**Gap traduction `-flat` EN/ES**~~ ✅ FAIT (déployé v8.14.289). Les
+   110 clés `-flat` référencées dans les call sites n'étaient PAS dans
+   en.js/es.js → les visiteurs EN/ES voyaient le fallback FR inline.
+   Traduites EN + ES et ajoutées aux 2 dicts (989 clés chacun). Les
+   visiteurs anglophones/hispanophones voient désormais les bons
+   libellés. Bloc généré commenté "Vague 4 — traductions des clés -flat".
 2. ~~**Étape 2 vague B bass complète**~~ ✅ LIVRÉE v8.14.283
    (cf section "Étape 2 vague B" en tête). Re-batch auto via bassStale.
 3. **Propagation Button aux écrans restants** (opportuniste) :
