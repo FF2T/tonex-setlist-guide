@@ -131,7 +131,7 @@ function MonProfilScreen({
   return (
     <div>
       <Breadcrumb crumbs={[{ label: t('common.home', 'Accueil'), screen: 'list' }, { label: t('profile.title-short', 'Mon profil') }]} onNavigate={onNavigate}/>
-      <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 16 }}>{t('profile.title', '👤 Mon profil')}</div>
+      <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}><NavIcon id="user" size={20}/>{t('profile.title-flat', 'Mon profil')}</div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         {/* Phase 7.73.2 Session B — Tab "👤 Mon compte" en premier.
             Regroupe Identité + Sécurité (migration PasswordTab) + Mes
@@ -218,8 +218,8 @@ function MonProfilScreen({
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ flex: 1, fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{sl.name}</div>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{sl.songIds.length} morceaux</span>
-                <button onClick={() => { setEditSlId(sl.id); setEditSlName(sl.name); }} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '4px 8px', fontSize: 11, cursor: 'pointer' }}>✏️</button>
-                {setlists.length > 1 && <button onClick={() => deleteSetlist(sl.id)} style={{ background: 'var(--red-bg)', border: '1px solid var(--red-border)', color: 'var(--red)', borderRadius: 'var(--r-md)', padding: '4px 8px', fontSize: 11, cursor: 'pointer' }}>🗑</button>}
+                <button title={t('list.rename-setlist', 'Renommer la setlist')} onClick={() => { setEditSlId(sl.id); setEditSlName(sl.name); }} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '4px 8px', fontSize: 11, cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}><NavIcon id="pen" size={14}/></button>
+                {setlists.length > 1 && <button title={t('list.delete-setlist', 'Supprimer la setlist')} onClick={() => deleteSetlist(sl.id)} style={{ background: 'var(--red-bg)', border: '1px solid var(--red-border)', color: 'var(--red)', borderRadius: 'var(--r-md)', padding: '4px 8px', fontSize: 11, cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}><NavIcon id="trash" size={14}/></button>}
               </div>
             )}
           </div>
@@ -269,7 +269,7 @@ function MonProfilScreen({
 
         {/* Phase 7.73.2 — Section 1 : Affichage (ex-tab "display" Phase 7.36) */}
         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginTop: 4, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span>🎨</span><span>{t('preferences.section-display', 'Affichage')}</span>
+          <span>{t('preferences.section-display', 'Affichage')}</span>
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 10 }}>{t('profile.display.intro', 'Apparence de l\'application.')}</div>
         <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 16 }}>
@@ -306,7 +306,7 @@ function MonProfilScreen({
         {/* Phase 7.73.2 — Section 2 : Préférences IA (ex-tab "reco" Phase 7.1) */}
         <hr style={{ border: 'none', borderTop: '1px solid var(--a10)', margin: '20px 0 16px 0' }} />
         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginTop: 4, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span>🎯</span><span>{t('preferences.section-ai', 'Préférences IA')}</span>
+          <span>{t('preferences.section-ai', 'Préférences IA')}</span>
         </div>
         <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>{t('profile.reco.intro', 'Comment l\'IA propose les recommandations.')}</div>
         {/* Phase 7.83 demo-gating — wrap section IA en mode démo (pointer-events none + opacity).
@@ -314,10 +314,10 @@ function MonProfilScreen({
         <div style={{ opacity: isDemo ? 0.5 : 1, pointerEvents: isDemo ? 'none' : 'auto' }} title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : undefined} aria-disabled={isDemo ? 'true' : undefined}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
           {[
-            { id: 'balanced', icon: '⚖️', label: t('profile.reco.balanced-label', 'Équilibré (défaut)'), desc: t('profile.reco.balanced-desc', 'Mélange fidélité au morceau original et versatilité du rig. Comportement actuel.') },
-            { id: 'faithful', icon: '🎯', label: t('profile.reco.faithful-label', 'Fidèle à l\'original'), desc: t('profile.reco.faithful-desc', 'L\'IA privilégie la guitare/ampli/effets exacts utilisés sur l\'enregistrement original. Reco proche du son du disque.') },
-            { id: 'interpretation', icon: '🎨', label: t('profile.reco.interpretation-label', 'Interprétation libre'), desc: t('profile.reco.interpretation-desc', 'L\'IA privilégie les guitares versatiles (ES-335, SG, Strat) qui couvrent bien le style, même si ce n\'est pas l\'instrument original. Pratique si tu as un rig limité.') },
-          ].map(({ id, icon, label, desc }) => {
+            { id: 'balanced', label: t('profile.reco.balanced-label', 'Équilibré (défaut)'), desc: t('profile.reco.balanced-desc', 'Mélange fidélité au morceau original et versatilité du rig. Comportement actuel.') },
+            { id: 'faithful', label: t('profile.reco.faithful-label', 'Fidèle à l\'original'), desc: t('profile.reco.faithful-desc', 'L\'IA privilégie la guitare/ampli/effets exacts utilisés sur l\'enregistrement original. Reco proche du son du disque.') },
+            { id: 'interpretation', label: t('profile.reco.interpretation-label', 'Interprétation libre'), desc: t('profile.reco.interpretation-desc', 'L\'IA privilégie les guitares versatiles (ES-335, SG, Strat) qui couvrent bien le style, même si ce n\'est pas l\'instrument original. Pratique si tu as un rig limité.') },
+          ].map(({ id, label, desc }) => {
             const active = (profile.recoMode || 'balanced') === id;
             return <button
               key={id}
@@ -330,7 +330,6 @@ function MonProfilScreen({
               <div style={{ width: 18, height: 18, borderRadius: '50%', border: active ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: active ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>{active && <span style={{ color: 'var(--bg)', fontSize: 11, fontWeight: 900 }}>✓</span>}</div>
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <div style={{ fontSize: 13, color: active ? 'var(--text)' : 'var(--text-muted)', fontWeight: active ? 700 : 500, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span>{icon}</span>
                   <span>{label}</span>
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 }}>{desc}</div>
@@ -343,14 +342,14 @@ function MonProfilScreen({
         {/* Phase 10 — Contexte d'écoute (output audio). Dicte cab_enabled
             au prompt IA Phase 9.1 + adapte les recos selon le matériel
             d'écoute (casque / FRFR / sono / ampli avec ou sans cab). */}
-        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginTop: 4, marginBottom: 6 }}>{t('profile.output-context.title', '🔌 Contexte d\'écoute')}</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginTop: 4, marginBottom: 6 }}>{t('profile.output-context.title-flat', 'Contexte d\'écoute')}</div>
         <div style={{ fontSize: 12, color: 'var(--text-sec)', marginBottom: 10, lineHeight: 1.5 }}>{t('profile.output-context.intro', 'Sur quel matériel tu joues le plus souvent. Affecte les conseils d\'EQ et de volume de l\'IA selon le rendu attendu.')}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
           {[
-            { id: 'frfr', icon: '📢', label: t('output-context.label.frfr', 'Enceinte FRFR'), desc: t('output-context.desc.frfr', 'Enceinte neutre alimentée (Headrush, Friedman ASM, Powercab+, ToneX Cab…). Restitution fidèle de la capture.') },
-            { id: 'headphone', icon: '🎧', label: t('output-context.label.headphone', 'Casque'), desc: t('output-context.desc.headphone', 'Jeu silencieux via la sortie casque de la pédale. L\'IA peut moduler les aigus pour le confort d\'écoute.') },
-            { id: 'pa', icon: '🎚️', label: t('output-context.label.pa', 'Sono / Table de mixage'), desc: t('output-context.desc.pa', 'Sortie directe via DI vers PA, table ou monitors studio. Le mixeur attend un signal prêt à mixer.') },
-          ].map(({ id, icon, label, desc }) => {
+            { id: 'frfr', label: t('output-context.label.frfr', 'Enceinte FRFR'), desc: t('output-context.desc.frfr', 'Enceinte neutre alimentée (Headrush, Friedman ASM, Powercab+, ToneX Cab…). Restitution fidèle de la capture.') },
+            { id: 'headphone', label: t('output-context.label.headphone', 'Casque'), desc: t('output-context.desc.headphone', 'Jeu silencieux via la sortie casque de la pédale. L\'IA peut moduler les aigus pour le confort d\'écoute.') },
+            { id: 'pa', label: t('output-context.label.pa', 'Sono / Table de mixage'), desc: t('output-context.desc.pa', 'Sortie directe via DI vers PA, table ou monitors studio. Le mixeur attend un signal prêt à mixer.') },
+          ].map(({ id, label, desc }) => {
             const active = (profile.outputContext || 'frfr') === id;
             return <button
               key={id}
@@ -363,7 +362,6 @@ function MonProfilScreen({
               <div style={{ width: 18, height: 18, borderRadius: '50%', border: active ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: active ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>{active && <span style={{ color: 'var(--bg)', fontSize: 11, fontWeight: 900 }}>✓</span>}</div>
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <div style={{ fontSize: 13, color: active ? 'var(--text)' : 'var(--text-muted)', fontWeight: active ? 700 : 500, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span>{icon}</span>
                   <span>{label}</span>
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.5 }}>{desc}</div>
@@ -371,7 +369,7 @@ function MonProfilScreen({
             </button>;
           })}
         </div>
-        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.5, marginBottom: 16 }}>{t('profile.output-context.hint', 'Tu peux aussi forcer un autre contexte par morceau depuis la fiche song. Changer ici n\'invalide pas les caches existants — utilise "🔄 Réinitialiser mes analyses" pour regenerer. Le toggle CAB ON/OFF de la pédale est décidé par l\'IA selon la capture choisie, pas par ce paramètre.')}</div>
+        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontStyle: 'italic', lineHeight: 1.5, marginBottom: 16 }}>{t('profile.output-context.hint-flat', 'Tu peux aussi forcer un autre contexte par morceau depuis la fiche song. Changer ici n\'invalide pas les caches existants — utilise "Réinitialiser mes analyses" pour regenerer. Le toggle CAB ON/OFF de la pédale est décidé par l\'IA selon la capture choisie, pas par ce paramètre.')}</div>
 
         {(() => {
           const BIAS_STYLES = [
@@ -401,7 +399,7 @@ function MonProfilScreen({
           };
           return <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 14, marginBottom: 16 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Préférences guitare/style</div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.4 }}>L'IA apprend tes préférences depuis tes feedbacks (📊 auto, dès 3 morceaux feedbackés). Tu peux forcer un choix manuel (🎯 manuel — gagne sur l'auto). Soft hint dans le prompt, l'IA reste libre.</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.4 }}>L'IA apprend tes préférences depuis tes feedbacks (auto, dès 3 morceaux feedbackés). Tu peux forcer un choix manuel (gagne sur l'auto). Soft hint dans le prompt, l'IA reste libre.</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {BIAS_STYLES.map(({ id, label }) => {
                 const effective = guitarBias && guitarBias[id];
@@ -411,11 +409,11 @@ function MonProfilScreen({
                     <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: 0.5, minWidth: 70 }}>{label}</span>
                     {effective
                       ? <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 'var(--r-sm)', background: effective.source === 'manual' ? 'var(--accent-bg)' : 'var(--a8)', color: effective.source === 'manual' ? 'var(--accent)' : 'var(--text-sec)', fontWeight: 600 }}>
-                        {effective.source === 'manual' ? '🎯 manuel' : `📊 auto · ${effective.count} fb`}
+                        {effective.source === 'manual' ? t('profile.bias-manual', 'manuel') : tFormat('profile.bias-auto', { count: effective.count }, 'auto · {count} fb')}
                       </span>
                       : <span style={{ fontSize: 10, color: 'var(--text-dim)', fontStyle: 'italic' }}>aucune</span>
                     }
-                    {effective && <span style={{ fontSize: 11, color: 'var(--text)', fontWeight: 500 }}>→ {effective.guitarName}</span>}
+                    {effective && <span style={{ fontSize: 11, color: 'var(--text)', fontWeight: 500 }}>{effective.guitarName}</span>}
                   </div>
                   <select
                     data-testid={`bias-override-${id}`}
@@ -447,13 +445,13 @@ function MonProfilScreen({
           return (
             <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 14, marginBottom: 10 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>Réinitialiser mes analyses IA</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.4 }}>Invalide les caches IA UNIQUEMENT pour les morceaux de tes setlists ({myCount} morceau{myCount > 1 ? 'x' : ''} concerné{myCount > 1 ? 's' : ''}). Pratique pour forcer une ré-analyse après un changement de banks, de sources ou de mode reco. Au prochain ouverture (ou via "🤖 Analyser/MAJ" en Setlists), une nouvelle analyse sera lancée.</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10, lineHeight: 1.4 }}>Invalide les caches IA UNIQUEMENT pour les morceaux de tes setlists ({myCount} morceau{myCount > 1 ? 'x' : ''} concerné{myCount > 1 ? 's' : ''}). Pratique pour forcer une ré-analyse après un changement de banks, de sources ou de mode reco. Au prochain ouverture (ou via "Analyser/MAJ" en Setlists), une nouvelle analyse sera lancée.</div>
               <button
                 data-testid="reco-invalidate-mine"
                 disabled={myCount === 0}
                 onClick={() => {
                   if (!myCount) { window.alert('Aucun cache IA à invalider sur tes morceaux.'); return; }
-                  if (!window.confirm(`Invalider ${myCount} cache${myCount > 1 ? 's' : ''} IA sur tes morceaux ?\n\nMode actuel : ${profile.recoMode || 'balanced'}.\n\nLes morceaux passeront en ⏳ et seront re-analysés à la demande.\n\nCela consomme du quota Gemini quand les re-analyses tournent (~8s par morceau).`)) return;
+                  if (!window.confirm(`Invalider ${myCount} cache${myCount > 1 ? 's' : ''} IA sur tes morceaux ?\n\nMode actuel : ${profile.recoMode || 'balanced'}.\n\nLes morceaux seront re-analysés à la demande.\n\nCela consomme du quota Gemini quand les re-analyses tournent (~8s par morceau).`)) return;
                   // Phase 7.54 — Wipe profile.aiCache pour mes songs uniquement.
                   // Reset les entries dans profile.aiCache du profil actif.
                   // Aussi reset shared.aiCache (rétro-compat avec songs pre-v10).
@@ -466,10 +464,10 @@ function MonProfilScreen({
                     return { ...p, [activeProfileId]: { ...cur, aiCache: nextCache, lastModified: Date.now() } };
                   });
                   onSongDb((p) => p.map((s) => (mySongIds.has(s.id) && s.aiCache) ? { ...s, aiCache: null } : s));
-                  window.alert(`✓ ${myCount} cache${myCount > 1 ? 's' : ''} invalidé${myCount > 1 ? 's' : ''}. Va dans Setlists et clique "🤖 Analyser/MAJ".`);
+                  window.alert(`${myCount} cache${myCount > 1 ? 's' : ''} invalidé${myCount > 1 ? 's' : ''}. Va dans Setlists et clique "Analyser/MAJ".`);
                 }}
                 style={{ background: myCount === 0 ? 'var(--bg-disabled)' : 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '12px 16px', fontSize: 13, fontWeight: 700, cursor: myCount === 0 ? 'not-allowed' : 'pointer', opacity: myCount === 0 ? 0.5 : 1, minHeight: 44 }}
-              >🔄 Réinitialiser mes analyses ({myCount})</button>
+              >{tFormat('profile.reset-my-analyses', { count: myCount }, 'Réinitialiser mes analyses ({count})')}</button>
             </div>
           );
         })()}
@@ -481,7 +479,7 @@ function MonProfilScreen({
             onClick={() => {
               const n = (songDb || []).filter((s) => s.aiCache).length;
               if (!n) { window.alert('Aucun cache IA à invalider.'); return; }
-              if (!window.confirm(`Invalider ${n} cache${n > 1 ? 's' : ''} IA (TOUS profils) ?\n\nMode actuel : ${profile.recoMode || 'balanced'}.\n\nLes morceaux passeront en ⏳ et seront re-analysés à la demande (ouverture ou bouton "⏳ Analyser/MAJ" en setlists).\n\nCela consomme du quota Gemini quand les re-analyses tournent (~8s par morceau).`)) return;
+              if (!window.confirm(`Invalider ${n} cache${n > 1 ? 's' : ''} IA (TOUS profils) ?\n\nMode actuel : ${profile.recoMode || 'balanced'}.\n\nLes morceaux seront re-analysés à la demande (ouverture ou bouton "Analyser/MAJ" en setlists).\n\nCela consomme du quota Gemini quand les re-analyses tournent (~8s par morceau).`)) return;
               // Phase 7.54 — Wipe TOUS les profile.aiCache + shared.songDb.aiCache.
               onProfiles((p) => {
                 const out = {};
@@ -491,10 +489,10 @@ function MonProfilScreen({
                 return out;
               });
               onSongDb((p) => p.map((s) => s.aiCache ? { ...s, aiCache: null } : s));
-              window.alert(`✓ ${n} caches invalidés. Reviens dans Setlists et clique "⏳ Analyser/MAJ".`);
+              window.alert(`${n} caches invalidés. Reviens dans Setlists et clique "Analyser/MAJ".`);
             }}
             style={{ background: 'var(--wine-400)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '12px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 44 }}
-          >🗑 Invalider tous les caches IA</button>
+          >{t('profile.invalidate-all-caches', 'Invalider tous les caches IA')}</button>
         </div>}
         </div>{/* fin wrap demo-gating section IA */}
 
@@ -505,18 +503,18 @@ function MonProfilScreen({
             profile.preferredStyles: string[]. Additif, pas STATE_VERSION. */}
         <hr style={{ border: 'none', borderTop: '1px solid var(--a10)', margin: '20px 0 16px 0' }} />
         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginTop: 4, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span>🎵</span><span>{t('preferences.section-musical-styles', 'Préférences musicales')}</span>
+          <span>{t('preferences.section-musical-styles', 'Préférences musicales')}</span>
         </div>
         <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 12 }}>{t('preferences.musical-styles-intro', 'Styles que tu joues le plus souvent. Sert d\'indication contextuelle pour l\'IA.')}</div>
         <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 14, marginBottom: 16, opacity: isDemo ? 0.5 : 1, pointerEvents: isDemo ? 'none' : 'auto' }} title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : undefined} aria-disabled={isDemo ? 'true' : undefined}>
           {(() => {
             const STYLES = [
-              { id: 'blues', label: t('preferences.musical-styles.blues', 'Blues'), icon: '🎤' },
-              { id: 'rock', label: t('preferences.musical-styles.rock', 'Rock'), icon: '🎸' },
-              { id: 'hard_rock', label: t('preferences.musical-styles.hard-rock', 'Hard rock'), icon: '🤘' },
-              { id: 'jazz', label: t('preferences.musical-styles.jazz', 'Jazz'), icon: '🎷' },
-              { id: 'metal', label: t('preferences.musical-styles.metal', 'Metal'), icon: '💀' },
-              { id: 'pop', label: t('preferences.musical-styles.pop', 'Pop'), icon: '🎵' },
+              { id: 'blues', label: t('preferences.musical-styles.blues', 'Blues') },
+              { id: 'rock', label: t('preferences.musical-styles.rock', 'Rock') },
+              { id: 'hard_rock', label: t('preferences.musical-styles.hard-rock', 'Hard rock') },
+              { id: 'jazz', label: t('preferences.musical-styles.jazz', 'Jazz') },
+              { id: 'metal', label: t('preferences.musical-styles.metal', 'Metal') },
+              { id: 'pop', label: t('preferences.musical-styles.pop', 'Pop') },
             ];
             const selected = Array.isArray(profile.preferredStyles) ? profile.preferredStyles : [];
             const toggleStyle = (id) => {
@@ -529,7 +527,7 @@ function MonProfilScreen({
             };
             return (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {STYLES.map(({ id, label, icon }) => {
+                {STYLES.map(({ id, label }) => {
                   const active = selected.includes(id);
                   return (
                     <button
@@ -545,7 +543,7 @@ function MonProfilScreen({
                         fontSize: 12, fontWeight: 600, cursor: 'pointer',
                       }}
                     >
-                      <span>{icon}</span><span>{label}</span>
+                      <span>{label}</span>
                       {active && <span style={{ color: 'var(--accent)', fontSize: 11, fontWeight: 900 }}>✓</span>}
                     </button>
                   );
@@ -572,7 +570,7 @@ function MonProfilScreen({
           target="_blank"
           rel="noopener noreferrer"
           style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline', padding: '10px 6px', minHeight: 44, display: 'inline-flex', alignItems: 'center' }}
-        >{t('profile.footer-feedback', '💬 Envoyer un feedback')}</a>
+        >{t('profile.footer-feedback-flat', 'Envoyer un feedback')}</a>
         <button onClick={() => { location.reload(true); }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline', padding: '10px 6px', minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>{t('profile.footer-update', 'Mise à jour')}</button>
         {onLogout && <button onClick={onLogout} style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '12px 18px', fontSize: 13, cursor: 'pointer', marginLeft: 'auto', minHeight: 44 }}>{t('profile.footer-logout', 'Se déconnecter')}</button>}
       </div>
@@ -636,7 +634,7 @@ function PasswordTab({ profile, onProfiles, activeProfileId, inp }) {
       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>Confirme le nouveau mot de passe</div>
       <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Resaisis le nouveau mot de passe" autoComplete="new-password" style={{ ...inp, width: '100%', marginBottom: 12 }}/>
       {err && <div style={{ fontSize: 11, color: 'var(--wine-400)', background: 'var(--a4)', border: '1px solid var(--wine-400)', borderRadius: 'var(--r-md)', padding: '6px 10px', marginBottom: 12 }}>{err}</div>}
-      {success && <div style={{ fontSize: 11, color: 'var(--green)', background: 'var(--a4)', border: '1px solid var(--green)', borderRadius: 'var(--r-md)', padding: '6px 10px', marginBottom: 12 }}>✓ Mot de passe mis à jour avec succès.</div>}
+      {success && <div style={{ fontSize: 11, color: 'var(--green)', background: 'var(--a4)', border: '1px solid var(--green)', borderRadius: 'var(--r-md)', padding: '6px 10px', marginBottom: 12 }}>Mot de passe mis à jour avec succès.</div>}
       <button
         data-testid="password-change-submit"
         disabled={submitting}
@@ -654,21 +652,21 @@ function PasswordTab({ profile, onProfiles, activeProfileId, inp }) {
     {Array.isArray(profile?.loginHistory) && profile.loginHistory.length > 0 && (
       <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, maxWidth: 480, width: '100%', boxSizing: 'border-box', marginTop: 16 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>{t('password.history-title', 'Historique de connexion')}</div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>{t('password.history-hint', 'Les 5 derniers événements sur ton profil. Les entrées 🔍 indiquent un accès admin (un autre profil avec droits admin a switché sur le tien).')}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>{t('password.history-hint-flat', 'Les 5 derniers événements sur ton profil. Les entrées en mode admin indiquent un accès admin (un autre profil avec droits admin a switché sur le tien).')}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {profile.loginHistory.slice(0, 5).map((entry, i) => {
             if (typeof entry === 'number') {
               return (
                 <div key={i} style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.6 }}>
-                  ✓ {new Date(entry).toLocaleString(getLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {new Date(entry).toLocaleString(getLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </div>
               );
             }
             if (entry && entry.type === 'admin_switch') {
               const dt = new Date(entry.ts).toLocaleString(getLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
               return (
-                <div key={i} style={{ fontSize: 11, color: 'var(--copper-300, #d97a3a)', lineHeight: 1.6 }} title={t('password.admin-switch-title', 'Un admin a accédé à ton profil')}>
-                  🔍 {entry.adminName || entry.adminId} <span style={{ color: 'var(--text-muted)' }}>({t('password.admin-mode', 'mode admin')}) · {dt}</span>
+                <div key={i} style={{ fontSize: 11, color: 'var(--copper-300, #d97a3a)', lineHeight: 1.6, fontWeight: 600 }} title={t('password.admin-switch-title', 'Un admin a accédé à ton profil')}>
+                  {entry.adminName || entry.adminId} <span style={{ color: 'var(--text-muted)' }}>({t('password.admin-mode', 'mode admin')}) · {dt}</span>
                 </div>
               );
             }
@@ -751,7 +749,7 @@ function MonCompteSection({
   const revokeTrusted = () => {
     if (!window.confirm(t('mon-compte.trusted-revoke-confirm', 'Révoquer la confiance de cet appareil ?\nTu devras retaper ton mot de passe à la prochaine connexion sur cet appareil.'))) return;
     setTrusted(activeProfileId, false);
-    window.alert(t('mon-compte.trusted-revoke-done', '✓ Confiance révoquée pour cet appareil.'));
+    window.alert(t('mon-compte.trusted-revoke-done-flat', 'Confiance révoquée pour cet appareil.'));
   };
 
   // Section 💾 Mes données — export perso filtré par profil
@@ -804,7 +802,7 @@ function MonCompteSection({
       };
     });
     onSetlists((p) => (p || []).filter((sl) => !(Array.isArray(sl.profileIds) && sl.profileIds.includes(activeProfileId) && sl.profileIds.length === 1)));
-    window.alert(t('mon-compte.reset-done', '✓ Profil réinitialisé.'));
+    window.alert(t('mon-compte.reset-done-flat', 'Profil réinitialisé.'));
   };
 
   // Badges read-only
@@ -823,7 +821,7 @@ function MonCompteSection({
 
       {/* ─── Section 1 : 👤 Identité ─── */}
       <div style={sectionTitleStyle}>
-        <span>👤</span><span>{t('mon-compte.section-identity', 'Identité')}</span>
+        <NavIcon id="user" size={15}/><span>{t('mon-compte.section-identity', 'Identité')}</span>
       </div>
       <div style={sectionIntroStyle}>{t('mon-compte.identity-intro', 'Ton identité dans Backline. Email facultatif.')}</div>
       <div style={cardStyle}>
@@ -836,7 +834,7 @@ function MonCompteSection({
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <label style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>
-              📷 {profile?.avatar ? t('mon-compte.avatar-change', 'Changer') : t('mon-compte.avatar-add', 'Ajouter un avatar')}
+              {profile?.avatar ? t('mon-compte.avatar-change', 'Changer') : t('mon-compte.avatar-add', 'Ajouter un avatar')}
               <input type="file" accept="image/*" onChange={onAvatarUpload} style={{ display: 'none' }}/>
             </label>
             {profile?.avatar && <button onClick={removeAvatar} style={{ background: 'transparent', border: '1px solid var(--a10)', color: 'var(--text-muted)', borderRadius: 'var(--r-md)', padding: '4px 10px', fontSize: 10, cursor: 'pointer' }}>{t('mon-compte.avatar-remove', 'Retirer')}</button>}
@@ -904,7 +902,7 @@ function MonCompteSection({
       {/* ─── Section 2 : 🔐 Sécurité ─── */}
       <hr style={{ border: 'none', borderTop: '1px solid var(--a10)', margin: '20px 0 16px 0' }}/>
       <div style={sectionTitleStyle}>
-        <span>🔐</span><span>{t('mon-compte.section-security', 'Sécurité')}</span>
+        <NavIcon id="lock" size={15}/><span>{t('mon-compte.section-security', 'Sécurité')}</span>
       </div>
       <PasswordTab profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp}/>
 
@@ -920,7 +918,7 @@ function MonCompteSection({
           <button
             onClick={revokeTrusted}
             style={{ background: 'var(--wine-400)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
-          >🔒 {t('mon-compte.trusted-revoke', 'Révoquer pour cet appareil')}</button>
+          >{t('mon-compte.trusted-revoke', 'Révoquer pour cet appareil')}</button>
         )}
       </div>
 
@@ -935,7 +933,7 @@ function MonCompteSection({
           <button
             onClick={exportMyData}
             style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '12px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 44 }}
-          >⬇ {t('mon-compte.data-export', 'Exporter mes données (JSON)')}</button>
+          >{t('mon-compte.data-export', 'Exporter mes données (JSON)')}</button>
         </div>
         <div style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.5 }}>
           {t('mon-compte.data-export-hint', 'Inclut ton profil, tes setlists, tes morceaux, tes banks, tes presets ToneNET et tes guitares custom. Ne contient pas tes données autres profils.')}
@@ -950,7 +948,7 @@ function MonCompteSection({
         <button
           onClick={resetMyProfile}
           style={{ background: 'transparent', border: '1px solid var(--wine-400)', color: 'var(--wine-400)', borderRadius: 'var(--r-md)', padding: '12px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 44 }}
-        >🗑 {t('mon-compte.reset-button', 'Réinitialiser mon profil')}</button>
+        >{t('mon-compte.reset-button', 'Réinitialiser mon profil')}</button>
       </div>
 
       {/* ─── Section 4 : 📊 Activité (Phase 7.73.2 Session C) ─── */}
@@ -974,25 +972,25 @@ function MonCompteSection({
         const customPresetsCount = (profile?.customPacks || []).reduce((acc, pk) => acc + (Array.isArray(pk.presets) ? pk.presets.length : 0), 0);
         const customGuitarsCount = Array.isArray(profile?.customGuitars) ? profile.customGuitars.length : 0;
         const stats = [
-          { label: t('mon-compte.stats-inscription', 'Inscription'), value: inscriptionDate ? inscriptionDate.toLocaleDateString(getLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—', icon: '📅' },
-          { label: t('mon-compte.stats-setlists', 'Setlists'), value: mySetlists.length, icon: '📋' },
-          { label: t('mon-compte.stats-analyses', 'Analyses IA'), value: myAiCacheCount, icon: '🤖' },
-          { label: t('mon-compte.stats-feedbacks', 'Feedbacks donnés'), value: feedbackCount, icon: '💬' },
-          { label: t('mon-compte.stats-custom-presets', 'Presets custom'), value: customPresetsCount, icon: '🎛️' },
-          { label: t('mon-compte.stats-custom-guitars', 'Guitares custom'), value: customGuitarsCount, icon: '🎸' },
+          { label: t('mon-compte.stats-inscription', 'Inscription'), value: inscriptionDate ? inscriptionDate.toLocaleDateString(getLocale(), { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—' },
+          { label: t('mon-compte.stats-setlists', 'Setlists'), value: mySetlists.length },
+          { label: t('mon-compte.stats-analyses', 'Analyses IA'), value: myAiCacheCount },
+          { label: t('mon-compte.stats-feedbacks', 'Feedbacks donnés'), value: feedbackCount },
+          { label: t('mon-compte.stats-custom-presets', 'Presets custom'), value: customPresetsCount },
+          { label: t('mon-compte.stats-custom-guitars', 'Guitares custom'), value: customGuitarsCount },
         ];
         return (
           <>
             <hr style={{ border: 'none', borderTop: '1px solid var(--a10)', margin: '20px 0 16px 0' }}/>
             <div style={sectionTitleStyle}>
-              <span>📊</span><span>{t('mon-compte.section-activity', 'Activité')}</span>
+              <span>{t('mon-compte.section-activity', 'Activité')}</span>
             </div>
             <div style={sectionIntroStyle}>{t('mon-compte.activity-intro', 'Tes stats sur Backline (read-only).')}</div>
             <div style={cardStyle}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
                 {stats.map((s, i) => (
                   <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 4, background: 'var(--a3)', borderRadius: 'var(--r-md)', padding: '10px 12px' }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>{s.icon} {s.label}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>{s.label}</div>
                     <div style={{ fontSize: 18, color: 'var(--text-bright)', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{s.value}</div>
                   </div>
                 ))}
@@ -1015,7 +1013,7 @@ function MonCompteSection({
           <>
             <hr style={{ border: 'none', borderTop: '1px solid var(--a10)', margin: '20px 0 16px 0' }}/>
             <div style={sectionTitleStyle}>
-              <span>🤝</span><span>{t('mon-compte.section-community', 'Communauté')}</span>
+              <span>{t('mon-compte.section-community', 'Communauté')}</span>
             </div>
             <div style={sectionIntroStyle}>{t('mon-compte.community-intro', 'Setlists partagées avec toi par d\'autres profils.')}</div>
             <div style={cardStyle}>
@@ -1049,7 +1047,7 @@ function MonCompteSection({
       {/* ─── Section 6 : 💬 Aide (Phase 7.73.2 Session C) ─── */}
       <hr style={{ border: 'none', borderTop: '1px solid var(--a10)', margin: '20px 0 16px 0' }}/>
       <div style={sectionTitleStyle}>
-        <span>💬</span><span>{t('mon-compte.section-help', 'Aide')}</span>
+        <span>{t('mon-compte.section-help', 'Aide')}</span>
       </div>
       <div style={sectionIntroStyle}>{t('mon-compte.help-intro', 'Tutoriel, feedback et contact.')}</div>
       <div style={cardStyle}>
@@ -1061,7 +1059,7 @@ function MonCompteSection({
               else { const e = new CustomEvent('showOnboarding'); window.dispatchEvent(e); }
             }}
             style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}
-          >🎓 {t('mon-compte.help-relaunch-tutorial', 'Relancer le tutoriel d\'introduction')}</button>
+          >{t('mon-compte.help-relaunch-tutorial', 'Relancer le tutoriel d\'introduction')}</button>
 
           {/* Feedback Tally (Phase 7.73.0) */}
           <a
@@ -1069,7 +1067,7 @@ function MonCompteSection({
             target="_blank"
             rel="noopener noreferrer"
             style={{ background: 'var(--a5)', border: '1px solid var(--a10)', color: 'var(--text)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'none', textAlign: 'left' }}
-          >💬 {t('mon-compte.help-send-feedback', 'Envoyer un feedback à l\'équipe')}</a>
+          >{t('mon-compte.help-send-feedback', 'Envoyer un feedback à l\'équipe')}</a>
           {/* Phase 7.73.2.1 (2026-05-23) — Bouton mailto retiré pour
               privacy (l'email admin était exposé en clair via mailto:).
               Toute communication passe par le formulaire Tally
