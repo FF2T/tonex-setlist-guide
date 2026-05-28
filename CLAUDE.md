@@ -981,9 +981,39 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-28 jeudi, V9.1.2 — Phase B : contexte de jeu + ajout ampli custom enrichi par l'IA)
+## État actuel (2026-05-28 jeudi, V9.2.0 — Réorg 6 onglets Mon Profil : instrument vs matériel, analogique vs numérique)
 
-**Backline v9.1.2 / SW backline-v395 / STATE_VERSION 13 / 1782 tests verts. Bundle 2643 KB.**
+**Backline v9.2.0 / SW backline-v396 / STATE_VERSION 13 / 1782 tests verts. Bundle 2643 KB.**
+
+### v9.2.0 — Réorg onglets Mon Profil (STEP 1 du chantier pédalier) (2026-05-28)
+
+Validé Sébastien. Clarifie instrument vs matériel, analogique vs numérique.
+Les amplis (guitare Phase A + basse Phase 8), ajoutés sous les onglets
+instruments, sont sortis vers un onglet matériel dédié.
+
+**6 onglets cible** : Mon compte · Mes guitares (guitares seules) · Mes basses
+(basses seules) · **Mes amplis & pédales** (analogique : amplis guitare +
+basse, + pédales Phase C à venir) · **Mon matériel numérique** (ToneX + TMP +
+banks + sources + presets custom) · Préférences.
+
+- **ProfileTab** : sous-sections amplis guitare (ex-section guitars) + amplis
+  basse (ex-section basses) extraites vers un nouveau branch `s === 'ampsPedals'`
+  (amplis basse gated `instruments.includes('bass')`). Helpers (toggle/add/remove
+  guitar+bass amps) déjà component-scope → JSX déplacée seulement.
+- **MonProfilScreen** : tabBtn `ampsPedals` ajouté (NavIcon `amp`), `devices`
+  renommé "Mon matériel numérique", `sources`+`custompacks` standalone retirés.
+  Onglet `devices` empile désormais `MesAppareilsTab` + `ProfileTab section=sources`
+  + `MyCustomPresetsTab`. Rétrocompat `normalizedInitTab` : `sources`/`custompacks`
+  → `devices`.
+- i18n EN/ES (`profile.tab.amps-pedals-flat`, `devices-flat` → "Mon matériel
+  numérique", `profile-tab.amps-pedals-title/hint`). Pas de changement data,
+  pas de bump STATE_VERSION. 1782 tests verts.
+
+**STEP 2 (à venir, v9.3.0)** : Phase C pédalier physique (`core/pedals.js` +
+`PedalSearchAdd` + `sanitizePedalSuggestion` + `pedalboard_settings` IA + cadre
+"Sur ton pédalier" rig=amp).
+
+### v9.1.2 — Ajout ampli custom enrichi par l'IA (Phase B.1) (2026-05-28)
 
 ### v9.1.2 — Ajout ampli custom enrichi par l'IA (Phase B.1) (2026-05-28)
 

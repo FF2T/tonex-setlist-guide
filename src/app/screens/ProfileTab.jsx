@@ -307,59 +307,6 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
         <GuitarSearchAdd inp={inp} aiKeys={aiKeys} disabled={isDemo} onAdd={(name, short, type) => {
           addCustomGuitar({ id: `cg_${Date.now()}`, name, short, type, brand: inferBrand(name) });
         }}/>
-
-        {/* Phase A — Mes amplis guitare traditionnels (mirror amplis basse).
-            Matériel physique non-ToneX (Marshall Plexi, Blues Junior…) pour
-            lequel l'IA proposera des réglages de potards 0-10 par morceau. */}
-        <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--a8)' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4, display: 'inline-flex', alignItems: 'center', gap: 6 }}><NavIcon id="amp" size={15}/>{t('profile-tab.my-guitar-amps', 'Mes amplis guitare traditionnels')}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>{t('profile-tab.my-guitar-amps-hint', 'Coche les amplis guitare physiques que tu possèdes (en plus du ToneX). Backline proposera des réglages adaptés à ton matériel.')}</div>
-          {GUITAR_AMP_BRANDS.map((brand) => {
-            const brandAmps = GUITAR_AMPS.filter((a) => a.brand === brand);
-            if (brandAmps.length === 0) return null;
-            return (
-              <div key={brand} style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{brand}</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {brandAmps.map((a) => {
-                    const sel = (profile.myGuitarAmps || []).includes(a.id);
-                    return (
-                      <div key={a.id} onClick={() => { if (!isDemo) toggleGuitarAmp(a.id); }} title={demoTitle} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: sel ? 'var(--accent-soft)' : 'var(--a3)', border: sel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '8px 12px', cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.6 : 1 }}>
-                        <div style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: sel ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: sel ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{sel && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{a.name} <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400 }}>· {a.wattage}W</span></div>
-                          <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.4 }}>{a.features?.join(' · ') || ''}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-          {(profile?.customGuitarAmps || []).length > 0 && (
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('profile-tab.custom-guitar-amps-section', 'Mes amplis guitare custom')}</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {(profile.customGuitarAmps || []).map((a) => {
-                  const sel = (profile.myGuitarAmps || []).includes(a.id);
-                  return (
-                    <div key={a.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: sel ? 'var(--accent-soft)' : 'var(--a3)', border: sel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '8px 12px' }}>
-                      <div onClick={() => { if (!isDemo) toggleGuitarAmp(a.id); }} title={demoTitle} style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: sel ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: sel ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, cursor: isDemo ? 'not-allowed' : 'pointer' }}>{sel && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
-                      <div style={{ flex: 1, minWidth: 0, cursor: isDemo ? 'not-allowed' : 'pointer' }} onClick={() => { if (!isDemo) toggleGuitarAmp(a.id); }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{a.name} <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400 }}>· {a.brand} · {a.wattage}W</span></div>
-                      </div>
-                      <button onClick={() => { if (!isDemo) removeCustomGuitarAmp(a.id); }} disabled={isDemo} title={demoTitle} style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: isDemo ? 'not-allowed' : 'pointer', fontSize: 12, padding: '2px 4px', minHeight: 28, minWidth: 28, opacity: isDemo ? 0.5 : 1 }}>✕</button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          {/* Phase B.1 — ajout ampli guitare custom enrichi par l'IA
-              (vrais potards/canaux/EQ/wattage/refs depuis le nom). */}
-          <AmpSearchAdd inp={inp} aiKeys={aiKeys} instrument="guitar" disabled={isDemo} onAdd={(amp) => { if (!isDemo) addCustomGuitarAmp(amp); }}/>
-        </div>
       </div>}
 
       {/* Phase 8.6 — Tab "🎻 Mes basses" : toggle "Activer la basse" +
@@ -452,61 +399,119 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                 </div>
               )}
 
-              {/* Section 3 — Liste amplis basse cochables (seulement si activé) */}
-              {bassActive && (
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{t('profile-tab.my-bass-amps', 'Mes amplis basse traditionnels')}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>{t('profile-tab.my-bass-amps-hint', 'Coche les amplis basse physiques que tu possèdes (en plus du ToneX). Backline proposera des réglages adaptés à ton matériel.')}</div>
-                  {BASS_AMP_BRANDS.map((brand) => {
-                    const brandAmps = BASS_AMPS.filter((a) => a.brand === brand);
-                    if (brandAmps.length === 0) return null;
+              {/* Phase C réorg (2026-05-28) — les amplis basse sont déplacés
+                  dans l'onglet "Mes amplis & pédales" (section ampsPedals). */}
+            </>
+          );
+        })()}
+      </div>}
+
+      {/* Réorg 2026-05-28 — Onglet "Mes amplis & pédales" : tout le matériel
+          analogique physique (amplis guitare + amplis basse + pédales Phase C),
+          déplacé hors des onglets instruments (guitares/basses). */}
+      {s === 'ampsPedals' && <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4, display: 'inline-flex', alignItems: 'center', gap: 6 }}><NavIcon id="amp" size={15}/>{t('profile-tab.amps-pedals-title', 'Mes amplis & pédales')}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12 }}>{t('profile-tab.amps-pedals-hint', 'Ton matériel analogique physique (hors ToneX). Backline proposera des réglages adaptés par morceau quand tu joues sur ampli.')}</div>
+
+        {/* Amplis guitare traditionnels */}
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4, display: 'inline-flex', alignItems: 'center', gap: 6 }}><NavIcon id="amp" size={15}/>{t('profile-tab.my-guitar-amps', 'Mes amplis guitare traditionnels')}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>{t('profile-tab.my-guitar-amps-hint', 'Coche les amplis guitare physiques que tu possèdes (en plus du ToneX). Backline proposera des réglages adaptés à ton matériel.')}</div>
+          {GUITAR_AMP_BRANDS.map((brand) => {
+            const brandAmps = GUITAR_AMPS.filter((a) => a.brand === brand);
+            if (brandAmps.length === 0) return null;
+            return (
+              <div key={brand} style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{brand}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {brandAmps.map((a) => {
+                    const sel = (profile.myGuitarAmps || []).includes(a.id);
                     return (
-                      <div key={brand} style={{ marginBottom: 12 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{brand}</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {brandAmps.map((a) => {
-                            const sel = myBassAmps.includes(a.id);
-                            return (
-                              <div key={a.id} onClick={() => { if (!isDemo) toggleBassAmp(a.id); }} title={demoTitle} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: sel ? 'var(--accent-soft)' : 'var(--a3)', border: sel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '8px 12px', cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.6 : 1 }}>
-                                <div style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: sel ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: sel ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{sel && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{a.name} <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400 }}>· {a.wattage}W</span></div>
-                                  <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.4 }}>{a.features?.join(' · ') || ''}</div>
-                                </div>
-                              </div>
-                            );
-                          })}
+                      <div key={a.id} onClick={() => { if (!isDemo) toggleGuitarAmp(a.id); }} title={demoTitle} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: sel ? 'var(--accent-soft)' : 'var(--a3)', border: sel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '8px 12px', cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.6 : 1 }}>
+                        <div style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: sel ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: sel ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{sel && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{a.name} <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400 }}>· {a.wattage}W</span></div>
+                          <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.4 }}>{a.features?.join(' · ') || ''}</div>
                         </div>
                       </div>
                     );
                   })}
-                  {/* Phase 8.7 — Custom amplis basse (hors catalog) */}
-                  {(profile?.customBassAmps || []).length > 0 && (
-                    <div style={{ marginBottom: 12 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('profile-tab.custom-bass-amps-section', 'Mes amplis basse custom')}</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        {(profile.customBassAmps || []).map((a) => {
-                          const sel = myBassAmps.includes(a.id);
-                          return (
-                            <div key={a.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: sel ? 'var(--accent-soft)' : 'var(--a3)', border: sel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '8px 12px' }}>
-                              <div onClick={() => { if (!isDemo) toggleBassAmp(a.id); }} title={demoTitle} style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: sel ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: sel ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, cursor: isDemo ? 'not-allowed' : 'pointer' }}>{sel && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
-                              <div style={{ flex: 1, minWidth: 0, cursor: isDemo ? 'not-allowed' : 'pointer' }} onClick={() => { if (!isDemo) toggleBassAmp(a.id); }}>
-                                <div style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{a.name} <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400 }}>· {a.brand} · {a.wattage}W</span></div>
-                              </div>
-                              <button onClick={() => { if (!isDemo) removeCustomBassAmp(a.id); }} disabled={isDemo} title={demoTitle} style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: isDemo ? 'not-allowed' : 'pointer', fontSize: 12, padding: '2px 4px', minHeight: 28, minWidth: 28, opacity: isDemo ? 0.5 : 1 }}>✕</button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  {/* Phase B.1 — ajout ampli basse custom enrichi par l'IA */}
-                  <AmpSearchAdd inp={inp} aiKeys={aiKeys} instrument="bass" disabled={isDemo} onAdd={(amp) => { if (!isDemo) addCustomBassAmp(amp); }}/>
                 </div>
-              )}
-            </>
-          );
-        })()}
+              </div>
+            );
+          })}
+          {(profile?.customGuitarAmps || []).length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('profile-tab.custom-guitar-amps-section', 'Mes amplis guitare custom')}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {(profile.customGuitarAmps || []).map((a) => {
+                  const sel = (profile.myGuitarAmps || []).includes(a.id);
+                  return (
+                    <div key={a.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: sel ? 'var(--accent-soft)' : 'var(--a3)', border: sel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '8px 12px' }}>
+                      <div onClick={() => { if (!isDemo) toggleGuitarAmp(a.id); }} title={demoTitle} style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: sel ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: sel ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, cursor: isDemo ? 'not-allowed' : 'pointer' }}>{sel && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
+                      <div style={{ flex: 1, minWidth: 0, cursor: isDemo ? 'not-allowed' : 'pointer' }} onClick={() => { if (!isDemo) toggleGuitarAmp(a.id); }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{a.name} <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400 }}>· {a.brand} · {a.wattage}W</span></div>
+                      </div>
+                      <button onClick={() => { if (!isDemo) removeCustomGuitarAmp(a.id); }} disabled={isDemo} title={demoTitle} style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: isDemo ? 'not-allowed' : 'pointer', fontSize: 12, padding: '2px 4px', minHeight: 28, minWidth: 28, opacity: isDemo ? 0.5 : 1 }}>✕</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <AmpSearchAdd inp={inp} aiKeys={aiKeys} instrument="guitar" disabled={isDemo} onAdd={(amp) => { if (!isDemo) addCustomGuitarAmp(amp); }}/>
+        </div>
+
+        {/* Amplis basse traditionnels (si profil multi-instrument) */}
+        {(profile?.instruments || []).includes('bass') && (
+          <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--a8)' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4, display: 'inline-flex', alignItems: 'center', gap: 6 }}><NavIcon id="bass" size={15}/>{t('profile-tab.my-bass-amps', 'Mes amplis basse traditionnels')}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>{t('profile-tab.my-bass-amps-hint', 'Coche les amplis basse physiques que tu possèdes (en plus du ToneX). Backline proposera des réglages adaptés à ton matériel.')}</div>
+            {BASS_AMP_BRANDS.map((brand) => {
+              const brandAmps = BASS_AMPS.filter((a) => a.brand === brand);
+              if (brandAmps.length === 0) return null;
+              return (
+                <div key={brand} style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{brand}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {brandAmps.map((a) => {
+                      const sel = (profile?.myBassAmps || []).includes(a.id);
+                      return (
+                        <div key={a.id} onClick={() => { if (!isDemo) toggleBassAmp(a.id); }} title={demoTitle} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: sel ? 'var(--accent-soft)' : 'var(--a3)', border: sel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '8px 12px', cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.6 : 1 }}>
+                          <div style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: sel ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: sel ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{sel && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{a.name} <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400 }}>· {a.wattage}W</span></div>
+                            <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.4 }}>{a.features?.join(' · ') || ''}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+            {(profile?.customBassAmps || []).length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('profile-tab.custom-bass-amps-section', 'Mes amplis basse custom')}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {(profile.customBassAmps || []).map((a) => {
+                    const sel = (profile?.myBassAmps || []).includes(a.id);
+                    return (
+                      <div key={a.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: sel ? 'var(--accent-soft)' : 'var(--a3)', border: sel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '8px 12px' }}>
+                        <div onClick={() => { if (!isDemo) toggleBassAmp(a.id); }} title={demoTitle} style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: sel ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: sel ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, cursor: isDemo ? 'not-allowed' : 'pointer' }}>{sel && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
+                        <div style={{ flex: 1, minWidth: 0, cursor: isDemo ? 'not-allowed' : 'pointer' }} onClick={() => { if (!isDemo) toggleBassAmp(a.id); }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{a.name} <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400 }}>· {a.brand} · {a.wattage}W</span></div>
+                        </div>
+                        <button onClick={() => { if (!isDemo) removeCustomBassAmp(a.id); }} disabled={isDemo} title={demoTitle} style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: isDemo ? 'not-allowed' : 'pointer', fontSize: 12, padding: '2px 4px', minHeight: 28, minWidth: 28, opacity: isDemo ? 0.5 : 1 }}>✕</button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            <AmpSearchAdd inp={inp} aiKeys={aiKeys} instrument="bass" disabled={isDemo} onAdd={(amp) => { if (!isDemo) addCustomBassAmp(amp); }}/>
+          </div>
+        )}
       </div>}
 
       {s === 'sources' && <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 16 }}>

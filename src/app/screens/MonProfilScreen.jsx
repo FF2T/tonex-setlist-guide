@@ -59,6 +59,9 @@ function MonProfilScreen({
     if (initTab === 'display' || initTab === 'reco') return 'preferences';
     // Phase 7.73.2 Session B — 'password' fusionné dans Mon compte
     if (initTab === 'password') return 'monCompte';
+    // Réorg 2026-05-28 — 'sources' + 'custompacks' fusionnés dans 'devices'
+    // (Mon matériel numérique).
+    if (initTab === 'sources' || initTab === 'custompacks') return 'devices';
     return initTab;
   })();
   const [tab, setTab] = useState(normalizedInitTab || 'monCompte');
@@ -147,12 +150,14 @@ function MonProfilScreen({
             liste basses/amplis basse cochables. Visible à tous (admin
             et non-admin), permet activation sans snippet console. */}
         {!isDemo && tabBtn('basses', t('profile.tab.basses-flat', 'Mes basses'), 'bass')}
-        {!isDemo && tabBtn('devices', t('profile.tab.devices-flat', 'Mes appareils'), 'device')}
-        {!isDemo && tabBtn('sources', t('profile.tab.sources-flat', 'Mes sources'), 'package')}
-        {/* Phase 7.67 — Tab "Mes presets custom" accessible à TOUS
-            les profils (non-admin inclus) pour documenter customPacks
-            personnels avec metadata enrichie + usages artistes. */}
-        {!isDemo && tabBtn('custompacks', t('profile.tab.custom-packs-flat', 'Mes presets custom'), 'package')}
+        {/* Réorg 2026-05-28 — "Mes amplis & pédales" : tout l'analogique
+            (amplis guitare + basse + pédales Phase C), sorti des onglets
+            instruments. */}
+        {!isDemo && tabBtn('ampsPedals', t('profile.tab.amps-pedals-flat', 'Mes amplis & pédales'), 'amp')}
+        {/* Réorg 2026-05-28 — "Mon matériel numérique" : ToneX + TMP + banks
+            + sources + presets custom (= ancien "Mes appareils" + absorbe
+            sources/custompacks). */}
+        {!isDemo && tabBtn('devices', t('profile.tab.devices-flat', 'Mon matériel numérique'), 'device')}
         {/* Phase 7.72 — Tab ToneNET migré dans l'écran Admin séparé.
             Accessible via le bouton "⚙️ Admin" dans la nav. */}
         {/* Phase 7.75 — Tabs pedale/ann/plug/tmp consolidés dans Mes
@@ -202,9 +207,15 @@ function MonProfilScreen({
       )}
       {tab === 'profile' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="guitars" aiKeys={aiKeys} customGuitars={customGuitars} onCustomGuitars={onCustomGuitars}/>}
       {tab === 'basses' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="basses"/>}
-      {tab === 'devices' && <MesAppareilsTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} toneNetPresets={toneNetPresets} onToneNetPresets={onToneNetPresets} songDb={songDb} fullState={fullState} onImportState={onImportState} onNavigate={onNavigate} onSharedUsagesOverrides={onSharedUsagesOverrides}/>}
-      {tab === 'sources' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="sources"/>}
-      {tab === 'custompacks' && <MyCustomPresetsTab profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId} songDb={songDb} inp={inp}/>}
+      {/* Réorg 2026-05-28 — Onglet "Mes amplis & pédales" (analogique). */}
+      {tab === 'ampsPedals' && <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="ampsPedals" aiKeys={aiKeys}/>}
+      {/* Réorg 2026-05-28 — Onglet "Mon matériel numérique" : empile
+          appareils ToneX/TMP + banks + sources + presets custom. */}
+      {tab === 'devices' && <>
+        <MesAppareilsTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} toneNetPresets={toneNetPresets} onToneNetPresets={onToneNetPresets} songDb={songDb} fullState={fullState} onImportState={onImportState} onNavigate={onNavigate} onSharedUsagesOverrides={onSharedUsagesOverrides}/>
+        <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="sources"/>
+        <MyCustomPresetsTab profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId} songDb={songDb} inp={inp}/>
+      </>}
       {/* Phase 7.72 — Tabs AllUserPresets + AdminPacks migrés dans AdminScreen. */}
       {/* Phase 7.72 — Rendus admin migrés dans AdminScreen.jsx */}
       {tab === 'setlists' && <div>
