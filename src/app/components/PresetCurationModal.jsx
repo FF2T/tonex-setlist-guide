@@ -23,17 +23,13 @@
 
 import React, { useState, useMemo } from 'react';
 import { t, tFormat } from '../../i18n/index.js';
+import NavIcon from './NavIcon.jsx';
 import { findCatalogEntry, getPresetCurationStatus, CURATION_COLORS, getCurationLabel } from '../../core/catalog.js';
 import { saveUsagesForPreset, removeUsagesOverride } from '../../core/preset-curation.js';
 import { cleanUsages } from '../screens/ToneNetTab.jsx';
 
-const STATUS_ICONS = {
-  unknown: '🔴',
-  known: '🟠',
-  'curated-perso': '🔵',
-  'curated-admin': '🔵',
-  'curated-studio': '🔵',
-};
+// Vague 3 emojis — pastilles 🔴🟠🔵 remplacées par un dot CSS coloré
+// (cf colors.dot du statut, rendu inline ci-dessous).
 
 function PresetCurationModal({
   presetName,
@@ -138,9 +134,9 @@ function PresetCurationModal({
   const renderCascadeBadge = () => {
     if (!usagesSource || usagesSource === 'default') return null;
     const labels = {
-      user: { emoji: '👤', label: t('cascade.source-user', 'Toi'), color: '#7dd3fc', bg: 'rgba(125,211,252,0.15)' },
-      studio: { emoji: '🏷️', label: usagesCuratedBy ? tFormat('cascade.source-studio-by', { studio: usagesCuratedBy }, 'Studio ({studio})') : t('cascade.source-studio', 'Studio'), color: '#1e40af', bg: 'rgba(30,64,175,0.15)' },
-      backline: { emoji: '⚙️', label: t('cascade.source-backline', 'Backline'), color: '#3b82f6', bg: 'rgba(59,130,246,0.15)' },
+      user: { label: t('cascade.source-user', 'Toi'), color: '#7dd3fc', bg: 'rgba(125,211,252,0.15)' },
+      studio: { label: usagesCuratedBy ? tFormat('cascade.source-studio-by', { studio: usagesCuratedBy }, 'Studio ({studio})') : t('cascade.source-studio', 'Studio'), color: '#1e40af', bg: 'rgba(30,64,175,0.15)' },
+      backline: { label: t('cascade.source-backline', 'Backline'), color: '#3b82f6', bg: 'rgba(59,130,246,0.15)' },
     };
     const lvl = labels[usagesSource];
     if (!lvl) return null;
@@ -148,7 +144,7 @@ function PresetCurationModal({
       <span
         style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 'var(--r-sm)', color: lvl.color, background: lvl.bg, display: 'inline-flex', alignItems: 'center', gap: 3 }}
       >
-        {lvl.emoji} {lvl.label}
+        {lvl.label}
       </span>
     );
   };
@@ -156,7 +152,7 @@ function PresetCurationModal({
   const renderViewMode = () => (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 18 }}>{STATUS_ICONS[status] || ''}</span>
+        <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: '50%', background: colors?.dot || 'var(--text-dim)', flexShrink: 0 }}/>
         <span style={{ fontSize: 13, fontWeight: 700, color: colors?.dot || 'var(--text)' }}>
           {getCurationLabel(status)}
         </span>
@@ -182,7 +178,7 @@ function PresetCurationModal({
 
       {Array.isArray(entry.usages) && entry.usages.length > 0 ? (
         <div style={{ background: 'var(--accent-soft)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-md)', padding: 10, marginBottom: 10 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', marginBottom: 6 }}>🎯 {t('preset-modal.usages', 'Usages')}</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><NavIcon id="target" size={13}/>{t('preset-modal.usages', 'Usages')}</div>
           {entry.usages.map((u, idx) => (
             <div key={idx} style={{ marginBottom: 4, fontSize: 11 }}>
               <span style={{ fontWeight: 700, color: 'var(--text)' }}>• {u.artist}</span>
@@ -211,8 +207,8 @@ function PresetCurationModal({
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {editable && (
-          <button onClick={() => setMode('edit')} style={btnPrimary}>
-            ✏️ {t('preset-modal.edit', 'Modifier')}
+          <button onClick={() => setMode('edit')} style={{ ...btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <NavIcon id="pen" size={13}/>{t('preset-modal.edit', 'Modifier')}
           </button>
         )}
         {/* Phase 7.79.3 — Bouton Restaurer si override actif visible-by-user */}
@@ -222,7 +218,7 @@ function PresetCurationModal({
             title={t('cascade.restore-tooltip', 'Retire ton override et reprend le niveau de cascade suivant (Backline ou Catalog).')}
             style={btnSecondary}
           >
-            🔄 {t('cascade.restore', 'Restaurer la version par défaut')}
+            {t('cascade.restore', 'Restaurer la version par défaut')}
           </button>
         )}
         <button onClick={onClose} style={editable ? btnSecondary : { ...btnPrimary, flex: 1 }}>
@@ -235,7 +231,7 @@ function PresetCurationModal({
   const renderEditMode = () => (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-        <span style={{ fontSize: 16 }}>✏️</span>
+        <NavIcon id="pen" size={15}/>
         <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)' }}>{t('preset-modal.edit-title', 'Modifier les usages')}</span>
       </div>
       <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4, wordBreak: 'break-word' }}>{presetName}</div>

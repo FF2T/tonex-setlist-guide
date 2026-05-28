@@ -7,6 +7,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { t } from '../../i18n/index.js';
+import NavIcon from './NavIcon.jsx';
 import { isTrusted, setTrusted } from '../../core/state.js';
 import { verifyPassword, hashPassword, isPasswordLegacy } from '../../core/crypto-utils.js';
 import { profileColor } from './profile-color.js';
@@ -70,7 +71,7 @@ function ProfileSelector({ profiles, activeProfileId, onSwitch, onSettings, onVi
                 {p.password && <span style={{ fontSize: 9, color: 'var(--text-dim)' }}>{isTrusted(p.id) ? '🔓' : '🔒'}</span>}
               </button>
               {isActive && <span style={{ fontSize: 11, color: 'var(--green)' }}>✓</span>}
-              {!isActive && <button onClick={() => { if (onViewProfile) { onViewProfile(p.id); setOpen(false); } }} style={{ background: 'var(--a5)', border: 'none', color: 'var(--text-dim)', borderRadius: 'var(--r-sm)', padding: '2px 6px', fontSize: 9, cursor: 'pointer' }} title={t('profile-selector.view-config', 'Voir la config')}>👁</button>}
+              {!isActive && <button onClick={() => { if (onViewProfile) { onViewProfile(p.id); setOpen(false); } }} style={{ background: 'var(--a5)', border: 'none', color: 'var(--text-dim)', borderRadius: 'var(--r-sm)', padding: '2px 6px', fontSize: 9, cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }} title={t('profile-selector.view-config', 'Voir la config')}><NavIcon id="eye" size={12}/></button>}
             </div>
             {isLogin && <div style={{ padding: '4px 8px 8px' }}>
               <div style={{ display: 'flex', gap: 6 }}>
@@ -97,7 +98,7 @@ function ProfileSelector({ profiles, activeProfileId, onSwitch, onSettings, onVi
               onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
               title={t('profile-selector.settings', 'Mon Profil')}
             >
-              <span style={{ width: 26, textAlign: 'center', fontSize: 14 }}>⚙️</span>
+              <span style={{ width: 26, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><NavIcon id="user" size={15}/></span>
               {t('profile-selector.settings', 'Mon Profil')}
             </button>
           </>

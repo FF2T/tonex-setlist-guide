@@ -67,7 +67,6 @@ function DemoBanner({ onExit }) {
         flexWrap: 'wrap',
       }}
     >
-      <span aria-hidden="true">🎸</span>
       <span>{text}</span>
       <span style={{ opacity: 0.6 }}>·</span>
       <a
