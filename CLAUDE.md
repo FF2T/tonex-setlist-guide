@@ -981,11 +981,32 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-28 jeudi, Phase A — amplis guitare + Scoring sous dropdown)
+## État actuel (2026-05-28 jeudi, V9.0.0 — jalon multi-instrument, vue dépliée raccord guitare/basse)
 
-**Backline v8.14.291 / SW backline-v391 / STATE_VERSION 13 / 1754 tests verts. Bundle 2637 KB.**
+**Backline v9.0.0 / SW backline-v392 / STATE_VERSION 13 / 1754 tests verts. Bundle 2636 KB.**
 
-### Reorg vue dépliée — Scoring sous le dropdown (v8.14.291)
+### V9.0.0 — Jalon multi-instrument (2026-05-28)
+
+Passage **8.14.x → 9.0.0** validé Sébastien : marque l'ère multi-instrument
+(intégration basse Phase 8 + symétrie + amplis traditionnels guitare/basse
+Phase A). `APP_VERSION` est purement un libellé d'affichage (aucun parsing,
+`STATE_VERSION` reste à 13, séparé) → bump cosmétique safe. Désormais on
+incrémente le patch par deploy (9.0.1…), minors pour les gros jalons (9.1 =
+Phase B contexte de jeu). SW CACHE garde son compteur (`backline-v392`).
+
+### Reorg vue dépliée — raccord guitare/basse (v9.0.0)
+
+Retours Sébastien sur l'ordre/cohérence des cadres :
+- **Scoring guitares/basses sous le dropdown** de choix d'instrument (lié au
+  choix). Helpers hoistés au scope composant (`scoringGuitaresCadre`).
+- **Scoring preset AVANT Réglages EQ + Réglages effets** (guitare ET basse) :
+  on choisit la capture, puis on règle. `eqSettingsCadre` hoisté.
+- **Bass : bloc "Sur ta ToneX" retiré** (redondant avec "Scoring preset basse"
+  qui affiche déjà capture + bank/slot + score — raccord avec le bloc guitare
+  qui n'a pas de bloc ToneX séparé). Même style (pill bucket-color, vert =
+  excellent) des deux côtés.
+- Ligne "Sur ta {guitar} :" retirée (redondante avec dropdown + Scoring).
+- Pas de bump STATE_VERSION (UI pure). 1754 tests verts.
 
 Retour Sébastien : le Scoring est lié au choix d'instrument → le rapprocher
 du sélecteur.

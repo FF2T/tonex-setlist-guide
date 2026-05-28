@@ -347,6 +347,37 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
     </div>
   ) : null;
 
+  // Cadre "Réglages EQ" (preset ToneX) — hoisté pour être rendu APRÈS le
+  // Scoring preset (2026-05-28). why global + tweaks empiriques.
+  const ps1 = aiC?.preset_settings_v1;
+  const eqSettingsCadre = (ps1 && (ps1.why || (ps1.tweaks && ps1.tweaks.length > 0))) ? (
+    <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+      <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', display: 'flex', alignItems: 'center', gap: 6 }}><NavIcon id="sliders" size={14}/>{t('song-detail.eq-settings-flat', 'Réglages EQ')}</div>
+      {ps1.why && (
+        <div className="prose-readable" style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', lineHeight: 1.45, marginBottom: ps1.tweaks?.length ? 6 : 0 }}>
+          {getLocalizedText(ps1.why, locale)}
+        </div>
+      )}
+      {Array.isArray(ps1.tweaks) && ps1.tweaks.length > 0 && (
+        <div style={{ marginTop: 4 }}>
+          <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', fontWeight: 700, color: 'var(--text-dim)', marginBottom: 3, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 0.3 }}>{t('song-detail.tweaks-label', 'Si ça ne sonne pas tout à fait juste')}</div>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            {ps1.tweaks.map((tw, i) => {
+              const symptom = getLocalizedText(tw.symptom, locale);
+              if (!symptom || !tw.fix) return null;
+              return (
+                <li key={i} style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.5, paddingLeft: 12, position: 'relative', marginBottom: 1 }}>
+                  <span style={{ position: 'absolute', left: 0, color: 'var(--accent)' }}>·</span>
+                  <i>{t('song-detail.tweaks-if', 'Si')}</i> {symptom} → <b style={{ color: 'var(--text-bright)', fontFamily: 'var(--font-mono)' }}>{String(tw.fix).replace(/_/g, ' ')}</b>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
+  ) : null;
+
   return (
     <div className="song-row-detail" style={{ background: 'var(--bg-elev-1)', borderRadius: '0 0 12px 12px', padding: '10px 12px', marginBottom: 8, marginTop: -2, display: 'flex', flexDirection: 'column', gap: 6 }}>
 
@@ -703,40 +734,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 );
               })()}
 
-              {/* SECTION 2 — Cadre Réglages EQ (renommé Réglages pédale) */}
-              {aiC.preset_settings_v1 && (aiC.preset_settings_v1.why || (aiC.preset_settings_v1.tweaks && aiC.preset_settings_v1.tweaks.length > 0)) && (
-                <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                  <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', display: 'flex', alignItems: 'center', gap: 6 }}><NavIcon id="sliders" size={14}/>{t('song-detail.eq-settings-flat', 'Réglages EQ')}</div>
-                  {aiC.preset_settings_v1.why && (
-                    <div className="prose-readable" style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', lineHeight: 1.45, marginBottom: aiC.preset_settings_v1.tweaks?.length ? 6 : 0 }}>
-                      {getLocalizedText(aiC.preset_settings_v1.why, locale)}
-                    </div>
-                  )}
-                  {Array.isArray(aiC.preset_settings_v1.tweaks) && aiC.preset_settings_v1.tweaks.length > 0 && (
-                    <div style={{ marginTop: 4 }}>
-                      <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', fontWeight: 700, color: 'var(--text-dim)', marginBottom: 3, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 0.3 }}>{t('song-detail.tweaks-label', 'Si ça ne sonne pas tout à fait juste')}</div>
-                      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                        {aiC.preset_settings_v1.tweaks.map((tw, i) => {
-                          const symptom = getLocalizedText(tw.symptom, locale);
-                          if (!symptom || !tw.fix) return null;
-                          return (
-                            <li key={i} style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', lineHeight: 1.5, paddingLeft: 12, position: 'relative', marginBottom: 1 }}>
-                              <span style={{ position: 'absolute', left: 0, color: 'var(--accent)' }}>·</span>
-                              <i>{t('song-detail.tweaks-if', 'Si')}</i> {symptom} → <b style={{ color: 'var(--text-bright)', fontFamily: 'var(--font-mono)' }}>{String(tw.fix).replace(/_/g, ' ')}</b>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* SECTION 3 — Cadre Réglages effets en HISTOGRAMME barres horizontales
-                  (Phase 7.83 final5). Extrait en composant FxBlocksCadre (vague B)
-                  pour réutilisation guitare ↔ basse. */}
-              <FxBlocksCadre fxBlocks={aiC.fx_blocks} locale={locale} title={t('song-detail.fx-settings-flat', 'Réglages effets')}/>
-
+              {/* Réglages EQ + effets déplacés APRÈS Scoring preset (2026-05-28,
+                  retour Sébastien : le scoring preset vient avant les réglages).
+                  Cf eqSettingsCadre + FxBlocksCadre plus bas. */}
               {/* Cadre "Scoring guitares" déplacé sous le dropdown "Ma guitare"
                   (2026-05-28, lié au choix de guitare). Voir scoringGuitaresCadre. */}
               {/* Guitare idéale (cas family boost Phase 7.64 où idéale ≠ top scoring) */}
@@ -922,10 +922,11 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
               })()}
               </div>
               )}
-              {/* S9.8 — Anciens cadres Réglages pédale / FX / Recommandations
-                  retirés ici : déplacés en haut du Bloc 2 (SECTIONS 1-3) dans
-                  le nouvel ordre (Recommandations → Réglages EQ → Réglages
-                  effets → Scoring guitares → Scoring preset). */}
+              {/* Réglages EQ + effets APRÈS le Scoring preset (2026-05-28) :
+                  le scoring preset (quelle capture ToneX) vient avant les
+                  réglages de cette capture. */}
+              {eqSettingsCadre}
+              <FxBlocksCadre fxBlocks={aiC.fx_blocks} locale={locale} title={t('song-detail.fx-settings-flat', 'Réglages effets')}/>
               {/* Phase A — Cadre "Sur ton ampli" (ampli guitare traditionnel
                   RÉEL, distinct des cadres ToneX EQ/effets/preset). Gated par
                   ampli guitare coché + guitar_amp_settings de l'IA. Phase B
@@ -1135,7 +1136,6 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         // préfixé "40B ..." → sinon findInBanks rate + "Non installé" trompeur.
         const bassAlts = (Array.isArray(bassReco?.bass_alternatives) ? bassReco.bass_alternatives : [])
           .map((a) => ({ ...a, name: stripSlotPrefix(a.name) }));
-        const bassCaptureName = stripSlotPrefix(bassReco?.capture_name);
         const bassEq = bassReco?.bass_preset_settings_v1;
         const bassFx = bassReco?.bass_fx_blocks;
         // Style pill libellé coloré par bucket (mirror compatLabelStyle guitare).
@@ -1279,25 +1279,10 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                       )}
                     </div>
                   )}
-                  {/* Bloc "Sur ta ToneX" (capture installée) — placé AVANT Réglages
-                      EQ/effets basse car les 3 blocs sont liés à la ToneX (choix
-                      Sébastien 2026-05-28). Phase 8.8 : capture_name + bank/slot. */}
-                  {bassCaptureName && (() => {
-                    const locAnn = findInBanks(bassCaptureName, banksAnn);
-                    const locPlug = findInBanks(bassCaptureName, banksPlug);
-                    const loc = locAnn || locPlug;
-                    const deviceLabel = locAnn ? 'Anniversary/Pédale' : (locPlug ? 'Plug' : 'ToneX');
-                    return (
-                      <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                        <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>
-                          {t('song-detail.bass-on-tonex', 'Sur ta ToneX')}
-                        </div>
-                        <div style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)' }}>
-                          {deviceLabel} {loc && <span style={{ fontFamily: 'var(--font-mono)', background: 'var(--accent-bg)', color: 'var(--accent)', padding: '1px 7px', borderRadius: 'var(--r-sm)', fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, marginLeft: 4 }}>Bank {loc.bank}{loc.slot}</span>} <span style={{ fontWeight: 600 }}>{bassCaptureName}</span>
-                        </div>
-                      </div>
-                    );
-                  })()}
+                  {/* Bloc "Sur ta ToneX" retiré (2026-05-28) : redondant avec
+                      "Scoring preset basse" ci-dessus qui affiche déjà la capture
+                      top + bank/slot installé + score (raccord avec le bloc guitare,
+                      qui n'a pas de bloc ToneX séparé). */}
                   {/* Cadre Réglages EQ basse (bass_preset_settings_v1) — why + boutons PRESET.
                       Contrairement à la guitare (table chiffrée dropée S9.5 car redondante
                       avec la vue repliée), la basse n'a PAS de vue repliée → on affiche les
