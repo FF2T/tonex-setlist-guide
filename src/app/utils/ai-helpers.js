@@ -653,6 +653,44 @@ function enrichAIResult(aiResult, gType, gId, banksAnn, banksPlug, availableSour
     aiResult._fxBlocksValidated = true;
   }
 
+  // Vague B — Validation des champs scoring/EQ/FX basse retournés par l'IA
+  // dans bass_recommendation. Réutilise clampPresetSettings / clampFxBlocks
+  // (device-agnostiques) pour bass_preset_settings_v1 / bass_fx_blocks.
+  // cot_step2_basses + bass_alternatives validés légèrement (scores clampés
+  // 0-100, entrées sans name droppées). Idempotent via _bassFieldsValidated.
+  // No-op si bass_recommendation null/absent (rétro-compat aiCache pré-vague-B).
+  const br = aiResult.bass_recommendation;
+  if (br && typeof br === 'object' && !aiResult._bassFieldsValidated) {
+    if (br.bass_preset_settings_v1 !== undefined) {
+      br.bass_preset_settings_v1 = clampPresetSettings(br.bass_preset_settings_v1);
+    }
+    if (br.bass_fx_blocks !== undefined) {
+      br.bass_fx_blocks = clampFxBlocks(br.bass_fx_blocks);
+    }
+    if (Array.isArray(br.cot_step2_basses)) {
+      br.cot_step2_basses = br.cot_step2_basses
+        .filter((b) => b && typeof b === 'object' && typeof b.name === 'string' && b.name.trim())
+        .map((b) => ({
+          ...b,
+          score: Math.max(0, Math.min(100, Number(b.score) || 0)),
+        }));
+    } else if (br.cot_step2_basses !== undefined) {
+      br.cot_step2_basses = [];
+    }
+    if (Array.isArray(br.bass_alternatives)) {
+      br.bass_alternatives = br.bass_alternatives
+        .filter((a) => a && typeof a === 'object' && typeof a.name === 'string' && a.name.trim())
+        .map((a) => ({
+          name: a.name,
+          amp: typeof a.amp === 'string' ? a.amp : undefined,
+          score: Math.max(0, Math.min(100, Number(a.score) || 0)),
+        }));
+    } else if (br.bass_alternatives !== undefined) {
+      br.bass_alternatives = [];
+    }
+    aiResult._bassFieldsValidated = true;
+  }
+
   return aiResult;
 }
 

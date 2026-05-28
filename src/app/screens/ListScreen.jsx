@@ -385,11 +385,13 @@ function ListScreen({
   const isStaleSong = (s) => {
     if (!s.aiCache) return true;
     if (s.aiCache.rigSnapshot && s.aiCache.rigSnapshot !== currentRigSnapshot) return true;
-    // bassStale : aiCache existant mais sans bass_recommendation pour user bass-actif
-    if (userHasBassRig
-        && s.aiCache?.result?.cot_step1
-        && (s.aiCache.result.bass_recommendation === null
-          || s.aiCache.result.bass_recommendation === undefined)) return true;
+    // bassStale : aiCache sans bass_recommendation OU (vague B) bass_recommendation
+    // présent mais sans cot_step2_basses (= pré-vague-B, manque scoring/EQ/FX).
+    if (userHasBassRig && s.aiCache?.result?.cot_step1) {
+      const br = s.aiCache.result.bass_recommendation;
+      if (br === null || br === undefined
+        || (typeof br === 'object' && br.cot_step2_basses === undefined)) return true;
+    }
     return false;
   };
   const missingCount = useMemo(() => (activeSongs || []).filter(isStaleSong).length,

@@ -1055,3 +1055,111 @@ describe('enrichAIResult — Phase 7.73.2.3 (propagation V9-top)', () => {
   });
 });
 
+// Vague B — Validation des champs scoring/EQ/FX basse dans bass_recommendation.
+describe('enrichAIResult — vague B (validation bass_recommendation)', () => {
+  const emptyBanks = {};
+  const baseGuitar = () => ({
+    song_style: 'rock', target_gain: 5,
+    cot_step2_guitars: [], preset_ann: null, preset_plug: null,
+    ideal_preset: null, ideal_preset_score: 0, ideal_top3: [],
+  });
+
+  it('clampe bass_preset_settings_v1 hors-bornes via clampPresetSettings', () => {
+    const aiResult = {
+      ...baseGuitar(),
+      bass_recommendation: {
+        ideal_bass: 'Fender Precision Bass American Vintage II',
+        capture_name: 'BS SVT',
+        cot_step2_basses: [{ name: 'Fender Precision Bass American Vintage II', score: 90 }],
+        bass_preset_settings_v1: {
+          cab_enabled: true,
+          main: { gain: { value: 99 }, bass: { value: 6 } }, // gain 99 hors range 0-10
+        },
+      },
+    };
+    const out = enrichAIResult(aiResult, 'HB', null, emptyBanks, emptyBanks, undefined, null);
+    expect(out.bass_recommendation.bass_preset_settings_v1.main.gain.value).toBeLessThanOrEqual(10);
+    expect(out.bass_recommendation.bass_preset_settings_v1.main.bass.value).toBe(6);
+    expect(out._bassFieldsValidated).toBe(true);
+  });
+
+  it('clampe bass_fx_blocks via clampFxBlocks (type invalide droppé)', () => {
+    const aiResult = {
+      ...baseGuitar(),
+      bass_recommendation: {
+        capture_name: 'BS SVT',
+        cot_step2_basses: [],
+        bass_fx_blocks: {
+          compressor: { enabled: true, gain: 2 },
+          reverb: { enabled: true, type: 'NotAReverbType' }, // type hors enum
+        },
+      },
+    };
+    const out = enrichAIResult(aiResult, 'HB', null, emptyBanks, emptyBanks, undefined, null);
+    expect(out.bass_recommendation.bass_fx_blocks).toBeTruthy();
+    expect(out.bass_recommendation.bass_fx_blocks.compressor.enabled).toBe(true);
+    // type invalide droppé mais bloc conservé (comportement clampFxBlocks)
+    expect(out.bass_recommendation.bass_fx_blocks.reverb.type).toBeUndefined();
+  });
+
+  it('clampe les scores cot_step2_basses et droppe les entrées sans name', () => {
+    const aiResult = {
+      ...baseGuitar(),
+      bass_recommendation: {
+        cot_step2_basses: [
+          { name: 'Fender Jazz Bass Player Plus', score: 150 }, // >100
+          { name: '', score: 50 },                              // name vide → droppé
+          { score: 80 },                                        // pas de name → droppé
+          { name: 'Fender Precision Bass American Vintage II', score: 88 },
+        ],
+      },
+    };
+    const out = enrichAIResult(aiResult, 'HB', null, emptyBanks, emptyBanks, undefined, null);
+    const cot = out.bass_recommendation.cot_step2_basses;
+    expect(cot.length).toBe(2);
+    expect(cot[0].score).toBe(100); // 150 clampé
+    expect(cot[1].score).toBe(88);
+  });
+
+  it('clampe bass_alternatives (scores 0-100, entrées sans name droppées)', () => {
+    const aiResult = {
+      ...baseGuitar(),
+      bass_recommendation: {
+        cot_step2_basses: [],
+        bass_alternatives: [
+          { name: 'BS SVT', amp: 'Ampeg SVT', score: 200 },
+          { amp: 'GK Bass', score: 70 }, // pas de name → droppé
+          { name: 'TSR GK MBS150', score: -5 },
+        ],
+      },
+    };
+    const out = enrichAIResult(aiResult, 'HB', null, emptyBanks, emptyBanks, undefined, null);
+    const alts = out.bass_recommendation.bass_alternatives;
+    expect(alts.length).toBe(2);
+    expect(alts[0].score).toBe(100); // 200 clampé
+    expect(alts[0].amp).toBe('Ampeg SVT');
+    expect(alts[1].score).toBe(0);   // -5 clampé
+  });
+
+  it('idempotent via _bassFieldsValidated (2e appel ne re-clampe pas)', () => {
+    const aiResult = {
+      ...baseGuitar(),
+      bass_recommendation: {
+        cot_step2_basses: [{ name: 'Fender Jazz Bass Player Plus', score: 90 }],
+      },
+    };
+    const out1 = enrichAIResult(aiResult, 'HB', null, emptyBanks, emptyBanks, undefined, null);
+    out1.bass_recommendation.cot_step2_basses.push({ name: 'X', score: 999 }); // mutation hors clamp
+    const out2 = enrichAIResult(out1, 'HB', null, emptyBanks, emptyBanks, undefined, null);
+    // flag déjà true → pas de re-validation, l'entrée non-clampée survit
+    expect(out2.bass_recommendation.cot_step2_basses.find((b) => b.name === 'X').score).toBe(999);
+  });
+
+  it('no-op si bass_recommendation null (rétro-compat aiCache pré-vague-B)', () => {
+    const aiResult = { ...baseGuitar(), bass_recommendation: null };
+    const out = enrichAIResult(aiResult, 'HB', null, emptyBanks, emptyBanks, undefined, null);
+    expect(out.bass_recommendation).toBeNull();
+    expect(out._bassFieldsValidated).toBeUndefined();
+  });
+});
+

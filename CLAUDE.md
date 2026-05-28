@@ -981,7 +981,48 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-28 jeudi, UX cleanup CLOSE — emojis retirés de toute l'UI + composants Button/TabButton)
+## État actuel (2026-05-28 jeudi, Étape 2 vague B — Symétrie scoring/EQ/FX basse + UX cleanup CLOSE)
+
+**Backline v8.14.283 / SW backline-v383 / STATE_VERSION 13 / 1735 tests verts. Bundle 2620 KB.**
+
+### Étape 2 vague B — Symétrie scoring/EQ/FX basse (v8.14.283)
+
+Sébastien : *"j'ai oublié scoring basse et scoring preset (basse)"* → scope
+**symétrie complète** validé. Le bloc *Recommandations basse* (SongDetailCard)
+reproduit désormais les 4 cadres du bloc guitare, sous la reason :
+
+1. **Scoring basses** (`cot_step2_basses`) — classement du rig basse, scoring IA.
+2. **Scoring preset basse** (`bass_alternatives`) — capture ToneX top (amp encadré
+   + score + bank/slot) + alternatives catalogue.
+3. **Réglages EQ basse** (`bass_preset_settings_v1`) — why global + boutons PRESET
+   0-10. Gated par `capture_name` (null si ampli traditionnel seul). Contrairement
+   à la guitare (table dropée S9.5 car redondante avec vue repliée), la basse n'a
+   PAS de vue repliée → les valeurs PRESET sont affichées.
+4. **Réglages effets basse** (`bass_fx_blocks`) — histogramme 5 blocs FX.
+
+**Implémentation** :
+- **Prompt fetchAI ÉTAPE 8** étendu : 5 champs ajoutés à `bass_recommendation`
+  (`cot_step2_basses`, `bass_alternatives`, `bass_preset_settings_v1`,
+  `bass_fx_blocks`, `ref_bass_effects`) + exemple JSON complet. `cot_step2_basses`
+  + `bass_alternatives` toujours fournis ; EQ/FX conditionnels à `capture_name`.
+- **Validation** `enrichAIResult` (ai-helpers.js) : nouveau bloc gated par flag
+  `_bassFieldsValidated`. Réutilise `clampPresetSettings` / `clampFxBlocks`
+  (device-agnostiques) sur les sous-objets bass + clamp léger scores
+  cot_step2_basses / bass_alternatives (0-100, drop sans name).
+- **UI** : composant partagé **`FxBlocksCadre`** extrait (histogramme FX) →
+  réutilisé par guitare ET basse (DRY, ~95 lignes dédupliquées). 4 cadres bass +
+  `ref_bass_effects` (IA prioritaire, fallback seed) dans Infos morceau.
+- **bassStale étendu** (SongDetailCard + ListScreen `isStaleSong`) : détecte
+  `bass_recommendation` présent mais sans `cot_step2_basses` (= aiCache pré-vague-B)
+  → re-fetch auto au mount + inclus dans "Analyser/MAJ N". Re-batch sans clic manuel.
+- Pas de scoring V9 local basse (décision Phase 8 — scores fournis par Gemini).
+- Pas d'UI d'installation de capture bass (le rendu "Sur ta ToneX Bank X" suffit).
+- +6 tests Vitest (validation bass) → 1735 verts. Pas de bump STATE_VERSION
+  (champs additifs optionnels, rétro-compat).
+
+---
+
+## État UX cleanup (2026-05-28, CLOSE — emojis retirés de toute l'UI + composants Button/TabButton)
 
 **Backline v8.14.282 / SW backline-v382 / STATE_VERSION 13 / 1729 tests verts. Bundle 2607 KB.**
 
@@ -1151,15 +1192,16 @@ CLAUDE.md pour le tableau des 26 icônes + l'historique des 3 vagues.
    ajoutées sans emojis, anciennes clés à emojis conservées en
    rétro-compat dans les dicts EN/ES. Retirer les anciennes une fois
    certain qu'aucun call site ne les référence. Zéro impact visuel.
-2. **Étape 2 vague B bass complète** (Sébastien validée 2026-05-28) :
-   symétrie scoring + EQ + FX bass dans SongDetailCard. Extension
-   prompt fetchAI (cot_step2_basses + bass_alternatives +
-   bass_preset_settings_v1 + bass_fx_blocks). ~3-5h dev + re-batch
-   coûteux post-déploiement.
+2. ~~**Étape 2 vague B bass complète**~~ ✅ LIVRÉE v8.14.283
+   (cf section "Étape 2 vague B" en tête). Re-batch auto via bassStale.
 3. **Propagation Button aux écrans restants** (opportuniste) :
    quelques `<button>` inline subsistent dans les écrans secondaires
    (BankEditor, AddSongModal, PresetCurationModal, FeedbackPanel…).
    À migrer au fil de l'eau quand on touche ces fichiers.
+4. **Test visuel navigateur étape 2 bass** : le build compile et les
+   tests passent, mais le rendu des 4 cadres bass n'a PAS été validé
+   en navigateur (pas d'accès interactif). À vérifier au reload PWA
+   post-déploiement sur un morceau bass-jouable.
 
 ---
 

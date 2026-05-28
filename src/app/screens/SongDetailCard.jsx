@@ -51,6 +51,102 @@ import FeedbackPanel from '../components/FeedbackPanel.jsx';
 import AIErrorPanel from '../components/AIErrorPanel.jsx';
 import { TYPO, WEIGHT, TEXT_1, TEXT_2, TEXT_3, BG_1, BG_2, BORDER_SUBTLE, sectionCard, sectionTitle as sectionTitleStyle } from '../styles/tokens.js';
 
+// Cadre "Réglages effets" en histogramme barres horizontales (Phase 7.83 final5).
+// Extrait en composant partagé (vague B) pour réutilisation guitare ↔ basse :
+// les blocs FX guitar (aiC.fx_blocks) et bass (bass_recommendation.bass_fx_blocks)
+// partagent exactement la même forme (5 blocs Gate/Comp/Mod/Delay/Reverb avec
+// enabled + type/mode + sub-params + why trilingue). Retourne null si aucun bloc ON.
+function FxBlocksCadre({ fxBlocks, locale, title }) {
+  if (!fxBlocks) return null;
+  const FX_KEYS = ['noise_gate', 'compressor', 'modulation', 'delay', 'reverb'];
+  const FX_LABELS = { noise_gate: 'Gate', compressor: 'Comp', modulation: 'Mod', delay: 'Delay', reverb: 'Reverb' };
+  const onBlocks = FX_KEYS.filter((k) => fxBlocks[k]?.enabled === true);
+  if (onBlocks.length === 0) return null;
+  // Ranges officiels par bloc (manuel TONEX p.22-28). Le `threshold` n'est pas
+  // dans FX_BLOCK_RANGES (qui ne couvre que Phase 9.7 N2), ajouté ici pour gate/comp.
+  const FX_PARAM_RANGES = {
+    noise_gate: {
+      threshold: { min: -100, max: 0, unit: 'dB' },
+      release:   { min: 5,    max: 500, unit: 'ms' },
+      depth:     { min: -100, max: -20, unit: 'dB' },
+    },
+    compressor: {
+      threshold: { min: -40, max: 0,  unit: 'dB' },
+      gain:      { min: -30, max: 10, unit: 'dB' },
+      attack:    { min: 1,   max: 51, unit: 'ms' },
+    },
+    modulation: {
+      rate:  { min: 0.1, max: 10,  unit: 'Hz' },
+      depth: { min: 0,   max: 100, unit: '%' },
+      level: { min: 0,   max: 10,  unit: '' },
+    },
+    delay: {
+      time:     { min: 0, max: 1000, unit: 'ms' },
+      feedback: { min: 0, max: 100,  unit: '%' },
+      mix:      { min: 0, max: 100,  unit: '%' },
+    },
+    reverb: {
+      time:      { min: 0,   max: 10,  unit: '' },
+      pre_delay: { min: 0,   max: 500, unit: 'ms' },
+      color:     { min: -10, max: 10,  unit: '' },
+      mix:       { min: 0,   max: 100, unit: '%' },
+    },
+  };
+  const PARAM_LABELS = {
+    threshold: 'Threshold', release: 'Release', depth: 'Depth',
+    gain: 'Gain', attack: 'Attack',
+    rate: 'Rate', level: 'Level',
+    time: 'Time', feedback: 'Feedback', mix: 'Mix',
+    pre_delay: 'Pre-delay', color: 'Color',
+  };
+  const PARAM_ORDER = {
+    noise_gate: ['threshold', 'release', 'depth'],
+    compressor: ['threshold', 'gain', 'attack'],
+    modulation: ['rate', 'depth', 'level'],
+    delay: ['time', 'feedback', 'mix'],
+    reverb: ['time', 'pre_delay', 'color', 'mix'],
+  };
+  const renderBar = (label, value, range) => {
+    const pct = Math.max(0, Math.min(100, ((value - range.min) / (range.max - range.min)) * 100));
+    return (
+      <div key={label} style={{ display: 'grid', gridTemplateColumns: '70px 1fr 60px', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+        <span style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', color: 'var(--text-muted)' }}>{label}</span>
+        <div style={{ height: 7, background: 'var(--a5)', borderRadius: 4, overflow: 'hidden' }}>
+          <div style={{ width: `${pct}%`, height: '100%', background: 'var(--accent)' }}/>
+        </div>
+        <span style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--text-bright)' }}>{value}{range.unit}</span>
+      </div>
+    );
+  };
+  return (
+    <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+      <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', display: 'flex', alignItems: 'center', gap: 6 }}><NavIcon id="sliders" size={14}/>{title}</div>
+      <div className="reco-multicol">
+        {onBlocks.map((k) => {
+          const block = fxBlocks[k];
+          const whyTxt = block.why ? getLocalizedText(block.why, locale) : null;
+          const ranges = FX_PARAM_RANGES[k];
+          const params = PARAM_ORDER[k] || [];
+          const bars = params.map((p) => {
+            const v = block[p];
+            if (v == null || !ranges?.[p]) return null;
+            return renderBar(PARAM_LABELS[p] || p, v, ranges[p]);
+          }).filter(Boolean);
+          return (
+            <div key={k}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 3 }}>
+                <b style={{ color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontSize: 'clamp(11px, 1.25vw, 13px)', textTransform: 'uppercase', letterSpacing: 0.3, flexShrink: 0 }}>{FX_LABELS[k]}{block.type ? ` ${block.type}` : ''}{k === 'delay' && block.mode ? ` ${block.mode}` : ''}</b>
+              </div>
+              {bars.length > 0 && <div>{bars}</div>}
+              {whyTxt && <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', marginTop: 3, lineHeight: 1.4, fontStyle: 'italic' }}>{whyTxt}</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, onClose, guitars, allRigsGuitars, availableSources, savedGuitarId, onGuitarChange, aiProvider, aiKeys, onSongDb, onAiCacheUpdate, profile, guitarBias, onTmpPatchOverride, songDb, onProfiles, activeProfileId, toneNetPresets, onToneNetPresets, onSharedUsagesOverrides }) {
   // Phase 7.54 — Helper interne : écrit aiCache via onAiCacheUpdate
   // (profile.aiCache) si disponible, sinon fallback onSongDb (shared).
@@ -103,10 +199,16 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   const userHasBassRig = profile?.instruments?.includes('bass')
     && ((profile?.myBasses || []).length > 0
       || (profile?.myBassAmps || []).length > 0);
+  // Vague B — bassStale étendu : aiCache pré-vague-B a un bass_recommendation
+  // non-null MAIS sans cot_step2_basses (les nouveaux champs scoring/EQ/FX).
+  // Force un re-fetch unique pour récupérer la symétrie complète. Pas de boucle :
+  // après fetch, cot_step2_basses présent → bassStale false.
+  const _br = song.aiCache?.result?.bass_recommendation;
   const bassStale = userHasBassRig
     && song.aiCache?.result?.cot_step1
-    && (song.aiCache.result.bass_recommendation === null
-      || song.aiCache.result.bass_recommendation === undefined);
+    && (_br === null
+      || _br === undefined
+      || (typeof _br === 'object' && _br.cot_step2_basses === undefined));
   // Phase 7.51.2 — mode démo : jamais d'appel fetchAI (cache uniquement).
   const isDemo = profile?.isDemo === true;
 
@@ -614,105 +716,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
               )}
 
               {/* SECTION 3 — Cadre Réglages effets en HISTOGRAMME barres horizontales
-                  (Phase 7.83 final5, 2026-05-27) — chaque sub-param affiché en
-                  barre proportionnelle au range officiel manuel TONEX. Visuel
-                  scan immédiat vs liste de chiffres. */}
-              {aiC.fx_blocks && (() => {
-                const FX_KEYS = ['noise_gate', 'compressor', 'modulation', 'delay', 'reverb'];
-                const FX_LABELS = { noise_gate: 'Gate', compressor: 'Comp', modulation: 'Mod', delay: 'Delay', reverb: 'Reverb' };
-                const onBlocks = FX_KEYS.filter((k) => aiC.fx_blocks[k]?.enabled === true);
-                if (onBlocks.length === 0) return null;
-                // Ranges officiels par bloc (manuel TONEX p.22-28). Le `threshold`
-                // n'est pas dans FX_BLOCK_RANGES (qui ne couvre que Phase 9.7 N2),
-                // ajouté ici pour gate/comp.
-                const FX_PARAM_RANGES = {
-                  noise_gate: {
-                    threshold: { min: -100, max: 0, unit: 'dB' },
-                    release:   { min: 5,    max: 500, unit: 'ms' },
-                    depth:     { min: -100, max: -20, unit: 'dB' },
-                  },
-                  compressor: {
-                    threshold: { min: -40, max: 0,  unit: 'dB' },
-                    gain:      { min: -30, max: 10, unit: 'dB' },
-                    attack:    { min: 1,   max: 51, unit: 'ms' },
-                  },
-                  modulation: {
-                    rate:  { min: 0.1, max: 10,  unit: 'Hz' },
-                    depth: { min: 0,   max: 100, unit: '%' },
-                    level: { min: 0,   max: 10,  unit: '' },
-                  },
-                  delay: {
-                    time:     { min: 0, max: 1000, unit: 'ms' },
-                    feedback: { min: 0, max: 100,  unit: '%' },
-                    mix:      { min: 0, max: 100,  unit: '%' },
-                  },
-                  reverb: {
-                    time:      { min: 0,   max: 10,  unit: '' },
-                    pre_delay: { min: 0,   max: 500, unit: 'ms' },
-                    color:     { min: -10, max: 10,  unit: '' },
-                    mix:       { min: 0,   max: 100, unit: '%' },
-                  },
-                };
-                // Labels affichés (capitalize + espaces)
-                const PARAM_LABELS = {
-                  threshold: 'Threshold', release: 'Release', depth: 'Depth',
-                  gain: 'Gain', attack: 'Attack',
-                  rate: 'Rate', level: 'Level',
-                  time: 'Time', feedback: 'Feedback', mix: 'Mix',
-                  pre_delay: 'Pre-delay', color: 'Color',
-                };
-                // Ordre des params par bloc
-                const PARAM_ORDER = {
-                  noise_gate: ['threshold', 'release', 'depth'],
-                  compressor: ['threshold', 'gain', 'attack'],
-                  modulation: ['rate', 'depth', 'level'],
-                  delay: ['time', 'feedback', 'mix'],
-                  reverb: ['time', 'pre_delay', 'color', 'mix'],
-                };
-                const renderBar = (label, value, range) => {
-                  const pct = Math.max(0, Math.min(100, ((value - range.min) / (range.max - range.min)) * 100));
-                  return (
-                    <div key={label} style={{ display: 'grid', gridTemplateColumns: '70px 1fr 60px', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                      <span style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', color: 'var(--text-muted)' }}>{label}</span>
-                      <div style={{ height: 7, background: 'var(--a5)', borderRadius: 4, overflow: 'hidden' }}>
-                        <div style={{ width: `${pct}%`, height: '100%', background: 'var(--accent)' }}/>
-                      </div>
-                      <span style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--text-bright)' }}>{value}{range.unit}</span>
-                    </div>
-                  );
-                };
-                return (
-                  <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                    <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', display: 'flex', alignItems: 'center', gap: 6 }}><NavIcon id="sliders" size={14}/>{t('song-detail.fx-settings-flat', 'Réglages effets')}</div>
-                    {/* Phase 7.83 final7 (2026-05-27) — grid 2 col max desktop
-                        via classe reco-multicol (index.html). User retour :
-                        3+ cols causent des coupures dans les textes longs (reason
-                        IA prose). 1 col mobile, 2 col >= 720px. */}
-                    <div className="reco-multicol">
-                      {onBlocks.map((k) => {
-                        const block = aiC.fx_blocks[k];
-                        const whyTxt = block.why ? getLocalizedText(block.why, locale) : null;
-                        const ranges = FX_PARAM_RANGES[k];
-                        const params = PARAM_ORDER[k] || [];
-                        const bars = params.map((p) => {
-                          const v = block[p];
-                          if (v == null || !ranges?.[p]) return null;
-                          return renderBar(PARAM_LABELS[p] || p, v, ranges[p]);
-                        }).filter(Boolean);
-                        return (
-                          <div key={k}>
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 3 }}>
-                              <b style={{ color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontSize: 'clamp(11px, 1.25vw, 13px)', textTransform: 'uppercase', letterSpacing: 0.3, flexShrink: 0 }}>{FX_LABELS[k]}{block.type ? ` ${block.type}` : ''}{k === 'delay' && block.mode ? ` ${block.mode}` : ''}</b>
-                            </div>
-                            {bars.length > 0 && <div>{bars}</div>}
-                            {whyTxt && <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', marginTop: 3, lineHeight: 1.4, fontStyle: 'italic' }}>{whyTxt}</div>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })()}
+                  (Phase 7.83 final5). Extrait en composant FxBlocksCadre (vague B)
+                  pour réutilisation guitare ↔ basse. */}
+              <FxBlocksCadre fxBlocks={aiC.fx_blocks} locale={locale} title={t('song-detail.fx-settings-flat', 'Réglages effets')}/>
 
               {/* SECTION 4 — Cadre Scoring guitares + Guitare idéale + guitar_reason (descendus) */}
               {cotInRig.length > 0 && (
@@ -1099,6 +1105,16 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         // Vague A bass restructure (2026-05-27) — basse idéale élue :
         // priorité à l'IA si elle matche le rig, sinon 1ère basse cochée.
         const selectedBass = idealBassObj || userBasses[0] || null;
+        // Vague B — champs scoring/EQ/FX basse (symétrie bloc guitare).
+        const cotBasses = Array.isArray(bassReco?.cot_step2_basses) ? bassReco.cot_step2_basses : [];
+        const bassAlts = Array.isArray(bassReco?.bass_alternatives) ? bassReco.bass_alternatives : [];
+        const bassEq = bassReco?.bass_preset_settings_v1;
+        const bassFx = bassReco?.bass_fx_blocks;
+        // Style pill libellé coloré par bucket (mirror compatLabelStyle guitare).
+        const bassCompatStyle = (score) => {
+          const b = bucketizeScore(score);
+          return { background: b.color, color: 'var(--text-inverse)', padding: '2px 8px', borderRadius: 'var(--r-sm)', fontWeight: 700, display: 'inline-block' };
+        };
         return (
           <>
             {/* Section "Ma basse" — analogue à "Ma guitare" */}
@@ -1132,6 +1148,96 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                     {bassReason}
                   </div>
                 )}
+                {/* Vague B — Cadres symétriques au bloc guitare. Chacun gated par
+                    présence du champ (rétro-compat aiCache pré-vague-B). */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
+                  {/* Cadre Scoring basses (cot_step2_basses, mirror Scoring guitares) */}
+                  {cotBasses.length > 0 && (
+                    <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+                      <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.bass-cot', 'Scoring basses')}</div>
+                      <div className="reco-multicol">
+                        {cotBasses.map((bt, i) => (
+                          <div key={i}>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(12px, 1.35vw, 14px)' }}>
+                              <span style={{ ...bassCompatStyle(bt.score), flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{bt.name}</span>
+                              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(bt.score), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(11px, 1.25vw, 13px)' }}>{bt.score}%</span>
+                            </div>
+                            {bt.reason && <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.4 }}>{getLocalizedText(bt.reason, locale)}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {/* Cadre Scoring preset basse (bass_alternatives, mirror Scoring preset) */}
+                  {bassAlts.length > 0 && getActiveDevicesForRender(profile).some((d) => d.deviceKey === 'ann' || d.deviceKey === 'plug') && (
+                    <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+                      <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.bass-scoring-preset', 'Scoring preset basse')}</div>
+                      {(() => {
+                        const top = bassAlts[0];
+                        const loc = findInBanks(top.name, banksAnn) || findInBanks(top.name, banksPlug);
+                        return (
+                          <div style={{ marginBottom: bassAlts.length > 1 ? 6 : 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(12px, 1.35vw, 14px)' }}>
+                              <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                <span style={{ ...bassCompatStyle(top.score), wordBreak: 'break-word' }}>{top.amp || top.name}</span>
+                                {top.amp && <span style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', fontSize: 'clamp(9px, 1.05vw, 11px)', wordBreak: 'break-word' }} title={top.name}>{top.name}</span>}
+                              </span>
+                              {top.score > 0 && <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(top.score), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(11px, 1.25vw, 13px)' }}>{top.score}%</span>}
+                            </div>
+                            <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 2 }}>
+                              {loc ? <span style={{ color: 'var(--green)' }}>{tFormat('song-detail.installed-bank', { bank: loc.bank, slot: loc.slot }, '✓ Installé — Banque {bank}{slot}')}</span>
+                                : <span style={{ color: 'var(--yellow)' }}>{t('song-detail.not-installed-flat', 'Non installé')}</span>}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      {bassAlts.length > 1 && (
+                        <div style={{ marginTop: 6 }}>
+                          <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', color: 'var(--text-tertiary)', marginBottom: 4 }}>{t('song-detail.bass-alternatives', 'Alternatives catalogue')}</div>
+                          <div className="reco-multicol">
+                            {bassAlts.slice(1).map((alt, i) => {
+                              const loc = findInBanks(alt.name, banksAnn) || findInBanks(alt.name, banksPlug);
+                              return (
+                                <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(11px, 1.25vw, 13px)' }}>
+                                  <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+                                    <span style={{ fontWeight: 600, color: 'var(--text-sec)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{alt.amp || alt.name}</span>
+                                    {alt.amp && <span style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', fontSize: 'clamp(9px, 1.05vw, 11px)' }} title={alt.name}>{alt.name}</span>}
+                                    {loc && <span style={{ color: 'var(--green)', fontSize: 'clamp(9px, 1.05vw, 11px)', flexShrink: 0 }}>✓</span>}
+                                  </span>
+                                  {alt.score > 0 && <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--text-inverse)', background: scoreColor(alt.score), padding: '1px 6px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 40, textAlign: 'center', fontSize: 'clamp(9px, 1.05vw, 11px)' }}>{alt.score}%</span>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* Cadre Réglages EQ basse (bass_preset_settings_v1) — why + boutons PRESET.
+                      Contrairement à la guitare (table chiffrée dropée S9.5 car redondante
+                      avec la vue repliée), la basse n'a PAS de vue repliée → on affiche les
+                      valeurs des boutons PRESET (0-10). Gated par capture_name (bassEq null sinon). */}
+                  {bassEq && (bassEq.why || bassEq.main) && (
+                    <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+                      <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', display: 'flex', alignItems: 'center', gap: 6 }}><NavIcon id="sliders" size={14}/>{t('song-detail.bass-eq-settings', 'Réglages EQ basse')}</div>
+                      {bassEq.why && (
+                        <div className="prose-readable" style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', lineHeight: 1.45, marginBottom: bassEq.main ? 6 : 0 }}>{getLocalizedText(bassEq.why, locale)}</div>
+                      )}
+                      {bassEq.main && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', fontFamily: 'var(--font-mono)' }}>
+                          {['gain', 'bass', 'mid', 'treble', 'volume'].map((k) => {
+                            const knob = bassEq.main[k];
+                            const v = knob && typeof knob === 'object' ? knob.value : knob;
+                            if (v == null) return null;
+                            return <span key={k}><b style={{ color: 'var(--text-muted)' }}>{k}</b> {v}</span>;
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* Cadre Réglages effets basse (bass_fx_blocks) — réutilise FxBlocksCadre */}
+                  <FxBlocksCadre fxBlocks={bassFx} locale={locale} title={t('song-detail.bass-fx-settings', 'Réglages effets basse')}/>
+                </div>
                 {/* Phase 8.8 — Mode ToneX bass : capture_name + bank/slot */}
                 {bassReco?.capture_name && (() => {
                   const captureName = bassReco.capture_name;
@@ -1211,9 +1317,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           const refBassist = bassReco?.ref_bassist || bassHistSeed?.bassist;
           const refBassGuitar = bassReco?.ref_bass_guitar || bassHistSeed?.bass_guitar;
           const refBassAmp = bassReco?.ref_bass_amp || bassHistSeed?.bass_amp;
-          const refBassFx = bassHistSeed?.effects
-            ? getLocalizedText(bassHistSeed.effects, locale)
-            : null;
+          // Vague B — ref_bass_effects top-level (IA) prioritaire, fallback seed.
+          const refBassFx = bassReco?.ref_bass_effects
+            || (bassHistSeed?.effects ? getLocalizedText(bassHistSeed.effects, locale) : null);
           if (!refBassist && !refBassGuitar && !refBassAmp) return null;
           return (
             <div style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', lineHeight: 1.6, marginTop: 6 }}>
