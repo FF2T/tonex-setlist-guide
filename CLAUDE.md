@@ -921,7 +921,7 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-28 nuit, fin session UX cleanup — Vague A bass restructure + bassStale auto-refetch + Vague 2 emojis majoritaire)
+## État actuel (2026-05-28 jeudi, UX cleanup — Vague A bass restructure + bassStale auto-refetch + Vague 2 emojis majoritaire)
 
 **Backline v8.14.272 / SW backline-v372 / STATE_VERSION 13 / 1729 tests verts.**
 
