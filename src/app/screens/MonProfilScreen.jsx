@@ -21,6 +21,7 @@ import { buildFeedbackUrl } from '../../core/branding.js';
 import { formatDateJJMMAA } from '../../core/date-utils.js';
 import Breadcrumb from '../components/Breadcrumb.jsx';
 import NavIcon from '../components/NavIcon.jsx';
+import TabButton from '../components/TabButton.jsx';
 import BankEditor from '../components/BankEditor.jsx';
 import ProfileTab from './ProfileTab.jsx';
 import MesAppareilsTab from './MesAppareilsTab.jsx';
@@ -70,11 +71,10 @@ function MonProfilScreen({
   const [expandedSongId, setExpandedSongId] = useState(null);
   const toggleSongInSetlist = (songId, slId) => onSetlists((p) => p.map((sl) => sl.id !== slId ? sl : { ...sl, songIds: sl.songIds.includes(songId) ? sl.songIds.filter((x) => x !== songId) : [...sl.songIds, songId] }));
   const inp = { background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '6px 10px', fontSize: 12, boxSizing: 'border-box' };
-  // Vague 2 retrait emojis (2026-05-27) — 3e param iconId optionnel.
-  // Si fourni, rend <NavIcon/> + label. Sinon comportement legacy
-  // (label string seul, accepte emoji ou texte pur).
+  // Vague 3 UX (2026-05-28) — composant TabButton partagé (taille/style
+  // unifiés avec AdminScreen).
   const tabBtn = (id, label, iconId) => (
-    <button onClick={() => setTab(id)} style={{ background: tab === id ? 'var(--accent-bg)' : 'var(--a5)', border: tab === id ? '1px solid var(--border-accent)' : '1px solid var(--a8)', color: tab === id ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>{iconId && <NavIcon id={iconId} size={14}/>}{label}</button>
+    <TabButton active={tab === id} label={label} iconId={iconId} onClick={() => setTab(id)}/>
   );
   const createSetlist = () => { if (!newSlName.trim()) return; onSetlists((p) => [...p, { id: `sl_${Date.now()}`, name: newSlName.trim(), songIds: [], profileIds: [activeProfileId] }]); setNewSlName(''); };
   const deleteSetlist = (id) => {

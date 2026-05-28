@@ -18,6 +18,7 @@ import React, { useState } from 'react';
 import { t } from '../../i18n/index.js';
 import Breadcrumb from '../components/Breadcrumb.jsx';
 import NavIcon from '../components/NavIcon.jsx';
+import TabButton from '../components/TabButton.jsx';
 import ProfilesAdmin from './ProfilesAdmin.jsx';
 import AllUserPresetsTab from './AllUserPresetsTab.jsx';
 import AdminPacksTab from './AdminPacksTab.jsx';
@@ -46,28 +47,10 @@ function AdminScreen({
 
   const inp = { background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '6px 10px', fontSize: 12, boxSizing: 'border-box' };
 
+  // Vague 3 UX (2026-05-28) — composant TabButton partagé (taille/style
+  // unifiés avec MonProfilScreen).
   const tabBtn = (id, label, iconId) => (
-    <button
-      onClick={() => setTab(id)}
-      style={{
-        background: tab === id ? 'var(--accent-bg)' : 'var(--a4)',
-        border: tab === id ? '1px solid var(--accent-border)' : '1px solid var(--a8)',
-        color: tab === id ? 'var(--accent)' : 'var(--text-sec)',
-        borderRadius: 'var(--r-md)',
-        padding: '8px 12px',
-        fontSize: 12,
-        fontWeight: tab === id ? 700 : 500,
-        cursor: 'pointer',
-        whiteSpace: 'nowrap',
-        minHeight: 44,
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-      }}
-    >
-      {iconId && <NavIcon id={iconId} size={14}/>}{label}
-    </button>
+    <TabButton active={tab === id} label={label} iconId={iconId} onClick={() => setTab(id)}/>
   );
 
   return (
