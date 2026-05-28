@@ -981,9 +981,26 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-28 jeudi, Étape 2 vague B — Symétrie scoring/EQ/FX basse + dropdown sélection basse + UX cleanup CLOSE)
+## État actuel (2026-05-28 jeudi, Étape 2 vague B — Symétrie scoring/EQ/FX basse + dropdowns guitare/basse homogénéisés + UX cleanup CLOSE)
 
-**Backline v8.14.284 / SW backline-v384 / STATE_VERSION 13 / 1735 tests verts. Bundle 2620 KB.**
+**Backline v8.14.285 / SW backline-v385 / STATE_VERSION 13 / 1735 tests verts. Bundle 2621 KB.**
+
+### Homogénéisation listes déroulantes guitare ↔ basse (v8.14.285)
+
+Retour Sébastien : *"je préfère le design de la liste déroulante basse vs
+guitare. Tu peux homogénéiser ?"*. Le `GuitarSelect` (bordure verte/jaune
+selon optimalité, fontSize fixe 13) divergeait du `<select>` basse sobre.
+
+- **Prop `plain` ajouté à `GuitarSelect`** : bordure neutre `var(--a15)`
+  (drop variation verte/jaune), `fontSize: clamp(12px, 1.35vw, 14px)`,
+  `fontWeight: 600`. Activé par SongDetailCard "Ma guitare" (`plain={true}`).
+  RecapScreen garde le style legacy (`plain=false` défaut, bordure
+  verte/jaune + status text).
+- **Ordre homogène** : les 2 lignes deviennent `[select flex:1] [pill score
+  à droite]`. Guitare flip (le pill score passe de gauche à droite). Basse
+  gagne un pill score (score de la basse sélectionnée depuis `cot_step2_basses`,
+  fallback ★ si non noté), au lieu du seul ★.
+- Pas de bump STATE_VERSION (purement UI).
 
 ### Dropdown sélection basse (v8.14.284)
 

@@ -20,27 +20,46 @@ import { t, tFormat, useLocale } from '../../i18n/index.js';
 // (cas SongDetailCard qui les remplace par un pill bucket Phase 7.83 +
 // suggestion alternatives unifiés sous le select). Default false →
 // comportement legacy préservé pour les autres call sites (RecapScreen).
-function GuitarSelect({ value, onChange, ig = [], guitars = GUITARS, hideStatusText = false }) {
+// Phase vague B (2026-05-28) — prop `plain` : style sobre homogène avec la
+// liste déroulante basse (bordure neutre, fontSize clamp responsive,
+// fontWeight 600, pas de variation verte/jaune de bordure). Activé par
+// SongDetailCard "Ma guitare" (le score s'affiche déjà en pill bucket à
+// côté + le warning "Idéalement" est géré par le caller). RecapScreen garde
+// le style legacy (plain=false) avec bordure verte/jaune + status text.
+function GuitarSelect({ value, onChange, ig = [], guitars = GUITARS, hideStatusText = false, plain = false }) {
   useLocale();
   const g = guitars.find((x) => x.id === value);
   const ideal = value && ig.includes(value);
   const warn = value && ig.length > 0 && !ideal;
+  const selectStyle = plain
+    ? {
+        width: '100%',
+        background: 'var(--bg-card)',
+        color: 'var(--text)',
+        border: '1px solid var(--a15)',
+        borderRadius: 'var(--r-md)',
+        padding: '8px 10px',
+        fontSize: 'clamp(12px, 1.35vw, 14px)',
+        fontWeight: 600,
+        cursor: 'pointer',
+      }
+    : {
+        width: '100%',
+        background: 'var(--bg-card)',
+        color: 'var(--text)',
+        border: `1px solid ${ideal ? 'rgba(74,222,128,0.5)' : warn ? 'rgba(251,191,36,0.5)' : 'var(--a15)'}`,
+        borderRadius: 'var(--r-md)',
+        padding: '8px 10px',
+        fontSize: 13,
+        cursor: 'pointer',
+        marginBottom: 4,
+      };
   return (
     <div>
       <select
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
-        style={{
-          width: '100%',
-          background: 'var(--bg-card)',
-          color: 'var(--text)',
-          border: `1px solid ${ideal ? 'rgba(74,222,128,0.5)' : warn ? 'rgba(251,191,36,0.5)' : 'var(--a15)'}`,
-          borderRadius: 'var(--r-md)',
-          padding: '8px 10px',
-          fontSize: 13,
-          cursor: 'pointer',
-          marginBottom: 4,
-        }}
+        style={selectStyle}
       >
         <option value="">{t('guitar-select.placeholder', '— Choisir une guitare —')}</option>
         {guitars.map((x) => (

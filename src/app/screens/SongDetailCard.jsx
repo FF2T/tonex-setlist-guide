@@ -356,7 +356,10 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
               et ListScreen vue repliée). Pill bucket "Idéal" séparé retiré
               (redondant avec la couleur du score). Warn alternatives reste
               sous le select si pas idéal. */}
+          {/* Vague B (2026-05-28) — homogénéise avec la liste déroulante basse :
+              select à gauche (flex:1), indicateur (pill score) à droite. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ flex: 1, minWidth: 0 }}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars} hideStatusText={true} plain={true}/></div>
             {g && chosenGuitarScore != null && (() => {
               const bucket = bucketizeScore(chosenGuitarScore);
               const longLabels = {
@@ -371,7 +374,6 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 </span>
               );
             })()}
-            <div style={{ flex: 1, minWidth: 0 }}><GuitarSelect value={gId} onChange={handleGuitarChange} ig={ig} guitars={guitars} hideStatusText={true}/></div>
           </div>
           {g && chosenGuitarScore != null && (() => {
             const isIdeal = ig.includes(gId);
@@ -1115,6 +1117,18 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           || idealBassObj || userBasses[0] || null;
         // L'étoile ★ marque la basse idéale IA (uniquement si c'est elle qui est sélectionnée).
         const selectedIsIdeal = idealBassObj && selectedBass && selectedBass.id === idealBassObj.id;
+        // Score de la basse sélectionnée (depuis cot_step2_basses) pour pill à
+        // droite, symétrique au pill score guitare. Match par nom (case-insensitive).
+        const selectedBassScore = (() => {
+          if (!selectedBass) return null;
+          const sn = String(selectedBass.name).toLowerCase();
+          const hit = cotBasses.find((b) => {
+            if (!b.name) return false;
+            const bn = String(b.name).toLowerCase();
+            return bn.includes(sn) || sn.includes(bn);
+          });
+          return hit && typeof hit.score === 'number' ? hit.score : null;
+        })();
         const handleBassChange = (v) => {
           setSelectedBassId(v);
           if (onBassChange) onBassChange(song.id, v);
@@ -1148,7 +1162,11 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                       </option>
                     ))}
                   </select>
-                  {selectedIsIdeal && <span style={{ color: 'var(--accent)', fontSize: 'clamp(12px, 1.35vw, 14px)', flexShrink: 0 }} title={t('song-detail.bass-ideal', 'Basse idéale')}>★</span>}
+                  {/* Indicateur à droite, homogène avec la guitare : pill score si
+                      la basse sélectionnée est notée (cot_step2_basses), sinon ★ si idéale. */}
+                  {selectedBassScore != null ? (
+                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: bucketizeScore(selectedBassScore).color, padding: '3px 9px', borderRadius: 'var(--r-sm)', textAlign: 'center', fontSize: 'clamp(11px, 1.2vw, 13px)', whiteSpace: 'nowrap', lineHeight: 1.3, flexShrink: 0, minWidth: 44 }} title={`${selectedBassScore}%`}>{selectedBassScore}%</span>
+                  ) : (selectedIsIdeal && <span style={{ color: 'var(--accent)', fontSize: 'clamp(12px, 1.35vw, 14px)', flexShrink: 0 }} title={t('song-detail.bass-ideal', 'Basse idéale')}>★</span>)}
                 </div>
               ) : (
                 <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', fontStyle: 'italic' }}>
