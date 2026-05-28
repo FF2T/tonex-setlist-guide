@@ -306,8 +306,7 @@
   /* Score top : pill plein avec contraste inversé (texte clair sur fond
      coloré saturé) — bien plus visible que le texte coloré seul.
      Validation Sébastien 25/05 post-S8. */
-  .songrow-pl-topscore-pill{margin-left:auto;font-family:var(--font-mono);font-size:14px;font-weight:800;letter-spacing:-0.01em;color:var(--text-inverse);padding:4px 10px;border-radius:var(--r-md);line-height:1.2}
-  .songrow-pl-chevron{font-size:12px;color:var(--text-tertiary);flex-shrink:0}
+  .songrow-pl-chevron{margin-left:auto;font-size:12px;color:var(--text-tertiary);flex-shrink:0}
   /* S8.4 — Meta grid 4 colonnes desktop pour alignement strict entre
      rows (Sébastien "j'ai vraiment besoin d'alignements"). Mobile :
      stack flex column avec gap pour lisibilité.
@@ -376,7 +375,6 @@
   @media(min-width:640px){
     .songrow-pl-slot-pill{font-size:11px;padding:3px 8px}
     .songrow-pl-score-pill-inline{font-size:11px;padding:3px 8px}
-    .songrow-pl-topscore-pill{font-size:15px;padding:4px 11px}
   }
   @media(min-width:1024px){
     .songrow-playlist{padding:16px 20px}
@@ -384,7 +382,6 @@
     .songrow-pl-number{font-size:15px;min-width:28px;padding-top:2px}
     .songrow-pl-content{gap:8px}
     .songrow-pl-title{font-size:16px}
-    .songrow-pl-topscore-pill{font-size:16px;padding:5px 12px}
     .songrow-pl-device{font-size:12px}
     .songrow-pl-slot-pill{font-size:12px;padding:3px 9px}
     .songrow-pl-score-pill-inline{font-size:12px;padding:3px 9px}

@@ -981,9 +981,23 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-28 jeudi, V9.1.0 — Phase B : contexte de jeu instrument × rig + filtrage vue morceau)
+## État actuel (2026-05-28 jeudi, V9.1.1 — Phase B : contexte de jeu instrument × rig + filtrage vue morceau)
 
-**Backline v9.1.0 / SW backline-v393 / STATE_VERSION 13 / 1772 tests verts. Bundle 2639 KB.**
+**Backline v9.1.1 / SW backline-v394 / STATE_VERSION 13 / 1772 tests verts. Bundle 2639 KB.**
+
+### v9.1.1 — Retrait badge "Idéal" header morceau (2026-05-28)
+
+Retour Sébastien : le pill bucket compat ("Idéal/Bon/Limite") en haut à droite
+du header morceau (row playlist ListScreen) "n'apporte rien" → retiré. Helper
+mort `_compatPillProps` + CSS `.songrow-pl-topscore-pill` (3 règles) supprimés ;
+`margin-left:auto` reporté sur `.songrow-pl-chevron` (garde le chevron à droite).
+Le score chiffré + la couleur des libellés guitare/preset restent (l'info compat
+est déjà encodée par la couleur + le % ailleurs). Note : le rig guitare
+(ToneX/Ampli) + TMP étaient déjà câblés symétriquement à la basse dès v9.1.0
+(getAvailableRigs ajoute 'tmp' si tonemaster-pro activé, 'amp' si myGuitarAmps
+non vide) — le sélecteur rig apparaît dès que ≥2 rigs sont dispos pour
+l'instrument actif (donc cocher Marshall Plexi/Blues Junior dans Mes amplis
+guitare fait apparaître le switch ToneX/Ampli côté guitare).
 
 ### Phase B — Contexte de jeu (instrument × rig) + filtrage vue morceau (v9.1.0)
 

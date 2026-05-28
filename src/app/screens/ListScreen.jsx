@@ -42,30 +42,6 @@ import { CC, CL, TYPE_COLORS } from '../utils/ui-constants.js';
 import { scoreColor, scoreBg, scoreLabel } from '../components/score-utils.js';
 import { bucketizeScore } from '../../core/scoring/compat-buckets.js';
 
-// Phase 7.83 polish (2026-05-27) — helper pour les pills score vue repliée :
-// retourne { label, color, title } cohérent avec SongDetailCard. Score brut
-// préservé en tooltip pour les power-users.
-function _compatPillProps(score, t) {
-  if (score == null) return null;
-  const bucket = bucketizeScore(score);
-  // Vague 2 emojis (2026-05-28) — labels flat (couleur encode déjà
-  // le niveau via bucket.color).
-  const labels = {
-    ideal: t('compat.ideal-short-flat', 'Idéal'),
-    good: t('compat.good-short-flat', 'Bon'),
-    compromise: t('compat.compromise-short-flat', 'Limite'),
-  };
-  const longLabels = {
-    ideal: t('compat.ideal-match-flat', 'Mariage parfait'),
-    good: t('compat.good-match-flat', 'Bon match'),
-    compromise: t('compat.compromise-flat', 'Compromis'),
-  };
-  return {
-    label: labels[bucket.id],
-    color: bucket.color,
-    title: `${longLabels[bucket.id]} — ${score}%`,
-  };
-}
 
 // Phase 7.83 final3 (2026-05-27) — style inline fond plein bucket compat
 // (pattern score pills). Appliqué aux libellés guitare + preset en vue
@@ -801,7 +777,6 @@ function ListScreen({
                         }
                       }
                       const rowData = getRowPlaylistData(s, aiC, playlistG, playlistScore, playlistIsOptimal);
-                      const topPill = _compatPillProps(rowData.topScore, t);
                       return (
                         <div className="songrow-pl-row">
                           <span className="songrow-pl-number">{playlistNumber}</span>
@@ -810,9 +785,6 @@ function ListScreen({
                               <span className="songrow-pl-title">{rowData.title}</span>
                               {!s.aiCache && <span className="songrow-pl-pending" title={t('list.pending-analysis', 'Pas encore analysé')}>···</span>}
                               {rowData.isOptimalGuitar && <span className="songrow-pl-optimal" title={t('list.optimal-guitar', 'Guitare idéale')}>★</span>}
-                              {topPill && (
-                                <span className="songrow-pl-topscore-pill" style={{ background: topPill.color }} title={topPill.title}>{topPill.label}</span>
-                              )}
                               <span className="songrow-pl-chevron">{isExpanded ? '▲' : '▼'}</span>
                             </div>
                             {/* S8.4 — Meta grid 4 colonnes desktop pour
