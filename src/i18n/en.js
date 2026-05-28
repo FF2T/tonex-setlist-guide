@@ -1031,6 +1031,13 @@ const en = {
   'profile-tab.add-custom-amp-flat': 'Add a bass amp not in the catalog',
   'song-detail.guitar-amp-block': 'On your amp',
   'song-detail.guitar-amp-block-named': 'On your {amp}',
+  // Phase B — Contexte de jeu (instrument × rig)
+  'play-context.label': 'I play',
+  'play-context.instrument-guitar': 'Guitar',
+  'play-context.instrument-bass': 'Bass',
+  'play-context.rig-tonex': 'ToneX',
+  'play-context.rig-tmp': 'Tone Master Pro',
+  'play-context.rig-amp': 'Amp',
   // Vague 4 (2026-05-28) — traductions des clés -flat (libellés sans emoji)
   "admin.breadcrumb-flat": "Admin",
   "admin.tab.adminpacks-flat": "Admin packs",

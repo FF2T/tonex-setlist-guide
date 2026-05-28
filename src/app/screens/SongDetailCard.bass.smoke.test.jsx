@@ -95,6 +95,9 @@ const profile = {
   instruments: ['guitar', 'bass'],
   myBasses: ['jazz_bass_player_plus', 'precision_avri'],
   myBassAmps: ['rumble_100'],
+  // Phase B — contexte de jeu sur basse : la section basse n'est rendue
+  // que si playCtx.instrument === 'bass' (filtre instrument).
+  playInstrument: 'bass',
 };
 
 const noop = () => {};

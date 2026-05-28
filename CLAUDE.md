@@ -981,7 +981,63 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-28 jeudi, V9.0.0 — jalon multi-instrument, vue dépliée raccord guitare/basse)
+## État actuel (2026-05-28 jeudi, V9.1.0 — Phase B : contexte de jeu instrument × rig + filtrage vue morceau)
+
+**Backline v9.1.0 / SW backline-v393 / STATE_VERSION 13 / 1772 tests verts. Bundle 2639 KB.**
+
+### Phase B — Contexte de jeu (instrument × rig) + filtrage vue morceau (v9.1.0)
+
+Première de 3 phases du chantier "rig multi-instrument" (A→B→C, cf
+`/Users/sebastien/.claude/plans/misty-jumping-crayon.md`). Phase B résout le
+"mur de blocs" de la fiche dépliée : l'utilisateur **déclare avec quoi il
+joue** (instrument × chaîne de signal) et la fiche **n'affiche que les blocs
+pertinents**.
+
+**Modèle de données** (additif, pas de bump STATE_VERSION) :
+- `profile.playInstrument: 'guitar'|'bass'` + `profile.playRig: 'tonex'|'tmp'|'amp'`
+  (défauts globaux) + overrides `song.playInstrument`/`song.playRig` (mirror
+  du pattern `outputContext` Phase 10).
+- Helpers purs `core/state.js` : `PLAY_INSTRUMENTS`, `PLAY_RIGS`,
+  `getAvailableRigs(profile, instrument)` (tonex si device ToneX activé, tmp si
+  tonemaster-pro, amp si myGuitarAmps/myBassAmps selon instrument),
+  `getEffectivePlayContext(profile, song)` → `{instrument, rig}` (priorité
+  song > profile > défaut, defensive : 'bass' demandé sur profil mono-guitare
+  → fallback guitar ; rig indispo → 1er dispo). +21 tests Vitest.
+
+**UI sélecteur "Je joue"** (SongDetailCard, en tête de fiche, NavIcon flat,
+style boutons outputContext) :
+- Boutons Instrument (Guitare/Basse) — affichés seulement si profil
+  multi-instrument.
+- Boutons Rig dynamiques (ToneX/Tone Master Pro/Ampli) via getAvailableRigs.
+- **Bandeau entièrement masqué si profil mono-instrument ET mono-rig** (zéro
+  friction, vue identique à avant pour les profils simples).
+- Click → `song.playInstrument`/`song.playRig` (override par morceau, pas de
+  re-fetch — filtre d'affichage pur).
+
+**Filtrage** :
+- Section "Ma guitare" + "Recommandations guitare" : gated instrument === guitar.
+- Section "Ma basse" + "Recommandations basse" : gated instrument === bass.
+- Dans Recommandations : blocs ToneX (Scoring preset + EQ + effets) gated rig
+  === tonex ; "Sur ton ampli" gated rig === amp ; bloc TMP (RecommendBlock)
+  gated rig === tmp. Idem côté basse (Scoring preset/EQ/effets basse = tonex,
+  amp_settings = amp). Scoring guitares/basses + dropdown + prose + Feedback
+  toujours visibles (rig-agnostiques).
+- **Infos morceau adaptatif** (retour Sébastien) : référence guitariste
+  affichée si instrument === guitar, référence bassiste si instrument === bass
+  (au lieu de toujours guitar-focus). Profils tonals (cot_step1/cot_step3_amp)
+  restent (descriptifs du morceau).
+
+**Sync** : `playInstrument`/`playRig` ajoutés au `profileHash` (main.jsx) →
+push Firestore au changement. `song.playInstrument`/`playRig` voyagent avec
+la song. Smoke test bass mis à jour (profil `playInstrument: 'bass'` pour
+forcer le chemin basse, désormais instrument-gated). +18 tests → 1772.
+
+**Hors scope (Phase C)** : pédalier physique (`core/pedals.js` +
+`pedalboard_settings` IA + cadre "Sur ton pédalier" affiché quand rig=amp).
+
+---
+
+## État précédent (2026-05-28 jeudi, V9.0.0 — jalon multi-instrument, vue dépliée raccord guitare/basse)
 
 **Backline v9.0.0 / SW backline-v392 / STATE_VERSION 13 / 1754 tests verts. Bundle 2636 KB.**
 

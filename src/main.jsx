@@ -277,7 +277,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "9.0.0";
+const APP_VERSION = "9.1.0";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -1190,6 +1190,7 @@ export function App() {
       +":"+(p.customBassAmps||[]).map(a=>a.id).slice().sort().join(',') // Phase 8.6 — custom amplis basse future
       +":"+(p.myGuitarAmps||[]).slice().sort().join(',')     // Phase A — amplis guitare cochés
       +":"+(p.customGuitarAmps||[]).map(a=>a.id).slice().sort().join(',') // Phase A — custom amplis guitare
+      +":"+(p.playInstrument||'')+":"+(p.playRig||'')        // Phase B — contexte de jeu (instrument × rig)
       +":"+Object.keys(p.aiCache||{}).slice().sort().join(',')+":"+Object.values(p.aiCache||{}).map(a=>(a?.sv||0)+'|'+(a?.rigSnapshot||'')+'|'+(a?.gId||'')+'|'+(a?.ts||0)).join('!')  // Phase 7.54 + 7.81 — aiCache per-profile, ts pour propager LWW
       // Phase 7.79.3c — usagesOverrides per-profile : sync via push profil
       // habituel. Hash basé sur (name, lastModified, usages?null|len) pour

@@ -32,6 +32,8 @@ import {
   dedupSongDb,
   autoBackup, listBackups, clearBackups, isQuotaError, persistState,
   OUTPUT_CONTEXTS, DEFAULT_OUTPUT_CONTEXT, getEffectiveOutputContext,
+  PLAY_INSTRUMENTS, PLAY_RIGS, getAvailableRigs, getEffectivePlayContext,
+  getDefaultPlayInstrument,
 } from './state.js';
 
 describe('STATE_VERSION', () => {
@@ -4442,5 +4444,121 @@ describe('OUTPUT_CONTEXTS / getEffectiveOutputContext (Phase 10 v2)', () => {
     const standard = makeDefaultProfile('bruno', 'Bruno', false);
     expect(admin.outputContext).toBe('frfr');
     expect(standard.outputContext).toBe('frfr');
+  });
+});
+
+// Phase B — Contexte de jeu (instrument × rig)
+describe('Phase B — getAvailableRigs / getEffectivePlayContext', () => {
+  const tonexProfile = { enabledDevices: ['tonex-anniversary', 'tonex-plug'], instruments: ['guitar'] };
+
+  describe('PLAY_INSTRUMENTS / PLAY_RIGS', () => {
+    test('valeurs attendues', () => {
+      expect(PLAY_INSTRUMENTS).toEqual(['guitar', 'bass']);
+      expect(PLAY_RIGS).toEqual(['tonex', 'tmp', 'amp']);
+    });
+  });
+
+  describe('getDefaultPlayInstrument', () => {
+    test('1er instrument valide, sinon guitar', () => {
+      expect(getDefaultPlayInstrument({ instruments: ['bass', 'guitar'] })).toBe('bass');
+      expect(getDefaultPlayInstrument({ instruments: ['guitar', 'bass'] })).toBe('guitar');
+      expect(getDefaultPlayInstrument({ instruments: [] })).toBe('guitar');
+      expect(getDefaultPlayInstrument({})).toBe('guitar');
+      expect(getDefaultPlayInstrument(null)).toBe('guitar');
+    });
+  });
+
+  describe('getAvailableRigs', () => {
+    test('tonex si device ToneX activé', () => {
+      expect(getAvailableRigs(tonexProfile, 'guitar')).toEqual(['tonex']);
+    });
+
+    test('tmp si tonemaster-pro activé', () => {
+      const p = { enabledDevices: ['tonemaster-pro'] };
+      expect(getAvailableRigs(p, 'guitar')).toEqual(['tmp']);
+    });
+
+    test('amp si myGuitarAmps non vide (instrument guitar)', () => {
+      const p = { enabledDevices: ['tonex-plug'], myGuitarAmps: ['marshall_plexi'] };
+      expect(getAvailableRigs(p, 'guitar')).toEqual(['tonex', 'amp']);
+    });
+
+    test('amp basse lit myBassAmps, pas myGuitarAmps', () => {
+      // Guitar a un ampli coché, basse non → amp dispo guitare seulement.
+      const p = { enabledDevices: ['tonex-plug'], myGuitarAmps: ['marshall_plexi'], myBassAmps: [] };
+      expect(getAvailableRigs(p, 'guitar')).toEqual(['tonex', 'amp']);
+      expect(getAvailableRigs(p, 'bass')).toEqual(['tonex']);
+      // Symétrique : basse a un ampli, guitare non.
+      const p2 = { enabledDevices: ['tonex-plug'], myGuitarAmps: [], myBassAmps: ['rumble_100'] };
+      expect(getAvailableRigs(p2, 'bass')).toEqual(['tonex', 'amp']);
+      expect(getAvailableRigs(p2, 'guitar')).toEqual(['tonex']);
+    });
+
+    test('ordre priorité tonex > tmp > amp', () => {
+      const p = { enabledDevices: ['tonex-anniversary', 'tonemaster-pro'], myGuitarAmps: ['marshall_plexi'] };
+      expect(getAvailableRigs(p, 'guitar')).toEqual(['tonex', 'tmp', 'amp']);
+    });
+
+    test('profil sans devices → fallback default getDevicesForRender (tonex)', () => {
+      // getDevicesForRender retourne ['tonex-pedal','tonex-plug'] par défaut.
+      expect(getAvailableRigs({}, 'guitar')).toEqual(['tonex']);
+    });
+  });
+
+  describe('getEffectivePlayContext', () => {
+    test('défaut : guitar + tonex sur profil ToneX guitariste', () => {
+      expect(getEffectivePlayContext(tonexProfile, {})).toEqual({ instrument: 'guitar', rig: 'tonex' });
+    });
+
+    test('song.playRig override prioritaire (si dispo)', () => {
+      const p = { enabledDevices: ['tonex-plug'], myGuitarAmps: ['marshall_plexi'], playRig: 'tonex', instruments: ['guitar'] };
+      expect(getEffectivePlayContext(p, { playRig: 'amp' })).toEqual({ instrument: 'guitar', rig: 'amp' });
+    });
+
+    test('profile.playRig utilisé sans override song', () => {
+      const p = { enabledDevices: ['tonex-plug'], myGuitarAmps: ['marshall_plexi'], playRig: 'amp', instruments: ['guitar'] };
+      expect(getEffectivePlayContext(p, {})).toEqual({ instrument: 'guitar', rig: 'amp' });
+    });
+
+    test('rig indispo demandé → fallback 1er rig dispo', () => {
+      // playRig 'amp' mais aucun ampli coché → fallback tonex.
+      const p = { enabledDevices: ['tonex-anniversary'], playRig: 'amp', instruments: ['guitar'] };
+      expect(getEffectivePlayContext(p, {}).rig).toBe('tonex');
+    });
+
+    test('instrument bass demandé mais profil mono-guitare → fallback guitar', () => {
+      const p = { enabledDevices: ['tonex-plug'], instruments: ['guitar'] };
+      expect(getEffectivePlayContext(p, { playInstrument: 'bass' }).instrument).toBe('guitar');
+    });
+
+    test('instrument bass respecté si profil multi-instrument', () => {
+      const p = { enabledDevices: ['tonex-plug'], instruments: ['guitar', 'bass'], myBassAmps: [] };
+      expect(getEffectivePlayContext(p, { playInstrument: 'bass' })).toEqual({ instrument: 'bass', rig: 'tonex' });
+    });
+
+    test('valeur invalide → fallback profile puis défaut', () => {
+      const p = { enabledDevices: ['tonex-plug'], instruments: ['guitar'] };
+      expect(getEffectivePlayContext(p, { playInstrument: 'drums', playRig: 'bogus' })).toEqual({ instrument: 'guitar', rig: 'tonex' });
+    });
+
+    test('aucun rig détecté → fallback tonex (defensive)', () => {
+      // Profil sans enabledDevices ET sans amplis : getDevicesForRender
+      // retourne le défaut tonex, donc rig tonex. On force le cas vide via
+      // enabledDevices:[] (qui déclenche le fallback default tonex-pedal/plug).
+      expect(getEffectivePlayContext({ instruments: ['guitar'] }, {}).rig).toBe('tonex');
+    });
+
+    test('null-safe', () => {
+      expect(getEffectivePlayContext(null, null)).toEqual({ instrument: 'guitar', rig: 'tonex' });
+    });
+  });
+
+  test('makeDefaultProfile pose playInstrument guitar + playRig tonex', () => {
+    const admin = makeDefaultProfile('seb', 'Sébastien', true);
+    const standard = makeDefaultProfile('bruno', 'Bruno', false);
+    expect(admin.playInstrument).toBe('guitar');
+    expect(admin.playRig).toBe('tonex');
+    expect(standard.playInstrument).toBe('guitar');
+    expect(standard.playRig).toBe('tonex');
   });
 });

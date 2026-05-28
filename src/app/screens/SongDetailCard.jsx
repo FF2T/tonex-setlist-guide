@@ -35,6 +35,7 @@ import { getIg, getSongHist, getSongBassHist } from '../utils/song-helpers.js';
 import { findBass } from '../../core/basses.js';
 import { findBassAmp } from '../../core/bass-amps.js';
 import { findGuitarAmp } from '../../core/guitar-amps.js';
+import { getEffectivePlayContext, getAvailableRigs } from '../../core/state.js';
 import {
   enrichAIResult, mergeBestResults, updateAiCache, computeRigSnapshot,
   getBestResult, getLocalizedText, stripSlotPrefix,
@@ -314,6 +315,16 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   // utilise sectionTitleStyle() + marginBottom 8 (vs défaut 6).
   const sectionStyle = sectionCard();
   const customSectionStyle = { ...sectionCard(), background: BG_2 };
+  // Phase B — Contexte de jeu (instrument × rig). Filtre la vue morceau pour
+  // n'afficher que les blocs pertinents. playsBass = profil multi-instrument.
+  // availableRigs = rigs dispos pour l'instrument actif (tonex/tmp/amp).
+  const playCtx = getEffectivePlayContext(profile, song);
+  const playsBass = Array.isArray(profile?.instruments) && profile.instruments.includes('bass');
+  const availableRigs = getAvailableRigs(profile, playCtx.instrument);
+  const setPlayField = (field, value) => {
+    if (!onSongDb) return;
+    onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, [field]: value } : x));
+  };
   // Vague 1 retrait emojis (2026-05-27) — icon peut être une string emoji
   // (legacy) ou un JSX element (NavIcon). Le rendering use display:flex
   // pour aligner verticalement quand icon est un SVG.
@@ -399,11 +410,60 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         </div>
       )}
 
+      {/* Phase B — Sélecteur "Contexte de jeu" (instrument × rig). Filtre les
+          blocs affichés à ce que joue l'utilisateur. Masqué si profil
+          mono-instrument ET mono-rig (zéro friction, vue identique à avant).
+          Override par morceau via song.playInstrument/playRig (pas de re-fetch
+          — filtre d'affichage pur). */}
+      {!reloading && (playsBass || availableRigs.length > 1) && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '6px 10px' }}>
+          <span style={{ fontSize: TYPO.micro, color: TEXT_3, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('play-context.label', 'Je joue')}</span>
+          {playsBass && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {[
+                { id: 'guitar', label: t('play-context.instrument-guitar', 'Guitare'), icon: 'guitar' },
+                { id: 'bass', label: t('play-context.instrument-bass', 'Basse'), icon: 'bass' },
+              ].map(({ id, label, icon }) => {
+                const active = playCtx.instrument === id;
+                return (
+                  <button key={id} data-testid={`play-instrument-${id}`}
+                    onClick={() => setPlayField('playInstrument', id)}
+                    title={label}
+                    style={{ fontSize: 12, fontFamily: 'var(--font-mono)', lineHeight: 1, padding: '10px 12px', background: active ? 'var(--accent-soft)' : 'transparent', border: `1px solid ${active ? 'var(--border-accent)' : BORDER_SUBTLE}`, color: active ? 'var(--accent)' : TEXT_2, borderRadius: 'var(--r-sm)', cursor: 'pointer', fontWeight: active ? WEIGHT.bold : WEIGHT.medium, minHeight: 44, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <NavIcon id={icon} size={14}/>{label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {availableRigs.length > 1 && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {availableRigs.map((rig) => {
+                const active = playCtx.rig === rig;
+                const label = rig === 'tonex' ? t('play-context.rig-tonex', 'ToneX')
+                  : rig === 'tmp' ? t('play-context.rig-tmp', 'Tone Master Pro')
+                    : t('play-context.rig-amp', 'Ampli');
+                const icon = rig === 'tmp' ? 'sliders' : 'amp';
+                return (
+                  <button key={rig} data-testid={`play-rig-${rig}`}
+                    onClick={() => setPlayField('playRig', rig)}
+                    title={label}
+                    style={{ fontSize: 12, fontFamily: 'var(--font-mono)', lineHeight: 1, padding: '10px 12px', background: active ? 'var(--accent-soft)' : 'transparent', border: `1px solid ${active ? 'var(--border-accent)' : BORDER_SUBTLE}`, color: active ? 'var(--accent)' : TEXT_2, borderRadius: 'var(--r-sm)', cursor: 'pointer', fontWeight: active ? WEIGHT.bold : WEIGHT.medium, minHeight: 44, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <NavIcon id={icon} size={14}/>{label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Phase 7.86 — Bloc 3 : 🎸 Mon setup. GuitarSelect + outputContext +
           feedback déplacés dans sticky bandeau en tête de fiche. Mode IA
           replié dans Bloc 2 (toggle "▸ Mode reco avancé"). Ce bloc se
           concentre sur ce que je joue concrètement avec MA guitare choisie
           et MON contexte d'écoute. */}
+      {playCtx.instrument === 'guitar' && (
       <div style={customSectionStyle}>
         {sectionTitle(<NavIcon id="guitar" size={16}/>, t('song-detail.setup-block', 'Ma guitare'))}
         {/* Phase 7.55.7 S9.2 — GuitarSelect + outputContext + 💬 feedback
@@ -556,7 +616,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             25/05. Seuls les device blocks avec RecommendBlock (TMP) sont
             conservés (pas représentés dans la row). */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {getActiveDevicesForRender(profile).filter((d) => typeof d.RecommendBlock === 'function').map((d) => (
+          {playCtx.rig === 'tmp' && getActiveDevicesForRender(profile).filter((d) => typeof d.RecommendBlock === 'function').map((d) => (
             <div key={d.id} style={{ borderTop: '1px solid var(--a8)', marginTop: 6, paddingTop: 6 }}>
               <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', fontWeight: 700, color: d.deviceColor || 'var(--brass-400)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
                 <NavIcon id={d.iconId || 'amp'} size={11}/><span>{d.label}</span>
@@ -565,8 +625,8 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             </div>
           ))}
         </div>
-        {/* Suggestion d'amélioration si score < 90% */}
-        {aiC && (() => {
+        {/* Suggestion d'amélioration si score < 90% (ToneX uniquement — Phase B) */}
+        {aiC && playCtx.rig === 'tonex' && (() => {
           const bestScore = Math.max(aiC.preset_ann?.score || 0, aiC.preset_plug?.score || 0, aiC.ideal_preset_score || 0);
           if (bestScore >= 90) return null;
           const bestBreakdown = aiC.preset_ann?.breakdown || aiC.preset_plug?.breakdown;
@@ -663,9 +723,10 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           );
         })()}
       </div>
+      )}
 
 
-      {!reloading && aiC && (() => {
+      {!reloading && aiC && playCtx.instrument === 'guitar' && (() => {
         // Phase 7.65.1 — Filtre strict cot_step2_guitars sur le rig actif
         // (Phase 3.6 union all-rigs au prompt peut amener des guitares
         // d'autres profils, ex. Bruno voyait Strat AM Vintage II 61 hors rig).
@@ -780,7 +841,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   guitares". Wrap le preset reco top + alternatives catalog.
                   Scores alignés à droite via pill (même style que Scoring
                   guitares). */}
-              {(displayTopPreset || (aiC.ideal_top3 && aiC.ideal_top3.length > 1)) && getActiveDevicesForRender(profile).some((d) => d.deviceKey === 'ann' || d.deviceKey === 'plug') && (
+              {playCtx.rig === 'tonex' && (displayTopPreset || (aiC.ideal_top3 && aiC.ideal_top3.length > 1)) && getActiveDevicesForRender(profile).some((d) => d.deviceKey === 'ann' || d.deviceKey === 'plug') && (
               <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
                 <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.scoring-preset', 'Scoring preset')}</div>
               {displayTopPreset && (() => {
@@ -924,14 +985,18 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
               )}
               {/* Réglages EQ + effets APRÈS le Scoring preset (2026-05-28) :
                   le scoring preset (quelle capture ToneX) vient avant les
-                  réglages de cette capture. */}
-              {eqSettingsCadre}
-              <FxBlocksCadre fxBlocks={aiC.fx_blocks} locale={locale} title={t('song-detail.fx-settings-flat', 'Réglages effets')}/>
+                  réglages de cette capture. Phase B — gated rig ToneX. */}
+              {playCtx.rig === 'tonex' && (
+                <>
+                  {eqSettingsCadre}
+                  <FxBlocksCadre fxBlocks={aiC.fx_blocks} locale={locale} title={t('song-detail.fx-settings-flat', 'Réglages effets')}/>
+                </>
+              )}
               {/* Phase A — Cadre "Sur ton ampli" (ampli guitare traditionnel
                   RÉEL, distinct des cadres ToneX EQ/effets/preset). Gated par
-                  ampli guitare coché + guitar_amp_settings de l'IA. Phase B
-                  regroupera/filtrera par contexte ; ici il s'ajoute en fin. */}
-              {(profile?.myGuitarAmps?.length > 0) && aiC.guitar_amp_settings && aiC.guitar_amp_settings.settings && Object.keys(aiC.guitar_amp_settings.settings).length > 0 && (() => {
+                  ampli guitare coché + guitar_amp_settings de l'IA. Phase B —
+                  affiché uniquement en contexte rig = Ampli. */}
+              {playCtx.rig === 'amp' && (profile?.myGuitarAmps?.length > 0) && aiC.guitar_amp_settings && aiC.guitar_amp_settings.settings && Object.keys(aiC.guitar_amp_settings.settings).length > 0 && (() => {
                 const gas = aiC.guitar_amp_settings;
                 const whyTxt = gas.why ? getLocalizedText(gas.why, locale) : null;
                 return (
@@ -1094,6 +1159,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         const hasBassInstrument = Array.isArray(profile?.instruments)
           && profile.instruments.includes('bass');
         if (!hasBassInstrument) return null;
+        // Phase B — section basse affichée seulement si l'instrument actif
+        // du contexte de jeu est la basse.
+        if (playCtx.instrument !== 'bass') return null;
         const bassHist = getSongBassHist(song);
         const bassReco = aiC?.bass_recommendation;
         if (!bassHist && !bassReco) return null;
@@ -1233,6 +1301,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 {/* Vague B — Cadres symétriques au bloc guitare. Chacun gated par
                     présence du champ (rétro-compat aiCache pré-vague-B).
                     Scoring basses déplacé sous le dropdown "Ma basse" (2026-05-28). */}
+                {/* Phase B — blocs ToneX basse (Scoring preset + EQ + effets)
+                    gated par rig = ToneX. */}
+                {playCtx.rig === 'tonex' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
                   {/* Cadre Scoring preset basse (bass_alternatives, mirror Scoring preset) */}
                   {bassAlts.length > 0 && getActiveDevicesForRender(profile).some((d) => d.deviceKey === 'ann' || d.deviceKey === 'plug') && (
@@ -1308,8 +1379,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   {/* Cadre Réglages effets basse (bass_fx_blocks) — réutilise FxBlocksCadre */}
                   <FxBlocksCadre fxBlocks={bassFx} locale={locale} title={t('song-detail.bass-fx-settings', 'Réglages effets basse')}/>
                 </div>
-                {/* Mode ampli traditionnel : amp_settings 0-10 */}
-                {userBassAmps.length > 0 && hasAmpSettings && (
+                )}
+                {/* Mode ampli traditionnel : amp_settings 0-10 (Phase B — rig Ampli) */}
+                {playCtx.rig === 'amp' && userBassAmps.length > 0 && hasAmpSettings && (
                   <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px', marginBottom: 6 }}>
                     <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>
                       {tFormat('song-detail.bass-amp-settings', { amp: userBassAmps[0].short }, 'Sur ton {amp}')}
@@ -1341,8 +1413,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         {sectionTitle(<NavIcon id="info" size={16}/>, t('song-detail.info-section', 'Infos morceau'))}
         {(songInfo.year || songInfo.album || songInfo.key || songInfo.bpm) && <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-muted)', marginBottom: 4 }}>{songInfo.year}{songInfo.album ? ' · ' + songInfo.album : ''}{songInfo.key ? ' · ' + songInfo.key : ''}{songInfo.bpm ? ' · ' + songInfo.bpm + ' BPM' : ''}</div>}
         {songInfo.desc && <div className="prose-readable" style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', lineHeight: 1.5, marginBottom: 6 }}>{getLocalizedText(songInfo.desc, locale)}</div>}
-        {/* Référence guitare (depuis aiC ou fallback hist seed) */}
-        {aiC && (aiC.ref_guitarist || aiC.ref_guitar || aiC.ref_amp) && (
+        {/* Référence guitare (depuis aiC ou fallback hist seed). Phase B —
+            affichée seulement en contexte instrument = guitare. */}
+        {playCtx.instrument === 'guitar' && aiC && (aiC.ref_guitarist || aiC.ref_guitar || aiC.ref_amp) && (
           <div style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', lineHeight: 1.6 }}>
             <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 'clamp(11px, 1.25vw, 13px)' }}>{aiC.ref_guitarist || t('song-detail.ref-default', 'Référence')}</span><br/>
             {aiC.ref_guitar && <>{aiC.ref_guitar} · </>}
@@ -1350,7 +1423,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             {aiC.ref_effects && aiC.ref_effects !== 'Aucun effet' && <> · {aiC.ref_effects}</>}
           </div>
         )}
-        {hist && !aiC && (
+        {playCtx.instrument === 'guitar' && hist && !aiC && (
           <div style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', lineHeight: 1.6 }}>
             <span style={{ fontWeight: 700, color: 'var(--text-muted)', fontSize: 'clamp(11px, 1.25vw, 13px)' }}>{hist.guitarist}</span><br/>
             {hist.guitar} · {hist.amp}{(() => { const fx = getLocalizedText(hist.effects, locale); return fx ? ' · ' + fx : ''; })()}
@@ -1362,8 +1435,10 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             (SONG_HISTORY[songId].bass). Affichée seulement si user bass-actif
             (profile.instruments inclut 'bass') ET ≥1 source d'info. */}
         {(() => {
-          const isBassUser = Array.isArray(profile?.instruments) && profile.instruments.includes('bass');
-          if (!isBassUser) return null;
+          // Phase B — référence basse affichée seulement en contexte
+          // instrument = basse (getEffectivePlayContext garantit que 'bass'
+          // implique un profil bass-actif).
+          if (playCtx.instrument !== 'bass') return null;
           const bassReco = aiC?.bass_recommendation;
           const bassHistSeed = getSongBassHist(song);
           const refBassist = bassReco?.ref_bassist || bassHistSeed?.bassist;

@@ -1637,6 +1637,9 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
       guitarBias: {},
       // Phase 10 — contexte d'écoute (default 'frfr', cf OUTPUT_CONTEXTS).
       outputContext: DEFAULT_OUTPUT_CONTEXT,
+      // Phase B — contexte de jeu (instrument × rig).
+      playInstrument: 'guitar',
+      playRig: 'tonex',
       language: fallbackLang,
       isDemo: false,
     };
@@ -1678,6 +1681,9 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
     guitarBias: {},
     // Phase 10 — contexte d'écoute (default 'frfr', cf OUTPUT_CONTEXTS).
     outputContext: DEFAULT_OUTPUT_CONTEXT,
+    // Phase B — contexte de jeu (instrument × rig).
+    playInstrument: 'guitar',
+    playRig: 'tonex',
     language: fallbackLang,
     isDemo: false,
   };
@@ -2786,8 +2792,59 @@ function getEffectiveOutputContext(profile, song) {
   return DEFAULT_OUTPUT_CONTEXT;
 }
 
+// Phase B — Contexte de jeu (instrument × rig). Filtre la vue morceau pour
+// n'afficher que les blocs pertinents (instrument joué + chaîne de signal).
+const PLAY_INSTRUMENTS = ['guitar', 'bass'];
+const PLAY_RIGS = ['tonex', 'tmp', 'amp'];
+const TONEX_DEVICE_IDS = ['tonex-pedal', 'tonex-anniversary', 'tonex-plug'];
+
+// Rigs réellement disponibles pour un profil + instrument, dans l'ordre de
+// priorité d'affichage (tonex > tmp > amp). 'tonex' si un device ToneX
+// activé, 'tmp' si tonemaster-pro activé, 'amp' si l'instrument a au moins
+// un ampli traditionnel coché (myGuitarAmps / myBassAmps).
+function getAvailableRigs(profile, instrument) {
+  const ids = getDevicesForRender(profile);
+  const rigs = [];
+  if (ids.some((id) => TONEX_DEVICE_IDS.includes(id))) rigs.push('tonex');
+  if (ids.includes('tonemaster-pro')) rigs.push('tmp');
+  const amps = instrument === 'bass'
+    ? (profile?.myBassAmps || [])
+    : (profile?.myGuitarAmps || []);
+  if (Array.isArray(amps) && amps.length > 0) rigs.push('amp');
+  return rigs;
+}
+
+// Instrument de jeu par défaut : 1er instrument valide de profile.instruments,
+// sinon 'guitar'.
+function getDefaultPlayInstrument(profile) {
+  const instr = Array.isArray(profile?.instruments) ? profile.instruments : [];
+  return instr.find((i) => PLAY_INSTRUMENTS.includes(i)) || 'guitar';
+}
+
+// Contexte de jeu effectif : priorité song > profile > défaut.
+// - instrument : retombe sur 'guitar' si 'bass' demandé mais profil non
+//   multi-instrument (cohérent avec le gating instruments).
+// - rig : validé contre getAvailableRigs(instrument). Fallback 1er rig dispo
+//   (tonex prioritaire), 'tonex' ultime si aucun rig détecté.
+function getEffectivePlayContext(profile, song) {
+  let instrument = song?.playInstrument;
+  if (!PLAY_INSTRUMENTS.includes(instrument)) instrument = profile?.playInstrument;
+  if (!PLAY_INSTRUMENTS.includes(instrument)) instrument = getDefaultPlayInstrument(profile);
+  const playsBass = Array.isArray(profile?.instruments) && profile.instruments.includes('bass');
+  if (instrument === 'bass' && !playsBass) instrument = 'guitar';
+
+  const available = getAvailableRigs(profile, instrument);
+  let rig = song?.playRig;
+  if (!available.includes(rig)) rig = profile?.playRig;
+  if (!available.includes(rig)) rig = available[0] || 'tonex';
+
+  return { instrument, rig };
+}
+
 export {
   OUTPUT_CONTEXTS, DEFAULT_OUTPUT_CONTEXT, getEffectiveOutputContext,
+  PLAY_INSTRUMENTS, PLAY_RIGS, getAvailableRigs, getEffectivePlayContext,
+  getDefaultPlayInstrument,
   ADMIN_ORIGIN_KEY, recordAdminSwitch, isAdminAsMode, appendLoginEntry,
   STATE_VERSION, TOMBSTONE_MAX_AGE_MS,
   LS_KEY, LS_KEY_V1, LS_SECRETS_KEY, LS_TRUSTED_KEY, LS_BACKUP_KEY, MAX_BACKUPS,
