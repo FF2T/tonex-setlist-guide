@@ -7,7 +7,7 @@
 // - inputs falsy/edge cases
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { getLocalizedText, findSlotByUsageMatch, findCatalogEntryByUsages, findSlotByName, enrichAIResult, updateAiCache, computeRigSnapshot } from './ai-helpers.js';
+import { getLocalizedText, findSlotByUsageMatch, findCatalogEntryByUsages, findSlotByName, stripSlotPrefix, enrichAIResult, updateAiCache, computeRigSnapshot } from './ai-helpers.js';
 import { PRESET_CATALOG_MERGED } from '../../core/catalog.js';
 
 describe('getLocalizedText', () => {
@@ -1160,6 +1160,41 @@ describe('enrichAIResult — vague B (validation bass_recommendation)', () => {
     const out = enrichAIResult(aiResult, 'HB', null, emptyBanks, emptyBanks, undefined, null);
     expect(out.bass_recommendation).toBeNull();
     expect(out._bassFieldsValidated).toBeUndefined();
+  });
+
+  it('strippe le préfixe de position "40B " du capture_name et des bass_alternatives', () => {
+    const aiResult = {
+      ...baseGuitar(),
+      bass_recommendation: {
+        capture_name: '40B TSR - A-Peg Pro 4-Classic A 4x10',
+        cot_step2_basses: [],
+        bass_alternatives: [
+          { name: '40B TSR - A-Peg Pro 4-Classic A 4x10', amp: 'Ampeg SVT Pro 4', score: 95 },
+          { name: '41B TSR Basyman Bass 4x10', amp: 'Fender Bassman', score: 88 },
+        ],
+      },
+    };
+    const out = enrichAIResult(aiResult, 'HB', null, emptyBanks, emptyBanks, undefined, null);
+    expect(out.bass_recommendation.capture_name).toBe('TSR - A-Peg Pro 4-Classic A 4x10');
+    expect(out.bass_recommendation.bass_alternatives[0].name).toBe('TSR - A-Peg Pro 4-Classic A 4x10');
+    expect(out.bass_recommendation.bass_alternatives[1].name).toBe('TSR Basyman Bass 4x10');
+  });
+});
+
+describe('stripSlotPrefix — Phase 7.56 / vague B', () => {
+  it('retire le préfixe position + espace', () => {
+    expect(stripSlotPrefix('40B TSR Basyman Bass 4x10')).toBe('TSR Basyman Bass 4x10');
+    expect(stripSlotPrefix('9C HG MARK3')).toBe('HG MARK3');
+  });
+  it('retire le préfixe position puis les guillemets (cas "48A \\"...\\"")', () => {
+    expect(stripSlotPrefix('48A "Kirk & James"')).toBe('Kirk & James');
+  });
+  it('laisse intact un nom sans préfixe', () => {
+    expect(stripSlotPrefix('TSR GK MBS150')).toBe('TSR GK MBS150');
+  });
+  it('safe sur non-string', () => {
+    expect(stripSlotPrefix(null)).toBe(null);
+    expect(stripSlotPrefix(undefined)).toBe(undefined);
   });
 });
 

@@ -249,14 +249,23 @@ function computeBestPresets(gType, style, banksAnn, banksPlug, guitarId, refAmp,
 // 3. Whitespace
 // Avant Phase 7.56, ce match échouait → fallback scoring V9 →
 // Mac/iPhone pin Factory (HG MARK3) au lieu de la custom Galtone.
+// Strip un préfixe de position "48A " / "9C " (1-2 digits + A/B/C + espace) et
+// les guillemets entourants que Gemini colle parfois dans un nom de capture.
+// Réutilisé par findSlotByName, la validation bass (enrichAIResult) et l'UI
+// (SongDetailCard) — évite l'incohérence "40B ... · Non installé".
+function stripSlotPrefix(name) {
+  if (typeof name !== 'string') return name;
+  let s = name.trim();
+  // Ordre important : préfixe position d'abord, puis guillemets (cas "48A \"...\"" :
+  // le préfixe doit partir avant que la guillemet qui le suit devienne en tête).
+  s = s.replace(/^\s*\d{1,2}[ABC]\s+/i, '');
+  s = s.replace(/^["']/, '').replace(/["']$/, '');
+  return s.trim();
+}
+
 function findSlotByName(banks, name) {
   if (!banks || !name) return null;
-  let target = String(name).trim();
-  // Strip prefix position "48A " ou "9C " (1-2 digits + letter A/B/C, case-insensitive)
-  target = target.replace(/^\s*\d{1,2}[ABC]\s+/i, '');
-  // Strip enclosing quotes (simple ou double)
-  target = target.replace(/^["']/, '').replace(/["']$/, '');
-  target = target.trim().toLowerCase();
+  let target = stripSlotPrefix(String(name)).toLowerCase();
   if (!target) return null;
   for (const [k, v] of Object.entries(banks)) {
     for (const c of ['A', 'B', 'C']) {
@@ -661,6 +670,11 @@ function enrichAIResult(aiResult, gType, gId, banksAnn, banksPlug, availableSour
   // No-op si bass_recommendation null/absent (rétro-compat aiCache pré-vague-B).
   const br = aiResult.bass_recommendation;
   if (br && typeof br === 'object' && !aiResult._bassFieldsValidated) {
+    // Strip préfixe de position que Gemini colle parfois dans le nom de
+    // capture (ex. "40B TSR - A-Peg Pro 4..."). Sinon findInBanks ne matche
+    // pas le nom préfixé → "Non installé" affiché à côté d'un "40B" trompeur
+    // (incohérence rapportée). Helper module-level stripSlotPrefix (Phase 7.56).
+    if (typeof br.capture_name === 'string') br.capture_name = stripSlotPrefix(br.capture_name);
     if (br.bass_preset_settings_v1 !== undefined) {
       br.bass_preset_settings_v1 = clampPresetSettings(br.bass_preset_settings_v1);
     }
@@ -681,7 +695,7 @@ function enrichAIResult(aiResult, gType, gId, banksAnn, banksPlug, availableSour
       br.bass_alternatives = br.bass_alternatives
         .filter((a) => a && typeof a === 'object' && typeof a.name === 'string' && a.name.trim())
         .map((a) => ({
-          name: a.name,
+          name: stripSlotPrefix(a.name),
           amp: typeof a.amp === 'string' ? a.amp : undefined,
           score: Math.max(0, Math.min(100, Number(a.score) || 0)),
         }));
@@ -809,6 +823,7 @@ export {
   computeBestPresets,
   enrichAIResult,
   findSlotByName,
+  stripSlotPrefix,
   findSlotByUsageMatch,
   findCatalogEntryByUsages,
   mergeBestResults,

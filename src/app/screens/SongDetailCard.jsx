@@ -36,7 +36,7 @@ import { findBass } from '../../core/basses.js';
 import { findBassAmp } from '../../core/bass-amps.js';
 import {
   enrichAIResult, mergeBestResults, updateAiCache, computeRigSnapshot,
-  getBestResult, getLocalizedText,
+  getBestResult, getLocalizedText, stripSlotPrefix,
 } from '../utils/ai-helpers.js';
 import { findInBanks } from '../utils/preset-helpers.js';
 import { resolveDisplayGuitar, filterCotGuitarsToRig, localizePickup, decapitalizeFirst } from '../utils/display-guitar.js';
@@ -1114,7 +1114,12 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         // (sinon TDZ "Cannot access before initialization" au render — invisible
         // aux tests/build, runtime-only ; cf piège Phase 7.79.3b / docs/CASCADE.md).
         const cotBasses = Array.isArray(bassReco?.cot_step2_basses) ? bassReco.cot_step2_basses : [];
-        const bassAlts = Array.isArray(bassReco?.bass_alternatives) ? bassReco.bass_alternatives : [];
+        // stripSlotPrefix au render : couvre les aiCache déjà validés (flag
+        // _bassFieldsValidated posé avant l'ajout du strip) qui gardent un nom
+        // préfixé "40B ..." → sinon findInBanks rate + "Non installé" trompeur.
+        const bassAlts = (Array.isArray(bassReco?.bass_alternatives) ? bassReco.bass_alternatives : [])
+          .map((a) => ({ ...a, name: stripSlotPrefix(a.name) }));
+        const bassCaptureName = stripSlotPrefix(bassReco?.capture_name);
         const bassEq = bassReco?.bass_preset_settings_v1;
         const bassFx = bassReco?.bass_fx_blocks;
         // Style pill libellé coloré par bucket (mirror compatLabelStyle guitare).
@@ -1256,6 +1261,25 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                       )}
                     </div>
                   )}
+                  {/* Bloc "Sur ta ToneX" (capture installée) — placé AVANT Réglages
+                      EQ/effets basse car les 3 blocs sont liés à la ToneX (choix
+                      Sébastien 2026-05-28). Phase 8.8 : capture_name + bank/slot. */}
+                  {bassCaptureName && (() => {
+                    const locAnn = findInBanks(bassCaptureName, banksAnn);
+                    const locPlug = findInBanks(bassCaptureName, banksPlug);
+                    const loc = locAnn || locPlug;
+                    const deviceLabel = locAnn ? 'Anniversary/Pédale' : (locPlug ? 'Plug' : 'ToneX');
+                    return (
+                      <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+                        <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>
+                          {t('song-detail.bass-on-tonex', 'Sur ta ToneX')}
+                        </div>
+                        <div style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)' }}>
+                          {deviceLabel} {loc && <span style={{ fontFamily: 'var(--font-mono)', background: 'var(--accent-bg)', color: 'var(--accent)', padding: '1px 7px', borderRadius: 'var(--r-sm)', fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, marginLeft: 4 }}>Bank {loc.bank}{loc.slot}</span>} <span style={{ fontWeight: 600 }}>{bassCaptureName}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {/* Cadre Réglages EQ basse (bass_preset_settings_v1) — why + boutons PRESET.
                       Contrairement à la guitare (table chiffrée dropée S9.5 car redondante
                       avec la vue repliée), la basse n'a PAS de vue repliée → on affiche les
@@ -1281,24 +1305,6 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   {/* Cadre Réglages effets basse (bass_fx_blocks) — réutilise FxBlocksCadre */}
                   <FxBlocksCadre fxBlocks={bassFx} locale={locale} title={t('song-detail.bass-fx-settings', 'Réglages effets basse')}/>
                 </div>
-                {/* Phase 8.8 — Mode ToneX bass : capture_name + bank/slot */}
-                {bassReco?.capture_name && (() => {
-                  const captureName = bassReco.capture_name;
-                  const locAnn = findInBanks(captureName, banksAnn);
-                  const locPlug = findInBanks(captureName, banksPlug);
-                  const loc = locAnn || locPlug;
-                  const deviceLabel = locAnn ? 'Anniversary/Pédale' : (locPlug ? 'Plug' : 'ToneX');
-                  return (
-                    <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px', marginBottom: 6 }}>
-                      <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>
-                        {t('song-detail.bass-on-tonex', 'Sur ta ToneX')}
-                      </div>
-                      <div style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)' }}>
-                        {deviceLabel} {loc && <span style={{ fontFamily: 'var(--font-mono)', background: 'var(--accent-bg)', color: 'var(--accent)', padding: '1px 7px', borderRadius: 'var(--r-sm)', fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, marginLeft: 4 }}>Bank {loc.bank}{loc.col}</span>} <span style={{ fontWeight: 600 }}>{captureName}</span>
-                      </div>
-                    </div>
-                  );
-                })()}
                 {/* Mode ampli traditionnel : amp_settings 0-10 */}
                 {userBassAmps.length > 0 && hasAmpSettings && (
                   <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px', marginBottom: 6 }}>

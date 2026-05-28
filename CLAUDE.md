@@ -981,9 +981,28 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-28 jeudi, Étape 2 vague B — Symétrie scoring/EQ/FX basse + dropdowns homogénéisés + hotfix TDZ + UX cleanup CLOSE)
+## État actuel (2026-05-28 jeudi, Étape 2 vague B — Symétrie scoring/EQ/FX basse + dropdowns homogénéisés + fixes cohérence + UX cleanup CLOSE)
 
-**Backline v8.14.286 / SW backline-v386 / STATE_VERSION 13 / 1737 tests verts. Bundle 2621 KB.**
+**Backline v8.14.288 / SW backline-v388 / STATE_VERSION 13 / 1742 tests verts. Bundle 2621 KB.**
+
+### Fixes cohérence Scoring preset basse (v8.14.287 → 288)
+
+- **v8.14.287** — Retrait du ★ dans les options du dropdown guitare en mode
+  `plain` (le pill score à droite l'indique déjà ; RecapScreen legacy garde ★).
+- **v8.14.288** — 2 fixes Scoring preset basse :
+  1. **Strip préfixe position** : Gemini colle parfois "40B " dans le nom de
+     capture (`"40B TSR - A-Peg Pro 4..."`) → `findInBanks` ratait → "Non
+     installé" affiché à côté d'un "40B" trompeur (incohérence rapportée).
+     Helper module-level `stripSlotPrefix` (ai-helpers.js, factorisé depuis
+     `findSlotByName` Phase 7.56) appliqué dans `enrichAIResult` (données
+     canoniques) ET à l'affichage SongDetailCard (couvre les aiCache déjà
+     validés `_bassFieldsValidated` qui ne re-strippent pas). Bug `loc.col`
+     (undefined) → `loc.slot` corrigé au passage.
+  2. **Réordonnancement ToneX** : "Sur ta ToneX" (capture + bank/slot) remonté
+     AVANT Réglages EQ basse + Réglages effets basse — les 3 blocs liés à la
+     ToneX sont désormais groupés (Scoring basses → Scoring preset basse →
+     Sur ta ToneX → Réglages EQ → Réglages effets), amp_settings + jeu après.
+  - +5 tests (strip + stripSlotPrefix) → 1742 verts.
 
 ### Hotfix TDZ écran noir vue dépliée (v8.14.286)
 
