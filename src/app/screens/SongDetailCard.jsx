@@ -319,6 +319,34 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   // pour aligner verticalement quand icon est un SVG.
   const sectionTitle = (icon, label) => <div style={{ ...sectionTitleStyle(), marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>{icon}<span>{label}</span></div>;
 
+  // Scoring guitares — hoisté au scope composant (2026-05-28) pour être rendu
+  // sous le dropdown "Ma guitare" (lié au choix) ET réutilisé par l'IIFE
+  // Recommandations. cotInRig : cot_step2 filtré strict sur le rig actif
+  // (Phase 7.65.1). compatLabelStyle/cleanGuitarName : pills bucket-color.
+  const cotInRig = aiC ? filterCotGuitarsToRig(aiC.cot_step2_guitars, guitars) : [];
+  const compatLabelStyle = (score) => {
+    const b = bucketizeScore(score);
+    return { background: b.color, color: 'var(--text-inverse)', padding: '2px 8px', borderRadius: 'var(--r-sm)', fontWeight: 700, display: 'inline-block' };
+  };
+  const cleanGuitarName = (n) => (n || '').replace(/\s*\((?:HB|SC|P90)\)\s*$/i, '').trim();
+  // Cadre "Scoring guitares" réutilisable (rendu sous le dropdown).
+  const scoringGuitaresCadre = cotInRig.length > 0 ? (
+    <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+      <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-guitars', 'Scoring guitares')}</div>
+      <div className="reco-multicol">
+        {cotInRig.map((gt, i) => (
+          <div key={i}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(12px, 1.35vw, 14px)' }}>
+              <span style={{ ...compatLabelStyle(gt.score), flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{cleanGuitarName(gt.name)}</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(gt.score), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(11px, 1.25vw, 13px)' }}>{gt.score}%</span>
+            </div>
+            {gt.reason && <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.4 }}>{getLocalizedText(gt.reason, locale)}</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div className="song-row-detail" style={{ background: 'var(--bg-elev-1)', borderRadius: '0 0 12px 12px', padding: '10px 12px', marginBottom: 8, marginTop: -2, display: 'flex', flexDirection: 'column', gap: 6 }}>
 
@@ -376,6 +404,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
               );
             })()}
           </div>
+          {/* Scoring guitares — sous le dropdown (lié au choix de guitare),
+              déplacé depuis Recommandations guitare (2026-05-28). */}
+          {scoringGuitaresCadre}
           {g && chosenGuitarScore != null && (() => {
             const isIdeal = ig.includes(gId);
             if (isIdeal || ig.length === 0) return null;
@@ -418,13 +449,8 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 complet via setShowFeedback(true)). */}
           </div>
         </div>
-        {/* Rappel guitare choisie (utile si le sticky est scrollé hors vue
-            sur fiche longue). */}
-        {g && (
-          <div style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-muted)', marginBottom: 8, fontStyle: 'italic' }}>
-            {tFormat('song-detail.setup-on-guitar', { guitar: g.name }, 'Sur ta {guitar} :')}
-          </div>
-        )}
+        {/* Ligne "Sur ta {guitar} :" retirée (2026-05-28, retour Sébastien) —
+            redondante avec le dropdown + le Scoring guitares juste au-dessus. */}
         <div style={{ marginBottom: 8 }}>
           {/* S9.10 — Ligne "Compatibilité : X%" séparée retirée. Le score
               s'affiche désormais en pill à droite du GuitarSelect (cohérence
@@ -612,28 +638,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         // Phase 7.65.1 — Filtre strict cot_step2_guitars sur le rig actif
         // (Phase 3.6 union all-rigs au prompt peut amener des guitares
         // d'autres profils, ex. Bruno voyait Strat AM Vintage II 61 hors rig).
-        const cotInRig = filterCotGuitarsToRig(aiC.cot_step2_guitars, guitars);
-        // Phase 7.83 final2 (2026-05-27) — helpers pour encadrer les libellés
-        // guitare/preset avec la couleur du bucket de compatibilité (vert
-        // idéal / jaune bon / orange limite). Strip aussi le suffix
-        // "(HB)"/"(SC)"/"(P90)" que Gemini ajoute parfois dans
-        // cot_step2_guitars[i].name — info redondante avec le rig user
-        // qui connaît son matériel.
-        // Phase 7.83 final3 (2026-05-27) — style plein (pattern score pills)
-        // au lieu de pastel + bordure. User : "prends le même style que les
-        // scores par cohérence".
-        const compatLabelStyle = (score) => {
-          const b = bucketizeScore(score);
-          return {
-            background: b.color,
-            color: 'var(--text-inverse)',
-            padding: '2px 8px',
-            borderRadius: 'var(--r-sm)',
-            fontWeight: 700,
-            display: 'inline-block',
-          };
-        };
-        const cleanGuitarName = (n) => (n || '').replace(/\s*\((?:HB|SC|P90)\)\s*$/i, '').trim();
+        // cotInRig / compatLabelStyle / cleanGuitarName hoistés au scope
+        // composant (2026-05-28) — utilisés ici (Guitare idéale, Scoring
+        // preset) ET pour le cadre "Scoring guitares" déplacé sous le dropdown.
         return (
         <>
           {/* Phase 7.86 — Bloc 2 : 🎯 Recommandations IA. Fusion ancienne SECTION 2
@@ -730,24 +737,8 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   pour réutilisation guitare ↔ basse. */}
               <FxBlocksCadre fxBlocks={aiC.fx_blocks} locale={locale} title={t('song-detail.fx-settings-flat', 'Réglages effets')}/>
 
-              {/* SECTION 4 — Cadre Scoring guitares + Guitare idéale + guitar_reason (descendus) */}
-              {cotInRig.length > 0 && (
-                <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                  <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.cot-guitars', 'Scoring guitares')}</div>
-                  {/* Phase 7.83 final7 — grid 2 col max desktop (cf .reco-multicol) */}
-                  <div className="reco-multicol">
-                    {cotInRig.map((gt, i) => (
-                      <div key={i}>
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(12px, 1.35vw, 14px)' }}>
-                          <span style={{ ...compatLabelStyle(gt.score), flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{cleanGuitarName(gt.name)}</span>
-                          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(gt.score), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(11px, 1.25vw, 13px)' }}>{gt.score}%</span>
-                        </div>
-                        {gt.reason && <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.4 }}>{getLocalizedText(gt.reason, locale)}</div>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {/* Cadre "Scoring guitares" déplacé sous le dropdown "Ma guitare"
+                  (2026-05-28, lié au choix de guitare). Voir scoringGuitaresCadre. */}
               {/* Guitare idéale (cas family boost Phase 7.64 où idéale ≠ top scoring) */}
               {displayIdealGuitarName && (() => {
                 const stripTypeSuffix = (s) => (s || '').trim().toLowerCase().replace(/\s*\([^)]*\)\s*$/, '').trim();
@@ -1208,6 +1199,24 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                     : t('song-detail.bass-no-rig', 'Aucune basse cochée — active "Je joue aussi la basse" dans Mon profil → Mes basses.')}
                 </div>
               )}
+              {/* Scoring basses — sous le dropdown (lié au choix), déplacé depuis
+                  Recommandations basse (2026-05-28, mirror de la guitare). */}
+              {cotBasses.length > 0 && (
+                <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px', marginTop: 8 }}>
+                  <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.bass-cot', 'Scoring basses')}</div>
+                  <div className="reco-multicol">
+                    {cotBasses.map((bt, i) => (
+                      <div key={i}>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(12px, 1.35vw, 14px)' }}>
+                          <span style={{ ...bassCompatStyle(bt.score), flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{bt.name}</span>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(bt.score), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(11px, 1.25vw, 13px)' }}>{bt.score}%</span>
+                        </div>
+                        {bt.reason && <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.4 }}>{getLocalizedText(bt.reason, locale)}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {/* Vague A bass restructure (2026-05-28) — Référence originale
                   bass historique déplacée dans 'Infos morceau' bas de page,
                   pour symétrie avec la référence guitariste qui y est déjà. */}
@@ -1222,25 +1231,9 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   </div>
                 )}
                 {/* Vague B — Cadres symétriques au bloc guitare. Chacun gated par
-                    présence du champ (rétro-compat aiCache pré-vague-B). */}
+                    présence du champ (rétro-compat aiCache pré-vague-B).
+                    Scoring basses déplacé sous le dropdown "Ma basse" (2026-05-28). */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
-                  {/* Cadre Scoring basses (cot_step2_basses, mirror Scoring guitares) */}
-                  {cotBasses.length > 0 && (
-                    <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                      <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.bass-cot', 'Scoring basses')}</div>
-                      <div className="reco-multicol">
-                        {cotBasses.map((bt, i) => (
-                          <div key={i}>
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(12px, 1.35vw, 14px)' }}>
-                              <span style={{ ...bassCompatStyle(bt.score), flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{bt.name}</span>
-                              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(bt.score), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(11px, 1.25vw, 13px)' }}>{bt.score}%</span>
-                            </div>
-                            {bt.reason && <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.4 }}>{getLocalizedText(bt.reason, locale)}</div>}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                   {/* Cadre Scoring preset basse (bass_alternatives, mirror Scoring preset) */}
                   {bassAlts.length > 0 && getActiveDevicesForRender(profile).some((d) => d.deviceKey === 'ann' || d.deviceKey === 'plug') && (
                     <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>

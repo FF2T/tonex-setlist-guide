@@ -981,9 +981,26 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-28 jeudi, Phase A — amplis guitare traditionnels + symétrie titres)
+## État actuel (2026-05-28 jeudi, Phase A — amplis guitare + Scoring sous dropdown)
 
-**Backline v8.14.290 / SW backline-v390 / STATE_VERSION 13 / 1754 tests verts. Bundle 2637 KB.**
+**Backline v8.14.291 / SW backline-v391 / STATE_VERSION 13 / 1754 tests verts. Bundle 2637 KB.**
+
+### Reorg vue dépliée — Scoring sous le dropdown (v8.14.291)
+
+Retour Sébastien : le Scoring est lié au choix d'instrument → le rapprocher
+du sélecteur.
+- **"Scoring guitares"** déplacé de la section "Recommandations guitare" vers
+  "Ma guitare", juste sous la liste déroulante de choix de guitare. Helpers
+  `cotInRig`/`compatLabelStyle`/`cleanGuitarName` + `scoringGuitaresCadre`
+  hoistés au scope composant (réutilisés par les 2 sections).
+- **"Scoring basses"** déplacé symétriquement sous le dropdown "Ma basse".
+- Ligne "Sur ta {guitar} :" (rappel sous le bloc Sortie) **retirée**
+  (redondante avec dropdown + Scoring juste au-dessus).
+- Pas de bump STATE_VERSION (UI pure). 1754 tests verts.
+
+**Note versioning** : décision V9.0.0 (jalon multi-instrument) en attente du
+choix Sébastien — APP_VERSION est purement un libellé d'affichage (aucun
+parsing, STATE_VERSION séparé à 13), bump safe quand validé.
 
 ### Phase A — Symétrie titres + amplis guitare traditionnels custom (v8.14.290)
 
