@@ -35,6 +35,7 @@ import { getIg, getSongHist, getSongBassHist } from '../utils/song-helpers.js';
 import { findBass } from '../../core/basses.js';
 import { findBassAmp } from '../../core/bass-amps.js';
 import { findGuitarAmp } from '../../core/guitar-amps.js';
+import { findPedal } from '../../core/pedals.js';
 import { getEffectivePlayContext, getAvailableRigs } from '../../core/state.js';
 import {
   enrichAIResult, mergeBestResults, updateAiCache, computeRigSnapshot,
@@ -243,7 +244,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
     // Phase 3.6). findGuitarByAIName ligne suivante garde allRigsGuitars
     // en fallback pour résoudre les aiCache historiques pré-Phase 7.66
     // qui contiennent un ideal_guitar hors rig actif.
-    fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, historicalFeedback, null, effectiveRecoMode, guitarBias, song.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || [], (profile?.myBasses || []).map((id) => findBass(id)).filter(Boolean), (profile?.myBassAmps || []).map((id) => findBassAmp(id)).filter(Boolean), (profile?.myGuitarAmps || []).map((id) => findGuitarAmp(id)).filter(Boolean))
+    fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, historicalFeedback, null, effectiveRecoMode, guitarBias, song.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || [], (profile?.myBasses || []).map((id) => findBass(id)).filter(Boolean), (profile?.myBassAmps || []).map((id) => findBassAmp(id)).filter(Boolean), (profile?.myGuitarAmps || []).map((id) => findGuitarAmp(id)).filter(Boolean), (profile?.myPedals || []).map((id) => findPedal(id)).filter(Boolean))
       .then((r) => {
         setLocalAiResult(r);
         setLocalAiErr(null);
@@ -1014,6 +1015,34 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   </div>
                 );
               })()}
+              {/* Phase C — Cadre "Sur ton pédalier" : pédales à activer +
+                  réglages, gated rig = Ampli + pédales cochées + reco IA. */}
+              {playCtx.rig === 'amp' && (profile?.myPedals?.length > 0) && Array.isArray(aiC.pedalboard_settings) && aiC.pedalboard_settings.length > 0 && (
+                <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+                  <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <NavIcon id="sliders" size={14}/>{t('song-detail.pedalboard-block', 'Sur ton pédalier')}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {aiC.pedalboard_settings.map((p, i) => {
+                      const whyTxt = p.why ? getLocalizedText(p.why, locale) : null;
+                      const entries = p.settings && typeof p.settings === 'object' ? Object.entries(p.settings) : [];
+                      return (
+                        <div key={i}>
+                          <div style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', fontWeight: 600, color: 'var(--text)' }}>{p.pedal}</div>
+                          {entries.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
+                              {entries.map(([k, v]) => (
+                                <span key={k}><b style={{ color: 'var(--text-muted)' }}>{k.replace(/_/g, ' ')}</b> {v}</span>
+                              ))}
+                            </div>
+                          )}
+                          {whyTxt && <div className="prose-readable" style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.4, fontStyle: 'italic' }}>{whyTxt}</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </>
@@ -1110,7 +1139,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   setReloading(true);
                   const prev = aiC;
                   const effectiveRecoMode = song.recoMode || profile?.recoMode || 'balanced';
-                  fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, fb, null, effectiveRecoMode, guitarBias, song.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || [], (profile?.myBasses || []).map((id) => findBass(id)).filter(Boolean), (profile?.myBassAmps || []).map((id) => findBassAmp(id)).filter(Boolean), (profile?.myGuitarAmps || []).map((id) => findGuitarAmp(id)).filter(Boolean))
+                  fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, fb, null, effectiveRecoMode, guitarBias, song.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || [], (profile?.myBasses || []).map((id) => findBass(id)).filter(Boolean), (profile?.myBassAmps || []).map((id) => findBassAmp(id)).filter(Boolean), (profile?.myGuitarAmps || []).map((id) => findGuitarAmp(id)).filter(Boolean), (profile?.myPedals || []).map((id) => findPedal(id)).filter(Boolean))
                     .then((r) => {
                       const pick = mergeBestResults(prev, r);
                       setLocalAiResult(pick);

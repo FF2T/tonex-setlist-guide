@@ -25,6 +25,8 @@ import { SOURCE_LABELS, SOURCE_DESCRIPTIONS, SOURCE_INFO, SOURCE_REQUIRES_DEVICE
 import { FACTORY_BANKS_PEDALE_V1 } from '../../devices/tonex-pedal/index.js';
 import GuitarSearchAdd from '../components/GuitarSearchAdd.jsx';
 import AmpSearchAdd from '../components/AmpSearchAdd.jsx';
+import PedalSearchAdd from '../components/PedalSearchAdd.jsx';
+import { PEDALS, PEDAL_BRANDS } from '../../core/pedals.js';
 import { resizeImageToDataUrl } from '../utils/image-resize.js';
 import { inferBrand, BRAND_KEYWORDS } from '../utils/infer-brand.js';
 import defaultGuitarSvg from '../../assets/default.svg';
@@ -130,6 +132,20 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
   const removeCustomGuitarAmp = (id) => {
     updateProfile('customGuitarAmps', (prev) => (prev || []).filter((a) => a.id !== id));
     updateProfile('myGuitarAmps', (prev) => (prev || []).filter((x) => x !== id));
+  };
+  // Phase C — pédales (mirror amplis).
+  const togglePedal = (id) => {
+    updateProfile('myPedals', (prev) => (prev || []).includes(id) ? prev.filter((x) => x !== id) : [...(prev || []), id]);
+  };
+  const addCustomPedal = (pedal) => {
+    if (!pedal || !pedal.name) return;
+    const cp = { id: `cped_${Date.now()}`, ...pedal };
+    updateProfile('customPedals', (prev) => [...(prev || []), cp]);
+    updateProfile('myPedals', (prev) => [...(prev || []), cp.id]);
+  };
+  const removeCustomPedal = (id) => {
+    updateProfile('customPedals', (prev) => (prev || []).filter((p) => p.id !== id));
+    updateProfile('myPedals', (prev) => (prev || []).filter((x) => x !== id));
   };
   const addCustomGuitar = (cg) => {
     onCustomGuitars((prev) => [...(prev || []), cg]);
@@ -512,6 +528,54 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
             <AmpSearchAdd inp={inp} aiKeys={aiKeys} instrument="bass" disabled={isDemo} onAdd={(amp) => { if (!isDemo) addCustomBassAmp(amp); }}/>
           </div>
         )}
+
+        {/* Phase C — Pédales d'effet physiques (pédalier). */}
+        <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--a8)' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4, display: 'inline-flex', alignItems: 'center', gap: 6 }}><NavIcon id="sliders" size={15}/>{t('profile-tab.my-pedals', 'Mes pédales')}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>{t('profile-tab.my-pedals-hint', 'Coche les pédales d\'effet physiques de ton pédalier. Backline proposera lesquelles activer + leurs réglages par morceau quand tu joues sur ampli.')}</div>
+          {PEDAL_BRANDS.map((brand) => {
+            const brandPedals = PEDALS.filter((p) => p.brand === brand);
+            if (brandPedals.length === 0) return null;
+            return (
+              <div key={brand} style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{brand}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {brandPedals.map((p) => {
+                    const sel = (profile.myPedals || []).includes(p.id);
+                    return (
+                      <div key={p.id} onClick={() => { if (!isDemo) togglePedal(p.id); }} title={demoTitle} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: sel ? 'var(--accent-soft)' : 'var(--a3)', border: sel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '8px 12px', cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.6 : 1 }}>
+                        <div style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: sel ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: sel ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{sel && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{p.short} <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400 }}>· {t(`pedal-type.${p.type}`, p.type)}</span></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+          {(profile?.customPedals || []).length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('profile-tab.custom-pedals-section', 'Mes pédales custom')}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {(profile.customPedals || []).map((p) => {
+                  const sel = (profile.myPedals || []).includes(p.id);
+                  return (
+                    <div key={p.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: sel ? 'var(--accent-soft)' : 'var(--a3)', border: sel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '8px 12px' }}>
+                      <div onClick={() => { if (!isDemo) togglePedal(p.id); }} title={demoTitle} style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: sel ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: sel ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, cursor: isDemo ? 'not-allowed' : 'pointer' }}>{sel && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
+                      <div style={{ flex: 1, minWidth: 0, cursor: isDemo ? 'not-allowed' : 'pointer' }} onClick={() => { if (!isDemo) togglePedal(p.id); }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{p.short || p.name} <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400 }}>· {p.brand} · {t(`pedal-type.${p.type}`, p.type)}</span></div>
+                      </div>
+                      <button onClick={() => { if (!isDemo) removeCustomPedal(p.id); }} disabled={isDemo} title={demoTitle} style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: isDemo ? 'not-allowed' : 'pointer', fontSize: 12, padding: '2px 4px', minHeight: 28, minWidth: 28, opacity: isDemo ? 0.5 : 1 }}>✕</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <PedalSearchAdd inp={inp} aiKeys={aiKeys} disabled={isDemo} onAdd={(pedal) => { if (!isDemo) addCustomPedal(pedal); }}/>
+        </div>
       </div>}
 
       {s === 'sources' && <div style={{ background: 'var(--a4)', border: '1px solid var(--a8)', borderRadius: 'var(--r-lg)', padding: 16, marginBottom: 16 }}>

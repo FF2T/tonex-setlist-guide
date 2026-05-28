@@ -723,6 +723,25 @@ function enrichAIResult(aiResult, gType, gId, banksAnn, banksPlug, availableSour
     aiResult._guitarAmpValidated = true;
   }
 
+  // Phase C — Validation pedalboard_settings (tableau de pédales activées +
+  // réglages 0-10). Clamp settings, drop entrées sans `pedal`. Idempotent.
+  if (Array.isArray(aiResult.pedalboard_settings) && !aiResult._pedalboardValidated) {
+    aiResult.pedalboard_settings = aiResult.pedalboard_settings
+      .filter((p) => p && typeof p === 'object' && typeof p.pedal === 'string' && p.pedal.trim())
+      .map((p) => {
+        const clean = {};
+        if (p.settings && typeof p.settings === 'object') {
+          for (const [k, v] of Object.entries(p.settings)) {
+            const n = Number(v);
+            if (!Number.isFinite(n)) continue;
+            clean[k] = Math.max(0, Math.min(10, n));
+          }
+        }
+        return { ...p, settings: clean };
+      });
+    aiResult._pedalboardValidated = true;
+  }
+
   return aiResult;
 }
 
@@ -869,6 +888,39 @@ function sanitizeAmpSuggestion(raw, instrument) {
   };
 }
 
+// Phase C — Valide / normalise la sortie IA pour l'ajout d'une pédale d'effet
+// custom (mirror sanitizeAmpSuggestion). Retourne un objet pédale prêt à
+// stocker dans profile.customPedals (SANS id). null si pas de nom.
+// - type : validé contre la liste fournie (fallback 'drive').
+// - knobs : snake_case lowercase dédupliqués cap 6.
+// - refs : objet trilingue {fr,en,es}.
+function sanitizePedalSuggestion(raw, pedalTypes) {
+  if (!raw || typeof raw !== 'object') return null;
+  const name = typeof raw.name === 'string' ? raw.name.trim() : '';
+  if (!name) return null;
+  const brand = (typeof raw.brand === 'string' && raw.brand.trim()) ? raw.brand.trim() : 'Custom';
+  const types = Array.isArray(pedalTypes) && pedalTypes.length ? pedalTypes : ['drive'];
+  let type = typeof raw.type === 'string' ? raw.type.trim().toLowerCase() : '';
+  if (!types.includes(type)) type = types.includes('drive') ? 'drive' : types[0];
+  const knobsRaw = Array.isArray(raw.knobs)
+    ? raw.knobs.filter((x) => typeof x === 'string' && x.trim())
+      .map((x) => x.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''))
+      .filter(Boolean)
+    : [];
+  const knobs = [...new Set(knobsRaw)].slice(0, 6);
+  const refs = (raw.refs && typeof raw.refs === 'object')
+    ? { fr: String(raw.refs.fr || ''), en: String(raw.refs.en || ''), es: String(raw.refs.es || '') }
+    : { fr: '', en: '', es: '' };
+  return {
+    name,
+    short: name.length > 20 ? name.slice(0, 18) + '…' : name,
+    brand,
+    type,
+    knobs: knobs.length ? knobs : ['level'],
+    refs,
+  };
+}
+
 function safeParseJSON(t) {
   let s = t.replace(/```json|```/g, '').trim();
   try { return JSON.parse(s); } catch (e) {
@@ -896,6 +948,7 @@ export {
   findSlotByName,
   stripSlotPrefix,
   sanitizeAmpSuggestion,
+  sanitizePedalSuggestion,
   findSlotByUsageMatch,
   findCatalogEntryByUsages,
   mergeBestResults,

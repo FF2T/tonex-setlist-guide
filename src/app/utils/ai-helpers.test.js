@@ -7,7 +7,7 @@
 // - inputs falsy/edge cases
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { getLocalizedText, findSlotByUsageMatch, findCatalogEntryByUsages, findSlotByName, stripSlotPrefix, sanitizeAmpSuggestion, enrichAIResult, updateAiCache, computeRigSnapshot } from './ai-helpers.js';
+import { getLocalizedText, findSlotByUsageMatch, findCatalogEntryByUsages, findSlotByName, stripSlotPrefix, sanitizeAmpSuggestion, sanitizePedalSuggestion, enrichAIResult, updateAiCache, computeRigSnapshot } from './ai-helpers.js';
 import { PRESET_CATALOG_MERGED } from '../../core/catalog.js';
 
 describe('getLocalizedText', () => {
@@ -1320,6 +1320,58 @@ describe('sanitizeAmpSuggestion — Phase B.1 (ajout ampli custom via IA)', () =
     expect(out.knobs).toEqual(['gain']);
     expect(out.channels).toEqual(['Clean']);
     expect(out.features).toEqual(['Reverb']);
+  });
+});
+
+describe('sanitizePedalSuggestion — Phase C (ajout pédale custom via IA)', () => {
+  const TYPES = ['drive', 'overdrive', 'distortion', 'fuzz', 'boost', 'compressor', 'chorus', 'delay', 'reverb', 'wah'];
+
+  it('enrichit une pédale complète (type validé, knobs snake_case)', () => {
+    const out = sanitizePedalSuggestion({
+      name: 'Ibanez Tube Screamer TS9', brand: 'Ibanez', type: 'overdrive',
+      knobs: ['Drive', 'Tone', 'Level'],
+      refs: { fr: 'SRV', en: 'SRV', es: 'SRV' },
+    }, TYPES);
+    expect(out.name).toBe('Ibanez Tube Screamer TS9');
+    expect(out.brand).toBe('Ibanez');
+    expect(out.type).toBe('overdrive');
+    expect(out.knobs).toEqual(['drive', 'tone', 'level']);
+    expect(out.refs.fr).toBe('SRV');
+  });
+
+  it('type hors liste → fallback drive', () => {
+    expect(sanitizePedalSuggestion({ name: 'X', type: 'looper' }, TYPES).type).toBe('drive');
+    expect(sanitizePedalSuggestion({ name: 'X' }, TYPES).type).toBe('drive');
+  });
+
+  it('type valide insensible à la casse', () => {
+    expect(sanitizePedalSuggestion({ name: 'X', type: 'FUZZ' }, TYPES).type).toBe('fuzz');
+  });
+
+  it('knobs dédupliqués + cap 6', () => {
+    const out = sanitizePedalSuggestion({ name: 'X', knobs: ['a', 'a', 'b', 'c', 'd', 'e', 'f', 'g'] }, TYPES);
+    expect(out.knobs.length).toBeLessThanOrEqual(6);
+    expect(out.knobs.filter((k) => k === 'a').length).toBe(1);
+  });
+
+  it('fallback knobs [level] si absents', () => {
+    expect(sanitizePedalSuggestion({ name: 'X' }, TYPES).knobs).toEqual(['level']);
+  });
+
+  it('brand absent → Custom ; refs partiel → trilingue complet', () => {
+    const out = sanitizePedalSuggestion({ name: 'X', refs: { fr: 'A' } }, TYPES);
+    expect(out.brand).toBe('Custom');
+    expect(out.refs).toEqual({ fr: 'A', en: '', es: '' });
+  });
+
+  it('null-safe : raw invalide ou sans nom → null', () => {
+    expect(sanitizePedalSuggestion(null, TYPES)).toBe(null);
+    expect(sanitizePedalSuggestion({}, TYPES)).toBe(null);
+    expect(sanitizePedalSuggestion({ name: '  ' }, TYPES)).toBe(null);
+  });
+
+  it('pedalTypes vide → fallback drive sûr', () => {
+    expect(sanitizePedalSuggestion({ name: 'X', type: 'fuzz' }, []).type).toBe('drive');
   });
 });
 

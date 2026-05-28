@@ -1640,6 +1640,9 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
       // Phase B — contexte de jeu (instrument × rig).
       playInstrument: 'guitar',
       playRig: 'tonex',
+      // Phase C — pédalier physique.
+      myPedals: [],
+      customPedals: [],
       language: fallbackLang,
       isDemo: false,
     };
@@ -1684,6 +1687,9 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
     // Phase B — contexte de jeu (instrument × rig).
     playInstrument: 'guitar',
     playRig: 'tonex',
+    // Phase C — pédalier physique.
+    myPedals: [],
+    customPedals: [],
     language: fallbackLang,
     isDemo: false,
   };

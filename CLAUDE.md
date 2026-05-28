@@ -981,9 +981,45 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-28 jeudi, V9.2.0 — Réorg 6 onglets Mon Profil : instrument vs matériel, analogique vs numérique)
+## État actuel (2026-05-28 jeudi, V9.3.0 — Phase C : pédalier physique + reco "Sur ton pédalier")
 
-**Backline v9.2.0 / SW backline-v396 / STATE_VERSION 13 / 1782 tests verts. Bundle 2643 KB.**
+**Backline v9.3.0 / SW backline-v397 / STATE_VERSION 13 / 1799 tests verts. Bundle 2672 KB.**
+
+### v9.3.0 — Phase C : pédalier physique (STEP 2) (2026-05-28)
+
+Dernière phase du chantier rig multi-instrument. L'utilisateur déclare ses
+pédales d'effet physiques (catalogue + ajout custom enrichi IA, comme les
+amplis B.1), et l'IA recommande lesquelles activer + leurs réglages 0-10 par
+morceau quand il joue sur ampli (rig = Ampli).
+
+- **`core/pedals.js`** (nouveau) : `PEDAL_TYPES` (17 types) + `PEDALS`
+  (17 pédales iconiques `{id, name, short, brand, type, knobs, refs}` :
+  Tube Screamer, Klon, Big Muff, Rat, DS-1, Fuzz Face, CE-2, Phase 90,
+  Carbon Copy, DD-3, Holy Grail, Dyna Comp, Cry Baby, POG…) + `PEDAL_BRANDS`
+  + `findPedal` (lit `window.__allPedals`). +`pedals.test.js`.
+- **`profile.myPedals` + `customPedals`** (défauts `[]`, makeDefaultProfile,
+  additif — pas de bump STATE_VERSION).
+- **`sanitizePedalSuggestion`** (`ai-helpers.js`) : valide la sortie IA (type
+  ∈ PEDAL_TYPES fallback drive, knobs snake_case cap 6, refs trilingue). +tests.
+- **`PedalSearchAdd.jsx`** (mirror AmpSearchAdd) : recherche IA Gemini +
+  fallback manuel (dropdown type). Bloc "Mes pédales" dans l'onglet "Mes
+  amplis & pédales" (catalogue par marque + customs + ajout IA).
+- **`fetchAI`** : 17e param `pedals` + `pedalboardContextLine` (injecte
+  "PÉDALIER PHYSIQUE DISPONIBLE" + demande `pedalboard_settings: [{pedal,
+  enabled, settings:{<potard>:0-10}, why trilingue}]`). `enrichAIResult`
+  valide (clamp 0-10, drop sans `pedal`, flag `_pedalboardValidated`).
+- **SongDetailCard** : cadre **"Sur ton pédalier"** (NavIcon `sliders`), gated
+  `playCtx.rig === 'amp'` + `myPedals` non vide + `pedalboard_settings` non
+  vide, rendu après "Sur ton ampli". 2 call sites fetchAI passent `pedals`.
+- **main.jsx** : `window.__allPedals` useEffect + profileHash += myPedals/
+  customPedals. i18n EN/ES (`pedal-add.*`, `song-detail.pedalboard-block`,
+  `profile-tab.my-pedals*`). +17 tests → 1799. Zéro emoji (NavIcon flat).
+
+Chantier rig multi-instrument (A→B→C) **complet** : symétrie titres + amplis
+trad (A) → contexte de jeu instrument×rig + filtrage (B) → ampli custom IA
+(B.1) → réorg 6 onglets (9.2.0) → pédalier (C, 9.3.0).
+
+### v9.2.0 — Réorg onglets Mon Profil (STEP 1 du chantier pédalier) (2026-05-28)
 
 ### v9.2.0 — Réorg onglets Mon Profil (STEP 1 du chantier pédalier) (2026-05-28)
 
