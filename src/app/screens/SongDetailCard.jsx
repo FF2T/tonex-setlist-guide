@@ -1109,6 +1109,19 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         const bassReason = bassReco?.bass_reason
           ? getLocalizedText(bassReco.bass_reason, locale)
           : null;
+        // Vague B — champs scoring/EQ/FX basse (symétrie bloc guitare).
+        // ⚠ Déclarés AVANT effectiveBassId/selectedBassScore qui les consomment
+        // (sinon TDZ "Cannot access before initialization" au render — invisible
+        // aux tests/build, runtime-only ; cf piège Phase 7.79.3b / docs/CASCADE.md).
+        const cotBasses = Array.isArray(bassReco?.cot_step2_basses) ? bassReco.cot_step2_basses : [];
+        const bassAlts = Array.isArray(bassReco?.bass_alternatives) ? bassReco.bass_alternatives : [];
+        const bassEq = bassReco?.bass_preset_settings_v1;
+        const bassFx = bassReco?.bass_fx_blocks;
+        // Style pill libellé coloré par bucket (mirror compatLabelStyle guitare).
+        const bassCompatStyle = (score) => {
+          const b = bucketizeScore(score);
+          return { background: b.color, color: 'var(--text-inverse)', padding: '2px 8px', borderRadius: 'var(--r-sm)', fontWeight: 700, display: 'inline-block' };
+        };
         // Vague A bass restructure (2026-05-27) — basse idéale élue :
         // priorité au choix user (selectedBassId, persisté setlist.basses),
         // sinon basse idéale IA si elle matche le rig, sinon 1ère basse cochée.
@@ -1132,16 +1145,6 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         const handleBassChange = (v) => {
           setSelectedBassId(v);
           if (onBassChange) onBassChange(song.id, v);
-        };
-        // Vague B — champs scoring/EQ/FX basse (symétrie bloc guitare).
-        const cotBasses = Array.isArray(bassReco?.cot_step2_basses) ? bassReco.cot_step2_basses : [];
-        const bassAlts = Array.isArray(bassReco?.bass_alternatives) ? bassReco.bass_alternatives : [];
-        const bassEq = bassReco?.bass_preset_settings_v1;
-        const bassFx = bassReco?.bass_fx_blocks;
-        // Style pill libellé coloré par bucket (mirror compatLabelStyle guitare).
-        const bassCompatStyle = (score) => {
-          const b = bucketizeScore(score);
-          return { background: b.color, color: 'var(--text-inverse)', padding: '2px 8px', borderRadius: 'var(--r-sm)', fontWeight: 700, display: 'inline-block' };
         };
         return (
           <>
