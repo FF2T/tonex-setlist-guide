@@ -10,6 +10,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { t, tFormat } from '../../i18n/index.js';
 import { isTrusted, setTrusted } from '../../core/state.js';
 import { APP_NAME } from '../../core/branding.js';
+import BacklineIcon from '../components/BacklineIcon.jsx';
 import { profileColor } from '../components/profile-color.js';
 import { verifyPassword, hashPassword, isPasswordLegacy } from '../../core/crypto-utils.js';
 
@@ -65,7 +66,7 @@ function ProfilePickerScreen({ profiles, onPick, appVersion, onUpgradePassword, 
   };
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', padding: 20 }}>
-      <div style={{ fontSize: 32, marginBottom: 8 }}>🎸</div>
+      <div style={{ marginBottom: 8, color: 'var(--brass-300)' }}><BacklineIcon size={36}/></div>
       <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-xl)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>{APP_NAME}</div>
       <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 32 }}>{trustedProfiles.length > 0 ? t('picker.who-plays', "Qui joue aujourd'hui ?") : t('picker.login', 'Connexion')}</div>
       {typeof onDemoEnter === 'function' && <button
@@ -85,7 +86,7 @@ function ProfilePickerScreen({ profiles, onPick, appVersion, onUpgradePassword, 
           gap: 14,
         }}
       >
-        <div style={{ fontSize: 28, flexShrink: 0 }}>🎸</div>
+        <div style={{ flexShrink: 0, color: 'var(--tolex-900)', display: 'inline-flex' }}><BacklineIcon size={28} color="var(--tolex-900)"/></div>
         <div style={{ flex: 1, color: 'var(--tolex-900)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
             <span style={{ fontSize: 14, fontWeight: 800 }}>{t('demo.card-title', 'Mode démo · Découvrir Backline')}</span>

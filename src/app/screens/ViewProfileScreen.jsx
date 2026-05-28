@@ -15,6 +15,7 @@ import { t, tFormat } from '../../i18n/index.js';
 import { GUITARS } from '../../core/guitars.js';
 import { CC } from '../utils/ui-constants.js';
 import Breadcrumb from '../components/Breadcrumb.jsx';
+import NavIcon from '../components/NavIcon.jsx';
 
 function ViewProfileScreen({ profile, onBack, onNavigate }) {
   if (!profile) return null;
@@ -29,7 +30,7 @@ function ViewProfileScreen({ profile, onBack, onNavigate }) {
   return (
     <div>
       <Breadcrumb crumbs={[{ label: t('common.home', 'Accueil'), screen: 'list' }, { label: tFormat('view-profile.breadcrumb', { name: profile.name }, 'Config de {name}') }]} onNavigate={onNavigate}/>
-      <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>👁 {profile.name}</div>
+      <div style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}><NavIcon id="eye" size={18}/>{profile.name}</div>
       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>{t('view-profile.read-only', 'Configuration en lecture seule')}</div>
 
       {/* Matériel */}

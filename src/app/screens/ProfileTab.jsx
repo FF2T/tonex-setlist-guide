@@ -15,6 +15,7 @@
 
 import React, { useState } from 'react';
 import { t } from '../../i18n/index.js';
+import NavIcon from '../components/NavIcon.jsx';
 import { GUITARS, GUITAR_BRANDS } from '../../core/guitars.js';
 import { BASSES, BASS_BRANDS } from '../../core/basses.js';
 import { BASS_AMPS, BASS_AMP_BRANDS } from '../../core/bass-amps.js';
@@ -233,7 +234,7 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                             le short ("Strat AVII 61") devient secondaire. */}
                         <div style={{ flex: 1 }}><span style={{ fontSize: 12, fontWeight: 600, color: sel ? 'var(--text)' : 'var(--text-muted)' }}>{display.name}</span><span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 6 }}>{display.short}</span>{isEdited && <span style={{ fontSize: 9, color: 'var(--copper-400)', marginLeft: 4 }}>{t('profile-tab.modified', 'modifié')}</span>}</div>
                         <span style={{ fontSize: 10, color: 'var(--text-dim)', marginRight: 4 }}>{display.type}</span>
-                        {sel && <button onClick={(e) => { e.stopPropagation(); if (!isDemo) startEditGuitar(display, false); }} disabled={isDemo} title={demoTitle} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '3px 7px', fontSize: 10, cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.5 : 1 }}>✏️</button>}
+                        {sel && <button onClick={(e) => { e.stopPropagation(); if (!isDemo) startEditGuitar(display, false); }} disabled={isDemo} title={demoTitle} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '3px 7px', fontSize: 10, cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.5 : 1, display: 'inline-flex', alignItems: 'center' }}><NavIcon id="pen" size={12}/></button>}
                       </div>
                       {isEditing && <div style={{ background: 'var(--a5)', borderRadius: '0 0 8px 8px', padding: '10px 12px', marginTop: -1, border: '1px solid var(--a8)', borderTop: 'none' }} onClick={(e) => e.stopPropagation()}>
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
@@ -260,7 +261,7 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                         {/* Phase 7.67 — Édition custom guitars ouverte aux non-admins.
                             Les customGuitars sont per-profile (profile.customGuitars),
                             donc pas de risque cross-profil. */}
-                        {sel && <button onClick={(e) => { e.stopPropagation(); if (!isDemo) startEditGuitar(g, true); }} disabled={isDemo} title={demoTitle} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '3px 7px', fontSize: 10, cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.5 : 1 }}>✏️</button>}
+                        {sel && <button onClick={(e) => { e.stopPropagation(); if (!isDemo) startEditGuitar(g, true); }} disabled={isDemo} title={demoTitle} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '3px 7px', fontSize: 10, cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.5 : 1, display: 'inline-flex', alignItems: 'center' }}><NavIcon id="pen" size={12}/></button>}
                         <button onClick={(e) => { e.stopPropagation(); if (!isDemo) removeCustomGuitar(g.id); }} disabled={isDemo} title={demoTitle} style={{ background: 'none', border: 'none', color: 'var(--red)', cursor: isDemo ? 'not-allowed' : 'pointer', fontSize: 11, padding: '2px 4px', opacity: isDemo ? 0.5 : 1 }}>✕</button>
                       </div>
                       {isEditing && <div style={{ background: 'var(--a5)', borderRadius: '0 0 8px 8px', padding: '10px 12px', marginTop: -1, border: '1px solid var(--a8)', borderTop: 'none' }}>
@@ -278,7 +279,7 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                           <img src={editGImage || defaultGuitarSvg} alt="" style={{ width: 48, height: 36, objectFit: 'contain', border: '1px solid var(--a8)', borderRadius: 'var(--r-sm)', background: 'var(--a3)', padding: 2, opacity: editGImage ? 1 : 0.5, color: 'var(--text-muted)' }}/>
                           <label style={{ background: 'var(--a7)', color: 'var(--text-sec)', borderRadius: 'var(--r-sm)', padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>
-                            📷 {editGImage ? t('profile-tab.change-image', "Changer l'image") : t('profile-tab.add-image', 'Ajouter une image')}
+                            {editGImage ? t('profile-tab.change-image', "Changer l'image") : t('profile-tab.add-image', 'Ajouter une image')}
                             <input type="file" accept="image/*" onChange={(e) => onImageUpload(e.target.files?.[0])} style={{ display: 'none' }}/>
                           </label>
                           {editGImage && <button onClick={() => setEditGImage(null)} style={{ background: 'var(--a5)', border: 'none', color: 'var(--text-muted)', borderRadius: 'var(--r-sm)', padding: '5px 8px', fontSize: 10, cursor: 'pointer' }}>{t('profile-tab.remove-image', 'Retirer')}</button>}
@@ -318,10 +319,10 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
               {/* Section 1 — Toggle activation basse */}
               <div style={{ marginBottom: bassActive ? 20 : 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{t('profile-tab.bass-activate', 'Active la basse')}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>{t('profile-tab.bass-activate-hint', 'Active si tu joues aussi la basse (multi-instrument). Une section dédiée "🎻 Basse" apparaît dans la fiche song dépliée pour les morceaux ayant une ligne de basse notable.')}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>{t('profile-tab.bass-activate-hint-flat', 'Active si tu joues aussi la basse (multi-instrument). Une section dédiée "Basse" apparaît dans la fiche song dépliée pour les morceaux ayant une ligne de basse notable.')}</div>
                 <div onClick={() => { if (!isDemo) toggleBassInstrument(); }} title={demoTitle} style={{ display: 'flex', alignItems: 'center', gap: 10, background: bassActive ? 'var(--accent-soft)' : 'var(--a3)', border: bassActive ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '10px 14px', cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.6 : 1 }}>
                   <div style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: bassActive ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: bassActive ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{bassActive && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: bassActive ? 'var(--text)' : 'var(--text-muted)' }}>{t('profile-tab.bass-toggle-label', '🎻 Je joue aussi la basse')}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: bassActive ? 'var(--text)' : 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}><NavIcon id="bass" size={15}/>{t('profile-tab.bass-toggle-label-flat', 'Je joue aussi la basse')}</span>
                 </div>
               </div>
 

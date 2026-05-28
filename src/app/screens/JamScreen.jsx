@@ -21,12 +21,13 @@ import { scoreColor, scoreBg } from '../components/score-utils.js';
 import GuitarSilhouette from '../components/GuitarSilhouette.jsx';
 import { PresetDetailInline } from './PresetBrowser.jsx';
 
+// Vague 3 emojis (2026-05-28) — emojis retirés des styles.
 const JAM_STYLES = [
-  { id: 'jazz', label: 'Jazz', emoji: '🎹', color: '148,163,184' },
-  { id: 'blues', label: 'Blues', emoji: '🎷', color: '148,163,184' },
-  { id: 'rock', label: 'Rock', emoji: '🎸', color: '148,163,184' },
-  { id: 'hard_rock', label: 'Hard Rock', emoji: '🔥', color: '148,163,184' },
-  { id: 'metal', label: 'Metal', emoji: '💀', color: '148,163,184' },
+  { id: 'jazz', label: 'Jazz', color: '148,163,184' },
+  { id: 'blues', label: 'Blues', color: '148,163,184' },
+  { id: 'rock', label: 'Rock', color: '148,163,184' },
+  { id: 'hard_rock', label: 'Hard Rock', color: '148,163,184' },
+  { id: 'metal', label: 'Metal', color: '148,163,184' },
 ];
 
 // Mini badge du gain (low/mid/high) — version locale (l'inline gainBadge
@@ -123,8 +124,8 @@ function JamScreen({ banksAnn, banksPlug, allGuitars, availableSources, profile 
   // Phase 7.50 (B-UX-02) : label dynamique selon device pedal coché.
   const enabledSet = new Set(profile?.enabledDevices || []);
   const annTop3Label = enabledSet.has('tonex-anniversary')
-    ? t('jam.top3-anniversary', '🏭 Top 3 — Anniversary')
-    : (enabledSet.has('tonex-pedal') ? t('jam.top3-pedal', '📦 Top 3 — ToneX Pedal') : t('jam.top3-pedale', '📦 Top 3 — Pédale'));
+    ? t('jam.top3-anniversary-flat', 'Top 3 — Anniversary')
+    : (enabledSet.has('tonex-pedal') ? t('jam.top3-pedal-flat', 'Top 3 — ToneX Pedal') : t('jam.top3-pedale-flat', 'Top 3 — Pédale'));
   const guitars = allGuitars || GUITARS;
   const [step, setStep] = useState('guitar');
   const [guitarId, setGuitarId] = useState(null);
@@ -148,7 +149,7 @@ function JamScreen({ banksAnn, banksPlug, allGuitars, availableSources, profile 
           <button onClick={reset} style={{ background: 'var(--a8)', border: '1px solid var(--a12)', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>{t('jam.new-jam', '← Nouveau Jam')}</button>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 12, background: `rgba(${typeRgb},0.15)`, color: `rgb(${typeRgb})`, border: `1px solid rgba(${typeRgb},0.4)`, borderRadius: 'var(--r-md)', padding: '3px 10px', fontWeight: 700 }}>{guitar?.name} · {TYPE_LABELS[recs.gType]}</span>
-            <span style={{ fontSize: 12, background: `rgba(${styleInfo?.color || '99,102,241'},0.15)`, color: `rgb(${styleInfo?.color || '99,102,241'})`, border: `1px solid rgba(${styleInfo?.color || '99,102,241'},0.4)`, borderRadius: 'var(--r-md)', padding: '3px 10px', fontWeight: 700 }}>{styleInfo?.emoji} {styleInfo?.label}</span>
+            <span style={{ fontSize: 12, background: `rgba(${styleInfo?.color || '99,102,241'},0.15)`, color: `rgb(${styleInfo?.color || '99,102,241'})`, border: `1px solid rgba(${styleInfo?.color || '99,102,241'},0.4)`, borderRadius: 'var(--r-md)', padding: '3px 10px', fontWeight: 700 }}>{styleInfo?.label}</span>
           </div>
         </div>
 
@@ -163,7 +164,7 @@ function JamScreen({ banksAnn, banksPlug, allGuitars, availableSources, profile 
 
         {hasPlugDevice && (
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 8 }}>{t('jam.top3-plug', '🔌 Top 3 — ToneX Plug')} <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400, textTransform: 'none' }}>{t('jam.installed-hint', '(presets installés)')}</span></div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 8 }}>{t('jam.top3-plug-flat', 'Top 3 — ToneX Plug')} <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400, textTransform: 'none' }}>{t('jam.installed-hint', '(presets installés)')}</span></div>
             {recs.plugBest.length > 0
               ? recs.plugBest.map((p, i) => <JamPresetItem key={p.name} p={p} rank={i} isSelected={selectedJam === p.name} onSelect={() => setSelectedJam(selectedJam === p.name ? null : p.name)} banksAnn={banksAnn} banksPlug={banksPlug} guitars={guitars}/>)
               : <div style={{ fontSize: 12, color: 'var(--text-dim)', padding: '12px', background: 'var(--a3)', borderRadius: 'var(--r-md)', textAlign: 'center' }}>{tFormat('jam.no-preset-plug', { style: styleInfo?.label || '' }, 'Aucun preset {style} installé sur le Plug pour ce type de guitare.')}</div>}
@@ -171,7 +172,7 @@ function JamScreen({ banksAnn, banksPlug, allGuitars, availableSources, profile 
         )}
 
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 8 }}>{t('jam.top3-catalog', '🌐 Top 3 — Catalogue complet')} <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400, textTransform: 'none' }}>{t('jam.all-presets-hint', '(tous presets, installés ou non)')}</span></div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 8 }}>{t('jam.top3-catalog-flat', 'Top 3 — Catalogue complet')} <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 400, textTransform: 'none' }}>{t('jam.all-presets-hint', '(tous presets, installés ou non)')}</span></div>
           {recs.fullTop3.map((p, i) => <JamPresetItem key={p.name} p={p} rank={i} isSelected={selectedJam === p.name} onSelect={() => setSelectedJam(selectedJam === p.name ? null : p.name)} banksAnn={banksAnn} banksPlug={banksPlug} guitars={guitars}/>)}
         </div>
       </div>
@@ -188,8 +189,7 @@ function JamScreen({ banksAnn, banksPlug, allGuitars, availableSources, profile 
           {JAM_STYLES.map((s) => (
             <button key={s.id} onClick={() => { setStyle(s.id); setStep('results'); }}
               style={{ background: `rgba(${s.color},0.1)`, border: `1px solid rgba(${s.color},0.3)`, borderRadius: 'var(--r-lg)', padding: '14px 8px', cursor: 'pointer', textAlign: 'center', transition: 'all .15s' }}>
-              <div style={{ fontSize: 22, marginBottom: 4 }}>{s.emoji}</div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: `rgb(${s.color})` }}>{s.label}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: `rgb(${s.color})` }}>{s.label}</div>
             </button>
           ))}
         </div>

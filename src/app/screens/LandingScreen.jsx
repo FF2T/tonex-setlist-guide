@@ -17,6 +17,7 @@ import React, { useEffect } from 'react';
 import { t, useLocale } from '../../i18n/index.js';
 import { APP_NAME, TALLY_FORM_ID_BY_LOCALE } from '../../core/branding.js';
 import BacklineIcon from '../components/BacklineIcon.jsx';
+import NavIcon from '../components/NavIcon.jsx';
 
 // Formulaire Tally "demande accès beta" — affiché en popup modale
 // par-dessus la landing via le script embed officiel Tally. Le script
@@ -40,7 +41,7 @@ import BacklineIcon from '../components/BacklineIcon.jsx';
 // pour partager avec DemoBanner. Import en tête du fichier.
 const TALLY_EMBED_SRC = 'https://tally.so/widgets/embed.js';
 
-function FeatureCard({ icon, title, body }) {
+function FeatureCard({ iconId, title, body }) {
   return (
     <div style={{
       background: 'var(--a4)',
@@ -49,7 +50,7 @@ function FeatureCard({ icon, title, body }) {
       padding: '20px 16px',
       textAlign: 'left',
     }}>
-      <div style={{ fontSize: 28, marginBottom: 10 }} aria-hidden="true">{icon}</div>
+      <div style={{ marginBottom: 10, color: 'var(--brass-300)' }} aria-hidden="true"><NavIcon id={iconId} size={28}/></div>
       <div style={{
         fontFamily: 'var(--font-display)',
         fontSize: 14,
@@ -125,17 +126,17 @@ function LandingScreen({ onDemoEnter, onShowPicker, appVersion }) {
         marginBottom: 36,
       }}>
         <FeatureCard
-          icon="🔍"
+          iconId="explore"
           title={t('landing.feature-1-title', 'Tu cherches un morceau')}
           body={t('landing.feature-1-body', "Tape le titre. L'IA identifie le rig original (guitariste, ampli, pédales d'époque).")}
         />
         <FeatureCard
-          icon="🎯"
+          iconId="target"
           title={t('landing.feature-2-title', "L'IA propose une reco")}
           body={t('landing.feature-2-body', 'Le bon preset dans tes banks (numéro + slot A/B/C), la bonne guitare de ton rig.')}
         />
         <FeatureCard
-          icon="🎛️"
+          iconId="sliders"
           title={t('landing.feature-3-title', 'Tu joues, elle assiste')}
           body={t('landing.feature-3-body', "Conseils de jeu, choix de micro, ajustements de tone. Mode scène plein écran.")}
         />
@@ -165,7 +166,7 @@ function LandingScreen({ onDemoEnter, onShowPicker, appVersion }) {
             cursor: 'pointer',
             boxShadow: 'var(--shadow-md)',
           }}
-        >{t('landing.cta-demo', '🎸 Essayer en mode démo (sans compte)')}</button>
+        >{t('landing.cta-demo-flat', 'Essayer en mode démo (sans compte)')}</button>
         <button
           type="button"
           data-tally-open={tallyFormId}

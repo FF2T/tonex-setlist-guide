@@ -398,7 +398,7 @@ function MesAppareilsTab({
                 flexShrink: 0,
               }}
             >
-              {tFormat('resolve.button', { n: unknownsCount }, '🔴 Résoudre ({n})')}
+              {tFormat('resolve.button-flat', { n: unknownsCount }, 'Résoudre ({n})')}
             </button>
           )}
           {isAdmin && nonCuratedCount > 0 && (
@@ -417,7 +417,7 @@ function MesAppareilsTab({
                 flexShrink: 0,
               }}
             >
-              {tFormat('curate.button', { n: nonCuratedCount }, '🟠 Curer ({n})')}
+              {tFormat('curate.button-flat', { n: nonCuratedCount }, 'Curer ({n})')}
             </button>
           )}
           <button

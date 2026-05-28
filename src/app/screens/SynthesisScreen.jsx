@@ -48,7 +48,7 @@ function SynthesisScreen({ songs, gps, aiR, onBack, onNavigate, songDb, banksAnn
       <div>
         {rec?.installed
           ? <span style={{ fontWeight: 700, color: accentColor, fontSize: 13, marginRight: 4 }}>{tFormat('synthesis.bank', { bank: rec.bank, slot: rec.slot }, 'Banque {bank}{slot}')}</span>
-          : <span style={{ fontSize: 10, background: 'var(--yellow-bg)', color: 'var(--yellow)', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700, marginRight: 4 }}>{t('synthesis.to-install', '⬇ À installer')}</span>
+          : <span style={{ fontSize: 10, background: 'var(--yellow-bg)', color: 'var(--yellow)', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700, marginRight: 4 }}>{t('synthesis.to-install-flat', 'À installer')}</span>
         }
         {sc != null && <span style={{ fontSize: 10, fontWeight: 800, color: scC, background: scB, borderRadius: 'var(--r-sm)', padding: '1px 6px' }}>{sc}%</span>}
         <div style={{ fontSize: 11, color: 'var(--text-sec)', lineHeight: 1.5, marginTop: 2 }}>{name}</div>
