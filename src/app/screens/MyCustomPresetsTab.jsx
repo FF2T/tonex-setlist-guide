@@ -24,6 +24,7 @@
 import React, { useState, useMemo } from 'react';
 import { t, tFormat, useLocale } from '../../i18n/index.js';
 import NavIcon from '../components/NavIcon.jsx';
+import Button from '../components/Button.jsx';
 import { PRESET_CATALOG_MERGED } from '../../core/catalog.js';
 import { inferPresetInfo } from '../utils/infer-preset.js';
 import { STYLE_SCORES } from '../utils/detect-preset-metadata.js';
@@ -462,12 +463,13 @@ function MyCustomPresetsTab({ profile, onProfiles, activeProfileId, songDb, inp 
           />
         </div>
       ) : (
-        <button
+        <Button
+          variant="primary"
           onClick={startNew}
-          style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', marginTop: 8 }}
+          style={{ marginTop: 8 }}
         >
           + {t('mycustompresets.add', 'Ajouter un preset')}
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -619,8 +621,8 @@ function PresetForm({
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
-          <button onClick={onCancel} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}>{t('mycustompresets.cancel', 'Annuler')}</button>
-          <button onClick={onSave} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{t('mycustompresets.save', 'Sauvegarder')}</button>
+          <Button variant="secondary" size="sm" onClick={onCancel}>{t('mycustompresets.cancel', 'Annuler')}</Button>
+          <Button variant="primary" size="sm" onClick={onSave}>{t('mycustompresets.save', 'Sauvegarder')}</Button>
         </div>
       </div>
     </div>

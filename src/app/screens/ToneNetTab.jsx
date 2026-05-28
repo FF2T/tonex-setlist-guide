@@ -8,6 +8,7 @@
 import React, { useState, useMemo } from 'react';
 import { t, tFormat, tPlural } from '../../i18n/index.js';
 import NavIcon from '../components/NavIcon.jsx';
+import Button from '../components/Button.jsx';
 import { inferPresetInfo } from '../utils/infer-preset.js';
 
 const GAIN_OPTS = ['low', 'mid', 'high'];
@@ -243,9 +244,9 @@ function ToneNetTab({ toneNetPresets, onToneNetPresets, onDeletedToneNetIds, inp
           )}
           <div style={{ display: 'flex', gap: 'var(--s-2)' }}>
             {editId ? <>
-              <button onClick={saveEdit} disabled={!name.trim()} style={{ flex: 1, background: name.trim() ? 'var(--accent)' : 'var(--bg-elev-3)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '8px', fontSize: 12, fontWeight: 700, cursor: name.trim() ? 'pointer' : 'not-allowed' }}>{t('tonenet.save', 'Sauver')}</button>
-              <button onClick={resetForm} style={{ background: 'var(--bg-elev-2)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, cursor: 'pointer' }}>{t('tonenet.cancel', 'Annuler')}</button>
-            </> : <button onClick={addPreset} disabled={!name.trim()} style={{ width: '100%', background: name.trim() ? 'linear-gradient(180deg,var(--brass-200),var(--brass-400))' : 'var(--bg-elev-3)', border: 'none', color: name.trim() ? 'var(--tolex-900)' : 'var(--text-tertiary)', borderRadius: 'var(--r-md)', padding: '8px', fontSize: 12, fontWeight: 700, cursor: name.trim() ? 'pointer' : 'not-allowed', boxShadow: name.trim() ? 'var(--shadow-sm)' : 'none' }}>{t('tonenet.add', '+ Ajouter')}</button>}
+              <Button variant="primary" fullWidth disabled={!name.trim()} onClick={saveEdit} style={{ flex: 1 }}>{t('tonenet.save', 'Sauver')}</Button>
+              <Button variant="secondary" onClick={resetForm}>{t('tonenet.cancel', 'Annuler')}</Button>
+            </> : <Button variant="primary" fullWidth disabled={!name.trim()} onClick={addPreset} style={name.trim() ? { background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', color: 'var(--tolex-900)', boxShadow: 'var(--shadow-sm)' } : undefined}>{t('tonenet.add-flat', 'Ajouter')}</Button>}
           </div>
         </div>
       </div>

@@ -16,6 +16,7 @@
 import React, { useState } from 'react';
 import { t } from '../../i18n/index.js';
 import NavIcon from '../components/NavIcon.jsx';
+import Button from '../components/Button.jsx';
 import { GUITARS, GUITAR_BRANDS } from '../../core/guitars.js';
 import { BASSES, BASS_BRANDS } from '../../core/basses.js';
 import { BASS_AMPS, BASS_AMP_BRANDS } from '../../core/bass-amps.js';
@@ -243,9 +244,9 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                           <select value={editGType} onChange={(e) => setEditGType(e.target.value)} style={{ ...inp, flex: '0 0 55px', fontSize: 11, padding: '5px 4px' }}><option value="HB">HB</option><option value="SC">SC</option><option value="P90">P90</option></select>
                         </div>
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button onClick={saveEditGuitar} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('profile-tab.save', 'Sauver')}</button>
-                          {isEdited && <button onClick={() => resetGuitar(g.id)} style={{ background: 'var(--yellow-bg)', border: '1px solid var(--yellow-border)', color: 'var(--yellow)', borderRadius: 'var(--r-md)', padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>{t('profile-tab.reset', 'Réinitialiser')}</button>}
-                          <button onClick={() => setEditingGuitarId(null)} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>{t('profile-tab.cancel', 'Annuler')}</button>
+                          <Button variant="primary" size="sm" onClick={saveEditGuitar}>{t('profile-tab.save', 'Sauver')}</Button>
+                          {isEdited && <Button variant="secondary" size="sm" onClick={() => resetGuitar(g.id)} style={{ background: 'var(--yellow-bg)', border: '1px solid var(--yellow-border)', color: 'var(--yellow)' }}>{t('profile-tab.reset', 'Réinitialiser')}</Button>}
+                          <Button variant="secondary" size="sm" onClick={() => setEditingGuitarId(null)}>{t('profile-tab.cancel', 'Annuler')}</Button>
                         </div>
                       </div>}
                     </div>;
@@ -282,12 +283,12 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                             {editGImage ? t('profile-tab.change-image', "Changer l'image") : t('profile-tab.add-image', 'Ajouter une image')}
                             <input type="file" accept="image/*" onChange={(e) => onImageUpload(e.target.files?.[0])} style={{ display: 'none' }}/>
                           </label>
-                          {editGImage && <button onClick={() => setEditGImage(null)} style={{ background: 'var(--a5)', border: 'none', color: 'var(--text-muted)', borderRadius: 'var(--r-sm)', padding: '5px 8px', fontSize: 10, cursor: 'pointer' }}>{t('profile-tab.remove-image', 'Retirer')}</button>}
+                          {editGImage && <Button variant="ghost" size="sm" onClick={() => setEditGImage(null)}>{t('profile-tab.remove-image', 'Retirer')}</Button>}
                         </div>
                         {imgErr && <div style={{ fontSize: 10, color: 'var(--red)', marginBottom: 6 }}>{imgErr}</div>}
                         <div style={{ display: 'flex', gap: 6 }}>
-                          <button onClick={saveEditGuitar} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{t('profile-tab.save', 'Sauver')}</button>
-                          <button onClick={() => setEditingGuitarId(null)} style={{ background: 'var(--a7)', border: 'none', color: 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}>{t('profile-tab.cancel', 'Annuler')}</button>
+                          <Button variant="primary" size="sm" onClick={saveEditGuitar}>{t('profile-tab.save', 'Sauver')}</Button>
+                          <Button variant="secondary" size="sm" onClick={() => setEditingGuitarId(null)}>{t('profile-tab.cancel', 'Annuler')}</Button>
                         </div>
                       </div>}
                     </div>;
@@ -390,7 +391,7 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                         <option value="MM">MM</option>
                       </select>
                     </div>
-                    <button onClick={() => { if (!isDemo) addCustomBass(); }} disabled={isDemo || !newBassName.trim()} title={demoTitle} style={{ background: !isDemo && newBassName.trim() ? 'var(--accent)' : 'var(--a7)', border: 'none', color: !isDemo && newBassName.trim() ? 'var(--text-inverse)' : 'var(--text-dim)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: !isDemo && newBassName.trim() ? 'pointer' : 'not-allowed', minHeight: 36 }}>{t('profile-tab.add-bass-submit', 'Ajouter')}</button>
+                    <Button variant="primary" disabled={isDemo || !newBassName.trim()} title={demoTitle} onClick={() => { if (!isDemo) addCustomBass(); }}>{t('profile-tab.add-bass-submit', 'Ajouter')}</Button>
                   </div>
                 </div>
               )}
@@ -451,7 +452,7 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
                       <input placeholder={t('profile-tab.add-amp-brand-placeholder', 'Marque')} value={newAmpBrand} onChange={(e) => setNewAmpBrand(e.target.value)} disabled={isDemo} style={{ ...inp, flex: '1 1 100px', fontSize: 12, padding: '6px 10px' }}/>
                       <input type="number" placeholder="Watt" value={newAmpWattage} onChange={(e) => setNewAmpWattage(e.target.value)} disabled={isDemo} min={1} max={2000} style={{ ...inp, flex: '0 0 70px', fontSize: 12, padding: '6px 8px' }}/>
                     </div>
-                    <button onClick={() => { if (!isDemo) addCustomBassAmp(); }} disabled={isDemo || !newAmpName.trim()} title={demoTitle} style={{ background: !isDemo && newAmpName.trim() ? 'var(--accent)' : 'var(--a7)', border: 'none', color: !isDemo && newAmpName.trim() ? 'var(--text-inverse)' : 'var(--text-dim)', borderRadius: 'var(--r-md)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: !isDemo && newAmpName.trim() ? 'pointer' : 'not-allowed', minHeight: 36 }}>{t('profile-tab.add-amp-submit', 'Ajouter')}</button>
+                    <Button variant="primary" disabled={isDemo || !newAmpName.trim()} title={demoTitle} onClick={() => { if (!isDemo) addCustomBassAmp(); }}>{t('profile-tab.add-amp-submit', 'Ajouter')}</Button>
                   </div>
                 </div>
               )}
