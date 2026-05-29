@@ -981,9 +981,31 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-29 vendredi, V9.5.0 — Sélecteur instrument(s) Préférences + gating onglets profil)
+## État actuel (2026-05-29 vendredi, V9.5.1 — Vue repliée setlist adaptée au contexte basse)
 
-**Backline v9.5.0 / SW backline-v400 / STATE_VERSION 13 / 1804 tests verts. Bundle 2678 KB.**
+**Backline v9.5.1 / SW backline-v401 / STATE_VERSION 13 / 1804 tests verts. Bundle 2679 KB.**
+
+### v9.5.1 — Vue repliée ListScreen basse-aware (2026-05-29)
+
+Suite v9.5.0 (bassiste pur possible) : la **vue repliée des setlists**
+(ListScreen) affichait encore le badge guitare + preset guitare pour un morceau
+joué à la basse. Désormais elle reflète le contexte de jeu.
+
+- ListScreen : `getEffectivePlayContext(profile, song)` par morceau. Si
+  `instrument === 'bass'`, la `rowData` est overridée : cellule instrument =
+  basse idéale (`bass_recommendation.ideal_bass`) + score basse
+  (cot_step2_basses[0] ou bass_alternatives[0]) ; cellule devices = capture
+  basse top (`bass_alternatives[0]`, amp + bank/slot via findInBanks, rig=tonex
+  uniquement) ; potards/FX vidés. Réutilise stripSlotPrefix + findInBanks +
+  getEffectivePlayContext (tous testés). Pas de bump STATE_VERSION. 1804 tests.
+
+**RecapScreen non touché** (décision) : c'est un outil de **ranking guitare de
+session** (top3 guitares, guitare/morceau, presets). Un équivalent basse =
+feature parallèle dédiée (ranking basses), pas un swap de badge. Pour un
+bassiste pur (rig sans guitare) le récap s'affiche vide (non bloquant). À faire
+en feature séparée si demandé.
+
+### v9.5.0 — Choix d'instrument(s) de haut niveau (2026-05-29)
 
 ### v9.5.0 — Choix d'instrument(s) de haut niveau (2026-05-29)
 

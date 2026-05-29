@@ -26,14 +26,14 @@ import {
   findGuitarByAIName, findCotEntryForGuitar, localGuitarSongScore,
 } from '../../core/scoring/guitar.js';
 import { findCatalogEntry } from '../../core/catalog.js';
-import { toggleSetlistProfile } from '../../core/state.js';
+import { toggleSetlistProfile, getEffectivePlayContext } from '../../core/state.js';
 import { TMP_FACTORY_PATCHES, recommendTMPPatch } from '../../devices/tonemaster-pro/index.js';
 import NavIcon from '../components/NavIcon.jsx';
 import { getActiveDevicesForRender } from '../utils/devices-render.js';
 import { getIg, getPA, getPP, getSongHist } from '../utils/song-helpers.js';
 import {
   enrichAIResult, getBestResult, bestScoreOf, updateAiCache,
-  computeRigSnapshot, resolveRefAmp,
+  computeRigSnapshot, resolveRefAmp, stripSlotPrefix,
 } from '../utils/ai-helpers.js';
 import { findInBanks, guitarScore } from '../utils/preset-helpers.js';
 import { resolveDisplayGuitar } from '../utils/display-guitar.js';
@@ -776,7 +776,44 @@ function ListScreen({
                           playlistIsOptimal = resolved.source === 'ideal' || resolved.source === 'cot';
                         }
                       }
-                      const rowData = getRowPlaylistData(s, aiC, playlistG, playlistScore, playlistIsOptimal);
+                      let rowData = getRowPlaylistData(s, aiC, playlistG, playlistScore, playlistIsOptimal);
+                      // v9.5.1 — contexte de jeu : pour un morceau joué à la
+                      // basse, la vue repliée affiche la basse + sa capture (au
+                      // lieu de la guitare + preset guitare). Mirror du gating
+                      // SongDetailCard Phase B.
+                      const rowPlayCtx = getEffectivePlayContext(profile, s);
+                      if (rowPlayCtx.instrument === 'bass') {
+                        const br = aiC?.bass_recommendation || null;
+                        const bassScore = (Array.isArray(br?.cot_step2_basses) && br.cot_step2_basses[0]?.score != null)
+                          ? br.cot_step2_basses[0].score
+                          : (Array.isArray(br?.bass_alternatives) && br.bass_alternatives[0]?.score != null ? br.bass_alternatives[0].score : null);
+                        const bassDevices = [];
+                        if (rowPlayCtx.rig === 'tonex' && Array.isArray(br?.bass_alternatives) && br.bass_alternatives.length > 0) {
+                          const top = br.bass_alternatives[0];
+                          const nm = stripSlotPrefix(top.name || '');
+                          const locAnn = findInBanks(nm, banksAnn);
+                          const loc = locAnn || findInBanks(nm, banksPlug);
+                          if (loc) {
+                            bassDevices.push({
+                              deviceKey: 'bass-capture',
+                              deviceLabel: locAnn ? 'Ann' : 'Plug',
+                              slot: `${loc.bank}${loc.slot}`,
+                              presetName: top.name,
+                              ampLabel: top.amp || null,
+                              presetScore: top.score != null ? top.score : null,
+                            });
+                          }
+                        }
+                        rowData = {
+                          ...rowData,
+                          guitarLabel: br?.ideal_bass || null,
+                          guitarScore: bassScore,
+                          isOptimalGuitar: false,
+                          devices: bassDevices,
+                          potards: null,
+                          fxOn: [],
+                        };
+                      }
                       return (
                         <div className="songrow-pl-row">
                           <span className="songrow-pl-number">{playlistNumber}</span>
