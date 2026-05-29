@@ -981,9 +981,36 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-29 vendredi, V9.4.0 — LiveScreen multi-instrument : contexte de jeu en mode scène)
+## État actuel (2026-05-29 vendredi, V9.4.1 — Basse instrument à part entière + analyse tous morceaux)
 
-**Backline v9.4.0 / SW backline-v398 / STATE_VERSION 13 / 1804 tests verts. Bundle 2677 KB.**
+**Backline v9.4.1 / SW backline-v399 / STATE_VERSION 13 / 1804 tests verts. Bundle 2677 KB.**
+
+### v9.4.1 — Basse first-class + wording (2026-05-29)
+
+Retour Sébastien sur l'activation basse (Mon Profil → Mes basses) : (1) la
+basse doit être un **instrument à part entière** (peut être l'unique instrument
+de l'utilisateur), pas un "aussi" secondaire ; (2) **analyse basse sur TOUS les
+morceaux**, pas seulement les lignes "notables".
+
+- Toggle "Je joue aussi la basse" → **"Je joue de la basse"** (FR/EN/ES).
+- Hint reformulé : "instrument à part entière (principal ou unique) · analysée
+  sur TOUS les morceaux · section dédiée" (retrait de "multi-instrument" +
+  "ligne de basse notable"). Clé `bass-activate-hint-flat` traduite EN/ES
+  (était fallback FR only).
+- **Prompt fetchAI aligné** : la fonctionnalité retournait déjà TOUJOURS
+  `bass_recommendation` (Phase 8.7), mais le header ÉTAPE 8 disait
+  "conditionnelle" + commentaires "null si pas notable" (incohérents). Header,
+  commentaires et `bassContextLine` réécrits : basse = instrument à part
+  entière, reco pour CHAQUE morceau sans exception.
+- Commentaire SongDetailCard section basse aligné. Pas de changement de logique
+  (gating + bassStale inchangés), pas de bump STATE_VERSION. 1804 tests verts.
+
+**Note** : un vrai mode bass-only (désactiver la guitare, `instruments:['bass']`)
+n'est pas encore exposé — la guitare reste présente dans les onglets. Le
+contexte de jeu Phase B permet déjà de jouer 100% basse par morceau. Toggle
+guitare on/off = follow-up si demandé.
+
+### v9.4.0 — LiveScreen multi-instrument (parité contexte de jeu Phase B/C) (2026-05-29)
 
 ### v9.4.0 — LiveScreen multi-instrument (parité contexte de jeu Phase B/C) (2026-05-29)
 

@@ -197,12 +197,11 @@ function fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, fe
     const labels = preferredStyles.map((s) => STYLE_LABELS[s] || s).join(', ');
     return `\nPRÉFÉRENCES MUSICALES USER : tu joues principalement ${labels}. Soft hint contextuel — utile pour ajuster le ton de tes conseils (ex. analogies dans cot_step1, références d'autres morceaux du même style). Ne filtre PAS le scoring du morceau actuel selon ces préférences (le morceau garde son style spécifique).`;
   })();
-  // Phase 8.4 — Intégration basse. Si l'utilisateur a au moins 1 basse
-  // OU 1 ampli basse traditionnel, active la section "RECOMMANDATION
-  // BASSE". L'IA détermine elle-même si le morceau a une ligne de basse
-  // notable (sa connaissance du catalogue musical historique). Si le
-  // morceau n'a pas de ligne de basse mémorable (ex. solo guitare
-  // acoustique), elle retourne bass_recommendation: null.
+  // Phase 8.4 + retour 2026-05-29 — Intégration basse. Si l'utilisateur a au
+  // moins 1 basse OU 1 ampli basse traditionnel, active la section
+  // "RECOMMANDATION BASSE". La basse est un instrument à part entière (parfois
+  // l'unique instrument) : l'IA retourne TOUJOURS bass_recommendation pour
+  // CHAQUE morceau (pas seulement les lignes de basse "notables").
   const hasBassContext = (Array.isArray(basses) && basses.length > 0)
     || (Array.isArray(bassAmps) && bassAmps.length > 0);
   const bassContextLine = (() => {
@@ -217,7 +216,7 @@ function fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, fe
     if (ampsList) sections.push(`AMPLIS BASSE TRADITIONNELS DISPONIBLES :\n${ampsList}`);
     let body = sections.join('\n\n');
     if (bassSlotsSection) body += '\n' + bassSlotsSection;
-    return `\n${body}\n\nL'utilisateur joue aussi la basse — RETOURNE TOUJOURS un objet bass_recommendation (jamais null). Recommande quelle basse de sa collection + quel matériel basse utiliser, peu importe si le morceau a une ligne de basse iconique ou de simple support. Pour les morceaux où la basse est purement support (rock standard), choisis la basse la plus polyvalente du rig et propose des réglages cohérents avec le style.`;
+    return `\n${body}\n\nL'utilisateur joue la basse (instrument à part entière, parfois unique) — RETOURNE TOUJOURS un objet bass_recommendation (jamais null), pour CHAQUE morceau sans exception. Recommande quelle basse de sa collection + quel matériel basse utiliser, peu importe si le morceau a une ligne de basse iconique ou de simple support. Pour les morceaux où la basse est purement support (rock standard), choisis la basse la plus polyvalente du rig et propose des réglages cohérents avec le style.`;
   })();
   // Phase A — Amplis guitare traditionnels (physiques, non-ToneX). Si l'user
   // a coché un ampli guitare réel (Marshall Plexi, Blues Junior…), l'IA renvoie
@@ -459,9 +458,9 @@ Le champ "settings_guitar" est de la PROSE complémentaire à playing_hints (qui
 
 Idem pour "settings_guitar" : ce sont des conseils de jeu et d'utilisation des contrôles guitare (volume, tone, micros, attaque, palm muting…), pas des corrections de la guitare elle-même.
 
-ÉTAPE 8 – RECOMMANDATION BASSE (Phase 8.4) — conditionnelle
+ÉTAPE 8 – RECOMMANDATION BASSE — toujours fournie si l'utilisateur joue la basse
 
-Si la section "COLLECTION DE BASSES DISPONIBLES" et/ou "AMPLIS BASSE TRADITIONNELS DISPONIBLES" apparaît ci-dessus, retourne TOUJOURS un objet "bass_recommendation" dans la sortie JSON (jamais null). L'utilisateur joue aussi la basse et a besoin d'une reco pour CHAQUE morceau qu'il prépare — même si la ligne de basse est purement support, recommande la basse la plus pertinente du rig + des réglages cohérents avec le style.
+Si la section "COLLECTION DE BASSES DISPONIBLES" et/ou "AMPLIS BASSE TRADITIONNELS DISPONIBLES" apparaît ci-dessus, retourne TOUJOURS un objet "bass_recommendation" dans la sortie JSON (jamais null). La basse est un instrument à part entière (parfois l'unique instrument du musicien) : l'utilisateur a besoin d'une reco pour CHAQUE morceau qu'il prépare, sans exception — même si la ligne de basse est purement support, recommande la basse la plus pertinente du rig + des réglages cohérents avec le style.
 
 Format de bass_recommendation :
 {

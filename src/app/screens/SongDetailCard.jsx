@@ -1178,12 +1178,14 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         />
       )}
 
-      {/* Phase 8.3 — Section 🎻 Basse. Gated par :
-          - profile.instruments.includes('bass') (profil multi-instrument
-            OU bassiste pur)
-          - ET (seed bass info OU aiCache.bass_recommendation présent)
-          Si le morceau n'a pas de ligne de basse notable, section
-          masquée. */}
+      {/* Phase 8.3 + Phase B — Section Basse. Gated par :
+          - profile.instruments inclut 'bass' (basse = instrument à part
+            entière, parfois unique)
+          - ET contexte de jeu = basse (playCtx.instrument === 'bass')
+          - ET aiCache.bass_recommendation présent (le prompt le retourne
+            TOUJOURS pour CHAQUE morceau analysé — pas seulement les lignes
+            de basse "notables", retour Sébastien 2026-05-29). bassStale
+            re-fetch les morceaux analysés avant Phase 8.7. */}
       {(() => {
         const hasBassInstrument = Array.isArray(profile?.instruments)
           && profile.instruments.includes('bass');
