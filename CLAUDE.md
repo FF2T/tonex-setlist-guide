@@ -981,9 +981,21 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-29 vendredi, V9.7.2 — Fix réglages micros disparaissent au changement de basse)
+## État actuel (2026-05-29 vendredi, V9.7.3 — Fix layout contrôles basse : pas de sélecteur sur Jazz/Precision)
 
-**Backline v9.7.2 / SW backline-v405 / STATE_VERSION 13 / 1820 tests verts. Bundle 2689 KB.**
+**Backline v9.7.3 / SW backline-v406 / STATE_VERSION 13 / 1820 tests verts. Bundle 2689 KB.**
+
+### v9.7.3 — Fix layout contrôles basse (Jazz/Precision = pas de sélecteur)
+
+Correction Sébastien : une Jazz Bass n'a PAS de sélecteur de micro — l'équilibre
+manche/chevalet se fait via les **2 volumes**. Mon exemple de prompt v9.7.2 y
+mettait à tort un `selector`. Corrigé : exemple Jazz Bass → `selector:""` +
+instruction explicite "les basses Fender (Jazz, Precision) n'ont PAS de sélecteur
+(selector=''), l'équilibre micros se fait par les volumes ; Jazz = 2 Vol (manche
++ chevalet) + 1 Tone ; Precision = 1 Vol + 1 Tone ; ne mets un selector non vide
+que si le modèle a réellement un commutateur". `PickupControlsCadre` masque déjà
+la ligne Sélecteur quand vide (aucune modif UI). Prompt seul → caches existants
+à re-analyser. 1820 tests.
 
 ### v9.7.2 — Fix "Réglages micros" disparaissent au changement de basse
 
