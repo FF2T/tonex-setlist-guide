@@ -1072,6 +1072,8 @@ const es = {
   'profile-tab.my-pedals-hint': 'Marca los pedales de efecto físicos de tu pedalera. Backline propondrá cuáles activar + sus ajustes por canción cuando tocas con amplificador.',
   'profile-tab.custom-pedals-section': 'Mis pedales custom',
   'song-detail.pedalboard-block': 'En tu pedalera',
+  'song-detail.pickup-controls': 'Ajustes de pastillas',
+  'song-detail.pickup-selector': 'Selector',
   // Vague 4 (2026-05-28) — traductions des clés -flat (libellés sans emoji)
   "admin.breadcrumb-flat": "Admin",
   "admin.tab.adminpacks-flat": "Packs admin",

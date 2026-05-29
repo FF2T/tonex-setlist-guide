@@ -742,6 +742,23 @@ function enrichAIResult(aiResult, gType, gId, banksAnn, banksPlug, availableSour
     aiResult._pedalboardValidated = true;
   }
 
+  // Phase 9.8 — Validation `controls` (réglages micros/contrôles par instrument)
+  // sur chaque entrée cot_step2_guitars + cot_step2_basses. Idempotent.
+  if (!aiResult._controlsValidated) {
+    for (const key of ['cot_step2_guitars', 'cot_step2_basses']) {
+      if (Array.isArray(aiResult[key])) {
+        aiResult[key] = aiResult[key].map((entry) => {
+          if (!entry || typeof entry !== 'object') return entry;
+          const c = sanitizeControls(entry.controls);
+          if (c) return { ...entry, controls: c };
+          if (entry.controls !== undefined) { const { controls, ...rest } = entry; return rest; }
+          return entry;
+        });
+      }
+    }
+    aiResult._controlsValidated = true;
+  }
+
   return aiResult;
 }
 
@@ -921,6 +938,39 @@ function sanitizePedalSuggestion(raw, pedalTypes) {
   };
 }
 
+// Phase 9.8 — Valide / normalise le champ `controls` d'une entrée cot_step2
+// (guitare ou basse) : réglages des contrôles RÉELS de l'instrument
+// (sélecteur de micro + volume/tonalité par bouton). Retourne un objet propre
+// ou null si rien d'exploitable.
+// - selector : string (position de sélecteur), '' / omis si mono-micro.
+// - knobs : array de {name, value} (value coercée string), cap 6, drop sans name.
+// - why : objet trilingue {fr,en,es} (langues vides ignorées).
+function sanitizeControls(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const selector = typeof raw.selector === 'string' ? raw.selector.trim() : '';
+  let knobs = [];
+  if (Array.isArray(raw.knobs)) {
+    knobs = raw.knobs
+      .filter((k) => k && typeof k === 'object' && typeof k.name === 'string' && k.name.trim())
+      .map((k) => ({ name: k.name.trim(), value: k.value == null ? '' : String(k.value).trim() }))
+      .slice(0, 6);
+  }
+  let why = null;
+  if (raw.why && typeof raw.why === 'object') {
+    const o = {};
+    for (const loc of ['fr', 'en', 'es']) {
+      if (typeof raw.why[loc] === 'string' && raw.why[loc].trim()) o[loc] = raw.why[loc];
+    }
+    if (Object.keys(o).length > 0) why = o;
+  }
+  if (!selector && knobs.length === 0 && !why) return null;
+  const out = {};
+  if (selector) out.selector = selector;
+  if (knobs.length) out.knobs = knobs;
+  if (why) out.why = why;
+  return out;
+}
+
 function safeParseJSON(t) {
   let s = t.replace(/```json|```/g, '').trim();
   try { return JSON.parse(s); } catch (e) {
@@ -949,6 +999,7 @@ export {
   stripSlotPrefix,
   sanitizeAmpSuggestion,
   sanitizePedalSuggestion,
+  sanitizeControls,
   findSlotByUsageMatch,
   findCatalogEntryByUsages,
   mergeBestResults,

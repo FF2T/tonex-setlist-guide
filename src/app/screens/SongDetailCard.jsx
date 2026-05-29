@@ -54,6 +54,37 @@ import FeedbackPanel from '../components/FeedbackPanel.jsx';
 import AIErrorPanel from '../components/AIErrorPanel.jsx';
 import { TYPO, WEIGHT, TEXT_1, TEXT_2, TEXT_3, BG_1, BG_2, BORDER_SUBTLE, sectionCard, sectionTitle as sectionTitleStyle } from '../styles/tokens.js';
 
+// Phase 9.8 — Cadre "Réglages micros" : contrôles RÉELS de l'instrument
+// sélectionné (sélecteur de micro + volume/tonalité par bouton). Partagé
+// guitare ↔ basse (lit cot_step2_*[i].controls de l'instrument choisi → maj
+// instantanée au changement de liste, 0 re-fetch). Retourne null si vide.
+function PickupControlsCadre({ controls, locale }) {
+  if (!controls || typeof controls !== 'object') return null;
+  const knobs = Array.isArray(controls.knobs) ? controls.knobs : [];
+  if (!controls.selector && knobs.length === 0) return null;
+  const why = controls.why ? getLocalizedText(controls.why, locale) : null;
+  return (
+    <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+      <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <NavIcon id="sliders" size={14}/>{t('song-detail.pickup-controls', 'Réglages micros')}
+      </div>
+      {controls.selector && (
+        <div style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', marginBottom: knobs.length ? 6 : 0 }}>
+          <b style={{ color: 'var(--text-muted)' }}>{t('song-detail.pickup-selector', 'Sélecteur')}</b> {controls.selector}
+        </div>
+      )}
+      {knobs.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', fontFamily: 'var(--font-mono)' }}>
+          {knobs.map((k, i) => (
+            <span key={i}><b style={{ color: 'var(--text-muted)' }}>{k.name}</b> {k.value}</span>
+          ))}
+        </div>
+      )}
+      {why && <div className="prose-readable" style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', marginTop: 4, lineHeight: 1.4, fontStyle: 'italic' }}>{why}</div>}
+    </div>
+  );
+}
+
 // Cadre "Réglages effets" en histogramme barres horizontales (Phase 7.83 final5).
 // Extrait en composant partagé (vague B) pour réutilisation guitare ↔ basse :
 // les blocs FX guitar (aiC.fx_blocks) et bass (bass_recommendation.bass_fx_blocks)
@@ -796,6 +827,11 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 );
               })()}
 
+              {/* Phase 9.8 — Réglages micros de la guitare SÉLECTIONNÉE
+                  (chosenGuitarCot.controls). Maj instantanée au changement de
+                  la liste déroulante (g/gId → re-render, 0 re-fetch). */}
+              <PickupControlsCadre controls={chosenGuitarCot?.controls} locale={locale}/>
+
               {/* Réglages EQ + effets déplacés APRÈS Scoring preset (2026-05-28,
                   retour Sébastien : le scoring preset vient avant les réglages).
                   Cf eqSettingsCadre + FxBlocksCadre plus bas. */}
@@ -1252,16 +1288,19 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         const selectedIsIdeal = idealBassObj && selectedBass && selectedBass.id === idealBassObj.id;
         // Score de la basse sélectionnée (depuis cot_step2_basses) pour pill à
         // droite, symétrique au pill score guitare. Match par nom (case-insensitive).
-        const selectedBassScore = (() => {
+        // cot entry de la basse sélectionnée (match par nom) → score + controls.
+        const selectedBassCot = (() => {
           if (!selectedBass) return null;
           const sn = String(selectedBass.name).toLowerCase();
-          const hit = cotBasses.find((b) => {
+          return cotBasses.find((b) => {
             if (!b.name) return false;
             const bn = String(b.name).toLowerCase();
             return bn.includes(sn) || sn.includes(bn);
-          });
-          return hit && typeof hit.score === 'number' ? hit.score : null;
+          }) || null;
         })();
+        const selectedBassScore = selectedBassCot && typeof selectedBassCot.score === 'number' ? selectedBassCot.score : null;
+        // Phase 9.8 — réglages micros de la basse sélectionnée (maj instantanée).
+        const selectedBassControls = selectedBassCot?.controls || null;
         const handleBassChange = (v) => {
           setSelectedBassId(v);
           if (onBassChange) onBassChange(song.id, v);
@@ -1327,6 +1366,13 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 {bassReason && (
                   <div className="prose-readable" style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', lineHeight: 1.45, marginBottom: 8 }}>
                     {bassReason}
+                  </div>
+                )}
+                {/* Phase 9.8 — Réglages micros de la basse SÉLECTIONNÉE
+                    (selectedBassControls). Maj instantanée au changement de liste. */}
+                {selectedBassControls && (
+                  <div style={{ marginBottom: 8 }}>
+                    <PickupControlsCadre controls={selectedBassControls} locale={locale}/>
                   </div>
                 )}
                 {/* Vague B — Cadres symétriques au bloc guitare. Chacun gated par

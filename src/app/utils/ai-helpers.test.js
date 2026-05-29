@@ -7,7 +7,7 @@
 // - inputs falsy/edge cases
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { getLocalizedText, findSlotByUsageMatch, findCatalogEntryByUsages, findSlotByName, stripSlotPrefix, sanitizeAmpSuggestion, sanitizePedalSuggestion, enrichAIResult, updateAiCache, computeRigSnapshot } from './ai-helpers.js';
+import { getLocalizedText, findSlotByUsageMatch, findCatalogEntryByUsages, findSlotByName, stripSlotPrefix, sanitizeAmpSuggestion, sanitizePedalSuggestion, sanitizeControls, enrichAIResult, updateAiCache, computeRigSnapshot } from './ai-helpers.js';
 import { PRESET_CATALOG_MERGED } from '../../core/catalog.js';
 
 describe('getLocalizedText', () => {
@@ -1372,6 +1372,65 @@ describe('sanitizePedalSuggestion — Phase C (ajout pédale custom via IA)', ()
 
   it('pedalTypes vide → fallback drive sûr', () => {
     expect(sanitizePedalSuggestion({ name: 'X', type: 'fuzz' }, []).type).toBe('drive');
+  });
+});
+
+describe('sanitizeControls — Phase 9.8 (réglages micros par instrument)', () => {
+  it('valide selector + knobs + why', () => {
+    const out = sanitizeControls({
+      selector: 'Position 4 (manche + intermédiaire)',
+      knobs: [{ name: 'Volume', value: 8 }, { name: 'Tone (manche)', value: '7' }],
+      why: { fr: 'Adouci', en: 'Softer', es: 'Más suave' },
+    });
+    expect(out.selector).toBe('Position 4 (manche + intermédiaire)');
+    expect(out.knobs).toEqual([{ name: 'Volume', value: '8' }, { name: 'Tone (manche)', value: '7' }]);
+    expect(out.why.fr).toBe('Adouci');
+  });
+
+  it('coerce value en string + drop knob sans name + cap 6', () => {
+    const out = sanitizeControls({ knobs: [
+      { name: 'A', value: 10 }, { value: 5 }, { name: '  ', value: 3 },
+      { name: 'B', value: 1 }, { name: 'C' }, { name: 'D' }, { name: 'E' }, { name: 'F' }, { name: 'G' },
+    ] });
+    expect(out.knobs.length).toBe(6);
+    expect(out.knobs[0]).toEqual({ name: 'A', value: '10' });
+    expect(out.knobs.find((k) => k.name === 'C').value).toBe('');
+  });
+
+  it('why partiel → langues valides seules', () => {
+    expect(sanitizeControls({ selector: 'x', why: { fr: 'A', en: '  ' } }).why).toEqual({ fr: 'A' });
+  });
+
+  it('selector seul (mono-micro: knobs vides) reste valide', () => {
+    const out = sanitizeControls({ knobs: [{ name: 'Volume', value: 6 }] });
+    expect(out.selector).toBeUndefined();
+    expect(out.knobs.length).toBe(1);
+  });
+
+  it('null si rien d\'exploitable', () => {
+    expect(sanitizeControls(null)).toBe(null);
+    expect(sanitizeControls({})).toBe(null);
+    expect(sanitizeControls({ selector: '', knobs: [], why: {} })).toBe(null);
+    expect(sanitizeControls({ knobs: 'nope' })).toBe(null);
+  });
+});
+
+describe('enrichAIResult — validation controls cot_step2 (Phase 9.8)', () => {
+  it('sanitize controls sur cot_step2_guitars + cot_step2_basses, idempotent', () => {
+    const r = {
+      cot_step1: 'x',
+      cot_step2_guitars: [{ name: 'LP60', score: 90, controls: { knobs: [{ name: 'Vol', value: 8 }, { value: 1 }] } }],
+      cot_step2_basses: [{ name: 'Jazz Bass', score: 85, controls: { selector: '', knobs: [], why: {} } }],
+    };
+    const out = enrichAIResult(r, 'HB', '', {}, {}, undefined, { id: 's', title: 'T', artist: 'A' });
+    // guitar : knob sans name droppé, value coercée
+    expect(out.cot_step2_guitars[0].controls.knobs).toEqual([{ name: 'Vol', value: '8' }]);
+    // bass : controls vide → champ retiré
+    expect(out.cot_step2_basses[0].controls).toBeUndefined();
+    expect(out._controlsValidated).toBe(true);
+    // idempotence : 2e passage ne casse pas
+    const out2 = enrichAIResult(out, 'HB', '', {}, {}, undefined, { id: 's', title: 'T', artist: 'A' });
+    expect(out2.cot_step2_guitars[0].controls.knobs).toEqual([{ name: 'Vol', value: '8' }]);
   });
 });
 

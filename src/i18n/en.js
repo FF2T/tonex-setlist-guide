@@ -1077,6 +1077,8 @@ const en = {
   'profile-tab.my-pedals-hint': 'Check the physical effect pedals on your board. Backline will suggest which to engage + their settings per song when you play through an amp.',
   'profile-tab.custom-pedals-section': 'My custom pedals',
   'song-detail.pedalboard-block': 'On your pedalboard',
+  'song-detail.pickup-controls': 'Pickup settings',
+  'song-detail.pickup-selector': 'Selector',
   // Vague 4 (2026-05-28) — traductions des clés -flat (libellés sans emoji)
   "admin.breadcrumb-flat": "Admin",
   "admin.tab.adminpacks-flat": "Admin packs",

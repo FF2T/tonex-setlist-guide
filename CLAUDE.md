@@ -981,9 +981,43 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-29 vendredi, V9.5.1 — Vue repliée setlist adaptée au contexte basse)
+## État actuel (2026-05-29 vendredi, V9.6.0 — Réglages micros par instrument sélectionné)
 
-**Backline v9.5.1 / SW backline-v401 / STATE_VERSION 13 / 1804 tests verts. Bundle 2679 KB.**
+**Backline v9.6.0 / SW backline-v402 / STATE_VERSION 13 / 1810 tests verts. Bundle 2683 KB.**
+
+### v9.6.0 — Section "Réglages micros" par instrument (2026-05-29)
+
+Retour Sébastien : une section dédiée de réglage des micros/contrôles par
+morceau, propre à l'instrument SÉLECTIONNÉ (volume + tonalité + sélecteur,
+plusieurs boutons selon le modèle), conseillée précisément par l'IA. Décision
+(AskUserQuestion) : **maj instantanée** — l'IA pré-calcule par instrument du
+rig en 1 analyse, le changement de liste met à jour sans re-fetch.
+
+- **Modèle** : champ `controls` ajouté à chaque `cot_step2_guitars[i]` ET
+  `cot_step2_basses[i]` : `{ selector, knobs:[{name,value}], why{fr,en,es} }`.
+  L'IA adapte au layout réel du modèle (Strat 5 pos + 1 vol + 2 tone ; LP/SG
+  3 pos + 2 vol + 2 tone ; Tele 3 pos + 1 vol + 1 tone ; Jazz Bass 2 vol + 1
+  tone ; Precision 1 vol + 1 tone…). Additif → pas de bump STATE_VERSION.
+- **`sanitizeControls`** (`ai-helpers.js`, exporté, +6 tests) : valide selector
+  string + knobs {name, value coercé string, cap 6, drop sans name} + why
+  trilingue. `enrichAIResult` sanitize `controls` sur chaque entrée cot_step2_*
+  (flag `_controlsValidated`, idempotent).
+- **Prompt fetchAI** : ÉTAPE 2 + template cot_step2_guitars/basses étendus avec
+  `controls` + instruction layout par modèle. `controls.why` ajouté aux champs
+  trilingues.
+- **UI** : composant module-level `PickupControlsCadre` (NavIcon `sliders`,
+  partagé guitare↔basse). Guitare : lit `chosenGuitarCot.controls` (déjà calculé
+  l.310 via findCotEntryForGuitar). Basse : lit `selectedBassCot.controls`
+  (match par nom dans cotBasses). Les deux se mettent à jour **instantanément**
+  au changement de liste déroulante (g/gId / setSelectedBassId → re-render,
+  0 re-fetch). Fallback : caches sans `controls` → ligne playing_hints existante.
+- i18n EN/ES (`song-detail.pickup-controls` + `pickup-selector`). 1810 tests.
+
+**Maj des sections au changement d'instrument (réponse à la question)** :
+section micros → instantané (cot entry par instrument) ; preset → re-scoré
+(fast-path) ; EQ/effets du preset → inchangés (peu dépendants de l'instrument).
+
+### v9.5.1 — Vue repliée setlist adaptée au contexte basse (2026-05-29)
 
 ### v9.5.1 — Vue repliée ListScreen basse-aware (2026-05-29)
 
