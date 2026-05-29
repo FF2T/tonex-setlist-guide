@@ -526,6 +526,8 @@ const es = {
 
   // Phase 7.73.2 — Tab "⚙️ Preferencias" (fusionado Pantalla + Preferencias IA + Estilos musicales)
   'preferences.intro': 'Tus preferencias de uso de la app.',
+  'preferences.section-instruments': 'Instrumento(s)',
+  'preferences.instruments-hint': 'Selecciona el/los instrumento(s) que tocas — activa las pestañas y recomendaciones correspondientes. Se requiere al menos uno.',
   'preferences.section-display': 'Pantalla',
   'preferences.section-ai': 'Preferencias IA',
   'preferences.section-musical-styles': 'Preferencias musicales',

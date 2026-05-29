@@ -78,15 +78,8 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
   const toggleBassAmp = (id) => {
     updateProfile('myBassAmps', (prev) => (prev || []).includes(id) ? prev.filter((x) => x !== id) : [...(prev || []), id]);
   };
-  const toggleBassInstrument = () => {
-    updateProfile('instruments', (prev) => {
-      const list = Array.isArray(prev) ? prev : ['guitar'];
-      if (list.includes('bass')) {
-        return list.filter((x) => x !== 'bass');
-      }
-      return [...list, 'bass'];
-    });
-  };
+  // Réorg 2026-05-29 — toggleBassInstrument retiré : l'activation de la basse
+  // se fait désormais dans Préférences → Instrument(s) (MonProfilScreen).
   // Phase 8.7 — Helpers add/remove customs basse
   const addCustomBass = () => {
     if (!newBassName.trim()) return;
@@ -336,17 +329,10 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
           const myBassAmps = profile?.myBassAmps || [];
           return (
             <>
-              {/* Section 1 — Toggle activation basse */}
-              <div style={{ marginBottom: bassActive ? 20 : 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{t('profile-tab.bass-activate', 'Active la basse')}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>{t('profile-tab.bass-activate-hint-flat', 'Active la basse comme instrument à part entière (elle peut être ton instrument principal, ou unique). Elle est analysée sur TOUS les morceaux de tes setlists, avec sa propre section dans la fiche dépliée.')}</div>
-                <div onClick={() => { if (!isDemo) toggleBassInstrument(); }} title={demoTitle} style={{ display: 'flex', alignItems: 'center', gap: 10, background: bassActive ? 'var(--accent-soft)' : 'var(--a3)', border: bassActive ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: 'var(--r-md)', padding: '10px 14px', cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.6 : 1 }}>
-                  <div style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: bassActive ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: bassActive ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{bassActive && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: bassActive ? 'var(--text)' : 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}><NavIcon id="bass" size={15}/>{t('profile-tab.bass-toggle-label-flat', 'Je joue de la basse')}</span>
-                </div>
-              </div>
-
-              {/* Section 2 — Liste basses cochables (seulement si activé) */}
+              {/* Réorg 2026-05-29 — l'activation de la basse est désormais dans
+                  Préférences → Instrument(s). Cet onglet n'apparaît que si la
+                  basse est cochée → on affiche directement la liste. */}
+              {/* Liste basses cochables */}
               {bassActive && (
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>{t('profile-tab.my-basses', 'Mes basses')}</div>

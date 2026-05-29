@@ -8,7 +8,7 @@
 // `MaintenanceTabComponent` pour éviter une dépendance circulaire le
 // temps de la séparation.
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SUPPORTED_LOCALES, setLocale, useLocale, t, tFormat, getLocale } from '../../i18n/index.js';
 import { findDuplicateSong } from '../utils/song-helpers.js';
 import { updateAiCache } from '../utils/ai-helpers.js';
@@ -75,6 +75,31 @@ function MonProfilScreen({
   const [expandedSongId, setExpandedSongId] = useState(null);
   const toggleSongInSetlist = (songId, slId) => onSetlists((p) => p.map((sl) => sl.id !== slId ? sl : { ...sl, songIds: sl.songIds.includes(songId) ? sl.songIds.filter((x) => x !== songId) : [...sl.songIds, songId] }));
   const inp = { background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '6px 10px', fontSize: 12, boxSizing: 'border-box' };
+  // Réorg 2026-05-29 — instrument(s) du profil pilotés depuis Préférences.
+  // Gate les onglets "Mes guitares" / "Mes basses". ≥1 instrument requis.
+  const instruments = Array.isArray(profile?.instruments) && profile.instruments.length > 0 ? profile.instruments : ['guitar'];
+  const playsGuitar = instruments.includes('guitar');
+  const playsBass = instruments.includes('bass');
+  const toggleInstrument = (instr) => {
+    onProfiles((p) => {
+      const cur = p[activeProfileId]; if (!cur) return p;
+      const list = Array.isArray(cur.instruments) && cur.instruments.length > 0 ? cur.instruments : ['guitar'];
+      let next;
+      if (list.includes(instr)) {
+        if (list.length <= 1) return p; // garde-fou : ≥1 instrument
+        next = list.filter((x) => x !== instr);
+      } else {
+        next = instr === 'guitar' ? ['guitar', ...list.filter((x) => x !== 'guitar')] : [...list, instr];
+      }
+      return { ...p, [activeProfileId]: { ...cur, instruments: next, lastModified: Date.now() } };
+    });
+  };
+  // Garde-fou : si l'onglet actif devient masqué (instrument décoché), retombe
+  // sur Préférences (où se fait le choix d'instrument).
+  useEffect(() => {
+    if (tab === 'profile' && !playsGuitar) setTab('preferences');
+    else if (tab === 'basses' && !playsBass) setTab('preferences');
+  }, [tab, playsGuitar, playsBass]);
   // Vague 3 UX (2026-05-28) — composant TabButton partagé (taille/style
   // unifiés avec AdminScreen).
   const tabBtn = (id, label, iconId) => (
@@ -145,11 +170,10 @@ function MonProfilScreen({
         {/* Phase 7.73.2 — Renommages "Guitares" → "Mes guitares" /
             "Sources" → "Mes sources" pour cohérence avec "Mes appareils"
             / "Mes presets custom". */}
-        {!isDemo && tabBtn('profile', t('profile.tab.guitars-flat', 'Mes guitares'), 'guitar')}
-        {/* Phase 8.6 — Tab "Mes basses" : toggle activation bass +
-            liste basses/amplis basse cochables. Visible à tous (admin
-            et non-admin), permet activation sans snippet console. */}
-        {!isDemo && tabBtn('basses', t('profile.tab.basses-flat', 'Mes basses'), 'bass')}
+        {/* Réorg 2026-05-29 — onglets instruments gatés par profile.instruments
+            (choix dans Préférences → Instrument(s)). */}
+        {!isDemo && playsGuitar && tabBtn('profile', t('profile.tab.guitars-flat', 'Mes guitares'), 'guitar')}
+        {!isDemo && playsBass && tabBtn('basses', t('profile.tab.basses-flat', 'Mes basses'), 'bass')}
         {/* Réorg 2026-05-28 — "Mes amplis & pédales" : tout l'analogique
             (amplis guitare + basse + pédales Phase C), sorti des onglets
             instruments. */}
@@ -278,6 +302,29 @@ function MonProfilScreen({
       </div>}
       {tab === 'preferences' && <div>
         <div style={{ fontSize: 13, color: 'var(--text-sec)', marginBottom: 16 }}>{t('preferences.intro', 'Tes préférences d\'utilisation de l\'app.')}</div>
+
+        {/* Réorg 2026-05-29 — Section 0 : Instrument(s). Choix de haut niveau
+            (guitare / basse / les deux) qui active les onglets + recommandations
+            correspondants. La basse peut être l'unique instrument. */}
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginTop: 4, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span>{t('preferences.section-instruments', 'Instrument(s)')}</span>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 10 }}>{t('preferences.instruments-hint', 'Sélectionne le(s) instrument(s) que tu joues — ça active les onglets et recommandations correspondants. Au moins un requis.')}</div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          {[
+            { id: 'guitar', label: t('play-context.instrument-guitar', 'Guitare'), icon: 'guitar', on: playsGuitar },
+            { id: 'bass', label: t('play-context.instrument-bass', 'Basse'), icon: 'bass', on: playsBass },
+          ].map(({ id, label, icon, on }) => (
+            <button key={id} data-testid={`pref-instrument-${id}`}
+              onClick={() => { if (!isDemo) toggleInstrument(id); }}
+              disabled={isDemo}
+              title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : undefined}
+              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: on ? 'var(--accent-bg)' : 'var(--a5)', border: on ? '1px solid var(--border-accent)' : '1px solid var(--a10)', color: on ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-lg)', padding: '14px 8px', fontSize: 14, fontWeight: 700, cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.5 : 1 }}>
+              <div style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: on ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: on ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{on && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
+              <NavIcon id={icon} size={16}/>{label}
+            </button>
+          ))}
+        </div>
 
         {/* Phase 7.73.2 — Section 1 : Affichage (ex-tab "display" Phase 7.36) */}
         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginTop: 4, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>

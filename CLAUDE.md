@@ -981,9 +981,37 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-29 vendredi, V9.4.1 — Basse instrument à part entière + analyse tous morceaux)
+## État actuel (2026-05-29 vendredi, V9.5.0 — Sélecteur instrument(s) Préférences + gating onglets profil)
 
-**Backline v9.4.1 / SW backline-v399 / STATE_VERSION 13 / 1804 tests verts. Bundle 2677 KB.**
+**Backline v9.5.0 / SW backline-v400 / STATE_VERSION 13 / 1804 tests verts. Bundle 2678 KB.**
+
+### v9.5.0 — Choix d'instrument(s) de haut niveau (2026-05-29)
+
+Retour Sébastien : un réglage de haut niveau (Préférences) pour déclarer
+guitariste / bassiste / les deux, qui **active ou non les onglets** du profil.
+Rend le **bassiste pur** possible (la basse pouvait déjà être un instrument à
+part entière v9.4.1, mais la guitare restait toujours présente).
+
+- **Préférences → Section 0 "Instrument(s)"** : 2 cartes cochables Guitare +
+  Basse (NavIcon flat), écrit `profile.instruments`. Garde-fou ≥1 instrument
+  (impossible de tout décocher). Helper `toggleInstrument` (MonProfilScreen).
+- **Gating onglets** : "Mes guitares" affiché si `instruments.includes('guitar')`,
+  "Mes basses" si `includes('bass')`. `useEffect` de repli : si l'onglet actif
+  devient masqué → retombe sur Préférences.
+- **ProfileTab** : toggle "Je joue de la basse" + helper `toggleBassInstrument`
+  RETIRÉS de l'onglet "Mes basses" (activation centralisée en Préférences) ;
+  l'onglet affiche directement la liste des basses (n'apparaît que si bass coché).
+- Comportement : guitariste → guitare seule ; bassiste pur (`['bass']`) →
+  "Mes guitares" masqué, fiche song en contexte basse par défaut
+  (`getDefaultPlayInstrument` Phase B) ; les deux → tout. `instruments` déjà
+  dans le profileHash (sync) + déjà migré → pas de bump STATE_VERSION.
+- i18n EN/ES (`preferences.section-instruments` + `instruments-hint`). 1804 tests.
+
+**Hors scope (noté)** : ListScreen vue repliée / RecapScreen restent
+guitar-oriented par défaut pour un bassiste pur (le besoin portait sur les
+onglets du profil). Polish vue repliée bassiste = follow-up si demandé.
+
+### v9.4.1 — Basse instrument à part entière + analyse tous morceaux (2026-05-29)
 
 ### v9.4.1 — Basse first-class + wording (2026-05-29)
 

@@ -528,6 +528,8 @@ const en = {
 
   // Phase 7.73.2 — Tab "⚙️ Preferences" (fusionné Display + AI Preferences + Musical Styles)
   'preferences.intro': 'Your app usage preferences.',
+  'preferences.section-instruments': 'Instrument(s)',
+  'preferences.instruments-hint': 'Select the instrument(s) you play — this activates the matching tabs and recommendations. At least one required.',
   'preferences.section-display': 'Display',
   'preferences.section-ai': 'AI Preferences',
   'preferences.section-musical-styles': 'Musical preferences',
