@@ -1288,16 +1288,12 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         const selectedIsIdeal = idealBassObj && selectedBass && selectedBass.id === idealBassObj.id;
         // Score de la basse sélectionnée (depuis cot_step2_basses) pour pill à
         // droite, symétrique au pill score guitare. Match par nom (case-insensitive).
-        // cot entry de la basse sélectionnée (match par nom) → score + controls.
-        const selectedBassCot = (() => {
-          if (!selectedBass) return null;
-          const sn = String(selectedBass.name).toLowerCase();
-          return cotBasses.find((b) => {
-            if (!b.name) return false;
-            const bn = String(b.name).toLowerCase();
-            return bn.includes(sn) || sn.includes(bn);
-          }) || null;
-        })();
+        // cot entry de la basse sélectionnée → score + controls. Match robuste
+        // via findCotEntryForGuitar (tokenization matchGuitarName, name-generic),
+        // au lieu d'un includes() fragile (sinon un léger écart de nom entre la
+        // basse du rig et l'entrée cot_step2_basses ratait le match → controls
+        // disparaissent au changement de basse).
+        const selectedBassCot = findCotEntryForGuitar(cotBasses, selectedBass);
         const selectedBassScore = selectedBassCot && typeof selectedBassCot.score === 'number' ? selectedBassCot.score : null;
         // Phase 9.8 — réglages micros de la basse sélectionnée (maj instantanée).
         const selectedBassControls = selectedBassCot?.controls || null;

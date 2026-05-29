@@ -981,9 +981,26 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-29 vendredi, V9.7.1 — Toggle setlist inline dans l'onglet Morceaux)
+## État actuel (2026-05-29 vendredi, V9.7.2 — Fix réglages micros disparaissent au changement de basse)
 
-**Backline v9.7.1 / SW backline-v404 / STATE_VERSION 13 / 1820 tests verts. Bundle 2689 KB.**
+**Backline v9.7.2 / SW backline-v405 / STATE_VERSION 13 / 1820 tests verts. Bundle 2689 KB.**
+
+### v9.7.2 — Fix "Réglages micros" disparaissent au changement de basse
+
+Bug Sébastien : changer de basse fait disparaître le cadre "Réglages micros".
+**Cause racine** : le template JSON du prompt fetchAI ne mettait `controls` que
+sur la **1ère entrée** de `cot_step2_basses` (et idem cot_step2_guitars) → Gemini
+copiait l'exemple → seule la basse/guitare idéale recevait `controls`. Une basse
+alternative sélectionnée → pas de controls → cadre masqué.
+- **Prompt** : `controls` ajouté à la 2e entrée des exemples JSON (guitare ET
+  basse) + instruction renforcée "OBLIGATOIRE sur CHAQUE entrée (idéale ET
+  alternatives), l'user peut sélectionner n'importe quel instrument du rig".
+- **Matcher robuste** : SongDetailCard remplace le `includes()` naïf du match
+  basse par `findCotEntryForGuitar` (tokenization matchGuitarName, name-generic,
+  déjà utilisé côté guitare) → un léger écart de nom ne rate plus le match.
+- **Caches existants** : n'ont controls que sur la basse idéale → re-analyser
+  pour peupler toutes les basses (prompt côté futur). UI pure + prompt → pas de
+  bump STATE_VERSION. 1820 tests.
 
 ### v9.7.1 — Toggle setlist inline (onglet Morceaux des Setlists)
 
