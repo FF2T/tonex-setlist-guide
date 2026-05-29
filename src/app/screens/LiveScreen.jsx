@@ -21,6 +21,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { t, tFormat, getLocale } from '../../i18n/index.js';
 import { getSongInfo, SONG_HISTORY } from '../../core/songs.js';
+import { getEffectivePlayContext, getAvailableRigs } from '../../core/state.js';
+import { getLocalizedText } from '../utils/ai-helpers.js';
 import NavIcon from '../components/NavIcon.jsx';
 
 // Phase 4.6 — Mapping pickup playing_hints (Phase 9.5) vers labels
@@ -197,6 +199,14 @@ function LiveScreen({
     ? getGuitarForSong(song)
     : null;
   const devices = Array.isArray(enabledDevices) ? enabledDevices : [];
+  // Phase B/C — contexte de jeu (instrument × rig) du morceau courant : filtre
+  // les sections affichées en scène, comme la fiche dépliée SongDetailCard.
+  const playCtx = song ? getEffectivePlayContext(profile, song) : { instrument: 'guitar', rig: 'tonex' };
+  const playsBass = Array.isArray(profile?.instruments) && profile.instruments.includes('bass');
+  const availableRigs = getAvailableRigs(profile, playCtx.instrument);
+  const showContextBadge = playsBass || availableRigs.length > 1;
+  const aiC = song?.aiCache?.result || null;
+  const liveLocale = getLocale();
 
   return (
     <div
@@ -327,12 +337,35 @@ function LiveScreen({
             {hist.guitarist} · {hist.guitar} · {hist.amp}
           </div>
         )}
+        {/* Phase B/C — badge contexte de jeu (read-only) : instrument · rig
+            du morceau courant. Masqué si profil mono (1 instrument + 1 rig). */}
+        {showContextBadge && (
+          <div
+            data-testid="live-screen-context-badge"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              marginTop: 'clamp(6px, 0.8vw, 10px)',
+              fontSize: 'clamp(11px, 1.5vw, 16px)', fontWeight: 700,
+              color: 'var(--accent)',
+              background: 'var(--accent-soft)', border: '1px solid var(--accent-border)',
+              borderRadius: 'var(--r-md)', padding: '4px 12px',
+              fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 0.5,
+            }}
+          >
+            <NavIcon id={playCtx.instrument === 'bass' ? 'bass' : 'guitar'} size={16}/>
+            <span>{playCtx.instrument === 'bass' ? t('play-context.instrument-bass', 'Basse') : t('play-context.instrument-guitar', 'Guitare')}</span>
+            <span style={{ color: 'var(--text-dim)' }}>·</span>
+            <NavIcon id={playCtx.rig === 'tmp' ? 'sliders' : 'amp'} size={16}/>
+            <span>{playCtx.rig === 'tonex' ? t('play-context.rig-tonex', 'ToneX') : playCtx.rig === 'tmp' ? t('play-context.rig-tmp', 'Tone Master Pro') : t('play-context.rig-amp', 'Ampli')}</span>
+          </div>
+        )}
       </div>
 
       {/* Phase 4.6 — Section guitare device-agnostic (playing_hints Phase 9.5)
           Affichée entre Title block et Devices pour lecture rapide en scène.
-          Skip silencieux si aiCache absent ou playing_hints absent. */}
-      {(() => {
+          Skip silencieux si aiCache absent ou playing_hints absent.
+          Phase B — gated par contexte de jeu instrument = guitare. */}
+      {playCtx.instrument === 'guitar' && (() => {
         const playingHints = song?.aiCache?.result?.playing_hints;
         if (!playingHints || typeof playingHints !== 'object') return null;
         const { pickup, guitar_volume, guitar_tone, stereo } = playingHints;
@@ -404,6 +437,61 @@ function LiveScreen({
         );
       })()}
 
+      {/* Phase B/C — Section basse (instrument = basse) : basse idéale + jeu. */}
+      {playCtx.instrument === 'bass' && aiC?.bass_recommendation && (() => {
+        const br = aiC.bass_recommendation;
+        const settingsBass = br.settings_bass ? getLocalizedText(br.settings_bass, liveLocale) : null;
+        if (!br.ideal_bass && !settingsBass) return null;
+        return (
+          <div data-testid="live-screen-bass" style={{ background: 'var(--a3)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-lg)', padding: '12px 14px', marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--accent)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('live.bass-section', 'Basse')}</div>
+            {br.ideal_bass && <div style={{ fontSize: 'clamp(15px, 2.8vw, 26px)', fontWeight: 700, color: 'var(--text-bright)', lineHeight: 1.3 }}>{br.ideal_bass}</div>}
+            {settingsBass && <div style={{ fontSize: 'clamp(12px, 1.8vw, 17px)', color: 'var(--text-sec)', lineHeight: 1.4 }}>{settingsBass}</div>}
+          </div>
+        );
+      })()}
+
+      {/* Phase B/C — Cadre "Sur ton ampli" (rig = Ampli) : potards 0-10 de
+          l'ampli réel (guitar_amp_settings guitare OU bass amp_settings). */}
+      {playCtx.rig === 'amp' && (() => {
+        let settings = null; let ampName = null;
+        if (playCtx.instrument === 'bass') {
+          settings = aiC?.bass_recommendation?.amp_settings;
+        } else {
+          settings = aiC?.guitar_amp_settings?.settings;
+          ampName = aiC?.guitar_amp_settings?.amp;
+        }
+        if (!settings || typeof settings !== 'object') return null;
+        const entries = Object.entries(settings).filter(([, v]) => v != null);
+        if (entries.length === 0) return null;
+        return (
+          <div data-testid="live-screen-amp" style={{ background: 'var(--a3)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-lg)', padding: '12px 14px', marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--accent)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('live.amp-section', 'Sur ton ampli')}{ampName ? ' · ' + ampName : ''}</div>
+            <div style={{ fontSize: 'clamp(14px, 2.4vw, 22px)', fontWeight: 700, color: 'var(--text-bright)', lineHeight: 1.4, display: 'flex', flexWrap: 'wrap', gap: '4px 16px', fontFamily: 'var(--font-mono)' }}>
+              {entries.map(([k, v]) => (
+                <span key={k}><span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500, textTransform: 'uppercase' }}>{k.replace(/_/g, ' ')}</span> <b>{v}</b></span>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Phase C — Cadre "Sur ton pédalier" (rig = Ampli, guitare). */}
+      {playCtx.rig === 'amp' && playCtx.instrument === 'guitar' && Array.isArray(aiC?.pedalboard_settings) && aiC.pedalboard_settings.length > 0 && (
+        <div data-testid="live-screen-pedalboard" style={{ background: 'var(--a3)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-lg)', padding: '12px 14px', marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--accent)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{t('live.pedalboard-section', 'Sur ton pédalier')}</div>
+          {aiC.pedalboard_settings.map((p, i) => {
+            const entries = p.settings && typeof p.settings === 'object' ? Object.entries(p.settings).filter(([, v]) => v != null) : [];
+            return (
+              <div key={i} style={{ fontSize: 'clamp(13px, 2vw, 19px)', color: 'var(--text-bright)', lineHeight: 1.4 }}>
+                <b>{p.pedal}</b>
+                {entries.length > 0 && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'clamp(11px, 1.5vw, 15px)', color: 'var(--text-sec)' }}>{entries.map(([k, v]) => ` · ${k.replace(/_/g, ' ')} ${v}`).join('')}</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Devices — 1 LiveBlock par device activé */}
       <div
         style={{
@@ -413,7 +501,16 @@ function LiveScreen({
         }}
         data-testid="live-screen-devices"
       >
-        {devices.map((d) => {
+        {devices.filter((d) => {
+          // Phase B/C — gate les LiveBlocks device par le rig du contexte de jeu.
+          // ToneX (deviceKey ann/plug) → rig tonex ; TMP → rig tmp ; rig amp →
+          // aucun device (les cadres ampli/pédalier prennent le relais).
+          const isToneX = d.deviceKey === 'ann' || d.deviceKey === 'plug';
+          const isTmp = d.id === 'tonemaster-pro' || typeof d.RecommendBlock === 'function';
+          if (isToneX) return playCtx.rig === 'tonex';
+          if (isTmp) return playCtx.rig === 'tmp';
+          return true;
+        }).map((d) => {
           if (typeof d.LiveBlock === 'function') {
             const Comp = d.LiveBlock;
             return (

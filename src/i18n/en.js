@@ -86,6 +86,9 @@ const en = {
   // live recos détaillées (Phase 4.6)
   'live.your-guitar': 'your guitar',
   'live.guitar-section': 'On your {guitar}',
+  'live.bass-section': 'Bass',
+  'live.amp-section': 'On your amp',
+  'live.pedalboard-section': 'On your pedalboard',
   'live.volume': 'Volume',
   'live.tone': 'Tone',
   'live.pedal-settings': 'Pedal settings',

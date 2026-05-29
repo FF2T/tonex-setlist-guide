@@ -981,9 +981,37 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-28 jeudi, V9.3.0 — Phase C : pédalier physique + reco "Sur ton pédalier")
+## État actuel (2026-05-29 vendredi, V9.4.0 — LiveScreen multi-instrument : contexte de jeu en mode scène)
 
-**Backline v9.3.0 / SW backline-v397 / STATE_VERSION 13 / 1799 tests verts. Bundle 2672 KB.**
+**Backline v9.4.0 / SW backline-v398 / STATE_VERSION 13 / 1804 tests verts. Bundle 2677 KB.**
+
+### v9.4.0 — LiveScreen multi-instrument (parité contexte de jeu Phase B/C) (2026-05-29)
+
+Le mode scène (`LiveScreen`) respecte désormais le **contexte de jeu**
+(instrument × rig) et affiche les blocs basse/ampli/pédalier en plus de la
+guitare/ToneX. Parité avec la fiche dépliée (SongDetailCard Phase B/C).
+
+- `getEffectivePlayContext(profile, song)` lu par morceau → filtre les sections.
+- **Badge contexte** read-only dans le header (instrument · rig, NavIcon flat),
+  masqué si profil mono-instrument + mono-rig.
+- **Section guitare** (playing_hints) gated `instrument === 'guitar'`.
+- **Section basse** (`instrument === 'bass'`) : basse idéale + jeu (settings_bass)
+  depuis `aiC.bass_recommendation`, style scène.
+- **Cadre "Sur ton ampli"** (`rig === 'amp'`) : potards 0-10 (guitar_amp_settings
+  guitare OU bass_recommendation.amp_settings basse).
+- **Cadre "Sur ton pédalier"** (`rig === 'amp'` + guitare + pedalboard_settings).
+- **Devices loop gatée par rig** : LiveBlock ToneX (deviceKey ann/plug) si
+  rig=tonex, TMP si rig=tmp, aucun device si rig=amp (cadres ampli/pédalier
+  prennent le relais).
+- L'override par morceau (`song.playInstrument/playRig`) est respecté → swipe
+  entre morceaux affiche le bon contexte par morceau.
+- i18n EN/ES (`live.bass-section`, `live.amp-section`, `live.pedalboard-section`).
+  Lecture seule de l'aiCache/profile → pas de bump STATE_VERSION. +5 tests → 1804.
+
+Chantier rig multi-instrument **clos de bout en bout** (prép + fiche dépliée +
+mode scène) : A → B → B.1 → réorg onglets (9.2) → pédalier (9.3) → LiveScreen (9.4).
+
+### v9.3.0 — Phase C : pédalier physique (STEP 2) (2026-05-28)
 
 ### v9.3.0 — Phase C : pédalier physique (STEP 2) (2026-05-28)
 

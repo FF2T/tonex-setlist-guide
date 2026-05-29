@@ -263,3 +263,86 @@ describe('LiveScreen — BPM/key affichage', () => {
     expect(container.querySelector('[data-testid="live-screen-bpm-key"]')).toBeNull();
   });
 });
+
+describe('LiveScreen — contexte de jeu multi-instrument (Phase B/C)', () => {
+  const toneXLive = ({ song }) => <div data-testid="tonex-live-block">ToneX {song.title}</div>;
+  const TONEX_DEVICE = { id: 'tonex-anniversary', deviceKey: 'ann', label: 'Anniversary', LiveBlock: toneXLive };
+
+  const multiProfile = {
+    instruments: ['guitar', 'bass'],
+    enabledDevices: ['tonex-anniversary'],
+    myGuitarAmps: ['marshall_plexi'],
+    myBassAmps: ['rumble_100'],
+    myPedals: ['ts808'],
+  };
+  const aiResult = {
+    playing_hints: { pickup: 'Bridge', guitar_volume: '8-10', guitar_tone: '10' },
+    bass_recommendation: {
+      ideal_bass: 'Fender Jazz Bass',
+      settings_bass: { fr: 'Joue aux doigts.', en: 'Fingerstyle.', es: 'Con los dedos.' },
+      amp_settings: { gain: 5, bass: 6, master: 6 },
+    },
+    guitar_amp_settings: { amp: 'Marshall Plexi', settings: { volume_i: 8, treble: 6, presence: 5 } },
+    pedalboard_settings: [{ pedal: 'Tube Screamer', settings: { drive: 3, tone: 7, level: 6 }, why: { fr: 'Boost', en: 'Boost', es: 'Boost' } }],
+  };
+  const mkSong = (over) => [{ id: 's1', title: 'Test Song', artist: 'A', aiCache: { result: aiResult }, ...over }];
+
+  test('rig=tonex guitare → LiveBlock ToneX visible, ampli/pédalier absents', () => {
+    const { container } = render(
+      <LiveScreen songs={mkSong({ playInstrument: 'guitar', playRig: 'tonex' })} profile={multiProfile}
+        allGuitars={[]} banksAnn={{}} banksPlug={{}} enabledDevices={[TONEX_DEVICE]} onExit={() => {}}/>,
+    );
+    expect(container.querySelector('[data-testid="tonex-live-block"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="live-screen-amp"]')).toBeNull();
+    expect(container.querySelector('[data-testid="live-screen-pedalboard"]')).toBeNull();
+    expect(container.querySelector('[data-testid="live-screen-guitar-hints"]')).not.toBeNull();
+  });
+
+  test('rig=amp guitare → "Sur ton ampli" + "Sur ton pédalier", LiveBlock ToneX absent', () => {
+    const { container } = render(
+      <LiveScreen songs={mkSong({ playInstrument: 'guitar', playRig: 'amp' })} profile={multiProfile}
+        allGuitars={[]} banksAnn={{}} banksPlug={{}} enabledDevices={[TONEX_DEVICE]} onExit={() => {}}/>,
+    );
+    const amp = container.querySelector('[data-testid="live-screen-amp"]');
+    expect(amp).not.toBeNull();
+    expect(amp.textContent).toContain('Marshall Plexi');
+    expect(container.querySelector('[data-testid="live-screen-pedalboard"]').textContent).toContain('Tube Screamer');
+    expect(container.querySelector('[data-testid="tonex-live-block"]')).toBeNull();
+  });
+
+  test('instrument=bass → section basse visible, hints guitare absents', () => {
+    const { container } = render(
+      <LiveScreen songs={mkSong({ playInstrument: 'bass', playRig: 'tonex' })} profile={multiProfile}
+        allGuitars={[]} banksAnn={{}} banksPlug={{}} enabledDevices={[TONEX_DEVICE]} onExit={() => {}}/>,
+    );
+    const bass = container.querySelector('[data-testid="live-screen-bass"]');
+    expect(bass).not.toBeNull();
+    expect(bass.textContent).toContain('Fender Jazz Bass');
+    expect(container.querySelector('[data-testid="live-screen-guitar-hints"]')).toBeNull();
+  });
+
+  test('rig=amp basse → cadre ampli avec amp_settings basse', () => {
+    const { container } = render(
+      <LiveScreen songs={mkSong({ playInstrument: 'bass', playRig: 'amp' })} profile={multiProfile}
+        allGuitars={[]} banksAnn={{}} banksPlug={{}} enabledDevices={[TONEX_DEVICE]} onExit={() => {}}/>,
+    );
+    const amp = container.querySelector('[data-testid="live-screen-amp"]');
+    expect(amp).not.toBeNull();
+    expect(amp.textContent.toLowerCase()).toContain('gain');
+    // Pédalier réservé à la guitare → absent en basse.
+    expect(container.querySelector('[data-testid="live-screen-pedalboard"]')).toBeNull();
+  });
+
+  test('badge contexte visible pour profil multi, masqué pour profil mono (null)', () => {
+    const { container: multi } = render(
+      <LiveScreen songs={mkSong({})} profile={multiProfile}
+        allGuitars={[]} banksAnn={{}} banksPlug={{}} enabledDevices={[TONEX_DEVICE]} onExit={() => {}}/>,
+    );
+    expect(multi.querySelector('[data-testid="live-screen-context-badge"]')).not.toBeNull();
+    const { container: mono } = render(
+      <LiveScreen songs={mkSong({})} profile={null}
+        allGuitars={[]} banksAnn={{}} banksPlug={{}} enabledDevices={[]} onExit={() => {}}/>,
+    );
+    expect(mono.querySelector('[data-testid="live-screen-context-badge"]')).toBeNull();
+  });
+});
