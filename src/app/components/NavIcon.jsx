@@ -62,6 +62,7 @@ function NavIcon({id,size}){
   // Amp / combo (devices ToneX : Pédale / Anniversary / Plug).
   // Cabinet rectangulaire + grille HP (gros cercle) + petits réglages.
   if(id==="amp") return <svg style={st} viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="13" r="4"/><circle cx="18" cy="8" r="0.8" fill="currentColor"/><circle cx="18" cy="13" r="0.8" fill="currentColor"/></svg>;
+  if(id==="refresh") return <svg style={st} viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>;
   return null;
 }
 

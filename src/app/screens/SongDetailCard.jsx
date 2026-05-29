@@ -39,7 +39,7 @@ import { findPedal } from '../../core/pedals.js';
 import { getEffectivePlayContext, getAvailableRigs } from '../../core/state.js';
 import {
   enrichAIResult, mergeBestResults, updateAiCache, computeRigSnapshot,
-  getBestResult, getLocalizedText, stripSlotPrefix,
+  computeAnalysisFingerprint, getBestResult, getLocalizedText, stripSlotPrefix,
 } from '../utils/ai-helpers.js';
 import { findInBanks } from '../utils/preset-helpers.js';
 import { resolveDisplayGuitar, filterCotGuitarsToRig, localizePickup, decapitalizeFirst } from '../utils/display-guitar.js';
@@ -260,8 +260,8 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
       const recalc = enrichAIResult(cleaned2, gType, gId, banksAnn, banksPlug, undefined, song);
       setLocalAiResult(recalc);
       setLocalAiErr(null);
-      // Phase 7.54 — Écrit dans profile.aiCache
-      setTimeout(() => writeAiCache({ ...updateAiCache(song.aiCache, gId, recalc), sv: SCORING_VERSION }), 0);
+      // Phase 7.54 — Écrit dans profile.aiCache. Phase 9.9 — empreinte profil.
+      setTimeout(() => writeAiCache({ ...updateAiCache(song.aiCache, gId, recalc, { fingerprint: computeAnalysisFingerprint(profile) }), sv: SCORING_VERSION }), 0);
       return;
     }
     if (!onSongDb) return;
@@ -281,8 +281,8 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         setLocalAiErr(null);
         // Phase 7.81 — rigSnapshot stocké = rig profil actif (pas union all-rigs).
         const rigSnapshot = computeRigSnapshot(guitars);
-        // Phase 7.54 — Écrit dans profile.aiCache
-        writeAiCache({ ...updateAiCache(song.aiCache, gId, r, { rigSnapshot }), sv: SCORING_VERSION });
+        // Phase 7.54 — Écrit dans profile.aiCache. Phase 9.9 — empreinte profil.
+        writeAiCache({ ...updateAiCache(song.aiCache, gId, r, { rigSnapshot, fingerprint: computeAnalysisFingerprint(profile) }), sv: SCORING_VERSION });
         if (!gId && r?.ideal_guitar && onGuitarChange) {
           const matched = findGuitarByAIName(r.ideal_guitar, allRigsGuitars || guitars);
           if (matched) {

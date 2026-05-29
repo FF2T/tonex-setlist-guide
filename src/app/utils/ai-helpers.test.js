@@ -7,7 +7,7 @@
 // - inputs falsy/edge cases
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { getLocalizedText, findSlotByUsageMatch, findCatalogEntryByUsages, findSlotByName, stripSlotPrefix, sanitizeAmpSuggestion, sanitizePedalSuggestion, sanitizeControls, enrichAIResult, updateAiCache, computeRigSnapshot } from './ai-helpers.js';
+import { getLocalizedText, findSlotByUsageMatch, findCatalogEntryByUsages, findSlotByName, stripSlotPrefix, sanitizeAmpSuggestion, sanitizePedalSuggestion, sanitizeControls, enrichAIResult, updateAiCache, computeRigSnapshot, computeAnalysisFingerprint, diffAnalysisFingerprint } from './ai-helpers.js';
 import { PRESET_CATALOG_MERGED } from '../../core/catalog.js';
 
 describe('getLocalizedText', () => {
@@ -376,6 +376,66 @@ describe('findSlotByName — Phase 7.56 (tolérance format IA)', () => {
     expect(findSlotByName(null, 'foo')).toBeNull();
     expect(findSlotByName(banks, null)).toBeNull();
     expect(findSlotByName(banks, '')).toBeNull();
+  });
+});
+
+// Phase 9.9 — empreinte d'analyse (flag analyses incomplètes).
+describe('computeAnalysisFingerprint (Phase 9.9)', () => {
+  it('extrait sources actives (drop false) + amplis + pédales + instruments + recoMode', () => {
+    const fp = computeAnalysisFingerprint({
+      availableSources: { TSR: true, ML: false, Anniversary: true },
+      myGuitarAmps: ['plexi'], myBassAmps: ['rumble'],
+      myPedals: ['ts808', 'klon_centaur'],
+      instruments: ['guitar', 'bass'],
+      recoMode: 'faithful',
+    });
+    expect(fp.sources).toBe('Anniversary,TSR');
+    expect(fp.amps).toBe('plexi,rumble');
+    expect(fp.pedals).toBe('klon_centaur,ts808');
+    expect(fp.instruments).toBe('bass,guitar');
+    expect(fp.recoMode).toBe('faithful');
+  });
+  it('profil minimal → champs vides + recoMode défaut', () => {
+    const fp = computeAnalysisFingerprint({});
+    expect(fp).toEqual({ sources: '', amps: '', pedals: '', instruments: '', recoMode: 'balanced' });
+  });
+  it('null → null', () => {
+    expect(computeAnalysisFingerprint(null)).toBeNull();
+  });
+});
+
+describe('diffAnalysisFingerprint (Phase 9.9)', () => {
+  const cur = { sources: 'TSR', amps: 'plexi', pedals: '', instruments: 'guitar', recoMode: 'balanced' };
+  it('identique → aucune raison', () => {
+    expect(diffAnalysisFingerprint({ ...cur }, cur)).toEqual([]);
+  });
+  it('détecte la dimension changée', () => {
+    expect(diffAnalysisFingerprint({ ...cur, sources: 'TSR,ML' }, cur)).toEqual(['sources']);
+    expect(diffAnalysisFingerprint({ ...cur, amps: '' }, cur)).toEqual(['amps']);
+  });
+  it('plusieurs dimensions', () => {
+    const stored = { ...cur, amps: '', pedals: 'ts808' };
+    expect(diffAnalysisFingerprint(stored, cur).sort()).toEqual(['amps', 'pedals']);
+  });
+  it('empreinte stockée absente (analyse pré-feature) → [legacy]', () => {
+    expect(diffAnalysisFingerprint(undefined, cur)).toEqual(['legacy']);
+    expect(diffAnalysisFingerprint(null, cur)).toEqual(['legacy']);
+  });
+  it('empreinte courante absente → aucune raison (rien à comparer)', () => {
+    expect(diffAnalysisFingerprint({ ...cur }, null)).toEqual([]);
+  });
+});
+
+describe('updateAiCache stocke le fingerprint (Phase 9.9)', () => {
+  const fp = { sources: 'TSR', amps: '', pedals: '', instruments: 'guitar', recoMode: 'balanced' };
+  it('stocke opts.fingerprint', () => {
+    const c = updateAiCache(null, '', { cot_step1: 'x' }, { fingerprint: fp });
+    expect(c.fingerprint).toEqual(fp);
+  });
+  it('conserve le fingerprint existant si non fourni', () => {
+    const c1 = updateAiCache(null, '', { cot_step1: 'x' }, { fingerprint: fp });
+    const c2 = updateAiCache(c1, '', { cot_step1: 'y' }, {});
+    expect(c2.fingerprint).toEqual(fp);
   });
 });
 

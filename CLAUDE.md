@@ -981,7 +981,49 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-29 vendredi, V9.6.0 — Réglages micros par instrument sélectionné)
+## État actuel (2026-05-29 vendredi, V9.7.0 — Flag analyses incomplètes + recalcul ciblé)
+
+**Backline v9.7.0 / SW backline-v403 / STATE_VERSION 13 / 1820 tests verts. Bundle 2689 KB.**
+
+### Phase 9.9 — Empreinte d'analyse + flag analyses incomplètes (v9.7.0)
+
+Demande Sébastien : signaler les morceaux dont l'analyse IA est devenue
+incomplète après un changement de profil (sources/amplis/pédales/instruments/
+recoMode) ou antérieure aux dernières features (réglages micros/ampli/pédalier).
+2 raffinements : **expliquer la raison** (pour décider) + **bandeau en haut de
+setlist** pour les changements globaux (pas de pollution par ligne).
+
+**Empreinte (`fingerprint`)** stockée dans l'aiCache au fetch :
+`computeAnalysisFingerprint(profile)` (ai-helpers.js) = `{sources, amps, pedals,
+instruments, recoMode}` (structuré, pas un hash → permet d'expliquer la raison).
+`diffAnalysisFingerprint(stored, current)` retourne les dimensions changées,
+`['legacy']` si pas d'empreinte stockée (analyse pré-feature). `updateAiCache`
+stocke `opts.fingerprint`. Hors rig guitare (rigSnapshot) et basse (bassStale),
+déjà couverts.
+
+**ListScreen** :
+- `isStaleSong` étendu : fingerprint mismatch → stale (alimente "Analyser/MAJ N").
+- **Bandeau** en tête de setlist active (NavIcon `info`, zéro emoji) : raisons
+  (union des dimensions changées, labels i18n) + count + bouton "Tout recalculer".
+- **Bouton recalcul par ligne** (NavIcon `refresh`, nouvelle icône) dans le
+  headline = header sticky (S9.14) → activable en **vue repliée ET dépliée**.
+  Visible seulement si l'analyse du morceau est fingerprint-stale. `stopPropagation`
+  (ne déplie pas). Recalcul **ciblé d'1 morceau** via `recalcSong(s)` (état
+  `recalcingId`), analyse COMPLÈTE (passe basses/amplis/pédales).
+- **Fix latent** : `analyzeMissingAll` + `improveAll` ne passaient PAS
+  basses/amplis/pédales à `fetchAI` → recalcul incomplet pour bass_recommendation
+  /guitar_amp_settings/pedalboard_settings. Corrigé (3 sites alignés sur
+  SongDetailCard).
+
+**Pas d'auto-recalcul** : l'auto-refetch SongDetailCard (rig/bass/scoring)
+reste inchangé ; le fingerprint-stale est purement informatif → l'user décide.
+
+Additif (champ aiCache optionnel) → pas de bump STATE_VERSION. +10 tests → 1820.
+NavIcon `refresh` documentée (flèche circulaire, 27 icônes).
+
+---
+
+## État précédent (2026-05-29 vendredi, V9.6.0 — Réglages micros par instrument sélectionné)
 
 **Backline v9.6.0 / SW backline-v402 / STATE_VERSION 13 / 1810 tests verts. Bundle 2683 KB.**
 

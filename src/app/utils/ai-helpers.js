@@ -807,6 +807,38 @@ function computeRigSnapshot(guitars) {
   return guitars.map((g) => g.id).sort().join('|');
 }
 
+// Phase 9.9 — Empreinte des paramètres profil qui influent sur l'analyse IA
+// (hors rig guitare, déjà couvert par rigSnapshot, et hors basse, couverte
+// par bassStale). Stockée dans l'aiCache au fetch → comparée au render pour
+// signaler les analyses devenues incomplètes après un changement de profil.
+// Structuré (pas un hash) pour pouvoir EXPLIQUER la raison du flag à l'user.
+function computeAnalysisFingerprint(profile) {
+  if (!profile) return null;
+  const av = profile.availableSources;
+  const sources = av && typeof av === 'object'
+    ? Object.keys(av).filter((k) => av[k] !== false).sort().join(',')
+    : '';
+  const amps = [...(profile.myGuitarAmps || []), ...(profile.myBassAmps || [])]
+    .slice().sort().join(',');
+  const pedals = (profile.myPedals || []).slice().sort().join(',');
+  const instruments = (profile.instruments || []).slice().sort().join(',');
+  const recoMode = profile.recoMode || 'balanced';
+  return { sources, amps, pedals, instruments, recoMode };
+}
+
+// Phase 9.9 — Dimensions changées entre l'empreinte stockée (au moment de
+// l'analyse) et l'empreinte courante. ['legacy'] si l'analyse est antérieure
+// à la feature (pas d'empreinte stockée → champs récents potentiellement
+// absents : réglages micros / ampli / pédalier).
+const FINGERPRINT_DIMS = ['sources', 'amps', 'pedals', 'instruments', 'recoMode'];
+function diffAnalysisFingerprint(stored, current) {
+  if (!current) return [];
+  if (!stored || typeof stored !== 'object') return ['legacy'];
+  return FINGERPRINT_DIMS.filter(
+    (d) => String(stored[d] ?? '') !== String(current[d] ?? ''),
+  );
+}
+
 function updateAiCache(existing, gId, newResult, opts) {
   const prevResult = existing?.result;
   const merged = preserveHistorical(prevResult, newResult);
@@ -814,13 +846,16 @@ function updateAiCache(existing, gId, newResult, opts) {
   const best = mergeBestResults(prevBest, merged);
   const bestByGuitar = { ...(existing?.bestByGuitar || {}), [gId]: best };
   const rigSnapshot = opts && opts.rigSnapshot != null ? opts.rigSnapshot : existing?.rigSnapshot;
+  // Phase 9.9 — empreinte profil au moment de l'analyse (sources/amplis/
+  // pédales/instruments/recoMode). Conserve l'existante si non fournie.
+  const fingerprint = opts && opts.fingerprint != null ? opts.fingerprint : existing?.fingerprint;
   // Phase 7.81 — Timestamp du write pour LWW per-songId au merge Firestore.
   // Sans ts (Phase 7.80.2 utilisait sv qui est identique partout = 9),
   // 2 devices avec aiCache divergent ne convergeaient JAMAIS (égalité sv
   // → keep local des deux côtés). Maintenant : le device qui a analysé en
   // dernier gagne. opts.ts permet de fixer un ts précis pour les tests.
   const ts = (opts && typeof opts.ts === 'number') ? opts.ts : Date.now();
-  return { gId, result: merged, sv: SCORING_VERSION, bestByGuitar, rigSnapshot, ts };
+  return { gId, result: merged, sv: SCORING_VERSION, bestByGuitar, rigSnapshot, fingerprint, ts };
 }
 
 function getBestResult(song, gId, fallback) {
@@ -1007,6 +1042,8 @@ export {
   preserveHistorical,
   HISTORICAL_FIELDS,
   computeRigSnapshot,
+  computeAnalysisFingerprint,
+  diffAnalysisFingerprint,
   updateAiCache,
   getBestResult,
   safeParseJSON,

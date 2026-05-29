@@ -31,9 +31,14 @@ import { TMP_FACTORY_PATCHES, recommendTMPPatch } from '../../devices/tonemaster
 import NavIcon from '../components/NavIcon.jsx';
 import { getActiveDevicesForRender } from '../utils/devices-render.js';
 import { getIg, getPA, getPP, getSongHist } from '../utils/song-helpers.js';
+import { findBass } from '../../core/basses.js';
+import { findBassAmp } from '../../core/bass-amps.js';
+import { findGuitarAmp } from '../../core/guitar-amps.js';
+import { findPedal } from '../../core/pedals.js';
 import {
   enrichAIResult, getBestResult, bestScoreOf, updateAiCache,
-  computeRigSnapshot, resolveRefAmp, stripSlotPrefix,
+  computeRigSnapshot, computeAnalysisFingerprint, diffAnalysisFingerprint,
+  resolveRefAmp, stripSlotPrefix,
 } from '../utils/ai-helpers.js';
 import { findInBanks, guitarScore } from '../utils/preset-helpers.js';
 import { resolveDisplayGuitar } from '../utils/display-guitar.js';
@@ -358,9 +363,20 @@ function ListScreen({
   const userHasBassRig = profile?.instruments?.includes('bass')
     && ((profile?.myBasses || []).length > 0
       || (profile?.myBassAmps || []).length > 0);
+  // Phase 9.9 — empreinte profil courante + raisons par morceau.
+  const currentFingerprint = useMemo(() => computeAnalysisFingerprint(profile),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [profile?.availableSources, profile?.myGuitarAmps, profile?.myBassAmps, profile?.myPedals, profile?.instruments, profile?.recoMode]);
+  // Raisons fingerprint d'un morceau ANALYSÉ (vide si jamais analysé — géré
+  // à part par le ··· pending). Sert au badge bandeau + bouton recalcul ciblé.
+  const fpStaleReasons = (s) => (s.aiCache
+    ? diffAnalysisFingerprint(s.aiCache.fingerprint, currentFingerprint) : []);
   const isStaleSong = (s) => {
     if (!s.aiCache) return true;
     if (s.aiCache.rigSnapshot && s.aiCache.rigSnapshot !== currentRigSnapshot) return true;
+    // Phase 9.9 — profil modifié depuis l'analyse (sources/amplis/pédales/
+    // instruments/recoMode) OU analyse antérieure à la feature (legacy).
+    if (fpStaleReasons(s).length > 0) return true;
     // bassStale : aiCache sans bass_recommendation OU (vague B) bass_recommendation
     // présent mais sans cot_step2_basses (= pré-vague-B, manque scoring/EQ/FX).
     if (userHasBassRig && s.aiCache?.result?.cot_step1) {
@@ -372,10 +388,54 @@ function ListScreen({
   };
   const missingCount = useMemo(() => (activeSongs || []).filter(isStaleSong).length,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeSongs, currentRigSnapshot, userHasBassRig]);
+    [activeSongs, currentRigSnapshot, userHasBassRig, currentFingerprint]);
+  // Phase 9.9 — union des raisons fingerprint sur les morceaux analysés de la
+  // setlist active → bandeau explicatif en tête (évite de flagger chaque ligne
+  // pour un changement global). Map des labels via i18n.
+  const FP_REASON_LABELS = {
+    sources: t('list.stale-reason-sources', 'sources de presets'),
+    amps: t('list.stale-reason-amps', 'amplis'),
+    pedals: t('list.stale-reason-pedals', 'pédales'),
+    instruments: t('list.stale-reason-instruments', 'instruments'),
+    recoMode: t('list.stale-reason-recomode', 'mode de reco'),
+    legacy: t('list.stale-reason-legacy', 'réglages récents'),
+  };
+  const fpStaleInfo = useMemo(() => {
+    const reasons = new Set();
+    let count = 0;
+    for (const s of (activeSongs || [])) {
+      const r = fpStaleReasons(s);
+      if (r.length > 0) { count += 1; r.forEach((d) => reasons.add(d)); }
+    }
+    return { count, reasons: Array.from(reasons) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSongs, currentFingerprint]);
   const [analyzeAllStatus, setAnalyzeAllStatus] = useState(null);
   const analyzeCancelRef = useRef(false);
   const isDemo = profile?.isDemo === true;
+  // Phase 9.9 — recalcul ciblé d'UN morceau (bouton sur le header de ligne,
+  // activable en vue repliée). Analyse complète (basses/amplis/pédales).
+  const [recalcingId, setRecalcingId] = useState(null);
+  const recalcSong = async (s) => {
+    if (isDemo || recalcingId || !s) return;
+    setRecalcingId(s.id);
+    try {
+      const guitars = allGuitars || GUITARS;
+      const historicalFeedback = Array.isArray(s.feedback) && s.feedback.length > 0
+        ? s.feedback.map((f) => f.text).filter(Boolean).join('. ')
+        : null;
+      const r = await fetchAI(s, '', banksAnn, banksPlug, aiProvider, aiKeys, guitars, historicalFeedback, null, profile?.recoMode || 'balanced', guitarBias, s.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || [], (profile?.myBasses || []).map((id) => findBass(id)).filter(Boolean), (profile?.myBassAmps || []).map((id) => findBassAmp(id)).filter(Boolean), (profile?.myGuitarAmps || []).map((id) => findGuitarAmp(id)).filter(Boolean), (profile?.myPedals || []).map((id) => findPedal(id)).filter(Boolean));
+      const rigSnapshot = computeRigSnapshot(guitars);
+      const fingerprint = computeAnalysisFingerprint(profile);
+      const newCache = { ...updateAiCache(s.aiCache, '', r, { rigSnapshot, fingerprint }), sv: SCORING_VERSION };
+      if (onAiCacheUpdate) onAiCacheUpdate(s.id, newCache);
+      else onSongDb((p) => p.map((x) => x.id === s.id ? { ...x, aiCache: newCache } : x));
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn(`[recalcSong] Skip "${s.title}":`, e?.message || e);
+    }
+    setRecalcingId(null);
+  };
   const analyzeMissingAll = async () => {
     if (isDemo) return; // Phase 7.51.2 — pas de fetchAI en mode démo
     analyzeCancelRef.current = false;
@@ -395,12 +455,17 @@ function ListScreen({
         // Phase 3.6). Élimine les hallucinations IA "ideal_guitar hors rig"
         // que Phase 7.32/7.65 devaient filtrer côté affichage. Bénéfice :
         // prompt plus court, moins de tokens, recos toujours dans le rig.
-        const r = await fetchAI(s, '', banksAnn, banksPlug, aiProvider, aiKeys, guitars, historicalFeedback, null, profile?.recoMode || 'balanced', guitarBias, s.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || []);
+        // Phase 9.9 — passe basses/amplis/pédales pour une analyse COMPLÈTE
+        // (sinon recalcul ne peuple pas bass_recommendation / guitar_amp_settings
+        // / pedalboard_settings → l'analyse resterait "incomplète").
+        const r = await fetchAI(s, '', banksAnn, banksPlug, aiProvider, aiKeys, guitars, historicalFeedback, null, profile?.recoMode || 'balanced', guitarBias, s.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || [], (profile?.myBasses || []).map((id) => findBass(id)).filter(Boolean), (profile?.myBassAmps || []).map((id) => findBassAmp(id)).filter(Boolean), (profile?.myGuitarAmps || []).map((id) => findGuitarAmp(id)).filter(Boolean), (profile?.myPedals || []).map((id) => findPedal(id)).filter(Boolean));
         if (analyzeCancelRef.current) break;
         // Phase 7.81 — rigSnapshot stocké = rig profil actif (pas union all-rigs).
         const rigSnapshot = computeRigSnapshot(guitars);
+        // Phase 9.9 — empreinte profil au moment de l'analyse.
+        const fingerprint = computeAnalysisFingerprint(profile);
         // Phase 7.54 — Écrit dans profile.aiCache via setSongAiCache.
-        const newCache = { ...updateAiCache(s.aiCache, '', r, { rigSnapshot }), sv: SCORING_VERSION };
+        const newCache = { ...updateAiCache(s.aiCache, '', r, { rigSnapshot, fingerprint }), sv: SCORING_VERSION };
         if (onAiCacheUpdate) onAiCacheUpdate(s.id, newCache);
         else onSongDb((p) => p.map((x) => x.id === s.id ? { ...x, aiCache: newCache } : x));
       } catch (e) {
@@ -441,10 +506,10 @@ function ListScreen({
             ? s.feedback.map((f) => f.text).filter(Boolean).join('. ')
             : null;
           // Phase 7.66 — Prompt scopé au rig profil actif.
-          const r = await waitOrCancel(fetchAI(s, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, historicalFeedback, null, profile?.recoMode || 'balanced', guitarBias, s.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || []));
+          const r = await waitOrCancel(fetchAI(s, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, historicalFeedback, null, profile?.recoMode || 'balanced', guitarBias, s.outputContext || profile?.outputContext || 'frfr', profile?.preferredStyles || [], (profile?.myBasses || []).map((id) => findBass(id)).filter(Boolean), (profile?.myBassAmps || []).map((id) => findBassAmp(id)).filter(Boolean), (profile?.myGuitarAmps || []).map((id) => findGuitarAmp(id)).filter(Boolean), (profile?.myPedals || []).map((id) => findPedal(id)).filter(Boolean)));
           if (improveCancelRef.current) break;
-          // Phase 7.54 — Écrit dans profile.aiCache.
-          const newCache = updateAiCache(s.aiCache, gId, r);
+          // Phase 7.54 — Écrit dans profile.aiCache. Phase 9.9 — empreinte profil.
+          const newCache = updateAiCache(s.aiCache, gId, r, { rigSnapshot: computeRigSnapshot(guitars), fingerprint: computeAnalysisFingerprint(profile) });
           if (onAiCacheUpdate) onAiCacheUpdate(s.id, newCache);
           else onSongDb((p) => p.map((x) => x.id === s.id ? { ...x, aiCache: newCache } : x));
         } catch (e) { if (improveCancelRef.current) break; /* skip */ }
@@ -593,6 +658,28 @@ function ListScreen({
           <button onClick={() => setShowAdd(true)} disabled={isDemo} title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : t('list.add-song', 'Ajouter un morceau')} style={{ fontSize: 10, color: 'var(--accent)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: isDemo ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: isDemo ? 0.5 : 1 }}>+</button>
         </div>
       </div>
+
+      {/* Phase 9.9 — Bandeau global : profil modifié depuis des analyses
+          (sources/amplis/pédales/instruments/recoMode) ou analyses antérieures
+          aux dernières features. Un seul bandeau plutôt que flagger chaque
+          ligne (évite la pollution visuelle). La raison aide l'user à décider
+          de recalculer ou non. */}
+      {activeSlId && fpStaleInfo.count > 0 && !analyzeAllStatus && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8, padding: '8px 12px', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-md)' }}>
+          <NavIcon id="info" size={16}/>
+          <span style={{ flex: 1, minWidth: 160, fontSize: 11, color: 'var(--text-sec)' }}>
+            {tFormat('list.fp-stale-banner', { count: fpStaleInfo.count, reasons: fpStaleInfo.reasons.map((r) => FP_REASON_LABELS[r] || r).join(', ') }, '{count} morceau(x) analysé(s) avant un changement de profil ({reasons}). Recalcule pour des recos à jour.')}
+          </span>
+          {!isDemo && <button
+            onClick={() => {
+              const msg = tFormat('list.fp-stale-confirm', { count: missingCount, duration: Math.ceil(missingCount * 8) }, 'Recalculer {count} morceau(x) ? Durée estimée : {duration}s. La clé Gemini partagée sera utilisée.');
+              if (!window.confirm(msg)) return;
+              analyzeMissingAll();
+            }}
+            style={{ fontSize: 11, minHeight: 32, color: 'var(--accent)', background: 'var(--a5)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-sm)', padding: '5px 10px', cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap' }}
+          >{tFormat('list.fp-stale-recalc-all', { count: missingCount }, 'Tout recalculer ({count})')}</button>}
+        </div>
+      )}
 
       {/* Top guitares (dépliable) */}
       {showTopGuitars && activeSongs.length > 0 && (() => {
@@ -822,6 +909,23 @@ function ListScreen({
                               <span className="songrow-pl-title">{rowData.title}</span>
                               {!s.aiCache && <span className="songrow-pl-pending" title={t('list.pending-analysis', 'Pas encore analysé')}>···</span>}
                               {rowData.isOptimalGuitar && <span className="songrow-pl-optimal" title={t('list.optimal-guitar', 'Guitare idéale')}>★</span>}
+                              {/* Phase 9.9 — bouton recalcul ciblé sur le header
+                                  (donc accessible en vue repliée). Visible quand
+                                  l'analyse du morceau est antérieure à un
+                                  changement de profil. stopPropagation pour ne
+                                  pas (dé)plier la fiche. */}
+                              {!isDemo && fpStaleReasons(s).length > 0 && (
+                                <span
+                                  role="button"
+                                  onClick={(e) => { e.stopPropagation(); recalcSong(s); }}
+                                  title={recalcingId === s.id
+                                    ? t('list.row-recalc-loading', 'Recalcul en cours…')
+                                    : tFormat('list.row-recalc-title', { reasons: fpStaleReasons(s).map((r) => FP_REASON_LABELS[r] || r).join(', ') }, 'Analyse antérieure à un changement ({reasons}). Cliquer pour recalculer ce morceau.')}
+                                  style={{ display: 'inline-flex', alignItems: 'center', color: 'var(--accent)', cursor: recalcingId === s.id ? 'wait' : 'pointer', opacity: recalcingId === s.id ? 0.45 : 1, marginLeft: 2 }}
+                                >
+                                  <NavIcon id="refresh" size={15}/>
+                                </span>
+                              )}
                               <span className="songrow-pl-chevron">{isExpanded ? '▲' : '▼'}</span>
                             </div>
                             {/* S8.4 — Meta grid 4 colonnes desktop pour
