@@ -981,9 +981,19 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-29 vendredi, V9.7.0 — Flag analyses incomplètes + recalcul ciblé)
+## État actuel (2026-05-29 vendredi, V9.7.1 — Toggle setlist inline dans l'onglet Morceaux)
 
-**Backline v9.7.0 / SW backline-v403 / STATE_VERSION 13 / 1820 tests verts. Bundle 2689 KB.**
+**Backline v9.7.1 / SW backline-v404 / STATE_VERSION 13 / 1820 tests verts. Bundle 2689 KB.**
+
+### v9.7.1 — Toggle setlist inline (onglet Morceaux des Setlists)
+
+Demande Sébastien : ajouter facilement un morceau à une setlist dans l'onglet
+Morceaux, avec le **même système que la recherche initiale** (HomeScreen) :
+toggle sur chaque setlist. Avant, les pills toggle étaient **cachées derrière
+un bouton "Setlists"** (expand via `expandedSongId`). Désormais elles sont
+**inline, toujours visibles** par morceau (rangée de pills flex-wrap, ✓ vert
+quand présent, clic = `toggleSongInSetlist`). Bouton "Setlists" + state
+`expandedSongId` retirés. UI pure → pas de bump STATE_VERSION. 1820 tests.
 
 ### Phase 9.9 — Empreinte d'analyse + flag analyses incomplètes (v9.7.0)
 

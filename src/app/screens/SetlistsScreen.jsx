@@ -38,7 +38,6 @@ function SetlistsScreen({
   // Songs tab state
   const [songSort, setSongSort] = useState('artist');
   const [newSongSlIds, setNewSongSlIds] = useState([]);
-  const [expandedSongId, setExpandedSongId] = useState(null);
   const toggleNewSongSl = (id) => setNewSongSlIds((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
   const toggleSongInSetlist = (songId, slId) => onSetlists((p) => p.map((sl) => sl.id !== slId ? sl : { ...sl, songIds: sl.songIds.includes(songId) ? sl.songIds.filter((x) => x !== songId) : [...sl.songIds, songId] }));
 
@@ -121,7 +120,6 @@ function SetlistsScreen({
             else sorted.reverse();
             let lastArtist = '';
             return sorted.map((s) => {
-              const expanded = expandedSongId === s.id;
               const showArtistHeader = songSort === 'artist' && s.artist !== lastArtist;
               if (showArtistHeader) lastArtist = s.artist;
               return (
@@ -130,15 +128,17 @@ function SetlistsScreen({
                   <div style={{ background: 'var(--a3)', border: '1px solid var(--a6)', borderRadius: 'var(--r-lg)', marginBottom: 4, overflow: 'hidden' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px' }}>
                       <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{s.title}</div>{songSort !== 'artist' && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{s.artist}{s.isCustom ? ' · ✨IA' : ''}</div>}</div>
-                      <button onClick={() => setExpandedSongId(expanded ? null : s.id)} style={{ background: expanded ? 'var(--accent-bg)' : 'var(--a7)', border: expanded ? '1px solid var(--accent-border)' : '1px solid var(--a10)', color: expanded ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '4px 8px', fontSize: 11, cursor: 'pointer' }}>{t('setlists.setlists-btn', 'Setlists')}</button>
                       <button onClick={() => deleteSongFromDb(s.id)} style={{ background: 'var(--red-bg)', border: '1px solid var(--red-border)', color: 'var(--red)', borderRadius: 'var(--r-md)', padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>{t('setlists.delete', 'Supprimer')}</button>
                     </div>
-                    {expanded && (
-                      <div style={{ padding: '8px 12px 10px', borderTop: '1px solid var(--a5)', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {/* Toggle setlist inline (même système que la recherche
+                        initiale HomeScreen) — pills directement visibles, ✓ vert
+                        quand le morceau est dans la setlist, clic = toggle. */}
+                    {setlists.length > 0 && (
+                      <div style={{ padding: '0 12px 10px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         {setlists.map((sl) => {
                           const inSl = sl.songIds.includes(s.id);
                           return (
-                            <button key={sl.id} onClick={() => toggleSongInSetlist(s.id, sl.id)} style={{ background: inSl ? 'var(--green-border)' : 'var(--a5)', border: inSl ? '1px solid rgba(74,222,128,0.4)' : '1px solid var(--a10)', color: inSl ? 'var(--green)' : 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '4px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>{inSl ? '✓ ' : ''}{sl.name}</button>
+                            <button key={sl.id} onClick={() => toggleSongInSetlist(s.id, sl.id)} style={{ background: inSl ? 'rgba(74,222,128,0.15)' : 'var(--a5)', border: inSl ? '1px solid rgba(74,222,128,0.4)' : '1px solid var(--a10)', color: inSl ? 'var(--green)' : 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '5px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>{inSl ? '✓ ' : ''}{sl.name}</button>
                           );
                         })}
                       </div>
