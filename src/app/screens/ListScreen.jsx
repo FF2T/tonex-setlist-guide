@@ -95,7 +95,7 @@ function InlineRenameInput({ initialName, onSave, onCancel, inp, placeholder, bu
 
 function ListScreen({
   songDb, onSongDb, onAiCacheUpdate, setlists, allSetlists, onSetlists, mySongIds,
-  checked, onChecked, onNext, onSettings,
+  checked, onChecked, onSettings,
   banksAnn, onBanksAnn, banksPlug, onBanksPlug,
   aiProvider, aiKeys, hideHeader = false, allGuitars, allRigsGuitars,
   availableSources, activeProfileId, profiles, profile, onProfiles, guitarBias,

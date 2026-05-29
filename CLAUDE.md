@@ -981,9 +981,25 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-29 vendredi, V9.7.3 — Fix layout contrôles basse : pas de sélecteur sur Jazz/Precision)
+## État actuel (2026-05-29 vendredi, V9.7.4 — Suppression code mort RecapScreen + SynthesisScreen)
 
-**Backline v9.7.3 / SW backline-v406 / STATE_VERSION 13 / 1820 tests verts. Bundle 2689 KB.**
+**Backline v9.7.4 / SW backline-v407 / STATE_VERSION 13 / 1820 tests verts. Bundle 2671 KB.**
+
+### v9.7.4 — Kill RecapScreen + SynthesisScreen (code mort)
+
+Constat : le flow récap/synthèse était **inaccessible** depuis Phase 7.71 (qui
+a retiré les checkboxes + le bouton "Générer le récap"). `onNext` (déclencheur
+vers `screen='recap'`) n'était plus jamais appelé, et `songs` (prop des 2 écrans)
+dérivait de `checked` (cases cochées) elles aussi supprimées → écrans morts.
+Décision Sébastien : on les tue.
+- Supprimés : `RecapScreen.jsx` + `SynthesisScreen.jsx` + leurs imports + les 2
+  branches de rendu (`screen==='recap'`/`'synthesis'`) + état `synth` + useMemo
+  `songs` + entrées `recap`/`synthesis` de `mainScreens` + prop `onNext` (call
+  sites + signatures ListScreen/HomeScreen/SetlistsScreen + threading).
+- Conservé : `checked`/`onChecked` (ListScreen l'appelle encore pour reset au
+  changement de setlist — concern checkbox séparé, toujours vide en pratique).
+- Bundle 2689 → 2671 KB (-18 KB). 1820 tests (aucun ne référençait ces écrans).
+- LiveScreen non touché (utilise `liveSongs`, pas `songs`).
 
 ### v9.7.3 — Fix layout contrôles basse (Jazz/Precision = pas de sélecteur)
 

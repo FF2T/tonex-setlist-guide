@@ -277,7 +277,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "9.7.3";
+const APP_VERSION = "9.7.4";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -380,16 +380,11 @@ import ListScreen from './app/screens/ListScreen.jsx';
 import BankOptimizerScreen from './app/screens/BankOptimizerScreen.jsx';
 
 // ─── Recap Screen ─────────────────────────────────────────────────────────────
-// Phase 7.14 — extracted to src/app/screens/RecapScreen.jsx.
-import RecapScreen from './app/screens/RecapScreen.jsx';
 
-// ─── Phase 7.17 : SynthesisScreen / PresetBrowser / JamScreen / ViewProfileScreen
-// tous extraits vers src/app/screens/. Aussi : restauré getJamRecs qui
-// avait été accidentellement supprimé au step 9 (Phase 7.14), maintenant
-// co-localisé dans JamScreen.jsx. ViewProfileScreen avait un bug
-// pré-existant (`d.X` non défini, hérité de Phase 5 Item E) — corrigé
-// pendant l'extraction.
-import SynthesisScreen from './app/screens/SynthesisScreen.jsx';
+// ─── Phase 7.17 : PresetBrowser / JamScreen / ViewProfileScreen extraits
+// vers src/app/screens/. getJamRecs co-localisé dans JamScreen.jsx.
+// (RecapScreen + SynthesisScreen supprimés v9.7.4 — flow récap/synthèse
+// devenu inaccessible depuis Phase 7.71 qui a retiré les checkboxes.)
 import PresetBrowser from './app/screens/PresetBrowser.jsx';
 import JamScreen from './app/screens/JamScreen.jsx';
 import ViewProfileScreen from './app/screens/ViewProfileScreen.jsx';
@@ -968,7 +963,6 @@ export function App() {
   // Non-persisted
   const [screen,  setScreen]  = useState("loading");
   const [checked, setChecked] = useState([]);
-  const [synth,   setSynth]   = useState(null);
   const [syncStatus, setSyncStatus] = useState("idle");
   // lastSaveTime removed — echo detection now uses syncId
   const [viewProfileId, setViewProfileId] = useState(null);
@@ -1662,10 +1656,6 @@ export function App() {
     setScreen("list");
   };
 
-  const songs=useMemo(()=>checked.map(id=>{
-    const d=songDb.find(x=>x.id===id);
-    return d?{...d}:{id,title:id,artist:"",isCustom:true,ig:[]};
-  }),[checked,songDb]);
 
   const fullState={songDb,setlists,banksAnn,banksPlug};
   const onImportState=data=>{
@@ -1697,7 +1687,7 @@ export function App() {
     syncStatus:syncStatus,
     appVersion:APP_VERSION,
   };
-  var mainScreens=["list","setlists","explore","jam","optimizer","recap","synthesis","profile","viewprofile","exportimport"];
+  var mainScreens=["list","setlists","explore","jam","optimizer","profile","viewprofile","exportimport"];
   var showNav=mainScreens.includes(screen);
 
   if(screen==="loading") return <div className="page-root"><div style={{textAlign:"center",padding:"60px 20px"}}><div style={{marginBottom:16,display:"flex",justifyContent:"center"}}><BacklineIcon size={56} color="var(--brass-300)"/></div><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)"}}>{APP_NAME}</div><div style={{fontSize:13,color:"var(--text-muted)",marginTop:8}}>{t("loading","Chargement...")}</div></div></div>;
@@ -1747,7 +1737,7 @@ export function App() {
   else if(screen==="profile") screenContent=<MonProfilScreen songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} onDeletedSetlistIds={setDeletedSetlistIds} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={effectiveGuitarBias} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} adminPacks={adminPacks} onAdminPacks={setAdminPacks} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");sessionStorage.removeItem(ADMIN_ORIGIN_KEY);setScreen("pick");}} MaintenanceTabComponent={MaintenanceTab} onSaveSharedKey={saveSharedKey}
     onSharedUsagesOverrides={(reducer)=>setSharedUsagesOverrides((prevMap)=>{const sh={usagesOverrides:prevMap};const next=reducer(sh);return next?.usagesOverrides||{};})}
   />;
-  else if(screen==="setlists") screenContent=<SetlistsScreen songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} mySongIds={mySongIds} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onProfiles={setProfiles} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} onSharedUsagesOverrides={(reducer)=>setSharedUsagesOverrides((prevMap)=>{const sh={usagesOverrides:prevMap};const next=reducer(sh);return next?.usagesOverrides||{};})}/>;
+  else if(screen==="setlists") screenContent=<SetlistsScreen songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} mySongIds={mySongIds} checked={checked} onChecked={setChecked} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onProfiles={setProfiles} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} onSharedUsagesOverrides={(reducer)=>setSharedUsagesOverrides((prevMap)=>{const sh={usagesOverrides:prevMap};const next=reducer(sh);return next?.usagesOverrides||{};})}/>;
   else if(screen==="jam") screenContent=<div><Breadcrumb crumbs={[{label:t("nav.home","Accueil"),screen:"list"},{label:t("nav.jam","Jammer")}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>{t("jam.page-title","🎲 Jammer")}</div><JamScreen banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources} profile={profile}/></div>;
   else if(screen==="explore") screenContent=<div><Breadcrumb crumbs={[{label:t("nav.home","Accueil"),screen:"list"},{label:t("nav.explore","Explorer")}]} onNavigate={setScreen}/><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)",marginBottom:16}}>{t("preset-browser.page-title-flat","Explorer les presets")}</div><PresetBrowser banksAnn={banksAnn} banksPlug={banksPlug} availableSources={availableSources} customPacks={profile.customPacks} guitars={allGuitars} toneNetPresets={toneNetPresets} isAdmin={isAdmin} songDb={songDb}
     onSaveUsages={(name,usages)=>{
@@ -1786,9 +1776,7 @@ export function App() {
   else if(screen==="optimizer"&&isAdmin) screenContent=<BankOptimizerScreen songDb={songDbWithProfileCache} setlists={mySetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} allGuitars={allGuitars} availableSources={availableSources} onNavigate={setScreen} profile={profile}/>;
   // Phase 7.72 — Écran ⚙️ Admin séparé, gated isAdmin (URL hack defense).
   else if(screen==="admin"&&isAdmin) screenContent=<AdminScreen profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} allSetlists={setlists} onSetlists={setSetlists} onDeletedSetlistIds={setDeletedSetlistIds} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} onSaveSharedKey={saveSharedKey} guitarBias={effectiveGuitarBias} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} onDeletedToneNetIds={setDeletedToneNetIds} adminPacks={adminPacks} onAdminPacks={setAdminPacks} MaintenanceTabComponent={MaintenanceTab} fullState={fullState} onImportState={onImportState} onBack={()=>setScreen("list")} onNavigate={setScreen}/>;
-  else if(screen==="synthesis"&&synth) screenContent=<SynthesisScreen songs={songs} gps={synth.gps} aiR={synth.aiR} onBack={()=>setScreen("recap")} onNavigate={setScreen} songDb={songDbWithProfileCache} banksAnn={banksAnn} banksPlug={banksPlug} allGuitars={allGuitars} availableSources={availableSources} profile={profile}/>;
-  else if(screen==="recap") screenContent=<RecapScreen songs={songs} onBack={()=>setScreen("list")} onNavigate={setScreen} onValidate={(gps,aiR)=>{setSynth({gps,aiR});setScreen("synthesis");}} songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} profile={profile} onTmpPatchOverride={onTmpPatchOverride}/>;
-  else screenContent=<HomeScreen songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} mySongIds={mySongIds} checked={checked} onChecked={setChecked} onNext={()=>setScreen("recap")} onSettings={()=>setScreen("profile")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} onOptimizer={()=>setScreen("optimizer")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");sessionStorage.removeItem(ADMIN_ORIGIN_KEY);setScreen("pick");}} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
+  else screenContent=<HomeScreen songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} mySongIds={mySongIds} checked={checked} onChecked={setChecked} onSettings={()=>setScreen("profile")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} onOptimizer={()=>setScreen("optimizer")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");sessionStorage.removeItem(ADMIN_ORIGIN_KEY);setScreen("pick");}} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
 
   // Phase 7.63 — Détection mode admin-as. sessionStorage.tonex_admin_origin
   // est posé par switchProfile quand un admin switch vers un profil

@@ -296,7 +296,7 @@ function OnboardingWizard({ onClose, onProfile }) {
 // ─── HomeScreen ──────────────────────────────────────────────────────
 function HomeScreen({
   songDb, onSongDb, onAiCacheUpdate, setlists, allSetlists, onSetlists, mySongIds,
-  checked, onChecked, onNext, onSettings, onProfile, onSetlistScreen, onJam, onExplore, onOptimizer,
+  checked, onChecked, onSettings, onProfile, onSetlistScreen, onJam, onExplore, onOptimizer,
   banksAnn, banksPlug, aiProvider, aiKeys, allGuitars, guitarBias, availableSources,
   profiles, activeProfileId, onSwitchProfile, onProfiles, customPacks, syncStatus,
   onViewProfile, onLogout, onLive,
