@@ -981,9 +981,27 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-31 dimanche, V9.7.9 — Audit Cowork iPad : tactile + Mode scène XXL + chips Accueil)
+## État actuel (2026-05-31 dimanche, V9.7.10 — Hit area CurationDot étendue)
 
-**Backline v9.7.9 / SW backline-v412 / STATE_VERSION 13 / 1820 tests verts. Bundle 2672 KB.**
+**Backline v9.7.10 / SW backline-v413 / STATE_VERSION 13 / 1820 tests verts. Bundle 2673 KB.**
+
+### v9.7.10 — Hit area CurationDot étendue (workflow B P1-G résiduel)
+
+Suite décision P1-G (status quo densité BankEditor mais workflow tactile
+OK) : audit de tous les déclencheurs cellules révèle que la **pastille
+curation 6×6 px** était le pire trigger (workflow B : édition usages
+artiste/morceau via PresetCurationModal).
+- Wrap du dot visuel dans un `<span role="button">` avec `padding: 12px
+  8px` + `margin: -12px -8px` → hit area ~30×22 px, espace inline
+  occupé inchangé (visuel toujours 6×6).
+- Pas de cassure de layout : `negative margin` annule l'inflation
+  inline. Mode non-clickable inchangé (juste le dot 6×6 sans hit area
+  étendue).
+- 1820 tests verts. Bundle 2672 → 2673 KB.
+
+Workflow A (cellule → PresetSearchModal ou sélection) inchangé ;
+fonctionnel mais cellule reste sub-44 verticalement. Acceptable par
+choix design (densité 150 cellules).
 
 ### v9.7.9 — Audit iPad Cowork sur compte réel : 3 batches (10 fixes)
 

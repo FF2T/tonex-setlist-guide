@@ -20,7 +20,7 @@ function CurationDot({ name, onClick, size = 6, style }) {
   if (!colors) return null;
   const label = getCurationLabel(status);
   const clickable = typeof onClick === 'function';
-  const base = {
+  const dot = {
     display: 'inline-block',
     width: size,
     height: size,
@@ -28,18 +28,36 @@ function CurationDot({ name, onClick, size = 6, style }) {
     background: colors.dot,
     border: '1px solid ' + colors.border,
     flexShrink: 0,
-    cursor: clickable ? 'pointer' : 'default',
-    verticalAlign: 'middle',
-    ...style,
   };
+  // v9.7.10 (audit Cowork iPad) — pastille visuelle = `size`px (compacte),
+  // mais hit area étendue via padding + negative margin quand cliquable :
+  // tap zone ~30×22 au lieu de 6×6, sans modifier l'espace inline occupé.
+  if (!clickable) {
+    return (
+      <span aria-label={label} title={label} style={{ verticalAlign: 'middle', ...style }}>
+        <span style={dot}/>
+      </span>
+    );
+  }
   return (
     <span
-      role={clickable ? 'button' : undefined}
+      role="button"
       aria-label={label}
-      title={label + (clickable ? ' — clique pour voir/éditer' : '')}
-      onClick={clickable ? (e) => { e.stopPropagation(); onClick(name); } : undefined}
-      style={base}
-    />
+      title={label + ' — clique pour voir/éditer'}
+      onClick={(e) => { e.stopPropagation(); onClick(name); }}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        padding: '12px 8px',
+        margin: '-12px -8px',
+        verticalAlign: 'middle',
+        ...style,
+      }}
+    >
+      <span style={dot}/>
+    </span>
   );
 }
 
