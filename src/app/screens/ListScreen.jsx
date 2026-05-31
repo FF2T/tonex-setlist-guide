@@ -389,6 +389,15 @@ function ListScreen({
   const missingCount = useMemo(() => (activeSongs || []).filter(isStaleSong).length,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [activeSongs, currentRigSnapshot, userHasBassRig, currentFingerprint]);
+  // v9.7.8 — estimation de durée affichée dans les boutons de recalcul
+  // (toolbar + bandeau Phase 9.9). Base : ~8s par morceau (cf
+  // analyze-confirm). < 60s → "Xs", sinon "X min" arrondi.
+  const missingDurationStr = (() => {
+    const s = missingCount * 8;
+    if (s <= 0) return '';
+    if (s < 60) return `${s}s`;
+    return `${Math.max(1, Math.round(s / 60))} min`;
+  })();
   // Phase 9.9 — union des raisons fingerprint sur les morceaux analysés de la
   // setlist active → bandeau explicatif en tête (évite de flagger chaque ligne
   // pour un changement global). Map des labels via i18n.
@@ -645,7 +654,7 @@ function ListScreen({
             }}
             title={tFormat('list.analyze-title', { count: missingCount }, '{count} morceau(x) à analyser ou actualiser après modif du rig.')}
             style={{ fontSize: 11, minHeight: 44, color: 'var(--accent)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-sm)', padding: '7px 12px', cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap' }}
-          >{tFormat('list.analyze-button-flat', { count: missingCount }, 'Analyser/MAJ {count}')}</button>}
+          >{tFormat('list.analyze-button-flat', { count: missingCount, duration: missingDurationStr }, 'Analyser/MAJ {count} (~{duration})')}</button>}
           {analyzeAllStatus && <button
             data-testid="list-screen-analyze-cancel"
             onClick={() => { analyzeCancelRef.current = true; }}
@@ -677,7 +686,7 @@ function ListScreen({
               analyzeMissingAll();
             }}
             style={{ fontSize: 11, minHeight: 32, color: 'var(--accent)', background: 'var(--a5)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-sm)', padding: '5px 10px', cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap' }}
-          >{tFormat('list.fp-stale-recalc-all', { count: missingCount }, 'Tout recalculer ({count})')}</button>}
+          >{tFormat('list.fp-stale-recalc-all', { count: missingCount, duration: missingDurationStr }, 'Tout recalculer ({count}, ~{duration})')}</button>}
         </div>
       )}
 

@@ -981,9 +981,20 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-31 dimanche, V9.7.7 — Audit Cowork tour 3 : P1-02 OK button débordait)
+## État actuel (2026-05-31 dimanche, V9.7.8 — Estimation durée sur boutons recalcul)
 
-**Backline v9.7.7 / SW backline-v410 / STATE_VERSION 13 / 1820 tests verts. Bundle 2672 KB.**
+**Backline v9.7.8 / SW backline-v411 / STATE_VERSION 13 / 1820 tests verts. Bundle 2672 KB.**
+
+### v9.7.8 — Estimation de durée sur les boutons de recalcul
+
+Demande Sébastien : voir le temps que prendra le recalcul AVANT de cliquer
+(était seulement dans le confirm popup). Ajoutée dans 2 labels :
+- Toolbar setlist active : "Analyser/MAJ N (~Xs|X min)"
+- Bandeau Phase 9.9 fingerprint-stale : "Tout recalculer (N, ~Xs|X min)"
+
+Helper inline `missingDurationStr` = base 8s/morceau (cohérent avec
+analyze-confirm), <60s → "Xs", sinon "X min" arrondi (min 1). Trilingue
+FR/EN/ES alignés. 1820 tests, bundle 2672 KB stable.
 
 ### v9.7.7 — P1-02 résiduel fixé (bouton OK ne déborde plus)
 
