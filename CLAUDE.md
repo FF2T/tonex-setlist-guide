@@ -981,9 +981,36 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-31 dimanche, V9.7.10 — Hit area CurationDot étendue)
+## État actuel (2026-05-31 dimanche, V9.7.11 — Layouts 2-cols iPad : EQ + Effets côte à côte)
 
-**Backline v9.7.10 / SW backline-v413 / STATE_VERSION 13 / 1820 tests verts. Bundle 2673 KB.**
+**Backline v9.7.11 / SW backline-v414 / STATE_VERSION 13 / 1820 tests verts. Bundle 2673 KB.**
+
+### v9.7.11 — Layouts 2-cols iPad fiche dépliée (P2-A)
+
+Audit Cowork P2-A : sections 1-col à 1024 CSS px gaspillent ~40% de
+largeur (mesures à 640 CSS px exagéraient mais le principe tient). Focus
+pragmatique : **les 2 tableaux les plus denses de la fiche dépliée
+consultés ensemble**.
+- Nouvelle classe utilitaire CSS `.ipad-2col` (`index.html`) : grid 1fr
+  mobile, `1fr 1fr` à `min-width:720px` + `align-items: start`.
+- **SongDetailCard guitare** (`playCtx.rig === 'tonex'`) : `eqSettingsCadre`
+  + `FxBlocksCadre` wrappés dans `.ipad-2col`.
+- **SongDetailCard basse** (idem rig tonex) : cadre EQ basse +
+  `FxBlocksCadre` (bass_fx_blocks) wrappés dans `.ipad-2col`.
+
+Mobile (<720) : empilement inchangé. iPad ≥720 : EQ à gauche, Effets à
+droite, alignés en haut.
+
+**Cas écartés après revérification** :
+- Styles préférés en grid 2x3 : ce sont déjà des pills `flex-wrap`, elles
+  tiennent naturellement à 1024px. Cowork mesurait à 640 (artifact).
+- Cards Thème / Langue / Instruments (Préférences) : déjà `flex:1`, OK à
+  1024 même si "spacieuses".
+
+Utilitaire `.ipad-2col` réutilisable pour d'autres paires si besoin
+(Scoring guitares + Scoring preset, etc.).
+
+1820 tests. Bundle 2673 KB.
 
 ### v9.7.10 — Hit area CurationDot étendue (workflow B P1-G résiduel)
 

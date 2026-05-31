@@ -1031,10 +1031,13 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   le scoring preset (quelle capture ToneX) vient avant les
                   réglages de cette capture. Phase B — gated rig ToneX. */}
               {playCtx.rig === 'tonex' && (
-                <>
+                // v9.7.11 (audit Cowork P2-A) — Réglages EQ + Réglages effets
+                // côte à côte sur iPad ≥720px (les 2 tableaux les plus denses
+                // de la fiche, consultés ensemble). Mobile : empilé.
+                <div className="ipad-2col">
                   {eqSettingsCadre}
                   <FxBlocksCadre fxBlocks={aiC.fx_blocks} locale={locale} title={t('song-detail.fx-settings-flat', 'Réglages effets')}/>
-                </>
+                </div>
               )}
               {/* Phase A — Cadre "Sur ton ampli" (ampli guitare traditionnel
                   RÉEL, distinct des cadres ToneX EQ/effets/preset). Gated par
@@ -1437,27 +1440,31 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   {/* Cadre Réglages EQ basse (bass_preset_settings_v1) — why + boutons PRESET.
                       Contrairement à la guitare (table chiffrée dropée S9.5 car redondante
                       avec la vue repliée), la basse n'a PAS de vue repliée → on affiche les
-                      valeurs des boutons PRESET (0-10). Gated par capture_name (bassEq null sinon). */}
-                  {bassEq && (bassEq.why || bassEq.main) && (
-                    <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
-                      <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', display: 'flex', alignItems: 'center', gap: 6 }}><NavIcon id="sliders" size={14}/>{t('song-detail.bass-eq-settings', 'Réglages EQ basse')}</div>
-                      {bassEq.why && (
-                        <div className="prose-readable" style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', lineHeight: 1.45, marginBottom: bassEq.main ? 6 : 0 }}>{getLocalizedText(bassEq.why, locale)}</div>
-                      )}
-                      {bassEq.main && (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', fontFamily: 'var(--font-mono)' }}>
-                          {['gain', 'bass', 'mid', 'treble', 'volume'].map((k) => {
-                            const knob = bassEq.main[k];
-                            const v = knob && typeof knob === 'object' ? knob.value : knob;
-                            if (v == null) return null;
-                            return <span key={k}><b style={{ color: 'var(--text-muted)' }}>{k}</b> {v}</span>;
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {/* Cadre Réglages effets basse (bass_fx_blocks) — réutilise FxBlocksCadre */}
-                  <FxBlocksCadre fxBlocks={bassFx} locale={locale} title={t('song-detail.bass-fx-settings', 'Réglages effets basse')}/>
+                      valeurs des boutons PRESET (0-10). Gated par capture_name (bassEq null sinon).
+                      v9.7.11 (audit Cowork P2-A) — wrap dans ipad-2col avec FxBlocksCadre :
+                      EQ basse + Effets basse côte à côte sur iPad ≥720px. */}
+                  <div className="ipad-2col">
+                    {bassEq && (bassEq.why || bassEq.main) && (
+                      <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
+                        <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', display: 'flex', alignItems: 'center', gap: 6 }}><NavIcon id="sliders" size={14}/>{t('song-detail.bass-eq-settings', 'Réglages EQ basse')}</div>
+                        {bassEq.why && (
+                          <div className="prose-readable" style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', lineHeight: 1.45, marginBottom: bassEq.main ? 6 : 0 }}>{getLocalizedText(bassEq.why, locale)}</div>
+                        )}
+                        {bassEq.main && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-sec)', fontFamily: 'var(--font-mono)' }}>
+                            {['gain', 'bass', 'mid', 'treble', 'volume'].map((k) => {
+                              const knob = bassEq.main[k];
+                              const v = knob && typeof knob === 'object' ? knob.value : knob;
+                              if (v == null) return null;
+                              return <span key={k}><b style={{ color: 'var(--text-muted)' }}>{k}</b> {v}</span>;
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {/* Cadre Réglages effets basse (bass_fx_blocks) — réutilise FxBlocksCadre */}
+                    <FxBlocksCadre fxBlocks={bassFx} locale={locale} title={t('song-detail.bass-fx-settings', 'Réglages effets basse')}/>
+                  </div>
                 </div>
                 )}
                 {/* Mode ampli traditionnel : amp_settings 0-10 (Phase B — rig Ampli) */}

@@ -169,6 +169,12 @@
      desc tweaks) sur desktop large. Mobile 1 col, tablet+ 2 col. */
   .reco-multicol{display:grid;grid-template-columns:1fr;gap:10px}
   @media(min-width:720px){.reco-multicol{grid-template-columns:1fr 1fr;gap:14px}}
+  /* v9.7.11 (audit Cowork P2-A) — utilitaire pair side-by-side tablet/iPad.
+     Exploitable sur n'importe quel container avec 2 enfants directs qui
+     bénéficient d'être lus en parallèle (ex. Réglages EQ + Réglages
+     effets dans la fiche dépliée morceau). Mobile : empilé 1-col. */
+  .ipad-2col{display:grid;grid-template-columns:1fr;gap:10px}
+  @media(min-width:720px){.ipad-2col{grid-template-columns:1fr 1fr;gap:14px;align-items:start}}
 
   /* ── Tab bar (mobile bottom / desktop) ── */
   .tab-bar{display:grid;gap:var(--s-2)}
