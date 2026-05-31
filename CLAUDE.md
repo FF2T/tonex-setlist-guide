@@ -981,9 +981,24 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-31 dimanche, V9.7.6 — Audit Cowork tour 2 : résiduels P0-03/05 + P1-02 + régression Langue)
+## État actuel (2026-05-31 dimanche, V9.7.7 — Audit Cowork tour 3 : P1-02 OK button débordait)
 
-**Backline v9.7.6 / SW backline-v409 / STATE_VERSION 13 / 1820 tests verts. Bundle 2672 KB.**
+**Backline v9.7.7 / SW backline-v410 / STATE_VERSION 13 / 1820 tests verts. Bundle 2672 KB.**
+
+### v9.7.7 — P1-02 résiduel fixé (bouton OK ne déborde plus)
+
+Vérif Cowork v9.7.6 : 15.5/16 closes. Seul résidu : à 375px, input
+`minWidth:140` + gap + bouton OK fixe dépassaient le container (~33px
+de débordement, OK rogné à droite).
+- input `minWidth: 140 → 120`
+- placeholder FR/EN/ES : retiré le "..." final ("Titre, artiste" au lieu
+  de "Titre, artiste...") → 14 chars × ~7px ≈ 98px, tient sans tronquer
+  dans un input 120px
+- Calcul final : 120 input + 8 gap + ~55 OK ≈ 183px ≤ 199px container, ~16px
+  de marge confortable
+
+1820 tests, bundle 2672 KB stable. **16/16 issues de l'audit Cowork closes**
+(les P2 iPad + P1-07 nav portrait restent reportés selon décision).
 
 ### v9.7.6 — Tour 2 audit Cowork : 4 résiduels traités
 

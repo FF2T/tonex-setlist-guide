@@ -210,7 +210,7 @@ const en = {
   'home.search.correct': 'Correct',
   'home.search.force': 'Force anyway',
   'home.search.ok': 'OK',
-  'home.search.placeholder': 'Title, artist...',
+  'home.search.placeholder': 'Title, artist',
   'home.search.refuse': 'No, fix it',
   'home.search.unknown-hint': 'Check spelling or add details (artist, album).',
   'home.search.unknown-title': '⚠️ Song not recognized',

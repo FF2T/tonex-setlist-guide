@@ -208,7 +208,7 @@ const es = {
   'home.search.correct': 'Corregir',
   'home.search.force': 'Forzar igualmente',
   'home.search.ok': 'OK',
-  'home.search.placeholder': 'Título, artista...',
+  'home.search.placeholder': 'Título, artista',
   'home.search.refuse': 'No, corregir',
   'home.search.unknown-hint': 'Revisa la ortografía o añade detalles (artista, álbum).',
   'home.search.unknown-title': '⚠️ Canción no reconocida',

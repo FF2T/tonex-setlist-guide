@@ -115,7 +115,7 @@ Réponds UNIQUEMENT en JSON (sans markdown) : {"title":"Titre exact","artist":"A
     <div style={{ position: 'relative' }}>
       <div style={{ display: 'flex', gap: 8, marginBottom: 10 }} title={demoTitle}>
         <input
-          placeholder={t('home.search.placeholder', 'Titre, artiste...')}
+          placeholder={t('home.search.placeholder', 'Titre, artiste')}
           value={input}
           disabled={isDemo}
           onChange={(e) => { setInput(e.target.value); setSuggestion(null); setShowSuggest(true); setHighlight(0); }}
@@ -130,7 +130,7 @@ Réponds UNIQUEMENT en JSON (sans markdown) : {"title":"Titre exact","artist":"A
             }
             if (e.key === 'Enter') search();
           }}
-          style={{ ...inp, flex: 1, minWidth: 140, opacity: isDemo ? 0.5 : 1, cursor: isDemo ? 'not-allowed' : 'text' }}
+          style={{ ...inp, flex: 1, minWidth: 120, opacity: isDemo ? 0.5 : 1, cursor: isDemo ? 'not-allowed' : 'text' }}
         />
         <button onClick={search} disabled={isDemo || !input.trim() || loading} style={{ background: isDemo || !input.trim() || loading ? 'var(--bg-elev-3)' : 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-lg)', padding: '0 16px', minHeight: 44, fontSize: 15, fontWeight: 700, cursor: isDemo || !input.trim() || loading ? 'not-allowed' : 'pointer', flexShrink: 0, boxShadow: 'var(--shadow-sm)', fontFamily: 'var(--font-ui)', opacity: isDemo ? 0.5 : 1, whiteSpace: 'nowrap' }}>{loading ? '...' : t('home.search.ok', 'OK')}</button>
       </div>
