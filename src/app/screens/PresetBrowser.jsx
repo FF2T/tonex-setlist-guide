@@ -626,7 +626,7 @@ function PresetList({ filtered, selected, setSelected, banksAnn, banksPlug, full
               <div onClick={() => setSelected(isSel ? null : name)}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, background: isSel ? 'var(--accent-bg)' : 'var(--a3)', border: isSel ? '1px solid var(--accent-border)' : '1px solid var(--a6)', borderRadius: isSel ? '9px 9px 0 0' : 9, padding: '8px 11px', cursor: 'pointer' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, color: isSel ? 'var(--accent)' : 'var(--text-bright)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+                  <div style={{ fontSize: 12, color: isSel ? 'var(--accent)' : 'var(--text-bright)', fontWeight: 600, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', lineHeight: 1.3, wordBreak: 'break-word' }}>{name}</div>
                   <div style={{ display: 'flex', gap: 5, alignItems: 'center', marginTop: 2, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{info.amp}</span>
                     {info.pack && info.pack !== info.amp && <span style={{ fontSize: 9, color: 'var(--text-muted)', background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '1px 5px' }}>{info.pack}</span>}
@@ -887,6 +887,7 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
                 fontWeight: active ? 700 : 500,
                 cursor: 'pointer',
                 minHeight: 44,
+                whiteSpace: 'nowrap',
                 boxShadow: active ? 'inset 0 -2px 0 var(--accent, #818cf8)' : 'none',
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               }}
@@ -940,7 +941,7 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
             <div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 6 }}>{t('preset-browser.what-sound', 'Quel son cherches-tu ?')}</div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', marginBottom: 6, whiteSpace: 'nowrap' }}>{t('preset-browser.what-sound', 'Quel son cherches-tu ?')}</div>
               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
                 <button onClick={() => setSoundProfile('all')}
                   style={tile(soundProfile === 'all')}

@@ -981,9 +981,62 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-29 vendredi, V9.7.4 — Suppression code mort RecapScreen + SynthesisScreen)
+## État actuel (2026-05-31 dimanche, V9.7.5 — Audit responsive Cowork P0+P1 traités)
 
-**Backline v9.7.4 / SW backline-v407 / STATE_VERSION 13 / 1820 tests verts. Bundle 2671 KB.**
+**Backline v9.7.5 / SW backline-v408 / STATE_VERSION 13 / 1820 tests verts. Bundle 2671 KB.**
+
+### v9.7.5 — Fixes responsive audit Cowork (10 P0 + 6 P1 traités)
+
+Rapport audit Cowork (Chrome MCP, 6 résolutions iPhone/iPad). Root cause
+identifiée par Cowork sur les P0 mobile : `flex-shrink:1` + `white-space:normal`
++ `min-width:auto` → texte qui se découpe syllabe par syllabe sous 430px.
+
+**Batch A — Root cause CSS (boutons inline + chips)** :
+- `chip()` token (`src/app/styles/tokens.js`) → +`whiteSpace:'nowrap'` global
+  (fixe P0-08 pills filtre ampli Explorer et tous les chip() callers).
+- `SetlistsScreen.tabBtn` (tabs Setlists/Morceaux) → +nowrap (P0-01) ; idem
+  compteur "8 morceaux" (P1-03).
+- `ListScreen` toolbar 5 boutons (Guitares / Éditer / Analyser-MAJ / Cancel
+  ⏸ / +) → +nowrap + bumps minHeight 36→44 (P0-02 + dette HIG passage).
+- `PresetBrowser` tabs instrument haut niveau (Tous/Guitare/Basse) → +nowrap
+  (P0-07) + label "QUEL SON CHERCHES-TU ?" +nowrap (P1-06).
+- `MonProfilScreen` Préférences cartes Instrument(s) + boutons thème
+  Sombre/Clair → +nowrap (P0-10).
+
+**Batch B — Truncation / overflow** :
+- `index.html` `.songrow-pl-meta-guitar .songrow-pl-guitar` :
+  `word-break:break-word` (casse mid-mot syllabe) → `word-break:normal;
+  overflow-wrap:break-word` (casse aux espaces, Phase 7.83 multi-line intent
+  préservé). Fixe P0-03 badges guitare ligne repliée.
+- `PresetBrowser` preset card name : single-line ellipsis →
+  `-webkit-line-clamp:2` (2 lignes ellipsis). Fixe P0-09.
+- `GuitarSelect` (mode `plain` SongDetailCard) : option text utilise
+  `g.short || g.name` au lieu de `g.name` long → sélecteur natif iOS ne
+  tronque plus. Fixe P0-04.
+- `SongDetailCard` scoring guitares cadre : `overflow:hidden; minWidth:0`
+  + description `overflowWrap:break-word`. Fixe P0-05.
+- `index.html` `.songrow-pl-potards` : +`min-width:0; overflow-wrap:anywhere;
+  white-space:normal` → ligne EQ wrap au lieu d'être amputée. Fixe P0-06.
+
+**Batch C — P1 spécifiques** :
+- `AppHeader` "Backline" : retiré `overflow:hidden; textOverflow:ellipsis`
+  (8 chars, pas besoin de tronquer) + `flexShrink:0`. Fixe P1-01 ("Bac…").
+- `HomeScreen` SongSearchBar input : +`minWidth:0` (flex bien fonctionnel,
+  placeholder visible). Fixe P1-02.
+- `SetlistsScreen` Morceaux row : flex wrapper +`minWidth:0` + titre/artiste
+  ellipsis nowrap + bouton Supprimer `whiteSpace:nowrap; flexShrink:0`.
+  Fixe P1-04.
+- `DemoBanner` ✕ Quitter : minHeight 36→44 + padding 7→10 (iOS HIG).
+  Fixe P1-05.
+
+**Reportés** :
+- P1-07 (iPad portrait nav format mobile) : décision design (nav latérale vs
+  bottom), pas bug pur. Trigger : si signal user iPad portrait.
+- P2-01/02/03 (zone vide accueil iPad, marges paysage, grid chips incomplet)
+  : cosmétique iPad, pas bloquant.
+
+1820 tests verts (CSS pur + props inline → aucun test ne casse).
+Bundle stable 2671 KB.
 
 ### v9.7.4 — Kill RecapScreen + SynthesisScreen (code mort)
 

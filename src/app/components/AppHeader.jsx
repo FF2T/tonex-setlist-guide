@@ -51,7 +51,7 @@ function AppHeader({ profiles, activeProfileId, onProfile, onSwitch, onViewProfi
         )}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
           <BacklineIcon size={20} color="var(--brass-300)"/>
-          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-display,system-ui)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{APP_NAME}</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-display,system-ui)', whiteSpace: 'nowrap', flexShrink: 0 }}>{APP_NAME}</div>
         </div>
         {isNoSyncMode()
           ? <span title={t('nav.no-sync-tooltip', 'Mode local — aucune sync Firestore')} style={{ fontSize: 10, color: 'var(--text-dim)' }}>🔒</span>

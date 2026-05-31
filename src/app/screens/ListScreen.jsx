@@ -620,7 +620,7 @@ function ListScreen({
           <option value="alpha">{t('list.sort-alpha', 'A → Z')}</option>
         </select>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
-          {activeSongs.length > 0 && <button onClick={() => setShowTopGuitars(!showTopGuitars)} style={{ fontSize: 10, color: showTopGuitars ? 'var(--accent)' : 'var(--text-muted)', background: showTopGuitars ? 'var(--accent-bg)' : 'var(--a5)', border: '1px solid ' + (showTopGuitars ? 'var(--accent-border)' : 'var(--a10)'), borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer' }}>{t('list.guitars', 'Guitares')}</button>}
+          {activeSongs.length > 0 && <button onClick={() => setShowTopGuitars(!showTopGuitars)} style={{ fontSize: 10, color: showTopGuitars ? 'var(--accent)' : 'var(--text-muted)', background: showTopGuitars ? 'var(--accent-bg)' : 'var(--a5)', border: '1px solid ' + (showTopGuitars ? 'var(--accent-border)' : 'var(--a10)'), borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer', whiteSpace: 'nowrap' }}>{t('list.guitars', 'Guitares')}</button>}
           {/* Phase 7.71 — Mode édition setlist : révèle la corbeille
               individuelle 🗑 par morceau. Visible uniquement quand une
               setlist est active (pas en vue "Tous les morceaux"). */}
@@ -628,7 +628,7 @@ function ListScreen({
             <button
               onClick={() => setEditingSongs((x) => !x)}
               // Phase 7.55.7 fix Cowork — cible touch 36px min (vs 23-25px)
-              style={{ fontSize: 11, minHeight: 36, color: editingSongs ? 'var(--wine-400)' : 'var(--text-muted)', background: editingSongs ? 'rgba(155,58,44,0.12)' : 'var(--a5)', border: '1px solid ' + (editingSongs ? 'rgba(155,58,44,0.3)' : 'var(--a10)'), borderRadius: 'var(--r-sm)', padding: '7px 12px', cursor: 'pointer', fontWeight: editingSongs ? 700 : 500 }}
+              style={{ fontSize: 11, minHeight: 44, color: editingSongs ? 'var(--wine-400)' : 'var(--text-muted)', background: editingSongs ? 'rgba(155,58,44,0.12)' : 'var(--a5)', border: '1px solid ' + (editingSongs ? 'rgba(155,58,44,0.3)' : 'var(--a10)'), borderRadius: 'var(--r-sm)', padding: '7px 12px', cursor: 'pointer', fontWeight: editingSongs ? 700 : 500, whiteSpace: 'nowrap' }}
               title={t('list.edit-setlist-title', "Mode édition : permet de retirer les morceaux de la setlist (sans toucher à la base globale)")}
             >
               {editingSongs
@@ -644,18 +644,18 @@ function ListScreen({
               analyzeMissingAll();
             }}
             title={tFormat('list.analyze-title', { count: missingCount }, '{count} morceau(x) à analyser ou actualiser après modif du rig.')}
-            style={{ fontSize: 11, minHeight: 36, color: 'var(--accent)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-sm)', padding: '7px 12px', cursor: 'pointer', fontWeight: 700 }}
+            style={{ fontSize: 11, minHeight: 44, color: 'var(--accent)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-sm)', padding: '7px 12px', cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap' }}
           >{tFormat('list.analyze-button-flat', { count: missingCount }, 'Analyser/MAJ {count}')}</button>}
           {analyzeAllStatus && <button
             data-testid="list-screen-analyze-cancel"
             onClick={() => { analyzeCancelRef.current = true; }}
-            style={{ fontSize: 11, minHeight: 36, color: 'var(--wine-400)', background: 'rgba(155,58,44,0.12)', border: '1px solid rgba(155,58,44,0.3)', borderRadius: 'var(--r-sm)', padding: '7px 12px', cursor: 'pointer', fontWeight: 700 }}
+            style={{ fontSize: 11, minHeight: 44, color: 'var(--wine-400)', background: 'rgba(155,58,44,0.12)', border: '1px solid rgba(155,58,44,0.3)', borderRadius: 'var(--r-sm)', padding: '7px 12px', cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap' }}
             title={tFormat('list.cancel-analyze', { current: analyzeAllStatus.current, total: analyzeAllStatus.total }, "Annuler l'analyse en cours ({current}/{total})")}
           >⏸ {analyzeAllStatus.current}/{analyzeAllStatus.total}</button>}
           {/* Phase 7.71 — Bouton "Retirer non-cochés" supprimé (Phase 5.5)
               car dépendait des checkboxes. Mode édition (bouton ci-dessus)
               + corbeille par morceau remplace ce workflow. */}
-          <button onClick={() => setShowAdd(true)} disabled={isDemo} title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : t('list.add-song', 'Ajouter un morceau')} style={{ fontSize: 10, color: 'var(--accent)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: isDemo ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: isDemo ? 0.5 : 1 }}>+</button>
+          <button onClick={() => setShowAdd(true)} disabled={isDemo} title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : t('list.add-song', 'Ajouter un morceau')} style={{ fontSize: 14, minWidth: 44, minHeight: 44, color: 'var(--accent)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-sm)', padding: '3px 12px', cursor: isDemo ? 'not-allowed' : 'pointer', fontWeight: 700, opacity: isDemo ? 0.5 : 1, whiteSpace: 'nowrap' }}>+</button>
         </div>
       </div>
 

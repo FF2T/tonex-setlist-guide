@@ -32,7 +32,7 @@ function SetlistsScreen({
   );
   const [tab, setTab] = useState('setlists');
   const tabBtn = (id, label) => (
-    <button onClick={() => setTab(id)} style={{ minHeight: 44, background: tab === id ? 'var(--accent-bg)' : 'var(--a5)', border: tab === id ? '1px solid var(--accent-border)' : '1px solid var(--a8)', color: tab === id ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '10px 16px', fontSize: 'clamp(12px, 1.25vw, 14px)', fontWeight: 600, cursor: 'pointer' }}>{label}</button>
+    <button onClick={() => setTab(id)} style={{ minHeight: 44, background: tab === id ? 'var(--accent-bg)' : 'var(--a5)', border: tab === id ? '1px solid var(--accent-border)' : '1px solid var(--a8)', color: tab === id ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-md)', padding: '10px 16px', fontSize: 'clamp(12px, 1.25vw, 14px)', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>{label}</button>
   );
 
   // Songs tab state
@@ -103,7 +103,7 @@ function SetlistsScreen({
       {tab === 'songs' && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div style={{ fontSize: 13, color: 'var(--text-sec)' }}>{tPlural('setlists.songs-count', visibleSongDb.length, {}, { one: '1 morceau', other: '{count} morceaux' })}</div>
+            <div style={{ fontSize: 13, color: 'var(--text-sec)', whiteSpace: 'nowrap' }}>{tPlural('setlists.songs-count', visibleSongDb.length, {}, { one: '1 morceau', other: '{count} morceaux' })}</div>
             <select value={songSort} onChange={(e) => setSongSort(e.target.value)} style={{ background: 'var(--bg-card)', color: 'var(--text-sec)', border: '1px solid var(--a12)', borderRadius: 'var(--r-md)', padding: '3px 8px', fontSize: 11, cursor: 'pointer' }}>
               <option value="alpha">{t('setlists.sort-alpha', 'A → Z (titre)')}</option>
               <option value="artist">{t('setlists.sort-artist', 'Par artiste')}</option>
@@ -127,8 +127,8 @@ function SetlistsScreen({
                   {showArtistHeader && <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-sec)', marginTop: 10, marginBottom: 4, paddingLeft: 2 }}>{s.artist}</div>}
                   <div style={{ background: 'var(--a3)', border: '1px solid var(--a6)', borderRadius: 'var(--r-lg)', marginBottom: 4, overflow: 'hidden' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px' }}>
-                      <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{s.title}</div>{songSort !== 'artist' && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{s.artist}{s.isCustom ? ' · ✨IA' : ''}</div>}</div>
-                      <button onClick={() => deleteSongFromDb(s.id)} style={{ background: 'var(--red-bg)', border: '1px solid var(--red-border)', color: 'var(--red)', borderRadius: 'var(--r-md)', padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>{t('setlists.delete', 'Supprimer')}</button>
+                      <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</div>{songSort !== 'artist' && <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.artist}{s.isCustom ? ' · ✨IA' : ''}</div>}</div>
+                      <button onClick={() => deleteSongFromDb(s.id)} style={{ background: 'var(--red-bg)', border: '1px solid var(--red-border)', color: 'var(--red)', borderRadius: 'var(--r-md)', padding: '4px 10px', fontSize: 11, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>{t('setlists.delete', 'Supprimer')}</button>
                     </div>
                     {/* Toggle setlist inline (même système que la recherche
                         initiale HomeScreen) — pills directement visibles, ✓ vert

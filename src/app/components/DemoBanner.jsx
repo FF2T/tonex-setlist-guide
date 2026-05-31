@@ -83,6 +83,7 @@ function DemoBanner({ onExit }) {
         type="button"
         onClick={handleExit}
         // Phase 7.55.7 fix Cowork — cible touch 36px (vs 21px)
+        // v9.7.5 (audit Cowork P1-05) — bump 36 → 44 (iOS HIG).
         // Phase 7.85 — marginLeft:auto retiré pour ne plus forcer le wrap
         // à 3 lignes sur iPad portrait (rapport Cowork B19 + demo banner
         // wrap iPad). Le bouton reste collé au lien.
@@ -90,12 +91,13 @@ function DemoBanner({ onExit }) {
           background: 'rgba(0,0,0,0.08)',
           border: '1px solid var(--brass-400)',
           color: 'var(--tolex-900)',
-          padding: '7px 14px',
-          minHeight: 36,
+          padding: '10px 14px',
+          minHeight: 44,
           borderRadius: 'var(--r-sm, 6px)',
           fontSize: 12,
           fontWeight: 700,
           cursor: 'pointer',
+          whiteSpace: 'nowrap',
         }}
         title={t('demo.banner-exit-title', 'Sortir du mode démo')}
       >✕ {exitLabel}</button>

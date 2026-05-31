@@ -319,7 +319,7 @@ function MonProfilScreen({
               onClick={() => { if (!isDemo) toggleInstrument(id); }}
               disabled={isDemo}
               title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : undefined}
-              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: on ? 'var(--accent-bg)' : 'var(--a5)', border: on ? '1px solid var(--border-accent)' : '1px solid var(--a10)', color: on ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-lg)', padding: '14px 8px', fontSize: 14, fontWeight: 700, cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.5 : 1 }}>
+              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: on ? 'var(--accent-bg)' : 'var(--a5)', border: on ? '1px solid var(--border-accent)' : '1px solid var(--a10)', color: on ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-lg)', padding: '14px 8px', fontSize: 14, fontWeight: 700, cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.5 : 1, whiteSpace: 'nowrap' }}>
               <div style={{ width: 18, height: 18, borderRadius: 'var(--r-sm)', border: on ? '2px solid var(--accent)' : '2px solid var(--text-muted)', background: on ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{on && <span style={{ color: 'var(--text-inverse)', fontSize: 10, fontWeight: 900 }}>✓</span>}</div>
               <NavIcon id={icon} size={16}/>{label}
             </button>
@@ -335,9 +335,9 @@ function MonProfilScreen({
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>{t('profile.display.theme', 'Thème')}</div>
           <div style={{ display: 'flex', gap: 8 }}>
             {[{ v: 'dark', label: t('profile.display.theme-dark', 'Sombre'), desc: t('profile.display.theme-dark-desc', 'Fond sombre') }, { v: 'light', label: t('profile.display.theme-light', 'Clair'), desc: t('profile.display.theme-light-desc', 'Fond clair') }].map(({ v, label, desc }) => (
-              <button key={v} onClick={() => onTheme(v)} style={{ flex: 1, background: theme === v ? 'var(--accent-bg)' : 'var(--a5)', border: theme === v ? '1px solid var(--border-accent)' : '1px solid var(--a10)', color: theme === v ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-lg)', padding: '14px 8px', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'center' }}>
-                <div style={{ fontSize: 14, fontWeight: 700 }}>{label}</div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{desc}</div>
+              <button key={v} onClick={() => onTheme(v)} style={{ flex: 1, background: theme === v ? 'var(--accent-bg)' : 'var(--a5)', border: theme === v ? '1px solid var(--border-accent)' : '1px solid var(--a10)', color: theme === v ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-lg)', padding: '14px 8px', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                <div style={{ fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap' }}>{label}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, whiteSpace: 'nowrap' }}>{desc}</div>
               </button>
             ))}
           </div>

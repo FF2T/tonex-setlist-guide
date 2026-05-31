@@ -271,5 +271,8 @@ export function chip(opts = {}) {
     borderRadius: 'var(--r-md)',
     padding: '4px 8px',
     cursor: 'pointer',
+    // Audit Cowork v9.7.4 (P0-08) — sans nowrap, les noms de packs/amplis
+    // (ex. "Fender96 preset") se découpent syllabe par syllabe sur mobile.
+    whiteSpace: 'nowrap',
   };
 }

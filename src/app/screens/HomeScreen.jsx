@@ -130,7 +130,7 @@ Réponds UNIQUEMENT en JSON (sans markdown) : {"title":"Titre exact","artist":"A
             }
             if (e.key === 'Enter') search();
           }}
-          style={{ ...inp, flex: 1, opacity: isDemo ? 0.5 : 1, cursor: isDemo ? 'not-allowed' : 'text' }}
+          style={{ ...inp, flex: 1, minWidth: 0, opacity: isDemo ? 0.5 : 1, cursor: isDemo ? 'not-allowed' : 'text' }}
         />
         <button onClick={search} disabled={isDemo || !input.trim() || loading} style={{ background: isDemo || !input.trim() || loading ? 'var(--bg-elev-3)' : 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-lg)', padding: '0 22px', fontSize: 17, fontWeight: 700, cursor: isDemo || !input.trim() || loading ? 'not-allowed' : 'pointer', flexShrink: 0, boxShadow: 'var(--shadow-sm)', fontFamily: 'var(--font-ui)', opacity: isDemo ? 0.5 : 1 }}>{loading ? '...' : t('home.search.ok', 'OK')}</button>
       </div>

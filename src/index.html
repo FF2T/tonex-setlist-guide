@@ -325,7 +325,7 @@
   /* Phase 7.83 cleanup (2026-05-27) — autorise wrap multi-lignes pour
      le nom complet de guitare (Fender Stratocaster American Vintage II 1961
      trop long pour 1 ligne mobile). Grid 2 col gardé (score gauche + label flex). */
-  .songrow-pl-meta-guitar .songrow-pl-guitar{min-width:0;line-height:1.35;word-break:break-word}
+  .songrow-pl-meta-guitar .songrow-pl-guitar{min-width:0;line-height:1.35;word-break:normal;overflow-wrap:break-word}
   /* S9.4 — Device line : grid 4 col mobile aussi (label/slot/score/preset) */
   .songrow-pl-meta-devices{flex-direction:column;align-items:stretch;gap:3px}
   .songrow-pl-device-line{display:grid;grid-template-columns:48px 40px 40px 1fr;align-items:center;gap:6px;min-width:0;width:100%}
@@ -357,7 +357,7 @@
      transparente pour compenser la border du slot (sinon le slot
      paraissait 4-5px plus large et 3px plus haut). */
   .songrow-pl-score-pill-inline{font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--text-inverse);padding:2px 7px;border:1px solid transparent;border-radius:var(--r-sm);line-height:1.3}
-  .songrow-pl-potards{font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);letter-spacing:0.3px}
+  .songrow-pl-potards{font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);letter-spacing:0.3px;min-width:0;overflow-wrap:anywhere;white-space:normal}
   .songrow-pl-fx{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--accent);font-weight:600;letter-spacing:0.3px;text-transform:uppercase}
   .songrow-pl-fx-icon{font-size:11px}
 
@@ -413,7 +413,7 @@
     /* Phase 7.83 cleanup (2026-05-27) — autorise wrap multi-lignes pour
      le nom complet de guitare (Fender Stratocaster American Vintage II 1961
      trop long pour 1 ligne mobile). Grid 2 col gardé (score gauche + label flex). */
-  .songrow-pl-meta-guitar .songrow-pl-guitar{min-width:0;line-height:1.35;word-break:break-word}
+  .songrow-pl-meta-guitar .songrow-pl-guitar{min-width:0;line-height:1.35;word-break:normal;overflow-wrap:break-word}
     /* Devices empilés + chaque ligne en grid 4 col (label fixe |
        slot pill fixe | preset flex | score pill fixe) */
     .songrow-pl-meta-devices{flex-direction:column;align-items:stretch;gap:4px}

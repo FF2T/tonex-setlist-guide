@@ -66,7 +66,11 @@ function GuitarSelect({ value, onChange, ig = [], guitars = GUITARS, hideStatusT
           // Vague B (2026-05-28) — en mode `plain` (SongDetailCard), pas de ★
           // dans les options : le pill score à droite indique déjà l'idéale.
           // Legacy (RecapScreen, sans pill) garde le ★.
-          <option key={x.id} value={x.id}>{!plain && ig.includes(x.id) ? '★ ' : ''}{x.name}</option>
+          // Audit Cowork v9.7.4 (P0-04) — en mode plain, utilise le nom court
+          // (x.short) si dispo : le select natif iOS tronque "Gibson SG Standard
+          // '61" en "Gibso" car la zone visible est étroite (pill score à droite
+          // + flèche du select). "SG '61" tient sans troncature.
+          <option key={x.id} value={x.id}>{!plain && ig.includes(x.id) ? '★ ' : ''}{plain ? (x.short || x.name) : x.name}</option>
         ))}
       </select>
       {!hideStatusText && ideal && <div style={{ fontSize: 11, color: 'var(--green)' }}>{t('guitar-select.ideal', '✓ Choix optimal')}</div>}
