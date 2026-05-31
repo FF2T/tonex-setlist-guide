@@ -355,13 +355,28 @@ function HomeScreen({
   //
   // Approche actuelle : filter songDb par aiCache présent. Ordre suit
   // l'ordre du songDb (= ordre setlist démo). Limit 4.
-  const demoSuggestSongs = useMemo(() => {
-    if (!isDemo) return [];
-    const withAiCache = (songDb || []).filter((s) =>
-      s?.aiCache?.result?.cot_step1 && s.title && s.artist
-    );
-    return withAiCache.slice(0, 4).map((s) => ({ id: s.id, title: s.title, artist: s.artist }));
-  }, [isDemo, songDb]);
+  // v9.7.9 (audit Cowork P1-E + P2-D) — chips suggérés étendus au non-démo :
+  // surface des morceaux de la 1ère setlist non-vide de l'user avec aiCache,
+  // pour combler le vide central de l'Accueil sur iPad et offrir un
+  // raccourci d'ouverture.
+  const suggestSongs = useMemo(() => {
+    if (isDemo) {
+      const withAiCache = (songDb || []).filter((s) =>
+        s?.aiCache?.result?.cot_step1 && s.title && s.artist
+      );
+      return withAiCache.slice(0, 4).map((s) => ({ id: s.id, title: s.title, artist: s.artist }));
+    }
+    if (!Array.isArray(setlists)) return [];
+    for (const sl of setlists) {
+      if (!Array.isArray(sl?.songIds) || sl.songIds.length === 0) continue;
+      const slSongs = sl.songIds.map((id) => songDb?.find((s) => s.id === id)).filter(Boolean);
+      const withAi = slSongs.filter((s) => s?.aiCache?.result?.cot_step1 && s.title && s.artist);
+      if (withAi.length > 0) {
+        return withAi.slice(0, 4).map((s) => ({ id: s.id, title: s.title, artist: s.artist }));
+      }
+    }
+    return [];
+  }, [isDemo, songDb, setlists]);
 
   // Phase 7.55.3 — Handler centralisé pour onConfirm SongSearchBar +
   // chips démo + auto-open URL Phase 7.55-G. Extrait de l'inline pour
@@ -510,7 +525,7 @@ function HomeScreen({
               if (!liveSl) return null;
               return (
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
-                  <button data-testid="home-screen-live" onClick={() => onLive(liveSl.id)} title={tFormat('home.live-title', { name: liveSl.name }, 'Mode scène plein écran sur "{name}"')} style={{ background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-lg)', padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)', fontFamily: 'var(--font-ui)', display: 'inline-flex', alignItems: 'center', gap: 8 }}><NavIcon id="live" size={18}/>{tFormat('home.live-button-flat', { name: liveSl.name }, 'Mode scène — {name}')}</button>
+                  <button data-testid="home-screen-live" onClick={() => onLive(liveSl.id)} title={tFormat('home.live-title', { name: liveSl.name }, 'Mode scène plein écran sur "{name}"')} style={{ background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-lg)', padding: '14px 18px', minHeight: 52, fontSize: 16, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)', fontFamily: 'var(--font-ui)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, width: '100%', whiteSpace: 'nowrap' }}><NavIcon id="live" size={22}/>{tFormat('home.live-button-flat', { name: liveSl.name }, 'Mode scène — {name}')}</button>
                 </div>
               );
             })()}
@@ -525,10 +540,10 @@ function HomeScreen({
                 en mode démo, sous le champ recherche.
                 Permet au visiteur de découvrir la valeur en un click,
                 sans avoir à taper quoi que ce soit. */}
-            {isDemo && demoSuggestSongs.length > 0 && (
+            {suggestSongs.length > 0 && (
               <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', justifyContent: 'center' }}>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 2 }}>{t('demo.suggest-label', 'Essaye :')}</span>
-                {demoSuggestSongs.slice(0, 4).map((s) => (
+                {suggestSongs.slice(0, 4).map((s) => (
                   <button
                     key={s.id}
                     type="button"
@@ -551,7 +566,7 @@ function HomeScreen({
                 <button
                   type="button"
                   onClick={() => {
-                    const pool = demoSuggestSongs;
+                    const pool = suggestSongs;
                     if (pool.length === 0) return;
                     const pick = pool[Math.floor(Math.random() * pool.length)];
                     handleSongConfirm(pick.title, pick.artist);

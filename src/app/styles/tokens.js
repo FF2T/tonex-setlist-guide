@@ -269,10 +269,12 @@ export function chip(opts = {}) {
     background: active ? BG_ACCENT : BG_1,
     border: `1px solid ${active ? BORDER_ACCENT : BORDER_SUBTLE}`,
     borderRadius: 'var(--r-md)',
-    padding: '4px 8px',
+    // Audit Cowork v9.7.4 (P0-08) — nowrap pour éviter cassure mid-mot.
+    // Audit v9.7.9 (P1-D) — bump padding 4×8 → 10×12 + minHeight 40
+    // pour cible tactile iPad (vs 22px observé). Toujours "chip-like".
+    padding: '10px 12px',
+    minHeight: 40,
     cursor: 'pointer',
-    // Audit Cowork v9.7.4 (P0-08) — sans nowrap, les noms de packs/amplis
-    // (ex. "Fender96 preset") se découpent syllabe par syllabe sur mobile.
     whiteSpace: 'nowrap',
   };
 }

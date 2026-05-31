@@ -981,9 +981,53 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-31 dimanche, V9.7.8 — Estimation durée sur boutons recalcul)
+## État actuel (2026-05-31 dimanche, V9.7.9 — Audit Cowork iPad : tactile + Mode scène XXL + chips Accueil)
 
-**Backline v9.7.8 / SW backline-v411 / STATE_VERSION 13 / 1820 tests verts. Bundle 2672 KB.**
+**Backline v9.7.9 / SW backline-v412 / STATE_VERSION 13 / 1820 tests verts. Bundle 2672 KB.**
+
+### v9.7.9 — Audit iPad Cowork sur compte réel : 3 batches (10 fixes)
+
+Cowork a audité sur le compte Sébastien (admin) à 640 CSS px (Mac Retina
+DPR=2). Le filtre signal/bruit a écarté les spurious (nav-desktop labels en
+2 lignes, onglets profil/admin 2 rangées — tous résolus à 1024 CSS px du
+vrai iPad Pro 13"). Les vraies issues : cibles tactiles <44px + Mode scène
+sous-dimensionné + vide central Accueil.
+
+**Batch 1 — Tactile critique (<44px) iPad** :
+- Pills setlist inline onglet Morceaux : padding 5×12 → 10×14 + minHeight 44
+- Bouton "← Sortir" LiveScreen : ajout `minHeight: clamp(44px, 5vw, 56px)`
+  + fontSize min 13→14 + whiteSpace nowrap
+- Chips Explorer (token `chip()`) : padding 4×8 → 10×12 + minHeight 40
+  (cascade sur tous chip callers — pills filtre ampli, packs, etc.)
+- CTA Accueil "Mode scène — {setlist}" : padding 10×18 → 14×18 + minHeight 52
+  + fontSize 14→16 + `width: '100%'` (full-width, vs inline 234×38 avant)
+
+**Batch 2 — Mode scène scène iPad** :
+- Titre morceau : clamp(28, **7vw**, 72) → clamp(32, **8vw**, 96) — à
+  1024 CSS px (iPad portrait) ~82px vs 72 avant ; à 1366 (iPad paysage)
+  → 96px. Lecture scène à 1m enfin viable.
+- Badge Wake Lock : code Phase 7.55.7 S1 présent mais emoji 🔒 → remplacé
+  par NavIcon `lock` (compliance no-emoji UI). Visibilité dépend toujours
+  de `wakeLockActive` (acquis seulement après mount LiveScreen via
+  navigator.wakeLock).
+
+**Batch 3 — Chips suggérés Accueil étendus au non-démo (P1-E + P2-D)** :
+- `demoSuggestSongs` renommée `suggestSongs`, useMemo étendu : pour
+  non-démo, surface 4 morceaux avec aiCache depuis la 1ère setlist
+  non-vide du user. Comble le vide central iPad (~300-500px avant).
+- Render dropable `isDemo && ...` → `suggestSongs.length > 0 && ...`.
+- Bouton "Au hasard" inchangé fonctionnellement, pool source étendu.
+
+Test `chip()` token mis à jour (padding + minHeight + nowrap). 1820 tests
+verts. Bundle 2672 KB.
+
+**Spurious filtrés** (640 CSS px artifact, OK à 1024 CSS px du vrai iPad) :
+P1-F nav-desktop labels 2 lignes, P1-J onglets profil 2 rangées, P1-K
+onglets admin 2 rangées, P2-B, P2-J. **Différé** : P1-G banks cells 20px
+(décision design densité vs tactile, à discuter — 150 cellules × 44px
+= 6600px de hauteur, infaisable). P2-A layouts 2-cols sur sections denses
+à iPad (chantier dédié). P2-C bandeau fingerprint compact, P2-G version
+14px illisible (cosmétique).
 
 ### v9.7.8 — Estimation de durée sur les boutons de recalcul
 

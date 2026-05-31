@@ -175,12 +175,14 @@ describe('tile (PresetBrowser massive tiles)', () => {
 });
 
 describe('chip (filtres compacts)', () => {
-  it('inactif : TEXT_2 + BG_1 + meta fontSize 10 + padding 4×8', () => {
+  it('inactif : TEXT_2 + BG_1 + meta fontSize 10 + padding 10×12 (v9.7.9 tactile iPad)', () => {
     const s = chip();
     expect(s.fontSize).toBe(10);
     expect(s.fontWeight).toBe(600);
     expect(s.color).toBe(TEXT_2);
-    expect(s.padding).toBe('4px 8px');
+    expect(s.padding).toBe('10px 12px');
+    expect(s.minHeight).toBe(40);
+    expect(s.whiteSpace).toBe('nowrap');
   });
   it('active : accent + bold', () => {
     const s = chip({ active: true });

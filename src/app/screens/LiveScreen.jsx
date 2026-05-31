@@ -238,12 +238,15 @@ function LiveScreen({
           style={{
             background: 'var(--a5)', border: '1px solid var(--a8)',
             borderRadius: 'var(--r-md)',
-            // Phase 7.55.7 — cible touch 48×48 min pour ergo scène doigts moites
+            // v9.7.9 (audit Cowork P1-C iPad) — minHeight forcé 44px iOS HIG
+            // (au 640 CSS px : padding clamp réduit à 10+10=20 → btn 38px).
             padding: 'clamp(10px, 1.4vw, 14px) clamp(14px, 2vw, 22px)',
             minWidth: 'clamp(80px, 12vw, 140px)',
-            fontSize: 'clamp(13px, 1.6vw, 18px)',
+            minHeight: 'clamp(44px, 5vw, 56px)',
+            fontSize: 'clamp(14px, 1.6vw, 18px)',
             fontWeight: 700, cursor: 'pointer',
             color: 'var(--text-bright)',
+            whiteSpace: 'nowrap',
           }}
         >
           {t('live.exit', '← Sortir')}
@@ -258,13 +261,12 @@ function LiveScreen({
               data-testid="live-screen-wakelock"
               title={t('live.wakelock-active', 'Écran maintenu allumé')}
               style={{
-                fontSize: 'clamp(13px, 1.5vw, 17px)',
                 color: 'var(--green)',
-                fontFamily: 'var(--font-mono)',
                 display: 'flex', alignItems: 'center', gap: 4,
               }}
             >
-              <span aria-hidden="true">🔒</span>
+              {/* v9.7.9 (audit Cowork) — emoji 🔒 → NavIcon (règle no-emoji UI). */}
+              <NavIcon id="lock" size={20}/>
             </div>
           )}
           <div
@@ -285,7 +287,10 @@ function LiveScreen({
         <div
           style={{
             fontFamily: 'var(--font-display)',
-            fontSize: 'clamp(28px, 7vw, 72px)',
+            // v9.7.9 (audit Cowork P1-H iPad) — bump 7vw→8vw + max 72→96
+            // pour vraie lecture scène à 1m sur iPad Pro 13" portrait
+            // (1024 CSS px = 82px, vs 72px avant).
+            fontSize: 'clamp(32px, 8vw, 96px)',
             fontWeight: 800, lineHeight: 1.05,
             color: 'var(--text-primary)',
             marginBottom: 'clamp(4px, 0.6vw, 8px)',
