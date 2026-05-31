@@ -981,9 +981,29 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-31 dimanche, V9.7.5 — Audit responsive Cowork P0+P1 traités)
+## État actuel (2026-05-31 dimanche, V9.7.6 — Audit Cowork tour 2 : résiduels P0-03/05 + P1-02 + régression Langue)
 
-**Backline v9.7.5 / SW backline-v408 / STATE_VERSION 13 / 1820 tests verts. Bundle 2671 KB.**
+**Backline v9.7.6 / SW backline-v409 / STATE_VERSION 13 / 1820 tests verts. Bundle 2672 KB.**
+
+### v9.7.6 — Tour 2 audit Cowork : 4 résiduels traités
+
+Rapport vérif Cowork v9.7.5 : 12/16 closes, 2 résiduels (P0-03 / P0-05 / P1-02),
+1 régression P0-NEW (boutons Langue).
+- **P0-03** (badge guitare ligne repliée) : `guitarLabel` (setlist-row-playlist.js)
+  utilise désormais `guitar.short || guitar.name` au lieu de `guitar.name` long.
+  Évite la cassure mid-mot de "Gibson SG Standard '61" sur 130px mobile. Cohérent
+  avec le fix v9.7.5 P0-04 (GuitarSelect plain mode short).
+- **P0-05** (badges scoring guitares cadre fiche dépliée) : résolution du nom
+  court via `findGuitarByAIName(gt.name, guitars)?.short` au render. Fallback
+  `cleanGuitarName(gt.name)` si pas de match (custom mal nommée par l'IA).
+- **P1-02** (SongSearchBar placeholder "Titre, a") : input `minWidth:0` → `140`
+  + bouton OK padding 22→16 et fontSize 17→15 + `minHeight:44` (HIG) +
+  whiteSpace:nowrap. Libère de la place au placeholder.
+- **P0-NEW** (régression boutons Langue Français/English/Español cassés
+  syllabe par syllabe) : +`whiteSpace:'nowrap'` sur boutons + label div
+  (mêmes que v9.7.5 boutons thème, oublié).
+
+1820 tests verts. Bundle 2671 → 2672 KB.
 
 ### v9.7.5 — Fixes responsive audit Cowork (10 P0 + 6 P1 traités)
 

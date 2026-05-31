@@ -352,9 +352,9 @@ function MonProfilScreen({
                 key={id}
                 data-testid={`locale-${id}`}
                 onClick={() => { setLocale(id); }}
-                style={{ flex: 1, background: active ? 'var(--accent-bg)' : 'var(--a5)', border: active ? '1px solid var(--border-accent)' : '1px solid var(--a10)', color: active ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-lg)', padding: '14px 8px', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'center' }}
+                style={{ flex: 1, background: active ? 'var(--accent-bg)' : 'var(--a5)', border: active ? '1px solid var(--border-accent)' : '1px solid var(--a10)', color: active ? 'var(--accent)' : 'var(--text-sec)', borderRadius: 'var(--r-lg)', padding: '14px 8px', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'center', whiteSpace: 'nowrap' }}
               >
-                <div style={{ fontSize: 14, fontWeight: 700 }}>{label}</div>
+                <div style={{ fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap' }}>{label}</div>
               </button>;
             })}
           </div>

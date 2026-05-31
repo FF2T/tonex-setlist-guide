@@ -380,7 +380,14 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         {cotInRig.map((gt, i) => (
           <div key={i}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(12px, 1.35vw, 14px)' }}>
-              <span style={{ ...compatLabelStyle(gt.score), flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{cleanGuitarName(gt.name)}</span>
+              <span style={{ ...compatLabelStyle(gt.score), flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{(() => {
+                // v9.7.6 (audit Cowork P0-05 résiduel) — résoudre le nom court
+                // depuis le rig pour éviter la troncature ellipsis sur mobile
+                // (ex. "Gibson SG Standard '61" → "SG '61"). Fallback nom IA
+                // si pas de match (guitare custom mal nommée par l'IA).
+                const matched = findGuitarByAIName(gt.name, guitars);
+                return matched?.short || cleanGuitarName(gt.name);
+              })()}</span>
               <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(gt.score), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(11px, 1.25vw, 13px)' }}>{gt.score}%</span>
             </div>
             {gt.reason && <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.4, overflowWrap: 'break-word', minWidth: 0 }}>{getLocalizedText(gt.reason, locale)}</div>}

@@ -51,7 +51,10 @@ export function getRowPlaylistData(song, aiC, guitar, guitarScore, isOptimalGuit
   const title = song?.title || '';
   const artist = song?.artist || '';
 
-  const guitarLabel = guitar ? `${guitar.name} (${guitar.type})` : null;
+  // v9.7.6 (audit Cowork P0-03 résiduel) — nom court (cf signature en
+  // tête : 'SG Ebony (HB)'). Évite la cassure mid-mot du nom long
+  // "Gibson SG Standard '61" sur la ligne badge mobile (130px).
+  const guitarLabel = guitar ? `${guitar.short || guitar.name} (${guitar.type})` : null;
   const guitarScoreClean = (typeof guitarScore === 'number' && Number.isFinite(guitarScore) && guitarScore > 0)
     ? guitarScore : null;
 
