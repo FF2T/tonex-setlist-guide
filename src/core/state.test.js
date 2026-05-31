@@ -19,6 +19,8 @@ import {
   ensureProfileV11, ensureProfilesV11, migrateV10toV11,
   ensureProfileV12, ensureProfilesV12, migrateV11toV12,
   ensureProfileV13, ensureProfilesV13, migrateV12toV13,
+  ensureProfileV14, ensureProfilesV14, migrateV13toV14,
+  mergeMyGuitarsWithDefenses,
   getDeviceId, getDeviceLabel, setDeviceLabel,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,
@@ -37,8 +39,8 @@ import {
 } from './state.js';
 
 describe('STATE_VERSION', () => {
-  test('vaut 13 en Phase 8.1 (intégration basse : profile.instruments + myBasses + bass amps)', () => {
-    expect(STATE_VERSION).toBe(13);
+  test('vaut 14 en Phase 7.74.12 (myGuitarsModified per-field LWW)', () => {
+    expect(STATE_VERSION).toBe(14);
   });
 });
 
@@ -2220,7 +2222,7 @@ describe('buildDemoSnapshot (Phase 7.51.4)', () => {
 
   test('format compatible loadDemoSnapshot (version + 4 clés)', () => {
     const snap = buildDemoSnapshot(sampleProfile, sampleSetlists, sampleSongs);
-    expect(snap.version).toBe(13);
+    expect(snap.version).toBe(14);
     expect(snap).toHaveProperty('profile');
     expect(snap).toHaveProperty('setlists');
     expect(snap).toHaveProperty('songs');
@@ -3844,6 +3846,133 @@ describe('Phase 7.74.11 — Device fingerprint', () => {
       remoteDeviceLabel: 'iPhone Bruno',
     });
     expect(out.language).toBe('fr'); // BLOCKED → keep local
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────
+// Phase 7.74.12 — myGuitarsModified per-field LWW (Sébastien iPad bug)
+// ───────────────────────────────────────────────────────────────────
+
+describe('Phase 7.74.12 — myGuitarsModified per-field LWW', () => {
+  test('migrateV13toV14 backfill myGuitarsModified = 0 sur tous profils', () => {
+    const state = {
+      version: 13,
+      profiles: {
+        sebastien: { id: 'sebastien', name: 'Sébastien', myGuitars: ['lp60'], lastModified: 1000 },
+        bruno: { id: 'bruno', name: 'Bruno', myGuitars: ['schecter_c1'], lastModified: 2000 },
+      },
+    };
+    const out = migrateV13toV14(state);
+    expect(out.version).toBe(14);
+    expect(out.profiles.sebastien.myGuitarsModified).toBe(0);
+    expect(out.profiles.bruno.myGuitarsModified).toBe(0);
+    expect(out.profiles.sebastien.myGuitars).toEqual(['lp60']); // données inchangées
+  });
+
+  test('ensureProfileV14 idempotent (préserve myGuitarsModified existant)', () => {
+    const profile = { id: 's', name: 'S', myGuitars: ['lp60'], myGuitarsModified: 12345 };
+    const out = ensureProfileV14(profile);
+    expect(out.myGuitarsModified).toBe(12345);
+  });
+
+  test('SCÉNARIO BUG SÉBASTIEN iPad : rts <= lts MAIS rts_g > lts_g → adopt remote myGuitars (clean)', () => {
+    // iPad local : pollué avec Sire, lastModified bumpé par une autre écriture
+    const local = {
+      id: 'sebastien', name: 'Sébastien',
+      myGuitars: ['lp60', 'sg61', 'sire_t7', 'sire_t3'], // pollué
+      myGuitarsModified: 100, // vieux (Sire setup historique)
+      lastModified: 1000, // bumpé récemment par autre écriture
+    };
+    // Mac remote : clean (sans Sire), myGuitarsModified plus récent (toggle volontaire)
+    const remote = {
+      id: 'sebastien', name: 'Sébastien',
+      myGuitars: ['lp60', 'sg61'], // clean
+      myGuitarsModified: 5000, // toggle Mac récent
+      lastModified: 500, // mais lastModified global pas bumpé depuis
+    };
+    const out = mergeProfileLWW(local, remote);
+    // rts (500) <= lts (1000), MAIS rts_g (5000) > lts_g (100)
+    // → adoption per-field : myGuitars adopté de remote (clean)
+    expect(out.myGuitars).toEqual(['lp60', 'sg61']);
+    expect(out.myGuitarsModified).toBe(5000);
+  });
+
+  test('rts <= lts ET rts_g <= lts_g → keep local myGuitars (pas d\'adoption)', () => {
+    const local = {
+      id: 's', name: 'S',
+      myGuitars: ['lp60'], myGuitarsModified: 2000,
+      lastModified: 1000,
+    };
+    const remote = {
+      id: 's', name: 'S',
+      myGuitars: ['sg61'], myGuitarsModified: 1500, // plus ancien
+      lastModified: 500,
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.myGuitars).toEqual(['lp60']); // local conservé
+  });
+
+  test('rts > lts ET lts_g > rts_g → BLOCK adoption myGuitars (local plus récent sur la dim)', () => {
+    // Cas où global remote est plus récent, mais local a stamp myGuitars
+    // plus récent → on ne doit pas écraser local myGuitars avec remote.
+    const local = {
+      id: 's', name: 'S',
+      myGuitars: ['lp60', 'sg61'], myGuitarsModified: 5000, // toggle local récent
+      lastModified: 1000,
+    };
+    const remote = {
+      id: 's', name: 'S',
+      myGuitars: ['lp60'], myGuitarsModified: 100, // myGuitars stale
+      lastModified: 9000, // mais global rts > lts
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.myGuitars).toEqual(['lp60', 'sg61']); // local conservé sur myGuitars
+    expect(out.myGuitarsModified).toBe(5000);
+  });
+
+  test('legacy : rts > lts + myGuitarsModified=0 des deux côtés → adopt remote (comportement Phase 7.74.x préservé)', () => {
+    const local = {
+      id: 's', name: 'S',
+      myGuitars: ['lp60'], myGuitarsModified: 0,
+      lastModified: 100,
+    };
+    const remote = {
+      id: 's', name: 'S',
+      myGuitars: ['lp60', 'sg61'], myGuitarsModified: 0,
+      lastModified: 9000,
+    };
+    const out = mergeProfileLWW(local, remote);
+    // rts_g === lts_g === 0, branche "adopt remote with defenses" (drop 0
+    // donc sous le seuil ≥3) → adopté.
+    expect(out.myGuitars).toEqual(['lp60', 'sg61']);
+  });
+
+  test('stampedProfileUpdate stamp myGuitarsModified quand field=myGuitars', () => {
+    const profiles = { sebastien: { id: 'sebastien', myGuitars: ['lp60'], myGuitarsModified: 100 } };
+    const out = stampedProfileUpdate(profiles, 'sebastien', { myGuitars: ['lp60', 'sg61'] });
+    expect(out.sebastien.myGuitars).toEqual(['lp60', 'sg61']);
+    expect(out.sebastien.myGuitarsModified).toBeGreaterThan(100);
+  });
+
+  test('stampedProfileUpdate ne stamp PAS myGuitarsModified si autre field écrit', () => {
+    const profiles = { sebastien: { id: 'sebastien', myGuitars: ['lp60'], myGuitarsModified: 100 } };
+    const out = stampedProfileUpdate(profiles, 'sebastien', { language: 'en' });
+    expect(out.sebastien.myGuitarsModified).toBe(100); // inchangé
+    expect(out.sebastien.languageModified).toBeGreaterThan(0); // langue stampée
+  });
+
+  test('mergeMyGuitarsWithDefenses helper : Couche 3 drop ≥3 → keep local', () => {
+    const local = { myGuitars: ['lp60', 'sg61', 'es335', 'strat61'] };
+    const remote = { myGuitars: ['lp60'] }; // drop 3 → suspect
+    const out = mergeMyGuitarsWithDefenses(local, remote, {});
+    expect(out).toEqual(['lp60', 'sg61', 'es335', 'strat61']);
+  });
+
+  test('mergeMyGuitarsWithDefenses helper : drop 2 standards → adopt remote (sous seuil)', () => {
+    const local = { myGuitars: ['lp60', 'sg61', 'sire_t7', 'sire_t3'] }; // 4 dont 2 polluants
+    const remote = { myGuitars: ['lp60', 'sg61'] }; // drop 2 → sous seuil 3 ET sous 50%
+    const out = mergeMyGuitarsWithDefenses(local, remote, {});
+    expect(out).toEqual(['lp60', 'sg61']);
   });
 });
 

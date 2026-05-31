@@ -61,7 +61,7 @@ import {
 import demoSnapshot from '../data/demo-profile.json';
 
 // ─── Versioning + clés localStorage ──────────────────────────────────
-const STATE_VERSION = 13;
+const STATE_VERSION = 14;
 const LOCALE_KEY = 'backline_locale'; // Phase 7.49 — fallback pour migrateV7toV8
 const TOMBSTONE_MAX_AGE_MS = 30 * 24 * 3600 * 1000;
 const LS_KEY = 'tonex_guide_v2';        // nom historique stable
@@ -834,6 +834,46 @@ function migrateV12toV13(state) {
   };
 }
 
+// Phase 7.74.12 — Timestamp dédié `myGuitarsModified` (pattern Phase 7.74.9
+// banksModified + 7.74.10 lang/dev/src) pour permettre au merge LWW de
+// décider de l'adoption per-field sans se laisser piéger par un
+// `lastModified` global gonflé par d'autres écritures.
+//
+// Bug observé 2026-05-31 (Sébastien iPad) : pollution Sire Larry Carlton
+// dans profile.myGuitars locale iPad, jamais nettoyée par le pull
+// Firestore parce que la branche `rts <= lts` de mergeProfileLWW return
+// local en bloc (sauf aiCache). Les défenses Couche 3/4/orphan ne
+// s'exécutent que dans `rts > lts` → l'iPad qui avait bumpé son
+// lastModified par une écriture autre (langue, source...) conservait
+// indéfiniment ses myGuitars polluées.
+//
+// Migration purement additive — myGuitarsModified backfill à 0. Compat
+// v13→v14 garantie via ensureProfileV14 au pull.
+function ensureProfileV14(profile) {
+  if (!profile) return profile;
+  const v13 = ensureProfileV13(profile);
+  const needs = typeof v13.myGuitarsModified !== 'number';
+  if (!needs) return v13;
+  return { ...v13, myGuitarsModified: 0 };
+}
+function ensureProfilesV14(profiles) {
+  if (!profiles) return profiles;
+  const out = {};
+  for (const [id, p] of Object.entries(profiles)) {
+    out[id] = ensureProfileV14(p);
+  }
+  return out;
+}
+
+function migrateV13toV14(state) {
+  if (!state) return state;
+  return {
+    ...state,
+    version: 14,
+    profiles: ensureProfilesV14(state.profiles),
+  };
+}
+
 // Phase 7.54 — Helper lookup aiCache (priorité profile.aiCache, fallback
 // shared.songDb[i].aiCache). Exposé pour la dérivation
 // songDbWithProfileCache au niveau App + pour les call sites isolés.
@@ -1056,6 +1096,8 @@ function stampedProfileUpdate(profiles, profileId, partial) {
   if ('language' in resolved) stamped.languageModified = now;
   if ('enabledDevices' in resolved) stamped.enabledDevicesModified = now;
   if ('availableSources' in resolved) stamped.availableSourcesModified = now;
+  // Phase 7.74.12 — stamp dédié myGuitars pour LWW per-field.
+  if ('myGuitars' in resolved) stamped.myGuitarsModified = now;
   return {
     ...profiles,
     [profileId]: stamped,
@@ -1144,6 +1186,70 @@ function mergeAiCachePerSongId(local, remote) {
 //
 // `options.debug = true` active console.warn forensique pour observer
 // les décisions de merge (cf Couche 3 défense ultime).
+// Phase 7.74.12 — helper extrait du merge `myGuitars` historiquement
+// inline dans mergeProfileLWW (Phase 7.74.1 + 7.74.3 + 7.74.4). Applique
+// les 3 couches de défense : Couche 3 (drop ≥3 ou >50% → keep local),
+// orphan-cross-profile (drop guitares appartenant à d'autres profils),
+// Couche 4 (swap pattern cg_*→standard → keep local).
+//
+// Retourne la liste myGuitars résolue. NE décide PAS de la direction
+// (qui call this helper a déjà décidé que remote gagne sur la dimension
+// myGuitars via myGuitarsModified).
+function mergeMyGuitarsWithDefenses(local, remote, options = {}) {
+  const localGuitars = Array.isArray(local && local.myGuitars) ? local.myGuitars : [];
+  const remoteGuitars = Array.isArray(remote && remote.myGuitars) ? remote.myGuitars : [];
+  const debug = options.debug === true || (typeof window !== 'undefined' && window.__BACKLINE_MERGE_DEBUG === true);
+  const remoteDeviceId = options.remoteDeviceId || null;
+  const remoteDeviceLabel = options.remoteDeviceLabel || null;
+  const devicePart = remoteDeviceId
+    ? ` [from device "${remoteDeviceLabel || remoteDeviceId}"=${remoteDeviceId}]`
+    : '';
+  const debugLog = (msg, data) => { if (debug) console.warn(`[merge-defense]${devicePart} ${msg}`, data || ''); };
+  const otherProfilesGuitars = options.otherProfilesGuitars instanceof Set ? options.otherProfilesGuitars : null;
+  if (localGuitars.length === 0) {
+    if (otherProfilesGuitars) {
+      const orphans = remoteGuitars.filter((g) => otherProfilesGuitars.has(g));
+      if (orphans.length > 0) {
+        debugLog(`SUSPECT orphan-cross-profile (local vide) : remote contient ${orphans.length} guitares d'autres profils — filtering`, { orphans });
+        return remoteGuitars.filter((g) => !orphans.includes(g));
+      }
+    }
+    return remoteGuitars;
+  }
+  // Couche 3 : drop ≥3 ou >50% → keep local
+  const dropped = localGuitars.filter((g) => !remoteGuitars.includes(g));
+  const tooManyDropped = dropped.length >= 3 || (dropped.length / localGuitars.length) > 0.5;
+  if (tooManyDropped) {
+    debugLog(`SUSPECT myGuitars drop : remote drops ${dropped.length} guitares (${dropped.join(',')}) — keeping local`, { local: localGuitars, remote: remoteGuitars });
+    return localGuitars;
+  }
+  // Filter orphan-cross-profile
+  let nextGuitars = remoteGuitars;
+  if (otherProfilesGuitars) {
+    const localSet = new Set(localGuitars);
+    const orphans = remoteGuitars.filter((g) => !localSet.has(g) && otherProfilesGuitars.has(g));
+    if (orphans.length > 0) {
+      debugLog(`SUSPECT orphan-cross-profile : remote ADD guitares (${orphans.join(',')}) qui appartiennent à un autre profil — filtering`, { orphans, local: localGuitars, remote: remoteGuitars });
+      nextGuitars = remoteGuitars.filter((g) => !orphans.includes(g));
+    }
+  }
+  // Couche 4 : swap pattern cg_*→standard
+  const localSetCheck = new Set(localGuitars);
+  const nextSetCheck = new Set(nextGuitars);
+  const droppedNow = localGuitars.filter((g) => !nextSetCheck.has(g));
+  const addedNow = nextGuitars.filter((g) => !localSetCheck.has(g));
+  const isSwapSuspect =
+    droppedNow.length === 1 &&
+    /^cg_/.test(droppedNow[0]) &&
+    addedNow.length >= 1 &&
+    addedNow.every((g) => !/^cg_/.test(g));
+  if (isSwapSuspect) {
+    debugLog(`SUSPECT swap pattern cg_*→standard : drop=${droppedNow[0]} add=${addedNow.join(',')} — keeping local`, { dropped: droppedNow, added: addedNow, local: localGuitars, remote: remoteGuitars });
+    return localGuitars;
+  }
+  return nextGuitars;
+}
+
 function mergeProfileLWW(local, remote, options = {}) {
   // Cas dégénérés : 1 seul des deux présent
   if (!local && !remote) return null;
@@ -1157,8 +1263,39 @@ function mergeProfileLWW(local, remote, options = {}) {
   // setSongAiCache ne stamp plus lastModified.
   if (rts <= lts) {
     const { merged: mergedAi, changed: aiChanged } = mergeAiCachePerSongId(local.aiCache, remote.aiCache);
-    if (!aiChanged) return local;
-    return { ...local, aiCache: mergedAi };
+    // Phase 7.74.12 — même quand `remote` est plus ancien globalement,
+    // certains fields peuvent avoir un timestamp dédié plus récent
+    // (ex. Mac change myGuitars alors que iPad a bumpé lastModified
+    // pour une autre raison). On applique les LWW per-field AVANT de
+    // décider de return local. Couvre myGuitars (bug observé Sébastien
+    // 2026-05-31) + bonus language/enabledDevices/availableSources
+    // (Phase 7.74.10 avait le même oubli structurel).
+    const perFieldChanges = {};
+    let anyFieldChange = false;
+    const perFieldTs = [
+      { name: 'language', tsField: 'languageModified' },
+      { name: 'enabledDevices', tsField: 'enabledDevicesModified' },
+      { name: 'availableSources', tsField: 'availableSourcesModified' },
+    ];
+    for (const f of perFieldTs) {
+      const lts_f = typeof local[f.tsField] === 'number' ? local[f.tsField] : 0;
+      const rts_f = typeof remote[f.tsField] === 'number' ? remote[f.tsField] : 0;
+      if (rts_f > lts_f) {
+        perFieldChanges[f.name] = remote[f.name];
+        perFieldChanges[f.tsField] = rts_f;
+        anyFieldChange = true;
+      }
+    }
+    // myGuitars per-field + défenses
+    const lts_g = typeof local.myGuitarsModified === 'number' ? local.myGuitarsModified : 0;
+    const rts_g = typeof remote.myGuitarsModified === 'number' ? remote.myGuitarsModified : 0;
+    if (rts_g > lts_g) {
+      perFieldChanges.myGuitars = mergeMyGuitarsWithDefenses(local, remote, options);
+      perFieldChanges.myGuitarsModified = rts_g;
+      anyFieldChange = true;
+    }
+    if (!aiChanged && !anyFieldChange) return local;
+    return { ...local, ...perFieldChanges, aiCache: mergedAi };
   }
   // Sinon : remote plus récent → on construit un merge per-field.
   const debug = options.debug === true || (typeof window !== 'undefined' && window.__BACKLINE_MERGE_DEBUG === true);
@@ -1229,80 +1366,26 @@ function mergeProfileLWW(local, remote, options = {}) {
   // ~1001 (max des deux).
   merged.banksModified = Math.max(lbm, rbm);
 
-  // ── myGuitars : Couche 3 defense ──
-  // 1. Block adoption si drop suspect (≥3 guitares OU >50% local)
-  // 2. Filter orphan-cross-profile (Phase 7.74.1 fix) : si remote
-  //    ADD une guitare qui appartient à un autre profil local
-  //    (otherProfilesGuitars) ET pas au local actuel, c'est une
-  //    pollution cross-profil → filter cette guitare.
-  const localGuitars = Array.isArray(local.myGuitars) ? local.myGuitars : [];
-  const remoteGuitars = Array.isArray(remote.myGuitars) ? remote.myGuitars : [];
-  // otherProfilesGuitars : set des guitares qui appartiennent UNIQUEMENT
-  // à d'autres profils locaux (pas au profil courant). Passé via
-  // options par mergeProfilesLWW pluriel.
-  const otherProfilesGuitars = options.otherProfilesGuitars instanceof Set
-    ? options.otherProfilesGuitars
-    : null;
-
-  if (localGuitars.length > 0) {
-    const dropped = localGuitars.filter((g) => !remoteGuitars.includes(g));
-    const tooManyDropped = dropped.length >= 3 || (dropped.length / localGuitars.length) > 0.5;
-    if (tooManyDropped) {
-      debugLog(`SUSPECT myGuitars drop : remote drops ${dropped.length} guitares (${dropped.join(',')}) — keeping local`, { local: localGuitars, remote: remoteGuitars });
-      merged.myGuitars = localGuitars;
-    } else {
-      // Drop modéré → on adopte remote MAIS on filtre les orphan
-      // cross-profile (Phase 7.74.1).
-      let nextGuitars = remoteGuitars;
-      if (otherProfilesGuitars) {
-        const localSet = new Set(localGuitars);
-        const orphans = remoteGuitars.filter((g) => !localSet.has(g) && otherProfilesGuitars.has(g));
-        if (orphans.length > 0) {
-          debugLog(`SUSPECT orphan-cross-profile : remote ADD guitares (${orphans.join(',')}) qui appartiennent à un autre profil — filtering`, { orphans, local: localGuitars, remote: remoteGuitars });
-          nextGuitars = remoteGuitars.filter((g) => !orphans.includes(g));
-        }
-      }
-      // Phase 7.74.4 — Couche 4 : détection pattern swap suspect
-      // cg_* → standard. Si après filter orphan le delta entre local
-      // et nextGuitars est "drop exactement 1 cg_* + add ≥1 standard",
-      // c'est la signature d'une pollution résiduelle (cas observé
-      // 2026-05-19 soir : drop Tele 51 cg_* + add sire_t3 sans que
-      // sire_t3 soit dans le rig d'aucun profil — orphan check
-      // inopérant). Keep local entier.
-      //
-      // Risque false-positive : un user qui remplace explicitement
-      // sa custom par une standard du catalog. Très rare (les customs
-      // sont créés justement car absentes du catalog). Workaround :
-      // faire les 2 actions sur des stamps séparés (add d'abord,
-      // remove ensuite — donne 2 merges distincts qui passent).
-      const localSetCheck = new Set(localGuitars);
-      const nextSetCheck = new Set(nextGuitars);
-      const droppedNow = localGuitars.filter((g) => !nextSetCheck.has(g));
-      const addedNow = nextGuitars.filter((g) => !localSetCheck.has(g));
-      const isSwapSuspect =
-        droppedNow.length === 1 &&
-        /^cg_/.test(droppedNow[0]) &&
-        addedNow.length >= 1 &&
-        addedNow.every((g) => !/^cg_/.test(g));
-      if (isSwapSuspect) {
-        debugLog(`SUSPECT swap pattern cg_*→standard : drop=${droppedNow[0]} add=${addedNow.join(',')} — keeping local`, { dropped: droppedNow, added: addedNow, local: localGuitars, remote: remoteGuitars });
-        nextGuitars = localGuitars;
-      }
-      merged.myGuitars = nextGuitars;
-    }
-  } else if (otherProfilesGuitars) {
-    // Local vide : filtrer quand même les orphans pour ne pas hériter
-    // de pollutions au premier merge.
-    const orphans = remoteGuitars.filter((g) => otherProfilesGuitars.has(g));
-    if (orphans.length > 0) {
-      debugLog(`SUSPECT orphan-cross-profile (local vide) : remote contient ${orphans.length} guitares d'autres profils — filtering`, { orphans });
-      merged.myGuitars = remoteGuitars.filter((g) => !orphans.includes(g));
-    } else {
-      merged.myGuitars = remoteGuitars;
+  // ── myGuitars : LWW per-field via myGuitarsModified + défenses ──
+  // Phase 7.74.12 — dans la branche `rts > lts` (remote gagne globalement),
+  // on bloque l'adoption de myGuitars UNIQUEMENT si local a stamp
+  // `myGuitarsModified` strictement plus récent que remote sur cette
+  // dimension. Sinon (rts_g >= lts_g, y compris cas legacy où les deux
+  // sont à 0) on adopte remote AVEC les défenses Couche 3 + 4 + orphan.
+  // Préserve le comportement legacy (tests Phase 7.74.x).
+  const lts_g = typeof local.myGuitarsModified === 'number' ? local.myGuitarsModified : 0;
+  const rts_g = typeof remote.myGuitarsModified === 'number' ? remote.myGuitarsModified : 0;
+  if (lts_g > rts_g) {
+    merged.myGuitars = Array.isArray(local.myGuitars) ? local.myGuitars : [];
+    const localStr = JSON.stringify(merged.myGuitars);
+    const remoteStr = JSON.stringify(remote.myGuitars || []);
+    if (localStr !== remoteStr) {
+      debugLog(`myGuitars BLOCKED : local.myGuitarsModified=${lts_g} > remote=${rts_g} — keeping local`, { local: merged.myGuitars, remote: remote.myGuitars || [] });
     }
   } else {
-    merged.myGuitars = remoteGuitars;
+    merged.myGuitars = mergeMyGuitarsWithDefenses(local, remote, options);
   }
+  merged.myGuitarsModified = Math.max(lts_g, rts_g);
 
   // ── Phase 7.74.10 — LWW per-field via timestamps dédiés ──
   //    language / enabledDevices / availableSources : adopt remote
@@ -1427,12 +1510,12 @@ function mergeProfilesLWW(localProfiles, remoteProfiles, options = {}) {
       const localGuitarSet = guitarsByProfile[id] || new Set();
       for (const g of localGuitarSet) otherProfilesGuitars.delete(g);
       const merged = mergeProfileLWW(lp, adoptedRemote, { ...options, otherProfilesGuitars });
-      out[id] = ensureProfileV13(merged || lp);
+      out[id] = ensureProfileV14(merged || lp);
     } else if (lp) {
-      out[id] = ensureProfileV13(lp);
+      out[id] = ensureProfileV14(lp);
     } else if (rp) {
       const adopted = applySecrets ? applySecrets({ [id]: rp })[id] : rp;
-      out[id] = ensureProfileV13(adopted);
+      out[id] = ensureProfileV14(adopted);
     }
   }
   return out;
@@ -1633,6 +1716,8 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
       languageModified: 0,
       enabledDevicesModified: 0,
       availableSourcesModified: 0,
+      // Phase 7.74.12 — timestamp dédié myGuitars (0 = neutre).
+      myGuitarsModified: 0,
       recoMode: 'balanced',
       guitarBias: {},
       // Phase 10 — contexte d'écoute (default 'frfr', cf OUTPUT_CONTEXTS).
@@ -2115,8 +2200,10 @@ function _runFullChain(d) {
   // Phase 8.1 — v12 → v13 : intégration basse (profile.instruments +
   // myBasses + customBasses + myBassAmps + customBassAmps).
   const v13 = migrateV12toV13(v12);
-  if (v13 && v13.shared && v13.shared.deletedSetlistIds) {
-    v13.shared = { ...v13.shared, deletedSetlistIds: gcTombstones(v13.shared.deletedSetlistIds) };
+  // Phase 7.74.12 — v13 → v14 : timestamp dédié myGuitars.
+  const v14 = migrateV13toV14(v13);
+  if (v14 && v14.shared && v14.shared.deletedSetlistIds) {
+    v14.shared = { ...v14.shared, deletedSetlistIds: gcTombstones(v14.shared.deletedSetlistIds) };
   }
   // Phase 7.52.9 — Heal défensif au load : retire 'demo' des profileIds
   // des setlists non-démo (pollution Firestore historique, cf
@@ -2125,7 +2212,7 @@ function _runFullChain(d) {
   // au boot. Sinon Mac+iPhone stamperaient chacun au boot → loop LWW
   // infinie → sync cassée. Le stamp se fait seulement au push Firestore
   // (saveToFirestore.prep) pour propager le clean correctement.
-  return stripDemoFromSetlists(v13, { stamp: false });
+  return stripDemoFromSetlists(v14, { stamp: false });
 }
 
 function loadState() {
@@ -2134,6 +2221,7 @@ function loadState() {
     if (raw) {
       const d = JSON.parse(raw);
       if (d.version === STATE_VERSION) return _runFullChain(d);
+      if (d.version === 13) return _runFullChain(d);
       if (d.version === 12) return _runFullChain(d);
       if (d.version === 11) return _runFullChain(d);
       if (d.version === 10) return _runFullChain(d);
@@ -2871,6 +2959,8 @@ export {
   ensureProfileV11, ensureProfilesV11, migrateV10toV11,
   ensureProfileV12, ensureProfilesV12, migrateV11toV12,
   ensureProfileV13, ensureProfilesV13, migrateV12toV13,
+  ensureProfileV14, ensureProfilesV14, migrateV13toV14,
+  mergeMyGuitarsWithDefenses,
   LS_DEVICE_ID_KEY, LS_DEVICE_LABEL_KEY,
   getDeviceId, getDeviceLabel, setDeviceLabel, getDeviceUA,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,

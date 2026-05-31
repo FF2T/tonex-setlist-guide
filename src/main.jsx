@@ -277,7 +277,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "9.7.11";
+const APP_VERSION = "9.7.12";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -884,6 +884,9 @@ export function App() {
         next.enabledDevicesModified = now;
       } else if (field === 'availableSources') {
         next.availableSourcesModified = now;
+      } else if (field === 'myGuitars') {
+        // Phase 7.74.12 — stamp dédié myGuitars pour LWW per-field.
+        next.myGuitarsModified = now;
       }
       return {...p, [activeProfileId]: next};
     });

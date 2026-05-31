@@ -981,9 +981,45 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-31 dimanche, V9.7.11 — Layouts 2-cols iPad : EQ + Effets côte à côte)
+## État actuel (2026-05-31 dimanche, V9.7.12 — Phase 7.74.12 myGuitarsModified per-field LWW)
 
-**Backline v9.7.11 / SW backline-v414 / STATE_VERSION 13 / 1820 tests verts. Bundle 2673 KB.**
+**Backline v9.7.12 / SW backline-v415 / STATE_VERSION 14 / 1830 tests verts. Bundle 2675 KB.**
+
+### v9.7.12 — Phase 7.74.12 myGuitarsModified per-field LWW (fix pollution cross-device)
+
+Bug observé Sébastien 2026-05-31 (9e occurrence pollution profile cross-mélange) :
+iPad gardait Sire Larry Carlton dans `profile.myGuitars` malgré pulls Firestore
+clean depuis Mac. Cause racine : `mergeProfileLWW` branche `rts <= lts` return
+local en bloc (sauf aiCache Phase 7.81). Les défenses Couche 3/4/orphan (Phase
+7.74.1/3/4) ne s'exécutaient QUE dans la branche `rts > lts`. Quand iPad bumpe
+`profile.lastModified` pour une écriture autre (langue/source/...), sa myGuitars
+polluée est conservée à vie.
+
+**Fix Phase 7.74.12** (pattern Phase 7.74.9 banksModified / 7.74.10 lang/dev/src) :
+- **STATE_VERSION 13 → 14**. `ensureProfileV14` + `migrateV13toV14` backfill
+  `myGuitarsModified = 0`. Idempotent. Cohabitation v13/v14 safe.
+- **`stampedProfileUpdate` (state.js) + `setProfileField` (main.jsx)** : stamp
+  dédié `myGuitarsModified = Date.now()` quand field `myGuitars` écrit.
+- **Helper `mergeMyGuitarsWithDefenses`** extrait (Couche 3 drop ≥3 + orphan-
+  cross-profile + Couche 4 swap pattern cg_*→standard). Exporté + testé.
+- **`mergeProfileLWW` branche `rts > lts`** : adopte remote myGuitars sauf si
+  `lts_g > rts_g` strict (local stampé plus récent sur la dimension). Préserve
+  comportement legacy (rts_g === lts_g === 0 → adopt remote).
+- **`mergeProfileLWW` branche `rts <= lts`** : extension pour merger
+  per-field si `rts_g > lts_g`. Couvre aussi au passage le même oubli
+  structurel pour language/enabledDevices/availableSources (Phase 7.74.10
+  qui n'avait pas étendu cette branche).
+- **`makeDefaultProfile`** initialise `myGuitarsModified: 0`.
+
+**Limite** : la pollution PRÉ-existante (caches v13 avec myGuitarsModified=0
+des deux côtés) ne se résout pas automatiquement — il faut une action user
+(toggle myGuitars) qui stamp le ts et propage. Préventif pour futur, pas
+rétroactif. Sébastien a déjà décoché Sire sur iPad → propagation propre via
+Phase 7.74.12 LWW.
+
+10 tests Vitest ajoutés (scénario bug iPad, équivalence rts_g, block local,
+legacy, stamp via stampedProfileUpdate, helper isolé). 1830 verts. Bundle
+2675 KB. Migration safe v13→v14, no data loss.
 
 ### v9.7.11 — Layouts 2-cols iPad fiche dépliée (P2-A)
 
