@@ -1192,9 +1192,17 @@ function mergeAiCachePerSongId(local, remote) {
 // orphan-cross-profile (drop guitares appartenant à d'autres profils),
 // Couche 4 (swap pattern cg_*→standard → keep local).
 //
-// Retourne la liste myGuitars résolue. NE décide PAS de la direction
-// (qui call this helper a déjà décidé que remote gagne sur la dimension
-// myGuitars via myGuitarsModified).
+// Retourne { guitars, blocked }. `blocked` = true quand une défense
+// totale (Couche 3 drop ≥3, Couche 4 swap) a retenu local entièrement.
+// `blocked` = false quand on adopte remote (potentiellement filtré
+// pour les orphans) — adoption partielle reste une adoption pour le
+// timestamp.
+//
+// Phase 7.74.13 — l'ajout de `blocked` permet à `mergeProfileLWW` de
+// NE PAS stamper `myGuitarsModified` à la valeur remote quand une
+// défense block, sinon on a une incohérence "timestamp adopté mais
+// données rejetées" qui rend la pollution permanente côté défense
+// (cas iPad Sébastien 2026-06-01).
 function mergeMyGuitarsWithDefenses(local, remote, options = {}) {
   const localGuitars = Array.isArray(local && local.myGuitars) ? local.myGuitars : [];
   const remoteGuitars = Array.isArray(remote && remote.myGuitars) ? remote.myGuitars : [];
@@ -1211,19 +1219,19 @@ function mergeMyGuitarsWithDefenses(local, remote, options = {}) {
       const orphans = remoteGuitars.filter((g) => otherProfilesGuitars.has(g));
       if (orphans.length > 0) {
         debugLog(`SUSPECT orphan-cross-profile (local vide) : remote contient ${orphans.length} guitares d'autres profils — filtering`, { orphans });
-        return remoteGuitars.filter((g) => !orphans.includes(g));
+        return { guitars: remoteGuitars.filter((g) => !orphans.includes(g)), blocked: false };
       }
     }
-    return remoteGuitars;
+    return { guitars: remoteGuitars, blocked: false };
   }
-  // Couche 3 : drop ≥3 ou >50% → keep local
+  // Couche 3 : drop ≥3 ou >50% → keep local (BLOCKED)
   const dropped = localGuitars.filter((g) => !remoteGuitars.includes(g));
   const tooManyDropped = dropped.length >= 3 || (dropped.length / localGuitars.length) > 0.5;
   if (tooManyDropped) {
     debugLog(`SUSPECT myGuitars drop : remote drops ${dropped.length} guitares (${dropped.join(',')}) — keeping local`, { local: localGuitars, remote: remoteGuitars });
-    return localGuitars;
+    return { guitars: localGuitars, blocked: true };
   }
-  // Filter orphan-cross-profile
+  // Filter orphan-cross-profile (adoption partielle = pas blocked)
   let nextGuitars = remoteGuitars;
   if (otherProfilesGuitars) {
     const localSet = new Set(localGuitars);
@@ -1233,7 +1241,7 @@ function mergeMyGuitarsWithDefenses(local, remote, options = {}) {
       nextGuitars = remoteGuitars.filter((g) => !orphans.includes(g));
     }
   }
-  // Couche 4 : swap pattern cg_*→standard
+  // Couche 4 : swap pattern cg_*→standard (BLOCKED)
   const localSetCheck = new Set(localGuitars);
   const nextSetCheck = new Set(nextGuitars);
   const droppedNow = localGuitars.filter((g) => !nextSetCheck.has(g));
@@ -1245,9 +1253,9 @@ function mergeMyGuitarsWithDefenses(local, remote, options = {}) {
     addedNow.every((g) => !/^cg_/.test(g));
   if (isSwapSuspect) {
     debugLog(`SUSPECT swap pattern cg_*→standard : drop=${droppedNow[0]} add=${addedNow.join(',')} — keeping local`, { dropped: droppedNow, added: addedNow, local: localGuitars, remote: remoteGuitars });
-    return localGuitars;
+    return { guitars: localGuitars, blocked: true };
   }
-  return nextGuitars;
+  return { guitars: nextGuitars, blocked: false };
 }
 
 function mergeProfileLWW(local, remote, options = {}) {
@@ -1287,11 +1295,16 @@ function mergeProfileLWW(local, remote, options = {}) {
       }
     }
     // myGuitars per-field + défenses
+    // Phase 7.74.13 — ne pas stamper myGuitarsModified à rts_g si la
+    // défense block (Couche 3 ou 4). Sinon on a un timestamp "adopté"
+    // mais des données locales préservées → incohérence permanente
+    // (bug observé Sébastien iPad 2026-06-01).
     const lts_g = typeof local.myGuitarsModified === 'number' ? local.myGuitarsModified : 0;
     const rts_g = typeof remote.myGuitarsModified === 'number' ? remote.myGuitarsModified : 0;
     if (rts_g > lts_g) {
-      perFieldChanges.myGuitars = mergeMyGuitarsWithDefenses(local, remote, options);
-      perFieldChanges.myGuitarsModified = rts_g;
+      const r = mergeMyGuitarsWithDefenses(local, remote, options);
+      perFieldChanges.myGuitars = r.guitars;
+      perFieldChanges.myGuitarsModified = r.blocked ? lts_g : rts_g;
       anyFieldChange = true;
     }
     if (!aiChanged && !anyFieldChange) return local;
@@ -1375,6 +1388,9 @@ function mergeProfileLWW(local, remote, options = {}) {
   // Préserve le comportement legacy (tests Phase 7.74.x).
   const lts_g = typeof local.myGuitarsModified === 'number' ? local.myGuitarsModified : 0;
   const rts_g = typeof remote.myGuitarsModified === 'number' ? remote.myGuitarsModified : 0;
+  // Phase 7.74.13 — flag de blocage défense pour stamper myGuitarsModified
+  // cohérent avec la décision réelle (cf branche rts<=lts).
+  let myGuitarsDefenseBlocked = false;
   if (lts_g > rts_g) {
     merged.myGuitars = Array.isArray(local.myGuitars) ? local.myGuitars : [];
     const localStr = JSON.stringify(merged.myGuitars);
@@ -1383,9 +1399,15 @@ function mergeProfileLWW(local, remote, options = {}) {
       debugLog(`myGuitars BLOCKED : local.myGuitarsModified=${lts_g} > remote=${rts_g} — keeping local`, { local: merged.myGuitars, remote: remote.myGuitars || [] });
     }
   } else {
-    merged.myGuitars = mergeMyGuitarsWithDefenses(local, remote, options);
+    const r = mergeMyGuitarsWithDefenses(local, remote, options);
+    merged.myGuitars = r.guitars;
+    myGuitarsDefenseBlocked = r.blocked;
   }
-  merged.myGuitarsModified = Math.max(lts_g, rts_g);
+  // Si défense block, on conserve local timestamp (myGuitars n'est pas
+  // adopté → on ne fait pas semblant que ça l'a été). Sinon prend le
+  // max(lts_g, rts_g) qui couvre adoption complète ou partielle (filter
+  // orphan). Cohérent avec la branche rts<=lts.
+  merged.myGuitarsModified = myGuitarsDefenseBlocked ? lts_g : Math.max(lts_g, rts_g);
 
   // ── Phase 7.74.10 — LWW per-field via timestamps dédiés ──
   //    language / enabledDevices / availableSources : adopt remote

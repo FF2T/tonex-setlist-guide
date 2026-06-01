@@ -3961,18 +3961,189 @@ describe('Phase 7.74.12 — myGuitarsModified per-field LWW', () => {
     expect(out.sebastien.languageModified).toBeGreaterThan(0); // langue stampée
   });
 
-  test('mergeMyGuitarsWithDefenses helper : Couche 3 drop ≥3 → keep local', () => {
+  test('mergeMyGuitarsWithDefenses helper : Couche 3 drop ≥3 → keep local + blocked=true', () => {
     const local = { myGuitars: ['lp60', 'sg61', 'es335', 'strat61'] };
     const remote = { myGuitars: ['lp60'] }; // drop 3 → suspect
     const out = mergeMyGuitarsWithDefenses(local, remote, {});
-    expect(out).toEqual(['lp60', 'sg61', 'es335', 'strat61']);
+    expect(out.guitars).toEqual(['lp60', 'sg61', 'es335', 'strat61']);
+    expect(out.blocked).toBe(true);
   });
 
-  test('mergeMyGuitarsWithDefenses helper : drop 2 standards → adopt remote (sous seuil)', () => {
+  test('mergeMyGuitarsWithDefenses helper : drop 2 standards → adopt remote (sous seuil) + blocked=false', () => {
     const local = { myGuitars: ['lp60', 'sg61', 'sire_t7', 'sire_t3'] }; // 4 dont 2 polluants
     const remote = { myGuitars: ['lp60', 'sg61'] }; // drop 2 → sous seuil 3 ET sous 50%
     const out = mergeMyGuitarsWithDefenses(local, remote, {});
-    expect(out).toEqual(['lp60', 'sg61']);
+    expect(out.guitars).toEqual(['lp60', 'sg61']);
+    expect(out.blocked).toBe(false);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────
+// Phase 7.74.13 — Fix défense+timestamp incohérence (bug iPad 2026-06-01)
+// ───────────────────────────────────────────────────────────────────
+//
+// Quand `mergeMyGuitarsWithDefenses` block (Couche 3 drop ≥3 ou Couche 4
+// swap), `mergeProfileLWW` ne doit PAS stamper `myGuitarsModified` à la
+// valeur remote — sinon on a un état "timestamp adopté mais données
+// locales" qui rend la pollution permanente côté défense (le pull suivant
+// avec remote ts ≤ local ts ne re-déclenche pas le merge per-field).
+
+describe('Phase 7.74.13 — défense+timestamp cohérence', () => {
+  test('branche rts<=lts : Couche 3 BLOCK → myGuitarsModified=local (pas remote)', () => {
+    // Bug iPad Sébastien 2026-06-01 reproduit :
+    // - iPad local pollué avec 13 guitares (10 standards + sg61, sire_t7, sire_t3)
+    // - Mac remote clean 11 guitares, myGuitarsModified=08:53 (récent), lastModified plus ancien
+    // - rts (Mac global) <= lts (iPad global) ; rts_g (08:53) > lts_g (0)
+    // - Couche 3 : drop=3 (sg61, sire_t7, sire_t3) → BLOCK
+    // - AVANT 7.74.13 : myGuitars=local (13), myGuitarsModified=Mac (08:53) ← incohérent
+    // - APRÈS 7.74.13 : myGuitars=local (13), myGuitarsModified=local (0) ← cohérent
+    const local = {
+      id: 'sebastien', name: 'S',
+      myGuitars: ['lp60', 'lp50p90', 'sg_ebony', 'sg61', 'es335',
+                  'strat61', 'strat_pro2', 'strat_ec', 'tele63',
+                  'tele_ultra', 'jazzmaster', 'sire_t7', 'sire_t3'],
+      myGuitarsModified: 0,
+      lastModified: 1000, // bumpé pour autre raison
+    };
+    const remote = {
+      id: 'sebastien', name: 'S',
+      myGuitars: ['lp60', 'lp50p90', 'sg_ebony', 'es335', 'strat61',
+                  'strat_pro2', 'strat_ec', 'tele63', 'tele_ultra',
+                  'jazzmaster', 'cg_1779120397266'], // Mac clean + Tele 51
+      myGuitarsModified: 5000,
+      lastModified: 500,
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.myGuitars).toEqual(local.myGuitars); // BLOCKED → keep local
+    expect(out.myGuitarsModified).toBe(0); // ← FIX 7.74.13 : pas 5000
+  });
+
+  test('branche rts<=lts : adoption clean → myGuitarsModified=remote (comportement normal)', () => {
+    const local = {
+      id: 's', name: 'S',
+      myGuitars: ['lp60', 'sg_ebony'],
+      myGuitarsModified: 100,
+      lastModified: 1000,
+    };
+    const remote = {
+      id: 's', name: 'S',
+      myGuitars: ['lp60', 'sg_ebony', 'es335'], // add 1 → adopt
+      myGuitarsModified: 5000,
+      lastModified: 500,
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.myGuitars).toEqual(['lp60', 'sg_ebony', 'es335']);
+    expect(out.myGuitarsModified).toBe(5000); // adoption → stamp remote
+  });
+
+  test('branche rts>lts : Couche 3 BLOCK → myGuitarsModified=lts_g (pas max)', () => {
+    const local = {
+      id: 's', name: 'S',
+      myGuitars: ['lp60', 'sg61', 'es335', 'strat61'],
+      myGuitarsModified: 100,
+      lastModified: 500,
+    };
+    const remote = {
+      id: 's', name: 'S',
+      myGuitars: ['lp60'], // drop 3 → BLOCK Couche 3
+      myGuitarsModified: 200,
+      lastModified: 1000, // rts > lts (global)
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.myGuitars).toEqual(['lp60', 'sg61', 'es335', 'strat61']);
+    expect(out.myGuitarsModified).toBe(100); // ← FIX 7.74.13 : pas 200
+  });
+
+  test('branche rts>lts : Couche 4 swap BLOCK → myGuitarsModified=lts_g', () => {
+    const local = {
+      id: 's', name: 'S',
+      myGuitars: ['lp60', 'cg_1779120397266'], // Tele 51 custom
+      myGuitarsModified: 100,
+      lastModified: 500,
+    };
+    const remote = {
+      id: 's', name: 'S',
+      myGuitars: ['lp60', 'sg61'], // drop cg_ + add standard → swap suspect
+      myGuitarsModified: 200,
+      lastModified: 1000,
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.myGuitars).toEqual(['lp60', 'cg_1779120397266']);
+    expect(out.myGuitarsModified).toBe(100); // ← FIX 7.74.13
+  });
+
+  test('branche rts>lts : adoption clean (drop 1 standard) → myGuitarsModified=max', () => {
+    const local = {
+      id: 's', name: 'S',
+      myGuitars: ['lp60', 'sg_ebony', 'es335'],
+      myGuitarsModified: 100,
+      lastModified: 500,
+    };
+    const remote = {
+      id: 's', name: 'S',
+      myGuitars: ['lp60', 'sg_ebony'], // drop 1 standard → sous seuil
+      myGuitarsModified: 200,
+      lastModified: 1000,
+    };
+    const out = mergeProfileLWW(local, remote);
+    expect(out.myGuitars).toEqual(['lp60', 'sg_ebony']);
+    expect(out.myGuitarsModified).toBe(200); // adoption → stamp remote
+  });
+
+  test('branche rts>lts : filter orphan (adoption partielle) → myGuitarsModified=max', () => {
+    // Orphan-cross-profile = adoption partielle (on accepte remote moins
+    // les orphans). Reste considéré comme adopté pour le timestamp.
+    const local = {
+      id: 'sebastien', name: 'S',
+      myGuitars: ['lp60', 'sg_ebony'],
+      myGuitarsModified: 100,
+      lastModified: 500,
+    };
+    const remote = {
+      id: 'sebastien', name: 'S',
+      myGuitars: ['lp60', 'sg_ebony', 'sg61'], // sg61 orphan (Arthur)
+      myGuitarsModified: 200,
+      lastModified: 1000,
+    };
+    const out = mergeProfileLWW(local, remote, {
+      otherProfilesGuitars: new Set(['sg61']),
+    });
+    expect(out.myGuitars).toEqual(['lp60', 'sg_ebony']); // filtered
+    expect(out.myGuitarsModified).toBe(200); // partial adoption → stamp remote
+  });
+
+  test('séquence post-fix : 2e merge ne re-block plus puisque ts cohérent', () => {
+    // Scénario crucial : sans Phase 7.74.13, le 1er merge laisse
+    // myGuitarsModified=remote, mais myGuitars=local. Le 2e merge avec
+    // remote-ts<=local-ts ne re-déclenche pas la défense per-field →
+    // pollution perdure. Phase 7.74.13 keep ts=local → prochaine sync
+    // peut re-tester la défense.
+    const local1 = {
+      id: 's', name: 'S',
+      myGuitars: ['lp60', 'sg61', 'es335', 'strat61'], // pollué
+      myGuitarsModified: 0,
+      lastModified: 1000,
+    };
+    const remote1 = {
+      id: 's', name: 'S',
+      myGuitars: ['lp60'], // drop 3 → BLOCK
+      myGuitarsModified: 5000,
+      lastModified: 500,
+    };
+    const out1 = mergeProfileLWW(local1, remote1);
+    expect(out1.myGuitarsModified).toBe(0); // Phase 7.74.13 : pas 5000
+
+    // 2e merge : si dans le futur un autre device push une version
+    // raisonnable (drop 1 = sous seuil), on doit pouvoir l'adopter.
+    const remote2 = {
+      id: 's', name: 'S',
+      myGuitars: ['lp60', 'sg61', 'es335'], // drop strat61 = 1 standard
+      myGuitarsModified: 6000,
+      lastModified: 2000,
+    };
+    const out2 = mergeProfileLWW(out1, remote2);
+    expect(out2.myGuitars).toEqual(['lp60', 'sg61', 'es335']); // adoption clean
+    expect(out2.myGuitarsModified).toBe(6000);
   });
 });
 
