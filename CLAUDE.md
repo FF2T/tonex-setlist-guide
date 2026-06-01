@@ -981,9 +981,63 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-05-31 dimanche, V9.7.12 — Phase 7.74.12 myGuitarsModified per-field LWW)
+## État actuel (2026-06-01 lundi, V9.7.13 — Phase 7.74.13 défense+timestamp cohérence)
 
-**Backline v9.7.12 / SW backline-v415 / STATE_VERSION 14 / 1830 tests verts. Bundle 2675 KB.**
+**Backline v9.7.13 / SW backline-v416 / STATE_VERSION 14 / 1837 tests verts. Bundle 2675 KB.**
+
+### v9.7.13 — Phase 7.74.13 fix incohérence défense+timestamp (post-mortem bug iPad)
+
+Session 2026-06-01 a révélé un bug latent Phase 7.74.12 : sur l'iPad
+Sébastien après wipe + reload, on observait `myGuitarsModified =
+Mac's stamp 08:53` MAIS `myGuitars = local pollué` (13 entries avec
+sg61 + sire_t7 + sire_t3). Incohérence permanente : le pull suivant
+ne pouvait plus re-tester la défense (rts_g <= lts_g post-stamp) →
+pollution durable.
+
+**Cause** : dans `mergeProfileLWW`, les 2 branches (`rts > lts` et
+`rts <= lts`) updateaient `myGuitarsModified = rts_g` (ou `Math.max`)
+même quand `mergeMyGuitarsWithDefenses` retournait `local.myGuitars`
+parce qu'une défense Couche 3 (drop ≥3) ou Couche 4 (swap
+cg_*→standard) avait bloqué l'adoption. Résultat : timestamp "adopté"
+mais données rejetées.
+
+**Fix Phase 7.74.13** :
+- **`mergeMyGuitarsWithDefenses` retourne `{ guitars, blocked: boolean }`**
+  au lieu d'un array. `blocked = true` quand Couche 3 ou Couche 4
+  retiennent local entièrement. `blocked = false` pour adoption
+  complète OU partielle (filter orphan reste considéré comme
+  adoption pour le timestamp).
+- **Branche `rts <= lts`** : `perFieldChanges.myGuitarsModified =
+  r.blocked ? lts_g : rts_g` (au lieu de toujours `rts_g`).
+- **Branche `rts > lts`** : `merged.myGuitarsModified =
+  myGuitarsDefenseBlocked ? lts_g : Math.max(lts_g, rts_g)` (au lieu
+  de toujours `Math.max`).
+
+7 nouveaux tests Vitest dont :
+- **Scénario bug iPad 2026-06-01 reproduit** (branche `rts<=lts` +
+  Couche 3 BLOCK + `myGuitarsModified=0` post-block au lieu de `5000`)
+- Branche `rts>lts` Couche 3 + Couche 4 swap
+- Adoption clean → stamp remote (régression)
+- Filter orphan (adoption partielle) → stamp remote
+- **Séquence post-fix** : après un BLOCK, le 2e merge avec données
+  raisonnables peut re-adopter (pollution n'est plus permanente).
+
+Limite : non rétroactif. Si un device a déjà un `myGuitarsModified`
+"fantôme" stampé sans données adoptées (cas iPad Sébastien avant
+v9.7.13), seul un toggle utilisateur ou un script console manuel
+résout. Préventif pour futur.
+
+**Bilan session 2026-06-01** :
+- Pollution cross-device historique nettoyée manuellement via console
+  sur 4 devices (Mac + iPhone + iPad Sébastien + iPad Arthur). Tous
+  alignés à 11 guitares + Tele 51 + banks correctes.
+- Source identifiée : iPad d'Arthur (state pré-Phase 7.74.9 avec
+  banksModified=0 + pollution myGuitars sur le profil Sébastien
+  stocké chez Arthur).
+- Phase 7.74.12 v9.7.12 déployée (myGuitarsModified per-field LWW)
+- Phase 7.74.13 v9.7.13 déployée (fix défense+timestamp post-mortem)
+- 17 tests Vitest ajoutés sur la journée (10 Phase 7.74.12 + 7
+  Phase 7.74.13). 1837 verts au total. Bundle 2675 KB.
 
 ### v9.7.12 — Phase 7.74.12 myGuitarsModified per-field LWW (fix pollution cross-device)
 
