@@ -1,5 +1,7 @@
 // Phase 13.0 (2026-06-02) — Base ARTISTS seed test (~20 artistes).
-// Phase 13.5 (2026-06-02) — Extension Cowork batch (+224 artistes).
+// Phase 13.5 (2026-06-02) — Extension Cowork batch v1 (+224 artistes).
+// Phase 13.5 vague 2 (2026-06-02) — Densification (+41 artistes :
+//                                    bassistes manquants + niches).
 //
 // Source de vérité primitive guitariste/bassiste → groupe(s) + setup
 // historique de référence par éra. Sert de fondation à la curation
@@ -39,8 +41,11 @@
  * @property {string[]} [sources]
  */
 
-/** Import du batch Cowork Phase 13.5 (~224 artistes audited + sourced) */
+/** Import du batch Cowork Phase 13.5 vague 1 (~224 artistes audited + sourced) */
 import COWORK_BATCH from './artists-cowork-batch.json';
+/** Import du batch Cowork Phase 13.5 vague 2 (~41 entries : bassistes
+ *  manquants + niches + retries INSUFFICIENT_DATA vague 1) */
+import COWORK_BATCH_V2 from './artists-cowork-batch-v2.json';
 
 /**
  * Seed manuel Phase 13.0 (20 entries curées Sébastien — figures clés
@@ -505,7 +510,7 @@ const ARTISTS_PHASE_13_0_SEED = {
 };
 
 /**
- * Phase 13.5 batch Cowork — extraction artists du JSON sourced.
+ * Phase 13.5 batch Cowork vague 1 — extraction artists du JSON sourced.
  * Si fichier vide/corrompu, fallback {} (Phase 13.0 seed continue
  * à fonctionner seul).
  * @type {Object<string, Artist>}
@@ -513,14 +518,24 @@ const ARTISTS_PHASE_13_0_SEED = {
 const ARTISTS_PHASE_13_5_BATCH = (COWORK_BATCH && COWORK_BATCH.artists) || {};
 
 /**
- * Base ARTISTS finale exposée au reste de l'app.
- * Merge spread : batch Cowork en premier → seed manuel en dernier
- * (priorité curation Sébastien en cas de collision id, ce qui ne
- * devrait pas arriver — le batch exclut explicitement les 20 du seed).
+ * Phase 13.5 batch Cowork vague 2 — densification (41 entries focus
+ * bassistes + groupes phares manquants + retries vague 1).
+ * @type {Object<string, Artist>}
+ */
+const ARTISTS_PHASE_13_5_BATCH_V2 = (COWORK_BATCH_V2 && COWORK_BATCH_V2.artists) || {};
+
+/**
+ * Base ARTISTS finale exposée au reste de l'app (285 entries projetées).
+ * Ordre spread : v1 → v2 → seed manuel.
+ * - Seed Phase 13.0 (20) en DERNIER = priorité curation Sébastien
+ *   (sécurité anti-régression collision id).
+ * - Cowork batches en premier (224 + 41) = pas de collisions en
+ *   pratique (Cowork respecte l'exclusion des ids déjà existants).
  * @type {Object<string, Artist>}
  */
 export const ARTISTS_SEED = {
   ...ARTISTS_PHASE_13_5_BATCH,
+  ...ARTISTS_PHASE_13_5_BATCH_V2,
   ...ARTISTS_PHASE_13_0_SEED,
 };
 
