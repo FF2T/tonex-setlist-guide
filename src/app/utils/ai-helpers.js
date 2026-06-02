@@ -24,6 +24,7 @@
 
 import { findCatalogEntry, PRESET_CATALOG_MERGED } from '../../core/catalog.js';
 import { AMP_TAXONOMY } from '../../data/data_context.js';
+import { validateRefAmpAgainstArtists } from '../../core/artists.js';
 import {
   SCORING_VERSION,
   computeFinalScore, computePickupScore, computeGainMatchScore,
@@ -371,6 +372,48 @@ function findSlotByUsageMatch(banks, songArtist, songTitle, refGuitarist) {
 
 function enrichAIResult(aiResult, gType, gId, banksAnn, banksPlug, availableSources, song) {
   if (availableSources === undefined && typeof window !== 'undefined') availableSources = window.__activeSources;
+
+  // Phase 13.1 — Correction préventive ref_amp (anti-hallucination IA).
+  //
+  // PLACÉ AVANT computeBestPresets pour que le scoring V9 utilise le
+  // ref_amp corrigé. Sinon : 1er appel utilise ref_amp halluciné, 2e
+  // appel utilise ref_amp corrigé, brisure d'idempotence.
+  //
+  // Cas-cible Bruno : Gemini hallucine "Marshall Super100" pour Blink-182
+  // (setup signature = Mesa Boogie). Sans correction, computeRefAmpScore
+  // (30% du score V9) pousse les captures Marshall en haut → mauvais pin.
+  //
+  // Garde-fous anti-dogmatique (cf core/artists.js) :
+  //   - Confidence 'high' (mono-amp signature) : override systématique
+  //   - Confidence 'medium' (2-4 amps era) : override avec primaryAmp
+  //   - Confidence 'low' (5+ amps Bonamassa-like) : flag seulement
+  //   - Artiste hors ARTISTS_SEED : no-op (validateRefAmpAgainstArtists null)
+  //
+  // Idempotent via flag _refAmpCorrected. Pas de bump SCORING_VERSION
+  // (le scoring lui-même est inchangé, seul son input ref_amp est filtré).
+  if (!aiResult._refAmpCorrected && aiResult.ref_amp && song?.artist) {
+    const validation = validateRefAmpAgainstArtists(
+      aiResult.ref_amp,
+      song.artist,
+      (typeof song.year === 'number' && Number.isFinite(song.year)) ? song.year : null
+    );
+    if (validation && !validation.valid && validation.suggestedAmp) {
+      aiResult._refAmpOriginal = aiResult.ref_amp;
+      aiResult.ref_amp = validation.suggestedAmp;
+      aiResult._refAmpCorrectionReason = validation.reason;
+      aiResult._refAmpConfidence = validation.confidence;
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn(
+          `[Phase 13.1] ref_amp corrected for "${song.artist}"` +
+          (song.title ? ` (${song.title})` : '') + ': ' +
+          `"${aiResult._refAmpOriginal}" → "${aiResult.ref_amp}" ` +
+          `(confidence: ${validation.confidence})`
+        );
+      }
+    }
+    aiResult._refAmpCorrected = true;
+  }
+
   const style = aiResult.song_style || 'rock';
   const targetGain = typeof aiResult.target_gain === 'number' ? aiResult.target_gain : null;
   const best = computeBestPresets(gType, style, banksAnn, banksPlug, gId, aiResult.ref_amp, targetGain, availableSources);
@@ -661,6 +704,7 @@ function enrichAIResult(aiResult, gType, gId, banksAnn, banksPlug, availableSour
     aiResult.fx_blocks = clean;
     aiResult._fxBlocksValidated = true;
   }
+
 
   // Vague B — Validation des champs scoring/EQ/FX basse retournés par l'IA
   // dans bass_recommendation. Réutilise clampPresetSettings / clampFxBlocks

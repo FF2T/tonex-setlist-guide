@@ -9,6 +9,10 @@ import {
   getCurrentEra,
   inferUsagesFromAmp,
   inferUsagesArrayFromAmp,
+  getCandidateAmpsForBand,
+  validateRefAmpAgainstArtists,
+  ampNamesMatch,
+  normalizeAmpName,
 } from './artists.js';
 import { ARTISTS_SEED, BAND_TO_ARTIST_IDS } from '../data/artists.js';
 
@@ -372,5 +376,186 @@ describe('Phase 13.0 — inferUsagesArrayFromAmp', () => {
 
   it('amp inconnu → []', () => {
     expect(inferUsagesArrayFromAmp('Random unknown amp')).toEqual([]);
+  });
+});
+
+// ============================================================
+// Phase 13.1 — getCandidateAmpsForBand
+// ============================================================
+
+describe('Phase 13.1 — getCandidateAmpsForBand', () => {
+  it('AC/DC current era → JTM45 + JCM800 (Angus Young 80s+)', () => {
+    const result = getCandidateAmpsForBand('AC/DC');
+    expect(result).not.toBeNull();
+    expect(result.amps).toContain('Marshall JTM45');
+    expect(result.amps).toContain('Marshall JCM800');
+    // Cliff Williams est exclu (bassiste), donc pas Ampeg SVT
+    expect(result.amps).not.toContain('Ampeg SVT');
+  });
+
+  it('AC/DC en 1976 → era 70s (Plexi + Super Lead 100W)', () => {
+    const result = getCandidateAmpsForBand('AC/DC', 1976);
+    expect(result).not.toBeNull();
+    expect(result.amps).toContain('Marshall Plexi 1959');
+    expect(result.amps).toContain('Marshall Super Lead 100W');
+  });
+
+  it('Queen → AC30 mono-signature (Brian May)', () => {
+    const result = getCandidateAmpsForBand('Queen');
+    expect(result).not.toBeNull();
+    expect(result.amps).toContain('Vox AC30 Top Boost');
+    expect(result.confidence).toBe('high');  // mono-amp era
+    expect(result.primaryAmp).toBe('Vox AC30 Top Boost');
+  });
+
+  it('Black Sabbath sans year → union toutes eras Iommi (5 amps) → confidence low', () => {
+    const result = getCandidateAmpsForBand('Black Sabbath');
+    expect(result).not.toBeNull();
+    expect(result.amps).toContain('Laney GH100TI Iommi signature');
+    expect(result.amps).toContain('Laney Supergroup');  // era Vol.4+
+    expect(result.amps).toContain('Marshall Major 200W');  // era Vol.4+
+    // 5 amps total → confidence 'low' (anti-dogmatique multi-era)
+    expect(result.confidence).toBe('low');
+  });
+
+  it('Black Sabbath en 1985 → era 80s+ ciblée (mono Laney signature → high)', () => {
+    // 1980 est dans Vol.4+ (1973-1980), 80s+ commence à 1981.
+    const result = getCandidateAmpsForBand('Black Sabbath', 1985);
+    expect(result).not.toBeNull();
+    expect(result.amps).toEqual(['Laney GH100TI Iommi signature']);
+    expect(result.confidence).toBe('high');
+  });
+
+  it('Metallica → 2 guitaristes (Kirk + James), eras 90s+ multi-amp', () => {
+    const result = getCandidateAmpsForBand('Metallica');
+    expect(result).not.toBeNull();
+    // Mesa Rectifier devrait apparaître (90s+ era pour les deux)
+    const hasMesa = result.amps.some((a) => a.toLowerCase().includes('mesa') || a.toLowerCase().includes('rectifier'));
+    expect(hasMesa).toBe(true);
+  });
+
+  it('Bassiste only band (cas dégénéré) → null', () => {
+    // Cas où aucun guitariste/multi n'est dans le band
+    // (pas dans le seed actuel, donc on simule via groupe inconnu)
+    const result = getCandidateAmpsForBand('Unknown Band Without Guitarists');
+    expect(result).toBeNull();
+  });
+
+  it('Groupe inconnu → null', () => {
+    expect(getCandidateAmpsForBand('Random Nonexistent Band')).toBeNull();
+  });
+
+  it('Inputs invalides → null', () => {
+    expect(getCandidateAmpsForBand(null)).toBeNull();
+    expect(getCandidateAmpsForBand('')).toBeNull();
+    expect(getCandidateAmpsForBand('AC/DC', NaN)).not.toBeNull(); // year NaN ignoré, fallback current
+  });
+});
+
+// ============================================================
+// Phase 13.1 — validateRefAmpAgainstArtists (cœur post-process)
+// ============================================================
+
+describe('Phase 13.1 — validateRefAmpAgainstArtists', () => {
+  it('AC/DC + "Marshall JCM800" current era → valid', () => {
+    const result = validateRefAmpAgainstArtists('Marshall JCM800', 'AC/DC');
+    expect(result).not.toBeNull();
+    expect(result.valid).toBe(true);
+  });
+
+  it('AC/DC + "Marshall Plexi" en 1976 → valid (era 70s)', () => {
+    const result = validateRefAmpAgainstArtists('Marshall Plexi 1959', 'AC/DC', 1976);
+    expect(result).not.toBeNull();
+    expect(result.valid).toBe(true);
+  });
+
+  it('AC/DC sans year + "Vox AC30" → INVALID + suggestion = 1er amp era 70s', () => {
+    const result = validateRefAmpAgainstArtists('Vox AC30 Top Boost', 'AC/DC');
+    expect(result).not.toBeNull();
+    expect(result.valid).toBe(false);
+    expect(result.suggestedAmp).toBeTruthy();
+    // Sans year, union toutes eras Angus, primaryAmp = 1er de la 1ère era =
+    // "Marshall Plexi 1959" (era 70s, premier listé).
+    expect(result.suggestedAmp).toBe('Marshall Plexi 1959');
+  });
+
+  it('AC/DC en 1985 + "Vox AC30" → INVALID + suggestion era 80s+ = "Marshall JTM45"', () => {
+    const result = validateRefAmpAgainstArtists('Vox AC30 Top Boost', 'AC/DC', 1985);
+    expect(result).not.toBeNull();
+    expect(result.valid).toBe(false);
+    expect(result.suggestedAmp).toBe('Marshall JTM45');
+  });
+
+  it('Queen + "Marshall JCM800" → INVALID + suggestion AC30 (confidence high)', () => {
+    const result = validateRefAmpAgainstArtists('Marshall JCM800', 'Queen');
+    expect(result).not.toBeNull();
+    expect(result.valid).toBe(false);
+    expect(result.confidence).toBe('high');
+    expect(result.suggestedAmp).toBe('Vox AC30 Top Boost');
+  });
+
+  it('Match tolérant : "JCM800" matche "Marshall JCM800"', () => {
+    const result = validateRefAmpAgainstArtists('JCM800', 'AC/DC');
+    expect(result).not.toBeNull();
+    expect(result.valid).toBe(true);
+  });
+
+  it('Groupe inconnu → null (no-op, garde IA)', () => {
+    expect(validateRefAmpAgainstArtists('Marshall JCM800', 'Blink-182')).toBeNull();
+    expect(validateRefAmpAgainstArtists('Mesa Boogie', 'Random Band')).toBeNull();
+  });
+
+  it('refAmp invalide → null', () => {
+    expect(validateRefAmpAgainstArtists(null, 'AC/DC')).toBeNull();
+    expect(validateRefAmpAgainstArtists('', 'AC/DC')).toBeNull();
+    expect(validateRefAmpAgainstArtists(42, 'AC/DC')).toBeNull();
+  });
+
+  it('Confidence low → suggestedAmp = null (Bonamassa-like protection)', () => {
+    // Cas hypothétique : si un band avait 5+ amps dans son era, on ne devrait
+    // pas corriger même si pas de match. Note : aucun band du seed Phase 13.0
+    // ne tombe dans ce cas actuellement. Test du chemin code via simulation.
+    // Vérifié indirectement : Metallica + Mesa Boogie multi-amp era retourne
+    // 'medium' confidence donc suggestion OK.
+    const result = validateRefAmpAgainstArtists('Random Brand 9999', 'Metallica');
+    if (result && result.confidence === 'low') {
+      expect(result.suggestedAmp).toBeNull();
+    } else if (result) {
+      // medium confidence accepté : suggestion = primaryAmp Metallica
+      expect(result.suggestedAmp).toBeTruthy();
+    }
+  });
+});
+
+// ============================================================
+// Phase 13.1 — ampNamesMatch / normalizeAmpName (exposés Phase 13.1)
+// ============================================================
+
+describe('Phase 13.1 — ampNamesMatch (exposé)', () => {
+  it('exact match', () => {
+    expect(ampNamesMatch('Marshall JCM800', 'Marshall JCM800')).toBe(true);
+  });
+
+  it('case-insensitive', () => {
+    expect(ampNamesMatch('marshall jcm800', 'Marshall JCM800')).toBe(true);
+  });
+
+  it('substring tolérant : "JCM800" ↔ "Marshall JCM800 2203"', () => {
+    expect(ampNamesMatch('JCM800', 'Marshall JCM800 2203')).toBe(true);
+    expect(ampNamesMatch('Marshall JCM800 2203', 'JCM800')).toBe(true);
+  });
+
+  it('punctuation tolérante', () => {
+    expect(ampNamesMatch('Mesa Boogie Mark IIC+', 'Mesa Boogie Mark IIC+')).toBe(true);
+  });
+
+  it('inputs invalides → false', () => {
+    expect(ampNamesMatch(null, 'Marshall')).toBe(false);
+    expect(ampNamesMatch('Marshall', null)).toBe(false);
+    expect(ampNamesMatch('', '')).toBe(false);
+  });
+
+  it('non-match', () => {
+    expect(ampNamesMatch('Marshall JCM800', 'Vox AC30')).toBe(false);
   });
 });

@@ -137,7 +137,7 @@ export function getCurrentEra(artistOrId) {
  * @param {string} amp
  * @returns {string}
  */
-function normalizeAmpName(amp) {
+export function normalizeAmpName(amp) {
   if (!amp || typeof amp !== 'string') return '';
   return amp
     .toLowerCase()
@@ -153,7 +153,7 @@ function normalizeAmpName(amp) {
  * @param {string} artistAmp
  * @returns {boolean}
  */
-function ampNamesMatch(catalogAmp, artistAmp) {
+export function ampNamesMatch(catalogAmp, artistAmp) {
   const a = normalizeAmpName(catalogAmp);
   const b = normalizeAmpName(artistAmp);
   if (!a || !b) return false;
@@ -222,4 +222,110 @@ export function inferUsagesArrayFromAmp(ampName) {
     else if (m.artistName) bandSet.add(m.artistName);  // fallback solo artists
   }
   return Array.from(bandSet).map((artist) => ({ artist }));
+}
+
+// ============================================================
+// Phase 13.1 — Post-process correctif ref_amp (anti-hallucination)
+// ============================================================
+
+/**
+ * Pour un song.artist + song.year, retourne les amps candidats
+ * historiquement utilisés par les guitaristes (ou multi) du groupe
+ * pendant l'era couvrante (par year), ou current era si year absent.
+ *
+ * @param {string} songArtist - nom du groupe/band
+ * @param {number|null} songYear - année du morceau (optionnel)
+ * @returns {{amps: string[], primaryAmp: string|null, confidence: 'high'|'medium'|'low'} | null}
+ */
+export function getCandidateAmpsForBand(songArtist, songYear = null) {
+  if (!songArtist) return null;
+  // Filtrer sur guitaristes (et multi-instrument) — ref_amp est pour guitare.
+  const artists = findArtistsByBand(songArtist).filter(
+    (a) => a.role === 'guitarist' || a.role === 'multi'
+  );
+  if (artists.length === 0) return null;
+
+  const allAmps = [];
+  let monoAmpEra = false;
+  let primaryAmp = null;
+
+  for (const artist of artists) {
+    // Si year fourni : era couvrante (precise). Sinon : UNION de TOUTES
+    // les eras de l'artiste (tolérance maximale — évite de "corriger"
+    // un amp utilisé dans une autre era que current).
+    const erasToScan = (typeof songYear === 'number' && Number.isFinite(songYear))
+      ? [getEra(artist, songYear) || getCurrentEra(artist)].filter(Boolean)
+      : (artist.eras || []);
+    for (const era of erasToScan) {
+      if (!era || !Array.isArray(era.amps)) continue;
+      if (!primaryAmp && era.amps.length > 0) primaryAmp = era.amps[0];
+      if (era.amps.length === 1) monoAmpEra = true;
+      for (const a of era.amps) {
+        if (!allAmps.includes(a)) allAmps.push(a);
+      }
+    }
+  }
+
+  if (allAmps.length === 0) return null;
+
+  // Confidence tiering :
+  //   high   : un artiste a une era mono-amp (signature claire ex Brian May AC30)
+  //            ET total ≤ 2 amps (peu d'ambiguïté)
+  //   medium : 3-4 amps disponibles (ambigu mais primaryAmp informatif)
+  //   low    : 5+ amps (Bonamassa-like, trop ambigu pour corriger)
+  let confidence;
+  if (monoAmpEra && allAmps.length <= 2) confidence = 'high';
+  else if (allAmps.length <= 4) confidence = 'medium';
+  else confidence = 'low';
+
+  return { amps: allAmps, primaryAmp, confidence };
+}
+
+/**
+ * Vérifie si un ref_amp (typiquement retourné par l'IA Gemini) est
+ * plausible historiquement pour un song.artist + song.year donnés.
+ *
+ * Cas-cible : Bruno + Blink-182 → Gemini hallucine "Marshall Super100"
+ * alors que le setup signature Blink-182 = Mesa Boogie. Si Blink-182
+ * était dans ARTISTS, ce helper détecterait la divergence et suggérerait
+ * "Mesa Boogie Triple Rectifier" (primaryAmp era 90s+).
+ *
+ * Retour :
+ *   - null : pas d'info ARTISTS pour ce groupe (no-op, on garde IA)
+ *   - { valid: true }  : ref_amp matche le setup historique
+ *   - { valid: false, suggestedAmp } : hallucination détectée, suggestion
+ *     de correction (sauf si confidence basse → suggestedAmp = null)
+ *
+ * @param {string} refAmp - amp retourné par l'IA
+ * @param {string} songArtist - nom du groupe
+ * @param {number|null} songYear - année du morceau (optionnel)
+ * @returns {{valid: boolean, suggestedAmp: string|null, reason: string, confidence: 'high'|'medium'|'low'} | null}
+ */
+export function validateRefAmpAgainstArtists(refAmp, songArtist, songYear = null) {
+  if (!refAmp || typeof refAmp !== 'string') return null;
+  const candidate = getCandidateAmpsForBand(songArtist, songYear);
+  if (!candidate) return null; // pas d'info → no-op
+
+  const isMatch = candidate.amps.some((a) => ampNamesMatch(refAmp, a));
+
+  if (isMatch) {
+    return {
+      valid: true,
+      suggestedAmp: null,
+      reason: 'matches historical setup',
+      confidence: candidate.confidence,
+    };
+  }
+
+  // Hallucination détectée : refAmp ne match aucun amp historique.
+  // - Confidence high/medium : on suggère primaryAmp.
+  // - Confidence low : trop ambigu (Bonamassa), on flag mais ne corrige pas.
+  return {
+    valid: false,
+    suggestedAmp: candidate.confidence === 'low' ? null : candidate.primaryAmp,
+    reason: candidate.confidence === 'low'
+      ? `no historical match but artist has ${candidate.amps.length} candidate amps, too ambiguous to correct`
+      : `no historical match for "${songArtist}", primary amp from ARTISTS: "${candidate.primaryAmp}"`,
+    confidence: candidate.confidence,
+  };
 }
