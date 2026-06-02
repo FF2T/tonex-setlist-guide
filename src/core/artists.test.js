@@ -13,6 +13,7 @@ import {
   validateRefAmpAgainstArtists,
   ampNamesMatch,
   normalizeAmpName,
+  getArtistAmpsForSong,
 } from './artists.js';
 import { ARTISTS_SEED, BAND_TO_ARTIST_IDS } from '../data/artists.js';
 
@@ -571,5 +572,46 @@ describe('Phase 13.1 — ampNamesMatch (exposé)', () => {
 
   it('non-match', () => {
     expect(ampNamesMatch('Marshall JCM800', 'Vox AC30')).toBe(false);
+  });
+});
+
+// ============================================================
+// Phase 13.2 — getArtistAmpsForSong (wrapper)
+// ============================================================
+
+describe('Phase 13.2 — getArtistAmpsForSong (wrapper)', () => {
+  it('song AC/DC + year 1985 → era 80s+', () => {
+    const result = getArtistAmpsForSong({ artist: 'AC/DC', year: 1985 });
+    expect(result).not.toBeNull();
+    expect(result.amps).toContain('Marshall JTM45');
+    expect(result.amps).toContain('Marshall JCM800');
+  });
+
+  it('song sans year → union toutes eras', () => {
+    const result = getArtistAmpsForSong({ artist: 'AC/DC' });
+    expect(result).not.toBeNull();
+    // Sans year, union 70s + 80s+ = 4 amps
+    expect(result.amps).toContain('Marshall Plexi 1959');
+    expect(result.amps).toContain('Marshall JCM800');
+  });
+
+  it('song.artist absent → null', () => {
+    expect(getArtistAmpsForSong({})).toBeNull();
+    expect(getArtistAmpsForSong({ artist: null })).toBeNull();
+    expect(getArtistAmpsForSong(null)).toBeNull();
+  });
+
+  it('year invalide → fallback union toutes eras', () => {
+    const result = getArtistAmpsForSong({ artist: 'AC/DC', year: NaN });
+    expect(result).not.toBeNull();
+    // NaN ignoré → union
+    expect(result.amps.length).toBeGreaterThan(1);
+  });
+
+  it('song Queen + Brian May mono-era → confidence high', () => {
+    const result = getArtistAmpsForSong({ artist: 'Queen' });
+    expect(result).not.toBeNull();
+    expect(result.confidence).toBe('high');
+    expect(result.primaryAmp).toBe('Vox AC30 Top Boost');
   });
 });

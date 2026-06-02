@@ -24,7 +24,11 @@
 
 import { findCatalogEntry, PRESET_CATALOG_MERGED } from '../../core/catalog.js';
 import { AMP_TAXONOMY } from '../../data/data_context.js';
-import { validateRefAmpAgainstArtists } from '../../core/artists.js';
+import {
+  validateRefAmpAgainstArtists,
+  getArtistAmpsForSong,
+  ampNamesMatch,
+} from '../../core/artists.js';
 import {
   SCORING_VERSION,
   computeFinalScore, computePickupScore, computeGainMatchScore,
@@ -417,6 +421,55 @@ function enrichAIResult(aiResult, gType, gId, banksAnn, banksPlug, availableSour
   const style = aiResult.song_style || 'rock';
   const targetGain = typeof aiResult.target_gain === 'number' ? aiResult.target_gain : null;
   const best = computeBestPresets(gType, style, banksAnn, banksPlug, gId, aiResult.ref_amp, targetGain, availableSources);
+
+  // Phase 13.2 — Boost amp family match dégressif (ARTISTS).
+  //
+  // Différencie les captures dont l'amp match le setup signature
+  // historique de l'artiste vs amps génériques de la même famille.
+  // Cas-cible AC/DC : computeRefAmpScore (30% du scoring V9) traite
+  // "Marshall JCM800" (Angus signature) et "Marshall JCM900" (générique)
+  // similairement car même brand. ARTISTS différencie via era.amps[].
+  //
+  // PLACÉ JUSTE APRÈS computeBestPresets pour qu'aucune propagation
+  // downstream ne casse l'idempotence : best est recalculé fresh à
+  // chaque appel d'enrichAIResult, le boost s'applique donc de la
+  // même façon, et toutes les propagations (Phase 7.31 / 7.73.2.3 /
+  // never-regress) utilisent best boosté → preset_ann/plug boostés.
+  //
+  // Boost dégressif anti-Bonamassa via confidence :
+  //   - high   (mono-signature, ≤2 amps) : +12
+  //   - medium (3-4 amps, era précise)   : +8
+  //   - low    (5+ amps, Bonamassa-like) : +3 (limité, respect ambiguïté)
+  //
+  // Pas de bump SCORING_VERSION : c'est un boost post-V9 (comme
+  // Phase 7.64 family match guitare).
+  if (song?.artist) {
+    const candidates = getArtistAmpsForSong(song);
+    if (candidates && candidates.amps.length > 0) {
+      const BOOST = { high: 12, medium: 8, low: 3 }[candidates.confidence] || 0;
+      const boostBestSlot = (slot) => {
+        if (!slot || !slot.name || typeof slot.score !== 'number') return slot;
+        const info = findCatalogEntry(slot.name);
+        if (!info?.amp) return slot;
+        const isMatch = candidates.amps.some((a) => ampNamesMatch(info.amp, a));
+        if (!isMatch) return slot;
+        return {
+          ...slot,
+          score: Math.min(99, slot.score + BOOST),
+          _artistAmpBoost: BOOST,
+          _artistAmpMatched: info.amp,
+          _artistAmpConfidence: candidates.confidence,
+        };
+      };
+      if (best.annTop) best.annTop = boostBestSlot(best.annTop);
+      if (best.plugTop) best.plugTop = boostBestSlot(best.plugTop);
+      if (Array.isArray(best.idealTop3)) {
+        best.idealTop3 = best.idealTop3
+          .map(boostBestSlot)
+          .sort((a, b) => (b?.score || 0) - (a?.score || 0));
+      }
+    }
+  }
   // Phase 7.31 — Si l'IA a nommé une capture installée précise via
   // preset_ann_name / preset_plug_name (Étape 6 du prompt), on lui fait
   // confiance et on bypass le scoring V9 pour cette dimension. Le scoring

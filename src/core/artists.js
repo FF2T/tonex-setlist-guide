@@ -282,6 +282,22 @@ export function getCandidateAmpsForBand(songArtist, songYear = null) {
 }
 
 /**
+ * Wrapper simple pour Phase 13.2 (boost amp family match) qui prend
+ * directement un objet song au lieu de (artist, year). Retourne les
+ * amps candidats historiques d'un morceau donné.
+ *
+ * @param {{artist?: string, year?: number}|null} song
+ * @returns {ReturnType<getCandidateAmpsForBand> | null}
+ */
+export function getArtistAmpsForSong(song) {
+  if (!song?.artist) return null;
+  const year = (typeof song.year === 'number' && Number.isFinite(song.year))
+    ? song.year
+    : null;
+  return getCandidateAmpsForBand(song.artist, year);
+}
+
+/**
  * Vérifie si un ref_amp (typiquement retourné par l'IA Gemini) est
  * plausible historiquement pour un song.artist + song.year donnés.
  *
