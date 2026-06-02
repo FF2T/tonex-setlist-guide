@@ -500,9 +500,23 @@ describe('Phase 13.1 — validateRefAmpAgainstArtists', () => {
     expect(result.valid).toBe(true);
   });
 
-  it('Groupe inconnu → null (no-op, garde IA)', () => {
-    expect(validateRefAmpAgainstArtists('Marshall JCM800', 'Blink-182')).toBeNull();
-    expect(validateRefAmpAgainstArtists('Mesa Boogie', 'Random Band')).toBeNull();
+  it('Groupe inconnu hors ARTISTS → null (no-op, garde IA)', () => {
+    // Note : "Blink-182" était initialement utilisé comme cas hors seed
+    // Phase 13.0 (20 entries). Le batch Cowork Phase 13.5 a ajouté
+    // Blink-182 → la base couvre désormais ce cas (Tom DeLonge +
+    // Mesa Boogie). Effet attendu : "Marshall JCM800 pour Blink-182"
+    // → suggestion "Mesa Boogie Dual Rectifier". C'est précisément le
+    // fix racine visé Phase 13.1 (cas Bruno). On utilise donc un
+    // groupe vraiment fictif pour valider le path "no-op".
+    expect(validateRefAmpAgainstArtists('Mesa Boogie', 'Nonexistent Band 9999 ZZ')).toBeNull();
+  });
+
+  it('Bonus Phase 13.5 — Blink-182 + JCM800 halluciné → suggestion Mesa Boogie (cas Bruno)', () => {
+    const result = validateRefAmpAgainstArtists('Marshall JCM800', 'Blink-182');
+    expect(result).not.toBeNull();
+    expect(result.valid).toBe(false);
+    // Le batch Cowork a tagué Blink-182 avec Mesa Boogie en primary
+    expect(result.suggestedAmp.toLowerCase()).toContain('mesa');
   });
 
   it('refAmp invalide → null', () => {

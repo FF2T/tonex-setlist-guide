@@ -1,4 +1,5 @@
 // Phase 13.0 (2026-06-02) — Base ARTISTS seed test (~20 artistes).
+// Phase 13.5 (2026-06-02) — Extension Cowork batch (+224 artistes).
 //
 // Source de vérité primitive guitariste/bassiste → groupe(s) + setup
 // historique de référence par éra. Sert de fondation à la curation
@@ -8,11 +9,16 @@
 // Schema documenté dans CLAUDE.md "Phase 13" + types en commentaire
 // au-dessus de chaque entry pour faciliter la maintenance.
 //
-// Couverture initiale (Phase 13.0) :
-//   - 14 guitaristes essentiels SONG_HISTORY + bonus beta
-//   - 6 bassistes principaux pour Phase 8 basse first-class
+// Couverture :
+//   - Phase 13.0 : 14 guitaristes essentiels SONG_HISTORY + 6 bassistes
+//     (curation manuelle, source de vérité prioritaire au merge)
+//   - Phase 13.5 : 224 artistes Cowork batch (60s-90s, 176 guitaristes
+//     + 38 bassistes + 10 multi). Fichier annexe artists-cowork-batch.json
+//     pour audit + revalidation possible.
 //
-// Phase 13.5 étendra à ~400 artistes via Cowork batch par décennie.
+// Ordre du spread (cf bas du fichier) : batch Cowork EN PREMIER,
+// seed manuel EN DERNIER → seed Phase 13.0 prioritaire en cas de
+// collision id (sécurité anti-régression curation manuelle).
 
 /**
  * @typedef {Object} ArtistEra
@@ -33,8 +39,17 @@
  * @property {string[]} [sources]
  */
 
-/** @type {Object<string, Artist>} */
-export const ARTISTS_SEED = {
+/** Import du batch Cowork Phase 13.5 (~224 artistes audited + sourced) */
+import COWORK_BATCH from './artists-cowork-batch.json';
+
+/**
+ * Seed manuel Phase 13.0 (20 entries curées Sébastien — figures clés
+ * SONG_HISTORY + bonus beta-testeurs). Sécurité anti-régression :
+ * cette base écrase le batch Cowork au merge final (cf ARTISTS_SEED
+ * spread plus bas) en cas de collision id.
+ * @type {Object<string, Artist>}
+ */
+const ARTISTS_PHASE_13_0_SEED = {
   // ============================================================
   // GUITARISTES (14 entries — figures clés SONG_HISTORY + bonus)
   // ============================================================
@@ -487,6 +502,26 @@ export const ARTISTS_SEED = {
     notes: "Paranoid + Iron Man + War Pigs : Precision Bass + Laney Klipp downtuned avec Iommi.",
     sources: ["https://en.wikipedia.org/wiki/Geezer_Butler"],
   },
+};
+
+/**
+ * Phase 13.5 batch Cowork — extraction artists du JSON sourced.
+ * Si fichier vide/corrompu, fallback {} (Phase 13.0 seed continue
+ * à fonctionner seul).
+ * @type {Object<string, Artist>}
+ */
+const ARTISTS_PHASE_13_5_BATCH = (COWORK_BATCH && COWORK_BATCH.artists) || {};
+
+/**
+ * Base ARTISTS finale exposée au reste de l'app.
+ * Merge spread : batch Cowork en premier → seed manuel en dernier
+ * (priorité curation Sébastien en cas de collision id, ce qui ne
+ * devrait pas arriver — le batch exclut explicitement les 20 du seed).
+ * @type {Object<string, Artist>}
+ */
+export const ARTISTS_SEED = {
+  ...ARTISTS_PHASE_13_5_BATCH,
+  ...ARTISTS_PHASE_13_0_SEED,
 };
 
 /**
