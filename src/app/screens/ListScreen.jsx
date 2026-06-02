@@ -421,6 +421,52 @@ function ListScreen({
   }, [activeSongs, currentFingerprint]);
   const [analyzeAllStatus, setAnalyzeAllStatus] = useState(null);
   const analyzeCancelRef = useRef(false);
+  // v9.7.20 — Jauge animée Niveau 2 : la barre progresse pendant l'attente
+  // fetchAI Gemini (réseau opaque, ~5-30s par morceau) au lieu de rester
+  // bloquée en escaliers de 1/N. Interpolation linéaire vers la prochaine
+  // step plafonnée à 95% du segment pour ne pas "tricher" visuellement.
+  const [animatedProgress, setAnimatedProgress] = useState(0);
+  const animationFrameRef = useRef(null);
+  const animationStartRef = useRef(null);
+  useEffect(() => {
+    if (!analyzeAllStatus || !analyzeAllStatus.total) {
+      setAnimatedProgress(0);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      return undefined;
+    }
+    const { current, total } = analyzeAllStatus;
+    // baseProgress = morceaux RÉELLEMENT finis (current-1 quand current ≥ 1,
+    // sinon 0 au tout début).
+    const baseProgress = Math.max(0, current - 1) / total;
+    const segmentSize = 1 / total;
+    const ESTIMATED_DURATION_MS = 15000; // durée moyenne d'un fetchAI Gemini
+    const CAP_RATIO = 0.95; // plafond du segment pour ne pas dépasser
+    setAnimatedProgress(baseProgress);
+    animationStartRef.current = performance.now();
+    const tick = () => {
+      const elapsed = performance.now() - animationStartRef.current;
+      const t = Math.min(1, elapsed / ESTIMATED_DURATION_MS);
+      // Ease-out : démarre rapide, ralentit vers la fin (1 - (1-t)^2)
+      const eased = 1 - Math.pow(1 - t, 2);
+      const progress = baseProgress + segmentSize * CAP_RATIO * eased;
+      setAnimatedProgress(progress);
+      if (t < 1) {
+        animationFrameRef.current = requestAnimationFrame(tick);
+      } else {
+        animationFrameRef.current = null;
+      }
+    };
+    animationFrameRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+    };
+  }, [analyzeAllStatus]);
   const isDemo = profile?.isDemo === true;
   // Phase 9.9 — recalcul ciblé d'UN morceau (bouton sur le header de ligne,
   // activable en vue repliée). Analyse complète (basses/amplis/pédales).
@@ -655,12 +701,62 @@ function ListScreen({
             title={tFormat('list.analyze-title', { count: missingCount }, '{count} morceau(x) à analyser ou actualiser après modif du rig.')}
             style={{ fontSize: 11, minHeight: 44, color: 'var(--accent)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-sm)', padding: '7px 12px', cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap' }}
           >{tFormat('list.analyze-button-flat', { count: missingCount, duration: missingDurationStr }, 'Analyser/MAJ {count} (~{duration})')}</button>}
-          {analyzeAllStatus && <button
-            data-testid="list-screen-analyze-cancel"
-            onClick={() => { analyzeCancelRef.current = true; }}
-            style={{ fontSize: 11, minHeight: 44, color: 'var(--wine-400)', background: 'rgba(155,58,44,0.12)', border: '1px solid rgba(155,58,44,0.3)', borderRadius: 'var(--r-sm)', padding: '7px 12px', cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap' }}
-            title={tFormat('list.cancel-analyze', { current: analyzeAllStatus.current, total: analyzeAllStatus.total }, "Annuler l'analyse en cours ({current}/{total})")}
-          >⏸ {analyzeAllStatus.current}/{analyzeAllStatus.total}</button>}
+          {analyzeAllStatus && (() => {
+            // v9.7.20 — Mini progress bar avec jauge animée Niveau 2.
+            // Affichage : `{pct}% • {current}/{total} • {songTitle…} ⏸`
+            // Pourcent issue de animatedProgress (interpolé pendant fetch).
+            // songTitle tronqué pour rester sous ~280px en mobile.
+            const pct = Math.round(animatedProgress * 100);
+            const songTitle = (analyzeAllStatus.songTitle || '').trim();
+            const truncTitle = songTitle.length > 22
+              ? songTitle.slice(0, 21) + '…'
+              : songTitle;
+            return (
+              <button
+                data-testid="list-screen-analyze-cancel"
+                onClick={() => { analyzeCancelRef.current = true; }}
+                style={{
+                  fontSize: 11,
+                  minHeight: 44,
+                  color: 'var(--wine-400)',
+                  background: 'rgba(155,58,44,0.12)',
+                  border: '1px solid rgba(155,58,44,0.3)',
+                  borderRadius: 'var(--r-sm)',
+                  padding: '7px 12px',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  minWidth: 180,
+                  maxWidth: 320,
+                }}
+                title={tFormat('list.cancel-analyze', { current: analyzeAllStatus.current, total: analyzeAllStatus.total }, "Annuler l'analyse en cours ({current}/{total})")}
+              >
+                {/* Fond progressif (sous le texte) */}
+                <span
+                  aria-hidden="true"
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: `${pct}%`,
+                    background: 'rgba(155,58,44,0.28)',
+                    transition: 'width 0.15s linear',
+                    zIndex: 0,
+                    pointerEvents: 'none',
+                  }}
+                />
+                {/* Texte par-dessus */}
+                <span style={{ position: 'relative', zIndex: 1 }}>
+                  {pct}% · {analyzeAllStatus.current}/{analyzeAllStatus.total}
+                  {truncTitle && ` · ${truncTitle}`}
+                  {' ⏸'}
+                </span>
+              </button>
+            );
+          })()}
           {/* Phase 7.71 — Bouton "Retirer non-cochés" supprimé (Phase 5.5)
               car dépendait des checkboxes. Mode édition (bouton ci-dessus)
               + corbeille par morceau remplace ce workflow. */}
