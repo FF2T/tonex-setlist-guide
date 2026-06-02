@@ -19670,6 +19670,186 @@ détectés depuis ToneX_Anniversary_test.csv, beaucoup étaient
 des packs qu'il ne possède PAS mais que `availableSources.TSR
 === true` faisait passer pour dispos.
 
+### Phase 13 (validée 2026-06-02 — démarrage 13.0 lancé) — Base ARTISTS (guitaristes/bassistes + setup historique)
+
+**Contexte** : la curation actuelle des `usages` per-capture (Phase
+7.52 Anniversary Premium curées + Phase 7.53 ToneNET + Phase 7.79.3
+cascade) est artisanale et scale en O(N captures × N artistes). Pour
+600+ captures du catalog total, seulement ~32 ont des `usages`
+explicites → fallback scoring V9 standard pour le reste, sans pin
+PRIORITÉ 1 prompt IA Phase 7.34/7.52.1.
+
+**Pivot stratégique** : factoriser la curation. Plutôt qu'enrichir
+chaque capture une par une, créer une **base ARTISTS** (guitaristes
++ bassistes) avec setup historique de référence. À partir de cette
+base, on peut auto-inférer les `usages` de TOUTES les captures du
+catalog (helper `inferUsagesFromAmp(amp, ARTISTS)` qui scanne les
+artistes dont l'amp ∈ eras[].amps).
+
+#### Bénéfices
+
+1. **Anti-hallucination IA `ref_amp`** : si Gemini propose un ampli
+   faux pour un artiste connu (cas Bruno : "Marshall Super100" pour
+   Blink-182 alors que Mesa Boogie), post-process correctif côté
+   code → fix racine sans re-fetch.
+2. **Auto-enrichissement usages cross-catalog** : toute capture
+   Marshall JTM45/Plexi/JCM800/etc. hérite auto des artistes qui
+   les ont utilisés. ~80% du coût curation manuelle évité.
+3. **Symétrie ampli pour Phase 7.64 family match** : aujourd'hui
+   boost +15 côté guitare (Strat/Tele/LP family match). ARTISTS
+   permet `if entry.amp ∈ ARTISTS[refGuitarist].amps → +15` côté
+   ampli. Resout cas Paranoid (Sabbath Laney/Orange historique).
+4. **Phase 8 basse first-class** : couvre gratuitement les
+   bassistes (John Deacon → Precision + Rumble, etc.). Symétrie
+   guitariste/bassiste pour `bass_recommendation` Phase 8.7+.
+5. **Réduction tokens IA ~30-50%** :
+   - **Input** : pré-filtrage catalog côté code selon artiste
+     (~30 captures pertinentes vs 600 sérialisées) = -600 tokens
+   - **Output** : `ref_amp`/`ref_guitar`/`ref_guitarist` sourcés
+     ARTISTS, plus demandés à l'IA = -30% output trilingue
+   - **Re-fetches** : post-process correctif évite les re-fetches
+     dus aux hallucinations = -50% sur ces cycles
+6. **Déterminisme** : factuels (amp/guitare/guitariste) sourcés
+   ARTISTS, l'IA se concentre sur sa vraie valeur (prose
+   contextuelle, scoring nuancé). Moins de variance entre fetches.
+
+#### Garde-fous anti-dogmatique
+
+- **SONG_HISTORY > ARTISTS** : si `SONG_HISTORY[songId].amp` défini,
+  il écrase ARTISTS pour CE morceau. Granularité morceau bat
+  granularité artiste. Cas Bonamassa (4 amplis différents selon
+  morceaux) géré sans config complexe.
+- **Boost dégressif** : si l'era a N amplis listés, boost = `+15/N`
+  (mono-ampli historique = +15, 4 amplis = +3.75 chacun). Le
+  scoring V9 garde le dernier mot.
+- **Soft hint, pas override dur** : ARTISTS active surtout les
+  `usages` du catalog statique + le contexte prompt. Le scoring V9
+  brut reste primaire. ARTISTS ne fait que pousser dans la même
+  direction quand le signal est cohérent.
+
+#### Schéma data
+
+```js
+// src/data/artists.js — base livrée avec le code (Cowork seed)
+ARTISTS_SEED = {
+  angus_young: {
+    name: "Angus Young",
+    role: "guitarist",            // 'guitarist' | 'bassist' | 'multi'
+    bands: ["AC/DC"],
+    eras: [
+      {
+        period: "70s",
+        years: [1973, 1979],
+        guitars: ["Gibson SG Standard"],
+        amps: ["Marshall Plexi 1959", "Marshall Super Lead 100W"],
+        pedals: ["Schaffer Vega Diversity System"]
+      },
+      {
+        period: "80s+",
+        years: [1980, 2026],
+        guitars: ["Gibson SG Standard"],
+        amps: ["Marshall JTM45", "Marshall JCM800"],
+        pedals: ["Schaffer Replica"]
+      }
+    ],
+    notes: "Setup signature reconnaissable",
+    sources: ["https://en.wikipedia.org/wiki/Angus_Young", "..."]
+  }
+}
+
+// Cascade lookup pattern Phase 7.79.3 :
+// 1. shared.artistsOverrides[id]    (admin edits runtime)
+// 2. shared.artistsAutoEnrichments  (auto-enrich, status='accepted')
+// 3. ARTISTS_SEED[id]               (livré code, Cowork seed)
+```
+
+#### Couverture cible — ~400 artistes (~100/décennie 60s-90s)
+
+Décomposition (filtre qualité : Wikipedia EN >1000 mots OU
+classement canonique RS250/GuitarWorld) :
+
+| Décennie | Guitaristes | Bassistes | Total cible |
+|---|---|---|---|
+| 60s rock/blues | ~70 | ~30 | ~100 |
+| 70s hard rock/prog | ~75 | ~25 | ~100 |
+| 80s metal/glam/pop | ~80 | ~20 | ~100 |
+| 90s grunge/alt | ~70 | ~30 | ~100 |
+| Bonus jazz/funk | ~15 | ~15 | ~30 |
+
+Après filtre qualité, output effectif probably **~300-350 artistes**
+(certaines niches mid-tier exclues si docs trop pauvres).
+
+Effort Cowork batch : ~4h cloud (10 sub-agents parallèles, 4
+batches par décennie). Validation Sébastien : ~4-5h sur 4-5
+sessions.
+
+#### Plan d'exécution Phase 13
+
+- **13.0** — Schema `src/data/artists.js` + helpers (`getArtist`,
+  `findArtistsByBand`, `inferUsagesFromAmp`, `getEra`,
+  `getCurrentEra`) + 20 artistes seed test (figures clés des 13
+  morceaux SONG_HISTORY + bonus beta) + tests Vitest dédiés (~3h)
+- **13.1** — Refacto prompt fetchAI : suppression
+  `ref_amp/guitar/guitarist` de l'output (sourcés ARTISTS),
+  injection setup historique dans le prompt. Pas de bump
+  SCORING_VERSION (juste prompt). Rétrocompat aiCache : fallback
+  ARTISTS lookup si champs absents (~2h)
+- **13.2** — Boost amp family match V9 dégressif (anti-Bonamassa)
+  + post-process correctif `ref_amp` hallucination (~2h)
+- **13.3** — Helper pré-filtrage catalog selon artiste (réduction
+  input prompt) (~1h)
+- **13.4** — UI admin "🎭 Artistes" CRUD + sync Firestore
+  `shared.artistsOverrides` LWW per-entry (~3h)
+- **13.5** — Cowork seed extension ~400 artistes en 4-5 batches
+  par décennie (~4h cloud + 4-5h validation Sébastien)
+- **13.6** (optionnel) — Détection runtime queue `pendingArtists`
+  + tab admin "🎭 En attente" + bouton "Lancer Cowork batch" :
+  pour artistes 2000s+ / niches non-couverts par 13.5 (~2h)
+- **13.7** (optionnel) — Workflow validation batch (~2h)
+
+**Effort total** : ~14-16h dev + ~4-5h validation Sébastien base
+initiale. 13.6/.7 = dette optionnelle si signal après usage.
+
+#### Architecture batch différé vs runtime auto
+
+**Choix retenu : batch différé** (Sébastien lance Cowork manuel
+quand bandwidth). Pourquoi :
+- Coûts Cowork prévisibles, app reste autonome
+- Validation centralisée Sébastien > gating heuristique fragile
+- Cohérent avec patterns existants (Phase 11 Studio-driven manuel,
+  Phase 7.78 curation queue admin)
+- Latence acceptable (~1-7j avant enrichissement nouveau artiste)
+- fetchAI tourne sans bonus ARTISTS pendant la fenêtre → recos =
+  qualité actuelle, pas dégradée
+
+**Couplage Phase 11 Studio-driven** : ARTISTS sert de **vocabulaire
+commun** quand TSR/AA/JS curent leurs packs. Studio dit "ma capture
+Mesa Mark IIC+ vise Kirk Hammett" → ARTISTS confirme → `usages`
+auto-générés.
+
+#### Dette résiduelle Phase 13
+
+- **Bundle impact** : ~400 artistes × ~500 bytes/artiste = ~+200 KB
+  inline. Bundle actuel 2675 KB → 2875 KB (+7.5%). Acceptable mais
+  à monitorer. Mitigation possible Phase 13.x : format compressé
+  (keys courts `n`/`r`/`b`/`e`/etc. avec helper unpack) → -40%.
+- **Sources URLs** : si stockées inline = ~+50 KB supplémentaire.
+  Option : retirer du bundle (sources servent juste à la validation
+  Sébastien, pas au runtime).
+- **Maintenance long-terme** : artistes contemporains (2000s+,
+  Synyster Gates, etc.) à ajouter via 13.6/13.7 ou batch annuel
+  Cowork. Pas critique car couverture 60s-90s = ~95% morceaux
+  beta-testeurs actuels.
+- **Risque "effet Mathieu"** : on boost les artistes canon et on
+  rate les morceaux moins connus. Mitigation : soft hint pas
+  override, fallback scoring V9 préservé.
+
+#### Quand activer
+
+**13.0 démarré 2026-06-02** (cf section "État actuel"). Phases
+suivantes selon priorité vs Phase 8 (basse) / Phase 9 (EQ) /
+Phase 11 (Studio-driven).
+
 ## Hors scope (pour rappel, à NE PAS faire sans demande explicite)
 
 - TypeScript.
