@@ -328,6 +328,14 @@
      spacer transparent JSX. Label guitare aligne à gauche naturellement
      (retour Sébastien v8.14.240 : décalage visuel sur iPhone). */
   .songrow-pl-meta-guitar{display:flex;align-items:center;gap:6px}
+  /* v9.7.14 — cadre guitare pleine largeur en mobile (<640px) pour
+     s'aligner avec les labels presets row 2 (qui spannent toute la
+     largeur du device-line, cf @media max-width:639px plus bas).
+     Permet d'afficher le nom complet "Gibson SG Standard Ebony"
+     (vs court "SG Ebony" Phase 7.85 P0-03). */
+  @media(max-width:639px){
+    .songrow-pl-meta-guitar .songrow-pl-guitar{display:block;width:100%;box-sizing:border-box}
+  }
   /* Phase 7.83 cleanup (2026-05-27) — autorise wrap multi-lignes pour
      le nom complet de guitare (Fender Stratocaster American Vintage II 1961
      trop long pour 1 ligne mobile). Grid 2 col gardé (score gauche + label flex). */

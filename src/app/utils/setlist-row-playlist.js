@@ -51,10 +51,14 @@ export function getRowPlaylistData(song, aiC, guitar, guitarScore, isOptimalGuit
   const title = song?.title || '';
   const artist = song?.artist || '';
 
-  // v9.7.6 (audit Cowork P0-03 résiduel) — nom court (cf signature en
-  // tête : 'SG Ebony (HB)'). Évite la cassure mid-mot du nom long
-  // "Gibson SG Standard '61" sur la ligne badge mobile (130px).
-  const guitarLabel = guitar ? `${guitar.short || guitar.name} (${guitar.type})` : null;
+  // v9.7.14 — nom COMPLET (g.name, ex "Gibson SG Standard Ebony") au lieu
+  // du court Phase 7.85 P0-03 ("SG Ebony"). Le cadre vert passe pleine
+  // largeur en mobile (cf CSS .songrow-pl-meta-guitar .songrow-pl-guitar
+  // <640px) pour s'aligner avec les labels presets row 2 → ~315px dispo
+  // sur iPhone 375, le nom complet rentre. word-break:normal +
+  // overflow-wrap:break-word préservés pour wrap propre sur noms très
+  // longs (ex "Fender Stratocaster American Vintage II 1961").
+  const guitarLabel = guitar ? `${guitar.name} (${guitar.type})` : null;
   const guitarScoreClean = (typeof guitarScore === 'number' && Number.isFinite(guitarScore) && guitarScore > 0)
     ? guitarScore : null;
 
