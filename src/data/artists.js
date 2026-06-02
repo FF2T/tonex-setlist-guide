@@ -396,6 +396,38 @@ const ARTISTS_PHASE_13_0_SEED = {
   },
 
   // ============================================================
+  // GUITARISTE FRANCOPHONE AJOUT MANUEL (cas Sébastien — non couvert
+  // par Cowork batches v1/v2 focus rock anglo-saxon)
+  // ============================================================
+
+  louis_bertignac: {
+    name: "Louis Bertignac",
+    role: "guitarist",
+    bands: ["Téléphone", "solo"],
+    eras: [
+      {
+        period: "Téléphone (70s-80s)",
+        years: [1976, 1986],
+        guitars: ["Fender Stratocaster '60s", "Fender Stratocaster American Vintage"],
+        amps: ["Marshall Super Lead 100W", "Marshall JMP 1959", "Marshall JCM800"],
+        pedals: ["Ibanez Tube Screamer TS-9", "Boss DS-1", "Dunlop Cry Baby Wah"],
+      },
+      {
+        period: "solo (90s+)",
+        years: [1987, 2026],
+        guitars: ["Fender Stratocaster (signature)", "Fender Telecaster"],
+        amps: ["Mesa Boogie Mark IV", "Bogner Shiva", "Fender Vibroverb"],
+        pedals: ["Ibanez Tube Screamer", "Boss OD-3", "Cry Baby Wah"],
+      },
+    ],
+    notes: "Stratocaster + Marshall JMP/Plexi cranked + TS-9 = signature Téléphone (Flipper, Cendrillon, La Bombe Humaine). Setup distinct du blues 70s (PAS de Fender Bassman seul — pédale OD obligatoire pour le punch punk-rock).",
+    sources: [
+      "https://fr.wikipedia.org/wiki/Louis_Bertignac",
+      "https://fr.wikipedia.org/wiki/T%C3%A9l%C3%A9phone_(groupe)",
+    ],
+  },
+
+  // ============================================================
   // BASSISTES (6 entries — Phase 8 first-class)
   // ============================================================
 

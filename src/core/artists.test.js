@@ -614,4 +614,20 @@ describe('Phase 13.2 — getArtistAmpsForSong (wrapper)', () => {
     expect(result.confidence).toBe('high');
     expect(result.primaryAmp).toBe('Vox AC30 Top Boost');
   });
+
+  it('song Téléphone + year 1977 (Flipper) → Bertignac Marshall (ajout manuel Sébastien)', () => {
+    const result = getArtistAmpsForSong({ artist: 'Téléphone', year: 1977 });
+    expect(result).not.toBeNull();
+    expect(result.amps).toContain('Marshall Super Lead 100W');
+    // Era 70s-80s a 3 amps Marshall → confidence medium
+    expect(result.confidence).toBe('medium');
+  });
+
+  it('cas-cible Sébastien : Flipper + ref_amp "Fender Bassman" halluciné → suggestion Marshall', () => {
+    const result = validateRefAmpAgainstArtists('Fender Bassman', 'Téléphone', 1977);
+    expect(result).not.toBeNull();
+    expect(result.valid).toBe(false);
+    // primaryAmp = "Marshall Super Lead 100W" (1er era 70s-80s Bertignac)
+    expect(result.suggestedAmp).toBe('Marshall Super Lead 100W');
+  });
 });
