@@ -24,6 +24,7 @@ import {
   enrichAIResult, mergeBestResults, bestScoreOf, safeParseJSON,
 } from './ai-helpers.js';
 import { getSharedGeminiKey } from './shared-key.js';
+import { findArtistsByBand, getEra, getCurrentEra } from '../../core/artists.js';
 
 // Phase 7.31 — Construit une section "CAPTURES INSTALLÉES" listant les slots
 // non vides des banks avec leur metadata catalog (amp/style/gain). Sans ça,
@@ -142,6 +143,39 @@ function fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, fe
     if (recoMode === 'interpretation') return `\nMODE RECO : INTERPRÉTATION LIBRE. Ton choix d'ideal_guitar doit privilégier les guitares VERSATILES qui couvrent bien le style du morceau, même si ce n'est pas la guitare originale de l'artiste. Privilégie les instruments polyvalents (semi-hollow type ES-335, SG humbuckers, Stratocaster classique) qui permettent un son juste sans avoir la guitare exacte.`;
     return '';
   })();
+  // Phase 13.1.1 — Injection setup historique ARTISTS dans le prompt.
+  //
+  // Empêche Gemini d'halluciner un setup pour un artiste mal documenté
+  // (cas Bertignac/Téléphone : sans ce hint, Gemini propose Fender Bassman
+  // alors que Bertignac = Strat + Marshall Super Lead + Tube Screamer).
+  //
+  // Soft hint anti-dogmatique : suggère, ne force pas. Permet à l'IA de
+  // s'écarter si une raison contextuelle (live spécifique, période exotique)
+  // le justifie. Aligné avec Phase 13.1 (post-process correctif ref_amp) et
+  // Phase 13.2 (boost amp family) qui appliquent la même logique post-fetch.
+  const artistContextLine = (() => {
+    if (!song?.artist) return '';
+    const artists = findArtistsByBand(song.artist).filter(
+      (a) => a.role === 'guitarist' || a.role === 'multi'
+    );
+    if (artists.length === 0) return ''; // artiste hors ARTISTS → no-op
+    const year = (typeof song.year === 'number' && Number.isFinite(song.year))
+      ? song.year
+      : null;
+    const lines = artists.map((artist) => {
+      const era = year ? (getEra(artist, year) || getCurrentEra(artist)) : getCurrentEra(artist);
+      if (!era) return null;
+      const guitarsStr = (era.guitars || []).slice(0, 3).join(', ');
+      const ampsStr = (era.amps || []).slice(0, 4).join(', ');
+      const pedalsStr = (era.pedals || []).slice(0, 3).join(', ');
+      const eraLabel = `"${era.period}"${year ? '' : ' (ère actuelle)'}`;
+      let line = `- ${artist.name} (${artist.role}, ${eraLabel}) : ${guitarsStr || 'guitare(s) non spécifiée(s)'} / ${ampsStr || 'amp(s) non spécifié(s)'}`;
+      if (pedalsStr) line += ` + pédales : ${pedalsStr}`;
+      return line;
+    }).filter(Boolean);
+    if (lines.length === 0) return '';
+    return `\nSETUP HISTORIQUE SIGNATURE (ARTISTS Backline pour ${song.artist}${year ? ` en ${year}` : ''}) :\n${lines.join('\n')}\n\nSoft hint contextuel : utilise ces informations historiques pour guider ref_amp, ref_guitar, ref_guitarist et le choix de preset_ann_name / preset_plug_name. Si une capture installée matche un de ces amps, privilégie-la. Évite d'halluciner un ampli hors de ce setup pour ce groupe SAUF raison contextuelle explicite (morceau live spécifique, période non couverte par les éras listées, ou cohérence stylistique forte avec une autre capture installée).`;
+  })();
   // Phase 7.7 — Bias soft hint depuis les feedbacks.
   const biasLine = (() => {
     if (!guitarBias || typeof guitarBias !== 'object') return '';
@@ -245,7 +279,7 @@ Guitare sélectionnée : ${g ? g.name + ' (' + g.type + ')' : 'non précisée'}.
 
 COLLECTION DE GUITARES DISPONIBLES :
 ${gProfiles}
-${feedbackLine}${modeLine}${biasLine}${tmpCatalogLine}${installedSlotsLine}${outputContextLine}${preferredStylesLine}${bassContextLine}${guitarAmpContextLine}${pedalboardContextLine}
+${artistContextLine}${feedbackLine}${modeLine}${biasLine}${tmpCatalogLine}${installedSlotsLine}${outputContextLine}${preferredStylesLine}${bassContextLine}${guitarAmpContextLine}${pedalboardContextLine}
 INSTRUCTIONS : Tu dois suivre un raisonnement structuré AVANT de donner ta recommandation. Ce raisonnement DOIT apparaître dans le JSON de sortie.
 
 ÉTAPE 1 – PROFIL TONAL DU MORCEAU
