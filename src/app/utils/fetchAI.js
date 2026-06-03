@@ -21,7 +21,7 @@ import { findGuitarProfile } from '../../core/scoring/guitar.js';
 import { TMP_FACTORY_PATCHES } from '../../devices/tonemaster-pro/index.js';
 import { findCatalogEntry, isBassPreset } from '../../core/catalog.js';
 import {
-  enrichAIResult, mergeBestResults, bestScoreOf, safeParseJSON,
+  enrichAIResult, safeParseJSON,
 } from './ai-helpers.js';
 import { getSharedGeminiKey } from './shared-key.js';
 import { findArtistsByBand, getEra, getCurrentEra } from '../../core/artists.js';
@@ -737,23 +737,27 @@ Contraintes :
     console.warn(`[fetchAI] Rate limit Gemini, retry in ${delay}ms (${retriesLeft} retries restants)`);
     return new Promise((r) => setTimeout(r, delay)).then(() => callAIWithQuotaRetry(retriesLeft - 1));
   });
-  // Retry intelligent qualité : si le meilleur score < 80%, relancer
-  // l'IA (max 1 retry). Indépendant du retry quota ci-dessus.
+  // v9.7.36 — Retry intelligent qualité SUPPRIMÉ.
   //
-  // v9.7.35 — Réduit seuil 85→80 + retries 2→1 suite mesure batch :
-  // ~60% des morceaux déclenchaient retry au seuil 85, gonflant le temps
-  // batch de ~50%. Seuil 80 = "Excellent" selon scoreLabel core (≥80),
-  // donc qualité préservée. 1 retry suffit pour rattraper un mauvais 1er
-  // shot Gemini ; un 2e était rarement décisif.
-  const RETRY_THRESHOLD = 80;
-  const MAX_RETRIES = 1;
-  const tryBest = (currentBest, retries) => {
-    const score = bestScoreOf(currentBest);
-    if (retries <= 0 || score >= RETRY_THRESHOLD) return Promise.resolve(currentBest);
-    console.info(`[fetchAI] Quality retry: score ${score} < ${RETRY_THRESHOLD} (${retries} left)`);
-    return callAIWithQuotaRetry().then((newResult) => tryBest(mergeBestResults(currentBest, newResult), retries - 1)).catch(() => currentBest);
-  };
-  return callAIWithQuotaRetry().then((first) => tryBest(first, MAX_RETRIES));
+  // Historiquement, le retry relançait si bestScoreOf(result) < seuil
+  // pour compenser les hallucinations Gemini sur ref_amp (Blink-182 →
+  // Marshall halluciné au lieu de Mesa) qui faisaient chuter les scores
+  // car les captures installées ne matchaient pas.
+  //
+  // Phase 13.1 (post-process correctif ref_amp contre ARTISTS) +
+  // Phase 13.2 (boost dégressif annTop/plugTop quand l'ampli matche
+  // ARTISTS) corrigent maintenant ces cas À LA SOURCE, avant scoring.
+  // Le retry est devenu doublement redondant :
+  //   1. Si Phase 13 corrige déjà → 1er score est bon, retry inutile.
+  //   2. Si Phase 13 ne corrige pas (artiste hors ARTISTS, morceau
+  //      vraiment dur) → un 2e fetch Gemini identique ne change rien.
+  //
+  // Le retry quota 429 (callAIWithQuotaRetry ci-dessus) reste pour
+  // gérer le rate limit Gemini free tier — c'est un mécanisme distinct.
+  //
+  // Effet attendu : -30 à -40% sur le batch (économie 1 fetch sur ~60%
+  // des morceaux qui déclenchaient retry au seuil 85). À mesurer.
+  return callAIWithQuotaRetry();
 }
 
 export default fetchAI;
