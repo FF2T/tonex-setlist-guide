@@ -582,7 +582,7 @@ function ListScreen({
     <div>
       {/* Sélecteur setlist compact */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-        <select value={activeSlId || ''} onChange={(e) => { const v = e.target.value; setActiveSlId(v || null); onChecked([]); const ss = v && setlists.find((s) => s.id === v)?.sort; setSort(ss && ss !== 'default' ? ss : 'artist'); }} style={{ flex: 1, background: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border-strong,var(--a15))', borderRadius: 'var(--r-md)', padding: '8px 12px', fontSize: 13, cursor: 'pointer' }}>
+        <select value={activeSlId || ''} onChange={(e) => { const v = e.target.value; setActiveSlId(v || null); onChecked([]); const ss = v && setlists.find((s) => s.id === v)?.sort; setSort(ss && ss !== 'default' ? ss : 'artist'); }} style={{ flex: 1, background: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border-strong,var(--a15))', borderRadius: 'var(--r-md)', padding: '10px 12px', fontSize: 13, cursor: 'pointer', minHeight: 44, maxWidth: 480 }}>
           <option value="">{tFormat('list.all-songs', { count: mySongIds ? songDb.filter((s) => mySongIds.has(s.id)).length : songDb.length }, 'Tous les morceaux ({count})')}</option>
           {setlists.map((sl) => <option key={sl.id} value={sl.id}>{sl.name} ({sl.songIds.length})</option>)}
         </select>
@@ -674,7 +674,7 @@ function ListScreen({
       {/* Barre d'actions compacte */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{tPlural('list.songs-count', activeSongs.length, {}, { one: '1 morceau', other: '{count} morceaux' })}</span>
-        <select value={sort} onChange={(e) => saveSort(e.target.value)} style={{ background: 'var(--bg-card)', color: 'var(--text-sec)', border: '1px solid var(--a10)', borderRadius: 'var(--r-sm)', padding: '3px 6px', fontSize: 10, cursor: 'pointer' }}>
+        <select value={sort} onChange={(e) => saveSort(e.target.value)} style={{ background: 'var(--bg-card)', color: 'var(--text-sec)', border: '1px solid var(--a10)', borderRadius: 'var(--r-sm)', padding: '8px 10px', fontSize: 12, cursor: 'pointer', minHeight: 44 }}>
           <option value="artist">{t('list.sort-artist', 'Par artiste')}</option>
           <option value="alpha">{t('list.sort-alpha', 'A → Z')}</option>
         </select>

@@ -73,10 +73,17 @@ function DemoBanner({ onExit }) {
         href={buildDemoRequestUrl({ source: 'demo_banner', locale: getLocale() })}
         target="_blank"
         rel="noopener noreferrer"
+        // v9.7.31 — Cowork audit P1 : ancien lien à 34px de haut (17px iPad).
+        // display:inline-block + padding 10px 8px → ~44px (iOS HIG).
         style={{
           color: 'var(--tolex-900)',
           textDecoration: 'underline',
           fontWeight: 700,
+          display: 'inline-block',
+          padding: '10px 8px',
+          minHeight: 44,
+          lineHeight: 1.3,
+          boxSizing: 'border-box',
         }}
       >{linkLabel}</a>
       <button

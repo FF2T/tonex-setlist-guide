@@ -31,6 +31,9 @@ function GuitarSelect({ value, onChange, ig = [], guitars = GUITARS, hideStatusT
   const g = guitars.find((x) => x.id === value);
   const ideal = value && ig.includes(value);
   const warn = value && ig.length > 0 && !ideal;
+  // v9.7.31 — Cowork audit P1 : padding élargi 10px vertical pour atteindre
+  // ~44px de hauteur effective (cible tactile Apple HIG). minHeight forcé
+  // pour couvrir les cas où le contenu serait + petit.
   const selectStyle = plain
     ? {
         width: '100%',
@@ -38,10 +41,11 @@ function GuitarSelect({ value, onChange, ig = [], guitars = GUITARS, hideStatusT
         color: 'var(--text)',
         border: '1px solid var(--a15)',
         borderRadius: 'var(--r-md)',
-        padding: '8px 10px',
+        padding: '10px 12px',
         fontSize: 'clamp(12px, 1.35vw, 14px)',
         fontWeight: 600,
         cursor: 'pointer',
+        minHeight: 44,
       }
     : {
         width: '100%',
@@ -49,10 +53,11 @@ function GuitarSelect({ value, onChange, ig = [], guitars = GUITARS, hideStatusT
         color: 'var(--text)',
         border: `1px solid ${ideal ? 'rgba(74,222,128,0.5)' : warn ? 'rgba(251,191,36,0.5)' : 'var(--a15)'}`,
         borderRadius: 'var(--r-md)',
-        padding: '8px 10px',
+        padding: '10px 12px',
         fontSize: 13,
         cursor: 'pointer',
         marginBottom: 4,
+        minHeight: 44,
       };
   return (
     <div>

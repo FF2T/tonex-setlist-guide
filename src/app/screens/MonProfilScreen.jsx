@@ -74,7 +74,9 @@ function MonProfilScreen({
   const toggleNewSongSl = (id) => setNewSongSlIds((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
   const [expandedSongId, setExpandedSongId] = useState(null);
   const toggleSongInSetlist = (songId, slId) => onSetlists((p) => p.map((sl) => sl.id !== slId ? sl : { ...sl, songIds: sl.songIds.includes(songId) ? sl.songIds.filter((x) => x !== songId) : [...sl.songIds, songId] }));
-  const inp = { background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '6px 10px', fontSize: 12, boxSizing: 'border-box' };
+  // v9.7.31 — Cowork audit P1 : padding élargi pour cibles tactiles ~44px.
+  // Inputs profil étaient à 34px (Email, mots de passe) sous le seuil HIG.
+  const inp = { background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '10px 12px', fontSize: 13, boxSizing: 'border-box', minHeight: 44 };
   // Réorg 2026-05-29 — instrument(s) du profil pilotés depuis Préférences.
   // Gate les onglets "Mes guitares" / "Mes basses". ≥1 instrument requis.
   const instruments = Array.isArray(profile?.instruments) && profile.instruments.length > 0 ? profile.instruments : ['guitar'];
@@ -619,7 +621,7 @@ function MonProfilScreen({
         {/* Phase 7.85 — Footer liens : padding 10x4 + minHeight 44 iOS HIG
             (Cowork B15 P1 : "Aide" 26×15, "Envoyer un feedback" 120×15,
             "Mise à jour" 62×15 = micro-cibles sous seuil touch). */}
-        <button onClick={() => { if (typeof window.setShowOnboarding === 'function') window.setShowOnboarding(true); else { const e = new CustomEvent('showOnboarding'); window.dispatchEvent(e); } }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline', padding: '10px 6px', minHeight: 44, display: 'inline-flex', alignItems: 'center' }}>{t('profile.footer-help', 'Aide')}</button>
+        <button onClick={() => { if (typeof window.setShowOnboarding === 'function') window.setShowOnboarding(true); else { const e = new CustomEvent('showOnboarding'); window.dispatchEvent(e); } }} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline', padding: '10px 12px', minHeight: 44, minWidth: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{t('profile.footer-help', 'Aide')}</button>
         {/* Phase 7.73.0 — Bouton feedback Tally. Pré-rempli avec
             profile_name + app_version. Ouvre dans un nouvel onglet. */}
         <a

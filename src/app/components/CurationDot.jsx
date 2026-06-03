@@ -30,8 +30,8 @@ function CurationDot({ name, onClick, size = 6, style }) {
     flexShrink: 0,
   };
   // v9.7.10 (audit Cowork iPad) — pastille visuelle = `size`px (compacte),
-  // mais hit area étendue via padding + negative margin quand cliquable :
-  // tap zone ~30×22 au lieu de 6×6, sans modifier l'espace inline occupé.
+  // mais hit area étendue via padding + negative margin quand cliquable.
+  // v9.7.31 — Cowork audit P1 : ancien 22×30, porté à 44×44 strict (iOS HIG).
   if (!clickable) {
     return (
       <span aria-label={label} title={label} style={{ verticalAlign: 'middle', ...style }}>
@@ -50,8 +50,8 @@ function CurationDot({ name, onClick, size = 6, style }) {
         alignItems: 'center',
         justifyContent: 'center',
         cursor: 'pointer',
-        padding: '12px 8px',
-        margin: '-12px -8px',
+        padding: '19px',
+        margin: '-19px',
         verticalAlign: 'middle',
         ...style,
       }}
