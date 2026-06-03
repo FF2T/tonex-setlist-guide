@@ -367,9 +367,12 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   // Recommandations. cotInRig : cot_step2 filtré strict sur le rig actif
   // (Phase 7.65.1). compatLabelStyle/cleanGuitarName : pills bucket-color.
   const cotInRig = aiC ? filterCotGuitarsToRig(aiC.cot_step2_guitars, guitars) : [];
+  // v9.7.24 — padding plus aéré (4px 10px vs 2px 8px) pour que le texte
+  // respire mieux dans le cadre. Cohérence : guitares et presets utilisent
+  // le même style pill.
   const compatLabelStyle = (score) => {
     const b = bucketizeScore(score);
-    return { background: b.color, color: 'var(--text-inverse)', padding: '2px 8px', borderRadius: 'var(--r-sm)', fontWeight: 700, display: 'inline-block' };
+    return { background: b.color, color: 'var(--text-inverse)', padding: '4px 10px', borderRadius: 'var(--r-sm)', fontWeight: 700, display: 'inline-block' };
   };
   const cleanGuitarName = (n) => (n || '').replace(/\s*\((?:HB|SC|P90)\)\s*$/i, '').trim();
   // Cadre "Scoring guitares" réutilisable (rendu sous le dropdown).
@@ -379,19 +382,16 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
       <div className="reco-multicol">
         {cotInRig.map((gt, i) => (
           <div key={i}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(12px, 1.35vw, 14px)' }}>
-              {/* v9.7.23 — wrapper flex+wrap matche le pattern preset
-                  (ligne 945+) : cadre compact qui wrap si déborde, vs
-                  pleine largeur flex:1 (qui étirait le cadre). */}
-              <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                <span style={{ ...compatLabelStyle(gt.score), wordBreak: 'break-word' }}>{(() => {
-                  // v9.7.22 — nom COMPLET (matched.name) au lieu de matched.short.
-                  // Le cleanGuitarName fallback strip toujours les "(HB)/(SC)/(P90)".
-                  const matched = findGuitarByAIName(gt.name, guitars);
-                  return matched?.name || cleanGuitarName(gt.name);
-                })()}</span>
-              </span>
-              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(gt.score), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(11px, 1.25vw, 13px)' }}>{gt.score}%</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 'clamp(12px, 1.35vw, 14px)' }}>
+              {/* v9.7.24 — Sébastien demande le cadre ÉTIRÉ pleine largeur
+                  (flex:1 direct) avec texte respirant (padding +
+                  compatLabelStyle). Cohérence : guitare = preset visuel. */}
+              <span style={{ ...compatLabelStyle(gt.score), flex: 1, wordBreak: 'break-word', minWidth: 0 }}>{(() => {
+                // v9.7.22 — nom COMPLET (matched.name).
+                const matched = findGuitarByAIName(gt.name, guitars);
+                return matched?.name || cleanGuitarName(gt.name);
+              })()}</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(gt.score), padding: '4px 10px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 48, textAlign: 'center', fontSize: 'clamp(11px, 1.25vw, 13px)' }}>{gt.score}%</span>
             </div>
             {gt.reason && <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.4, overflowWrap: 'break-word', minWidth: 0 }}>{getLocalizedText(gt.reason, locale)}</div>}
           </div>
@@ -856,12 +856,10 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 if (cotTopName && idealName && cotTopName === idealName) return null;
                 return (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'clamp(12px, 1.35vw, 14px)' }}>
-                    {/* v9.7.23 — flexWrap wrap pour matcher le pattern preset
-                        (ligne 945+) : cadre compact qui wrap si déborde. */}
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flexWrap: 'wrap' }}>
-                      <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>{t('song-detail.guitar-label', 'Guitare ')}</span>
-                      <span style={{ ...compatLabelStyle(idealGuitarScore || 100), wordBreak: 'break-word' }}>{cleanGuitarName(displayIdealGuitarName)}</span>
-                    </div>
+                    {/* v9.7.24 — cadre étiré pleine largeur (flex:1 sur le span
+                        cadre vert) avec label "Guitare" devant en flexShrink:0. */}
+                    <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>{t('song-detail.guitar-label', 'Guitare ')}</span>
+                    <span style={{ ...compatLabelStyle(idealGuitarScore || 100), flex: 1, wordBreak: 'break-word', minWidth: 0 }}>{cleanGuitarName(displayIdealGuitarName)}</span>
                     {idealGuitarScore != null && idealGuitarScore > 0 && <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(idealGuitarScore), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(11px, 1.25vw, 13px)' }}>{idealGuitarScore}%</span>}
                   </div>
                 );
