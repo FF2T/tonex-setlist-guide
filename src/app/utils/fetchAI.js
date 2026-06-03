@@ -162,19 +162,39 @@ function fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, fe
     const year = (typeof song.year === 'number' && Number.isFinite(song.year))
       ? song.year
       : null;
+    // v9.7.29 — Format restructuré pour mettre en évidence les pédales
+    // signature. L'IA Gemini ignorait souvent les pédales noyées en fin
+    // de ligne (cas Bertignac Flipper : TS-9/DS-1 mentionnés dans refs
+    // mais cot_step3_amp restait sur "ampli cranked seul" sans intégrer
+    // le rôle de l'overdrive devant). Format multi-ligne par artiste +
+    // instruction explicite ci-dessous pour exploiter les pédales dans
+    // la prose IA (cot_step3_amp + settings_preset + settings_guitar).
+    let hasAnyPedals = false;
     const lines = artists.map((artist) => {
       const era = year ? (getEra(artist, year) || getCurrentEra(artist)) : getCurrentEra(artist);
       if (!era) return null;
       const guitarsStr = (era.guitars || []).slice(0, 3).join(', ');
       const ampsStr = (era.amps || []).slice(0, 4).join(', ');
-      const pedalsStr = (era.pedals || []).slice(0, 3).join(', ');
+      const pedals = (era.pedals || []).slice(0, 4);
+      const pedalsStr = pedals.join(', ');
+      if (pedals.length > 0) hasAnyPedals = true;
       const eraLabel = `"${era.period}"${year ? '' : ' (ère actuelle)'}`;
-      let line = `- ${artist.name} (${artist.role}, ${eraLabel}) : ${guitarsStr || 'guitare(s) non spécifiée(s)'} / ${ampsStr || 'amp(s) non spécifié(s)'}`;
-      if (pedalsStr) line += ` + pédales : ${pedalsStr}`;
-      return line;
+      let block = `- ${artist.name} (${artist.role}, ${eraLabel}) :\n`;
+      block += `    Guitare(s) : ${guitarsStr || 'non spécifiée(s)'}\n`;
+      block += `    Ampli(s)   : ${ampsStr || 'non spécifié(s)'}`;
+      if (pedalsStr) {
+        block += `\n    Pédales signature : ${pedalsStr}`;
+      }
+      return block;
     }).filter(Boolean);
     if (lines.length === 0) return '';
-    return `\nSETUP HISTORIQUE SIGNATURE (ARTISTS Backline pour ${song.artist}${year ? ` en ${year}` : ''}) :\n${lines.join('\n')}\n\nSoft hint contextuel : utilise ces informations historiques pour guider ref_amp, ref_guitar, ref_guitarist et le choix de preset_ann_name / preset_plug_name. Si une capture installée matche un de ces amps, privilégie-la. Évite d'halluciner un ampli hors de ce setup pour ce groupe SAUF raison contextuelle explicite (morceau live spécifique, période non couverte par les éras listées, ou cohérence stylistique forte avec une autre capture installée).`;
+    const pedalsInstruction = hasAnyPedals
+      ? `\n\nIMPORTANT — RÔLE DES PÉDALES : l'artiste utilise des pédales signature devant l'ampli (overdrive, distortion, wah, etc.). N'oublie pas d'intégrer ce setup dans la prose :
+  * cot_step3_amp : décris le rôle de la pédale (ex: "Marshall Super Lead poussé + Tube Screamer TS-9 devant pour le punch des riffs et la saturation des solos", PAS "Marshall cranked tout seul").
+  * settings_preset : si la capture est un ampli ± clean, explique que le gain peut être modéré car la pédale (TS-9, Big Muff, DS-1, etc.) apporte le mordant attendu. Si la capture est déjà saturée, mentionne quand activer la pédale (solos seulement, riffs vs leads).
+  * settings_guitar : si l'artiste empile guitare-volume + pédale, mentionne le réglage volume guitare (ex: volume 8 pour clean, 10 pour saturer la pédale au max).`
+      : '';
+    return `\nSETUP HISTORIQUE SIGNATURE (ARTISTS Backline pour ${song.artist}${year ? ` en ${year}` : ''}) :\n${lines.join('\n')}\n\nSoft hint contextuel : utilise ces informations historiques pour guider ref_amp, ref_guitar, ref_guitarist et le choix de preset_ann_name / preset_plug_name. Si une capture installée matche un de ces amps, privilégie-la. Évite d'halluciner un ampli hors de ce setup pour ce groupe SAUF raison contextuelle explicite (morceau live spécifique, période non couverte par les éras listées, ou cohérence stylistique forte avec une autre capture installée).${pedalsInstruction}`;
   })();
   // Phase 7.7 — Bias soft hint depuis les feedbacks.
   const biasLine = (() => {
