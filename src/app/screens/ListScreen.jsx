@@ -394,10 +394,11 @@ function ListScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [activeSongs, currentRigSnapshot, userHasBassRig, currentFingerprint]);
   // v9.7.8 — estimation de durée affichée dans les boutons de recalcul
-  // (toolbar + bandeau Phase 9.9). Base : ~8s par morceau (cf
-  // analyze-confirm). < 60s → "Xs", sinon "X min" arrondi.
+  // (toolbar + bandeau Phase 9.9). Base : ~40s par morceau (v9.7.33 :
+  // bumpé de 8s à 40s suite mesure réelle 5 morceaux en 3min30 = 42s/morceau).
+  // < 60s → "Xs", sinon "X min" arrondi.
   const missingDurationStr = (() => {
-    const s = missingCount * 8;
+    const s = missingCount * 40;
     if (s <= 0) return '';
     if (s < 60) return `${s}s`;
     return `${Math.max(1, Math.round(s / 60))} min`;
@@ -703,7 +704,11 @@ function ListScreen({
           {missingCount > 0 && !analyzeAllStatus && <button
             data-testid="list-screen-analyze-missing"
             onClick={() => {
-              const msg = tFormat('list.analyze-confirm-flat', { songs: tPlural('list.songs-count', missingCount, {}, { one: '1 morceau', other: '{count} morceaux' }), duration: Math.ceil(missingCount * 8) }, "Analyser/actualiser {songs} ?\n\nInclut :\n• Morceaux sans analyse IA\n• Morceaux dont l'analyse date d'avant un changement de rig (guitare ajoutée/retirée)\n\nDurée estimée : {duration}s (~8s par morceau).\nLa clé Gemini partagée sera utilisée. Tu peux annuler à tout moment.");
+              // v9.7.33 — base 8s → 40s (mesure réelle ~42s/morceau).
+              // Format minutes si ≥60s.
+              const totalSec = missingCount * 40;
+              const durStr = totalSec < 60 ? `${totalSec}s` : `${Math.max(1, Math.round(totalSec / 60))} min`;
+              const msg = tFormat('list.analyze-confirm-flat', { songs: tPlural('list.songs-count', missingCount, {}, { one: '1 morceau', other: '{count} morceaux' }), duration: durStr }, "Analyser/actualiser {songs} ?\n\nInclut :\n• Morceaux sans analyse IA\n• Morceaux dont l'analyse date d'avant un changement de rig (guitare ajoutée/retirée)\n\nDurée estimée : {duration} (~40s par morceau).\nLa clé Gemini partagée sera utilisée. Tu peux annuler à tout moment.");
               if (!window.confirm(msg)) return;
               analyzeMissingAll();
             }}
@@ -786,7 +791,10 @@ function ListScreen({
           </span>
           {!isDemo && <button
             onClick={() => {
-              const msg = tFormat('list.fp-stale-confirm', { count: missingCount, duration: Math.ceil(missingCount * 8) }, 'Recalculer {count} morceau(x) ? Durée estimée : {duration}s. La clé Gemini partagée sera utilisée.');
+              // v9.7.33 — base 8s → 40s (mesure réelle).
+              const totalSec = missingCount * 40;
+              const durStr = totalSec < 60 ? `${totalSec}s` : `${Math.max(1, Math.round(totalSec / 60))} min`;
+              const msg = tFormat('list.fp-stale-confirm', { count: missingCount, duration: durStr }, 'Recalculer {count} morceau(x) ? Durée estimée : {duration}. La clé Gemini partagée sera utilisée.');
               if (!window.confirm(msg)) return;
               analyzeMissingAll();
             }}

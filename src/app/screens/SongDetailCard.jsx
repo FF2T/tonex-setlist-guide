@@ -1133,7 +1133,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                     data-testid="song-feedback-clear-all"
                     onClick={() => {
                       if (isDemo) return;
-                      if (!window.confirm(tFormat('song-detail.feedback-clear-confirm', { count: all.length, title: song.title }, 'Effacer tous les {count} feedbacks pour "{title}" ?\n\nL\'analyse IA va être recalculée sans tes corrections passées (~8s).'))) return;
+                      if (!window.confirm(tFormat('song-detail.feedback-clear-confirm', { count: all.length, title: song.title }, 'Effacer tous les {count} feedbacks pour "{title}" ?\n\nL\'analyse IA va être recalculée sans tes corrections passées (~40s).'))) return;
                       // Phase 7.54 — feedback dans song (shared), aiCache dans profile
                       onSongDb((p) => p.map((x) => x.id === song.id ? { ...x, feedback: [] } : x));
                       writeAiCache(null);
