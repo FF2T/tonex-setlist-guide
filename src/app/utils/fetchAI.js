@@ -737,6 +737,32 @@ Contraintes :
     console.warn(`[fetchAI] Rate limit Gemini, retry in ${delay}ms (${retriesLeft} retries restants)`);
     return new Promise((r) => setTimeout(r, delay)).then(() => callAIWithQuotaRetry(retriesLeft - 1));
   });
+  // v9.7.39 — Retry sur erreur JSON parse uniquement (1 retry max).
+  //
+  // Distinct du retry qualité (supprimé v9.7.36) et du retry quota 429
+  // (callAIWithQuotaRetry). Ici on cible UNIQUEMENT les cas où Gemini
+  // sort un JSON malformé (virgule manquante, accolade non fermée, etc.).
+  //
+  // Cas observé v9.7.38 batch 13 morceaux : 1 morceau (Paranoid) raté à
+  // cause de "Expected ',' or '}' after property value in JSON at
+  // position 9520 line 253". safeParseJSON tente déjà de réparer les
+  // troncatures (stack matching) mais les erreurs structurelles internes
+  // (virgule perdue) ne se réparent pas. Un simple re-fetch donne à
+  // Gemini une 2e chance — non-déterministe, marche probably la majorité
+  // du temps. Coût : 1 fetch supplémentaire sur les rares cas de fail.
+  const isParseError = (err) => {
+    const msg = String(err?.message || err || '').toLowerCase();
+    return msg.includes('json') && (
+      msg.includes('expected') || msg.includes('unexpected')
+      || msg.includes('position') || msg.includes('parse')
+    );
+  };
+  const callAIWithParseRetry = (retriesLeft = 1) => callAIWithQuotaRetry().catch((err) => {
+    if (retriesLeft <= 0) throw err;
+    if (!isParseError(err)) throw err;
+    console.warn(`[fetchAI] JSON parse error, retry (${retriesLeft} left): ${String(err?.message || '').slice(0, 120)}`);
+    return callAIWithParseRetry(retriesLeft - 1);
+  });
   // v9.7.36 — Retry intelligent qualité SUPPRIMÉ.
   //
   // Historiquement, le retry relançait si bestScoreOf(result) < seuil
@@ -757,7 +783,7 @@ Contraintes :
   //
   // Effet attendu : -30 à -40% sur le batch (économie 1 fetch sur ~60%
   // des morceaux qui déclenchaient retry au seuil 85). À mesurer.
-  return callAIWithQuotaRetry();
+  return callAIWithParseRetry();
 }
 
 export default fetchAI;
