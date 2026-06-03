@@ -97,7 +97,7 @@ import {
 } from './core/state.js';
 import {
   SOURCE_LABELS, SOURCE_DESCRIPTIONS, SOURCE_BADGES, SOURCE_INFO,
-  getSourceBadge, getSourceInfo,
+  getSourceBadge, getSourceInfo, effectiveAvailableSources,
 } from './core/sources.js';
 
 // Phase 7.14 — extracted to src/app/utils/devices-render.js.
@@ -278,7 +278,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "9.7.41";
+const APP_VERSION = "9.7.42";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -592,6 +592,17 @@ export function App() {
   // Current profile (derived)
   const profile = profiles[activeProfileId] || Object.values(profiles)[0];
 
+  // Phase 9.7.43 — availableSources EFFECTIF (device-gated). Force false
+  // toute source dont le device requis n'est pas dans enabledDevices
+  // (ex. Factory firmware v2 pour un user Anniversary-only). Un seul
+  // point de dérivation → tous les consommateurs (Optimiseur, scoring,
+  // installs, window.__activeSources) héritent de la règle sans threading.
+  // ⚠ Après `const profile = ...` (TDZ — cf docs/CASCADE.md piège #2).
+  const availableSources = useMemo(
+    () => effectiveAvailableSources(profile?.availableSources, profile?.enabledDevices),
+    [profile?.availableSources, profile?.enabledDevices],
+  );
+
   // Phase 7.79.3b (fix v8.14.156) — Sync window._usagesCascadeState pour
   // que findCatalogEntry résolve la cascade 4 niveaux. ⚠ DOIT être après
   // la déclaration `const profile = ...` ci-dessus (deps array évalué
@@ -828,7 +839,7 @@ export function App() {
   // (computeBestPresets / enrichAIResult) le lise sans qu'on doive le threader
   // dans tous les call-sites de fetchAI/enrichAIResult. Sync pendant le render
   // pour être disponible dès le premier appel (avant useEffect).
-  if(typeof window!=="undefined") window.__activeSources=profile?.availableSources||null;
+  if(typeof window!=="undefined") window.__activeSources=availableSources||null;
 
   // Phase 7.30 — Sync customPacks du profil actif dans PRESET_CATALOG_MERGED
   // pour que findCatalogEntry retourne la vraie metadata (amp/style/gain) des
@@ -1032,7 +1043,8 @@ export function App() {
   const [liveSetlistId, setLiveSetlistId] = useState(null);
 
   // Destructure profile fields for convenience
-  const {banksAnn, banksPlug, aiProvider: rawAiProvider, aiKeys, availableSources} = profile;
+  // availableSources EFFECTIF dérivé plus haut (Phase 9.7.43) — pas dans ce destructure.
+  const {banksAnn, banksPlug, aiProvider: rawAiProvider, aiKeys} = profile;
   // S9.11 — Auto-fallback Anthropic pour admin si clé Anthropic configurée.
   // Sébastien admin peut éviter de cramer le quota Gemini partagé sans
   // toucher au comportement des beta-testeurs (qui n'ont pas la clé

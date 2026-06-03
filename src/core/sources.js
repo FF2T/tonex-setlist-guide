@@ -216,6 +216,34 @@ function cascadeAvailableSources(availableSources, deviceId, isEnabled) {
   return changed ? next : availableSources;
 }
 
+// Phase 9.7.43 — Dérive un availableSources "effectif" qui force à
+// false toute source dont le device requis n'est PAS dans
+// enabledDevices. Cause racine du bug Optimiseur 2026-06-03 : un user
+// Anniversary-only voyait des captures Factory (firmware v2 Pédale
+// classique) proposées à l'installation, parce que isSrcCompatible
+// ('Factory','ann') est permissif (Phase 2 : l'Anniversary accepte le
+// catalogue Pedal standard) ET availableSources.Factory n'était jamais
+// explicitement false (la cascade Phase 7.74.10 ne se déclenche qu'au
+// TOGGLE d'un device — jamais déclenchée si tonex-pedal n'a jamais été
+// activé). La règle SOURCE_REQUIRES_DEVICE n'existait que côté UI
+// ProfileTab (display gating). On la centralise ici pour que TOUS les
+// consommateurs (Optimiseur, scoring computeBestPresets/enrichAIResult,
+// SongDetailCard install, JamScreen, Explorer) la respectent.
+//
+// Préserve l'identité de l'objet si rien ne change (perf, useMemo deps).
+function effectiveAvailableSources(availableSources, enabledDevices) {
+  const cur = availableSources || {};
+  const enabled = Array.isArray(enabledDevices) ? enabledDevices : [];
+  let next = null;
+  for (const [src, requiredDevice] of Object.entries(SOURCE_REQUIRES_DEVICE)) {
+    if (!enabled.includes(requiredDevice) && cur[src] !== false) {
+      if (!next) next = { ...cur };
+      next[src] = false;
+    }
+  }
+  return next || cur;
+}
+
 // Phase 5.6 — vérifie qu'une source est activée dans availableSources.
 // availableSources = { [srcId]: boolean } (cf. profile.availableSources).
 // - Si la source est explicitement false → bloquée.
@@ -245,4 +273,5 @@ export {
   getSourceInfo,
   isSourceAvailable,
   cascadeAvailableSources,
+  effectiveAvailableSources,
 };

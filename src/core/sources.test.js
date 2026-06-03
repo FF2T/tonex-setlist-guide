@@ -6,6 +6,7 @@ import {
   getSourceBadge, getSourceInfo, isSourceAvailable,
   cascadeAvailableSources, DEVICE_ENABLES_SOURCES,
   DEVICE_DISABLES_SOURCES, SOURCE_REQUIRES_DEVICE,
+  effectiveAvailableSources,
 } from './sources.js';
 
 describe('SOURCE_IDS — liste canonique', () => {
@@ -288,5 +289,78 @@ describe('Phase 7.74.10 — cascade availableSources au toggle device', () => {
     expect(cleaned.Factory).toBe(false);
     expect(cleaned.FactoryV1).toBe(false);
     expect(cleaned.Anniversary).toBe(true); // pas touché
+  });
+});
+
+// Phase 9.7.43 — effectiveAvailableSources (device-gated)
+describe('effectiveAvailableSources — Phase 9.7.43 (device-gated)', () => {
+  test('scénario bug Optimiseur (03/06) : Anniversary-only, Factory true → forcé false', () => {
+    // Sébastien : enabledDevices = anniversary + plug, PAS tonex-pedal.
+    // availableSources.Factory = true (jamais décoché car jamais activé).
+    const raw = { Factory: true, Anniversary: true, PlugFactory: true, TSR: true };
+    const eff = effectiveAvailableSources(raw, ['tonex-anniversary', 'tonex-plug']);
+    expect(eff.Factory).toBe(false);      // device requis (tonex-pedal) absent
+    expect(eff.FactoryV1).toBe(false);    // idem (forcé même si absent du raw)
+    expect(eff.Anniversary).toBe(true);   // device présent → préservé
+    expect(eff.PlugFactory).toBe(true);   // device présent → préservé
+    expect(eff.TSR).toBe(true);           // pas de device requis → intact
+  });
+
+  test('Factory undefined + tonex-pedal absent → forcé false (le cas réel : jamais coché)', () => {
+    const raw = { Anniversary: true };
+    const eff = effectiveAvailableSources(raw, ['tonex-anniversary']);
+    expect(eff.Factory).toBe(false);
+    expect(eff.FactoryV1).toBe(false);
+    expect(eff.PlugFactory).toBe(false);
+  });
+
+  test('tonex-pedal activé → Factory respecte la valeur user (true)', () => {
+    const raw = { Factory: true };
+    const eff = effectiveAvailableSources(raw, ['tonex-pedal']);
+    expect(eff.Factory).toBe(true);
+  });
+
+  test('tonex-pedal activé mais Factory user-décoché → reste false', () => {
+    const raw = { Factory: false };
+    const eff = effectiveAvailableSources(raw, ['tonex-pedal']);
+    expect(eff.Factory).toBe(false);
+  });
+
+  test('identité préservée si aucun device manquant ne change une source (perf)', () => {
+    // Tous les devices présents → rien à forcer.
+    const raw = { Factory: true, Anniversary: true, PlugFactory: true };
+    const eff = effectiveAvailableSources(raw, ['tonex-pedal', 'tonex-anniversary', 'tonex-plug']);
+    expect(eff).toBe(raw);
+  });
+
+  test('identité préservée si les sources device-gated sont déjà false', () => {
+    const raw = { Factory: false, FactoryV1: false, Anniversary: false, PlugFactory: false };
+    const eff = effectiveAvailableSources(raw, []);
+    expect(eff).toBe(raw);
+  });
+
+  test('enabledDevices absent/non-array → traité comme aucun device (tout device-gated forcé false)', () => {
+    expect(effectiveAvailableSources({ Factory: true }, undefined).Factory).toBe(false);
+    expect(effectiveAvailableSources({ Factory: true }, null).Factory).toBe(false);
+  });
+
+  test('availableSources null/undefined → pas de crash, force les sources device-gated absentes', () => {
+    // null + tonex-pedal seul → Anniversary & PlugFactory (devices absents) forcés false
+    expect(effectiveAvailableSources(null, ['tonex-pedal'])).toEqual({
+      Anniversary: false, PlugFactory: false,
+    });
+    // undefined + aucun device → les 4 sources device-gated forcées false
+    expect(effectiveAvailableSources(undefined, [])).toEqual({
+      Anniversary: false, Factory: false, FactoryV1: false, PlugFactory: false,
+    });
+  });
+
+  test('sources sans device requis (TSR, ML, ToneNET, custom) jamais touchées', () => {
+    const raw = { TSR: true, ML: false, ToneNET: true, custom: true };
+    const eff = effectiveAvailableSources(raw, []);
+    expect(eff.TSR).toBe(true);
+    expect(eff.ML).toBe(false);
+    expect(eff.ToneNET).toBe(true);
+    expect(eff.custom).toBe(true);
   });
 });
