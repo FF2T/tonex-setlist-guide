@@ -934,33 +934,37 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 };
                 return (
                   <div style={{ marginBottom: 6 }}>
-                    {/* Phase 7.83 final8 (2026-05-27) — inverse amp ↔ preset
-                        cohérent avec la vue repliée. AMP encadré (ce que tu
-                        joues vraiment) + preset name à côté en mono dim. */}
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(12px, 1.35vw, 14px)' }}>
-                      {/* Phase 7.85 — flexWrap + retrait truncate sur les 2 spans
-                          enfants : mobile <430px les 2 labels (amp encadré + preset
-                          name) passent sur 2 lignes au lieu de tronquer à 96/109px
-                          chacun (rapport Cowork B02 P0). Desktop reste sur 1 ligne
-                          tant que la place le permet. wordBreak break-word pour
-                          gérer les noms de capture très longs sans déborder. */}
-                      <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        {entry?.amp
-                          ? <span style={{ ...compatLabelStyle(idealScore), wordBreak: 'break-word' }}>{entry.amp}</span>
-                          : <span style={{ ...compatLabelStyle(idealScore), wordBreak: 'break-word' }}>{displayPresetName}</span>}
-                        {entry?.amp && (
-                          <span style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', fontSize: 'clamp(9px, 1.05vw, 11px)', wordBreak: 'break-word' }} title={displayPresetName}>{displayPresetName}</span>
-                        )}
-                        <span style={{ marginLeft: 2, flexShrink: 0 }}>
-                          <CurationDot name={displayPresetName} onClick={(n) => setCurationModalPreset(n)}/>
-                        </span>
-                      </span>
-                      {idealScore > 0 && <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(idealScore), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(11px, 1.25vw, 13px)' }}>{idealScore}%</span>}
+                    {/* v9.7.26 — Restructure en 3 LIGNES claires :
+                          L1 : cadre vert amp (étiré pleine largeur) + pill score
+                          L2 : nom technique preset + pack + CurationDot
+                          L3 : état installation + bouton installer
+                        Cohérence avec demande Sébastien : homogénéité cadres
+                        + hiérarchie verticale lisible. */}
+                    {/* Ligne 1 : cadre amp étiré + score */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 'clamp(12px, 1.35vw, 14px)' }}>
+                      <span style={{ ...compatLabelStyle(idealScore), flex: 1, wordBreak: 'break-word', minWidth: 0 }}>{entry?.amp || displayPresetName}</span>
+                      {idealScore > 0 && <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(idealScore), padding: '4px 10px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 48, textAlign: 'center', fontSize: 'clamp(11px, 1.25vw, 13px)' }}>{idealScore}%</span>}
                     </div>
-                    <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    {/* Ligne 2 : nom tech mono dim + pack + CurationDot */}
+                    {(() => {
+                      const si = getSourceInfo(entry);
+                      const hasTechName = !!entry?.amp;  // le nom tech n'a de sens que si différent de l'amp
+                      if (!hasTechName && !si) return null;
+                      return (
+                        <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 3, color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          {hasTechName && <span style={{ fontFamily: 'var(--font-mono)', wordBreak: 'break-word' }} title={displayPresetName}>{displayPresetName}</span>}
+                          {hasTechName && si && <span>·</span>}
+                          {si && <span style={{ wordBreak: 'break-word' }}>{si.label}</span>}
+                          <span style={{ marginLeft: 2, flexShrink: 0 }}>
+                            <CurationDot name={displayPresetName} onClick={(n) => setCurationModalPreset(n)}/>
+                          </span>
+                        </div>
+                      );
+                    })()}
+                    {/* Ligne 3 : état installation + bouton installer */}
+                    <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       {loc ? <span style={{ color: 'var(--green)' }}>{tFormat('song-detail.installed-bank', { bank: loc.bank, slot: loc.slot }, '✓ Installé — Banque {bank}{slot}')}</span>
                         : <span style={{ color: 'var(--yellow)' }}>{t('song-detail.not-installed-flat', 'Non installé')}</span>}
-                      {(() => { const si = getSourceInfo(entry); return si ? <span style={{ color: loc ? 'var(--text-tertiary)' : 'var(--text-sec)' }}>· {si.label}</span> : null; })()}
                       {!loc && !installTarget && (canInstallAnn || canInstallPlug) && <button onClick={() => setInstallTarget({ preset: displayPresetName })} style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-sm)', padding: '2px 8px', cursor: 'pointer', fontWeight: 600, marginLeft: 'auto' }}>{t('song-detail.install', 'Installer')}</button>}
                     </div>
                     {installTarget?.preset === displayPresetName && (() => {
@@ -997,32 +1001,35 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                         const si = getSourceInfo(entry);
                         return (
                           <div key={i}>
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(11px, 1.25vw, 13px)' }}>
-                              {/* v9.7.25 — wrap au lieu de tronquer ellipsis.
-                                  Cohérence avec Scoring preset principal (ligne 949)
-                                  qui utilise wordBreak break-word + flexWrap wrap. */}
-                              <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                                {/* Phase 7.83 final8 — amp encadré (ce que tu joues),
-                                    preset name à côté en mono dim. */}
-                                {(() => {
-                                  const ampName = entry?.amp || p.amp;
-                                  if (ampName) {
-                                    return (
-                                      <>
-                                        <span style={{ ...compatLabelStyle(p.score), wordBreak: 'break-word' }}>{ampName}</span>
-                                        <span style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', fontSize: 'clamp(9px, 1.05vw, 11px)', wordBreak: 'break-word' }} title={p.name}>{p.name}</span>
-                                      </>
-                                    );
-                                  }
-                                  return <span style={{ ...compatLabelStyle(p.score), wordBreak: 'break-word' }}>{p.name}</span>;
-                                })()}
-                              </span>
-                              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(p.score), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(11px, 1.25vw, 13px)' }}>{p.score}%</span>
-                            </div>
-                            <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 1, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                            {/* v9.7.26 — Restructure en 3 LIGNES (cohérent avec
+                                Scoring preset principal) :
+                                  L1 : cadre amp étiré + score
+                                  L2 : nom tech mono + pack
+                                  L3 : état installation */}
+                            {(() => {
+                              const ampName = entry?.amp || p.amp;
+                              return (
+                                <>
+                                  {/* Ligne 1 : cadre étiré + score */}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 'clamp(11px, 1.25vw, 13px)' }}>
+                                    <span style={{ ...compatLabelStyle(p.score), flex: 1, wordBreak: 'break-word', minWidth: 0 }}>{ampName || p.name}</span>
+                                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(p.score), padding: '4px 10px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 48, textAlign: 'center', fontSize: 'clamp(11px, 1.25vw, 13px)' }}>{p.score}%</span>
+                                  </div>
+                                  {/* Ligne 2 : nom tech mono + pack */}
+                                  {(ampName || si) && (
+                                    <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 3, color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                      {ampName && <span style={{ fontFamily: 'var(--font-mono)', wordBreak: 'break-word' }} title={p.name}>{p.name}</span>}
+                                      {ampName && si && <span>·</span>}
+                                      {si && <span style={{ wordBreak: 'break-word' }}>{si.label}</span>}
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            })()}
+                            {/* Ligne 3 : état installation */}
+                            <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                               {loc ? <span style={{ color: 'var(--green)' }}>{tFormat('song-detail.installed-bank', { bank: loc.bank, slot: loc.slot }, '✓ Installé — Banque {bank}{slot}')}</span>
                                 : <span style={{ color: 'var(--yellow)' }}>{t('song-detail.not-installed-flat', 'Non installé')}</span>}
-                              {si && <span style={{ color: loc ? 'var(--text-tertiary)' : 'var(--text-sec)' }}>· {si.label}</span>}
                             </div>
                           </div>
                         );
