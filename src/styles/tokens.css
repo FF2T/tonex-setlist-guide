@@ -101,7 +101,11 @@
 
   --text-primary:   #1a130d;
   --text-secondary: #4e3713;
-  --text-tertiary:  #8a7a5e;
+  /* v9.7.30 — Cowork audit P0-A : ancien #8a7a5e donnait 3.71:1 sur
+     fond crème (échec WCAG AA 4.5:1). Foncé à #6b5d44 → ~5:1, AA OK.
+     Préserve la hiérarchie visuelle (text-secondary plus foncé reste
+     distinct, text-primary toujours le plus sombre). */
+  --text-tertiary:  #6b5d44;
   --text-inverse:   #fbf5e6;
 
   --accent:       #6e4f1b;

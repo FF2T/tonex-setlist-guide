@@ -678,7 +678,12 @@ function ListScreen({
           <option value="artist">{t('list.sort-artist', 'Par artiste')}</option>
           <option value="alpha">{t('list.sort-alpha', 'A → Z')}</option>
         </select>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+        {/* v9.7.30 — Cowork audit P0-B : à 375px (iPhone mini), la toolbar
+            (Guitares · Éditer · Analyser/MAJ N · +) totalisait ~411px sur
+            369px utiles → bouton + sortait du viewport sans scroll horiz
+            possible. flexWrap permet aux boutons de wrap sur 2 lignes
+            au lieu de déborder. Sur ≥393px tout rentre déjà sur 1 ligne. */}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {activeSongs.length > 0 && <button onClick={() => setShowTopGuitars(!showTopGuitars)} style={{ fontSize: 10, color: showTopGuitars ? 'var(--accent)' : 'var(--text-muted)', background: showTopGuitars ? 'var(--accent-bg)' : 'var(--a5)', border: '1px solid ' + (showTopGuitars ? 'var(--accent-border)' : 'var(--a10)'), borderRadius: 'var(--r-sm)', padding: '3px 8px', cursor: 'pointer', whiteSpace: 'nowrap' }}>{t('list.guitars', 'Guitares')}</button>}
           {/* Phase 7.71 — Mode édition setlist : révèle la corbeille
               individuelle 🗑 par morceau. Visible uniquement quand une
