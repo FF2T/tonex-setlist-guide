@@ -380,13 +380,14 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         {cotInRig.map((gt, i) => (
           <div key={i}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(12px, 1.35vw, 14px)' }}>
-              <span style={{ ...compatLabelStyle(gt.score), flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{(() => {
+              <span style={{ ...compatLabelStyle(gt.score), flex: 1, wordBreak: 'break-word', minWidth: 0 }}>{(() => {
                 // v9.7.6 (audit Cowork P0-05 résiduel) — résoudre le nom court
-                // depuis le rig pour éviter la troncature ellipsis sur mobile
-                // (ex. "Gibson SG Standard '61" → "SG '61"). Fallback nom IA
-                // si pas de match (guitare custom mal nommée par l'IA).
+                // v9.7.22 — nom COMPLET (matched.name) au lieu de matched.short.
+                // Sébastien préfère "Gibson SG Standard '61" complet vs
+                // "SG '61" tronqué. Le cleanGuitarName fallback strip
+                // toujours les "(HB)/(SC)/(P90)" si IA mal nommé.
                 const matched = findGuitarByAIName(gt.name, guitars);
-                return matched?.short || cleanGuitarName(gt.name);
+                return matched?.name || cleanGuitarName(gt.name);
               })()}</span>
               <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(gt.score), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(11px, 1.25vw, 13px)' }}>{gt.score}%</span>
             </div>
@@ -444,7 +445,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           <div style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', color: 'var(--text-muted)' }}>
             {rigStale
               ? t('song-detail.rig-stale-analyzing', 'Analyse précédente faite avec un autre rig — recalcul pour ton matériel…')
-              : tFormat('song-detail.analyzing', { guitar: g?.short || t('song-detail.this-guitar', 'cette guitare') }, 'Analyse en cours pour {guitar}...')}
+              : tFormat('song-detail.analyzing', { guitar: g?.name || t('song-detail.this-guitar', 'cette guitare') }, 'Analyse en cours pour {guitar}...')}
           </div>
         </div>
       )}
@@ -540,7 +541,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
           {g && chosenGuitarScore != null && (() => {
             const isIdeal = ig.includes(gId);
             if (isIdeal || ig.length === 0) return null;
-            const alternativesList = ig.map((i) => guitars.find((x) => x.id === i)?.short || GUITARS.find((x) => x.id === i)?.short).filter(Boolean).join(', ');
+            const alternativesList = ig.map((i) => guitars.find((x) => x.id === i)?.name || GUITARS.find((x) => x.id === i)?.name).filter(Boolean).join(', ');
             if (!alternativesList) return null;
             return (
               <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 2 }}>
@@ -855,7 +856,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'clamp(12px, 1.35vw, 14px)' }}>
                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                       <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>{t('song-detail.guitar-label', 'Guitare ')}</span>
-                      <span style={{ ...compatLabelStyle(idealGuitarScore || 100), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{cleanGuitarName(displayIdealGuitarName)}</span>
+                      <span style={{ ...compatLabelStyle(idealGuitarScore || 100), wordBreak: 'break-word', minWidth: 0 }}>{cleanGuitarName(displayIdealGuitarName)}</span>
                     </div>
                     {idealGuitarScore != null && idealGuitarScore > 0 && <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(idealGuitarScore), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(11px, 1.25vw, 13px)' }}>{idealGuitarScore}%</span>}
                   </div>

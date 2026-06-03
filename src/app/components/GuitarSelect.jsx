@@ -66,17 +66,17 @@ function GuitarSelect({ value, onChange, ig = [], guitars = GUITARS, hideStatusT
           // Vague B (2026-05-28) — en mode `plain` (SongDetailCard), pas de ★
           // dans les options : le pill score à droite indique déjà l'idéale.
           // Legacy (RecapScreen, sans pill) garde le ★.
-          // Audit Cowork v9.7.4 (P0-04) — en mode plain, utilise le nom court
-          // (x.short) si dispo : le select natif iOS tronque "Gibson SG Standard
-          // '61" en "Gibso" car la zone visible est étroite (pill score à droite
-          // + flèche du select). "SG '61" tient sans troncature.
-          <option key={x.id} value={x.id}>{!plain && ig.includes(x.id) ? '★ ' : ''}{plain ? (x.short || x.name) : x.name}</option>
+          // v9.7.22 (revert Phase 7.85 P0-04) — nom COMPLET (x.name) en mode
+          // plain aussi. Sébastien préfère "Gibson SG Standard '61" complet
+          // au "SG '61" tronqué. Si troncature iOS revient, on traitera côté
+          // styling (select wider / wrap text).
+          <option key={x.id} value={x.id}>{!plain && ig.includes(x.id) ? '★ ' : ''}{x.name}</option>
         ))}
       </select>
       {!hideStatusText && ideal && <div style={{ fontSize: 11, color: 'var(--green)' }}>{t('guitar-select.ideal', '✓ Choix optimal')}</div>}
       {!hideStatusText && warn && g && (
         <div style={{ fontSize: 11, color: 'var(--yellow)' }}>
-          {tFormat('guitar-select.warn', { list: ig.map((i) => guitars.find((x) => x.id === i)?.short || GUITARS.find((x) => x.id === i)?.short).filter(Boolean).join(', ') }, '⚠️ Idéalement : {list}')}
+          {tFormat('guitar-select.warn', { list: ig.map((i) => guitars.find((x) => x.id === i)?.name || GUITARS.find((x) => x.id === i)?.name).filter(Boolean).join(', ') }, '⚠️ Idéalement : {list}')}
         </div>
       )}
     </div>
