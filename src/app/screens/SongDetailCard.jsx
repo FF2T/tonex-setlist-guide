@@ -227,6 +227,13 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   // rigStale faux positif sur les caches stockés.
   const currentRigSnapshot = computeRigSnapshot(guitars || GUITARS);
   const rigStale = song.aiCache?.rigSnapshot && song.aiCache.rigSnapshot !== currentRigSnapshot;
+  // v9.7.34 — Levier 1 mono-langue : si l'aiCache a été calculé dans
+  // une autre langue que celle active (profile.language), re-fetch. Les
+  // aiCache pré-v9.7.34 n'ont pas _locale → considérés trilingues legacy,
+  // pas de re-fetch (getLocalizedText sait piocher l'objet trilingue).
+  const cachedLocale = song.aiCache?.result?._locale;
+  const currentLocale = profile?.language || 'fr';
+  const localeStale = cachedLocale && cachedLocale !== currentLocale;
   // Phase 8.x (2026-05-27) — bassStale : l'aiCache existe mais n'a pas
   // de bass_recommendation alors que l'user a au moins une basse OU un
   // ampli basse coché. Cas typique : aiCache calculé avant le fix Phase
@@ -253,8 +260,8 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
 
   useEffect(() => {
     if (isDemo) return; // Phase 7.51.2 — pas de fetchAI en mode démo.
-    if (localAiResult && !needsRescore && !rigStale && !bassStale) return;
-    if (song.aiCache?.result?.cot_step1 && gId && !rigStale && !bassStale) {
+    if (localAiResult && !needsRescore && !rigStale && !bassStale && !localeStale) return;
+    if (song.aiCache?.result?.cot_step1 && gId && !rigStale && !bassStale && !localeStale) {
       const gType = (guitars || GUITARS).find((x) => x.id === gId)?.type || 'HB';
       const cleaned2 = { ...song.aiCache.result, preset_ann: null, preset_plug: null, ideal_preset: null, ideal_preset_score: 0, ideal_top3: null };
       const recalc = enrichAIResult(cleaned2, gType, gId, banksAnn, banksPlug, undefined, song);
@@ -295,7 +302,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
       .catch((e) => { setLocalAiErr(e?.message || String(e)); })
       .finally(() => setReloading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [song.id, gId, needsRescore, rigStale, bassStale, isDemo]);
+  }, [song.id, gId, needsRescore, rigStale, bassStale, localeStale, isDemo]);
 
   const handleGuitarChange = (v) => {
     setGId(v);

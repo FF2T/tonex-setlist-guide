@@ -375,9 +375,15 @@ function ListScreen({
   // à part par le ··· pending). Sert au badge bandeau + bouton recalcul ciblé.
   const fpStaleReasons = (s) => (s.aiCache
     ? diffAnalysisFingerprint(s.aiCache.fingerprint, currentFingerprint) : []);
+  // v9.7.34 — Levier 1 mono-langue : aiCache stamped _locale différent
+  // de la locale active = stale (re-fetch dans la bonne langue).
+  const currentLocale = profile?.language || 'fr';
   const isStaleSong = (s) => {
     if (!s.aiCache) return true;
     if (s.aiCache.rigSnapshot && s.aiCache.rigSnapshot !== currentRigSnapshot) return true;
+    // v9.7.34 — locale stale (user a switché FR↔EN↔ES).
+    const cachedLocale = s.aiCache.result?._locale;
+    if (cachedLocale && cachedLocale !== currentLocale) return true;
     // Phase 9.9 — profil modifié depuis l'analyse (sources/amplis/pédales/
     // instruments/recoMode) OU analyse antérieure à la feature (legacy).
     if (fpStaleReasons(s).length > 0) return true;
@@ -392,7 +398,7 @@ function ListScreen({
   };
   const missingCount = useMemo(() => (activeSongs || []).filter(isStaleSong).length,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeSongs, currentRigSnapshot, userHasBassRig, currentFingerprint]);
+    [activeSongs, currentRigSnapshot, userHasBassRig, currentFingerprint, currentLocale]);
   // v9.7.8 — estimation de durée affichée dans les boutons de recalcul
   // (toolbar + bandeau Phase 9.9). Base : ~40s par morceau (v9.7.33 :
   // bumpé de 8s à 40s suite mesure réelle 5 morceaux en 3min30 = 42s/morceau).

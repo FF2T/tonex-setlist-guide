@@ -25,6 +25,29 @@ import {
 } from './ai-helpers.js';
 import { getSharedGeminiKey } from './shared-key.js';
 import { findArtistsByBand, getEra, getCurrentEra } from '../../core/artists.js';
+import { getLocale } from '../../i18n/index.js';
+
+// v9.7.34 — Levier 1 mono-langue : transform regex post-construction
+// du prompt. Tous les `{"fr":"X","en":"Y","es":"Z"}` deviennent `"X"`,
+// `"Y"` ou `"Z"` selon la locale active. Gain ~55% sur tokens output
+// (~40s → ~18s par fetch Gemini Flash). Le user qui switch FR↔EN
+// invalide ses aiCaches (re-fetch via localeStale dans SongDetailCard).
+// Cas rare en pratique : Sébastien FR, Francisco ES, Paul Drew EN —
+// chacun reste sur sa langue.
+//
+// Le regex match `[^"]*` simple : aucun escape `\"` n'apparaît dans
+// les exemples du prompt actuel (descriptions courtes sans guillemets
+// internes, virgules OK car capture group s'arrête au `"` suivant).
+function localizeTrilingual(prompt, locale) {
+  const idx = locale === 'en' ? 2 : locale === 'es' ? 3 : 1;
+  return prompt.replace(
+    /\{"fr":"([^"]*)","en":"([^"]*)","es":"([^"]*)"\}/g,
+    (_match, fr, en, es) => {
+      const value = idx === 1 ? fr : idx === 2 ? en : es;
+      return JSON.stringify(value);
+    },
+  );
+}
 
 // Phase 7.31 — Construit une section "CAPTURES INSTALLÉES" listant les slots
 // non vides des banks avec leur metadata catalog (amp/style/gain). Sans ça,
@@ -134,6 +157,13 @@ function fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, fe
   guitars = guitars || GUITARS;
   const g = guitars.find((x) => x.id === gId);
   const gType = g?.type || 'HB';
+  // v9.7.34 — Levier 1 mono-langue : générer dans la locale active uniquement.
+  const targetLocale = (() => {
+    try { return getLocale(); } catch { return 'fr'; }
+  })();
+  const localeName = targetLocale === 'en' ? 'anglais (English)'
+    : targetLocale === 'es' ? 'espagnol (Español)'
+    : 'français';
   const feedbackLine = feedback
     ? `\nREMARQUE IMPORTANTE DE L'UTILISATEUR : "${feedback}". Prends en compte cette remarque pour ajuster ta réponse.`
     : '';
@@ -293,7 +323,7 @@ function fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, fe
     const p = findGuitarProfile(x.id);
     return `- ${x.name} (${x.type}) : ${p ? p.desc : 'profil inconnu'}`;
   }).join('\n');
-  const prompt = `Expert guitare ToneX. Tu génères les textes en TROIS langues (français, anglais, espagnol) pour permettre à l'app de servir le user dans sa langue préférée.
+  const prompt = `Expert guitare ToneX. Tu génères TOUS les champs textuels (descriptions, justifications, conseils) en ${localeName} UNIQUEMENT. Pas d'objets multilingues — chaque champ texte est une string simple dans cette langue.
 Morceau : "${song.title}" de "${song.artist}".
 Guitare sélectionnée : ${g ? g.name + ' (' + g.type + ')' : 'non précisée'}.
 
@@ -571,8 +601,8 @@ Tutoie systématiquement l'utilisateur dans TOUS les champs texte (cot_step1, co
 
 À ÉVITER ABSOLUMENT : tout mélange tu/vous dans une même phrase (ex : "Tu peux pousser les mids ; réglez le volume à 5" est interdit — doit être "Tu peux pousser les mids ; règle le volume à 5").
 
-OUTPUT TRILINGUE — Format des champs texte :
-Les champs marqués "TEXTE TRILINGUE" ci-dessous DOIVENT être un objet à 3 clés {"fr":"...","en":"...","es":"..."} avec la même information traduite dans chaque langue. Garde le sens et le niveau de détail constant entre les 3 versions. Les NOMS PROPRES (noms d'artistes, modèles d'amplis "Marshall JCM800", noms de guitares "Stratocaster '62", titres de morceaux) restent identiques dans les 3 langues. Les autres champs (noms, scores numériques, énums) restent des valeurs scalaires.
+OUTPUT MONO-LANGUE (${localeName}) — Format des champs texte :
+Les champs marqués "TEXTE" ci-dessous DOIVENT être des strings simples en ${localeName}. PAS d'objets multilingues — juste "..." en ${localeName}. Les NOMS PROPRES (noms d'artistes, modèles d'amplis "Marshall JCM800", noms de guitares "Stratocaster '62", titres de morceaux) restent en orthographe originale. Les autres champs (noms, scores numériques, énums) restent des valeurs scalaires.
 
 Réponds en JSON pur (sans backticks ni markdown) :
 {"cot_step1":{"fr":"3-5 phrases analysant le profil tonal","en":"3-5 sentences analyzing the tonal profile","es":"3-5 frases analizando el perfil tonal"},"cot_step2_guitars":[{"name":"nom exact guitare","score":85,"reason":{"fr":"justification","en":"justification","es":"justificación"},"controls":{"selector":"Position 4 (manche+intermédiaire) ou '' si mono-micro/N.A.","knobs":[{"name":"Volume","value":"8"},{"name":"Tone (manche)","value":"7"}],"why":{"fr":"...","en":"...","es":"..."}}},{"name":"2e guitare","score":75,"reason":{"fr":"...","en":"...","es":"..."},"controls":{"selector":"position selon modèle ou ''","knobs":[{"name":"Volume","value":"7"},{"name":"Tone","value":"7"}],"why":{"fr":"...","en":"...","es":"..."}}}],"cot_step3_amp":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"cot_step4_score":{"guitar_score":85,"micro":{"score":90,"reason":{"fr":"...","en":"...","es":"..."}},"body":{"score":80,"reason":{"fr":"...","en":"...","es":"..."}},"history":{"score":95,"reason":{"fr":"...","en":"...","es":"..."}},"amp_match":{"score":85,"reason":{"fr":"...","en":"...","es":"..."}}},"song_year":1970,"song_album":"album","song_desc":{"fr":"2-3 phrases","en":"2-3 sentences","es":"2-3 frases"},"song_key":"Em","song_bpm":120,"song_style":"blues/rock/hard_rock/jazz/metal/pop","target_gain":5,"tonal_school":"fender_clean/marshall_crunch/vox_chime/dumble_smooth/mesa_heavy/hiwatt_clean","pickup_preference":"HB/SC/P90/any","ideal_guitar":"nom complet guitare idéale","guitar_reason":{"fr":"...","en":"...","es":"..."},"settings_preset":{"fr":"conseils","en":"settings","es":"ajustes"},"settings_guitar":{"fr":"conseils de jeu","en":"playing tips","es":"consejos de juego"},"ref_guitarist":"guitariste","ref_guitar":"modèle guitare","ref_amp":"modèle ampli","ref_effects":"effets ou 'Aucun effet'","preset_tmp":"nom exact patch TMP OU null","preset_ann_name":"nom EXACT capture OU null","preset_plug_name":"nom EXACT capture OU null","preset_settings_v1":{"cab_enabled":true,"main":{"gain":{"value":6.2,"why":{"fr":"...","en":"...","es":"..."}},"bass":{"value":4.5,"why":{"fr":"...","en":"...","es":"..."}},"mid":{"value":7.0,"why":{"fr":"...","en":"...","es":"..."}},"treble":{"value":5.3,"why":{"fr":"...","en":"...","es":"..."}},"volume":{"value":6.0,"why":{"fr":"...","en":"...","es":"..."}}},"alt":{"presence":{"value":4.7,"why":{"fr":"...","en":"...","es":"..."}},"depth":{"value":5.0,"why":{"fr":"...","en":"...","es":"..."}},"reverb_mix":{"value":16,"why":{"fr":"...","en":"...","es":"..."}},"comp_threshold":{"value":-18,"why":{"fr":"...","en":"...","es":"..."}},"gate_threshold":{"value":-56,"why":{"fr":"...","en":"...","es":"..."}}},"why":{"fr":"...","en":"...","es":"..."},"tweaks":[{"symptom":{"fr":"trop brillant sur FRFR","en":"too bright on FRFR","es":"demasiado brillante en FRFR"},"fix":"Treble -0.5 + Presence -0.3"},{"symptom":{"fr":"noyé dans le mix groupe","en":"buried in band mix","es":"enterrado en la mezcla"},"fix":"Mid +0.5 + Volume +0.3"}]},"playing_hints":{"pickup":"Bridge","guitar_volume":"8-10","guitar_tone":"10 (open)","stereo":false},"fx_blocks":{"noise_gate":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}},"compressor":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}},"modulation":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}},"delay":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}},"reverb":{"enabled":true,"type":"Spring 2","time":2,"pre_delay":5,"color":0,"mix":10,"why":{"fr":"...","en":"...","es":"..."}}},"bass_recommendation":null,"guitar_amp_settings":null,"pedalboard_settings":[]} (note : cab_enabled DOIT être true ; CHAQUE knob doit avoir value+why trilingue Phase 7.86 ; tweaks = MIN 3 MAX 8 ajustements empiriques spécifiques au morceau Phase 9.4/9.4.1 ; playing_hints = 4 champs scalaires Phase 9.5 ; fx_blocks Phase 9.2 N1 + Phase 9.7 N2 = 5 blocs avec enabled bool + type/mode enum + sub-params numériques quand enabled=true + why trilingue par bloc ; bass_recommendation = null si user ne joue PAS la basse, SINON objet complet ÉTAPE 8 — exemple ci-dessous ; guitar_amp_settings = null SAUF si la section AMPLIS GUITARE TRADITIONNELS apparaît, alors objet {amp, channel, settings:{<potard>:0-10}, why trilingue} ; pedalboard_settings = [] SAUF si la section PÉDALIER PHYSIQUE apparaît, alors tableau [{pedal, enabled, settings:{<potard>:0-10}, why trilingue}] des pédales pertinentes)
@@ -580,7 +610,7 @@ Réponds en JSON pur (sans backticks ni markdown) :
 Exemple bass_recommendation (vague B) quand l'user joue la basse — fournis cot_step2_basses + bass_alternatives TOUJOURS, bass_preset_settings_v1 + bass_fx_blocks seulement si capture_name non-null :
 {"ideal_bass":"Fender Precision Bass American Vintage II","bass_reason":{"fr":"...","en":"...","es":"..."},"ref_bassist":"John Deacon","ref_bass_guitar":"Fender Precision Bass","ref_bass_amp":"Ampeg SVT","ref_bass_effects":"Aucun effet","capture_name":"BS SVT","cot_step2_basses":[{"name":"Fender Precision Bass American Vintage II","score":92,"reason":{"fr":"...","en":"...","es":"..."},"controls":{"selector":"'' (Precision = 1 micro split)","knobs":[{"name":"Volume","value":"8"},{"name":"Tone","value":"6"}],"why":{"fr":"...","en":"...","es":"..."}}},{"name":"Fender Jazz Bass Player Plus","score":80,"reason":{"fr":"...","en":"...","es":"..."},"controls":{"selector":"","knobs":[{"name":"Volume manche","value":"8"},{"name":"Volume chevalet","value":"6"},{"name":"Tone","value":"7"}],"why":{"fr":"...","en":"...","es":"..."}}}],"bass_alternatives":[{"name":"BS SVT","amp":"Ampeg SVT","score":91},{"name":"TSR GK MBS150","amp":"GK Bass","score":74}],"amp_settings":{"gain":5,"bass":6,"low_mid":6,"high_mid":5,"treble":4,"master":6,"channel":"Clean"},"settings_bass":{"fr":"...","en":"...","es":"..."},"bass_preset_settings_v1":{"cab_enabled":true,"main":{"gain":{"value":4,"why":{"fr":"...","en":"...","es":"..."}},"bass":{"value":6,"why":{"fr":"...","en":"...","es":"..."}},"mid":{"value":5,"why":{"fr":"...","en":"...","es":"..."}},"treble":{"value":4,"why":{"fr":"...","en":"...","es":"..."}},"volume":{"value":6,"why":{"fr":"...","en":"...","es":"..."}}},"alt":{"presence":{"value":4,"why":{"fr":"...","en":"...","es":"..."}},"depth":{"value":6,"why":{"fr":"...","en":"...","es":"..."}},"reverb_mix":{"value":0,"why":{"fr":"...","en":"...","es":"..."}},"comp_threshold":{"value":-20,"why":{"fr":"...","en":"...","es":"..."}},"gate_threshold":{"value":-60,"why":{"fr":"...","en":"...","es":"..."}}},"why":{"fr":"...","en":"...","es":"..."}},"bass_fx_blocks":{"noise_gate":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}},"compressor":{"enabled":true,"threshold":-18,"gain":2,"attack":12,"why":{"fr":"...","en":"...","es":"..."}},"modulation":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}},"delay":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}},"reverb":{"enabled":false,"why":{"fr":"...","en":"...","es":"..."}}}}
 
-Champs TEXTE TRILINGUE (à fournir en {fr, en, es}) :
+Champs TEXTE (à fournir comme strings simples en ${localeName}) :
 - cot_step1, cot_step3_amp, song_desc, guitar_reason, settings_preset, settings_guitar
 - cot_step2_guitars[].reason
 - cot_step2_guitars[].controls.why (Phase 9.8 — réglages micros par guitare)
@@ -622,6 +652,10 @@ Contraintes :
 - ideal_guitar : DOIT être une guitare de la collection
 - song_key : notation anglaise (Em, A, Bb, F#m)
 - target_gain : 0-10`;
+  // v9.7.34 — Levier 1 mono-langue : transform tous les objets trilingues
+  // `{"fr":...,"en":...,"es":...}` du prompt en strings simples selon
+  // targetLocale. ~55% de tokens output économisés sur Gemini.
+  const localizedPrompt = localizeTrilingual(prompt, targetLocale);
   // S9.11 — Routing provider qui respecte aiProvider explicitement.
   // Avant : `provider = (aiKeys.gemini || defaultKey) ? 'gemini' : 'anthropic'`
   // ignorait le param et préférait toujours Gemini si une clé Gemini était
@@ -644,7 +678,7 @@ Contraintes :
       ? fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${key}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 8192 } }),
+        body: JSON.stringify({ contents: [{ parts: [{ text: localizedPrompt }] }], generationConfig: { maxOutputTokens: 8192 } }),
       })
         .then((r) => r.json())
         .then((d) => {
@@ -662,7 +696,7 @@ Contraintes :
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 4096,
-          messages: [{ role: 'user', content: prompt }],
+          messages: [{ role: 'user', content: localizedPrompt }],
         }),
       })
         .then((r) => r.json())
@@ -670,7 +704,14 @@ Contraintes :
           if (d.error) throw new Error(d.error.message || d.error.type);
           return parse(d.content?.map((i) => i.text || '').join('') || '');
         });
-    return req.then((r) => enrichAIResult(r, gType, gId, banksAnn, banksPlug, availableSources, song));
+    return req.then((r) => {
+      const enriched = enrichAIResult(r, gType, gId, banksAnn, banksPlug, availableSources, song);
+      // v9.7.34 — Stamp locale dans le result IA pour détection localeStale
+      // côté UI (SongDetailCard / ListScreen). Si l'aiCache est calculé en
+      // FR puis le user switche en EN, le re-fetch est déclenché.
+      if (enriched && typeof enriched === 'object') enriched._locale = targetLocale;
+      return enriched;
+    });
   };
   // S9.17 — Retry automatique sur rate limit Gemini (429 / quota exceeded).
   // Gemini free tier = 20 RPM par projet, fenêtre 60s. Le message
