@@ -23,6 +23,7 @@ import ProfilesAdmin from './ProfilesAdmin.jsx';
 import AllUserPresetsTab from './AllUserPresetsTab.jsx';
 import AdminPacksTab from './AdminPacksTab.jsx';
 import ToneNetTab from './ToneNetTab.jsx';
+import ArtistsAdminTab from './ArtistsAdminTab.jsx';
 import { getSharedGeminiKey, setSharedGeminiKey } from '../utils/shared-key.js';
 
 function AdminScreen({
@@ -34,6 +35,7 @@ function AdminScreen({
   guitarBias,
   toneNetPresets, onToneNetPresets, onDeletedToneNetIds,
   adminPacks, onAdminPacks,
+  sharedArtistsOverrides, onSharedArtistsOverrides,
   MaintenanceTabComponent,
   fullState, onImportState,
   onBack, onNavigate,
@@ -78,6 +80,7 @@ function AdminScreen({
         {tabBtn('alluserpresets', t('admin.tab.alluserpresets-flat', 'Tous presets users'), 'eye')}
         {tabBtn('adminpacks', t('admin.tab.adminpacks-flat', 'Packs admin'), 'package')}
         {tabBtn('tonenet', t('admin.tab.tonenet-flat', 'ToneNET'), 'globe')}
+        {tabBtn('artists', t('admin.tab.artists-flat', 'Artistes'), 'guitar')}
         {tabBtn('maintenance', t('admin.tab.maintenance-flat', 'Maintenance'), 'wrench')}
         {tabBtn('ia', t('admin.tab.ia-flat', 'Clé API partagée'), 'key')}
       </div>
@@ -106,6 +109,13 @@ function AdminScreen({
           onDeletedToneNetIds={onDeletedToneNetIds}
           inp={inp}
           songDb={songDb}
+        />
+      )}
+
+      {tab === 'artists' && (
+        <ArtistsAdminTab
+          sharedArtistsOverrides={sharedArtistsOverrides}
+          onSharedArtistsOverrides={onSharedArtistsOverrides}
         />
       )}
 

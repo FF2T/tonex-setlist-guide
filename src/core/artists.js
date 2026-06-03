@@ -11,6 +11,120 @@
 import { ARTISTS_SEED, BAND_TO_ARTIST_IDS } from '../data/artists.js';
 
 // ============================================================
+// Phase 13.4 — Cascade lookup avec overrides runtime
+// ============================================================
+//
+// Pattern Phase 7.79.3 : les helpers lisent
+//   1. ARTISTS_SEED (Phase 13.0 manual + Cowork v1/v2)
+//   2. shared.artistsOverrides (admin edits runtime via UI Phase 13.4)
+//
+// Les overrides sont posés par main.jsx via setArtistsRuntimeState()
+// au boot et à chaque pull Firestore. Tests Vitest stub un state vide
+// par défaut → helpers retombent sur ARTISTS_SEED.
+//
+// Structure shared.artistsOverrides :
+//   { [artistId]: Artist | null }
+//   - Artist : override (créé ou modifié)
+//   - null : delete override (le seed reprend la main si présent, sinon
+//     l'artiste disparaît du lookup)
+
+/** @type {Object<string, import('../data/artists.js').Artist | null> | null} */
+let _artistsRuntimeOverrides = null;
+
+/**
+ * Pose les overrides runtime ARTISTS (appelé par main.jsx au boot
+ * et à chaque pull Firestore).
+ *
+ * Le state attendu est :
+ *   { [artistId]: { artist: Artist|null, lastModified: number } }
+ *
+ * Pour la cascade lookup côté getEffectiveArtistsMap, on extrait
+ * uniquement le champ `artist` (ignore lastModified runtime).
+ *
+ * @param {Object<string, {artist: import('../data/artists.js').Artist | null, lastModified: number}> | null} stamped
+ */
+export function setArtistsRuntimeState(stamped) {
+  if (!stamped || typeof stamped !== 'object') {
+    _artistsRuntimeOverrides = null;
+    return;
+  }
+  const plain = {};
+  for (const [id, wrapper] of Object.entries(stamped)) {
+    if (wrapper && typeof wrapper === 'object' && 'artist' in wrapper) {
+      plain[id] = wrapper.artist;
+    }
+  }
+  _artistsRuntimeOverrides = plain;
+}
+
+/**
+ * Merge LWW per-item pour shared.artistsOverrides. Pattern identique
+ * à mergeUsagesOverridesLWW (Phase 7.79.3).
+ *
+ * Format : { [artistId]: { artist, lastModified } }
+ *
+ * @param {Object | null | undefined} local
+ * @param {Object | null | undefined} remote
+ * @returns {Object<string, {artist: import('../data/artists.js').Artist | null, lastModified: number}>}
+ */
+export function mergeArtistsOverridesLWW(local, remote) {
+  const safeLocal = (local && typeof local === 'object') ? local : {};
+  const safeRemote = (remote && typeof remote === 'object') ? remote : {};
+  const out = { ...safeLocal };
+  for (const [id, remoteEntry] of Object.entries(safeRemote)) {
+    if (!remoteEntry || typeof remoteEntry !== 'object') continue;
+    const localEntry = safeLocal[id];
+    const lts = (localEntry && typeof localEntry.lastModified === 'number') ? localEntry.lastModified : 0;
+    const rts = (typeof remoteEntry.lastModified === 'number') ? remoteEntry.lastModified : 0;
+    if (!localEntry || rts > lts) {
+      out[id] = remoteEntry;
+    }
+    // Égalité ts → keep local (stabilité)
+  }
+  return out;
+}
+
+/**
+ * Retourne la map effective ARTISTS_SEED + overrides runtime.
+ * Les overrides ont précédence sur le seed.
+ * - override.value = Artist → override actif
+ * - override.value = null → delete (l'entry du seed est masquée)
+ * @returns {Object<string, import('../data/artists.js').Artist>}
+ */
+export function getEffectiveArtistsMap() {
+  if (!_artistsRuntimeOverrides) return ARTISTS_SEED;
+  const out = { ...ARTISTS_SEED };
+  for (const [id, value] of Object.entries(_artistsRuntimeOverrides)) {
+    if (value === null) {
+      delete out[id];
+    } else if (value && typeof value === 'object') {
+      out[id] = value;
+    }
+  }
+  return out;
+}
+
+/**
+ * Reconstruit la map inverse band → [artistIds] à la volée si des
+ * overrides sont posés. Sinon retourne le BAND_TO_ARTIST_IDS statique
+ * (chemin chaud pour le cas no-override).
+ * @returns {Object<string, string[]>}
+ */
+function _getEffectiveBandMap() {
+  if (!_artistsRuntimeOverrides) return BAND_TO_ARTIST_IDS;
+  const map = {};
+  const eff = getEffectiveArtistsMap();
+  for (const [id, artist] of Object.entries(eff)) {
+    for (const band of artist.bands || []) {
+      const key = band.toLowerCase().trim();
+      if (!map[key]) map[key] = [];
+      map[key].push(id);
+    }
+  }
+  return map;
+}
+
+// ============================================================
 // Normalisation
 // ============================================================
 
@@ -44,16 +158,17 @@ export function normalizeArtistName(s) {
  */
 export function getArtist(idOrName) {
   if (!idOrName || typeof idOrName !== 'string') return null;
+  const eff = getEffectiveArtistsMap();
 
   // Lookup direct par id
-  if (ARTISTS_SEED[idOrName]) {
-    return { id: idOrName, ...ARTISTS_SEED[idOrName] };
+  if (eff[idOrName]) {
+    return { id: idOrName, ...eff[idOrName] };
   }
 
   // Lookup par nom normalisé
   const target = normalizeArtistName(idOrName);
   if (!target) return null;
-  for (const [id, artist] of Object.entries(ARTISTS_SEED)) {
+  for (const [id, artist] of Object.entries(eff)) {
     if (normalizeArtistName(artist.name) === target) {
       return { id, ...artist };
     }
@@ -72,16 +187,18 @@ export function findArtistsByBand(bandName) {
   const target = normalizeArtistName(bandName);
   if (!target) return [];
 
+  const bandMap = _getEffectiveBandMap();
   const ids = new Set();
-  for (const [bandKey, artistIds] of Object.entries(BAND_TO_ARTIST_IDS)) {
+  for (const [bandKey, artistIds] of Object.entries(bandMap)) {
     if (normalizeArtistName(bandKey) === target) {
       artistIds.forEach((id) => ids.add(id));
     }
   }
 
+  const eff = getEffectiveArtistsMap();
   const out = [];
   for (const id of ids) {
-    if (ARTISTS_SEED[id]) out.push({ id, ...ARTISTS_SEED[id] });
+    if (eff[id]) out.push({ id, ...eff[id] });
   }
   return out;
 }
@@ -179,7 +296,8 @@ export function inferUsagesFromAmp(ampName) {
   if (!ampName || typeof ampName !== 'string') return [];
 
   const matches = [];
-  for (const [id, artist] of Object.entries(ARTISTS_SEED)) {
+  const eff = getEffectiveArtistsMap();
+  for (const [id, artist] of Object.entries(eff)) {
     const matchingEras = [];
     for (const era of artist.eras || []) {
       const eraMatch = (era.amps || []).some((a) => ampNamesMatch(ampName, a));

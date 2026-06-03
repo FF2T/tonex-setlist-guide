@@ -52,13 +52,17 @@ import { bucketizeScore } from '../../core/scoring/compat-buckets.js';
 // (pattern score pills). Appliqué aux libellés guitare + preset en vue
 // repliée pour cohérence avec SongDetailCard fiche dépliée. Strip aussi
 // "(HB)/(SC)/(P90)" résiduel que Gemini peut injecter dans des noms.
+// v9.7.28 — Aligné sur SongDetailCard.compatLabelStyle (v9.7.24) :
+// padding 4px 10px pour cohérence visuelle (desktop avait padding plus
+// petit, mobile compensait par width:100% via CSS). Maintenant le cadre
+// a un look uniforme entre desktop et mobile.
 function _compatLabelStyle(score) {
   if (score == null) return null;
   const b = bucketizeScore(score);
   return {
     background: b.color,
     color: 'var(--text-inverse)',
-    padding: '2px 8px',
+    padding: '4px 10px',
     borderRadius: 'var(--r-sm)',
     fontWeight: 700,
   };

@@ -54,6 +54,7 @@ import {
 } from './core/catalog.js';
 import { saveUsagesForPreset, removeUsagesOverride } from './core/preset-curation.js';
 import { mergeUsagesOverridesLWW } from './core/usages-cascade.js';
+import { setArtistsRuntimeState, mergeArtistsOverridesLWW } from './core/artists.js';
 import {
   SCORING_VERSION, SCORING_WEIGHTS,
   BASE_SCORES, GUITAR_PROFILES, STYLE_COMPATIBILITY, GAIN_RANGES,
@@ -277,7 +278,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "9.7.27";
+const APP_VERSION = "9.7.28";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -525,6 +526,11 @@ export function App() {
   // Non écrit par Backline V1 mais lu par findCatalogEntry pour préparer
   // le routing studio-driven (cf "Idées en attente" Phase 11).
   const [sharedStudioUsages, setSharedStudioUsages] = useState(initDefault.shared?.studioUsages || {});
+  // Phase 13.4 — shared.artistsOverrides : admin edits runtime sur ARTISTS_SEED.
+  // Slot { [artistId]: { artist: Artist|null, lastModified: number } }.
+  // null = delete override (l'entry du seed reprend la main). Sync Firestore
+  // via LWW per-item (pattern Phase 7.79.3).
+  const [sharedArtistsOverrides, setSharedArtistsOverrides] = useState(initDefault.shared?.artistsOverrides || {});
   // Sync ToneNET presets to global lookup for findCatalogEntry
   useEffect(()=>{
     var lookup={};
@@ -596,6 +602,11 @@ export function App() {
       backlineOv: sharedUsagesOverrides || {},
     };
   },[profile?.usagesOverrides, sharedStudioUsages, sharedUsagesOverrides]);
+
+  // Phase 13.4 — Pose les overrides ARTISTS dans le module runtime à chaque
+  // changement. setArtistsRuntimeState extrait .artist depuis chaque wrapper
+  // { artist, lastModified } pour la cascade lookup côté getEffectiveArtistsMap.
+  useEffect(()=>{ setArtistsRuntimeState(sharedArtistsOverrides); },[sharedArtistsOverrides]);
 
   // Phase 7.54 — Dérivation songDb avec aiCache résolu depuis le profil
   // actif. Pour chaque song, si profile.aiCache[song.id] existe → l'utiliser
@@ -1224,6 +1235,11 @@ export function App() {
       // Phase 7.79.3c — hash shared.usagesOverrides + studioUsages (niveau 2/3 cascade)
       Object.entries(sharedUsagesOverrides||{}).map(([n,o])=>n+'|'+(o?.lastModified||0)+'|'+(o?.usages===null?'NULL':Array.isArray(o?.usages)?o.usages.length:'NA')).sort().join('!'),
       Object.entries(sharedStudioUsages||{}).map(([n,o])=>n+'|'+(o?.lastModified||0)+'|'+(o?.curatedBy||'')+'|'+(o?.usages===null?'NULL':Array.isArray(o?.usages)?o.usages.length:'NA')).sort().join('!'),
+      // Phase 13.4 — hash artistsOverrides : déclencher push sur modif
+      // (add/edit/delete artiste admin). Format wrapper : {artist, lastModified}.
+      // artist === null → tombstone (delete override). Cohérent avec
+      // mergeArtistsOverridesLWW (LWW per-item).
+      Object.entries(sharedArtistsOverrides||{}).map(([id,o])=>id+'|'+(o?.lastModified||0)+'|'+(o?.artist===null?'NULL':(o?.artist?.name||'NA'))).sort().join('!'),
       profileHash,
       activeProfileId,
       theme,
@@ -1244,7 +1260,7 @@ export function App() {
       // Phase 7.79.3c — shared.usagesOverrides + studioUsages persistés
       // dans localStorage + push Firestore. Le profile.usagesOverrides est
       // déjà dans `profiles` via le useState standard.
-      shared:{songDb,theme,setlists,customGuitars,toneNetPresets,deletedSetlistIds,deletedToneNetIds,adminPacks,usagesOverrides:sharedUsagesOverrides,studioUsages:sharedStudioUsages,lastModified:lastSharedModRef.current},
+      shared:{songDb,theme,setlists,customGuitars,toneNetPresets,deletedSetlistIds,deletedToneNetIds,adminPacks,usagesOverrides:sharedUsagesOverrides,studioUsages:sharedStudioUsages,artistsOverrides:sharedArtistsOverrides,lastModified:lastSharedModRef.current},
       profiles,
     };
     // Phase 7.51.3 — mode démo : ne JAMAIS persister le snapshot in-memory
@@ -1411,6 +1427,14 @@ export function App() {
     });
     if(data.shared.studioUsages!==undefined) setSharedStudioUsages(prev=>{
       const merged=mergeUsagesOverridesLWW(prev,data.shared.studioUsages);
+      if(JSON.stringify(merged)===JSON.stringify(prev))return prev;
+      return merged;
+    });
+    // Phase 13.4 — Merge shared.artistsOverrides LWW per-item.
+    // Pattern identique aux 2 maps ci-dessus. Format wrapper :
+    // { [artistId]: { artist: Artist|null, lastModified } }.
+    if(data.shared.artistsOverrides!==undefined) setSharedArtistsOverrides(prev=>{
+      const merged=mergeArtistsOverridesLWW(prev,data.shared.artistsOverrides);
       if(JSON.stringify(merged)===JSON.stringify(prev))return prev;
       return merged;
     });
@@ -1778,7 +1802,7 @@ export function App() {
   /></div>;
   else if(screen==="optimizer"&&isAdmin) screenContent=<BankOptimizerScreen songDb={songDbWithProfileCache} setlists={mySetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} allGuitars={allGuitars} availableSources={availableSources} onNavigate={setScreen} profile={profile}/>;
   // Phase 7.72 — Écran ⚙️ Admin séparé, gated isAdmin (URL hack defense).
-  else if(screen==="admin"&&isAdmin) screenContent=<AdminScreen profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} allSetlists={setlists} onSetlists={setSetlists} onDeletedSetlistIds={setDeletedSetlistIds} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} onSaveSharedKey={saveSharedKey} guitarBias={effectiveGuitarBias} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} onDeletedToneNetIds={setDeletedToneNetIds} adminPacks={adminPacks} onAdminPacks={setAdminPacks} MaintenanceTabComponent={MaintenanceTab} fullState={fullState} onImportState={onImportState} onBack={()=>setScreen("list")} onNavigate={setScreen}/>;
+  else if(screen==="admin"&&isAdmin) screenContent=<AdminScreen profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} allSetlists={setlists} onSetlists={setSetlists} onDeletedSetlistIds={setDeletedSetlistIds} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} onSaveSharedKey={saveSharedKey} guitarBias={effectiveGuitarBias} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} onDeletedToneNetIds={setDeletedToneNetIds} adminPacks={adminPacks} onAdminPacks={setAdminPacks} sharedArtistsOverrides={sharedArtistsOverrides} onSharedArtistsOverrides={(reducer)=>setSharedArtistsOverrides((prev)=>{const next=typeof reducer==='function'?reducer(prev||{}):reducer;return next||{};})} MaintenanceTabComponent={MaintenanceTab} fullState={fullState} onImportState={onImportState} onBack={()=>setScreen("list")} onNavigate={setScreen}/>;
   else screenContent=<HomeScreen songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} mySongIds={mySongIds} checked={checked} onChecked={setChecked} onSettings={()=>setScreen("profile")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} onOptimizer={()=>setScreen("optimizer")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");sessionStorage.removeItem(ADMIN_ORIGIN_KEY);setScreen("pick");}} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;
 
   // Phase 7.63 — Détection mode admin-as. sessionStorage.tonex_admin_origin
