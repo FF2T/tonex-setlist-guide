@@ -1556,6 +1556,35 @@ function mergeProfilesLWW(localProfiles, remoteProfiles, options = {}) {
 // son aiCache retiré. Le state local (localStorage) reste intact.
 // Pure : ne mute pas l'input. Si shared.songDb absent → retourne
 // l'input tel quel.
+// v9.7.40 — Helpers inline pour ne pas créer dépendance state ↔ ai-helpers.
+// Flags internes Phase 13 / 7.x : markers de validation post-process inutiles
+// en sync Firestore. Drop systématique au push.
+const _STATE_INTERNAL_FLAGS = [
+  '_locale', '_familyBoosted', '_refAmpCorrected', '_artistAmpBoost',
+  '_presetSettingsValidated', '_bassFieldsValidated', '_fxBlocksValidated',
+  '_playingHintsValidated', '_controlsValidated', '_pedalboardValidated',
+  '_guitarAmpValidated', '_refAmpFixed',
+];
+function _cleanCacheEntry(entry) {
+  if (!entry || typeof entry !== 'object' || !entry.result) return entry;
+  let resultMutated = false;
+  let nextResult = entry.result;
+  // Drop flags internes
+  for (const flag of _STATE_INTERNAL_FLAGS) {
+    if (flag in nextResult) {
+      if (!resultMutated) { nextResult = { ...nextResult }; resultMutated = true; }
+      delete nextResult[flag];
+    }
+  }
+  // Clamp ideal_top3 à 3 entries max (rétro-compat pour les caches existants
+  // qui ont 10+ entries pré-v9.7.40)
+  if (Array.isArray(nextResult.ideal_top3) && nextResult.ideal_top3.length > 3) {
+    if (!resultMutated) { nextResult = { ...nextResult }; resultMutated = true; }
+    nextResult.ideal_top3 = nextResult.ideal_top3.slice(0, 3);
+  }
+  return resultMutated ? { ...entry, result: nextResult } : entry;
+}
+
 function stripAiCacheForSync(state, options = {}) {
   if (!state || typeof state !== 'object') return state;
   const shared = state.shared;
@@ -1607,6 +1636,35 @@ function stripAiCacheForSync(state, options = {}) {
       }
       out = { ...out, profiles: lightProfiles };
       mutated = true;
+    }
+  }
+  // v9.7.40 — Cleanup des flags internes + clamp ideal_top3 sur le
+  // profile.aiCache du profil ACTIF. Gain attendu : ~50-90 KB sur le
+  // payload Sébastien (3 flags + 7 entries top3 droppées par song × 100
+  // songs ≈ ~50-90 KB).
+  //
+  // Note : pas besoin de toucher les non-actifs (déjà strippés ci-dessus).
+  // Le profil actif garde ses caches mais avec results allégés.
+  if (activeId && out.profiles && out.profiles[activeId]) {
+    const activeProfile = out.profiles[activeId];
+    if (activeProfile.aiCache && typeof activeProfile.aiCache === 'object') {
+      let cacheMutated = false;
+      const nextCache = {};
+      for (const [songId, entry] of Object.entries(activeProfile.aiCache)) {
+        const cleaned = _cleanCacheEntry(entry);
+        if (cleaned !== entry) cacheMutated = true;
+        nextCache[songId] = cleaned;
+      }
+      if (cacheMutated) {
+        out = {
+          ...out,
+          profiles: {
+            ...out.profiles,
+            [activeId]: { ...activeProfile, aiCache: nextCache },
+          },
+        };
+        mutated = true;
+      }
     }
   }
   return mutated ? out : state;

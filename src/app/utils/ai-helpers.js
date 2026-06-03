@@ -936,9 +936,81 @@ function diffAnalysisFingerprint(stored, current) {
   );
 }
 
+// v9.7.40 — Levier 2 architecture : split du result aiCache entre champs
+// factuels morceau (cross-profil, dans shared.songDb[i].songMeta) et
+// champs RigReco (per-profil, dans profile.aiCache[songId]).
+//
+// SONG_META_KEYS = champs invariants par rapport au rig user. Mêmes pour
+// tous les profils analysant le même morceau. Stockables 1 fois dans
+// shared.songDb[i].songMeta, lus en merge au render.
+const SONG_META_KEYS = [
+  'song_year', 'song_album', 'song_key', 'song_bpm', 'song_style',
+  'song_desc',
+  'cot_step1',
+  'tonal_school', 'target_gain', 'pickup_preference',
+  'ref_guitarist', 'ref_guitar', 'ref_amp', 'ref_effects',
+];
+
+// Flags internes Phase 13 / Phase 7.x — markers de validation post-process
+// utiles au runtime mais inutiles en sync Firestore. Drop au push.
+const INTERNAL_FLAGS = [
+  '_locale', '_familyBoosted', '_refAmpCorrected', '_artistAmpBoost',
+  '_presetSettingsValidated', '_bassFieldsValidated', '_fxBlocksValidated',
+  '_playingHintsValidated', '_controlsValidated', '_pedalboardValidated',
+  '_guitarAmpValidated', '_refAmpFixed',
+];
+
+function splitResultByMeta(result) {
+  if (!result || typeof result !== 'object') return { meta: null, rig: result || null };
+  const meta = {};
+  const rig = {};
+  let hasMeta = false;
+  let hasRig = false;
+  for (const [k, v] of Object.entries(result)) {
+    if (SONG_META_KEYS.includes(k)) { meta[k] = v; hasMeta = true; }
+    else { rig[k] = v; hasRig = true; }
+  }
+  return {
+    meta: hasMeta ? meta : null,
+    rig: hasRig ? rig : null,
+  };
+}
+
+function mergeMetaIntoResult(meta, rig) {
+  if (!meta && !rig) return null;
+  if (!meta) return rig;
+  if (!rig) return meta;
+  // rig prend précédence sur conflits (mais SONG_META_KEYS et reste ne se
+  // chevauchent pas par définition, donc no-op en pratique).
+  return { ...meta, ...rig };
+}
+
+// Drop les flags internes du result (idempotent).
+function cleanInternalFlags(result) {
+  if (!result || typeof result !== 'object') return result;
+  let mutated = false;
+  const out = { ...result };
+  for (const flag of INTERNAL_FLAGS) {
+    if (flag in out) { delete out[flag]; mutated = true; }
+  }
+  return mutated ? out : result;
+}
+
+// Clamp ideal_top3 à `max` entries (3 par défaut). Évite que Gemini sorte
+// un top10 verbeux qui gonfle le payload. Idempotent.
+function clampIdealTop3(result, max = 3) {
+  if (!result || !Array.isArray(result.ideal_top3)) return result;
+  if (result.ideal_top3.length <= max) return result;
+  return { ...result, ideal_top3: result.ideal_top3.slice(0, max) };
+}
+
 function updateAiCache(existing, gId, newResult, opts) {
   const prevResult = existing?.result;
-  const merged = preserveHistorical(prevResult, newResult);
+  // v9.7.40 — Clamp ideal_top3 à 3 entries au write pour éviter le top10
+  // verbeux qui gonfle payload Firestore (~10 entries × ~200 octets =
+  // ~2 KB/song, sur 100 songs = 200 KB).
+  const trimmedNew = clampIdealTop3(newResult);
+  const merged = preserveHistorical(prevResult, trimmedNew);
   const prevBest = existing?.bestByGuitar?.[gId];
   const best = mergeBestResults(prevBest, merged);
   const bestByGuitar = { ...(existing?.bestByGuitar || {}), [gId]: best };
@@ -1135,6 +1207,12 @@ export {
   findSlotByUsageMatch,
   findCatalogEntryByUsages,
   mergeBestResults,
+  SONG_META_KEYS,
+  INTERNAL_FLAGS,
+  splitResultByMeta,
+  mergeMetaIntoResult,
+  cleanInternalFlags,
+  clampIdealTop3,
   bestScoreOf,
   preserveHistorical,
   HISTORICAL_FIELDS,

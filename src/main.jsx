@@ -278,7 +278,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "9.7.39";
+const APP_VERSION = "9.7.40";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -321,6 +321,8 @@ import {
   updateAiCache,
   getBestResult,
   safeParseJSON,
+  splitResultByMeta,
+  mergeMetaIntoResult,
 } from './app/utils/ai-helpers.js';
 
 // Phase 7.14 — fetchAI extracted to src/app/utils/fetchAI.js.
@@ -620,8 +622,23 @@ export function App() {
     return (songDb || []).map((s) => {
       if (!s || !s.id) return s;
       const profEntry = profCache[s.id];
+      // v9.7.40 — Levier 2 split : si songMeta présent dans shared.songDb
+      // ET rig dans profile.aiCache → fusionne meta + rig pour reconstituer
+      // un result complet (lu par tous les écrans existants sans modif).
+      const songMetaResult = s.songMeta?.result;
+      if (profEntry && songMetaResult) {
+        return {
+          ...s,
+          aiCache: {
+            ...profEntry,
+            result: mergeMetaIntoResult(songMetaResult, profEntry.result),
+          },
+        };
+      }
+      // Cas migration douce : caches existants pré-v9.7.40 ont tout (meta+rig)
+      // dans profile.aiCache.result → fallback comportement antérieur.
       if (profEntry) return { ...s, aiCache: profEntry };
-      return s; // fallback à song.aiCache shared (legacy)
+      return s; // fallback à song.aiCache shared (legacy pré-v10)
     });
   }, [songDb, profile?.aiCache]);
 
@@ -647,15 +664,44 @@ export function App() {
   // quand lastModified n'a pas changé.
   const setSongAiCache = useCallback((songId, value) => {
     if (!songId || !activeProfileId) return;
+    // v9.7.40 — Levier 2 split au write :
+    // - meta (champs factuels morceau) → shared.songDb[i].songMeta
+    //   (cross-profil, sera lu par tous les profils analysant ce morceau)
+    // - rig (champs dépendant du rig user) → profile.aiCache[songId]
+    //   (per-profil, isolation par utilisateur préservée)
+    // Migration douce : caches existants restent dans profile.aiCache avec
+    // tout dedans, fonctionnent via fallback du useMemo ci-dessus.
+    const splitOnWrite = value && value.result;
+    const { meta, rig } = splitOnWrite
+      ? splitResultByMeta(value.result)
+      : { meta: null, rig: null };
+
     setProfiles((p) => {
       const cur = p[activeProfileId];
       if (!cur) return p;
       const prevCache = (cur.aiCache && typeof cur.aiCache === 'object') ? cur.aiCache : {};
       const nextCache = { ...prevCache };
-      if (value === null || value === undefined) delete nextCache[songId];
-      else nextCache[songId] = value;
+      if (value === null || value === undefined) {
+        delete nextCache[songId];
+      } else if (splitOnWrite && meta) {
+        // Stocke uniquement le rig (meta sort dans shared.songDb)
+        nextCache[songId] = { ...value, result: rig };
+      } else {
+        // value sans result OU result sans champs meta (cas rare) → stocke tel quel
+        nextCache[songId] = value;
+      }
       return { ...p, [activeProfileId]: { ...cur, aiCache: nextCache } };
     });
+
+    // Écrit songMeta dans shared.songDb[i] (cross-profil)
+    if (splitOnWrite && meta) {
+      const metaLocale = (rig && rig._locale) || value.result?._locale || null;
+      const metaTs = value.ts || Date.now();
+      setSongDb((p) => p.map((s) => {
+        if (s.id !== songId) return s;
+        return { ...s, songMeta: { result: meta, locale: metaLocale, ts: metaTs } };
+      }));
+    }
   }, [activeProfileId]);
 
   // Phase 7.51.2 — Demo guard runtime.

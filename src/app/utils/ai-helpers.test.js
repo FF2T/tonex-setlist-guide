@@ -7,7 +7,7 @@
 // - inputs falsy/edge cases
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { getLocalizedText, findSlotByUsageMatch, findCatalogEntryByUsages, findSlotByName, stripSlotPrefix, sanitizeAmpSuggestion, sanitizePedalSuggestion, sanitizeControls, enrichAIResult, updateAiCache, computeRigSnapshot, computeAnalysisFingerprint, diffAnalysisFingerprint } from './ai-helpers.js';
+import { getLocalizedText, findSlotByUsageMatch, findCatalogEntryByUsages, findSlotByName, stripSlotPrefix, sanitizeAmpSuggestion, sanitizePedalSuggestion, sanitizeControls, enrichAIResult, updateAiCache, computeRigSnapshot, computeAnalysisFingerprint, diffAnalysisFingerprint, SONG_META_KEYS, splitResultByMeta, mergeMetaIntoResult, cleanInternalFlags, clampIdealTop3 } from './ai-helpers.js';
 import { PRESET_CATALOG_MERGED } from '../../core/catalog.js';
 
 describe('getLocalizedText', () => {
@@ -1491,6 +1491,177 @@ describe('enrichAIResult — validation controls cot_step2 (Phase 9.8)', () => {
     // idempotence : 2e passage ne casse pas
     const out2 = enrichAIResult(out, 'HB', '', {}, {}, undefined, { id: 's', title: 'T', artist: 'A' });
     expect(out2.cot_step2_guitars[0].controls.knobs).toEqual([{ name: 'Vol', value: '8' }]);
+  });
+});
+
+// v9.7.40 — Levier 2 split + cleanup payload
+describe('v9.7.40 — Levier 2 split songMeta + cleanup payload', () => {
+  describe('SONG_META_KEYS', () => {
+    it('liste les 14 champs factuels morceau', () => {
+      expect(SONG_META_KEYS).toContain('song_year');
+      expect(SONG_META_KEYS).toContain('cot_step1');
+      expect(SONG_META_KEYS).toContain('ref_amp');
+      expect(SONG_META_KEYS).toContain('ref_guitarist');
+      expect(SONG_META_KEYS).not.toContain('cot_step2_guitars');
+      expect(SONG_META_KEYS).not.toContain('ideal_guitar');
+      expect(SONG_META_KEYS).not.toContain('preset_settings_v1');
+    });
+  });
+
+  describe('splitResultByMeta', () => {
+    it('sépare meta et rig correctement', () => {
+      const result = {
+        song_year: 1971,
+        song_album: 'IV',
+        cot_step1: 'profil tonal',
+        ref_amp: 'Marshall',
+        // rig
+        cot_step2_guitars: [{ name: 'LP60', score: 90 }],
+        ideal_guitar: 'Les Paul',
+        preset_ann_name: 'XYZ',
+      };
+      const { meta, rig } = splitResultByMeta(result);
+      expect(meta).toEqual({
+        song_year: 1971,
+        song_album: 'IV',
+        cot_step1: 'profil tonal',
+        ref_amp: 'Marshall',
+      });
+      expect(rig).toEqual({
+        cot_step2_guitars: [{ name: 'LP60', score: 90 }],
+        ideal_guitar: 'Les Paul',
+        preset_ann_name: 'XYZ',
+      });
+    });
+    it('result sans meta → meta null', () => {
+      const result = { cot_step2_guitars: [], ideal_guitar: 'X' };
+      const { meta, rig } = splitResultByMeta(result);
+      expect(meta).toBeNull();
+      expect(rig).toEqual({ cot_step2_guitars: [], ideal_guitar: 'X' });
+    });
+    it('result sans rig → rig null', () => {
+      const result = { song_year: 1971, ref_amp: 'X' };
+      const { meta, rig } = splitResultByMeta(result);
+      expect(meta).toEqual({ song_year: 1971, ref_amp: 'X' });
+      expect(rig).toBeNull();
+    });
+    it('input null/undefined safe', () => {
+      expect(splitResultByMeta(null)).toEqual({ meta: null, rig: null });
+      expect(splitResultByMeta(undefined)).toEqual({ meta: null, rig: null });
+    });
+  });
+
+  describe('mergeMetaIntoResult', () => {
+    it('fusionne meta + rig (rig précède sur conflits)', () => {
+      const meta = { song_year: 1971, ref_amp: 'A' };
+      const rig = { cot_step2_guitars: [], ideal_guitar: 'X' };
+      expect(mergeMetaIntoResult(meta, rig)).toEqual({
+        song_year: 1971,
+        ref_amp: 'A',
+        cot_step2_guitars: [],
+        ideal_guitar: 'X',
+      });
+    });
+    it('meta seul → meta', () => {
+      const meta = { song_year: 1971 };
+      expect(mergeMetaIntoResult(meta, null)).toEqual(meta);
+    });
+    it('rig seul → rig', () => {
+      const rig = { ideal_guitar: 'X' };
+      expect(mergeMetaIntoResult(null, rig)).toEqual(rig);
+    });
+    it('les deux null → null', () => {
+      expect(mergeMetaIntoResult(null, null)).toBeNull();
+    });
+    it('round-trip split + merge restaure le result original', () => {
+      const original = {
+        song_year: 1971,
+        cot_step1: 'profil',
+        cot_step2_guitars: [{ name: 'LP60', score: 90 }],
+        ideal_guitar: 'Les Paul',
+      };
+      const { meta, rig } = splitResultByMeta(original);
+      expect(mergeMetaIntoResult(meta, rig)).toEqual(original);
+    });
+  });
+
+  describe('cleanInternalFlags', () => {
+    it('drop _locale, _familyBoosted, _refAmpCorrected, etc.', () => {
+      const result = {
+        cot_step1: 'x',
+        ideal_guitar: 'Y',
+        _locale: 'fr',
+        _familyBoosted: true,
+        _refAmpCorrected: { foo: 'bar' },
+        _presetSettingsValidated: true,
+      };
+      const out = cleanInternalFlags(result);
+      expect(out._locale).toBeUndefined();
+      expect(out._familyBoosted).toBeUndefined();
+      expect(out._refAmpCorrected).toBeUndefined();
+      expect(out._presetSettingsValidated).toBeUndefined();
+      expect(out.cot_step1).toBe('x');
+      expect(out.ideal_guitar).toBe('Y');
+    });
+    it('idempotent (pas de flags → identity)', () => {
+      const result = { cot_step1: 'x' };
+      expect(cleanInternalFlags(result)).toBe(result);
+    });
+    it('null/undefined safe', () => {
+      expect(cleanInternalFlags(null)).toBeNull();
+      expect(cleanInternalFlags(undefined)).toBeUndefined();
+    });
+  });
+
+  describe('clampIdealTop3', () => {
+    it('clamp à 3 entries max', () => {
+      const result = {
+        ideal_guitar: 'X',
+        ideal_top3: [
+          { name: 'A', score: 95 },
+          { name: 'B', score: 90 },
+          { name: 'C', score: 85 },
+          { name: 'D', score: 80 },
+          { name: 'E', score: 75 },
+        ],
+      };
+      const out = clampIdealTop3(result);
+      expect(out.ideal_top3.length).toBe(3);
+      expect(out.ideal_top3[0].name).toBe('A');
+      expect(out.ideal_top3[2].name).toBe('C');
+    });
+    it('≤ max → identity', () => {
+      const result = { ideal_top3: [{ name: 'A' }, { name: 'B' }] };
+      expect(clampIdealTop3(result)).toBe(result);
+    });
+    it('pas de top3 → identity', () => {
+      const result = { cot_step1: 'x' };
+      expect(clampIdealTop3(result)).toBe(result);
+    });
+    it('null safe', () => {
+      expect(clampIdealTop3(null)).toBeNull();
+    });
+    it('max custom', () => {
+      const result = { ideal_top3: [{ name: 'A' }, { name: 'B' }, { name: 'C' }] };
+      const out = clampIdealTop3(result, 1);
+      expect(out.ideal_top3.length).toBe(1);
+      expect(out.ideal_top3[0].name).toBe('A');
+    });
+  });
+
+  describe('updateAiCache — clamp ideal_top3 au write', () => {
+    it('clamp à 3 entries automatiquement', () => {
+      const newResult = {
+        cot_step1: 'x',
+        ideal_top3: [
+          { name: 'A', score: 95 }, { name: 'B', score: 90 },
+          { name: 'C', score: 85 }, { name: 'D', score: 80 },
+          { name: 'E', score: 75 },
+        ],
+      };
+      const out = updateAiCache(null, '', newResult, { ts: 1000 });
+      expect(out.result.ideal_top3.length).toBe(3);
+    });
   });
 });
 
