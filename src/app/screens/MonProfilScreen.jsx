@@ -512,7 +512,7 @@ function MonProfilScreen({
                 disabled={myCount === 0}
                 onClick={() => {
                   if (!myCount) { window.alert('Aucun cache IA à invalider sur tes morceaux.'); return; }
-                  if (!window.confirm(`Invalider ${myCount} cache${myCount > 1 ? 's' : ''} IA sur tes morceaux ?\n\nMode actuel : ${profile.recoMode || 'balanced'}.\n\nLes morceaux seront re-analysés à la demande.\n\nCela consomme du quota Gemini quand les re-analyses tournent (~40s par morceau).`)) return;
+                  if (!window.confirm(`Invalider ${myCount} cache${myCount > 1 ? 's' : ''} IA sur tes morceaux ?\n\nMode actuel : ${profile.recoMode || 'balanced'}.\n\nLes morceaux seront re-analysés à la demande.\n\nCela consomme du quota Gemini quand les re-analyses tournent (batch parallèle ~33s par vague de 5).`)) return;
                   // Phase 7.54 — Wipe profile.aiCache pour mes songs uniquement.
                   // Reset les entries dans profile.aiCache du profil actif.
                   // Aussi reset shared.aiCache (rétro-compat avec songs pre-v10).
@@ -540,7 +540,7 @@ function MonProfilScreen({
             onClick={() => {
               const n = (songDb || []).filter((s) => s.aiCache).length;
               if (!n) { window.alert('Aucun cache IA à invalider.'); return; }
-              if (!window.confirm(`Invalider ${n} cache${n > 1 ? 's' : ''} IA (TOUS profils) ?\n\nMode actuel : ${profile.recoMode || 'balanced'}.\n\nLes morceaux seront re-analysés à la demande (ouverture ou bouton "Analyser/MAJ" en setlists).\n\nCela consomme du quota Gemini quand les re-analyses tournent (~40s par morceau).`)) return;
+              if (!window.confirm(`Invalider ${n} cache${n > 1 ? 's' : ''} IA (TOUS profils) ?\n\nMode actuel : ${profile.recoMode || 'balanced'}.\n\nLes morceaux seront re-analysés à la demande (ouverture ou bouton "Analyser/MAJ" en setlists).\n\nCela consomme du quota Gemini quand les re-analyses tournent (batch parallèle ~33s par vague de 5).`)) return;
               // Phase 7.54 — Wipe TOUS les profile.aiCache + shared.songDb.aiCache.
               onProfiles((p) => {
                 const out = {};
