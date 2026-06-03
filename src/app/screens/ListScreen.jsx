@@ -470,12 +470,13 @@ function ListScreen({
     if (!missing.length) return;
     const guitars = allGuitars || GUITARS;
     const total = missing.length;
-    // v9.7.37 — Parallélisation concurrency 3 (anciennement séquentiel).
-    // Gemini Flash free tier = 20 RPM, 3 concurrents max = ~10 fetches/min,
-    // largement sous quota. Wall-clock 6 morceaux : 3min25 → ~1min10 attendu.
-    // v9.7.37 — Chrono détaillé console pour mesurer la perf en condition
-    // réelle (durée par fetch + total batch + concurrency observée).
-    const CONCURRENCY = 3;
+    // v9.7.37 — Parallélisation. v9.7.38 — concurrency 3 → 5 après mesure
+    // batch 3 morceaux : speedup 2.70x sur concurrency 3 (90% efficacité),
+    // Gemini Flash scale presque linéairement, pas de bottleneck rate-limit
+    // observé. Pousser à 5 pour gratter ~15% supplémentaire sur les gros
+    // batches (30 morceaux : ~5min → ~4min). Retry quota 429 reste câblé.
+    // Chrono détaillé console pour mesurer la perf en condition réelle.
+    const CONCURRENCY = 5;
     const batchStart = performance.now();
     const perFetchTimings = [];
     // eslint-disable-next-line no-console
