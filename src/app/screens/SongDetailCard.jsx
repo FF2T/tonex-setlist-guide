@@ -951,8 +951,8 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                       const hasTechName = !!entry?.amp;  // le nom tech n'a de sens que si différent de l'amp
                       if (!hasTechName && !si) return null;
                       return (
-                        <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 3, color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                          {hasTechName && <span style={{ fontFamily: 'var(--font-mono)', wordBreak: 'break-word' }} title={displayPresetName}>{displayPresetName}</span>}
+                        <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 3, color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          {hasTechName && <span style={{ wordBreak: 'break-word' }} title={displayPresetName}>{displayPresetName}</span>}
                           {hasTechName && si && <span>·</span>}
                           {si && <span style={{ wordBreak: 'break-word' }}>{si.label}</span>}
                           <span style={{ marginLeft: 2, flexShrink: 0 }}>
@@ -1017,8 +1017,8 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                                   </div>
                                   {/* Ligne 2 : nom tech mono + pack */}
                                   {(ampName || si) && (
-                                    <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 3, color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                                      {ampName && <span style={{ fontFamily: 'var(--font-mono)', wordBreak: 'break-word' }} title={p.name}>{p.name}</span>}
+                                    <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 3, color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                      {ampName && <span style={{ wordBreak: 'break-word' }} title={p.name}>{p.name}</span>}
                                       {ampName && si && <span>·</span>}
                                       {si && <span style={{ wordBreak: 'break-word' }}>{si.label}</span>}
                                     </div>
