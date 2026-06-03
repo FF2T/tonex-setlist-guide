@@ -981,7 +981,113 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-06-01 lundi, V9.7.13 — Phase 7.74.13 défense+timestamp cohérence)
+## État actuel (2026-06-03 mardi, V9.7.28 — Phase 13 close + polish UX fiche dépliée)
+
+**Backline v9.7.28 / SW backline-v431 / STATE_VERSION 14 / 1919 tests verts. Bundle 2900 KB.**
+
+### Récap session 2026-06-02 → 2026-06-03 — 15 deploys prod
+
+| # | Version | Sujet |
+|---|---|---|
+| 1 | 9.7.14 | Label guitare COMPLET + cadre vert pleine largeur mobile (vue repliée) |
+| 2 | 9.7.15 | Phase 13.0 + 13.1 — Schema ARTISTS + helpers + 20 seed + post-process correctif `ref_amp` |
+| 3 | 9.7.16 | Phase 13.5 v1 — Cowork batch +224 artistes 60s-90s (60s/70s/80s/90s) |
+| 4 | 9.7.17 | Phase 13.5 v2 — Densification +41 (bassistes + niches Doors/Beach Boys/Don Felder) |
+| 5 | 9.7.18 | Phase 13.2 — Boost amp family V9 dégressif (anti-Bonamassa via confidence high/medium/low) |
+| 6 | 9.7.19 | Bonus seed manuel : Louis Bertignac (Téléphone) — non couvert par Cowork anglo-saxon |
+| 7 | 9.7.20 | Jauge animée Niveau 2 batch fetchAI (interpolation rAF + titre morceau courant) |
+| 8 | 9.7.21 | Phase 13.1.1 — Injection setup ARTISTS dans le prompt fetchAI (anti-hallucination prose) |
+| 9 | 9.7.22 | Noms longs guitares partout (revert short Phase 7.85 P0-04) + cadre wrap |
+| 10 | 9.7.23 | Tentative cadre compact (revert immédiat 9.7.24) |
+| 11 | 9.7.24 | Cadre vert étiré pleine largeur + padding aéré 4px 10px (compatLabelStyle) |
+| 12 | 9.7.25 | Alternatives catalogue wrap + emojis source retirés (no-emoji UI Phase 7.85) |
+| 13 | 9.7.26 | Scoring preset + Alternatives en 3 lignes claires (L1 cadre / L2 nom tech + pack / L3 install) |
+| 14 | 9.7.27 | Homogénéisation police ligne 2 (tout en mono dim) |
+| 15 | 9.7.28 | Phase 13.4 — UI admin Artistes (CRUD) + cascade overrides sync + fix cadre header ListScreen |
+
+### Phase 13 — ✅ CLOSE à 100% (sauf dette optionnelle 13.6/13.7)
+
+| Sous-phase | Status | Version livraison |
+|---|---|---|
+| **13.0** — Schema ARTISTS + helpers + 20 seed test | ✅ | 9.7.15 |
+| **13.1** — Post-process correctif `ref_amp` (anti-hallucination) | ✅ | 9.7.15 |
+| **13.1.1** — Injection setup ARTISTS dans prompt fetchAI | ✅ | 9.7.21 |
+| **13.2** — Boost amp family V9 dégressif (anti-Bonamassa) | ✅ | 9.7.18 |
+| **13.3** — Pré-filtrage catalog selon artiste | ❌ Inapplicable (le prompt n'envoie pas le catalog complet, optimisation théorique sans effet réel) |
+| **13.4** — UI admin "🎭 Artistes" CRUD + sync Firestore LWW | ✅ | 9.7.28 |
+| **13.5 v1** — Cowork batch ~224 artistes 60s-90s | ✅ | 9.7.16 |
+| **13.5 v2** — Densification +41 (bassistes + niches) | ✅ | 9.7.17 |
+| 13.6/13.7 — Queue runtime `pendingArtists` + UI processing | ⏳ dette optionnelle |
+
+**Base ARTISTS finale** : 286 artistes (20 seed Phase 13.0 + Louis Bertignac ajout manuel + 224 Cowork v1 + 41 Cowork v2). Cascade lookup core/artists.js : `ARTISTS_SEED + shared.artistsOverrides` (admin runtime edits).
+
+**Effet validé sur Flipper (Téléphone, 1977)** avant/après ré-analyse Phase 13.1.1 :
+- `preset_ann` : Fender Tweed Bassman 22B → **TSR Sons Amp - Hi G Plexi 0B** ✅
+- `preset_plug` : (inconnu) → **Marshall JTM45 5B** ✅
+- `cot_step3_amp` profil ampli : "Tweed comme Fender Bassman" → "Marshall Super Lead (Plexi) 100W" ✅
+- `cot_step1` profil tonal : "Bassman saturation naturelle" → "Marshall nerveux, Super Lead poussés à bout" ✅
+- Refs : "SG Junior / Strat · Super Lead 100W" → "Strat '60s · Super Lead 100W · TS-9, DS-1" ✅
+
+**Cas Bruno Blink-182** : test Vitest dédié confirme que "Marshall JCM800 halluciné" est désormais corrigé en "Mesa Boogie Dual Rectifier" via Phase 13.1 + ARTISTS Cowork v1.
+
+### Polish UX fiche dépliée (v9.7.22 → 9.7.27)
+
+Restructure visuelle du bloc Scoring preset + Alternatives catalogue :
+- **3 lignes claires** (au lieu de mélange flex inline + flexWrap) :
+  - L1 : cadre vert amp **étiré pleine largeur** + pill score à droite (`flex: 1` direct)
+  - L2 : nom technique mono dim + pack (homogène font mono partout)
+  - L3 : état installation + bouton Installer
+- **Cadre vert guitare** : noms COMPLETS partout (Gibson Les Paul Standard '60s, Fender Stratocaster American Vintage II 1961). Plus de troncature ellipsis (wordBreak break-word + wrap si déborde).
+- **`compatLabelStyle` padding** harmonisé `4px 10px` (au lieu de `2px 8px`) sur SongDetailCard ET ListScreen → texte respire mieux, cohérence desktop + mobile.
+- **Emojis source retirés** dans la fiche dépliée (📦/🎚/🌐/🏭 supprimés du rendu, SOURCE_INFO data inchangée — règle no-emoji UI Phase 7.85).
+- **Pill score** harmonisé `padding 4px 10px / minWidth 48`.
+
+### Jauge animée batch fetchAI (v9.7.20)
+
+Le bouton "🤖 Analyser/MAJ N" pendant un batch ré-analyse devient une mini progress bar :
+- Barre wine animée (background gradient `width: pct%`)
+- Animation **interpolation rAF** pendant l'attente Gemini (~15s par morceau, ease-out) — la barre bouge même quand Gemini réfléchit
+- Plafond 95% du segment pour ne pas "tricher" visuellement avant que le morceau soit vraiment fini
+- Snap au vrai % quand fetch finit (re-trigger useEffect)
+- Affichage `{pct}% · {current}/{total} · {titleTruncated} ⏸`
+- minWidth 180 / maxWidth 320 pour rester lisible sur iPhone 375px
+
+### Architecture cascade ARTISTS (Phase 13.4)
+
+```
+core/artists.js :
+  - ARTISTS_SEED (read-only depuis data/artists.js)
+  - _artistsRuntimeOverrides (state module, posé par setArtistsRuntimeState)
+  - getEffectiveArtistsMap() : merge ARTISTS_SEED + overrides
+  - _getEffectiveBandMap() : reconstruit band → ids à la volée si overrides
+  - Helpers utilisent la cascade : getArtist, findArtistsByBand, inferUsagesFromAmp
+  - mergeArtistsOverridesLWW(local, remote) : LWW per-item
+
+main.jsx :
+  - useState sharedArtistsOverrides (initialisé depuis localStorage)
+  - useEffect → setArtistsRuntimeState(sharedArtistsOverrides) à chaque changement
+  - syncHash inclut sharedArtistsOverrides
+  - Push Firestore inclut shared.artistsOverrides
+  - applyRemoteData merge LWW per-item au pull
+
+AdminScreen → ArtistsAdminTab.jsx :
+  - Liste filtrable + compteur (total / overrides actifs / entries masquées)
+  - "+ Nouvel artiste" : modal JSON template (auto-génère id depuis name)
+  - Edit per row : modal JSON
+  - Restaurer (seed override) : delete override → seed reprend la main
+  - Masquer (seed) → tombstone artist=null
+  - Supprimer (override seul) → delete direct
+```
+
+Schema additif, pas de bump STATE_VERSION (slot `shared.artistsOverrides` optionnel, fallback `{}` si absent).
+
+### Cas Phase 13.6/13.7 reportés (dette optionnelle)
+
+Détection runtime des artistes inconnus à l'ajout d'un morceau + queue admin pour processer via Cowork batch ponctuel. Aujourd'hui couvert manuellement via Phase 13.4 UI admin (Sébastien ajoute les artistes manquants au fil de l'eau). À activer si beta scale et si la queue accumule beaucoup de signal.
+
+---
+
+## État précédent (2026-06-01 lundi, V9.7.13 — Phase 7.74.13 défense+timestamp cohérence)
 
 **Backline v9.7.13 / SW backline-v416 / STATE_VERSION 14 / 1837 tests verts. Bundle 2675 KB.**
 
@@ -19670,7 +19776,20 @@ détectés depuis ToneX_Anniversary_test.csv, beaucoup étaient
 des packs qu'il ne possède PAS mais que `availableSources.TSR
 === true` faisait passer pour dispos.
 
-### Phase 13 (validée 2026-06-02 — démarrage 13.0 lancé) — Base ARTISTS (guitaristes/bassistes + setup historique)
+### Phase 13 — ✅ CLOSE 2026-06-03 (sauf dette optionnelle 13.6/13.7) — Base ARTISTS (guitaristes/bassistes + setup historique)
+
+**Status final** : 286 artistes dans la base (20 seed Phase 13.0 + Bertignac
+manuel + 224 Cowork v1 + 41 Cowork v2). Sous-phases 13.0/13.1/13.1.1/13.2/13.4
+toutes livrées (v9.7.15 → v9.7.28). 13.3 marquée NON-APPLICABLE
+(optimisation théorique sans effet réel : le prompt n'envoyait pas
+le catalog complet). 13.6/13.7 reportées en dette optionnelle.
+
+Cf section "État actuel" en tête de CLAUDE.md pour le détail des
+effets validés (Flipper, Bruno Blink-182) et l'architecture cascade
+livrée. Le design original ci-dessous reste comme référence
+historique.
+
+---
 
 **Contexte** : la curation actuelle des `usages` per-capture (Phase
 7.52 Anniversary Premium curées + Phase 7.53 ToneNET + Phase 7.79.3
