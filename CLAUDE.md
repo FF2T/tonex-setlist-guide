@@ -981,7 +981,201 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-06-03 mardi, V9.7.28 — Phase 13 close + polish UX fiche dépliée)
+## État actuel (2026-06-03 mardi soir, V9.7.41 — Méga-session perf batch fetchAI + payload Firestore)
+
+**Backline v9.7.41 / SW backline-v444 / STATE_VERSION 14 / 1938 tests verts. Bundle 2904 KB.**
+
+### Récap session perf 2026-06-03 soir — 9 versions livrées (v9.7.33 → v9.7.41)
+
+Mesure initiale Sébastien : « 5 morceaux en 3min30 » (42s/morceau) avec
+estimation UI menteuse à 8s/morceau. Cible : honnêteté + perf.
+
+| # | Version | Sujet | Gain |
+|---|---|---|---|
+| 1 | 9.7.33 | Estimation honnête 8s → 40s/morceau (fix mensonge) | 0 |
+| 2 | 9.7.34 | **Levier 1** : fetchAI mono-langue selon `profile.language` (regex transform `{"fr":...,"en":...,"es":...}` du prompt + stamp `_locale` + détection `localeStale` re-fetch) | -15% temps mesuré |
+| 3 | 9.7.35 | Retry qualité 85→80 + retries 2→1 (déprécié par 9.7.36) | marginal |
+| 4 | 9.7.36 | **Suppression retry qualité intelligent** : Phase 13.1 (correctif ref_amp ARTISTS) + 13.2 (boost amp family) corrigent à la source ce que le retry compensait empiriquement. Doublement redondant. | marginal mais propre |
+| 5 | 9.7.37 | **Parallélisation batch concurrency 3** + chrono console détaillé (per-fetch ms + speedup ratio). Suppression jauge animée rAF v9.7.20 (plus de `[Violation] requestAnimationFrame`). | -67% temps |
+| 6 | 9.7.38 | Concurrency 3 → 5 (mesure 9.7.37 : speedup 2.70x = 90% efficacité, Gemini scale presque linéairement) | -75% cumulé |
+| 7 | 9.7.39 | Retry ciblé JSON parse (1 max). Cas observé v9.7.38 : Paranoid skip avec `Expected ',' or '}' after property value`. Distinct du retry qualité (supprimé) et quota 429 (câblé). | robustesse |
+| 8 | 9.7.40 | **Levier 2** : split songMeta architecture (cross-profil via `shared.songDb[i].songMeta`) + cleanup payload A+B (drop 12 flags internes Phase 13 / clamp `ideal_top3` à 3 entries). | -600 KB payload |
+| 9 | 9.7.41 | Fix estimation UI parallèle : `ceil(N/5) × 33s` au lieu de `N × 40s` séquentiel | UI honnête |
+
+### Mesures mesurées (chrono console v9.7.37+)
+
+| Batch | Wall-clock | Per-fetch avg | Speedup | Efficacité |
+|---|---|---|---|---|
+| 3 morceaux | 36.1s | 32.5s | 2.70x | 90% (sur 3) |
+| 6 morceaux (référence pré-optims) | 3min25 | 34.2s | 1.0x | 100% (séquentiel) |
+| 13 morceaux | 1min45 | 32.5s | 3.73x | 75% (sur 5) |
+| 16 morceaux | 2min15 | 34.3s | 4.07x | 80% (sur 5) |
+| 21 morceaux | 2min40 | 33.1s | 4.34x | 86% (sur 5) |
+
+**Per-fetch Gemini Flash incompressible** : ~32-35s par fetch.
+**Bottleneck restant** : latence intrinsèque Gemini Flash, pas le code Backline.
+
+### Gain payload Firestore (Levier 2 v9.7.40)
+
+| Avant | Après v9.7.40 |
+|---|---|
+| **940 KB** (à 4% du mur SAFE_LIMIT 980 KB) | **336 KB** (à 65% sous le mur) |
+
+Warning `Payload XXX KB approche la limite 1 MB` disparu. ~600 KB de
+marge libérée — beaucoup plus qu'attendu (estimation initiale 50-90 KB).
+
+Surprise positive probable : le split songMeta (C) a migré progressivement
+beaucoup d'analyses vers `shared.songDb[i].songMeta` au fil des nouveaux
+fetches. Le cleanup A (12 flags) + B (clamp top3) a grattté au push.
+Combiné : effet structurel énorme.
+
+**Phase 9.7.42 perf inject prompt** (utiliser songMeta cached comme input
+du prompt fetchAI → réduit output Gemini ~30%) **devient OPTIONNELLE** —
+le payload n'est plus le bottleneck. À activer uniquement si gain perf
+supplémentaire désiré (passer de 33s → ~22s par fetch).
+
+### Architecture Levier 2 (v9.7.40)
+
+```
+shared.songDb[i] {
+  ..., songMeta?: {
+    result: {              // 14 champs factuels morceau cross-profil
+      song_year, song_album, song_key, song_bpm, song_style,
+      song_desc, cot_step1,
+      tonal_school, target_gain, pickup_preference,
+      ref_guitarist, ref_guitar, ref_amp, ref_effects
+    },
+    locale,                // langue de l'analyse
+    ts                     // pour LWW Firestore
+  }
+}
+
+profile.aiCache[songId] {  // per-profil, déjà existant
+  ..., result: {           // champs RigReco uniquement (post-split)
+    cot_step2_guitars, cot_step3_amp, cot_step4_score,
+    ideal_guitar, guitar_reason,
+    preset_ann_name, preset_plug_name, preset_tmp,
+    preset_ann, preset_plug, ideal_preset, ideal_preset_score, ideal_top3,
+    preset_settings_v1, tweaks, fx_blocks, playing_hints,
+    settings_preset, settings_guitar,
+    bass_recommendation, guitar_amp_settings, pedalboard_settings
+  }
+}
+```
+
+**Helpers purs** (`src/app/utils/ai-helpers.js`, +6 exports) :
+- `SONG_META_KEYS` constant (14 champs)
+- `INTERNAL_FLAGS` constant (12 flags Phase 13 à drop au push)
+- `splitResultByMeta(result) → {meta, rig}` pure
+- `mergeMetaIntoResult(meta, rig) → result` pure
+- `cleanInternalFlags(result) → result` pure
+- `clampIdealTop3(result, max=3) → result` pure
+
+**Câblage main.jsx** :
+- `setSongAiCache(songId, value)` : split au write
+  - `value.result` → `splitResultByMeta` →
+    - `meta` → `setSongDb` qui écrit `shared.songDb[i].songMeta`
+    - `rig` → `setProfiles` qui écrit `profile.aiCache[songId].result`
+- `songDbWithProfileCache` useMemo : merge au read
+  - `mergeMetaIntoResult(s.songMeta?.result, profEntry.result)`
+  - Caches existants pré-v9.7.40 ont tout dans `profile.aiCache` →
+    fallback antérieur préservé
+
+**Migration douce** :
+- Aucun bump STATE_VERSION
+- Champ `shared.songDb[i].songMeta` additif optional
+- Caches existants fonctionnent inchangés via fallback du useMemo
+- Le split s'applique aux NEW fetchAI au fil de l'eau
+
+**`stripAiCacheForSync` étendu (state.js)** :
+- Drop 12 flags internes du profile.aiCache actif au push
+- Clamp `ideal_top3` à 3 entries (rétro-compat caches existants avec 10+)
+- Pas de duplication avec ai-helpers : helpers inline `_cleanCacheEntry`
+  pour découpler state ↔ ai-helpers
+
+### Parallélisation batch (v9.7.37/38)
+
+`src/app/screens/ListScreen.jsx` `analyzeMissingAll` :
+
+```js
+const CONCURRENCY = 5;
+const worker = async () => {
+  while (!analyzeCancelRef.current) {
+    const myIdx = nextIdx++;
+    if (myIdx >= total) return;
+    const s = missing[myIdx];
+    // ... fetchAI + persist + status update
+  }
+};
+await Promise.all(Array.from(
+  { length: Math.min(CONCURRENCY, total) },
+  () => worker(),
+));
+```
+
+Pattern N workers concurrents qui se distribuent une queue partagée via
+`nextIdx`. Cancel : `analyzeCancelRef.current = true` interrompt les
+NOUVEAUX fetches, les in-flight finissent normalement.
+
+**Status format `{completed, total, inFlightCount}`** au lieu de
+`{current, total, songTitle}` (parallèle = plusieurs songs en cours).
+Rendu bouton cancel : "X% · completed/total · N en cours ⏸".
+
+**Suppression jauge animée rAF (v9.7.20)** : avec parallèle concurrency 5
+la progression avance par paliers naturels rapprochés. Plus besoin
+d'interpoler entre paliers — `transition: width 0.3s ease-out` CSS
+suffit. Bonus : supprime les centaines de `[Violation] requestAnimationFrame
+handler` qui polluaient la console.
+
+### Chrono console détaillé (v9.7.37)
+
+À chaque batch :
+```
+[batch] analyzeMissingAll: N morceaux, concurrency 5
+[batch] X/N "titre" — Yms       (par fetch)
+[batch] TOTAL: Zs wall-clock · N fetches
+[batch] Per-fetch: min Xms · avg Yms · max Zms
+[batch] Speedup vs séquentiel : Wx (sum fetches Xs / wall Ys)
+```
+
+Permet diagnostic précis :
+- Latence Gemini Flash réelle (avg fetch)
+- Efficacité concurrence (speedup / concurrency)
+- Identifier les morceaux problématiques (max bien au-dessus de avg)
+
+### Quota Gemini Free Tier
+
+- Limite : 20 RPM (Requests Per Minute), 1500 RPD (Per Day)
+- Concurrency 5 + fetch ~33s : ~9 fetches/min en steady state → bien sous quota
+- 30 morceaux à concurrency 5 = ~9 RPM avg → reste sous 20
+- Retry quota 429 Phase 7.52.17 reste câblé en backup
+
+### Estimation UI (v9.7.41 fix)
+
+Formule corrigée : `ceil(N / CONCURRENCY) × SEC_PER_WAVE`
+avec `CONCURRENCY = 5` et `SEC_PER_WAVE = 33`.
+
+| N morceaux | Avant (séquentiel 40s) | Après v9.7.41 (parallèle ceil/5×33s) | Réel mesuré |
+|---|---|---|---|
+| 1 | 40s | 33s | ~30s |
+| 6 | 4 min | 1 min | 36s |
+| 16 | 11 min | 2 min | 2min15 |
+| 30 | 20 min | 3 min | ~3min15 |
+| 60 | 40 min | 7 min | extrapolé ~6min30 |
+
+**3 sites à jour** : `missingDurationStr` helper + 2 confirms (analyser/
+MAJ toolbar + bandeau fingerprint-stale) + 2 confirms MonProfilScreen
+(invalider mes caches IA + admin invalider tous).
+
+### Phase 9 — Famille perf désormais close + Levier 2 architecture posée
+
+Cf section "Idées en attente" pour Phase 9.7.42 perf inject prompt (gain
+output Gemini ~30%) — **plus prioritaire car le mur payload est très
+loin maintenant**. À activer si signal user.
+
+---
+
+## État précédent (2026-06-03 mardi midi, V9.7.28 — Phase 13 close + polish UX fiche dépliée)
 
 **Backline v9.7.28 / SW backline-v431 / STATE_VERSION 14 / 1919 tests verts. Bundle 2900 KB.**
 
