@@ -75,8 +75,9 @@ function MonProfilScreen({
   const [expandedSongId, setExpandedSongId] = useState(null);
   const toggleSongInSetlist = (songId, slId) => onSetlists((p) => p.map((sl) => sl.id !== slId ? sl : { ...sl, songIds: sl.songIds.includes(songId) ? sl.songIds.filter((x) => x !== songId) : [...sl.songIds, songId] }));
   // v9.7.31 — Cowork audit P1 : padding élargi pour cibles tactiles ~44px.
-  // Inputs profil étaient à 34px (Email, mots de passe) sous le seuil HIG.
-  const inp = { background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '10px 12px', fontSize: 13, boxSizing: 'border-box', minHeight: 44 };
+  // v9.7.32 — Lot 4 polish iPad : maxWidth 480 sur inputs profil (sinon
+  // s'étirent à 684px en iPad 834, formulaire désertique).
+  const inp = { background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '10px 12px', fontSize: 13, boxSizing: 'border-box', minHeight: 44, maxWidth: 480 };
   // Réorg 2026-05-29 — instrument(s) du profil pilotés depuis Préférences.
   // Gate les onglets "Mes guitares" / "Mes basses". ≥1 instrument requis.
   const instruments = Array.isArray(profile?.instruments) && profile.instruments.length > 0 ? profile.instruments : ['guitar'];
@@ -1040,7 +1041,7 @@ function MonCompteSection({
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
                 {stats.map((s, i) => (
                   <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 4, background: 'var(--a3)', borderRadius: 'var(--r-md)', padding: '10px 12px' }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>{s.label}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>{s.label}</div>
                     <div style={{ fontSize: 18, color: 'var(--text-bright)', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{s.value}</div>
                   </div>
                 ))}

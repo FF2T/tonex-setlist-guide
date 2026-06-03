@@ -144,11 +144,11 @@ function FxBlocksCadre({ fxBlocks, locale, title }) {
     const pct = Math.max(0, Math.min(100, ((value - range.min) / (range.max - range.min)) * 100));
     return (
       <div key={label} style={{ display: 'grid', gridTemplateColumns: '70px 1fr 60px', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-        <span style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', color: 'var(--text-muted)' }}>{label}</span>
+        <span style={{ fontSize: 'clamp(11px, 1.15vw, 12px)', color: 'var(--text-muted)' }}>{label}</span>
         <div style={{ height: 7, background: 'var(--a5)', borderRadius: 4, overflow: 'hidden' }}>
           <div style={{ width: `${pct}%`, height: '100%', background: 'var(--accent)' }}/>
         </div>
-        <span style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--text-bright)' }}>{value}{range.unit}</span>
+        <span style={{ fontSize: 'clamp(11px, 1.15vw, 12px)', textAlign: 'right', fontFamily: 'var(--font-mono)', color: 'var(--text-bright)' }}>{value}{range.unit}</span>
       </div>
     );
   };
@@ -413,7 +413,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
       )}
       {Array.isArray(ps1.tweaks) && ps1.tweaks.length > 0 && (
         <div style={{ marginTop: 4 }}>
-          <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', fontWeight: 700, color: 'var(--text-dim)', marginBottom: 3, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 0.3 }}>{t('song-detail.tweaks-label', 'Si ça ne sonne pas tout à fait juste')}</div>
+          <div style={{ fontSize: 'clamp(11px, 1.15vw, 12px)', fontWeight: 700, color: 'var(--text-dim)', marginBottom: 3, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 0.3 }}>{t('song-detail.tweaks-label', 'Si ça ne sonne pas tout à fait juste')}</div>
           <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
             {ps1.tweaks.map((tw, i) => {
               const symptom = getLocalizedText(tw.symptom, locale);
@@ -660,7 +660,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {playCtx.rig === 'tmp' && getActiveDevicesForRender(profile).filter((d) => typeof d.RecommendBlock === 'function').map((d) => (
             <div key={d.id} style={{ borderTop: '1px solid var(--a8)', marginTop: 6, paddingTop: 6 }}>
-              <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', fontWeight: 700, color: d.deviceColor || 'var(--brass-400)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ fontSize: 'clamp(11px, 1.15vw, 12px)', fontWeight: 700, color: d.deviceColor || 'var(--brass-400)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
                 <NavIcon id={d.iconId || 'amp'} size={11}/><span>{d.label}</span>
               </div>
               <d.RecommendBlock song={song} guitar={g} profile={profile} allGuitars={guitars} onPatchOverride={onTmpPatchOverride}/>
@@ -750,7 +750,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                       <StatusDot score={e.family ? 65 : 85} size={6}/>
                       <span style={{ fontWeight: 600, color: 'var(--text-bright)' }}>{e.pack}</span>
                       <span style={{ color: 'var(--text-dim)' }}>{e.creator}</span>
-                      {e.family && <span style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', color: 'var(--text-dim)' }}>{t('song-detail.family-similar', '[famille similaire]')}</span>}
+                      {e.family && <span style={{ fontSize: 'clamp(11px, 1.15vw, 12px)', color: 'var(--text-dim)' }}>{t('song-detail.family-similar', '[famille similaire]')}</span>}
                     </div>
                   ))}
                 </div>
@@ -825,7 +825,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                           <div style={{ marginTop: 4, paddingLeft: 12, fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                             {phText && <span>↳ {phText}</span>}
                             {phStereo && (
-                              <span style={{ padding: '1px 5px', borderRadius: 'var(--r-sm)', background: 'var(--brass-bg)', color: 'var(--brass)', fontSize: 'clamp(9px, 1.05vw, 11px)', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                              <span style={{ padding: '1px 5px', borderRadius: 'var(--r-sm)', background: 'var(--brass-bg)', color: 'var(--brass)', fontSize: 'clamp(11px, 1.15vw, 12px)', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
                                 {t('playing-hints.stereo-flat', 'STEREO')}
                               </span>
                             )}
@@ -928,7 +928,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                         </select>
                         <button onClick={() => doInstall(device)} disabled={bk === ''} style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', background: bk !== '' ? 'var(--accent)' : 'var(--bg-disabled)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '4px 10px', cursor: bk !== '' ? 'pointer' : 'not-allowed', fontWeight: 700 }}>{t('song-detail.ok', 'OK')}</button>
                       </div>
-                      {bk !== '' && currentPreset && <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', color: 'var(--text-dim)', marginTop: 2 }}>{tFormat('song-detail.replaces', { preset: currentPreset }, 'Remplace : {preset}')}</div>}
+                      {bk !== '' && currentPreset && <div style={{ fontSize: 'clamp(11px, 1.15vw, 12px)', color: 'var(--text-dim)', marginTop: 2 }}>{tFormat('song-detail.replaces', { preset: currentPreset }, 'Remplace : {preset}')}</div>}
                     </div>
                   );
                 };
@@ -951,7 +951,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                       const hasTechName = !!entry?.amp;  // le nom tech n'a de sens que si différent de l'amp
                       if (!hasTechName && !si) return null;
                       return (
-                        <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 3, color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <div style={{ fontSize: 'clamp(11px, 1.15vw, 12px)', marginTop: 3, color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                           {hasTechName && <span style={{ wordBreak: 'break-word' }} title={displayPresetName}>{displayPresetName}</span>}
                           {hasTechName && si && <span>·</span>}
                           {si && <span style={{ wordBreak: 'break-word' }}>{si.label}</span>}
@@ -962,10 +962,10 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                       );
                     })()}
                     {/* Ligne 3 : état installation + bouton installer */}
-                    <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <div style={{ fontSize: 'clamp(11px, 1.15vw, 12px)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       {loc ? <span style={{ color: 'var(--green)' }}>{tFormat('song-detail.installed-bank', { bank: loc.bank, slot: loc.slot }, '✓ Installé — Banque {bank}{slot}')}</span>
                         : <span style={{ color: 'var(--yellow)' }}>{t('song-detail.not-installed-flat', 'Non installé')}</span>}
-                      {!loc && !installTarget && (canInstallAnn || canInstallPlug) && <button onClick={() => setInstallTarget({ preset: displayPresetName })} style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-sm)', padding: '2px 8px', cursor: 'pointer', fontWeight: 600, marginLeft: 'auto' }}>{t('song-detail.install', 'Installer')}</button>}
+                      {!loc && !installTarget && (canInstallAnn || canInstallPlug) && <button onClick={() => setInstallTarget({ preset: displayPresetName })} style={{ fontSize: 'clamp(11px, 1.15vw, 12px)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-sm)', padding: '2px 8px', cursor: 'pointer', fontWeight: 600, marginLeft: 'auto' }}>{t('song-detail.install', 'Installer')}</button>}
                     </div>
                     {installTarget?.preset === displayPresetName && (() => {
                       const activeEnabled = getActiveDevicesForRender(profile);
@@ -977,7 +977,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                           <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', marginBottom: 8, fontWeight: 600 }}>{tFormat('song-detail.install-target', { preset: displayPresetName }, 'Installer "{preset}" sur :')}</div>
                           {canPedal && bankInput('ann', 49)}
                           {canPlug && bankInput('plug', 10)}
-                          <button onClick={() => setInstallTarget(null)} style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}>{t('song-detail.cancel', 'Annuler')}</button>
+                          <button onClick={() => setInstallTarget(null)} style={{ fontSize: 'clamp(11px, 1.15vw, 12px)', background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}>{t('song-detail.cancel', 'Annuler')}</button>
                         </div>
                       );
                     })()}
@@ -992,7 +992,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                 if (filteredTop3.length <= 1) return null;
                 return (
                   <div style={{ marginTop: 6 }}>
-                    <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', color: 'var(--text-tertiary)', marginBottom: 4 }}>{t('song-detail.alternatives', 'Alternatives catalogue')}</div>
+                    <div style={{ fontSize: 'clamp(11px, 1.15vw, 12px)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', color: 'var(--text-tertiary)', marginBottom: 4 }}>{t('song-detail.alternatives', 'Alternatives catalogue')}</div>
                     {/* Phase 7.83 final7 — grid 2 col max desktop (cf .reco-multicol) */}
                     <div className="reco-multicol">
                       {filteredTop3.slice(1).map((p, i) => {
@@ -1017,7 +1017,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                                   </div>
                                   {/* Ligne 2 : nom tech mono + pack */}
                                   {(ampName || si) && (
-                                    <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 3, color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                    <div style={{ fontSize: 'clamp(11px, 1.15vw, 12px)', marginTop: 3, color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                                       {ampName && <span style={{ wordBreak: 'break-word' }} title={p.name}>{p.name}</span>}
                                       {ampName && si && <span>·</span>}
                                       {si && <span style={{ wordBreak: 'break-word' }}>{si.label}</span>}
@@ -1027,7 +1027,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                               );
                             })()}
                             {/* Ligne 3 : état installation */}
-                            <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <div style={{ fontSize: 'clamp(11px, 1.15vw, 12px)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                               {loc ? <span style={{ color: 'var(--green)' }}>{tFormat('song-detail.installed-bank', { bank: loc.bank, slot: loc.slot }, '✓ Installé — Banque {bank}{slot}')}</span>
                                 : <span style={{ color: 'var(--yellow)' }}>{t('song-detail.not-installed-flat', 'Non installé')}</span>}
                             </div>
@@ -1128,7 +1128,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
             return (
               <div style={{ background: 'var(--a3)', border: '1px solid var(--a7)', borderRadius: 'var(--r-md)', padding: '6px 10px', marginBottom: 6 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, flex: 1 }}>{tFormat('song-detail.feedback-history-flat', { count: all.length }, 'Tes feedbacks précédents ({count})')}</div>
+                  <div style={{ fontSize: 'clamp(11px, 1.15vw, 12px)', color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, flex: 1 }}>{tFormat('song-detail.feedback-history-flat', { count: all.length }, 'Tes feedbacks précédents ({count})')}</div>
                   {all.length > 1 && <button
                     data-testid="song-feedback-clear-all"
                     onClick={() => {
@@ -1140,7 +1140,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                       setLocalAiResult(null);
                     }}
                     disabled={isDemo}
-                    style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', background: 'none', border: '1px solid var(--a10)', color: 'var(--text-dim)', borderRadius: 'var(--r-sm)', padding: '1px 6px', cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.5 : 1 }}
+                    style={{ fontSize: 'clamp(11px, 1.15vw, 12px)', background: 'none', border: '1px solid var(--a10)', color: 'var(--text-dim)', borderRadius: 'var(--r-sm)', padding: '1px 6px', cursor: isDemo ? 'not-allowed' : 'pointer', opacity: isDemo ? 0.5 : 1 }}
                     title={isDemo ? t('demo.blocked', 'Action désactivée en mode démo') : t('song-detail.feedback-clear-tooltip', 'Effacer tous les feedbacks pour ce morceau')}
                   >{t('song-detail.feedback-clear-all', 'Tout effacer')}</button>}
                 </div>
@@ -1413,11 +1413,11 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(12px, 1.35vw, 14px)' }}>
                               <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                                 <span style={{ ...bassCompatStyle(top.score), wordBreak: 'break-word' }}>{top.amp || top.name}</span>
-                                {top.amp && <span style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', fontSize: 'clamp(9px, 1.05vw, 11px)', wordBreak: 'break-word' }} title={top.name}>{top.name}</span>}
+                                {top.amp && <span style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', fontSize: 'clamp(11px, 1.15vw, 12px)', wordBreak: 'break-word' }} title={top.name}>{top.name}</span>}
                               </span>
                               {top.score > 0 && <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, color: 'var(--text-inverse)', background: scoreColor(top.score), padding: '2px 7px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 44, textAlign: 'center', fontSize: 'clamp(11px, 1.25vw, 13px)' }}>{top.score}%</span>}
                             </div>
-                            <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', marginTop: 2 }}>
+                            <div style={{ fontSize: 'clamp(11px, 1.15vw, 12px)', marginTop: 2 }}>
                               {loc ? <span style={{ color: 'var(--green)' }}>{tFormat('song-detail.installed-bank', { bank: loc.bank, slot: loc.slot }, '✓ Installé — Banque {bank}{slot}')}</span>
                                 : <span style={{ color: 'var(--yellow)' }}>{t('song-detail.not-installed-flat', 'Non installé')}</span>}
                             </div>
@@ -1426,7 +1426,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                       })()}
                       {bassAlts.length > 1 && (
                         <div style={{ marginTop: 6 }}>
-                          <div style={{ fontSize: 'clamp(9px, 1.05vw, 11px)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', color: 'var(--text-tertiary)', marginBottom: 4 }}>{t('song-detail.bass-alternatives', 'Alternatives catalogue')}</div>
+                          <div style={{ fontSize: 'clamp(11px, 1.15vw, 12px)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', color: 'var(--text-tertiary)', marginBottom: 4 }}>{t('song-detail.bass-alternatives', 'Alternatives catalogue')}</div>
                           <div className="reco-multicol">
                             {bassAlts.slice(1).map((alt, i) => {
                               const loc = findInBanks(alt.name, banksAnn) || findInBanks(alt.name, banksPlug);
@@ -1434,10 +1434,10 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                                 <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 'clamp(11px, 1.25vw, 13px)' }}>
                                   <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
                                     <span style={{ fontWeight: 600, color: 'var(--text-sec)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{alt.amp || alt.name}</span>
-                                    {alt.amp && <span style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', fontSize: 'clamp(9px, 1.05vw, 11px)' }} title={alt.name}>{alt.name}</span>}
-                                    {loc && <span style={{ color: 'var(--green)', fontSize: 'clamp(9px, 1.05vw, 11px)', flexShrink: 0 }}>✓</span>}
+                                    {alt.amp && <span style={{ color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', fontSize: 'clamp(11px, 1.15vw, 12px)' }} title={alt.name}>{alt.name}</span>}
+                                    {loc && <span style={{ color: 'var(--green)', fontSize: 'clamp(11px, 1.15vw, 12px)', flexShrink: 0 }}>✓</span>}
                                   </span>
-                                  {alt.score > 0 && <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--text-inverse)', background: scoreColor(alt.score), padding: '1px 6px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 40, textAlign: 'center', fontSize: 'clamp(9px, 1.05vw, 11px)' }}>{alt.score}%</span>}
+                                  {alt.score > 0 && <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--text-inverse)', background: scoreColor(alt.score), padding: '1px 6px', borderRadius: 'var(--r-sm)', flexShrink: 0, minWidth: 40, textAlign: 'center', fontSize: 'clamp(11px, 1.15vw, 12px)' }}>{alt.score}%</span>}
                                 </div>
                               );
                             })}
