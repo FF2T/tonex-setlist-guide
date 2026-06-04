@@ -363,7 +363,23 @@ function applyJamOverrides(derivedJams, ownJamBanks, overriddenStyles) {
   return (derivedJams || []).map((b) => (styles.has(b.style) && ownByStyle.has(b.style) ? ownByStyle.get(b.style) : b));
 }
 
+// numberDerivedLayout(kept, opts) — Phase 14.6 (fix renumérotation).
+// Numérote un layout dérivé+packé de façon CONTIGUË : Live d'abord depuis
+// startBank, puis Jams IMMÉDIATEMENT après le Live réellement gardé (pas la
+// frontière de zone configurée du device). Comme packForCapacity garantit
+// live.length + jams.length <= capacité, aucun numéro ne dépasse
+// startBank + capacité − 1. Pur.
+//   opts = { startBank = 0 }
+function numberDerivedLayout(kept, opts = {}) {
+  const startBank = typeof opts.startBank === 'number' ? opts.startBank : 0;
+  const live = (kept?.live || []).map((b, i) => ({ ...b, bank: startBank + i }));
+  const jamStart = startBank + live.length;
+  const jams = (kept?.jams || []).map((b, i) => ({ ...b, bank: jamStart + i }));
+  return { live, jams };
+}
+
 export {
   clusterSongsBySharedTone, buildLiveLayout, diffLayout, splitSwapsByImpact,
   buildJamLayout, packForCapacity, deriveLayoutFromReference, applyJamOverrides,
+  numberDerivedLayout,
 };

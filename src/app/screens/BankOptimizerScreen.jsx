@@ -33,7 +33,7 @@ import { getActiveDevicesForRender } from '../utils/devices-render.js';
 import { getEffectiveZones, getEffectiveJamStyles, getEffectiveReferenceDeviceId, getDerivationMode } from '../../core/state.js';
 import { computeBestPresets, resolveRefAmp } from '../utils/ai-helpers.js';
 import { findInBanks } from '../utils/preset-helpers.js';
-import { clusterSongsBySharedTone, buildLiveLayout, diffLayout, splitSwapsByImpact, buildJamLayout, packForCapacity, deriveLayoutFromReference, applyJamOverrides } from '../utils/optimizer-helpers.js';
+import { clusterSongsBySharedTone, buildLiveLayout, diffLayout, splitSwapsByImpact, buildJamLayout, packForCapacity, deriveLayoutFromReference, applyJamOverrides, numberDerivedLayout } from '../utils/optimizer-helpers.js';
 import { CC, TYPE_LABELS } from '../utils/ui-constants.js';
 import { scoreColor } from '../components/score-utils.js';
 import Breadcrumb from '../components/Breadcrumb.jsx';
@@ -578,15 +578,14 @@ function BankOptimizerScreen({
           const ownJam = buildJamLayout(tgtRanked, { bankModel: dev.bankModel, jamStart: 0, jamCapacity: Infinity, chosenAmp: tgtOverrides }).banks;
           derived.jams = applyJamOverrides(derived.jams, ownJam, Object.keys(tgtOverrides));
         }
-        // Pack à la capacité du device cible.
-        const zonesT = getEffectiveZones(profile, dev.id, dev.maxBanks);
+        // Pack à la capacité TOTALE du device cible (banques triplet / slots flat).
         const capacity = dev.bankModel === 'flat' ? dev.nbSlots : dev.maxBanks;
         const packed = packForCapacity({ live: derived.live, jams: derived.jams, discovery: [] }, capacity, dev.bankModel);
-        // Renumérotation dans les zones du device cible.
-        const liveStart = dev.startBank;
-        packed.kept.live = packed.kept.live.map((b, i) => ({ ...b, bank: liveStart + i }));
-        const jamStart = dev.startBank + zonesT.liveEnd;
-        packed.kept.jams = packed.kept.jams.map((b, i) => ({ ...b, bank: jamStart + i }));
+        // Renumérotation CONTIGUË : Live puis Jams juste après le Live packé
+        // (jamais à la frontière de zone → ne déborde pas la capacité).
+        const numbered = numberDerivedLayout(packed.kept, { startBank: dev.startBank });
+        packed.kept.live = numbered.live;
+        packed.kept.jams = numbered.jams;
         out[dev.deviceKey] = { ...packed, divergences, contextLabel };
       }
       if (typeof window !== 'undefined' && window.__TONEX_PERF) {

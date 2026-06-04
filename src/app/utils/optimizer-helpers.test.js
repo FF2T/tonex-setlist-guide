@@ -1,6 +1,6 @@
 // Tests Phase 14.3 — optimizer-helpers (clustering Live + diff).
 import { describe, test, expect } from 'vitest';
-import { clusterSongsBySharedTone, buildLiveLayout, diffLayout, splitSwapsByImpact, buildJamLayout, packForCapacity, deriveLayoutFromReference, applyJamOverrides } from './optimizer-helpers.js';
+import { clusterSongsBySharedTone, buildLiveLayout, diffLayout, splitSwapsByImpact, buildJamLayout, packForCapacity, deriveLayoutFromReference, applyJamOverrides, numberDerivedLayout } from './optimizer-helpers.js';
 
 // Fabrique de songs simples (id only, le reste vient des fns injectées).
 const song = (id) => ({ id });
@@ -384,5 +384,53 @@ describe('applyJamOverrides — Phase 14.6 (override survit à la dérivation)',
   });
   test('override sans banque propre correspondante → garde le dérivé', () => {
     expect(applyJamOverrides(derived, [], ['blues'])[0].slots.A).toBe('ref-b');
+  });
+});
+
+describe('numberDerivedLayout — Phase 14.6 (fix renumérotation contiguë)', () => {
+  const live = (n) => Array.from({ length: n }, (_, i) => ({ slots: { A: 'L' + i }, songCount: 1 }));
+  const jams = (n) => Array.from({ length: n }, (_, i) => ({ slots: { A: 'J' + i }, style: 's' + i }));
+
+  test('Live puis Jams CONTIGUS depuis startBank (pas à la frontière de zone)', () => {
+    const r = numberDerivedLayout({ live: live(2), jams: jams(3) }, { startBank: 1 });
+    expect(r.live.map((b) => b.bank)).toEqual([1, 2]);
+    expect(r.jams.map((b) => b.bank)).toEqual([3, 4, 5]); // juste après le Live, PAS 11-12
+  });
+
+  test('startBank 0 (Anniversary)', () => {
+    const r = numberDerivedLayout({ live: live(1), jams: jams(1) }, { startBank: 0 });
+    expect(r.live[0].bank).toBe(0);
+    expect(r.jams[0].bank).toBe(1);
+  });
+
+  test('vide → vide', () => {
+    expect(numberDerivedLayout({}, { startBank: 1 })).toEqual({ live: [], jams: [] });
+  });
+});
+
+describe('14.6 — pack + number : jams jamais numérotés au-delà de la capacité', () => {
+  const liveBank = (amp, songCount, n) => ({ bank: n, slots: { A: amp + ' c', B: amp + ' d', C: amp + ' l' }, cluster: { kind: 'amp', amp, shared: songCount > 1 }, songCount });
+  const jamBank = (style, n) => ({ bank: n, slots: { A: 'j', B: 'j', C: 'j' }, style });
+
+  test('Plug triplet (10 banques), zone Jams 0, contexte qui déborde → jams dropés, Live ≤ 10', () => {
+    // 8 amplis distincts Live + 5 jams = 13 > 10. Pas de fusion (amplis distincts).
+    const liveArr = Array.from({ length: 8 }, (_, i) => liveBank('amp' + i, 1, i));
+    const jamArr = ['blues', 'rock', 'jazz', 'funk', 'metal'].map((s, i) => jamBank(s, 100 + i));
+    const packed = packForCapacity({ live: liveArr, jams: jamArr, discovery: [] }, 10, 'triplet');
+    const numbered = numberDerivedLayout(packed.kept, { startBank: 1 });
+    expect(packed.dropped.filter((d) => d.zone === 'jams')).toHaveLength(5); // jams dropées en 1er
+    const maxBank = Math.max(...numbered.live.map((b) => b.bank), ...numbered.jams.map((b) => b.bank), 0);
+    expect(maxBank).toBeLessThanOrEqual(10); // jamais au-delà de 10 banques
+  });
+
+  test('One+ flat (20 slots), zone Jams 0, ça tient → jams placés APRÈS le Live (pas à 21-22)', () => {
+    const flatLive = [{ bank: 1, slots: { A: 'x' }, cluster: { kind: 'capture' }, songCount: 1 }, { bank: 2, slots: { A: 'y' }, cluster: { kind: 'capture' }, songCount: 1 }];
+    const flatJams = [{ bank: 1, slots: { A: 'j1' }, style: 'blues' }, { bank: 2, slots: { A: 'j2' }, style: 'blues' }, { bank: 3, slots: { A: 'j3' }, style: 'blues' }];
+    const packed = packForCapacity({ live: flatLive, jams: flatJams, discovery: [] }, 20, 'flat');
+    const numbered = numberDerivedLayout(packed.kept, { startBank: 1 });
+    expect(numbered.live.map((b) => b.bank)).toEqual([1, 2]);
+    expect(numbered.jams.map((b) => b.bank)).toEqual([3, 4, 5]); // PAS 21-22-23
+    const maxBank = Math.max(...numbered.jams.map((b) => b.bank), 0);
+    expect(maxBank).toBeLessThanOrEqual(20);
   });
 });
