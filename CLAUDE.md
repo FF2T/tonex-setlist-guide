@@ -981,7 +981,109 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-06-03 mardi soir, V9.7.41 — Méga-session perf batch fetchAI + payload Firestore)
+## État actuel (2026-06-04 jeudi, V9.8.1 — ToneX One + One+ + fix Optimiseur source device-gated)
+
+**Backline v9.8.1 / SW backline-v447 / STATE_VERSION 15 / 1974 tests verts. Bundle 2914 KB.**
+
+### v9.8.0 → 9.8.1 — Support ToneX One + ToneX One+ (jalon multi-device)
+
+Ajout des **2 pédales compactes ToneX One et One+** comme devices à part
+entière dans "Mon matériel numérique". Phase A (activation + banks +
+factory) **et** Phase B (recommandations, parité Anniversary/Plug)
+livrées d'un bloc.
+
+**Modèle de banks À PLAT** : les One/One+ ont 20 presets numérotés 1-20
+(pas de A/B/C). Modélisés en **"20 banques × 1 slot A"** → réutilise
+TOUT le moteur scoring/findInBanks/CSV existant sans toucher aux boucles
+`['A','B','C']` hardcodées (B/C absents = ignorés gracieusement). Zéro
+surface de régression sur les 4 devices existants. Le `BankEditor` reçoit
+`slots:['A']` → rendu 1 colonne / 20 lignes (pas de label de slot).
+
+**Architecture sources (décision structurante)** : le catalogue est
+indexé par nom → un nom = une seule `src`. Or la **ToneX One reprend les
+MÊMES Tone Models que la Pédale Factory v2** (mêmes noms : HG PLEXI,
+CL DMBL, DR 800… — les 20 presets One existent déjà dans FACTORY_CATALOG).
+Donc :
+- **One → réutilise la source `Factory`** (factuel). `SOURCE_REQUIRES_DEVICE.Factory`
+  généralisé en "un parmi" : `['tonex-pedal', 'tonex-one']` (Factory dispo
+  si Pédale **OU** One activée). Helper `isRequiredDeviceMissing(srcId,
+  enabledDevices)` gère string|array, utilisé par `effectiveAvailableSources`
+  + ProfileTab gating.
+- **One+ → source dédiée `OnePlusFactory`** (20 noms inédits : Big Hair 800,
+  Smooth D-Lead… → `ONE_PLUS_FACTORY_CATALOG` 20 entrées dérivées du PDF
+  `tone_models/TONEX_ONE_Plus_Pre-loaded_Factory_Presets.pdf`). Pas de
+  collision de clés.
+
+**STATE_VERSION 14 → 15** : `migrateV14toV15` additif (backfill
+`banksOne`/`banksOnePlus` à `{}`), `ensureProfileV15`, idempotent. Merge
+LWW banks étendu (`['banksAnn','banksPlug','banksOne','banksOnePlus']`,
+timestamp `banksModified` partagé). makeDefaultProfile 2 branches.
+
+**Phase B scoring** : `computeBestPresets` produit `oneTop`/`onePlusTop`
+(helper `scoreBanks` générique) ; `enrichAIResult` pose `preset_one`/
+`preset_one_plus` (V9 best slot installé, source-filtered + family boost ;
+pas d'AI-pinning car le prompt ne retourne pas de `preset_one_name`).
+Banks One/One+ publiées sur `window.__activeBanksOne`/`OnePlus` (pattern
+`__activeSources`, **gate par `enabledDevices`**) → lues en fallback par
+le scoring sans threader 2 params dans les 9 call sites enrichAIResult.
+
+**Affichage** : `getRowPlaylistData` (vue setlist repliée) + 
+`SongCollapsedDeviceRows` + `ToneXLiveBlock` (mode scène) généralisés —
+résolution des banks par `bankStorageKey` au lieu du hardcode ann/plug.
+Le LiveBlock One/One+ est auto-enregistré via `makeToneXLiveBlock`.
+
+**v9.8.1 hotfix** (signalement Sébastien "coché One+ + recalculé mais
+pas de recos") :
+1. **Auto-chargement factory à l'activation** : cocher One/One+ dans
+   MesAppareilsTab charge ses 20 presets factory si banks vides (la
+   pédale physique est livrée avec ; un device aux banks vides est
+   "muet" sans reco). N'écrase jamais des banks déjà peuplées.
+2. **deps `collapsedAiCBySongId`** (ListScreen) incluait pas
+   banksOne/banksOnePlus → pas de recalcul des recos au changement de
+   banks One. Props threadées main → SetlistsScreen → ListScreen.
+   `cleaned` nullifie désormais preset_one/preset_one_plus.
+
+**Fichiers** : nouveaux `src/devices/tonex-one/{catalog,index}.js` +
+`tonex-one-plus/{catalog,index}.js` + `tonex-one/catalog.test.js`.
+Modifiés : data_catalogs, catalog, sources(+test), state(+test),
+registry, ai-helpers(+test), BankEditor, MesAppareilsTab, MonProfilScreen,
+ProfileTab, SongCollapsedDeviceRows, ToneXLiveBlock, LiveScreen,
+setlist-row-playlist, main.jsx. +36 tests.
+
+### Dette résiduelle ToneX One/One+ (v1 assumée)
+
+1. **Fiche dépliée détaillée** : le bloc "Scoring preset" de SongDetailCard
+   (boutons d'installation + alternatives catalogue) reste centré
+   Anniversary/Plug (hardcodé `deviceKey === 'ann' || 'plug'`,
+   `findInBanks(name, banksAnn)`, `displayTopPreset` = max preset_ann/plug/
+   ideal_preset). Les recos One/One+ apparaissent en **vue repliée setlist
+   + mode scène** mais PAS dans le bloc détaillé d'install de la fiche
+   dépliée. À généraliser si besoin (~1-2h : étendre displayTopPreset +
+   findInBanks + install buttons aux banks One/One+).
+2. **Import/Export CSV** par device One/One+ : différé. Le `ExportImportScreen`
+   `restrictToDevice` ne gère que 'ann'/'plug'. L'édition directe BankEditor
+   + reset factory couvrent le besoin v1.
+3. **HomeScreen** (recherche libre Accueil) : à vérifier s'il affiche aussi
+   les recos par device — non threadé banksOne/banksOnePlus (le fix v9.8.1
+   ne couvre que ListScreen/setlists). Si HomeScreen montre des recos
+   device, ajouter le même threading.
+
+### v9.7.42 — Fix Optimiseur source device-gated (avant le jalon One)
+
+Bug : un user Anniversary-only voyait des captures Factory (firmware v2
+Pédale classique) proposées à l'installation dans l'Optimiseur. Cause :
+la règle "source dont le device requis n'est pas dans enabledDevices =
+indisponible" (`SOURCE_REQUIRES_DEVICE`) n'existait que côté UI ProfileTab.
+Le scoring/Optimiseur lisaient `availableSources` brut où Factory était
+`true`/`undefined` (jamais `false` car la cascade ne se déclenche qu'au
+TOGGLE). Fix : `effectiveAvailableSources(availableSources, enabledDevices)`
+pur qui force `false` toute source device-gated absente. Dérivé une seule
+fois dans main.jsx (après `const profile`, TDZ-safe) → tous les
+consommateurs héritent de la règle sans threading.
+
+---
+
+## État précédent (2026-06-03 mardi soir, V9.7.41 — Méga-session perf batch fetchAI + payload Firestore)
 
 **Backline v9.7.41 / SW backline-v444 / STATE_VERSION 14 / 1938 tests verts. Bundle 2904 KB.**
 
