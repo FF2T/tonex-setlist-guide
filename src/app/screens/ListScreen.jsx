@@ -101,6 +101,7 @@ function ListScreen({
   songDb, onSongDb, onAiCacheUpdate, setlists, allSetlists, onSetlists, mySongIds,
   checked, onChecked, onSettings,
   banksAnn, onBanksAnn, banksPlug, onBanksPlug,
+  banksOne, banksOnePlus,
   aiProvider, aiKeys, hideHeader = false, allGuitars, allRigsGuitars,
   availableSources, activeProfileId, profiles, profile, onProfiles, guitarBias,
   onTmpPatchOverride, onLive,
@@ -189,7 +190,7 @@ function ListScreen({
         const aiCraw = getBestResult(s, rd.gId, s.aiCache.result);
         if (!aiCraw) continue;
         const gType = rd.g?.type || 'HB';
-        const cleaned = { ...aiCraw, preset_ann: null, preset_plug: null, ideal_preset: null, ideal_preset_score: 0, ideal_top3: null };
+        const cleaned = { ...aiCraw, preset_ann: null, preset_plug: null, preset_one: null, preset_one_plus: null, ideal_preset: null, ideal_preset_score: 0, ideal_top3: null };
         newEntries.push([s.id, enrichAIResult(cleaned, gType, rd.gId, banksAnn, banksPlug, availableSources, s)]);
         totalEnriched += 1;
       }
@@ -214,7 +215,7 @@ function ListScreen({
       setTimeout(tick, 0);
     }
     return () => { cancelled = true; };
-  }, [activeSongs, songRowData, banksAnn, banksPlug, availableSources]);
+  }, [activeSongs, songRowData, banksAnn, banksPlug, banksOne, banksOnePlus, availableSources]);
 
   const tmpTopRecBySongId = useMemo(() => {
     if (!hasTMPDevice || !activeSongs.length) return new Map();

@@ -122,6 +122,16 @@ function MesAppareilsTab({
       if (nextAvailableSources !== cur.availableSources) {
         patch.availableSources = nextAvailableSources;
       }
+      // Phase ToneX One — à l'activation d'une One/One+, si ses banks
+      // sont vides, charge les presets factory (la pédale physique est
+      // livrée avec). Évite un device "muet" sans reco. N'écrase jamais
+      // des banks déjà peuplées.
+      if (isNowEnabled && id === 'tonex-one' && (!cur.banksOne || Object.keys(cur.banksOne).length === 0)) {
+        patch.banksOne = { ...FACTORY_BANKS_ONE };
+      }
+      if (isNowEnabled && id === 'tonex-one-plus' && (!cur.banksOnePlus || Object.keys(cur.banksOnePlus).length === 0)) {
+        patch.banksOnePlus = { ...FACTORY_BANKS_ONE_PLUS };
+      }
       return stampedProfileUpdate(p, activeProfileId, patch);
     });
   };
