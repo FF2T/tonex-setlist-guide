@@ -107,6 +107,14 @@ const en = {
   // devices
   'devices.hint': 'Check the devices you use. The Recap and Synthesis blocks will only display those. At least one device must remain checked.',
   'devices.title': 'My audio devices',
+  'devices.one-flat-hint': '20 flat presets (1-20). "Reset" loads the factory captures of this ToneX One.',
+  'devices.csv-export-flat': 'Export CSV',
+  'devices.csv-import-flat': 'Import CSV',
+  'devices.csv-exported': 'CSV exported ✅',
+  'devices.csv-error': 'Unrecognized CSV format.',
+  'devices.csv-empty': 'No bank found in the CSV.',
+  'devices.csv-confirm': 'Import {count} presets into {device}? Matching existing banks will be replaced.',
+  'devices.csv-imported': '{count} presets imported ✅',
 
   // export
   'export.banks-count': '{count} banks',

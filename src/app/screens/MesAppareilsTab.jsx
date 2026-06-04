@@ -9,9 +9,11 @@
 //   CSV compact 1 ligne par device, warning si Pedal+Anniversary partagent
 //   banksAnn.
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { t, tFormat } from '../../i18n/index.js';
 import NavIcon from '../components/NavIcon.jsx';
+import Button from '../components/Button.jsx';
+import { downloadFile, generateCSV, parseCSV } from '../utils/csv-helpers.js';
 import { getAllDevices } from '../../devices/registry.js';
 import { stampedProfileUpdate } from '../../core/state.js';
 import BankEditor from '../components/BankEditor.jsx';
@@ -63,6 +65,47 @@ function LegendRow({ color, label }) {
         flexShrink: 0, marginTop: 3,
       }}/>
       <span style={{ flex: 1, lineHeight: 1.4 }}>{label}</span>
+    </div>
+  );
+}
+
+// Phase ToneX One — panneau CSV dédié aux devices à plat (One/One+).
+// Export : 1 ligne par preset (slot A). Import : parse → fusionne les
+// rows (la colonne device d'un CSV One n'est pas 'plug' → côté ann du
+// parser) → merge ou remplace dans banksOne/banksOnePlus.
+function FlatCsvPanel({ banks, onBanks, deviceLabel, fileKey }) {
+  const inputRef = useRef(null);
+  const [msg, setMsg] = useState(null);
+  const flash = (m) => { setMsg(m); setTimeout(() => setMsg(null), 3000); };
+  const doExport = () => {
+    try {
+      downloadFile(generateCSV(banks || {}, deviceLabel, ['A']), `ToneX_${fileKey}.csv`);
+      flash(t('devices.csv-exported', 'CSV exporté ✅'));
+    } catch (_e) { /* noop */ }
+  };
+  const doImport = (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const p = parseCSV(ev.target.result);
+        if (!p) { flash(t('devices.csv-error', 'Format CSV non reconnu.')); return; }
+        const rows = { ...(p.ann || {}), ...(p.plug || {}) };
+        const count = Object.keys(rows).length;
+        if (count === 0) { flash(t('devices.csv-empty', 'Aucune banque trouvée dans le CSV.')); return; }
+        if (!window.confirm(tFormat('devices.csv-confirm', { count, device: deviceLabel }, 'Importer {count} presets dans {device} ? Les banques existantes correspondantes seront remplacées.'))) return;
+        onBanks((prev) => ({ ...prev, ...rows }));
+        flash(tFormat('devices.csv-imported', { count }, '{count} presets importés ✅'));
+      } catch (_err) { flash(t('devices.csv-error', 'Format CSV non reconnu.')); }
+    };
+    reader.readAsText(file, 'UTF-8'); e.target.value = '';
+  };
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+      <Button variant="secondary" size="sm" onClick={doExport} style={{ background: 'var(--brass-bg, var(--a5))', border: '1px solid var(--a15)', color: 'var(--brass-300)' }}>{t('devices.csv-export-flat', 'Exporter CSV')}</Button>
+      <Button variant="secondary" size="sm" onClick={() => inputRef.current?.click()} style={{ background: 'var(--yellow-bg)', border: '1px solid rgba(251,191,36,0.35)', color: 'var(--yellow)' }}>{t('devices.csv-import-flat', 'Importer CSV')}</Button>
+      <input ref={inputRef} type="file" accept=".csv,.txt" onChange={doImport} style={{ display: 'none' }}/>
+      {msg && <span style={{ fontSize: 11, color: 'var(--text-sec)' }}>{msg}</span>}
     </div>
   );
 }
@@ -383,6 +426,7 @@ function MesAppareilsTab({
           <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
             {t('devices.one-flat-hint', '20 presets à plat (1-20). « Réinitialiser » charge les captures factory de la ToneX One.')}
           </div>
+          <FlatCsvPanel banks={banksOne} onBanks={onBanksOne} deviceLabel="ToneX One" fileKey="One"/>
           <BankEditor
             banks={banksOne || {}} onBanks={onBanksOne}
             color="var(--brass-400)" maxBanks={20} startBank={1}
@@ -402,6 +446,7 @@ function MesAppareilsTab({
           <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
             {t('devices.one-flat-hint', '20 presets à plat (1-20). « Réinitialiser » charge les captures factory de la ToneX One+.')}
           </div>
+          <FlatCsvPanel banks={banksOnePlus} onBanks={onBanksOnePlus} deviceLabel="ToneX One+" fileKey="OnePlus"/>
           <BankEditor
             banks={banksOnePlus || {}} onBanks={onBanksOnePlus}
             color="var(--success)" maxBanks={20} startBank={1}

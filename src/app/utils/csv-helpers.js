@@ -14,10 +14,13 @@ export function exportJSON(state) {
   document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
-export function generateCSV(banks, deviceName) {
+// Phase ToneX One — param `slots` (défaut A/B/C). Les devices à plat
+// (One/One+) passent ['A'] → CSV propre 1 ligne par preset (pas de
+// lignes B/C vides parasites).
+export function generateCSV(banks, deviceName, slots = ['A', 'B', 'C']) {
   const rows = [['Pédale', 'Bank', 'Catégorie', 'Slot', 'Type', 'Preset']];
   Object.entries(banks).sort((a, b) => Number(a[0]) - Number(b[0])).forEach(([k, v]) => {
-    ['A', 'B', 'C'].forEach((c) => { rows.push([deviceName, k, v.cat, c, CL[c], v[c] || '']); });
+    slots.forEach((c) => { rows.push([deviceName, k, v.cat, c, CL[c] || c, v[c] || '']); });
   });
   return rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
 }
