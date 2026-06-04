@@ -20,6 +20,7 @@ import {
   ensureProfileV12, ensureProfilesV12, migrateV11toV12,
   ensureProfileV13, ensureProfilesV13, migrateV12toV13,
   ensureProfileV14, ensureProfilesV14, migrateV13toV14,
+  ensureProfileV15, ensureProfilesV15, migrateV14toV15,
   mergeMyGuitarsWithDefenses,
   getDeviceId, getDeviceLabel, setDeviceLabel,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
@@ -39,8 +40,50 @@ import {
 } from './state.js';
 
 describe('STATE_VERSION', () => {
-  test('vaut 14 en Phase 7.74.12 (myGuitarsModified per-field LWW)', () => {
-    expect(STATE_VERSION).toBe(14);
+  test('vaut 15 en Phase ToneX One (banks One/One+)', () => {
+    expect(STATE_VERSION).toBe(15);
+  });
+});
+
+describe('migrateV14toV15 — Phase ToneX One (banks One/One+)', () => {
+  test('v14 → v15 : backfill banksOne/banksOnePlus à {} (additif)', () => {
+    const v14 = {
+      version: 14,
+      profiles: {
+        seb: { id: 'seb', name: 'Seb', myGuitarsModified: 0, banksAnn: { 1: { cat: '', A: 'X' } }, banksPlug: {} },
+      },
+    };
+    const v15 = migrateV14toV15(v14);
+    expect(v15.version).toBe(15);
+    expect(v15.profiles.seb.banksOne).toEqual({});
+    expect(v15.profiles.seb.banksOnePlus).toEqual({});
+    // Champs existants intacts
+    expect(v15.profiles.seb.banksAnn).toEqual({ 1: { cat: '', A: 'X' } });
+  });
+
+  test('ensureProfileV15 — idempotent (banks One déjà présentes préservées)', () => {
+    const p = { id: 'a', name: 'A', myGuitarsModified: 0, banksOne: { 5: { cat: '', A: 'DR 800' } }, banksOnePlus: {} };
+    const out = ensureProfileV15(p);
+    expect(out.banksOne).toEqual({ 5: { cat: '', A: 'DR 800' } });
+    expect(out.banksOnePlus).toEqual({});
+  });
+
+  test('ensureProfileV15 — chaîne v13/v14 (backfill myGuitarsModified + banks One)', () => {
+    const p = { id: 'a', name: 'A' }; // profil pré-v14
+    const out = ensureProfileV15(p);
+    expect(out.myGuitarsModified).toBe(0); // via ensureProfileV14
+    expect(out.banksOne).toEqual({});
+    expect(out.banksOnePlus).toEqual({});
+  });
+
+  test('ensureProfilesV15 — map sur tous les profils', () => {
+    const out = ensureProfilesV15({ a: { id: 'a' }, b: { id: 'b' } });
+    expect(out.a.banksOne).toEqual({});
+    expect(out.b.banksOnePlus).toEqual({});
+  });
+
+  test('migrateV14toV15 — null safe', () => {
+    expect(migrateV14toV15(null)).toBe(null);
   });
 });
 
@@ -2222,7 +2265,7 @@ describe('buildDemoSnapshot (Phase 7.51.4)', () => {
 
   test('format compatible loadDemoSnapshot (version + 4 clés)', () => {
     const snap = buildDemoSnapshot(sampleProfile, sampleSetlists, sampleSongs);
-    expect(snap.version).toBe(14);
+    expect(snap.version).toBe(STATE_VERSION);
     expect(snap).toHaveProperty('profile');
     expect(snap).toHaveProperty('setlists');
     expect(snap).toHaveProperty('songs');

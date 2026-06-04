@@ -16,9 +16,13 @@ import CurationDot from './CurationDot.jsx';
 import PresetCurationModal from './PresetCurationModal.jsx';
 import { PresetDetailInline } from '../screens/PresetBrowser.jsx';
 
-function BankEditor({ banks, onBanks, color, maxBanks, startBank, factoryBanks, factoryBanksByVersion, defaultFactoryVersion, toneNetPresets, onToneNetPresets, profile, onProfiles, activeProfileId, songDb, isAdmin, onSharedUsagesOverrides }) {
+function BankEditor({ banks, onBanks, color, maxBanks, startBank, factoryBanks, factoryBanksByVersion, defaultFactoryVersion, toneNetPresets, onToneNetPresets, profile, onProfiles, activeProfileId, songDb, isAdmin, onSharedUsagesOverrides, slots }) {
   const start = startBank || 0;
   const max = maxBanks || 50;
+  // Phase ToneX One — devices à plat (One/One+) passent slots:['A'] →
+  // 1 colonne, pas de label de slot. Défaut A/B/C pour les autres.
+  const slotList = Array.isArray(slots) && slots.length ? slots : ['A', 'B', 'C'];
+  const flat = slotList.length === 1;
   const [confirmReset, setConfirmReset] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState(() => {
     if (factoryBanksByVersion && factoryBanksByVersion.length) {
@@ -83,18 +87,18 @@ function BankEditor({ banks, onBanks, color, maxBanks, startBank, factoryBanks, 
       }}/>}
 
       {allBanks.map(([k, v]) => {
-        const empty = !v.A && !v.B && !v.C;
+        const empty = !slotList.some((s) => v[s]);
         return <div key={k} style={{ background: empty ? 'transparent' : 'var(--a3)', border: empty ? '1px solid var(--a5)' : '1px solid var(--a7)', borderRadius: 'var(--r-md)', padding: '8px 10px', marginBottom: 4 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span style={{ fontSize: 12, fontWeight: 800, color, minWidth: 24 }}>{k}</span>
-            {['A', 'B', 'C'].map((c) => {
+            {slotList.map((c) => {
               const name = v[c] || '';
               const isSel = selectedPreset && selectedPreset.bank === k && selectedPreset.slot === c;
               const notInDb = name && !findCatalogEntry(name);
               return <div key={c} style={{ flex: 1, minWidth: 0 }}>
                 <button onClick={() => { if (!name) { setEditingPreset({ bank: k, slot: c }); setCustomInput(null); } else { setSelectedPreset(isSel ? null : { bank: k, slot: c, name }); setCustomInput(null); } }}
                   style={{ display: 'flex', alignItems: 'center', gap: 3, width: '100%', background: isSel ? 'var(--accent-bg)' : notInDb ? 'var(--yellow-bg)' : 'transparent', border: isSel ? '1px solid var(--accent-border)' : notInDb ? '1px solid var(--yellow-border)' : '1px solid transparent', borderRadius: 'var(--r-sm)', padding: '3px 4px', cursor: 'pointer', textAlign: 'left' }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: CC[c], flexShrink: 0 }}>{c}</span>
+                  {!flat && <span style={{ fontSize: 10, fontWeight: 700, color: CC[c], flexShrink: 0 }}>{c}</span>}
                   {/* Phase 7.70 + 7.79 — Pastille cliquable (CurationDot)
                       ouvre la modale info/édition usages. */}
                   <CurationDot name={name} onClick={(n) => setModalPresetName(n)}/>

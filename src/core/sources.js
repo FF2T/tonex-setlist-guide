@@ -33,7 +33,7 @@
 // gardent `src: "Anniversary"` (collection livrée avec la pédale
 // Anniversary). Les nouvelles SOURCE_IDS AA/JS/TJ/WT/Galtone servent
 // pour les packs STANDALONE achetés séparément par le user.
-const SOURCE_IDS = ['TSR', 'ML', 'AA', 'JS', 'TJ', 'WT', 'Galtone', 'Anniversary', 'Factory', 'FactoryV1', 'PlugFactory', 'ToneNET', 'custom'];
+const SOURCE_IDS = ['TSR', 'ML', 'AA', 'JS', 'TJ', 'WT', 'Galtone', 'Anniversary', 'Factory', 'FactoryV1', 'PlugFactory', 'OnePlusFactory', 'ToneNET', 'custom'];
 
 // Label long pour les UI principales (filtres profil, ProfileTab,
 // ViewProfileScreen, ExportImportScreen…).
@@ -52,9 +52,10 @@ const SOURCE_LABELS = {
   WT: 'Worship Tutorials',
   Galtone: 'Galtone',
   Anniversary: 'ToneX Anniversary — captures pré-installées',
-  Factory: 'ToneX Pédale classique (firmware v2)',
+  Factory: 'ToneX Pédale classique / One (firmware v2)',
   FactoryV1: 'ToneX Pédale classique (firmware v1)',
   PlugFactory: 'ToneX Plug — captures pré-installées',
+  OnePlusFactory: 'ToneX One+ — captures pré-installées',
   ToneNET: 'ToneNET (presets téléchargés)',
   // Phase 7.69 — label uniformisé "Mes presets custom" (alignement avec
   // le tab "📦 Mes presets custom"). TOUS les presets persos du user
@@ -75,9 +76,10 @@ const SOURCE_DESCRIPTIONS = {
   WT: 'Si tu as acheté un ou plusieurs packs Worship Tutorials. (tous les packs ne sont pas encore intégrés dans Backline)',
   Galtone: 'Si tu as acheté un ou plusieurs packs Galtone. (tous les packs ne sont pas encore intégrés dans Backline)',
   Anniversary: 'Si tu possèdes une ToneX Pédale Anniversary (rouge).',
-  Factory: 'Si ta ToneX Pédale classique tourne sur le firmware v2 (presets 2025/04/03).',
+  Factory: 'Si tu possèdes une ToneX Pédale classique (firmware v2) ou une ToneX One (mêmes captures factory).',
   FactoryV1: 'Si ta ToneX Pédale classique tourne sur le firmware v1 (presets historiques).',
   PlugFactory: 'Si tu possèdes une ToneX Plug (la petite).',
+  OnePlusFactory: 'Si tu possèdes une ToneX One+ (presets factory 2026).',
   ToneNET: 'Presets gratuits téléchargés depuis tonenet.com.',
   custom: 'Tous les presets que tu as documentés via le tab "📦 Mes presets custom" (peu importe leur provenance déclarée : TSR, AA, JS, ToneNET, etc.).',
 };
@@ -99,6 +101,7 @@ const SOURCE_BADGES = {
   Factory: 'Fact v2',
   FactoryV1: 'Fact v1',
   PlugFactory: 'Plug',
+  OnePlusFactory: 'One+',
   ToneNET: 'ToneNET',
   custom: 'Custom',
 };
@@ -118,9 +121,10 @@ const SOURCE_INFO = {
   Galtone: { icon: '🎚', label: 'Galtone' },
   ToneNET: { icon: '🌐', label: 'ToneNET (preset partagé)' },
   Anniversary: { icon: '🏭', label: 'ToneX Anniversary Factory' },
-  Factory: { icon: '🏭', label: 'ToneX Pedal Factory (firmware v2)' },
+  Factory: { icon: '🏭', label: 'ToneX Pedal / One Factory (firmware v2)' },
   FactoryV1: { icon: '🏭', label: 'ToneX Pedal Factory (firmware v1)' },
   PlugFactory: { icon: '🔌', label: 'ToneX Plug Factory' },
+  OnePlusFactory: { icon: '🏭', label: 'ToneX One+ Factory' },
   custom: { icon: '✨', label: 'Preset custom' },
 };
 
@@ -181,20 +185,45 @@ const DEVICE_ENABLES_SOURCES = {
   'tonex-pedal': ['Factory'],
   'tonex-anniversary': ['Anniversary'],
   'tonex-plug': ['PlugFactory'],
+  // tonex-one : Factory est PARTAGÉ avec la Pédale classique (mêmes Tone
+  // Models). On ne l'auto-coche/décoche PAS au toggle One pour ne pas
+  // clobberer un user qui possède AUSSI la Pédale. La dispo réelle est
+  // gérée par effectiveAvailableSources (règle "un parmi" + défaut
+  // permissif : One activé → Factory non forcé false → dispo).
+  'tonex-one': [],
+  'tonex-one-plus': ['OnePlusFactory'],
 };
 
 const DEVICE_DISABLES_SOURCES = {
   'tonex-pedal': ['Factory', 'FactoryV1'],
   'tonex-anniversary': ['Anniversary'],
   'tonex-plug': ['PlugFactory'],
+  'tonex-one': [],
+  'tonex-one-plus': ['OnePlusFactory'],
 };
 
+// Valeur = device requis (string) OU liste de devices "un parmi"
+// (array). Factory est partagé Pédale classique + ToneX One (mêmes
+// captures factory) → dispo si l'un OU l'autre est activé.
 const SOURCE_REQUIRES_DEVICE = {
   Anniversary: 'tonex-anniversary',
-  Factory: 'tonex-pedal',
+  Factory: ['tonex-pedal', 'tonex-one'],
   FactoryV1: 'tonex-pedal',
   PlugFactory: 'tonex-plug',
+  OnePlusFactory: 'tonex-one-plus',
 };
+
+// Phase ToneX One — helper "un parmi". Retourne true si la source a un
+// device requis ET qu'AUCUN des devices requis n'est dans enabledDevices.
+// Gère string (1:1) et array (any-of). Utilisé par
+// effectiveAvailableSources + ProfileTab (gating UI).
+function isRequiredDeviceMissing(srcId, enabledDevices) {
+  const req = SOURCE_REQUIRES_DEVICE[srcId];
+  if (!req) return false;
+  const devs = Array.isArray(req) ? req : [req];
+  const enabled = Array.isArray(enabledDevices) ? enabledDevices : [];
+  return !devs.some((d) => enabled.includes(d));
+}
 
 // Phase 7.74.10 — helper pur. Retourne le nouvel availableSources
 // après toggle d'un device. Préserve l'identité de l'objet si rien
@@ -233,10 +262,9 @@ function cascadeAvailableSources(availableSources, deviceId, isEnabled) {
 // Préserve l'identité de l'objet si rien ne change (perf, useMemo deps).
 function effectiveAvailableSources(availableSources, enabledDevices) {
   const cur = availableSources || {};
-  const enabled = Array.isArray(enabledDevices) ? enabledDevices : [];
   let next = null;
-  for (const [src, requiredDevice] of Object.entries(SOURCE_REQUIRES_DEVICE)) {
-    if (!enabled.includes(requiredDevice) && cur[src] !== false) {
+  for (const src of Object.keys(SOURCE_REQUIRES_DEVICE)) {
+    if (isRequiredDeviceMissing(src, enabledDevices) && cur[src] !== false) {
       if (!next) next = { ...cur };
       next[src] = false;
     }
@@ -274,4 +302,5 @@ export {
   isSourceAvailable,
   cascadeAvailableSources,
   effectiveAvailableSources,
+  isRequiredDeviceMissing,
 };

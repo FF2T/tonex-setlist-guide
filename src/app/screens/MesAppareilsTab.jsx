@@ -22,6 +22,8 @@ import TmpBrowser from '../../devices/tonemaster-pro/Browser.jsx';
 import { FACTORY_BANKS_PEDALE_V1, FACTORY_BANKS_PEDALE_V2 } from '../../devices/tonex-pedal/index.js';
 import { FACTORY_BANKS_ANNIVERSARY } from '../../devices/tonex-anniversary/index.js';
 import { FACTORY_BANKS_PLUG } from '../../devices/tonex-plug/index.js';
+import { FACTORY_BANKS_ONE } from '../../devices/tonex-one/index.js';
+import { FACTORY_BANKS_ONE_PLUS } from '../../devices/tonex-one-plus/index.js';
 import { detectUnknownsInBanks, detectAllNonCurated, applyResolutionsToBanks } from '../../core/preset-curation.js';
 import { PRESET_CATALOG_MERGED, normalizePresetName, CURATION_COLORS } from '../../core/catalog.js';
 import { cascadeAvailableSources } from '../../core/sources.js';
@@ -68,6 +70,7 @@ function LegendRow({ color, label }) {
 function MesAppareilsTab({
   profile, profiles, onProfiles, activeProfileId,
   banksAnn, onBanksAnn, banksPlug, onBanksPlug,
+  banksOne, onBanksOne, banksOnePlus, onBanksOnePlus,
   toneNetPresets, onToneNetPresets,
   songDb,
   fullState, onImportState,
@@ -154,8 +157,10 @@ function MesAppareilsTab({
       'tonex-pedal': detectUnknownsInBanks(banksAnn),
       'tonex-anniversary': detectUnknownsInBanks(banksAnn),
       'tonex-plug': detectUnknownsInBanks(banksPlug),
+      'tonex-one': detectUnknownsInBanks(banksOne || {}),
+      'tonex-one-plus': detectUnknownsInBanks(banksOnePlus || {}),
     };
-  }, [banksAnn, banksPlug]);
+  }, [banksAnn, banksPlug, banksOne, banksOnePlus]);
 
   // Phase 7.77 — Apply résolutions au callback de la modale.
   // Le device détermine quelles banks (Ann ou Plug) reçoivent les updates.
@@ -175,6 +180,14 @@ function MesAppareilsTab({
       const nextBanks = applyResolutionsToBanks(banksPlug, resolutions);
       if (nextBanks !== banksPlug) onBanksPlug(nextBanks);
     }
+    if (deviceId === 'tonex-one') {
+      const nextBanks = applyResolutionsToBanks(banksOne || {}, resolutions);
+      if (nextBanks !== banksOne) onBanksOne(nextBanks);
+    }
+    if (deviceId === 'tonex-one-plus') {
+      const nextBanks = applyResolutionsToBanks(banksOnePlus || {}, resolutions);
+      if (nextBanks !== banksOnePlus) onBanksOnePlus(nextBanks);
+    }
     setResolveModalDevice(null);
   };
 
@@ -189,8 +202,10 @@ function MesAppareilsTab({
       'tonex-pedal': detectAllNonCurated(banksAnn),
       'tonex-anniversary': detectAllNonCurated(banksAnn),
       'tonex-plug': detectAllNonCurated(banksPlug),
+      'tonex-one': detectAllNonCurated(banksOne || {}),
+      'tonex-one-plus': detectAllNonCurated(banksOnePlus || {}),
     };
-  }, [isAdmin, banksAnn, banksPlug]);
+  }, [isAdmin, banksAnn, banksPlug, banksOne, banksOnePlus]);
 
   // Phase 7.78 — apply curation usages.
   // usagesByName = { [presetName]: usages[]|undefined }.
@@ -344,6 +359,44 @@ function MesAppareilsTab({
             banks={banksPlug} onBanks={onBanksPlug}
             color="var(--accent)" maxBanks={10} startBank={1}
             factoryBanks={FACTORY_BANKS_PLUG}
+            toneNetPresets={toneNetPresets}
+            onToneNetPresets={onToneNetPresets}
+            profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId}
+            songDb={songDb} isAdmin={isAdmin}
+            onSharedUsagesOverrides={onSharedUsagesOverrides}
+          />
+        </>
+      );
+    } else if (d.id === 'tonex-one') {
+      content = (
+        <>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
+            {t('devices.one-flat-hint', '20 presets à plat (1-20). « Réinitialiser » charge les captures factory de la ToneX One.')}
+          </div>
+          <BankEditor
+            banks={banksOne || {}} onBanks={onBanksOne}
+            color="var(--brass-400)" maxBanks={20} startBank={1}
+            slots={['A']}
+            factoryBanks={FACTORY_BANKS_ONE}
+            toneNetPresets={toneNetPresets}
+            onToneNetPresets={onToneNetPresets}
+            profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId}
+            songDb={songDb} isAdmin={isAdmin}
+            onSharedUsagesOverrides={onSharedUsagesOverrides}
+          />
+        </>
+      );
+    } else if (d.id === 'tonex-one-plus') {
+      content = (
+        <>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 8 }}>
+            {t('devices.one-flat-hint', '20 presets à plat (1-20). « Réinitialiser » charge les captures factory de la ToneX One+.')}
+          </div>
+          <BankEditor
+            banks={banksOnePlus || {}} onBanks={onBanksOnePlus}
+            color="var(--success)" maxBanks={20} startBank={1}
+            slots={['A']}
+            factoryBanks={FACTORY_BANKS_ONE_PLUS}
             toneNetPresets={toneNetPresets}
             onToneNetPresets={onToneNetPresets}
             profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId}

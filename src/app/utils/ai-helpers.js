@@ -152,7 +152,7 @@ function resolveRefAmp(refAmp) {
   return refAmp;
 }
 
-function computeBestPresets(gType, style, banksAnn, banksPlug, guitarId, refAmp, targetGain, availableSources) {
+function computeBestPresets(gType, style, banksAnn, banksPlug, guitarId, refAmp, targetGain, availableSources, banksOne, banksOnePlus) {
   // Fallback : si l'appelant n'a pas passé availableSources, on lit la config
   // active publiée par App() — évite de threader le param dans toute l'app.
   if (availableSources === undefined && typeof window !== 'undefined') availableSources = window.__activeSources;
@@ -187,32 +187,33 @@ function computeBestPresets(gType, style, banksAnn, banksPlug, guitarId, refAmp,
     }
     return computeFinalScore(info, guitarId, style, songTargetGain, resolvedAmp, withBreakdown);
   };
-  const annPresets = [];
-  for (const [k, v] of Object.entries(banksAnn)) {
-    for (const c of ['A', 'B', 'C']) {
-      if (v[c]) {
-        const info = findCatalogEntry(v[c]);
-        if (info) {
-          const score = scorePreset(v[c], info);
-          annPresets.push({ name: v[c], bank: Number(k), col: c, score, rawScore: score, amp: info.amp, style: info.style });
+  // Phase ToneX One — helper générique : score tous les slots d'un
+  // banks-object. Itère ['A','B','C'] ; les devices à plat (One/One+,
+  // slot A seul) n'ont pas B/C → ignorés gracieusement.
+  const scoreBanks = (banks) => {
+    const out = [];
+    for (const [k, v] of Object.entries(banks || {})) {
+      for (const c of ['A', 'B', 'C']) {
+        if (v[c]) {
+          const info = findCatalogEntry(v[c]);
+          if (info) {
+            const score = scorePreset(v[c], info);
+            out.push({ name: v[c], bank: Number(k), col: c, score, rawScore: score, amp: info.amp, style: info.style });
+          }
         }
       }
     }
-  }
-  annPresets.sort((a, b) => b.score - a.score);
-  const plugPresets = [];
-  for (const [k, v] of Object.entries(banksPlug)) {
-    for (const c of ['A', 'B', 'C']) {
-      if (v[c]) {
-        const info = findCatalogEntry(v[c]);
-        if (info) {
-          const score = scorePreset(v[c], info);
-          plugPresets.push({ name: v[c], bank: Number(k), col: c, score, rawScore: score, amp: info.amp, style: info.style });
-        }
-      }
-    }
-  }
-  plugPresets.sort((a, b) => b.score - a.score);
+    out.sort((a, b) => b.score - a.score);
+    return out;
+  };
+  // Phase ToneX One — fallback window pour banksOne/banksOnePlus
+  // (pattern window.__activeSources, évite de threader dans 9 call sites).
+  if (banksOne === undefined && typeof window !== 'undefined') banksOne = window.__activeBanksOne;
+  if (banksOnePlus === undefined && typeof window !== 'undefined') banksOnePlus = window.__activeBanksOnePlus;
+  const annPresets = scoreBanks(banksAnn);
+  const plugPresets = scoreBanks(banksPlug);
+  const onePresets = scoreBanks(banksOne);
+  const onePlusPresets = scoreBanks(banksOnePlus);
   // Best from full catalog — diversify amps (no 2 presets from same amp).
   const catalogAll = Object.entries(PRESET_CATALOG_MERGED)
     .filter(([, info]) => !availableSources || !info?.src || availableSources[info.src] !== false)
@@ -237,6 +238,8 @@ function computeBestPresets(gType, style, banksAnn, banksPlug, guitarId, refAmp,
   return {
     annTop: addBreakdown(annPresets[0]) || null,
     plugTop: addBreakdown(plugPresets[0]) || null,
+    oneTop: addBreakdown(onePresets[0]) || null,
+    onePlusTop: addBreakdown(onePlusPresets[0]) || null,
     idealTop: catalogBest[0] || null,
     idealTop3: catalogBest,
   };
@@ -463,6 +466,8 @@ function enrichAIResult(aiResult, gType, gId, banksAnn, banksPlug, availableSour
       };
       if (best.annTop) best.annTop = boostBestSlot(best.annTop);
       if (best.plugTop) best.plugTop = boostBestSlot(best.plugTop);
+      if (best.oneTop) best.oneTop = boostBestSlot(best.oneTop);
+      if (best.onePlusTop) best.onePlusTop = boostBestSlot(best.onePlusTop);
       if (Array.isArray(best.idealTop3)) {
         best.idealTop3 = best.idealTop3
           .map(boostBestSlot)
@@ -626,6 +631,23 @@ function enrichAIResult(aiResult, gType, gId, banksAnn, banksPlug, availableSour
   if (best.plugTop && !plugPinnedByAI) {
     const newPlug = { bank: best.plugTop.bank, col: best.plugTop.col, label: best.plugTop.name, score: best.plugTop.score, breakdown: best.plugTop.breakdown || null };
     if (!aiResult.preset_plug || newPlug.score >= (aiResult.preset_plug.score || 0)) aiResult.preset_plug = newPlug;
+  }
+  // Phase ToneX One — preset_one / preset_one_plus depuis le V9 best slot
+  // des banks One/One+ (pas d'AI-pinning : le prompt ne retourne pas de
+  // preset_one_name). Source filter appliqué comme ann/plug.
+  if (best.oneTop) {
+    aiResult.preset_one = { bank: best.oneTop.bank, col: best.oneTop.col, label: best.oneTop.name, score: best.oneTop.score, breakdown: best.oneTop.breakdown || null };
+  }
+  if (best.onePlusTop) {
+    aiResult.preset_one_plus = { bank: best.onePlusTop.bank, col: best.onePlusTop.col, label: best.onePlusTop.name, score: best.onePlusTop.score, breakdown: best.onePlusTop.breakdown || null };
+  }
+  if (availableSources && aiResult.preset_one) {
+    const e = findCatalogEntry(aiResult.preset_one.label);
+    if (e?.src && availableSources[e.src] === false) aiResult.preset_one = null;
+  }
+  if (availableSources && aiResult.preset_one_plus) {
+    const e = findCatalogEntry(aiResult.preset_one_plus.label);
+    if (e?.src && availableSources[e.src] === false) aiResult.preset_one_plus = null;
   }
   // Phase 7.73.2.3 (2026-05-23) — Propagation V9-top vs usages-pin.
   //

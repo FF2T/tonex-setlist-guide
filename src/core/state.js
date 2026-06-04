@@ -61,7 +61,7 @@ import {
 import demoSnapshot from '../data/demo-profile.json';
 
 // ─── Versioning + clés localStorage ──────────────────────────────────
-const STATE_VERSION = 14;
+const STATE_VERSION = 15;
 const LOCALE_KEY = 'backline_locale'; // Phase 7.49 — fallback pour migrateV7toV8
 const TOMBSTONE_MAX_AGE_MS = 30 * 24 * 3600 * 1000;
 const LS_KEY = 'tonex_guide_v2';        // nom historique stable
@@ -874,6 +874,42 @@ function migrateV13toV14(state) {
   };
 }
 
+// Phase ToneX One — ajout des banks des devices ToneX One / One+ (20
+// presets À PLAT, modélisés 20 banques × slot A). Migration purement
+// additive : backfill `banksOne` / `banksOnePlus` à {} (vide). Les
+// devices sont opt-in (defaultEnabled:false) ; l'utilisateur peuple via
+// le bouton "Reset factory" du BankEditor (FACTORY_BANKS_ONE/ONE_PLUS).
+// Compat v14→v15 garantie via ensureProfileV15 au pull.
+function ensureProfileV15(profile) {
+  if (!profile) return profile;
+  const v14 = ensureProfileV14(profile);
+  const needsOne = !v14.banksOne || typeof v14.banksOne !== 'object';
+  const needsOnePlus = !v14.banksOnePlus || typeof v14.banksOnePlus !== 'object';
+  if (!needsOne && !needsOnePlus) return v14;
+  return {
+    ...v14,
+    banksOne: needsOne ? {} : v14.banksOne,
+    banksOnePlus: needsOnePlus ? {} : v14.banksOnePlus,
+  };
+}
+function ensureProfilesV15(profiles) {
+  if (!profiles) return profiles;
+  const out = {};
+  for (const [id, p] of Object.entries(profiles)) {
+    out[id] = ensureProfileV15(p);
+  }
+  return out;
+}
+
+function migrateV14toV15(state) {
+  if (!state) return state;
+  return {
+    ...state,
+    version: 15,
+    profiles: ensureProfilesV15(state.profiles),
+  };
+}
+
 // Phase 7.54 — Helper lookup aiCache (priorité profile.aiCache, fallback
 // shared.songDb[i].aiCache). Exposé pour la dérivation
 // songDbWithProfileCache au niveau App + pour les call sites isolés.
@@ -1092,7 +1128,7 @@ function stampedProfileUpdate(profiles, profileId, partial) {
   // dans `partial`. Le merge LWW utilise ces timestamps pour décider
   // de l'adoption per-field sans se laisser piéger par un
   // `lastModified` global gonflé par une autre écriture innocente.
-  if ('banksAnn' in resolved || 'banksPlug' in resolved) stamped.banksModified = now;
+  if ('banksAnn' in resolved || 'banksPlug' in resolved || 'banksOne' in resolved || 'banksOnePlus' in resolved) stamped.banksModified = now;
   if ('language' in resolved) stamped.languageModified = now;
   if ('enabledDevices' in resolved) stamped.enabledDevicesModified = now;
   if ('availableSources' in resolved) stamped.availableSourcesModified = now;
@@ -1350,7 +1386,7 @@ function mergeProfileLWW(local, remote, options = {}) {
   const lbm = typeof local.banksModified === 'number' ? local.banksModified : 0;
   const rbm = typeof remote.banksModified === 'number' ? remote.banksModified : 0;
   const banksRemoteWins = rbm > lbm;
-  for (const bk of ['banksAnn', 'banksPlug']) {
+  for (const bk of ['banksAnn', 'banksPlug', 'banksOne', 'banksOnePlus']) {
     const lb = local[bk] && typeof local[bk] === 'object' ? local[bk] : {};
     const rb = remote[bk] && typeof remote[bk] === 'object' ? remote[bk] : {};
     let diffSlots = 0;
@@ -1532,12 +1568,12 @@ function mergeProfilesLWW(localProfiles, remoteProfiles, options = {}) {
       const localGuitarSet = guitarsByProfile[id] || new Set();
       for (const g of localGuitarSet) otherProfilesGuitars.delete(g);
       const merged = mergeProfileLWW(lp, adoptedRemote, { ...options, otherProfilesGuitars });
-      out[id] = ensureProfileV14(merged || lp);
+      out[id] = ensureProfileV15(merged || lp);
     } else if (lp) {
-      out[id] = ensureProfileV14(lp);
+      out[id] = ensureProfileV15(lp);
     } else if (rp) {
       const adopted = applySecrets ? applySecrets({ [id]: rp })[id] : rp;
-      out[id] = ensureProfileV14(adopted);
+      out[id] = ensureProfileV15(adopted);
     }
   }
   return out;
@@ -1784,6 +1820,10 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
       customPacks: [],
       banksAnn: { ...INIT_BANKS_ANN },
       banksPlug: { ...INIT_BANKS_PLUG },
+      // Phase ToneX One — banks One/One+ vides (devices opt-in, peuplés
+      // via Reset factory). Modèle 20 banques × slot A.
+      banksOne: {},
+      banksOnePlus: {},
       tmpPatches: { custom: [], factoryOverrides: {} },
       aiProvider: 'gemini',
       aiKeys: { anthropic: '', gemini: '' },
@@ -1834,6 +1874,8 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
     customPacks: [],
     banksAnn: {},
     banksPlug: {},
+    banksOne: {},
+    banksOnePlus: {},
     tmpPatches: { custom: [], factoryOverrides: {} },
     aiProvider: 'gemini',
     aiKeys: { anthropic: '', gemini: '' },
@@ -2281,7 +2323,9 @@ function _runFullChain(d) {
   // myBasses + customBasses + myBassAmps + customBassAmps).
   const v13 = migrateV12toV13(v12);
   // Phase 7.74.12 — v13 → v14 : timestamp dédié myGuitars.
-  const v14 = migrateV13toV14(v13);
+  const v14raw = migrateV13toV14(v13);
+  // Phase ToneX One — v14 → v15 : banks One / One+ (additif).
+  const v14 = migrateV14toV15(v14raw);
   if (v14 && v14.shared && v14.shared.deletedSetlistIds) {
     v14.shared = { ...v14.shared, deletedSetlistIds: gcTombstones(v14.shared.deletedSetlistIds) };
   }
@@ -2301,6 +2345,7 @@ function loadState() {
     if (raw) {
       const d = JSON.parse(raw);
       if (d.version === STATE_VERSION) return _runFullChain(d);
+      if (d.version === 14) return _runFullChain(d);
       if (d.version === 13) return _runFullChain(d);
       if (d.version === 12) return _runFullChain(d);
       if (d.version === 11) return _runFullChain(d);
@@ -3040,6 +3085,7 @@ export {
   ensureProfileV12, ensureProfilesV12, migrateV11toV12,
   ensureProfileV13, ensureProfilesV13, migrateV12toV13,
   ensureProfileV14, ensureProfilesV14, migrateV13toV14,
+  ensureProfileV15, ensureProfilesV15, migrateV14toV15,
   mergeMyGuitarsWithDefenses,
   LS_DEVICE_ID_KEY, LS_DEVICE_LABEL_KEY,
   getDeviceId, getDeviceLabel, setDeviceLabel, getDeviceUA,

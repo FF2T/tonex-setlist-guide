@@ -29,7 +29,7 @@ function getActiveDevicesForProfile(profile) {
 //
 // Si aucun device activé n'a de contenu, retourne null.
 function SongCollapsedDeviceRows({
-  profile, aiC, banksAnn, banksPlug, renderRow,
+  profile, aiC, banksAnn, banksPlug, banksOne, banksOnePlus, renderRow,
   song, guitar, allGuitars,
   // Phase 3.10 perf — props optionnelles pour éviter le travail
   // redondant lorsque ce composant est appelé en boucle (129 morceaux) :
@@ -51,7 +51,9 @@ function SongCollapsedDeviceRows({
     if (typeof d.RecommendBlock === 'function') {
       return { kind: 'component', d };
     }
-    const banks = d.bankStorageKey === 'banksAnn' ? banksAnn : banksPlug;
+    // Phase ToneX One — résolution générique des banks par bankStorageKey.
+    const banksByKey = { banksAnn, banksPlug, banksOne, banksOnePlus };
+    const banks = banksByKey[d.bankStorageKey] || {};
     const presetData = aiC?.[d.presetResultKey];
     return { kind: 'legacy', d, banks, presetData };
   }).filter((x) => x.kind === 'component' || x.presetData);
@@ -105,6 +107,8 @@ const MemoizedSongCollapsedDeviceRows = React.memo(SongCollapsedDeviceRows, (pre
   // banks : reference compare. Si l'utilisateur a modifié ses banks, re-render.
   if (prev.banksAnn !== next.banksAnn) return false;
   if (prev.banksPlug !== next.banksPlug) return false;
+  if (prev.banksOne !== next.banksOne) return false;
+  if (prev.banksOnePlus !== next.banksOnePlus) return false;
   // enabledDevices : la liste des devices activés peut changer (rare).
   if (prev.enabledDevices !== next.enabledDevices) return false;
   // precomputedTopRecBySongId : Map qui change quand TMP rec est recalculé.

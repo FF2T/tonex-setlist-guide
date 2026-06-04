@@ -6,14 +6,14 @@ import {
   getSourceBadge, getSourceInfo, isSourceAvailable,
   cascadeAvailableSources, DEVICE_ENABLES_SOURCES,
   DEVICE_DISABLES_SOURCES, SOURCE_REQUIRES_DEVICE,
-  effectiveAvailableSources,
+  effectiveAvailableSources, isRequiredDeviceMissing,
 } from './sources.js';
 
 describe('SOURCE_IDS — liste canonique', () => {
-  test('contient les 13 sources connues (Phase 7.67 : AA/JS/TJ/WT/Galtone ajoutés)', () => {
+  test('contient les 14 sources connues (Phase ToneX One+ : OnePlusFactory ajouté)', () => {
     expect(SOURCE_IDS).toEqual([
       'TSR', 'ML', 'AA', 'JS', 'TJ', 'WT', 'Galtone',
-      'Anniversary', 'Factory', 'FactoryV1', 'PlugFactory', 'ToneNET', 'custom',
+      'Anniversary', 'Factory', 'FactoryV1', 'PlugFactory', 'OnePlusFactory', 'ToneNET', 'custom',
     ]);
   });
   test('contient les sources pack creators Phase 7.67', () => {
@@ -211,10 +211,10 @@ describe('Phase 7.74.10 — cascade availableSources au toggle device', () => {
 
   test('SOURCE_REQUIRES_DEVICE cohérent avec DEVICE_DISABLES_SOURCES', () => {
     // Si une source est dans DEVICE_DISABLES_SOURCES[device], alors
-    // SOURCE_REQUIRES_DEVICE[source] === device.
+    // SOURCE_REQUIRES_DEVICE[source] inclut device (string OU array any-of).
     for (const [deviceId, srcs] of Object.entries(DEVICE_DISABLES_SOURCES)) {
       for (const src of srcs) {
-        expect(SOURCE_REQUIRES_DEVICE[src]).toBe(deviceId);
+        expect([].concat(SOURCE_REQUIRES_DEVICE[src])).toContain(deviceId);
       }
     }
   });
@@ -328,13 +328,13 @@ describe('effectiveAvailableSources — Phase 9.7.43 (device-gated)', () => {
 
   test('identité préservée si aucun device manquant ne change une source (perf)', () => {
     // Tous les devices présents → rien à forcer.
-    const raw = { Factory: true, Anniversary: true, PlugFactory: true };
-    const eff = effectiveAvailableSources(raw, ['tonex-pedal', 'tonex-anniversary', 'tonex-plug']);
+    const raw = { Factory: true, Anniversary: true, PlugFactory: true, OnePlusFactory: true };
+    const eff = effectiveAvailableSources(raw, ['tonex-pedal', 'tonex-anniversary', 'tonex-plug', 'tonex-one-plus']);
     expect(eff).toBe(raw);
   });
 
   test('identité préservée si les sources device-gated sont déjà false', () => {
-    const raw = { Factory: false, FactoryV1: false, Anniversary: false, PlugFactory: false };
+    const raw = { Factory: false, FactoryV1: false, Anniversary: false, PlugFactory: false, OnePlusFactory: false };
     const eff = effectiveAvailableSources(raw, []);
     expect(eff).toBe(raw);
   });
@@ -345,13 +345,13 @@ describe('effectiveAvailableSources — Phase 9.7.43 (device-gated)', () => {
   });
 
   test('availableSources null/undefined → pas de crash, force les sources device-gated absentes', () => {
-    // null + tonex-pedal seul → Anniversary & PlugFactory (devices absents) forcés false
+    // null + tonex-pedal seul → Anniversary, PlugFactory, OnePlusFactory (devices absents) forcés false
     expect(effectiveAvailableSources(null, ['tonex-pedal'])).toEqual({
-      Anniversary: false, PlugFactory: false,
+      Anniversary: false, PlugFactory: false, OnePlusFactory: false,
     });
-    // undefined + aucun device → les 4 sources device-gated forcées false
+    // undefined + aucun device → les 5 sources device-gated forcées false
     expect(effectiveAvailableSources(undefined, [])).toEqual({
-      Anniversary: false, Factory: false, FactoryV1: false, PlugFactory: false,
+      Anniversary: false, Factory: false, FactoryV1: false, PlugFactory: false, OnePlusFactory: false,
     });
   });
 
@@ -362,5 +362,65 @@ describe('effectiveAvailableSources — Phase 9.7.43 (device-gated)', () => {
     expect(eff.ML).toBe(false);
     expect(eff.ToneNET).toBe(true);
     expect(eff.custom).toBe(true);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────
+// Phase ToneX One / One+ — source Factory partagée (any-of) + OnePlusFactory
+// ───────────────────────────────────────────────────────────────────
+
+describe('ToneX One / One+ — sources device-gated any-of', () => {
+  test('OnePlusFactory dans SOURCE_IDS + labels/badges/info/requires', () => {
+    expect(SOURCE_IDS).toContain('OnePlusFactory');
+    expect(SOURCE_REQUIRES_DEVICE.OnePlusFactory).toBe('tonex-one-plus');
+  });
+
+  test('Factory requires any-of [tonex-pedal, tonex-one]', () => {
+    expect(SOURCE_REQUIRES_DEVICE.Factory).toEqual(['tonex-pedal', 'tonex-one']);
+  });
+
+  test('isRequiredDeviceMissing — Factory dispo si tonex-one seul (sans pédale)', () => {
+    expect(isRequiredDeviceMissing('Factory', ['tonex-one'])).toBe(false);
+    expect(isRequiredDeviceMissing('Factory', ['tonex-pedal'])).toBe(false);
+    expect(isRequiredDeviceMissing('Factory', ['tonex-pedal', 'tonex-one'])).toBe(false);
+  });
+
+  test('isRequiredDeviceMissing — Factory manquant si ni pédale ni one', () => {
+    expect(isRequiredDeviceMissing('Factory', ['tonex-anniversary', 'tonex-plug'])).toBe(true);
+    expect(isRequiredDeviceMissing('Factory', [])).toBe(true);
+  });
+
+  test('isRequiredDeviceMissing — OnePlusFactory string 1:1', () => {
+    expect(isRequiredDeviceMissing('OnePlusFactory', ['tonex-one-plus'])).toBe(false);
+    expect(isRequiredDeviceMissing('OnePlusFactory', ['tonex-one'])).toBe(true);
+  });
+
+  test('isRequiredDeviceMissing — source sans device requis → jamais manquant', () => {
+    expect(isRequiredDeviceMissing('TSR', [])).toBe(false);
+    expect(isRequiredDeviceMissing('custom', [])).toBe(false);
+  });
+
+  test('effectiveAvailableSources — One seul : Factory NON forcé false (any-of)', () => {
+    const eff = effectiveAvailableSources({ Factory: true }, ['tonex-one']);
+    expect(eff.Factory).toBe(true);
+    // FactoryV1 (requiert tonex-pedal strict) reste forcé false
+    expect(eff.FactoryV1).toBe(false);
+  });
+
+  test('effectiveAvailableSources — One+ : OnePlusFactory dispo, Factory forcé false', () => {
+    const eff = effectiveAvailableSources({ Factory: true, OnePlusFactory: true }, ['tonex-one-plus']);
+    expect(eff.OnePlusFactory).toBe(true);
+    expect(eff.Factory).toBe(false); // ni pédale ni one
+  });
+
+  test('cascade tonex-one toggle → ne touche PAS Factory (partagé pédale)', () => {
+    const before = { Factory: true, OnePlusFactory: false };
+    expect(cascadeAvailableSources(before, 'tonex-one', false)).toBe(before);
+    expect(cascadeAvailableSources(before, 'tonex-one', true)).toBe(before);
+  });
+
+  test('cascade tonex-one-plus ON/OFF → OnePlusFactory', () => {
+    expect(cascadeAvailableSources({ OnePlusFactory: false }, 'tonex-one-plus', true)).toEqual({ OnePlusFactory: true });
+    expect(cascadeAvailableSources({ OnePlusFactory: true }, 'tonex-one-plus', false)).toEqual({ OnePlusFactory: false });
   });
 });

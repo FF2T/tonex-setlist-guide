@@ -7,8 +7,32 @@
 // - inputs falsy/edge cases
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { getLocalizedText, findSlotByUsageMatch, findCatalogEntryByUsages, findSlotByName, stripSlotPrefix, sanitizeAmpSuggestion, sanitizePedalSuggestion, sanitizeControls, enrichAIResult, updateAiCache, computeRigSnapshot, computeAnalysisFingerprint, diffAnalysisFingerprint, SONG_META_KEYS, splitResultByMeta, mergeMetaIntoResult, cleanInternalFlags, clampIdealTop3 } from './ai-helpers.js';
+import { getLocalizedText, findSlotByUsageMatch, findCatalogEntryByUsages, findSlotByName, stripSlotPrefix, sanitizeAmpSuggestion, sanitizePedalSuggestion, sanitizeControls, enrichAIResult, updateAiCache, computeRigSnapshot, computeAnalysisFingerprint, diffAnalysisFingerprint, SONG_META_KEYS, splitResultByMeta, mergeMetaIntoResult, cleanInternalFlags, clampIdealTop3, computeBestPresets } from './ai-helpers.js';
 import { PRESET_CATALOG_MERGED } from '../../core/catalog.js';
+
+// ─── Phase ToneX One — computeBestPresets oneTop / onePlusTop ───
+describe('computeBestPresets — banks One / One+ (modèle à plat slot A)', () => {
+  it('produit oneTop depuis banksOne (20 banques × slot A)', () => {
+    const banksOne = { 1: { cat: '', A: 'HG PLEXI' }, 5: { cat: '', A: 'DR 800' } };
+    const best = computeBestPresets('HB', 'hard_rock', {}, {}, 'lp60', 'Marshall JCM800', 8, {}, banksOne, {});
+    expect(best.oneTop).toBeTruthy();
+    expect(['HG PLEXI', 'DR 800']).toContain(best.oneTop.name);
+    expect(best.oneTop.col).toBe('A');
+    expect(best.onePlusTop).toBe(null);
+  });
+
+  it('produit onePlusTop depuis banksOnePlus', () => {
+    const banksOnePlus = { 1: { cat: '', A: 'Big Hair 800' } };
+    const best = computeBestPresets('HB', 'hard_rock', {}, {}, 'lp60', 'Marshall JCM800', 8, {}, {}, banksOnePlus);
+    expect(best.onePlusTop?.name).toBe('Big Hair 800');
+  });
+
+  it('banks One vides → oneTop null', () => {
+    const best = computeBestPresets('HB', 'rock', {}, {}, 'lp60', 'Marshall', 6, {}, {}, {});
+    expect(best.oneTop).toBe(null);
+    expect(best.onePlusTop).toBe(null);
+  });
+});
 
 describe('getLocalizedText', () => {
   describe('legacy string format', () => {

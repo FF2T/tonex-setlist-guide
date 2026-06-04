@@ -36,6 +36,8 @@ const DEVICE_SHORT_LABELS = {
   'tonex-pedal': 'Pedal',
   'tonex-anniversary': 'Anniv',
   'tonex-plug': 'Plug',
+  'tonex-one': 'One',
+  'tonex-one-plus': 'One+',
 };
 
 /**
@@ -99,6 +101,30 @@ export function getRowPlaylistData(song, aiC, guitar, guitarScore, isOptimalGuit
       presetName: aiPP.label,
       ampLabel: resolveAmp(aiPP.label),
       presetScore: typeof aiPP.score === 'number' ? aiPP.score : null,
+    });
+  }
+  // Phase ToneX One — preset_one / preset_one_plus (devices à plat).
+  // Slot = numéro de preset seul (col 'A' masquée — flatPresets).
+  const aiP1 = aiC?.preset_one;
+  if (aiP1 && aiP1.label && aiP1.bank != null && aiP1.col) {
+    devices.push({
+      deviceKey: 'tonex-one',
+      deviceLabel: DEVICE_SHORT_LABELS['tonex-one'],
+      slot: `${aiP1.bank}`,
+      presetName: aiP1.label,
+      ampLabel: resolveAmp(aiP1.label),
+      presetScore: typeof aiP1.score === 'number' ? aiP1.score : null,
+    });
+  }
+  const aiP1P = aiC?.preset_one_plus;
+  if (aiP1P && aiP1P.label && aiP1P.bank != null && aiP1P.col) {
+    devices.push({
+      deviceKey: 'tonex-one-plus',
+      deviceLabel: DEVICE_SHORT_LABELS['tonex-one-plus'],
+      slot: `${aiP1P.bank}`,
+      presetName: aiP1P.label,
+      ampLabel: resolveAmp(aiP1P.label),
+      presetScore: typeof aiP1P.score === 'number' ? aiP1P.score : null,
     });
   }
 

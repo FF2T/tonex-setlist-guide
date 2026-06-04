@@ -106,6 +106,8 @@ function LiveScreen({
   allGuitars,
   banksAnn,
   banksPlug,
+  banksOne,
+  banksOnePlus,
   availableSources,
   enabledDevices,
   onExit,
@@ -527,6 +529,8 @@ function LiveScreen({
                 allGuitars={allGuitars}
                 banksAnn={banksAnn}
                 banksPlug={banksPlug}
+                banksOne={banksOne}
+                banksOnePlus={banksOnePlus}
                 availableSources={availableSources}
                 onPatchOverride={onTmpPatchOverride}
               />

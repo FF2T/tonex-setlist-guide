@@ -21,7 +21,7 @@ import { GUITARS, GUITAR_BRANDS } from '../../core/guitars.js';
 import { BASSES, BASS_BRANDS } from '../../core/basses.js';
 import { BASS_AMPS, BASS_AMP_BRANDS } from '../../core/bass-amps.js';
 import { GUITAR_AMPS, GUITAR_AMP_BRANDS } from '../../core/guitar-amps.js';
-import { SOURCE_LABELS, SOURCE_DESCRIPTIONS, SOURCE_INFO, SOURCE_REQUIRES_DEVICE } from '../../core/sources.js';
+import { SOURCE_LABELS, SOURCE_DESCRIPTIONS, SOURCE_INFO, SOURCE_REQUIRES_DEVICE, isRequiredDeviceMissing } from '../../core/sources.js';
 import { FACTORY_BANKS_PEDALE_V1 } from '../../devices/tonex-pedal/index.js';
 import GuitarSearchAdd from '../components/GuitarSearchAdd.jsx';
 import AmpSearchAdd from '../components/AmpSearchAdd.jsx';
@@ -577,12 +577,14 @@ function ProfileTab({ profile, profiles, onProfiles, activeProfileId, inp, secti
               // ce device n'est pas activé, la source devient grisée +
               // non-cliquable + force-affichée OFF (peu importe la
               // valeur stockée).
-              const requiredDevice = SOURCE_REQUIRES_DEVICE[key];
-              const deviceMissing = !!(requiredDevice && !enabled.has(requiredDevice));
+              // Phase ToneX One — règle "un parmi" : Factory dispo si
+              // tonex-pedal OU tonex-one activé (captures partagées).
+              const deviceMissing = isRequiredDeviceMissing(key, profile.enabledDevices || []);
               const locked = !deviceMissing && (
                 (key === 'Anniversary' && enabled.has('tonex-anniversary'))
-                || (key === 'Factory' && enabled.has('tonex-pedal'))
+                || (key === 'Factory' && (enabled.has('tonex-pedal') || enabled.has('tonex-one')))
                 || (key === 'PlugFactory' && enabled.has('tonex-plug'))
+                || (key === 'OnePlusFactory' && enabled.has('tonex-one-plus'))
               );
               // Phase 7.50 (B-UX-01) : source désactivable si son contenu est vide.
               // Phase 7.74.10 : extension — device non activé bloque aussi.

@@ -30,8 +30,9 @@ function findPresetLocation(name, banks) {
 }
 
 function makeToneXLiveBlock(device) {
-  function ToneXLiveBlock({ song, _guitar, _profile, banksAnn, banksPlug }) {
-    const banks = device.bankStorageKey === 'banksAnn' ? banksAnn : banksPlug;
+  function ToneXLiveBlock({ song, _guitar, _profile, banksAnn, banksPlug, banksOne, banksOnePlus }) {
+    // Phase ToneX One — résolution générique des banks par bankStorageKey.
+    const banks = ({ banksAnn, banksPlug, banksOne, banksOnePlus })[device.bankStorageKey] || {};
     const aiC = song?.aiCache?.result;
     const presetData = aiC?.[device.presetResultKey];
     const presetName = presetData?.label || null;

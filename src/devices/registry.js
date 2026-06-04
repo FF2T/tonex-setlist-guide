@@ -84,6 +84,9 @@ function isSrcCompatible(src, deviceKey) {
   if (!src) return true;
   if (deviceKey === 'ann') return src !== 'PlugFactory';
   if (deviceKey === 'plug') return src !== 'Anniversary' && src !== 'Factory';
+  // Phase ToneX One — clés courtes 'one' / 'oneplus' (cf catalog.deviceKey).
+  if (deviceKey === 'one') return src !== 'Anniversary' && src !== 'PlugFactory' && src !== 'OnePlusFactory' && src !== 'FactoryV1';
+  if (deviceKey === 'oneplus') return src !== 'Anniversary' && src !== 'PlugFactory' && src !== 'Factory' && src !== 'FactoryV1';
   // Si on passe un device id complet (ex. 'tonex-pedal'), déléguer.
   const d = _devices.get(deviceKey);
   if (d && typeof d.isPresetSourceCompatible === 'function') {

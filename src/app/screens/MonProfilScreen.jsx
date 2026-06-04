@@ -40,6 +40,7 @@ import { FACTORY_BANKS_PLUG } from '../../devices/tonex-plug/index.js';
 function MonProfilScreen({
   songDb, onSongDb, onAiCacheUpdate, setlists, allSetlists, onSetlists, onDeletedSetlistIds,
   banksAnn, onBanksAnn, banksPlug, onBanksPlug,
+  banksOne, onBanksOne, banksOnePlus, onBanksOnePlus,
   onBack, onNavigate,
   aiProvider, onAiProvider, aiKeys, onAiKeys, theme, onTheme,
   profile, profiles, onProfiles, activeProfileId,
@@ -239,7 +240,7 @@ function MonProfilScreen({
       {/* Réorg 2026-05-28 — Onglet "Mon matériel numérique" : empile
           appareils ToneX/TMP + banks + sources + presets custom. */}
       {tab === 'devices' && <>
-        <MesAppareilsTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} toneNetPresets={toneNetPresets} onToneNetPresets={onToneNetPresets} songDb={songDb} fullState={fullState} onImportState={onImportState} onNavigate={onNavigate} onSharedUsagesOverrides={onSharedUsagesOverrides}/>
+        <MesAppareilsTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} banksOne={banksOne} onBanksOne={onBanksOne} banksOnePlus={banksOnePlus} onBanksOnePlus={onBanksOnePlus} toneNetPresets={toneNetPresets} onToneNetPresets={onToneNetPresets} songDb={songDb} fullState={fullState} onImportState={onImportState} onNavigate={onNavigate} onSharedUsagesOverrides={onSharedUsagesOverrides}/>
         <ProfileTab profile={profile} profiles={profiles} onProfiles={onProfiles} activeProfileId={activeProfileId} inp={inp} section="sources"/>
         <MyCustomPresetsTab profile={profile} onProfiles={onProfiles} activeProfileId={activeProfileId} songDb={songDb} inp={inp}/>
       </>}

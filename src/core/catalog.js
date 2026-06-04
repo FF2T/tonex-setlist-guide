@@ -8,8 +8,8 @@
 // normalizePresetName : utilitaire de comparaison souple.
 
 import {
-  PRESET_CATALOG, FACTORY_CATALOG, PLUG_FACTORY_CATALOG, TSR_PACK_CATALOG,
-  ANNIVERSARY_CATALOG,
+  PRESET_CATALOG, FACTORY_CATALOG, PLUG_FACTORY_CATALOG, ONE_PLUS_FACTORY_CATALOG,
+  TSR_PACK_CATALOG, ANNIVERSARY_CATALOG,
 } from '../data/data_catalogs.js';
 import { PRESET_CATALOG_FULL } from '../data/preset_catalog_full.js';
 import { ANNIVERSARY_PREMIUM_CATALOG } from '../data/anniversary-premium-catalog.js';
@@ -19,7 +19,7 @@ import { resolveUsagesCascade } from './usages-cascade.js';
 // Phase 7.52 : ANNIVERSARY_PREMIUM_CATALOG est spread APRÈS ANNIVERSARY_CATALOG
 // pour override les 150 entrées legacy (mêmes clés, metadata curées :
 // packName, character, stomp, scores curés un à un, usages artiste/morceau).
-const PRESET_CATALOG_MERGED = {...PRESET_CATALOG_FULL, ...TSR_PACK_CATALOG, ...ANNIVERSARY_CATALOG, ...ANNIVERSARY_PREMIUM_CATALOG, ...FACTORY_CATALOG, ...PLUG_FACTORY_CATALOG, ...PRESET_CATALOG};
+const PRESET_CATALOG_MERGED = {...PRESET_CATALOG_FULL, ...TSR_PACK_CATALOG, ...ANNIVERSARY_CATALOG, ...ANNIVERSARY_PREMIUM_CATALOG, ...FACTORY_CATALOG, ...PLUG_FACTORY_CATALOG, ...ONE_PLUS_FACTORY_CATALOG, ...PRESET_CATALOG};
 
 // Phase 7.79.3a — applique la cascade d'overrides d'usages si elle est
 // exposée sur window._usagesCascadeState. Retourne l'entry enrichie d'un

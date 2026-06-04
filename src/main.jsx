@@ -29,12 +29,16 @@ import {
 import './devices/tonex-pedal/index.js';
 import './devices/tonex-anniversary/index.js';
 import './devices/tonex-plug/index.js';
+import './devices/tonex-one/index.js';
+import './devices/tonex-one-plus/index.js';
 import './devices/tonemaster-pro/index.js';
 import { TMP_FACTORY_PATCHES, recommendTMPPatch } from './devices/tonemaster-pro/index.js';
 import TmpBrowser from './devices/tonemaster-pro/Browser.jsx';
 import { INIT_BANKS_ANN, FACTORY_BANKS_PEDALE } from './devices/tonex-pedal/index.js';
 import { FACTORY_BANKS_ANNIVERSARY } from './devices/tonex-anniversary/index.js';
 import { INIT_BANKS_PLUG, FACTORY_BANKS_PLUG } from './devices/tonex-plug/index.js';
+import { INIT_BANKS_ONE, FACTORY_BANKS_ONE } from './devices/tonex-one/index.js';
+import { INIT_BANKS_ONE_PLUS, FACTORY_BANKS_ONE_PLUS } from './devices/tonex-one-plus/index.js';
 import { isSrcCompatible, getAllDevices, getEnabledDevices } from './devices/registry.js';
 import {
   PRESET_CONTEXT, AMP_TAXONOMY, EXTERNAL_PACK_CATALOG,
@@ -278,7 +282,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "9.7.42";
+const APP_VERSION = "9.8.0";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -961,6 +965,8 @@ export function App() {
   };
   const setBanksAnn  = v => setProfileField("banksAnn", v);
   const setBanksPlug = v => setProfileField("banksPlug", v);
+  const setBanksOne     = v => setProfileField("banksOne", v);
+  const setBanksOnePlus = v => setProfileField("banksOnePlus", v);
   const setAiProvider= v => setProfileField("aiProvider", v);
   const setAiKeys    = v => setProfileField("aiKeys", v);
 
@@ -1045,6 +1051,18 @@ export function App() {
   // Destructure profile fields for convenience
   // availableSources EFFECTIF dérivé plus haut (Phase 9.7.43) — pas dans ce destructure.
   const {banksAnn, banksPlug, aiProvider: rawAiProvider, aiKeys} = profile;
+  const banksOne = profile.banksOne || {};
+  const banksOnePlus = profile.banksOnePlus || {};
+  // Phase ToneX One — publie les banks One/One+ sur window pour que
+  // computeBestPresets/enrichAIResult les lisent en fallback (pattern
+  // window.__activeSources) sans threader 2 params dans les 9 call sites.
+  // Gate par enabledDevices : un device désactivé ne doit pas produire
+  // de reco (preset_one) même si ses banks sont encore peuplées.
+  if (typeof window !== 'undefined') {
+    const _ed = profile.enabledDevices || [];
+    window.__activeBanksOne = _ed.includes('tonex-one') ? banksOne : {};
+    window.__activeBanksOnePlus = _ed.includes('tonex-one-plus') ? banksOnePlus : {};
+  }
   // S9.11 — Auto-fallback Anthropic pour admin si clé Anthropic configurée.
   // Sébastien admin peut éviter de cramer le quota Gemini partagé sans
   // toucher au comportement des beta-testeurs (qui n'ont pas la clé
@@ -1247,6 +1265,8 @@ export function App() {
       +":"+(p.aiProvider||'')
       +":"+JSON.stringify(p.banksAnn||{})
       +":"+JSON.stringify(p.banksPlug||{})
+      +":"+JSON.stringify(p.banksOne||{})
+      +":"+JSON.stringify(p.banksOnePlus||{})
       +":"+(p.customPacks||[]).map(pk=>(pk.name||'')+":"+((pk.presets||[]).map(pr=>pr.name||'').sort().join(','))).join('|')
       +":"+JSON.stringify(p.editedGuitars||{})
       +":"+JSON.stringify(p.tmpPatches||{})
@@ -1742,12 +1762,14 @@ export function App() {
   };
 
 
-  const fullState={songDb,setlists,banksAnn,banksPlug};
+  const fullState={songDb,setlists,banksAnn,banksPlug,banksOne,banksOnePlus};
   const onImportState=data=>{
     if(data.songDb)    setSongDb(data.songDb);
     if(data.setlists)  setSetlists(data.setlists);
     if(data.banksAnn)  setBanksAnn(data.banksAnn);
     if(data.banksPlug) setBanksPlug(data.banksPlug);
+    if(data.banksOne)     setBanksOne(data.banksOne);
+    if(data.banksOnePlus) setBanksOnePlus(data.banksOnePlus);
     setChecked([]);
     setScreen("list");
   };
@@ -1803,6 +1825,8 @@ export function App() {
       allGuitars={allGuitars}
       banksAnn={banksAnn}
       banksPlug={banksPlug}
+      banksOne={banksOne}
+      banksOnePlus={banksOnePlus}
       availableSources={availableSources}
       enabledDevices={liveDevices}
       onExit={exitToOrigin}
@@ -1819,7 +1843,7 @@ export function App() {
   var screenContent=null;
   if(screen==="viewprofile"&&profile?.isAdmin&&viewProfileId&&profiles[viewProfileId]) screenContent=<ViewProfileScreen profile={profiles[viewProfileId]} onBack={()=>setScreen("list")} onNavigate={setScreen}/>;
   else if(screen==="exportimport") screenContent=<ExportImportScreen banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("profile")} onNavigate={setScreen} fullState={fullState} onImportState={onImportState}/>;
-  else if(screen==="profile") screenContent=<MonProfilScreen songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} onDeletedSetlistIds={setDeletedSetlistIds} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={effectiveGuitarBias} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} adminPacks={adminPacks} onAdminPacks={setAdminPacks} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");sessionStorage.removeItem(ADMIN_ORIGIN_KEY);setScreen("pick");}} MaintenanceTabComponent={MaintenanceTab} onSaveSharedKey={saveSharedKey}
+  else if(screen==="profile") screenContent=<MonProfilScreen songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} onDeletedSetlistIds={setDeletedSetlistIds} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} banksOne={banksOne} onBanksOne={setBanksOne} banksOnePlus={banksOnePlus} onBanksOnePlus={setBanksOnePlus} onBack={()=>setScreen("list")} onNavigate={setScreen} aiProvider={aiProvider} onAiProvider={setAiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} theme={theme} onTheme={setTheme} profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={effectiveGuitarBias} initTab={profileInitTab} customGuitars={customGuitars} onCustomGuitars={setCustomGuitars} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} adminPacks={adminPacks} onAdminPacks={setAdminPacks} fullState={fullState} onImportState={onImportState} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");sessionStorage.removeItem(ADMIN_ORIGIN_KEY);setScreen("pick");}} MaintenanceTabComponent={MaintenanceTab} onSaveSharedKey={saveSharedKey}
     onSharedUsagesOverrides={(reducer)=>setSharedUsagesOverrides((prevMap)=>{const sh={usagesOverrides:prevMap};const next=reducer(sh);return next?.usagesOverrides||{};})}
   />;
   else if(screen==="setlists") screenContent=<SetlistsScreen songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} mySongIds={mySongIds} checked={checked} onChecked={setChecked} onSettings={()=>setScreen("profile")} onNavigate={setScreen} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onProfiles={setProfiles} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} onSharedUsagesOverrides={(reducer)=>setSharedUsagesOverrides((prevMap)=>{const sh={usagesOverrides:prevMap};const next=reducer(sh);return next?.usagesOverrides||{};})}/>;

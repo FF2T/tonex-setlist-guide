@@ -285,6 +285,37 @@ const PLUG_FACTORY_CATALOG = {
   "Bass Driven": {src:"PlugFactory",amp:"Ampeg SVT",gain:"mid",style:"rock",scores:{HB:72,SC:68,P90:70}},
 };
 
+// ONE_PLUS_FACTORY_CATALOG — Phase ToneX One+ (PDF
+// tone_models/TONEX_ONE_Plus_Pre-loaded_Factory_Presets.pdf v1.0.0
+// 2026/04/20). 20 presets factory aux noms inédits (la ToneX One, elle,
+// réutilise les Tone Models de la Pédale Factory v2 → src:"Factory"
+// existant). Scores HB/SC/P90 estimés depuis CHARACTER + AMP (cohérent
+// avec les patterns du catalog : HB-heavy en haut gain, SC-heavy en
+// clean/basse). Stomps standalone (Obsessive drive / Horsey Boost) :
+// amp "Stomp - Overdrive" comme CLONE 1/MAXO 8O8 (Phase 7.47.1 Cat C).
+const ONE_PLUS_FACTORY_CATALOG = {
+  "Big Hair 800": {src:"OnePlusFactory",amp:"Marshall JCM 800",gain:"high",style:"hard_rock",scores:{HB:91,SC:60,P90:75}},
+  "Smooth D-Lead": {src:"OnePlusFactory",amp:"Dumble Overdrive Special #0080",gain:"mid",style:"blues",scores:{HB:80,SC:86,P90:85}},
+  "Obsessive drive": {src:"OnePlusFactory",amp:"Stomp - Overdrive",gain:"mid",style:"rock",scores:{HB:82,SC:78,P90:82}},
+  "Streets Delay": {src:"OnePlusFactory",amp:"Vox AC30 CC2",gain:"mid",style:"rock",scores:{HB:78,SC:84,P90:86}},
+  "51 Chug": {src:"OnePlusFactory",amp:"Peavey 5150 MKI",gain:"high",style:"metal",scores:{HB:93,SC:54,P90:67}},
+  "Shiva tight": {src:"OnePlusFactory",amp:"Bogner Shiva",gain:"high",style:"hard_rock",scores:{HB:92,SC:58,P90:70}},
+  "Welcome to the Brit": {src:"OnePlusFactory",amp:"Marshall Super Lead 1987 50w",gain:"mid",style:"hard_rock",scores:{HB:88,SC:66,P90:80}},
+  "Clean Platform": {src:"OnePlusFactory",amp:"Fender Deluxe Reverb",gain:"low",style:"blues",scores:{HB:70,SC:92,P90:86}},
+  "Periph Precision": {src:"OnePlusFactory",amp:"ENGL Invader 100",gain:"high",style:"metal",scores:{HB:90,SC:56,P90:68}},
+  "Juice Verb": {src:"OnePlusFactory",amp:"Orange Rockerverb MKI",gain:"low",style:"rock",scores:{HB:80,SC:80,P90:84}},
+  "Slow Hand": {src:"OnePlusFactory",amp:"Fender '65 Princeton Reverb",gain:"mid",style:"blues",scores:{HB:74,SC:88,P90:85}},
+  "Boston Chorus": {src:"OnePlusFactory",amp:"Rockman Sustainor",gain:"low",style:"rock",scores:{HB:82,SC:78,P90:80}},
+  "Cali Tweed": {src:"OnePlusFactory",amp:"Mesa Boogie California Tweed",gain:"mid",style:"blues",scores:{HB:78,SC:84,P90:85}},
+  "Funky Boy": {src:"OnePlusFactory",amp:"Fender '65 Twin Reverb Reissue",gain:"low",style:"pop",scores:{HB:68,SC:94,P90:86}},
+  "Ping Pong Lead": {src:"OnePlusFactory",amp:"Mezzabarba MZero",gain:"high",style:"metal",scores:{HB:92,SC:55,P90:67}},
+  "80s Clean 120": {src:"OnePlusFactory",amp:"Roland Jazz Chorus JC-120",gain:"low",style:"pop",scores:{HB:74,SC:90,P90:82}},
+  "Firebreather": {src:"OnePlusFactory",amp:"ENGL Fireball",gain:"high",style:"metal",scores:{HB:91,SC:55,P90:67}},
+  "Horsey Boost": {src:"OnePlusFactory",amp:"Stomp - Overdrive",gain:"mid",style:"rock",scores:{HB:82,SC:80,P90:84}},
+  "Motown Pocket": {src:"OnePlusFactory",amp:"Ampeg B-15R",gain:"low",style:"jazz",scores:{HB:62,SC:95,P90:86}},
+  "Give it away": {src:"OnePlusFactory",amp:"Gallien-Krueger 800RB",gain:"mid",style:"rock",scores:{HB:64,SC:92,P90:84}},
+};
+
 // TSR_PACK_CATALOG
 const TSR_PACK_CATALOG = {
   // 50-51
@@ -1335,10 +1366,41 @@ const FACTORY_BANKS_PLUG = {
   1:{cat:"",A:"DMBL Clean",B:"Just 800",C:"80's Hero"},2:{cat:"",A:"Doctor Clean",B:"Some Grit",C:"Boosted DZL"},3:{cat:"",A:"Crunchy Plexi",B:"Plexi Drive",C:"Nine Hundred Degrees"},4:{cat:"",A:"Jazz Choir",B:"Orange Juice",C:"Eddie"},5:{cat:"",A:"HWTT Clean",B:"MK5 Street",C:"Sold!"},6:{cat:"",A:"Black Hole",B:"VX30 Trem",C:"PV 5051 Warm"},7:{cat:"",A:"Sparkling Clean",B:"Fried",C:"Fire Angel"},8:{cat:"",A:"Enigma",B:"UK Dirt",C:"Full 800 Tone"},9:{cat:"",A:"Dirty Twin",B:"Plexi Trem",C:"Orange Vibe"},10:{cat:"",A:"Bass Clean",B:"Bass Chorus",C:"Bass Driven"},
 };
 
+// ───────────────────────────────────────────────────────────────────
+// ToneX One / One+ — modèle de banks À PLAT (20 presets 1-20, pas de
+// A/B/C). Modélisé en "20 banques × 1 slot A" pour réutiliser tout le
+// moteur scoring/findInBanks/CSV existant sans toucher aux boucles
+// ['A','B','C'] hardcodées (B/C absents = ignorés). Le BankEditor reçoit
+// slots:['A'] pour un rendu propre 1 colonne / 20 lignes.
+// ───────────────────────────────────────────────────────────────────
+
+// FACTORY_BANKS_ONE — PDF tone_models/TONEX_ONE_Pre-loaded_Factory_Presets.pdf
+// v2 (2025/04/07). 20 presets, noms partagés avec la Pédale Factory v2.
+const FACTORY_BANKS_ONE = {
+  1:{cat:"",A:"HG PLEXI"}, 2:{cat:"",A:"CL DMBL"}, 3:{cat:"",A:"CLONE 1"}, 4:{cat:"",A:"BLKHOLE"}, 5:{cat:"",A:"DR 800"},
+  6:{cat:"",A:"DR1 MRK5"}, 7:{cat:"",A:"1CHAIN"}, 8:{cat:"",A:"CL HIWTT"}, 9:{cat:"",A:"LD 5051"}, 10:{cat:"",A:"DR VX30"},
+  11:{cat:"",A:"HG FRIED"}, 12:{cat:"",A:"CL JAZZ"}, 13:{cat:"",A:"LD FIRE"}, 14:{cat:"",A:"HG SOLD"}, 15:{cat:"",A:"LD DZL"},
+  16:{cat:"",A:"CL TWIN (Amp)"}, 17:{cat:"",A:"HG 5051 (Amp)"}, 18:{cat:"",A:"MAXO 8O8"}, 19:{cat:"",A:"BS SVX 2"}, 20:{cat:"",A:"BS XULTR"},
+};
+const INIT_BANKS_ONE = { ...FACTORY_BANKS_ONE };
+
+// FACTORY_BANKS_ONE_PLUS — PDF tone_models/TONEX_ONE_Plus_Pre-loaded_Factory_Presets.pdf
+// v1.0.0 (2026/04/20). 20 presets aux noms inédits (cf ONE_PLUS_FACTORY_CATALOG).
+const FACTORY_BANKS_ONE_PLUS = {
+  1:{cat:"",A:"Big Hair 800"}, 2:{cat:"",A:"Smooth D-Lead"}, 3:{cat:"",A:"Obsessive drive"}, 4:{cat:"",A:"Streets Delay"}, 5:{cat:"",A:"51 Chug"},
+  6:{cat:"",A:"Shiva tight"}, 7:{cat:"",A:"Welcome to the Brit"}, 8:{cat:"",A:"Clean Platform"}, 9:{cat:"",A:"Periph Precision"}, 10:{cat:"",A:"Juice Verb"},
+  11:{cat:"",A:"Slow Hand"}, 12:{cat:"",A:"Boston Chorus"}, 13:{cat:"",A:"Cali Tweed"}, 14:{cat:"",A:"Funky Boy"}, 15:{cat:"",A:"Ping Pong Lead"},
+  16:{cat:"",A:"80s Clean 120"}, 17:{cat:"",A:"Firebreather"}, 18:{cat:"",A:"Horsey Boost"}, 19:{cat:"",A:"Motown Pocket"}, 20:{cat:"",A:"Give it away"},
+};
+const INIT_BANKS_ONE_PLUS = { ...FACTORY_BANKS_ONE_PLUS };
+
 
 export {
-  PRESET_CATALOG, FACTORY_CATALOG, PLUG_FACTORY_CATALOG, TSR_PACK_CATALOG,
+  PRESET_CATALOG, FACTORY_CATALOG, PLUG_FACTORY_CATALOG, ONE_PLUS_FACTORY_CATALOG,
+  TSR_PACK_CATALOG,
   ANNIVERSARY_CATALOG, INIT_BANKS_ANN, INIT_BANKS_PLUG,
   FACTORY_BANKS_PEDALE, FACTORY_BANKS_PEDALE_V1, FACTORY_BANKS_PEDALE_V2,
   FACTORY_BANKS_PLUG,
+  INIT_BANKS_ONE, FACTORY_BANKS_ONE,
+  INIT_BANKS_ONE_PLUS, FACTORY_BANKS_ONE_PLUS,
 };
