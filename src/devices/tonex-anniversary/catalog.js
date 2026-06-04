@@ -49,6 +49,8 @@ const TONEX_ANNIVERSARY_CATALOG = {
   factoryBanks: FACTORY_BANKS_ANNIVERSARY,
   maxBanks: 50,
   slots: ['A', 'B', 'C'],
+  bankModel: 'triplet',
+  nbSlots: 150,
   excludedSources: ['PlugFactory'],
   bankStorageKey: 'banksAnn',
   presetResultKey: 'preset_ann',

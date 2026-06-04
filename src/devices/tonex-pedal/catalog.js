@@ -23,6 +23,8 @@ const TONEX_PEDAL_CATALOG = {
   factoryBanks: FACTORY_BANKS_PEDALE,
   maxBanks: 50,
   slots: ['A', 'B', 'C'],
+  bankModel: 'triplet',
+  nbSlots: 150,
   excludedSources: ['PlugFactory', 'Anniversary'],
   bankStorageKey: 'banksAnn',
   presetResultKey: 'preset_ann',

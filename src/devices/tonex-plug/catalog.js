@@ -13,6 +13,8 @@ const TONEX_PLUG_CATALOG = {
   factoryBanks: FACTORY_BANKS_PLUG,
   maxBanks: 10,
   slots: ['A', 'B', 'C'],
+  bankModel: 'triplet',
+  nbSlots: 30,
   excludedSources: ['Anniversary', 'Factory'],
   bankStorageKey: 'banksPlug',
   presetResultKey: 'preset_plug',

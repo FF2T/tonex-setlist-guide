@@ -26,13 +26,62 @@ import { getSourceInfo } from '../../core/sources.js';
 import { isSrcCompatible } from '../../devices/registry.js';
 import { TSR_PACK_ZIPS } from '../../data/tsr-packs.js';
 import { getActiveDevicesForRender } from '../utils/devices-render.js';
+import { getEffectiveZones } from '../../core/state.js';
 import { computeBestPresets, resolveRefAmp } from '../utils/ai-helpers.js';
 import { findInBanks } from '../utils/preset-helpers.js';
 import { CC, TYPE_LABELS } from '../utils/ui-constants.js';
 import { scoreColor } from '../components/score-utils.js';
 import Breadcrumb from '../components/Breadcrumb.jsx';
 
-function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug, onBanksPlug, allGuitars, availableSources, onNavigate, profile }) {
+// Phase 14.1 — Barre de zones d'un device : strip de banques colorées
+// (Live / Jams / Découverte) + 2 curseurs (fin Live / fin Jams) + budget.
+// Écrit profile.bankZones[deviceId] via onZones. Modèle flat (One/One+) :
+// 1 banque = 1 preset → label "Preset", sinon "Banque".
+const ZONE_COLORS = { live: 'var(--accent)', jam: 'var(--brass-300)', disc: 'var(--text-tertiary)' };
+function ZonesBar({ device, zones, onZones }) {
+  const n = device.maxBanks || 0;
+  const { liveEnd, jamEnd } = zones;
+  const liveCount = liveEnd;
+  const jamCount = jamEnd - liveEnd;
+  const discCount = n - jamEnd;
+  const cells = [];
+  for (let i = 0; i < n; i++) {
+    const zone = i < liveEnd ? 'live' : (i < jamEnd ? 'jam' : 'disc');
+    cells.push(<div key={i} title={`${i}`} style={{ flex: 1, height: 14, background: ZONE_COLORS[zone], opacity: zone === 'disc' ? 0.35 : 0.85, borderRight: '1px solid var(--bg-elev-1)' }}/>);
+  }
+  const legend = (color, label, count) => (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-sec)' }}>
+      <span style={{ width: 10, height: 10, background: color, borderRadius: 2, display: 'inline-block', opacity: 0.85 }}/>{label} ({count})
+    </span>
+  );
+  const sliderStyle = { flex: 1, accentColor: 'var(--accent)' };
+  return (
+    <div style={{ background: 'var(--a3)', border: '1px solid var(--a7)', borderRadius: 'var(--r-md)', padding: '8px 10px', marginBottom: 'var(--s-2)' }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <NavIcon id={device.iconId || 'amp'} size={14}/>{device.label}
+        <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 400 }}>{tFormat('optimizer.zones-budget', { n }, '{n} banques')}</span>
+      </div>
+      <div style={{ display: 'flex', borderRadius: 3, overflow: 'hidden', marginBottom: 6 }}>{cells}</div>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
+        {legend(ZONE_COLORS.live, t('optimizer.zone-live', 'Live'), liveCount)}
+        {legend(ZONE_COLORS.jam, t('optimizer.zone-jams', 'Jams'), jamCount)}
+        {legend(ZONE_COLORS.disc, t('optimizer.zone-discovery', 'Découverte'), discCount)}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', minWidth: 64 }}>{t('optimizer.zone-live-end', 'Fin Live')}</span>
+        <input type="range" min={0} max={n} value={liveEnd} onChange={(e) => { const v = Number(e.target.value); onZones({ liveEnd: v, jamEnd: Math.max(v, jamEnd) }); }} style={sliderStyle}/>
+        <span style={{ fontSize: 11, color: 'var(--text-sec)', minWidth: 28, textAlign: 'right' }}>{liveEnd}</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', minWidth: 64 }}>{t('optimizer.zone-jams-end', 'Fin Jams')}</span>
+        <input type="range" min={0} max={n} value={jamEnd} onChange={(e) => { const v = Number(e.target.value); onZones({ liveEnd: Math.min(v, liveEnd), jamEnd: v }); }} style={sliderStyle}/>
+        <span style={{ fontSize: 11, color: 'var(--text-sec)', minWidth: 28, textAlign: 'right' }}>{jamEnd}</span>
+      </div>
+    </div>
+  );
+}
+
+function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug, onBanksPlug, allGuitars, availableSources, onNavigate, profile, onProfiles, activeProfileId }) {
   if (typeof window !== 'undefined' && window.__TONEX_PERF) {
     if (!window.__optimizerRenderStart) window.__optimizerRenderStart = performance.now();
   }
@@ -46,6 +95,16 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Phase 14.1 — écrit profile.bankZones[deviceId]. Stamp lastModified
+  // pour que le profileHash (Phase 14) déclenche le push Firestore.
+  const setBankZones = (deviceId, zones) => {
+    if (!onProfiles || !activeProfileId) return;
+    onProfiles((p) => {
+      const cur = p[activeProfileId]; if (!cur) return p;
+      const next = { ...(cur.bankZones || {}), [deviceId]: zones };
+      return { ...p, [activeProfileId]: { ...cur, bankZones: next, lastModified: Date.now() } };
+    });
+  };
   const enabledDevices = getActiveDevicesForRender(profile);
   const hasPedalDevice = enabledDevices.some((d) => d.deviceKey === 'ann');
   const hasPlugDevice = enabledDevices.some((d) => d.deviceKey === 'plug');
@@ -386,6 +445,16 @@ function BankOptimizerScreen({ songDb, setlists, banksAnn, onBanksAnn, banksPlug
           {setlists.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.songIds.length})</option>)}
         </select>
       </div>
+
+      {/* Phase 14.1 — Barre de zones par device (Live / Jams / Découverte) */}
+      {onProfiles && enabledDevices.filter((d) => ['triplet', 'flat'].includes(d.bankModel)).map((d) => (
+        <ZonesBar
+          key={d.id}
+          device={d}
+          zones={getEffectiveZones(profile, d.id, d.maxBanks)}
+          onZones={(z) => setBankZones(d.id, z)}
+        />
+      ))}
 
       {/* TOP 3 ACTIONS PRIORITAIRES PAR DEVICE */}
       {songs.length > 0 && (() => {

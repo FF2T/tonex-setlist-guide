@@ -36,7 +36,7 @@ import {
   autoBackup, listBackups, clearBackups, isQuotaError, persistState,
   OUTPUT_CONTEXTS, DEFAULT_OUTPUT_CONTEXT, getEffectiveOutputContext,
   PLAY_INSTRUMENTS, PLAY_RIGS, getAvailableRigs, getEffectivePlayContext,
-  getDefaultPlayInstrument,
+  getDefaultPlayInstrument, getEffectiveZones,
 } from './state.js';
 
 describe('STATE_VERSION', () => {
@@ -4903,5 +4903,46 @@ describe('Phase B — getAvailableRigs / getEffectivePlayContext', () => {
     expect(admin.playRig).toBe('tonex');
     expect(standard.playInstrument).toBe('guitar');
     expect(standard.playRig).toBe('tonex');
+  });
+});
+
+// ─── Phase 14.1 — getEffectiveZones (zones de banques) ───
+describe('getEffectiveZones — Phase 14.1', () => {
+  test('défaut grand device (50 banques) → 25/40', () => {
+    expect(getEffectiveZones({}, 'tonex-anniversary', 50)).toEqual({ liveEnd: 25, jamEnd: 40 });
+  });
+  test('défaut petit device (plug 10) → tout live (10/10)', () => {
+    expect(getEffectiveZones({}, 'tonex-plug', 10)).toEqual({ liveEnd: 10, jamEnd: 10 });
+  });
+  test('défaut flat (One 20) → tout live (20/20)', () => {
+    expect(getEffectiveZones({}, 'tonex-one', 20)).toEqual({ liveEnd: 20, jamEnd: 20 });
+  });
+  test('valeur stockée honorée', () => {
+    const p = { bankZones: { 'tonex-anniversary': { liveEnd: 30, jamEnd: 45 } } };
+    expect(getEffectiveZones(p, 'tonex-anniversary', 50)).toEqual({ liveEnd: 30, jamEnd: 45 });
+  });
+  test('clamp : liveEnd > jamEnd → jamEnd remonté à liveEnd', () => {
+    const p = { bankZones: { d: { liveEnd: 40, jamEnd: 20 } } };
+    expect(getEffectiveZones(p, 'd', 50)).toEqual({ liveEnd: 40, jamEnd: 40 });
+  });
+  test('clamp : valeurs > nbBanks ramenées à nbBanks', () => {
+    const p = { bankZones: { d: { liveEnd: 80, jamEnd: 99 } } };
+    expect(getEffectiveZones(p, 'd', 50)).toEqual({ liveEnd: 50, jamEnd: 50 });
+  });
+  test('clamp : valeurs négatives → 0', () => {
+    const p = { bankZones: { d: { liveEnd: -5, jamEnd: -2 } } };
+    expect(getEffectiveZones(p, 'd', 50)).toEqual({ liveEnd: 0, jamEnd: 0 });
+  });
+  test('stored partiel (liveEnd seul) → défaut appliqué', () => {
+    const p = { bankZones: { d: { liveEnd: 10 } } };
+    // jamEnd null → défaut recalculé (grand device) puis clamp ≥ liveEnd
+    const z = getEffectiveZones(p, 'd', 50);
+    expect(z.liveEnd).toBe(25); // défaut car liveEnd OU jamEnd manquant → défauts
+    expect(z.jamEnd).toBe(40);
+  });
+  test('profile null / nbBanks invalide → safe', () => {
+    expect(getEffectiveZones(null, 'd', 50)).toEqual({ liveEnd: 25, jamEnd: 40 });
+    expect(getEffectiveZones({}, 'd', 0)).toEqual({ liveEnd: 0, jamEnd: 0 });
+    expect(getEffectiveZones({}, 'd', undefined)).toEqual({ liveEnd: 0, jamEnd: 0 });
   });
 });

@@ -22,6 +22,8 @@ const TONEX_ONE_CATALOG = {
   maxBanks: 20,
   slots: ['A'],
   flatPresets: true,
+  bankModel: 'flat',
+  nbSlots: 20,
   excludedSources: ['Anniversary', 'PlugFactory', 'OnePlusFactory', 'FactoryV1'],
   bankStorageKey: 'banksOne',
   presetResultKey: 'preset_one',

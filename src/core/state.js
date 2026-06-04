@@ -3060,10 +3060,39 @@ function getEffectivePlayContext(profile, song) {
   return { instrument, rig };
 }
 
+// Phase 14.1 — Zones de banques de la pédale (Live / Jams / Découverte).
+// Zones contiguës NON chevauchantes en unités de BANQUE (triplet : 1 banque
+// = A/B/C ; flat One/One+ : 1 banque = 1 slot) :
+//   Live       = banques [0, liveEnd)
+//   Jams       = banques [liveEnd, jamEnd)
+//   Découverte = banques [jamEnd, nbBanks)
+// `nbBanks` = nombre de banques du device (maxBanks : 50 / 10 / 20).
+// Défauts : grand device (≥50) → 25/40 (live moitié, jams jusqu'à 80%) ;
+// petit/mobile (<50, ex plug 10 / flat 20) → tout en Live (liveEnd=jamEnd=nbBanks).
+// Retour clampé : 0 ≤ liveEnd ≤ jamEnd ≤ nbBanks (contiguïté + non-chevauchement).
+function getEffectiveZones(profile, deviceId, nbBanks) {
+  const n = (typeof nbBanks === 'number' && nbBanks > 0) ? Math.floor(nbBanks) : 0;
+  const stored = profile?.bankZones?.[deviceId];
+  let liveEnd = null;
+  let jamEnd = null;
+  if (stored && typeof stored === 'object') {
+    if (typeof stored.liveEnd === 'number') liveEnd = stored.liveEnd;
+    if (typeof stored.jamEnd === 'number') jamEnd = stored.jamEnd;
+  }
+  if (liveEnd == null || jamEnd == null) {
+    if (n >= 50) { liveEnd = Math.round(n / 2); jamEnd = Math.round(n * 0.8); }
+    else { liveEnd = n; jamEnd = n; }
+  }
+  // Clamp contiguïté + non-chevauchement.
+  liveEnd = Math.max(0, Math.min(Math.floor(liveEnd), n));
+  jamEnd = Math.max(liveEnd, Math.min(Math.floor(jamEnd), n));
+  return { liveEnd, jamEnd };
+}
+
 export {
   OUTPUT_CONTEXTS, DEFAULT_OUTPUT_CONTEXT, getEffectiveOutputContext,
   PLAY_INSTRUMENTS, PLAY_RIGS, getAvailableRigs, getEffectivePlayContext,
-  getDefaultPlayInstrument,
+  getDefaultPlayInstrument, getEffectiveZones,
   ADMIN_ORIGIN_KEY, recordAdminSwitch, isAdminAsMode, appendLoginEntry,
   STATE_VERSION, TOMBSTONE_MAX_AGE_MS,
   LS_KEY, LS_KEY_V1, LS_SECRETS_KEY, LS_TRUSTED_KEY, LS_BACKUP_KEY, MAX_BACKUPS,
