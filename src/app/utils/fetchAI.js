@@ -21,7 +21,7 @@ import { findGuitarProfile } from '../../core/scoring/guitar.js';
 import { TMP_FACTORY_PATCHES } from '../../devices/tonemaster-pro/index.js';
 import { findCatalogEntry, isBassPreset } from '../../core/catalog.js';
 import {
-  enrichAIResult, safeParseJSON,
+  enrichAIResult, safeParseJSON, getLocalizedText, splitResultByMeta, mergeMetaIntoResult,
 } from './ai-helpers.js';
 import { getSharedGeminiKey } from './shared-key.js';
 import { findArtistsByBand, getEra, getCurrentEra } from '../../core/artists.js';
@@ -319,6 +319,43 @@ function fetchAI(song, gId, banksAnn, banksPlug, aiProvider, aiKeys, guitars, fe
     const list = pedals.map((p) => `- ${p.name} (${p.brand}, type: ${p.type}, potards: ${(p.knobs || []).join('/')})`).join('\n');
     return `\nPÉDALIER PHYSIQUE DISPONIBLE :\n${list}\n\nL'utilisateur a un pédalier de pédales d'effet PHYSIQUES. RETOURNE un tableau "pedalboard_settings" indiquant lesquelles ACTIVER pour CE morceau + leurs réglages. Format : [{"pedal":"<nom EXACT de la pédale de la liste>","enabled":true,"settings":{"<potard exact>":valeur 0-10,...},"why":{"fr":"...","en":"...","es":"..."}}]. N'inclus QUE les pédales pertinentes pour le morceau (souvent 1-3, pas toutes). Utilise EXACTEMENT les noms de potards fournis. C'est DISTINCT de l'ampli et de la capture ToneX. Si aucune pédale n'est pertinente, mets pedalboard_settings à [] (tableau vide).`;
   })();
+  // Phase 9.7.42 — Réutilisation du songMeta caché (Levier 2 v9.7.40).
+  // Si le morceau a déjà un songMeta validé (14 faits cross-profil :
+  // style, gain, ref_amp, cot_step1…) ET qu'il n'y a PAS de feedback
+  // (un feedback peut vouloir corriger un fait), on injecte ces faits
+  // comme "déjà établis" et on demande à Gemini de NE PAS les
+  // re-générer. Gemini concentre son output sur la reco rig → ~-30%
+  // tokens output (plus de re-génération de cot_step1/song_desc/refs
+  // trilingues). Les faits cachés sont réinjectés côté code au parse.
+  const cachedMeta = song?.songMeta?.result;
+  // Gate locale : les résultats sont mono-langue (v9.7.34). Ne réutiliser
+  // le songMeta caché que s'il a été généré dans la MÊME langue que le
+  // fetch courant (sinon on réinjecterait des faits dans la mauvaise
+  // langue). Gate feedback : un feedback peut viser un fait à corriger.
+  const cachedMetaLocale = song?.songMeta?.locale;
+  const usingCachedMeta = !!(cachedMeta && typeof cachedMeta === 'object'
+    && cachedMeta.cot_step1 && cachedMeta.ref_amp && !feedback
+    && cachedMetaLocale === targetLocale);
+  const metaContextLine = (() => {
+    if (!usingCachedMeta) return '';
+    const loc = (v) => getLocalizedText(v, targetLocale) || '';
+    const facts = [
+      cachedMeta.song_year != null && `- Année : ${cachedMeta.song_year}`,
+      cachedMeta.song_album && `- Album : ${cachedMeta.song_album}`,
+      cachedMeta.song_key && `- Tonalité : ${cachedMeta.song_key}`,
+      cachedMeta.song_bpm != null && `- BPM : ${cachedMeta.song_bpm}`,
+      cachedMeta.song_style && `- Style : ${cachedMeta.song_style}`,
+      cachedMeta.target_gain != null && `- Gain cible (0-10) : ${cachedMeta.target_gain}`,
+      cachedMeta.tonal_school && `- École tonale : ${cachedMeta.tonal_school}`,
+      cachedMeta.pickup_preference && `- Préférence micros : ${cachedMeta.pickup_preference}`,
+      cachedMeta.ref_guitarist && `- Guitariste réf : ${cachedMeta.ref_guitarist}`,
+      cachedMeta.ref_guitar && `- Guitare réf : ${cachedMeta.ref_guitar}`,
+      cachedMeta.ref_amp && `- Ampli réf : ${cachedMeta.ref_amp}`,
+      cachedMeta.ref_effects && `- Effets réf : ${loc(cachedMeta.ref_effects)}`,
+      cachedMeta.cot_step1 && `- Profil tonal : ${loc(cachedMeta.cot_step1)}`,
+    ].filter(Boolean).join('\n');
+    return `\nFAITS DÉJÀ ÉTABLIS POUR CE MORCEAU (analyse antérieure validée) :\n${facts}\n\nCes faits sont DÉFINITIFS — base ta recommandation rig dessus, ne les recalcule PAS. IMPORTANT : N'INCLUS PAS dans ta sortie JSON les champs suivants (ils sont déjà connus et seront réinjectés côté code) : cot_step1, song_year, song_album, song_desc, song_key, song_bpm, song_style, target_gain, tonal_school, pickup_preference, ref_guitarist, ref_guitar, ref_amp, ref_effects. Concentre ta sortie UNIQUEMENT sur la reco rig (cot_step2_guitars, cot_step3_amp, cot_step4_score, ideal_guitar, guitar_reason, settings_preset, settings_guitar, preset_tmp, preset_ann_name, preset_plug_name, preset_settings_v1, playing_hints, fx_blocks, bass_recommendation, guitar_amp_settings, pedalboard_settings).`;
+  })();
   const gProfiles = guitars.map((x) => {
     const p = findGuitarProfile(x.id);
     return `- ${x.name} (${x.type}) : ${p ? p.desc : 'profil inconnu'}`;
@@ -329,7 +366,7 @@ Guitare sélectionnée : ${g ? g.name + ' (' + g.type + ')' : 'non précisée'}.
 
 COLLECTION DE GUITARES DISPONIBLES :
 ${gProfiles}
-${artistContextLine}${feedbackLine}${modeLine}${biasLine}${tmpCatalogLine}${installedSlotsLine}${outputContextLine}${preferredStylesLine}${bassContextLine}${guitarAmpContextLine}${pedalboardContextLine}
+${artistContextLine}${feedbackLine}${modeLine}${biasLine}${tmpCatalogLine}${installedSlotsLine}${outputContextLine}${preferredStylesLine}${bassContextLine}${guitarAmpContextLine}${pedalboardContextLine}${metaContextLine}
 INSTRUCTIONS : Tu dois suivre un raisonnement structuré AVANT de donner ta recommandation. Ce raisonnement DOIT apparaître dans le JSON de sortie.
 
 ÉTAPE 1 – PROFIL TONAL DU MORCEAU
@@ -705,7 +742,16 @@ Contraintes :
           return parse(d.content?.map((i) => i.text || '').join('') || '');
         });
     return req.then((r) => {
-      const enriched = enrichAIResult(r, gType, gId, banksAnn, banksPlug, availableSources, song);
+      // Phase 9.7.42 — réinjecte les faits cachés (songMeta) que Gemini a
+      // omis (ou recalculés) : on garde le songMeta validé comme source
+      // de vérité + le rig fraîchement calculé. Si Gemini a quand même
+      // renvoyé des champs meta, ils sont écartés (splitResultByMeta.rig).
+      let merged = r;
+      if (usingCachedMeta && r && typeof r === 'object') {
+        const { rig } = splitResultByMeta(r);
+        merged = mergeMetaIntoResult(cachedMeta, rig || {});
+      }
+      const enriched = enrichAIResult(merged, gType, gId, banksAnn, banksPlug, availableSources, song);
       // v9.7.34 — Stamp locale dans le result IA pour détection localeStale
       // côté UI (SongDetailCard / ListScreen). Si l'aiCache est calculé en
       // FR puis le user switche en EN, le re-fetch est déclenché.
