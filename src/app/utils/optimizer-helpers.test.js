@@ -1,6 +1,6 @@
 // Tests Phase 14.3 — optimizer-helpers (clustering Live + diff).
 import { describe, test, expect } from 'vitest';
-import { clusterSongsBySharedTone, buildLiveLayout, diffLayout, splitSwapsByImpact } from './optimizer-helpers.js';
+import { clusterSongsBySharedTone, buildLiveLayout, diffLayout, splitSwapsByImpact, buildJamLayout } from './optimizer-helpers.js';
 
 // Fabrique de songs simples (id only, le reste vient des fns injectées).
 const song = (id) => ({ id });
@@ -203,5 +203,61 @@ describe('splitSwapsByImpact — Phase 14.4', () => {
   test('entrée vide / falsy → { useful: [], minor: [] }', () => {
     expect(splitSwapsByImpact([])).toEqual({ useful: [], minor: [] });
     expect(splitSwapsByImpact(null)).toEqual({ useful: [], minor: [] });
+  });
+});
+
+describe('buildJamLayout — Phase 14.5', () => {
+  const ranked = (amp, bf) => [{ ampModel: amp, polyvalence: 86, couverture: 5, gainSpanPartial: false, bankFill: bf }];
+  const rankedByStyle = {
+    blues: ranked('Deluxe', { A: 'D Cln', B: 'D Crn', C: 'D Ld' }),
+    rock: ranked('Plexi', { A: 'P Cln', B: 'P Crn', C: 'P Ld' }),
+  };
+
+  test('triplet : 1 banque A/B/C par style depuis jamStart', () => {
+    const { banks, overflow } = buildJamLayout(rankedByStyle, { bankModel: 'triplet', jamStart: 25, jamCapacity: 15 });
+    expect(overflow).toBe(false);
+    expect(banks).toHaveLength(2);
+    expect(banks[0]).toMatchObject({ bank: 25, style: 'blues', ampModel: 'Deluxe', slots: { A: 'D Cln', B: 'D Crn', C: 'D Ld' } });
+    expect(banks[1].bank).toBe(26);
+  });
+
+  test('flat : 3 slots consécutifs par style (span clean→lead)', () => {
+    const { banks } = buildJamLayout(rankedByStyle, { bankModel: 'flat', jamStart: 10, jamCapacity: 10 });
+    expect(banks).toHaveLength(6); // 2 styles × 3 voix
+    expect(banks.map((b) => b.bank)).toEqual([10, 11, 12, 13, 14, 15]);
+    expect(banks[0].slots).toEqual({ A: 'D Cln' });
+    expect(banks[3].slots).toEqual({ A: 'P Cln' });
+  });
+
+  test('override forcé : chosenAmp gagne sur top du ranking', () => {
+    const r = { blues: [
+      { ampModel: 'Top', polyvalence: 90, bankFill: { A: 'T1' } },
+      { ampModel: 'Forced', polyvalence: 70, bankFill: { A: 'F1', B: 'F2', C: 'F3' } },
+    ] };
+    const { banks } = buildJamLayout(r, { bankModel: 'triplet', chosenAmp: { blues: 'Forced' } });
+    expect(banks[0].ampModel).toBe('Forced');
+  });
+
+  test('overflow triplet : capacité < nb styles', () => {
+    const { banks, overflow } = buildJamLayout(rankedByStyle, { bankModel: 'triplet', jamStart: 0, jamCapacity: 1 });
+    expect(overflow).toBe(true);
+    expect(banks).toHaveLength(1); // seul le 1er style tient
+  });
+
+  test('overflow flat : capacité < slots requis', () => {
+    const { banks, overflow } = buildJamLayout(rankedByStyle, { bankModel: 'flat', jamStart: 0, jamCapacity: 4 });
+    expect(overflow).toBe(true);
+    expect(banks).toHaveLength(4); // blues 3 + 1 voix de rock, puis stop
+  });
+
+  test('style sans ampli éligible → ignoré (pas de crash)', () => {
+    const { banks } = buildJamLayout({ blues: [], rock: rankedByStyle.rock }, { bankModel: 'triplet' });
+    expect(banks).toHaveLength(1);
+    expect(banks[0].style).toBe('rock');
+  });
+
+  test('entrée vide → { banks: [], overflow: false }', () => {
+    expect(buildJamLayout({}, {})).toEqual({ banks: [], overflow: false });
+    expect(buildJamLayout(null, {})).toEqual({ banks: [], overflow: false });
   });
 });

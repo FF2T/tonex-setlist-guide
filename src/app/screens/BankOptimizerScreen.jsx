@@ -22,18 +22,18 @@ import NavIcon from '../components/NavIcon.jsx';
 import {
   computePickupScore, computeFinalScore, computeSimpleScore,
   computeRefAmpScore, computeStyleMatchScore,
-  getGainRange, gainToNumeric,
+  getGainRange, gainToNumeric, rankJamAmps,
 } from '../../core/scoring/index.js';
 import { findGuitarByAIName } from '../../core/scoring/guitar.js';
 import { findCatalogEntry, PRESET_CATALOG_MERGED } from '../../core/catalog.js';
-import { getSourceInfo } from '../../core/sources.js';
+import { getSourceInfo, isSourceAvailable } from '../../core/sources.js';
 import { isSrcCompatible } from '../../devices/registry.js';
 import { TSR_PACK_ZIPS } from '../../data/tsr-packs.js';
 import { getActiveDevicesForRender } from '../utils/devices-render.js';
-import { getEffectiveZones } from '../../core/state.js';
+import { getEffectiveZones, getEffectiveJamStyles } from '../../core/state.js';
 import { computeBestPresets, resolveRefAmp } from '../utils/ai-helpers.js';
 import { findInBanks } from '../utils/preset-helpers.js';
-import { clusterSongsBySharedTone, buildLiveLayout, diffLayout, splitSwapsByImpact } from '../utils/optimizer-helpers.js';
+import { clusterSongsBySharedTone, buildLiveLayout, diffLayout, splitSwapsByImpact, buildJamLayout } from '../utils/optimizer-helpers.js';
 import { CC, TYPE_LABELS } from '../utils/ui-constants.js';
 import { scoreColor } from '../components/score-utils.js';
 import Breadcrumb from '../components/Breadcrumb.jsx';
@@ -124,6 +124,27 @@ function BankOptimizerScreen({
       return { ...p, [activeProfileId]: { ...cur, bankZones: next, lastModified: Date.now() } };
     });
   };
+  // Phase 14.5 — forçage ampli jam par style + épingles découverte (stamp lastModified).
+  const setJamOverride = (deviceId, style, ampModel) => {
+    if (!onProfiles || !activeProfileId) return;
+    onProfiles((p) => {
+      const cur = p[activeProfileId]; if (!cur) return p;
+      const dev = { ...((cur.jamOverrides || {})[deviceId] || {}) };
+      if (ampModel) dev[style] = ampModel; else delete dev[style];
+      const next = { ...(cur.jamOverrides || {}), [deviceId]: dev };
+      return { ...p, [activeProfileId]: { ...cur, jamOverrides: next, lastModified: Date.now() } };
+    });
+  };
+  const setDiscoveryPins = (deviceId, fn) => {
+    if (!onProfiles || !activeProfileId) return;
+    onProfiles((p) => {
+      const cur = p[activeProfileId]; if (!cur) return p;
+      const list = (cur.discoveryPins || {})[deviceId] || [];
+      const updated = fn(list.slice());
+      const next = { ...(cur.discoveryPins || {}), [deviceId]: updated };
+      return { ...p, [activeProfileId]: { ...cur, discoveryPins: next, lastModified: Date.now() } };
+    });
+  };
   const enabledDevices = getActiveDevicesForRender(profile);
   const hasPedalDevice = enabledDevices.some((d) => d.deviceKey === 'ann');
   const hasPlugDevice = enabledDevices.some((d) => d.deviceKey === 'plug');
@@ -139,6 +160,7 @@ function BankOptimizerScreen({
   const [mode, setMode] = useState('improve'); // 'improve' | 'reorganize'
   const [axis, setAxis] = useState('setlist'); // 'setlist' | 'ampFamily'
   const [showMinorByDevice, setShowMinorByDevice] = useState({}); // Phase 14.4 : repli améliorations mineures par device
+  const [jamK, setJamK] = useState(1.5); // Phase 14.5 : réglage avancé polyvalence (éphémère, non persisté)
   const sl = setlists.find((s) => s.id === slId);
 
   const songs = useMemo(() => {
@@ -431,6 +453,47 @@ function BankOptimizerScreen({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, songs, allGuitars, banksAnn, banksPlug, banksOne, banksOnePlus, availableSources]);
 
+  // Phase 14.5 — jamData : ranking « ampli passe-partout » par style × device.
+  // Pool = TOUTE la librairie (songDb) filtrée par style dans rankJamAmps —
+  // un jam est un contexte de STYLE général, pas la setlist courante (qui pilote
+  // le Live). Catalog pré-filtré aux sources compatibles du device.
+  const jamStyles = getEffectiveJamStyles(profile);
+  const buildJamForDevice = (dev) => {
+    const deviceKey = dev.deviceKey;
+    const srcOk = (src) => isSrcCompatible(src, deviceKey) && !(src && availableSources && availableSources[src] === false);
+    const cat = {};
+    for (const [name, info] of Object.entries(PRESET_CATALOG_MERGED)) {
+      if (!info || !info.amp) continue;
+      if (info.src && !srcOk(info.src)) continue;
+      cat[name] = info;
+    }
+    const rankedByStyle = {};
+    for (const style of jamStyles) {
+      rankedByStyle[style] = rankJamAmps(style, songDb, cat, availableSources, {
+        guitars: allGuitars, isSourceAvailable: () => true, k: jamK,
+      });
+    }
+    return { rankedByStyle };
+  };
+  const [jamData, setJamData] = useState(null); // { [deviceKey]: { rankedByStyle } }
+  useEffect(() => {
+    if (mode !== 'reorganize') { setJamData(null); return undefined; }
+    let cancelled = false;
+    const tm = setTimeout(() => {
+      if (cancelled) return;
+      const t0 = performance.now();
+      const out = {};
+      for (const dev of reorgDevices) out[dev.deviceKey] = buildJamForDevice(dev);
+      if (typeof window !== 'undefined' && window.__TONEX_PERF) {
+        // eslint-disable-next-line no-console
+        console.log(`[perf] jam ranking (${reorgDevices.length} dev × ${jamStyles.length} styles): ${(performance.now() - t0).toFixed(0)}ms`);
+      }
+      if (!cancelled) setJamData(out);
+    }, 0);
+    return () => { cancelled = true; clearTimeout(tm); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, songDb, allGuitars, availableSources, jamK, jamStyles.join(',')]);
+
   const catLabelOf = (cluster) => (cluster.kind === 'amp' ? (cluster.amp || '') : (cluster.key || ''));
   const slotsToBank = (slots, cluster) => ({
     cat: catLabelOf(cluster),
@@ -449,6 +512,56 @@ function BankOptimizerScreen({
       freed.forEach((p) => { next[p.bank] = { cat: '', A: '', B: '', C: '' }; });
       return next;
     });
+  };
+
+  // Phase 14.5 — apply jam (n'écrit QUE la zone Jams).
+  const jamBankToSlots = (b) => (b.slots.B !== undefined || b.slots.C !== undefined)
+    ? { cat: b.style, A: b.slots.A || '', B: b.slots.B || '', C: b.slots.C || '' }
+    : { cat: b.style, A: b.slots.A || '' };
+  const applyJamBank = (dev, b) => {
+    if (!window.confirm(tFormat('optimizer.jam-apply-confirm', { bank: b.bank }, 'Appliquer la banque jam {bank} ?'))) return;
+    dev.onBanks((prev) => ({ ...prev, [b.bank]: jamBankToSlots(b) }));
+  };
+  const applyAllJams = (dev, jamBanks) => {
+    if (!jamBanks.length) return;
+    if (!window.confirm(tFormat('optimizer.jam-apply-all-confirm', { n: jamBanks.length }, 'Écrire les {n} banques jam ? La zone Jams seule est modifiée.'))) return;
+    dev.onBanks((prev) => {
+      const next = {}; for (const k in prev) next[k] = prev[k];
+      jamBanks.forEach((b) => { next[b.bank] = jamBankToSlots(b); });
+      return next;
+    });
+  };
+
+  // Phase 14.5 — Découverte : navigation Explorer + promotion + épingles.
+  const openInExplorer = (name) => {
+    if (typeof window !== 'undefined') window._explorePreset = name;
+    if (onNavigate) onNavigate('explore');
+  };
+  // 1re banque/slot libre de la zone Live pour une capture (promotion → Live).
+  const firstFreeLiveSlot = (dev, captureName) => {
+    const zones = getEffectiveZones(profile, dev.id, dev.maxBanks);
+    const start = dev.startBank; const end = dev.startBank + zones.liveEnd;
+    if (dev.bankModel === 'flat') {
+      for (let n = start; n < end; n++) { if (!(dev.banks[n] && dev.banks[n].A)) return { bank: n, slot: 'A' }; }
+      return null;
+    }
+    const e = findCatalogEntry(captureName);
+    const gr = getGainRange(typeof e?.gain === 'number' ? e.gain : gainToNumeric(e?.gain));
+    const slot = gr === 'clean' ? 'A' : gr === 'high_gain' ? 'C' : 'B';
+    for (let n = start; n < end; n++) { if (!(dev.banks[n] && dev.banks[n][slot])) return { bank: n, slot }; }
+    return null;
+  };
+  const promoteToJam = (dev, name) => {
+    const e = findCatalogEntry(name);
+    const style = e?.style || jamStyles[0] || 'rock';
+    setJamOverride(dev.deviceKey, style, e?.amp || name);
+    setDiscoveryPins(dev.deviceKey, (l) => l.filter((x) => x !== name));
+  };
+  const promoteToLive = (dev, name) => {
+    const place = firstFreeLiveSlot(dev, name);
+    if (!place) { window.alert(t('optimizer.live-full', 'Zone Live pleine — libère un slot ou agrandis-la.')); return; }
+    dev.onBanks((prev) => ({ ...prev, [place.bank]: { ...(prev[place.bank] || { cat: '', A: '', B: '', C: '' }), [place.slot]: name } }));
+    setDiscoveryPins(dev.deviceKey, (l) => l.filter((x) => x !== name));
   };
 
   const sectionStyle = { background: 'var(--bg-elev-1)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--r-lg)', padding: 'var(--s-4)', marginBottom: 'var(--s-4)', contentVisibility: 'auto', containIntrinsicSize: '0 600px' };
@@ -496,12 +609,142 @@ function BankOptimizerScreen({
       ? [{ s: 'A', l: t('optimizer.flat-slot', 'Preset') }]
       : [{ s: 'A', l: t('optimizer.slot-clean', 'Clean') }, { s: 'B', l: t('optimizer.slot-crunch', 'Crunch') }, { s: 'C', l: t('optimizer.slot-lead', 'Lead') }];
 
+    const subHead = (label) => <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', color: 'var(--text-tertiary)', margin: '12px 0 6px' }}>{label}</div>;
+    const discBtn = { background: 'var(--bg-elev-1)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)', borderRadius: 'var(--r-sm)', padding: '3px 8px', fontSize: 9, fontWeight: 700, cursor: 'pointer' };
+
+    // ── Zone Jams ──
+    const renderJamsZone = () => {
+      const jamCapacity = zones.jamEnd - zones.liveEnd;
+      const jamStart = dev.startBank + zones.liveEnd;
+      if (jamCapacity <= 0) {
+        return (
+          <>
+            {subHead(t('optimizer.jams-title', 'Jams (amplis passe-partout)'))}
+            <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{t('optimizer.jams-need-zone', 'Agrandis la zone Jams (curseurs ci-dessus) pour générer des banques d\'impro.')}</div>
+          </>
+        );
+      }
+      const jd = jamData?.[dev.deviceKey];
+      const rankedByStyle = jd?.rankedByStyle || {};
+      const chosenAmp = (profile?.jamOverrides || {})[dev.deviceKey] || {};
+      const { banks: jamBanks, overflow: jamOverflow } = buildJamLayout(rankedByStyle, { bankModel: dev.bankModel, jamStart, jamCapacity, chosenAmp });
+      return (
+        <>
+          {subHead(t('optimizer.jams-title', 'Jams (amplis passe-partout)'))}
+          {!jd
+            ? <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{t('optimizer.reorg-loading', 'Analyse en cours…')}</div>
+            : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{tFormat('optimizer.jam-k', { k: jamK.toFixed(1) }, 'Régularité k={k}')}</span>
+                  <input type="range" min={0} max={3} step={0.5} value={jamK} onChange={(e) => setJamK(Number(e.target.value))} style={{ flex: 1, maxWidth: 160, accentColor: 'var(--accent)' }}/>
+                </div>
+                {jamOverflow && <div style={{ fontSize: 10, color: 'var(--yellow)', background: 'var(--yellow-bg)', border: '1px solid var(--yellow-border)', borderRadius: 'var(--r-sm)', padding: '4px 8px', marginBottom: 6 }}>{t('optimizer.jams-overflow', 'Trop de styles pour la zone Jams — agrandis-la ou réduis tes styles de jam.')}</div>}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 4, marginBottom: 8 }}>
+                  {jamStyles.map((style) => {
+                    const ranked = rankedByStyle[style] || [];
+                    if (!ranked.length) {
+                      return <div key={style} style={{ background: 'var(--bg-elev-2)', border: '1px solid var(--border-subtle)', borderRadius: 6, padding: '6px 8px' }}><div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', textTransform: 'capitalize' }}>{style}</div><div style={{ fontSize: 9, color: 'var(--text-tertiary)' }}>{t('optimizer.jam-no-amp', 'Aucun ampli passe-partout dispo (active des packs).')}</div></div>;
+                    }
+                    const chosen = chosenAmp[style] || ranked[0].ampModel;
+                    const cr = ranked.find((r) => r.ampModel === chosen) || ranked[0];
+                    const styleBanks = jamBanks.filter((b) => b.style === style);
+                    const bf = cr.bankFill || {};
+                    return (
+                      <div key={style} style={{ background: 'var(--bg-elev-2)', border: '1px solid var(--border-subtle)', borderRadius: 6, padding: '6px 8px' }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-primary)', textTransform: 'capitalize', marginBottom: 2 }}>{style}</div>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 3 }}>
+                          <span style={{ fontSize: 9, background: 'var(--a8)', color: 'var(--text)', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700 }}>{tFormat('optimizer.jam-polyvalence', { v: cr.polyvalence }, 'polyv. {v}')}</span>
+                          <span style={{ fontSize: 9, background: 'var(--a8)', color: 'var(--text)', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700 }}>{tFormat('optimizer.jam-coverage', { n: cr.couverture, total: cr.n }, 'couv. {n}/{total}')}</span>
+                          {cr.gainSpanPartial && <span style={{ fontSize: 9, background: 'var(--yellow-bg)', color: 'var(--yellow)', border: '1px solid var(--yellow-border)', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700 }}>{t('optimizer.jam-span-partial', 'span partiel')}</span>}
+                        </div>
+                        <select value={chosenAmp[style] || ''} onChange={(e) => setJamOverride(dev.deviceKey, style, e.target.value || null)} style={{ width: '100%', background: 'var(--bg-elev-1)', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--r-sm)', padding: '3px 6px', fontSize: 10, marginBottom: 4 }}>
+                          <option value="">{tFormat('optimizer.jam-auto', { amp: ranked[0].ampModel }, 'Auto ({amp})')}</option>
+                          {ranked.slice(0, 8).map((r) => <option key={r.ampModel} value={r.ampModel}>{r.ampModel} ({r.polyvalence})</option>)}
+                        </select>
+                        {[{ s: 'A', l: t('optimizer.slot-clean', 'Clean') }, { s: 'B', l: t('optimizer.slot-crunch', 'Crunch') }, { s: 'C', l: t('optimizer.slot-lead', 'Lead') }].map((x) => (
+                          <div key={x.s} style={{ fontSize: 9, display: 'flex', gap: 3, alignItems: 'baseline', marginBottom: 1 }}>
+                            <span style={{ fontWeight: 700, color: CC[x.s] || 'var(--text-tertiary)', width: 42, flexShrink: 0 }}>{x.l}</span>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, color: bf[x.s] ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>{bf[x.s] || '—'}</span>
+                          </div>
+                        ))}
+                        {styleBanks.length > 0
+                          ? <button onClick={() => applyAllJams(dev, styleBanks)} style={{ marginTop: 6, width: '100%', background: 'var(--bg-elev-1)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)', borderRadius: 'var(--r-sm)', padding: '3px 6px', fontSize: 9, fontWeight: 700, cursor: 'pointer' }}>{tFormat('optimizer.jam-apply', { banks: styleBanks.map((b) => b.bank).join('/') }, 'Installer en banque {banks}')}</button>
+                          : <div style={{ fontSize: 9, color: 'var(--yellow)', marginTop: 6 }}>{t('optimizer.jam-no-room', 'pas de place dans la zone Jams')}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+                {jamBanks.length > 1 && <button onClick={() => applyAllJams(dev, jamBanks)} style={{ width: '100%', background: 'linear-gradient(180deg,var(--brass-200,#d4a017),var(--brass-400,#b8860b))', border: 'none', color: 'var(--tolex-900,#1a1a1a)', borderRadius: 'var(--r-md)', padding: '8px', fontSize: 12, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>{tFormat('optimizer.jam-apply-all', { n: jamBanks.length }, 'Installer toutes les jams ({n})')}</button>}
+              </>
+            )}
+        </>
+      );
+    };
+
+    // ── Zone Découverte ──
+    const renderDiscoveryZone = () => {
+      const jd = jamData?.[dev.deviceKey];
+      const pins = (profile?.discoveryPins || {})[dev.deviceKey] || [];
+      // Suggestions : runners-up (rangs 1-3) des rankings jam, captures non épinglées.
+      const suggSet = new Set();
+      if (jd) {
+        for (const style of jamStyles) {
+          const ranked = jd.rankedByStyle[style] || [];
+          for (const r of ranked.slice(1, 4)) {
+            const bf = r.bankFill || {};
+            [bf.A, bf.B, bf.C].forEach((c) => { if (c && !pins.includes(c)) suggSet.add(c); });
+          }
+        }
+      }
+      const suggestions = Array.from(suggSet).slice(0, 6);
+      const posOf = (name) => { const loc = findInBanks(name, dev.banks); return loc ? `${loc.bank}${loc.slot || ''}` : null; };
+      const pinRow = (name) => {
+        const e = findCatalogEntry(name); const si = getSourceInfo(e); const pos = posOf(name);
+        return (
+          <div key={name} style={{ background: 'var(--bg-elev-2)', border: '1px solid var(--border-subtle)', borderRadius: 6, padding: '6px 8px' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+            <div style={{ fontSize: 9, color: 'var(--text-sec)', marginBottom: 4 }}>{si ? `${si.icon} ${si.label}` : ''}{pos ? ` · ${tFormat('optimizer.discovery-at', { pos }, 'Banque {pos}')}` : ` · ${t('optimizer.discovery-not-installed', 'non installé')}`}</div>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              <button onClick={() => openInExplorer(name)} style={discBtn}>{t('optimizer.discovery-see', 'Voir')}</button>
+              <button onClick={() => promoteToJam(dev, name)} style={discBtn}>{t('optimizer.discovery-to-jam', '→ Jam')}</button>
+              <button onClick={() => promoteToLive(dev, name)} style={discBtn}>{t('optimizer.discovery-to-live', '→ Live')}</button>
+              <button onClick={() => setDiscoveryPins(dev.deviceKey, (l) => l.filter((x) => x !== name))} style={{ ...discBtn, color: 'var(--yellow)' }}>{t('optimizer.discovery-unpin', 'Retirer')}</button>
+            </div>
+          </div>
+        );
+      };
+      return (
+        <>
+          {subHead(t('optimizer.discovery-title', 'Découverte (à auditionner)'))}
+          {pins.length === 0 && suggestions.length === 0
+            ? <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{t('optimizer.discovery-empty', 'Épingle des presets à auditionner depuis l\'Explorer ou les suggestions.')}</div>
+            : (
+              <>
+                {pins.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(190px,1fr))', gap: 4, marginBottom: 6 }}>{pins.map(pinRow)}</div>}
+                {suggestions.length > 0 && (
+                  <>
+                    <div style={{ fontSize: 9, color: 'var(--text-tertiary)', marginBottom: 4 }}>{t('optimizer.discovery-suggestions', 'Suggestions à auditionner :')}</div>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      {suggestions.map((name) => (
+                        <button key={name} onClick={() => setDiscoveryPins(dev.deviceKey, (l) => (l.includes(name) ? l : [...l, name]))} style={{ background: 'var(--bg-elev-1)', border: '1px dashed var(--border-subtle)', color: 'var(--text-secondary)', borderRadius: 'var(--r-sm)', padding: '3px 8px', fontSize: 9, fontWeight: 600, cursor: 'pointer' }}>+ {name}</button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+        </>
+      );
+    };
+
     return (
       <div key={dev.id} style={{ marginBottom: 'var(--s-4)' }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
           <NavIcon id={dev.iconId || 'amp'} size={14}/>{dev.label}
           <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 400 }}>{tFormat('optimizer.reorg-metrics', { merged: diff.merged, moved: diff.moved, freed: diff.freed, unchanged: diff.unchanged }, '{merged} fus. · {moved} modif. · {freed} libér. · {unchanged} inch.')}</span>
         </div>
+        {subHead(t('optimizer.live-title', 'Live (1 banque/morceau)'))}
         {overflow && (
           <div style={{ fontSize: 10, color: 'var(--yellow)', background: 'var(--yellow-bg)', border: '1px solid var(--yellow-border)', borderRadius: 'var(--r-sm)', padding: '4px 8px', marginBottom: 6 }}>
             {tFormat('optimizer.reorg-overflow', { n: layoutBanks.length, cap: liveCount }, 'Déborde la zone Live ({n} banques pour {cap} dispo) — agrandis la zone Live ci-dessus.')}
@@ -551,6 +794,8 @@ function BankOptimizerScreen({
               </button>
             </>
           )}
+        {renderJamsZone()}
+        {renderDiscoveryZone()}
       </div>
     );
   };

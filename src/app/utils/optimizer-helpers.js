@@ -181,4 +181,69 @@ function splitSwapsByImpact(swaps, opts = {}) {
   return { useful, minor };
 }
 
-export { clusterSongsBySharedTone, buildLiveLayout, diffLayout, splitSwapsByImpact };
+// buildJamLayout(rankedByStyle, opts) — Phase 14.5.
+// Assigne une banque jam par style dans la zone Jams. PUR : le ranking
+// (jam.js rankJamAmps) est injecté ; l'override manuel est résolu en amont
+// par l'appelant (il passe `chosenAmp` par style). Pour chaque style :
+//   - ampli retenu = entrée du ranking dont ampModel === chosenAmp[style]
+//     (sinon ranked[0]) ; voix = son bankFill {A,B,C}.
+//   - triplet : 1 banque (A/B/C).
+//   - flat    : 3 slots consécutifs (un jam VEUT le span clean→crunch→lead).
+// Numérote depuis jamStart. overflow si banques/slots requis > jamCapacity
+// (en banques pour triplet, en slots pour flat). Style sans ampli → ignoré.
+//   opts = { bankModel='triplet', jamStart=0, jamCapacity=Infinity, chosenAmp={} }
+//   rankedByStyle = { [style]: [{ ampModel, polyvalence, couverture,
+//                     gainSpanPartial, bankFill:{A,B,C} }] }
+// Retour : { banks:[{ bank, slots, style, ampModel, polyvalence, couverture,
+//            gainSpanPartial }], overflow }
+function buildJamLayout(rankedByStyle, opts = {}) {
+  const {
+    bankModel = 'triplet', jamStart = 0,
+    jamCapacity = Infinity, chosenAmp = {},
+  } = opts;
+  const map = rankedByStyle || {};
+  const picks = [];
+  for (const style of Object.keys(map)) {
+    const ranked = Array.isArray(map[style]) ? map[style] : [];
+    if (!ranked.length) continue; // style sans ampli éligible → ignoré
+    const forced = chosenAmp[style];
+    const pick = (forced && ranked.find((r) => r.ampModel === forced)) || ranked[0];
+    if (!pick) continue;
+    picks.push({ style, pick });
+  }
+  const banks = [];
+  let overflow = false;
+  if (bankModel === 'flat') {
+    // 3 slots consécutifs par style (voix A/B/C de l'ampli).
+    let slot = jamStart;
+    for (const { style, pick } of picks) {
+      const v = pick.bankFill || {};
+      const voices = [v.A, v.B, v.C].filter(Boolean);
+      for (const cap of voices) {
+        if (slot - jamStart >= jamCapacity) { overflow = true; break; }
+        banks.push({
+          bank: slot, slots: { A: cap }, style, ampModel: pick.ampModel,
+          polyvalence: pick.polyvalence, couverture: pick.couverture,
+          gainSpanPartial: !!pick.gainSpanPartial,
+        });
+        slot++;
+      }
+      if (overflow) break;
+    }
+  } else {
+    // triplet : 1 banque A/B/C par style.
+    picks.forEach(({ style, pick }, i) => {
+      if (i >= jamCapacity) { overflow = true; return; }
+      const v = pick.bankFill || {};
+      banks.push({
+        bank: jamStart + i, slots: { A: v.A || '', B: v.B || '', C: v.C || '' },
+        style, ampModel: pick.ampModel, polyvalence: pick.polyvalence,
+        couverture: pick.couverture, gainSpanPartial: !!pick.gainSpanPartial,
+      });
+    });
+    if (picks.length > jamCapacity) overflow = true;
+  }
+  return { banks, overflow };
+}
+
+export { clusterSongsBySharedTone, buildLiveLayout, diffLayout, splitSwapsByImpact, buildJamLayout };

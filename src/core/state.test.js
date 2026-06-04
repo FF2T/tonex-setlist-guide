@@ -36,7 +36,7 @@ import {
   autoBackup, listBackups, clearBackups, isQuotaError, persistState,
   OUTPUT_CONTEXTS, DEFAULT_OUTPUT_CONTEXT, getEffectiveOutputContext,
   PLAY_INSTRUMENTS, PLAY_RIGS, getAvailableRigs, getEffectivePlayContext,
-  getDefaultPlayInstrument, getEffectiveZones,
+  getDefaultPlayInstrument, getEffectiveZones, getEffectiveJamStyles,
 } from './state.js';
 
 describe('STATE_VERSION', () => {
@@ -4944,5 +4944,23 @@ describe('getEffectiveZones — Phase 14.1', () => {
     expect(getEffectiveZones(null, 'd', 50)).toEqual({ liveEnd: 25, jamEnd: 40 });
     expect(getEffectiveZones({}, 'd', 0)).toEqual({ liveEnd: 0, jamEnd: 0 });
     expect(getEffectiveZones({}, 'd', undefined)).toEqual({ liveEnd: 0, jamEnd: 0 });
+  });
+});
+
+// ─── Phase 14.5 — getEffectiveJamStyles ───
+describe('getEffectiveJamStyles — Phase 14.5', () => {
+  test('jamStyles explicite prioritaire', () => {
+    expect(getEffectiveJamStyles({ jamStyles: ['metal', 'jazz'], preferredStyles: ['blues'] })).toEqual(['metal', 'jazz']);
+  });
+  test('fallback preferredStyles si jamStyles absent/vide', () => {
+    expect(getEffectiveJamStyles({ preferredStyles: ['blues', 'funk'] })).toEqual(['blues', 'funk']);
+    expect(getEffectiveJamStyles({ jamStyles: [], preferredStyles: ['rock'] })).toEqual(['rock']);
+  });
+  test('défaut [blues, rock] si rien', () => {
+    expect(getEffectiveJamStyles({})).toEqual(['blues', 'rock']);
+    expect(getEffectiveJamStyles(null)).toEqual(['blues', 'rock']);
+  });
+  test('entrées non-string filtrées', () => {
+    expect(getEffectiveJamStyles({ jamStyles: ['blues', '', null, 'rock'] })).toEqual(['blues', 'rock']);
   });
 });

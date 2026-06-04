@@ -719,6 +719,19 @@ function PresetBrowser({ banksAnn, banksPlug, availableSources, customPacks, gui
   const [instrumentFilter, setInstrumentFilter] = useState('all');
   const togglePack = (key) => setFilterPacks((p) => p.includes(key) ? p.filter((x) => x !== key) : [...p, key]);
 
+  // Phase 14.5 — deep-link depuis l'Optimiseur (Découverte → « Voir dans Explorer »).
+  // Pattern window._demoPrefSongId : on lit le global une fois au mount,
+  // pré-remplit la recherche sur la capture, puis on le nettoie.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const target = window._explorePreset;
+    if (target && typeof target === 'string') {
+      setSearch(target);
+      setSoundProfile('all');
+      window._explorePreset = null;
+    }
+  }, []);
+
   const mergedContext = useMemo(() => {
     const ctx = { ...PRESET_CONTEXT };
     (customPacks || []).forEach((pack) => {

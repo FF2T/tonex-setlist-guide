@@ -3089,10 +3089,21 @@ function getEffectiveZones(profile, deviceId, nbBanks) {
   return { liveEnd, jamEnd };
 }
 
+// Phase 14.5 — styles pour lesquels générer une banque jam.
+// Priorité : profile.jamStyles explicite > preferredStyles (Phase 7.73.2) >
+// défaut ['blues','rock']. Pur, défensif (entrées non-array ignorées).
+function getEffectiveJamStyles(profile) {
+  const jam = Array.isArray(profile?.jamStyles) ? profile.jamStyles.filter((s) => typeof s === 'string' && s) : [];
+  if (jam.length) return jam;
+  const pref = Array.isArray(profile?.preferredStyles) ? profile.preferredStyles.filter((s) => typeof s === 'string' && s) : [];
+  if (pref.length) return pref;
+  return ['blues', 'rock'];
+}
+
 export {
   OUTPUT_CONTEXTS, DEFAULT_OUTPUT_CONTEXT, getEffectiveOutputContext,
   PLAY_INSTRUMENTS, PLAY_RIGS, getAvailableRigs, getEffectivePlayContext,
-  getDefaultPlayInstrument, getEffectiveZones,
+  getDefaultPlayInstrument, getEffectiveZones, getEffectiveJamStyles,
   ADMIN_ORIGIN_KEY, recordAdminSwitch, isAdminAsMode, appendLoginEntry,
   STATE_VERSION, TOMBSTONE_MAX_AGE_MS,
   LS_KEY, LS_KEY_V1, LS_SECRETS_KEY, LS_TRUSTED_KEY, LS_BACKUP_KEY, MAX_BACKUPS,
