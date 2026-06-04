@@ -33,7 +33,7 @@ import { getActiveDevicesForRender } from '../utils/devices-render.js';
 import { getEffectiveZones } from '../../core/state.js';
 import { computeBestPresets, resolveRefAmp } from '../utils/ai-helpers.js';
 import { findInBanks } from '../utils/preset-helpers.js';
-import { clusterSongsBySharedTone, buildLiveLayout, diffLayout } from '../utils/optimizer-helpers.js';
+import { clusterSongsBySharedTone, buildLiveLayout, diffLayout, splitSwapsByImpact } from '../utils/optimizer-helpers.js';
 import { CC, TYPE_LABELS } from '../utils/ui-constants.js';
 import { scoreColor } from '../components/score-utils.js';
 import Breadcrumb from '../components/Breadcrumb.jsx';
@@ -138,6 +138,7 @@ function BankOptimizerScreen({
   const [slId, setSlId] = useState(setlists[0]?.id || '');
   const [mode, setMode] = useState('improve'); // 'improve' | 'reorganize'
   const [axis, setAxis] = useState('setlist'); // 'setlist' | 'ampFamily'
+  const [showMinorByDevice, setShowMinorByDevice] = useState({}); // Phase 14.4 : repli améliorations mineures par device
   const sl = setlists.find((s) => s.id === slId);
 
   const songs = useMemo(() => {
@@ -597,17 +598,61 @@ function BankOptimizerScreen({
         <>
           {/* TOP 3 ACTIONS PRIORITAIRES PAR DEVICE */}
           {songs.length > 0 && (() => {
-            const renderDeviceBlock = (deviceKey, deviceLabel, curMean, projMean, actions, rows) => {
+            // Phase 14.4 — carte d'un swap (réutilisée par utiles + mineures).
+            const renderSwapCard = (a, i, { badges }) => {
+              const songsList = a.songs.map((s) => s.song.title);
+              const songsPreview = songsList.slice(0, 3).join(', ') + (songsList.length > 3 ? ` +${songsList.length - 3}` : '');
+              return (
+                <div key={i} style={{ background: 'var(--bg-elev-1)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--r-sm)', padding: '7px 9px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)', minWidth: 18 }}>#{i + 1}</span>
+                    <span style={{ fontSize: 10, background: 'var(--green-bg)', color: 'var(--success)', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700, border: '1px solid var(--green-border)' }}>+{a.totalDelta}%</span>
+                    <span style={{ fontSize: 9, color: 'var(--text-tertiary)', marginLeft: 'auto' }}>{tPlural('optimizer.songs-count', a.songs.length, {}, { one: '1 morceau', other: '{count} morceaux' })}</span>
+                  </div>
+                  {badges && (a.crossings > 0 || a.rescues > 0) && (
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 3 }}>
+                      {a.crossings > 0 && <span style={{ fontSize: 9, background: 'var(--green-bg)', color: 'var(--success)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700 }}>{tFormat('optimizer.swap-crosses', { n: a.crossings }, 'fait passer {n} morceau(x) ≥80%')}</span>}
+                      {a.rescues > 0 && <span style={{ fontSize: 9, background: 'var(--yellow-bg)', color: 'var(--yellow)', border: '1px solid var(--yellow-border)', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700 }}>{tFormat('optimizer.swap-rescues', { n: a.rescues }, 'remonte {n} point(s) faible(s)')}</span>}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis' }}>{tFormat('optimizer.install-preset', { name: a.preset.name }, 'Installer "{name}"')}</div>
+                  {(() => { const e = findCatalogEntry(a.preset.name); const si = getSourceInfo(e); if (!si) return null; return <div style={{ fontSize: 9, color: 'var(--text-sec)', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}><span>{si.icon} {si.label}</span>{e?.pack && TSR_PACK_ZIPS?.[e.pack] && <span style={{ color: 'var(--text-dim)' }}>📁 {TSR_PACK_ZIPS[e.pack]}.zip</span>}</div>; })()}
+                  <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 5 }}>
+                    {t('optimizer.arrow-bank', '→ Banque ')}<span style={{ fontFamily: 'var(--font-mono)', color: CC[a.place.slot], fontWeight: 700 }}>{a.place.bank}{a.place.slot}</span>
+                    {a.place.replaces && <span style={{ color: 'var(--yellow)', marginLeft: 4 }}>{tFormat('optimizer.replaces', { name: a.place.replaces, score: a.place.replacesScore }, '· remplace "{name}" ({score}%)')}</span>}
+                    <span style={{ display: 'block', marginTop: 2 }}>{songsPreview}</span>
+                  </div>
+                  <button onClick={() => applyAction(a)} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-sm)', padding: '4px 10px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>{t('optimizer.install', 'Installer')}</button>
+                </div>
+              );
+            };
+            const renderDeviceBlock = (deviceKey, deviceLabel, curMean, _projMeanIgnored, actions, rows) => {
               if (curMean == null) return null;
+              // Phase 14.4 — seuillage : franchissement 80% OU sauvetage point faible.
+              const { useful, minor } = splitSwapsByImpact(actions, { coverageThreshold: 80, rescueGain: 10 });
+              const projMean = computeProjected(rows, useful);
               const delta = projMean != null ? projMean - curMean : 0;
+              const covered = rows.filter((r) => !r.noAI && r.installedScore >= 80).length;
               const stuck = rows.filter((r) => !r.noAI && r.installedScore < 80 && !actions.some((a) => a.songs.some((s) => s.song.id === r.song.id)));
+              const showMinor = !!showMinorByDevice[deviceKey];
+              const toggleMinor = () => setShowMinorByDevice((m) => ({ ...m, [deviceKey]: !m[deviceKey] }));
+              const minorToggle = (
+                <div style={{ marginTop: 6 }}>
+                  <button onClick={toggleMinor} style={{ background: 'transparent', border: 'none', color: 'var(--text-tertiary)', fontSize: 10, fontWeight: 600, cursor: 'pointer', padding: '2px 0', textAlign: 'left' }}>
+                    {showMinor
+                      ? t('optimizer.minor-hide', '▲ Masquer les améliorations mineures')
+                      : tFormat('optimizer.minor-show', { n: minor.length }, '▼ {n} améliorations mineures (gain faible)')}
+                  </button>
+                  {showMinor && <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 5 }}>{minor.map((a, i) => renderSwapCard(a, i, { badges: false }))}</div>}
+                </div>
+              );
               return (
                 <div style={{ background: 'var(--bg-elev-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--r-md)', padding: 'var(--s-3)' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 'var(--s-2)' }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{deviceLabel}</span>
                     <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 'auto' }}>{t('optimizer.score', 'Score')}</span>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 800, color: scoreColor(curMean) }}>{curMean}%</span>
-                    {actions.length > 0 && projMean != null && (
+                    {useful.length > 0 && projMean != null && (
                       <>
                         <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>→</span>
                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 800, color: scoreColor(projMean) }}>{projMean}%</span>
@@ -615,56 +660,42 @@ function BankOptimizerScreen({
                       </>
                     )}
                   </div>
-                  {actions.length === 0
+                  {useful.length > 0
                     ? (
-                      <div>
-                        {stuck.length === 0
-                          ? <div style={{ fontSize: 11, color: 'var(--success)', padding: '6px 0' }}>{t('optimizer.nothing-to-optimize', '✓ Rien à optimiser sur ce device')}</div>
-                          : (
-                            <div>
-                              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 5 }}>{tFormat('optimizer.no-better-preset', { songs: tPlural('optimizer.songs-count', stuck.length, {}, { one: '1 morceau', other: '{count} morceaux' }) }, 'Pas de meilleur preset disponible pour {songs} (déjà au plafond du catalogue compatible) :')}</div>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                {stuck.map((r) => (
-                                  <div key={r.song.id} style={{ fontSize: 10, color: 'var(--text-tertiary)', display: 'flex', gap: 6, alignItems: 'baseline' }}>
-                                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: scoreColor(r.installedScore), minWidth: 32 }}>{r.installedScore}%</span>
-                                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.song.title}</span>
-                                    {r.installed?.name && <span style={{ color: 'var(--text-tertiary)', fontStyle: 'italic' }}>· {r.installed.name}</span>}
-                                  </div>
-                                ))}
-                              </div>
-                              <div style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 6, fontStyle: 'italic' }}>{t('optimizer.improvement-tip', 'Pour faire mieux : changer la guitare assignée, activer un pack non coché dans Profil → Sources, ou créer un preset custom.')}</div>
-                            </div>
-                          )}
-                      </div>
-                    )
-                    : (
                       <>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>{tFormat('optimizer.useful-swaps-title', { n: useful.length }, '{n} swap(s) utile(s)')}</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 8 }}>
-                          {actions.map((a, i) => {
-                            const songsList = a.songs.map((s) => s.song.title);
-                            const songsPreview = songsList.slice(0, 3).join(', ') + (songsList.length > 3 ? ` +${songsList.length - 3}` : '');
-                            return (
-                              <div key={i} style={{ background: 'var(--bg-elev-1)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--r-sm)', padding: '7px 9px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
-                                  <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)', minWidth: 18 }}>#{i + 1}</span>
-                                  <span style={{ fontSize: 10, background: 'var(--green-bg)', color: 'var(--success)', borderRadius: 'var(--r-sm)', padding: '1px 6px', fontWeight: 700, border: '1px solid var(--green-border)' }}>+{a.totalDelta}%</span>
-                                  <span style={{ fontSize: 9, color: 'var(--text-tertiary)', marginLeft: 'auto' }}>{tPlural('optimizer.songs-count', a.songs.length, {}, { one: '1 morceau', other: '{count} morceaux' })}</span>
-                                </div>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis' }}>{tFormat('optimizer.install-preset', { name: a.preset.name }, 'Installer "{name}"')}</div>
-                                {(() => { const e = findCatalogEntry(a.preset.name); const si = getSourceInfo(e); if (!si) return null; return <div style={{ fontSize: 9, color: 'var(--text-sec)', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}><span>{si.icon} {si.label}</span>{e?.pack && TSR_PACK_ZIPS?.[e.pack] && <span style={{ color: 'var(--text-dim)' }}>📁 {TSR_PACK_ZIPS[e.pack]}.zip</span>}</div>; })()}
-                                <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 5 }}>
-                                  {t('optimizer.arrow-bank', '→ Banque ')}<span style={{ fontFamily: 'var(--font-mono)', color: CC[a.place.slot], fontWeight: 700 }}>{a.place.bank}{a.place.slot}</span>
-                                  {a.place.replaces && <span style={{ color: 'var(--yellow)', marginLeft: 4 }}>{tFormat('optimizer.replaces', { name: a.place.replaces, score: a.place.replacesScore }, '· remplace "{name}" ({score}%)')}</span>}
-                                  <span style={{ display: 'block', marginTop: 2 }}>{songsPreview}</span>
-                                </div>
-                                <button onClick={() => applyAction(a)} style={{ background: 'var(--accent)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-sm)', padding: '4px 10px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>{t('optimizer.install', 'Installer')}</button>
-                              </div>
-                            );
-                          })}
+                          {useful.map((a, i) => renderSwapCard(a, i, { badges: true }))}
                         </div>
-                        {actions.length > 1 && <button onClick={() => applyAllForDevice(actions, deviceLabel, curMean, projMean)} style={{ width: '100%', background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-sm)', padding: '7px', fontSize: 11, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>{tFormat('optimizer.apply-all-flat', { device: deviceLabel, count: actions.length }, 'Tout appliquer {device} ({count})')}</button>}
+                        {useful.length > 1 && <button onClick={() => applyAllForDevice(useful, deviceLabel, curMean, projMean)} style={{ width: '100%', background: 'linear-gradient(180deg,var(--brass-200),var(--brass-400))', border: 'none', color: 'var(--tolex-900)', borderRadius: 'var(--r-sm)', padding: '7px', fontSize: 11, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>{tFormat('optimizer.apply-useful', { n: useful.length }, 'Appliquer les swaps utiles ({n})')}</button>}
+                        <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 6 }}>{tFormat('optimizer.already-covered', { n: covered }, '{n} morceau(x) déjà couvert(s) (≥80%)')}</div>
+                        {minor.length > 0 && minorToggle}
                       </>
-                    )}
+                    )
+                    : minor.length > 0
+                      ? (
+                        <>
+                          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>{tFormat('optimizer.no-decisive', { covered }, 'Aucun swap décisif — {covered} morceau(x) déjà couvert(s).')}</div>
+                          {minorToggle}
+                        </>
+                      )
+                      : stuck.length > 0
+                        ? (
+                          <div>
+                            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 5 }}>{tFormat('optimizer.no-better-preset', { songs: tPlural('optimizer.songs-count', stuck.length, {}, { one: '1 morceau', other: '{count} morceaux' }) }, 'Pas de meilleur preset disponible pour {songs} (déjà au plafond du catalogue compatible) :')}</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                              {stuck.map((r) => (
+                                <div key={r.song.id} style={{ fontSize: 10, color: 'var(--text-tertiary)', display: 'flex', gap: 6, alignItems: 'baseline' }}>
+                                  <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: scoreColor(r.installedScore), minWidth: 32 }}>{r.installedScore}%</span>
+                                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.song.title}</span>
+                                  {r.installed?.name && <span style={{ color: 'var(--text-tertiary)', fontStyle: 'italic' }}>· {r.installed.name}</span>}
+                                </div>
+                              ))}
+                            </div>
+                            <div style={{ fontSize: 9, color: 'var(--text-tertiary)', marginTop: 6, fontStyle: 'italic' }}>{t('optimizer.improvement-tip', 'Pour faire mieux : changer la guitare assignée, activer un pack non coché dans Profil → Sources, ou créer un preset custom.')}</div>
+                          </div>
+                        )
+                        : <div style={{ fontSize: 11, color: 'var(--success)', padding: '6px 0' }}>{t('optimizer.all-optimal', '✓ Tout est déjà optimal sur ce device')}</div>}
                 </div>
               );
             };

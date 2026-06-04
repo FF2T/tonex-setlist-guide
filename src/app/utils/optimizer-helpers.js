@@ -150,4 +150,35 @@ function diffLayout(currentBanks, proposedBanks, liveRange = {}) {
   return { perBank, moved, unchanged, freed, merged };
 }
 
-export { clusterSongsBySharedTone, buildLiveLayout, diffLayout };
+// splitSwapsByImpact(swaps, opts) — Phase 14.4.
+// Reclasse les swaps produits par computePriority (BankOptimizerScreen) en
+// { useful, minor } pour le mode « Améliorer » seuillé. PUR : ne lit ni
+// catalog ni scoring, les scores sont déjà dans swap.songs[].currentScore/
+// newScore. Pas de falaise binaire « franchit 80 ou rien » : un swap est
+// utile s'il franchit le seuil OU s'il sauve un point faible (gain ≥ rescueGain
+// tout en restant < seuil). Annote swap.crossings / swap.rescues séparément.
+//   opts = { coverageThreshold = 80, rescueGain = 10 }
+function splitSwapsByImpact(swaps, opts = {}) {
+  const threshold = typeof opts.coverageThreshold === 'number' ? opts.coverageThreshold : 80;
+  const rescueGain = typeof opts.rescueGain === 'number' ? opts.rescueGain : 10;
+  const list = Array.isArray(swaps) ? swaps : [];
+  const useful = [];
+  const minor = [];
+  for (const swap of list) {
+    const songs = Array.isArray(swap?.songs) ? swap.songs : [];
+    let crossings = 0;
+    let rescues = 0;
+    for (const s of songs) {
+      const cur = typeof s?.currentScore === 'number' ? s.currentScore : 0;
+      const next = typeof s?.newScore === 'number' ? s.newScore : 0;
+      if (cur < threshold && next >= threshold) crossings++;
+      else if (cur < threshold && next < threshold && (next - cur) >= rescueGain) rescues++;
+    }
+    const annotated = { ...swap, crossings, rescues };
+    if (crossings > 0 || rescues > 0) useful.push(annotated);
+    else minor.push(annotated);
+  }
+  return { useful, minor };
+}
+
+export { clusterSongsBySharedTone, buildLiveLayout, diffLayout, splitSwapsByImpact };

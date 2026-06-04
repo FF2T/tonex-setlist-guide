@@ -441,6 +441,16 @@ const en = {
   'optimizer.apply-bank-confirm': 'Apply bank {bank}?',
   'optimizer.apply-live-zone': 'Apply the Live zone ({n} banks)',
   'optimizer.apply-live-confirm': 'Rewrite the Live zone ({n} banks)? Freed banks will be emptied. Jams and Discovery stay intact.',
+  // Phase 14.4 — Improve mode (thresholded swaps)
+  'optimizer.useful-swaps-title': '{n} useful swap(s)',
+  'optimizer.swap-crosses': 'lifts {n} song(s) to ≥80%',
+  'optimizer.swap-rescues': 'rescues {n} weak song(s)',
+  'optimizer.already-covered': '{n} song(s) already covered (≥80%)',
+  'optimizer.minor-show': '▼ {n} minor improvements (small gain)',
+  'optimizer.minor-hide': '▲ Hide minor improvements',
+  'optimizer.all-optimal': '✓ Everything is already optimal on this device',
+  'optimizer.no-decisive': 'No decisive swap — {covered} song(s) already covered.',
+  'optimizer.apply-useful': 'Apply the useful swaps ({n})',
 
   // packs
   'packs.api-key-missing': 'API key missing — set it up in ⚙️ Settings.',

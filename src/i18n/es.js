@@ -439,6 +439,16 @@ const es = {
   'optimizer.apply-bank-confirm': '¿Aplicar el banco {bank}?',
   'optimizer.apply-live-zone': 'Aplicar la zona Live ({n} bancos)',
   'optimizer.apply-live-confirm': '¿Reescribir la zona Live ({n} bancos)? Los bancos liberados se vaciarán. Jams y Descubrimiento quedan intactos.',
+  // Phase 14.4 — modo Mejorar (swaps con umbral)
+  'optimizer.useful-swaps-title': '{n} swap(s) útil(es)',
+  'optimizer.swap-crosses': 'sube {n} canción(es) a ≥80%',
+  'optimizer.swap-rescues': 'rescata {n} punto(s) débil(es)',
+  'optimizer.already-covered': '{n} canción(es) ya cubierta(s) (≥80%)',
+  'optimizer.minor-show': '▼ {n} mejoras menores (poca ganancia)',
+  'optimizer.minor-hide': '▲ Ocultar las mejoras menores',
+  'optimizer.all-optimal': '✓ Todo ya está óptimo en este dispositivo',
+  'optimizer.no-decisive': 'Ningún swap decisivo — {covered} canción(es) ya cubierta(s).',
+  'optimizer.apply-useful': 'Aplicar los swaps útiles ({n})',
 
   // packs
   'packs.api-key-missing': 'Falta la clave API — configúrala en ⚙️ Ajustes.',

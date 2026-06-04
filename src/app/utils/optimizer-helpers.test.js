@@ -1,6 +1,6 @@
 // Tests Phase 14.3 — optimizer-helpers (clustering Live + diff).
 import { describe, test, expect } from 'vitest';
-import { clusterSongsBySharedTone, buildLiveLayout, diffLayout } from './optimizer-helpers.js';
+import { clusterSongsBySharedTone, buildLiveLayout, diffLayout, splitSwapsByImpact } from './optimizer-helpers.js';
 
 // Fabrique de songs simples (id only, le reste vient des fns injectées).
 const song = (id) => ({ id });
@@ -148,5 +148,60 @@ describe('diffLayout', () => {
     const d = diffLayout({ 0: { A: 'x' } }, [{ bank: 0, slots: { A: 'y' }, songCount: 1 }], { start: 0, liveEnd: 1 });
     expect(d.perBank[0].status).toBe('modifiee');
     expect(d.moved).toBe(1);
+  });
+});
+
+describe('splitSwapsByImpact — Phase 14.4', () => {
+  const swap = (pairs) => ({ preset: { name: 'P' }, songs: pairs.map(([currentScore, newScore], i) => ({ song: { id: `s${i}` }, currentScore, newScore })) });
+
+  test('sauvetage 55→78 → useful (rescues=1, crossings=0)', () => {
+    const { useful, minor } = splitSwapsByImpact([swap([[55, 78]])]);
+    expect(useful).toHaveLength(1);
+    expect(useful[0].rescues).toBe(1);
+    expect(useful[0].crossings).toBe(0);
+    expect(minor).toHaveLength(0);
+  });
+
+  test('franchissement 79→80 → useful (crossings=1)', () => {
+    const { useful } = splitSwapsByImpact([swap([[79, 80]])]);
+    expect(useful).toHaveLength(1);
+    expect(useful[0].crossings).toBe(1);
+    expect(useful[0].rescues).toBe(0);
+  });
+
+  test('retouche 84→92 (déjà couvert) → minor', () => {
+    const { useful, minor } = splitSwapsByImpact([swap([[84, 92]])]);
+    expect(useful).toHaveLength(0);
+    expect(minor).toHaveLength(1);
+    expect(minor[0].crossings).toBe(0);
+    expect(minor[0].rescues).toBe(0);
+  });
+
+  test('gain trop faible 72→78 (+6 < rescueGain) → minor', () => {
+    const { minor } = splitSwapsByImpact([swap([[72, 78]])]);
+    expect(minor).toHaveLength(1);
+  });
+
+  test('rescueGain paramétrable : rescueGain=30 → 55→78 (+23) devient minor', () => {
+    const { useful, minor } = splitSwapsByImpact([swap([[55, 78]])], { rescueGain: 30 });
+    expect(useful).toHaveLength(0);
+    expect(minor).toHaveLength(1);
+  });
+
+  test('coverageThreshold paramétrable : seuil 70 → 65→72 franchit', () => {
+    const { useful } = splitSwapsByImpact([swap([[65, 72]])], { coverageThreshold: 70 });
+    expect(useful[0].crossings).toBe(1);
+  });
+
+  test('swap mixte (1 morceau franchit, autres non) → useful', () => {
+    const { useful } = splitSwapsByImpact([swap([[84, 92], [70, 81]])]);
+    expect(useful).toHaveLength(1);
+    expect(useful[0].crossings).toBe(1); // seul 70→81 franchit ; 84→92 déjà couvert
+    expect(useful[0].rescues).toBe(0);
+  });
+
+  test('entrée vide / falsy → { useful: [], minor: [] }', () => {
+    expect(splitSwapsByImpact([])).toEqual({ useful: [], minor: [] });
+    expect(splitSwapsByImpact(null)).toEqual({ useful: [], minor: [] });
   });
 });
