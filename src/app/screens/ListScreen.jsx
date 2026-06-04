@@ -101,7 +101,7 @@ function ListScreen({
   songDb, onSongDb, onAiCacheUpdate, setlists, allSetlists, onSetlists, mySongIds,
   checked, onChecked, onSettings,
   banksAnn, onBanksAnn, banksPlug, onBanksPlug,
-  banksOne, banksOnePlus,
+  banksOne, banksOnePlus, onBanksOne, onBanksOnePlus,
   aiProvider, aiKeys, hideHeader = false, allGuitars, allRigsGuitars,
   availableSources, activeProfileId, profiles, profile, onProfiles, guitarBias,
   onTmpPatchOverride, onLive,
@@ -1153,7 +1153,7 @@ function ListScreen({
                     onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-dim)'; }}
                   ><NavIcon id="trash" size={16}/></button>}
                 </div>
-                {isExpanded && <SongDetailCard song={s} banksAnn={banksAnn} banksPlug={banksPlug} onBanksAnn={onBanksAnn} onBanksPlug={onBanksPlug} onClose={() => setExpandedId(null)} guitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} savedGuitarId={activeSl?.guitars?.[s.id]} onGuitarChange={(songId, gId) => { if (activeSlId) onSetlists((p) => p.map((sl) => sl.id === activeSlId ? { ...sl, guitars: { ...(sl.guitars || {}), [songId]: gId } } : sl)); }} savedBassId={activeSl?.basses?.[s.id]} onBassChange={(songId, bassId) => { if (activeSlId) onSetlists((p) => p.map((sl) => sl.id === activeSlId ? { ...sl, basses: { ...(sl.basses || {}), [songId]: bassId } } : sl)); }} aiProvider={aiProvider} aiKeys={aiKeys} onSongDb={onSongDb} onAiCacheUpdate={onAiCacheUpdate} profile={profile} guitarBias={guitarBias} onTmpPatchOverride={onTmpPatchOverride} songDb={songDb} onProfiles={onProfiles} activeProfileId={activeProfileId} toneNetPresets={toneNetPresets} onToneNetPresets={onToneNetPresets} onSharedUsagesOverrides={onSharedUsagesOverrides}/>}
+                {isExpanded && <SongDetailCard song={s} banksAnn={banksAnn} banksPlug={banksPlug} onBanksAnn={onBanksAnn} onBanksPlug={onBanksPlug} banksOne={banksOne} banksOnePlus={banksOnePlus} onBanksOne={onBanksOne} onBanksOnePlus={onBanksOnePlus} onClose={() => setExpandedId(null)} guitars={allGuitars} allRigsGuitars={allRigsGuitars} availableSources={availableSources} savedGuitarId={activeSl?.guitars?.[s.id]} onGuitarChange={(songId, gId) => { if (activeSlId) onSetlists((p) => p.map((sl) => sl.id === activeSlId ? { ...sl, guitars: { ...(sl.guitars || {}), [songId]: gId } } : sl)); }} savedBassId={activeSl?.basses?.[s.id]} onBassChange={(songId, bassId) => { if (activeSlId) onSetlists((p) => p.map((sl) => sl.id === activeSlId ? { ...sl, basses: { ...(sl.basses || {}), [songId]: bassId } } : sl)); }} aiProvider={aiProvider} aiKeys={aiKeys} onSongDb={onSongDb} onAiCacheUpdate={onAiCacheUpdate} profile={profile} guitarBias={guitarBias} onTmpPatchOverride={onTmpPatchOverride} songDb={songDb} onProfiles={onProfiles} activeProfileId={activeProfileId} toneNetPresets={toneNetPresets} onToneNetPresets={onToneNetPresets} onSharedUsagesOverrides={onSharedUsagesOverrides}/>}
               </div>
             </div>
           );

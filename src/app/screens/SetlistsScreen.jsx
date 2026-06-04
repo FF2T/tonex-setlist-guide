@@ -20,7 +20,7 @@ function SetlistsScreen({
   songDb, onSongDb, onAiCacheUpdate, setlists, allSetlists, onSetlists, mySongIds,
   checked, onChecked, onSettings, onNavigate,
   banksAnn, onBanksAnn, banksPlug, onBanksPlug,
-  banksOne, banksOnePlus,
+  banksOne, banksOnePlus, onBanksOne, onBanksOnePlus,
   aiProvider, aiKeys, allGuitars, allRigsGuitars, guitarBias,
   availableSources, activeProfileId, profiles, profile, onProfiles,
   onTmpPatchOverride, onLive,
@@ -100,7 +100,7 @@ function SetlistsScreen({
         {tabBtn('setlists', t('setlists.tab-setlists', 'Setlists'))}
         {tabBtn('songs', t('setlists.tab-songs', 'Morceaux'))}
       </div>
-      {tab === 'setlists' && <ListScreen songDb={songDb} onSongDb={onSongDb} onAiCacheUpdate={onAiCacheUpdate} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} mySongIds={mySongIds} checked={checked} onChecked={onChecked} onSettings={onSettings} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} banksOne={banksOne} banksOnePlus={banksOnePlus} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={guitarBias} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onProfiles={onProfiles} onTmpPatchOverride={onTmpPatchOverride} onLive={onLive} toneNetPresets={toneNetPresets} onToneNetPresets={onToneNetPresets} onSharedUsagesOverrides={onSharedUsagesOverrides}/>}
+      {tab === 'setlists' && <ListScreen songDb={songDb} onSongDb={onSongDb} onAiCacheUpdate={onAiCacheUpdate} allSetlists={allSetlists} setlists={setlists} onSetlists={onSetlists} mySongIds={mySongIds} checked={checked} onChecked={onChecked} onSettings={onSettings} banksAnn={banksAnn} onBanksAnn={onBanksAnn} banksPlug={banksPlug} onBanksPlug={onBanksPlug} banksOne={banksOne} banksOnePlus={banksOnePlus} onBanksOne={onBanksOne} onBanksOnePlus={onBanksOnePlus} aiProvider={aiProvider} aiKeys={aiKeys} hideHeader={true} allGuitars={allGuitars} allRigsGuitars={allRigsGuitars} guitarBias={guitarBias} availableSources={availableSources} activeProfileId={activeProfileId} profiles={profiles} profile={profile} onProfiles={onProfiles} onTmpPatchOverride={onTmpPatchOverride} onLive={onLive} toneNetPresets={toneNetPresets} onToneNetPresets={onToneNetPresets} onSharedUsagesOverrides={onSharedUsagesOverrides}/>}
       {tab === 'songs' && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>

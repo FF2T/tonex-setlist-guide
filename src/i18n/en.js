@@ -764,6 +764,8 @@ const en = {
   'song-detail.install': 'Install',
   'song-detail.install-target': 'Install "{preset}" on:',
   'song-detail.installed-bank': '✓ Installed — Bank {bank}{slot}',
+  'song-detail.installed-flat': '✓ Installed — Preset {bank}',
+  'song-detail.preset-num': 'Preset',
   'song-detail.key': 'Key',
   'song-detail.mode-balanced': 'Balanced',
   'song-detail.mode-faithful': 'Faithful',

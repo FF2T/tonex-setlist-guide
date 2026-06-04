@@ -44,6 +44,7 @@ import {
 import { findInBanks } from '../utils/preset-helpers.js';
 import { resolveDisplayGuitar, filterCotGuitarsToRig, localizePickup, decapitalizeFirst } from '../utils/display-guitar.js';
 import { getActiveDevicesForRender } from '../utils/devices-render.js';
+import { isSrcCompatible } from '../../devices/registry.js';
 import { fetchAI } from '../utils/fetchAI.js';
 import { scoreColor } from '../components/score-utils.js';
 import StatusDot from '../components/StatusDot.jsx';
@@ -181,7 +182,7 @@ function FxBlocksCadre({ fxBlocks, locale, title }) {
   );
 }
 
-function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, onClose, guitars, allRigsGuitars, availableSources, savedGuitarId, onGuitarChange, savedBassId, onBassChange, aiProvider, aiKeys, onSongDb, onAiCacheUpdate, profile, guitarBias, onTmpPatchOverride, songDb, onProfiles, activeProfileId, toneNetPresets, onToneNetPresets, onSharedUsagesOverrides }) {
+function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, banksOne, banksOnePlus, onBanksOne, onBanksOnePlus, onClose, guitars, allRigsGuitars, availableSources, savedGuitarId, onGuitarChange, savedBassId, onBassChange, aiProvider, aiKeys, onSongDb, onAiCacheUpdate, profile, guitarBias, onTmpPatchOverride, songDb, onProfiles, activeProfileId, toneNetPresets, onToneNetPresets, onSharedUsagesOverrides }) {
   // Phase 7.54 — Helper interne : écrit aiCache via onAiCacheUpdate
   // (profile.aiCache) si disponible, sinon fallback onSongDb (shared).
   // Pour les invalidations (value=null), utilise aussi onAiCacheUpdate
@@ -342,9 +343,32 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
   const _displayPresetCandidates = [
     aiC?.preset_ann?.label && { type: 'ann', score: aiC.preset_ann.score || 0, label: aiC.preset_ann.label, bank: aiC.preset_ann.bank, col: aiC.preset_ann.col },
     aiC?.preset_plug?.label && { type: 'plug', score: aiC.preset_plug.score || 0, label: aiC.preset_plug.label, bank: aiC.preset_plug.bank, col: aiC.preset_plug.col },
+    // Phase ToneX One — preset_one/preset_one_plus dans les candidats top.
+    aiC?.preset_one?.label && { type: 'one', score: aiC.preset_one.score || 0, label: aiC.preset_one.label, bank: aiC.preset_one.bank, col: aiC.preset_one.col },
+    aiC?.preset_one_plus?.label && { type: 'one-plus', score: aiC.preset_one_plus.score || 0, label: aiC.preset_one_plus.label, bank: aiC.preset_one_plus.bank, col: aiC.preset_one_plus.col },
     aiC?.ideal_preset && { type: 'catalog', score: aiC.ideal_preset_score || 0, label: aiC.ideal_preset, bank: null, col: null },
   ].filter(Boolean);
   const displayTopPreset = _displayPresetCandidates.sort((a, b) => b.score - a.score)[0] || null;
+  // Phase ToneX One — descripteur générique des devices ToneX activés
+  // (ann/plug/one/oneplus) pour le bloc "Scoring preset" : résolution
+  // banks + setter + flat (slot A unique). Remplace le hardcode ann/plug.
+  const _banksByKey = { banksAnn, banksPlug, banksOne, banksOnePlus };
+  const _onBanksByKey = { banksAnn: onBanksAnn, banksPlug: onBanksPlug, banksOne: onBanksOne, banksOnePlus: onBanksOnePlus };
+  const toneXDevices = getActiveDevicesForRender(profile)
+    .filter((d) => ['banksAnn', 'banksPlug', 'banksOne', 'banksOnePlus'].includes(d.bankStorageKey))
+    .map((d) => ({
+      deviceKey: d.deviceKey,
+      label: d.label,
+      banks: _banksByKey[d.bankStorageKey] || {},
+      onBanks: _onBanksByKey[d.bankStorageKey],
+      maxBanks: d.maxBanks,
+      startBank: d.deviceKey === 'ann' ? 0 : 1,
+      flat: Array.isArray(d.slots) && d.slots.length === 1,
+    }));
+  // Slot affiché : "Preset N" pour les devices à plat (One/One+), "Banque NA" sinon.
+  const fmtSlot = (dev, bank, slot) => dev?.flat
+    ? tFormat('song-detail.installed-flat', { bank }, '✓ Installé — Preset {bank}')
+    : tFormat('song-detail.installed-bank', { bank, slot }, '✓ Installé — Banque {bank}{slot}');
   const chosenGuitarCot = findCotEntryForGuitar(aiC?.cot_step2_guitars, g);
   const chosenGuitarScore = chosenGuitarCot?.score || localGuitarSongScore(g, aiC);
   const chosenGuitarScoreEstimated = !chosenGuitarCot && chosenGuitarScore != null;
@@ -895,45 +919,52 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                   guitares". Wrap le preset reco top + alternatives catalog.
                   Scores alignés à droite via pill (même style que Scoring
                   guitares). */}
-              {playCtx.rig === 'tonex' && (displayTopPreset || (aiC.ideal_top3 && aiC.ideal_top3.length > 1)) && getActiveDevicesForRender(profile).some((d) => d.deviceKey === 'ann' || d.deviceKey === 'plug') && (
+              {playCtx.rig === 'tonex' && (displayTopPreset || (aiC.ideal_top3 && aiC.ideal_top3.length > 1)) && toneXDevices.length > 0 && (
               <div style={{ background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: '8px 10px' }}>
                 <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)' }}>{t('song-detail.scoring-preset', 'Scoring preset')}</div>
               {displayTopPreset && (() => {
                 const displayPresetName = displayTopPreset.label;
                 const idealScore = displayTopPreset.score || 0;
-                const locAnn = findInBanks(displayPresetName, banksAnn);
-                const locPlug = findInBanks(displayPresetName, banksPlug);
-                const loc = locAnn || locPlug;
                 const entry = findCatalogEntry(displayPresetName);
                 if (availableSources && entry?.src && availableSources[entry.src] === false) return null;
-                const canInstallAnn = !locAnn && onBanksAnn;
-                const canInstallPlug = !locPlug && onBanksPlug;
-                const doInstall = (device) => {
-                  const bk = Number(installBank[device]);
-                  const sl = installSlot[device];
-                  const onBanks = device === 'ann' ? onBanksAnn : onBanksPlug;
-                  if (isNaN(bk) || !sl || !onBanks) return;
-                  onBanks((p) => ({ ...p, [bk]: { ...(p[bk] || { cat: '', A: '', B: '', C: '' }), [sl]: displayPresetName } }));
+                // Phase ToneX One — recherche d'install + cibles génériques
+                // sur les devices ToneX activés (ann/plug/one/oneplus).
+                let loc = null; let locDev = null;
+                for (const dev of toneXDevices) {
+                  const l = findInBanks(displayPresetName, dev.banks);
+                  if (l) { loc = l; locDev = dev; break; }
+                }
+                // Cibles d'install = devices compatibles avec la source du
+                // preset, pas déjà installés, avec setter dispo.
+                const installTargets = toneXDevices.filter((dev) =>
+                  dev.onBanks && !findInBanks(displayPresetName, dev.banks)
+                  && (!entry?.src || isSrcCompatible(entry.src, dev.deviceKey)));
+                const doInstall = (dev) => {
+                  const bk = Number(installBank[dev.deviceKey]);
+                  const sl = dev.flat ? 'A' : installSlot[dev.deviceKey];
+                  if (isNaN(bk) || !sl || !dev.onBanks) return;
+                  dev.onBanks((p) => ({ ...p, [bk]: { ...(p[bk] || { cat: '', A: '', B: '', C: '' }), [sl]: displayPresetName } }));
                   setInstallTarget(null);
                 };
-                const bankInput = (device, maxBanks) => {
-                  const banks = device === 'ann' ? banksAnn : banksPlug;
-                  const bk = installBank[device];
-                  const sl = installSlot[device];
-                  const currentPreset = bk !== '' && banks[Number(bk)] ? banks[Number(bk)][sl] || t('song-detail.empty', '(vide)') : '';
-                  const dev = getActiveDevicesForRender(profile).find((d) => d.deviceKey === device);
-                  const deviceLabel = dev ? dev.label : (device === 'ann' ? 'Pédale' : 'Plug');
+                const bankInput = (dev) => {
+                  const bk = installBank[dev.deviceKey];
+                  const sl = dev.flat ? 'A' : installSlot[dev.deviceKey];
+                  const minBank = dev.startBank;
+                  const maxBank = dev.flat ? dev.maxBanks : (dev.deviceKey === 'ann' ? 49 : 10);
+                  const currentPreset = bk !== '' && dev.banks[Number(bk)] ? dev.banks[Number(bk)][sl] || t('song-detail.empty', '(vide)') : '';
                   return (
                     <div style={{ marginBottom: 6 }}>
-                      <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', marginBottom: 4, fontWeight: 600 }}>{deviceLabel}</div>
+                      <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', marginBottom: 4, fontWeight: 600 }}>{dev.label}</div>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <span style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-muted)' }}>{t('song-detail.bank', 'Banque')}</span>
-                        <input type="number" inputMode="numeric" min={device === 'ann' ? 0 : 1} max={maxBanks} value={bk} onChange={(e) => setInstallBank((p) => ({ ...p, [device]: e.target.value }))} style={{ width: 50, fontSize: 'clamp(12px, 1.35vw, 14px)', background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '4px 6px', textAlign: 'center' }} placeholder={device === 'ann' ? '0-49' : '1-10'}/>
-                        <span style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-muted)' }}>{t('song-detail.slot', 'Slot')}</span>
-                        <select value={sl} onChange={(e) => setInstallSlot((p) => ({ ...p, [device]: e.target.value }))} style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '4px 6px' }}>
-                          <option value="A">{t('song-detail.slot-a', 'A (Clean)')}</option><option value="B">{t('song-detail.slot-b', 'B (Drive)')}</option><option value="C">{t('song-detail.slot-c', 'C (Lead)')}</option>
-                        </select>
-                        <button onClick={() => doInstall(device)} disabled={bk === ''} style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', background: bk !== '' ? 'var(--accent)' : 'var(--bg-disabled)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '4px 10px', cursor: bk !== '' ? 'pointer' : 'not-allowed', fontWeight: 700 }}>{t('song-detail.ok', 'OK')}</button>
+                        <span style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-muted)' }}>{dev.flat ? t('song-detail.preset-num', 'Preset') : t('song-detail.bank', 'Banque')}</span>
+                        <input type="number" inputMode="numeric" min={minBank} max={maxBank} value={bk} onChange={(e) => setInstallBank((p) => ({ ...p, [dev.deviceKey]: e.target.value }))} style={{ width: 50, fontSize: 'clamp(12px, 1.35vw, 14px)', background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '4px 6px', textAlign: 'center' }} placeholder={`${minBank}-${maxBank}`}/>
+                        {!dev.flat && <>
+                          <span style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-muted)' }}>{t('song-detail.slot', 'Slot')}</span>
+                          <select value={sl} onChange={(e) => setInstallSlot((p) => ({ ...p, [dev.deviceKey]: e.target.value }))} style={{ fontSize: 'clamp(12px, 1.35vw, 14px)', background: 'var(--bg-card)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-md)', padding: '4px 6px' }}>
+                            <option value="A">{t('song-detail.slot-a', 'A (Clean)')}</option><option value="B">{t('song-detail.slot-b', 'B (Drive)')}</option><option value="C">{t('song-detail.slot-c', 'C (Lead)')}</option>
+                          </select>
+                        </>}
+                        <button onClick={() => doInstall(dev)} disabled={bk === ''} style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', background: bk !== '' ? 'var(--accent)' : 'var(--bg-disabled)', border: 'none', color: 'var(--text-inverse)', borderRadius: 'var(--r-md)', padding: '4px 10px', cursor: bk !== '' ? 'pointer' : 'not-allowed', fontWeight: 700 }}>{t('song-detail.ok', 'OK')}</button>
                       </div>
                       {bk !== '' && currentPreset && <div style={{ fontSize: 'clamp(11px, 1.15vw, 12px)', color: 'var(--text-dim)', marginTop: 2 }}>{tFormat('song-detail.replaces', { preset: currentPreset }, 'Remplace : {preset}')}</div>}
                     </div>
@@ -970,24 +1001,17 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                     })()}
                     {/* Ligne 3 : état installation + bouton installer */}
                     <div style={{ fontSize: 'clamp(11px, 1.15vw, 12px)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      {loc ? <span style={{ color: 'var(--green)' }}>{tFormat('song-detail.installed-bank', { bank: loc.bank, slot: loc.slot }, '✓ Installé — Banque {bank}{slot}')}</span>
+                      {loc ? <span style={{ color: 'var(--green)' }}>{fmtSlot(locDev, loc.bank, loc.slot)}</span>
                         : <span style={{ color: 'var(--yellow)' }}>{t('song-detail.not-installed-flat', 'Non installé')}</span>}
-                      {!loc && !installTarget && (canInstallAnn || canInstallPlug) && <button onClick={() => setInstallTarget({ preset: displayPresetName })} style={{ fontSize: 'clamp(11px, 1.15vw, 12px)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-sm)', padding: '2px 8px', cursor: 'pointer', fontWeight: 600, marginLeft: 'auto' }}>{t('song-detail.install', 'Installer')}</button>}
+                      {!loc && !installTarget && installTargets.length > 0 && <button onClick={() => setInstallTarget({ preset: displayPresetName })} style={{ fontSize: 'clamp(11px, 1.15vw, 12px)', background: 'var(--accent-bg)', border: '1px solid var(--accent-border)', color: 'var(--accent)', borderRadius: 'var(--r-sm)', padding: '2px 8px', cursor: 'pointer', fontWeight: 600, marginLeft: 'auto' }}>{t('song-detail.install', 'Installer')}</button>}
                     </div>
-                    {installTarget?.preset === displayPresetName && (() => {
-                      const activeEnabled = getActiveDevicesForRender(profile);
-                      const canPedal = canInstallAnn && activeEnabled.some((d) => d.deviceKey === 'ann');
-                      const canPlug = canInstallPlug && activeEnabled.some((d) => d.deviceKey === 'plug');
-                      if (!canPedal && !canPlug) return null;
-                      return (
+                    {installTarget?.preset === displayPresetName && installTargets.length > 0 && (
                         <div style={{ marginTop: 6, background: 'var(--a4)', border: '1px solid var(--a10)', borderRadius: 'var(--r-md)', padding: 10 }}>
                           <div style={{ fontSize: 'clamp(11px, 1.25vw, 13px)', color: 'var(--text-sec)', marginBottom: 8, fontWeight: 600 }}>{tFormat('song-detail.install-target', { preset: displayPresetName }, 'Installer "{preset}" sur :')}</div>
-                          {canPedal && bankInput('ann', 49)}
-                          {canPlug && bankInput('plug', 10)}
+                          {installTargets.map((dev) => <React.Fragment key={dev.deviceKey}>{bankInput(dev)}</React.Fragment>)}
                           <button onClick={() => setInstallTarget(null)} style={{ fontSize: 'clamp(11px, 1.15vw, 12px)', background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer' }}>{t('song-detail.cancel', 'Annuler')}</button>
                         </div>
-                      );
-                    })()}
+                    )}
                   </div>
                 );
               })()}
@@ -1003,7 +1027,7 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, on
                     {/* Phase 7.83 final7 — grid 2 col max desktop (cf .reco-multicol) */}
                     <div className="reco-multicol">
                       {filteredTop3.slice(1).map((p, i) => {
-                        const loc = findInBanks(p.name, banksAnn) || findInBanks(p.name, banksPlug);
+                        const loc = findInBanks(p.name, banksAnn) || findInBanks(p.name, banksPlug) || findInBanks(p.name, banksOne) || findInBanks(p.name, banksOnePlus);
                         const entry = findCatalogEntry(p.name);
                         const si = getSourceInfo(entry);
                         return (
