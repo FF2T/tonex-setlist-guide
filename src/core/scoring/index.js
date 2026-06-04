@@ -21,6 +21,7 @@ import {
 } from './style.js';
 import { computeRefAmpScore } from './amp.js';
 import { PRESET_RANGES, SUPPORTED_LOCALES as PRESET_LOCALES, FX_BLOCK_KEYS, FX_TYPE_ENUMS, FX_BLOCK_RANGES, clampPresetSettings, clampPlayingHints, clampFxBlocks } from './preset-settings.js';
+import { jamScore, versatilityStats, computeAmpVersatility, rankJamAmps } from './jam.js';
 
 // Pondérations des 5 dimensions
 const SCORING_VERSION=9; // v9: inferGuitarProfile for custom guitars
@@ -108,4 +109,6 @@ export {
   // Phase 9.2 — fx blocks (noise_gate/compressor/modulation/delay/reverb on-off + type)
   // Phase 9.7 — extended with sub-params + REVERB_TYPES corrected
   FX_BLOCK_KEYS, FX_TYPE_ENUMS, FX_BLOCK_RANGES, clampFxBlocks,
+  // Phase 14.2 — métrique jam (ampli passe-partout), séparée du scoring V9
+  jamScore, versatilityStats, computeAmpVersatility, rankJamAmps,
 };
