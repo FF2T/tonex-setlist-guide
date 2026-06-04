@@ -37,6 +37,7 @@ import {
   OUTPUT_CONTEXTS, DEFAULT_OUTPUT_CONTEXT, getEffectiveOutputContext,
   PLAY_INSTRUMENTS, PLAY_RIGS, getAvailableRigs, getEffectivePlayContext,
   getDefaultPlayInstrument, getEffectiveZones, getEffectiveJamStyles,
+  getEffectiveReferenceDeviceId, getDerivationMode,
 } from './state.js';
 
 describe('STATE_VERSION', () => {
@@ -4962,5 +4963,42 @@ describe('getEffectiveJamStyles — Phase 14.5', () => {
   });
   test('entrées non-string filtrées', () => {
     expect(getEffectiveJamStyles({ jamStyles: ['blues', '', null, 'rock'] })).toEqual(['blues', 'rock']);
+  });
+});
+
+// ─── Phase 14.6 — référence + dérivation cross-device ───
+describe('getEffectiveReferenceDeviceId — Phase 14.6', () => {
+  const devs = [
+    { id: 'tonex-plug', nbSlots: 30 },
+    { id: 'tonex-anniversary', nbSlots: 150 },
+    { id: 'tonex-one', nbSlots: 20 },
+  ];
+  test('plus gros device activé par défaut (Anniversary 150)', () => {
+    expect(getEffectiveReferenceDeviceId({}, devs)).toBe('tonex-anniversary');
+  });
+  test('referenceDeviceId honoré s\'il est activé', () => {
+    expect(getEffectiveReferenceDeviceId({ referenceDeviceId: 'tonex-plug' }, devs)).toBe('tonex-plug');
+  });
+  test('referenceDeviceId ignoré s\'il n\'est pas activé → fallback plus gros', () => {
+    expect(getEffectiveReferenceDeviceId({ referenceDeviceId: 'tonex-tmp' }, devs)).toBe('tonex-anniversary');
+  });
+  test('liste vide / falsy → null', () => {
+    expect(getEffectiveReferenceDeviceId({}, [])).toBe(null);
+    expect(getEffectiveReferenceDeviceId({}, null)).toBe(null);
+  });
+});
+
+describe('getDerivationMode — Phase 14.6', () => {
+  test('device de référence → reference', () => {
+    expect(getDerivationMode({}, 'tonex-anniversary', 'tonex-anniversary')).toBe('reference');
+  });
+  test('non-référence sans config → derived (défaut)', () => {
+    expect(getDerivationMode({}, 'tonex-plug', 'tonex-anniversary')).toBe('derived');
+  });
+  test('non-référence marqué independent', () => {
+    expect(getDerivationMode({ derivationMode: { 'tonex-plug': 'independent' } }, 'tonex-plug', 'tonex-anniversary')).toBe('independent');
+  });
+  test('valeur inconnue → derived', () => {
+    expect(getDerivationMode({ derivationMode: { 'tonex-plug': 'xyz' } }, 'tonex-plug', 'tonex-anniversary')).toBe('derived');
   });
 });

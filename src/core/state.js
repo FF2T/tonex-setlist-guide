@@ -3100,10 +3100,35 @@ function getEffectiveJamStyles(profile) {
   return ['blues', 'rock'];
 }
 
+// Phase 14.6 — rig de référence (source de vérité pour la dérivation cross-device).
+// profile.referenceDeviceId s'il est activé, sinon le plus gros device activé
+// par nbSlots (Anniversary 150 > Plug 30 > One 20). enabledDeviceObjs = objets
+// device hydratés (registry) avec { id, nbSlots }. Défensif : liste vide → null.
+function getEffectiveReferenceDeviceId(profile, enabledDeviceObjs) {
+  const devs = Array.isArray(enabledDeviceObjs) ? enabledDeviceObjs.filter((d) => d && d.id) : [];
+  if (!devs.length) return null;
+  const ref = profile?.referenceDeviceId;
+  if (ref && devs.some((d) => d.id === ref)) return ref;
+  let best = devs[0];
+  for (const d of devs) { if ((d.nbSlots || 0) > (best.nbSlots || 0)) best = d; }
+  return best.id;
+}
+
+// Phase 14.6 — mode de dérivation d'un device.
+//   'reference'   : c'est le rig de référence (source).
+//   'independent' : optimisé sur ses propres packs (plan autonome).
+//   'derived'     : dérive du rig de référence (DÉFAUT pour les non-référence).
+function getDerivationMode(profile, deviceId, referenceDeviceId) {
+  if (deviceId && referenceDeviceId && deviceId === referenceDeviceId) return 'reference';
+  const m = profile?.derivationMode?.[deviceId];
+  return m === 'independent' ? 'independent' : 'derived';
+}
+
 export {
   OUTPUT_CONTEXTS, DEFAULT_OUTPUT_CONTEXT, getEffectiveOutputContext,
   PLAY_INSTRUMENTS, PLAY_RIGS, getAvailableRigs, getEffectivePlayContext,
   getDefaultPlayInstrument, getEffectiveZones, getEffectiveJamStyles,
+  getEffectiveReferenceDeviceId, getDerivationMode,
   ADMIN_ORIGIN_KEY, recordAdminSwitch, isAdminAsMode, appendLoginEntry,
   STATE_VERSION, TOMBSTONE_MAX_AGE_MS,
   LS_KEY, LS_KEY_V1, LS_SECRETS_KEY, LS_TRUSTED_KEY, LS_BACKUP_KEY, MAX_BACKUPS,

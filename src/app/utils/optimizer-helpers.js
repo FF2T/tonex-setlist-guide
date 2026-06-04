@@ -246,4 +246,124 @@ function buildJamLayout(rankedByStyle, opts = {}) {
   return { banks, overflow };
 }
 
-export { clusterSongsBySharedTone, buildLiveLayout, diffLayout, splitSwapsByImpact, buildJamLayout };
+// mergeSameAmpLive(live) — Phase 14.6 step 3 : ré-absorbe les banques Live de
+// même ampli séparées par le garde-fou régression 14.3 (relâche δ, déterministe).
+function mergeSameAmpLive(live) {
+  const byAmp = new Map();
+  const out = [];
+  for (const b of live) {
+    const amp = b.cluster && b.cluster.kind === 'amp' ? b.cluster.amp : null;
+    if (!amp) { out.push(b); continue; }
+    if (byAmp.has(amp)) {
+      const first = byAmp.get(amp);
+      first.songCount = (first.songCount || 1) + (b.songCount || 1);
+      first.cluster = { ...(first.cluster || {}), shared: true };
+    } else {
+      const copy = { ...b, cluster: b.cluster ? { ...b.cluster } : b.cluster };
+      byAmp.set(amp, copy);
+      out.push(copy);
+    }
+  }
+  return out;
+}
+
+// packForCapacity(layout, capacity, bankModel, opts) — Phase 14.6.
+// Dégradation gracieuse quand le besoin dépasse la capacité du device.
+// `layout = { live:[bankEntry], jams:[bankEntry], discovery:[name] }`. `capacity`
+// = unité native (slots flat / banques triplet) ; chaque bankEntry + chaque pin
+// = 1 unité. Ordre §6bis : Découverte → Jams → mutualisation Live (triplet) →
+// flat 1-son → priorisation couverture. JAMAIS de drop silencieux : tout va dans
+// `dropped`. Retour { kept:{live,jams,discovery}, dropped:[{item,zone,reason}],
+// zonesGardees:[...] }.
+function packForCapacity(layout, capacity, bankModel = 'triplet', opts = {}) {
+  const cap = typeof capacity === 'number' && capacity >= 0 ? Math.floor(capacity) : 0;
+  let live = Array.isArray(layout?.live) ? layout.live.slice() : [];
+  let jams = Array.isArray(layout?.jams) ? layout.jams.slice() : [];
+  let discovery = Array.isArray(layout?.discovery) ? layout.discovery.slice() : [];
+  const dropped = [];
+  const zonesGardees = ['live', 'jams', 'discovery'];
+  const need = () => live.length + jams.length + discovery.length;
+  const dropZone = (z) => { const i = zonesGardees.indexOf(z); if (i >= 0) zonesGardees.splice(i, 1); };
+
+  // 1. Découverte
+  if (need() > cap && discovery.length) {
+    discovery.forEach((name) => dropped.push({ item: name, zone: 'discovery', reason: 'capacity-discovery' }));
+    discovery = []; dropZone('discovery');
+  }
+  // 2. Jams
+  if (need() > cap && jams.length) {
+    jams.forEach((b) => dropped.push({ item: b, zone: 'jams', reason: 'capacity-jams' }));
+    jams = []; dropZone('jams');
+  }
+  // 3. Mutualisation Live plus agressive (triplet uniquement)
+  if (need() > cap && bankModel !== 'flat') {
+    live = mergeSameAmpLive(live);
+  }
+  // 4. flat : 1 son principal par item (slot A dominant)
+  if (need() > cap && bankModel === 'flat') {
+    live = live.map((b) => ({ ...b, slots: { A: b.slots?.A || b.slots?.B || b.slots?.C || '' } }));
+  }
+  // 5. Priorisation par couverture : retire les banques Live de plus faible couverture
+  if (need() > cap && live.length) {
+    const toDrop = Math.max(0, need() - cap);
+    const order = live.map((b, i) => ({ i, cov: b.songCount || 1 })).sort((a, b) => a.cov - b.cov);
+    const dropSet = new Set(order.slice(0, toDrop).map((x) => x.i));
+    const keptLive = [];
+    live.forEach((b, i) => { if (dropSet.has(i)) dropped.push({ item: b, zone: 'live', reason: 'capacity-live' }); else keptLive.push(b); });
+    live = keptLive;
+    if (!live.length) dropZone('live');
+  }
+  return { kept: { live, jams, discovery }, dropped, zonesGardees };
+}
+
+// deriveLayoutFromReference(referenceLayout, opts) — Phase 14.6.
+// Dérive le layout PROPOSÉ du rig de référence vers un device cible. PUR :
+// compatibilité + substitution INJECTÉES. Pour chaque capture : gardée si
+// compatible, sinon substituée par l'équivalent le plus proche (même ampli/gain/
+// style dispo sur la cible) + divergence, sinon slot vidé + divergence. Recalculé
+// à chaque appel (dérivation non figée).
+//   referenceLayout = { live:[bankEntry], jams:[bankEntry] }
+//   opts = { bankModel='triplet', isCompatible(name)->bool, findSubstitute(name)->{name,reason}|null }
+// Retour { layout:{ live, jams }, divergences:[{ context, slot, original, substitut, reason }] }
+function deriveLayoutFromReference(referenceLayout, opts = {}) {
+  const { bankModel = 'triplet', isCompatible, findSubstitute } = opts;
+  const keys = bankModel === 'flat' ? ['A'] : ['A', 'B', 'C'];
+  const divergences = [];
+  const mapEntry = (entry, context) => {
+    const slots = {};
+    for (const k of keys) {
+      const name = entry.slots ? entry.slots[k] : '';
+      if (!name) { slots[k] = ''; continue; }
+      if (isCompatible && isCompatible(name)) { slots[k] = name; continue; }
+      const sub = findSubstitute ? findSubstitute(name) : null;
+      if (sub && sub.name) {
+        slots[k] = sub.name;
+        divergences.push({ context, slot: k, original: name, substitut: sub.name, reason: sub.reason || 'capture-indispo' });
+      } else {
+        slots[k] = '';
+        divergences.push({ context, slot: k, original: name, substitut: null, reason: 'aucun-substitut' });
+      }
+    }
+    return { ...entry, slots };
+  };
+  const live = (referenceLayout?.live || []).map((e) => mapEntry(e, (e.cluster && (e.cluster.amp || e.cluster.key)) || ''));
+  const jams = (referenceLayout?.jams || []).map((e) => mapEntry(e, e.style || ''));
+  return { layout: { live, jams }, divergences };
+}
+
+// applyJamOverrides(derivedJams, ownJamBanks, overriddenStyles) — Phase 14.6.
+// Précédence §6ter : un override manuel jam du device cible SURVIT à la
+// dérivation. Pour chaque style overridé, remplace la banque jam dérivée (du rig
+// de référence) par celle du device cible (son propre choix forcé). Les autres
+// styles gardent la version dérivée. Pur.
+function applyJamOverrides(derivedJams, ownJamBanks, overriddenStyles) {
+  const styles = new Set(overriddenStyles || []);
+  if (!styles.size) return Array.isArray(derivedJams) ? derivedJams.slice() : [];
+  const ownByStyle = new Map((ownJamBanks || []).map((b) => [b.style, b]));
+  return (derivedJams || []).map((b) => (styles.has(b.style) && ownByStyle.has(b.style) ? ownByStyle.get(b.style) : b));
+}
+
+export {
+  clusterSongsBySharedTone, buildLiveLayout, diffLayout, splitSwapsByImpact,
+  buildJamLayout, packForCapacity, deriveLayoutFromReference, applyJamOverrides,
+};

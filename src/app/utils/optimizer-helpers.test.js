@@ -1,6 +1,6 @@
 // Tests Phase 14.3 — optimizer-helpers (clustering Live + diff).
 import { describe, test, expect } from 'vitest';
-import { clusterSongsBySharedTone, buildLiveLayout, diffLayout, splitSwapsByImpact, buildJamLayout } from './optimizer-helpers.js';
+import { clusterSongsBySharedTone, buildLiveLayout, diffLayout, splitSwapsByImpact, buildJamLayout, packForCapacity, deriveLayoutFromReference, applyJamOverrides } from './optimizer-helpers.js';
 
 // Fabrique de songs simples (id only, le reste vient des fns injectées).
 const song = (id) => ({ id });
@@ -259,5 +259,130 @@ describe('buildJamLayout — Phase 14.5', () => {
   test('entrée vide → { banks: [], overflow: false }', () => {
     expect(buildJamLayout({}, {})).toEqual({ banks: [], overflow: false });
     expect(buildJamLayout(null, {})).toEqual({ banks: [], overflow: false });
+  });
+});
+
+describe('packForCapacity — Phase 14.6', () => {
+  const liveBank = (amp, songCount, n) => ({ bank: n, slots: { A: amp + ' c', B: amp + ' d', C: amp + ' l' }, cluster: { kind: 'amp', amp, shared: songCount > 1 }, songCount });
+  const jamBank = (style, n) => ({ bank: n, slots: { A: 'j', B: 'j', C: 'j' }, style });
+
+  test('tient → rien ne saute, 3 zones gardées', () => {
+    const layout = { live: [liveBank('A', 2, 0)], jams: [jamBank('blues', 1)], discovery: ['x'] };
+    const r = packForCapacity(layout, 10, 'triplet');
+    expect(r.dropped).toHaveLength(0);
+    expect(r.zonesGardees).toEqual(['live', 'jams', 'discovery']);
+  });
+
+  test('ordre : Découverte saute en 1er', () => {
+    const layout = { live: [liveBank('A', 2, 0), liveBank('B', 1, 1)], jams: [jamBank('blues', 2)], discovery: ['x', 'y'] };
+    const r = packForCapacity(layout, 3, 'triplet'); // besoin 5 > 3 → drop 2 discovery → 3, tient
+    expect(r.kept.discovery).toHaveLength(0);
+    expect(r.kept.jams).toHaveLength(1);
+    expect(r.kept.live).toHaveLength(2);
+    expect(r.dropped.every((d) => d.zone === 'discovery')).toBe(true);
+    expect(r.zonesGardees).toEqual(['live', 'jams']);
+  });
+
+  test('ordre : Jams sautent après la Découverte', () => {
+    const layout = { live: [liveBank('A', 2, 0), liveBank('B', 1, 1)], jams: [jamBank('blues', 2), jamBank('rock', 3)], discovery: ['x'] };
+    const r = packForCapacity(layout, 2, 'triplet'); // 5>2: -1 disc→4>2: -2 jams→2 tient
+    expect(r.kept.discovery).toHaveLength(0);
+    expect(r.kept.jams).toHaveLength(0);
+    expect(r.kept.live).toHaveLength(2);
+    expect(r.zonesGardees).toEqual(['live']);
+    expect(r.dropped.filter((d) => d.zone === 'jams')).toHaveLength(2);
+  });
+
+  test('étape 3 : fusion Live même ampli (triplet) avant de trimmer', () => {
+    // 3 banques même ampli "A" (1 shared + 2 split-out) → fusionnent en 1.
+    const layout = { live: [liveBank('A', 4, 0), liveBank('A', 1, 1), liveBank('A', 1, 2)], jams: [], discovery: [] };
+    const r = packForCapacity(layout, 1, 'triplet');
+    expect(r.kept.live).toHaveLength(1);
+    expect(r.kept.live[0].songCount).toBe(6); // 4+1+1
+    expect(r.dropped).toHaveLength(0); // fusion suffit, pas de trim
+  });
+
+  test('étape 5 : priorisation couverture (plus faible songCount drop en 1er)', () => {
+    const layout = { live: [liveBank('A', 5, 0), liveBank('B', 1, 1), liveBank('C', 3, 2)], jams: [], discovery: [] };
+    const r = packForCapacity(layout, 2, 'triplet'); // amplis distincts, pas de fusion → trim 1
+    expect(r.kept.live).toHaveLength(2);
+    expect(r.dropped).toHaveLength(1);
+    expect(r.dropped[0].zone).toBe('live');
+    expect(r.dropped[0].item.cluster.amp).toBe('B'); // songCount 1 = plus faible
+  });
+
+  test('flat : sous pression, 1 son principal par item (slot A only)', () => {
+    // 2 items, capacité 1 → step4 réduit chaque item au slot A, puis step5 trim à 1.
+    const flatLive = [
+      { bank: 1, slots: { A: 'x', B: 'y', C: 'z' }, cluster: { kind: 'capture' }, songCount: 3 },
+      { bank: 2, slots: { A: 'p', B: 'q' }, cluster: { kind: 'capture' }, songCount: 1 },
+    ];
+    const r = packForCapacity({ live: flatLive, jams: [], discovery: [] }, 1, 'flat');
+    expect(r.kept.live).toHaveLength(1);
+    expect(Object.keys(r.kept.live[0].slots)).toEqual(['A']); // réduit au son principal
+    expect(r.kept.live[0].slots.A).toBe('x'); // l'item plus couvrant gardé
+  });
+
+  test('jamais de drop silencieux : tout va dans dropped', () => {
+    const layout = { live: [liveBank('A', 2, 0), liveBank('B', 1, 1)], jams: [jamBank('blues', 2)], discovery: ['x'] };
+    const r = packForCapacity(layout, 1, 'triplet'); // tout sauf 1 live saute
+    const total = r.kept.live.length + r.kept.jams.length + r.kept.discovery.length + r.dropped.length;
+    expect(total).toBe(4); // 2 live + 1 jam + 1 disc
+  });
+});
+
+describe('deriveLayoutFromReference — Phase 14.6', () => {
+  const refLayout = {
+    live: [{ bank: 0, slots: { A: 'AA Clean', B: 'AA Drive', C: 'AA Lead' }, cluster: { kind: 'amp', amp: 'Marshall' } }],
+    jams: [{ bank: 25, slots: { A: 'JS Cln', B: 'JS Crn', C: 'JS Ld' }, style: 'blues' }],
+  };
+  // AA compatible, JS incompatible → substitué ; "AA Lead" incompatible sans substitut → vidé.
+  const isCompatible = (n) => n.startsWith('AA') && n !== 'AA Lead';
+  const findSubstitute = (n) => (n.startsWith('JS') ? { name: 'SUB ' + n, reason: 'capture-indispo' } : null);
+
+  test('compatible gardée, incompatible substituée + flaggée', () => {
+    const { layout, divergences } = deriveLayoutFromReference(refLayout, { bankModel: 'triplet', isCompatible, findSubstitute });
+    expect(layout.live[0].slots.A).toBe('AA Clean'); // gardé
+    expect(layout.jams[0].slots.A).toBe('SUB JS Cln'); // substitué
+    const sub = divergences.find((d) => d.original === 'JS Cln');
+    expect(sub).toMatchObject({ substitut: 'SUB JS Cln', reason: 'capture-indispo', context: 'blues' });
+  });
+
+  test('aucun substitut → slot vidé + divergence', () => {
+    const { layout, divergences } = deriveLayoutFromReference(refLayout, { bankModel: 'triplet', isCompatible, findSubstitute });
+    expect(layout.live[0].slots.C).toBe(''); // AA Lead vidé
+    expect(divergences.find((d) => d.original === 'AA Lead')).toMatchObject({ substitut: null, reason: 'aucun-substitut', context: 'Marshall' });
+  });
+
+  test('flat : slot A seul', () => {
+    const r = deriveLayoutFromReference({ live: [{ slots: { A: 'AA Clean' }, cluster: { kind: 'capture', key: 'AA Clean' } }], jams: [] }, { bankModel: 'flat', isCompatible, findSubstitute });
+    expect(Object.keys(r.layout.live[0].slots)).toEqual(['A']);
+  });
+
+  test('recalcul : compatibilité différente → résultat différent (non figé)', () => {
+    const allCompat = deriveLayoutFromReference(refLayout, { bankModel: 'triplet', isCompatible: () => true, findSubstitute });
+    expect(allCompat.divergences).toHaveLength(0);
+    expect(allCompat.layout.jams[0].slots.A).toBe('JS Cln');
+  });
+
+  test('layout vide → pas de crash', () => {
+    expect(deriveLayoutFromReference({}, { bankModel: 'triplet' })).toEqual({ layout: { live: [], jams: [] }, divergences: [] });
+  });
+});
+
+describe('applyJamOverrides — Phase 14.6 (override survit à la dérivation)', () => {
+  const derived = [{ style: 'blues', slots: { A: 'ref-b' } }, { style: 'rock', slots: { A: 'ref-r' } }];
+  const own = [{ style: 'blues', slots: { A: 'mine-b' } }, { style: 'rock', slots: { A: 'mine-r' } }];
+
+  test('style overridé → remplacé par le choix du device cible ; autres dérivés', () => {
+    const r = applyJamOverrides(derived, own, ['blues']);
+    expect(r[0].slots.A).toBe('mine-b'); // override survit
+    expect(r[1].slots.A).toBe('ref-r');  // non overridé → dérivé
+  });
+  test('aucun override → tout dérivé (copie)', () => {
+    expect(applyJamOverrides(derived, own, [])).toEqual(derived);
+  });
+  test('override sans banque propre correspondante → garde le dérivé', () => {
+    expect(applyJamOverrides(derived, [], ['blues'])[0].slots.A).toBe('ref-b');
   });
 });

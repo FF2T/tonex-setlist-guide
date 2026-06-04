@@ -30,10 +30,10 @@ import { getSourceInfo, isSourceAvailable } from '../../core/sources.js';
 import { isSrcCompatible } from '../../devices/registry.js';
 import { TSR_PACK_ZIPS } from '../../data/tsr-packs.js';
 import { getActiveDevicesForRender } from '../utils/devices-render.js';
-import { getEffectiveZones, getEffectiveJamStyles } from '../../core/state.js';
+import { getEffectiveZones, getEffectiveJamStyles, getEffectiveReferenceDeviceId, getDerivationMode } from '../../core/state.js';
 import { computeBestPresets, resolveRefAmp } from '../utils/ai-helpers.js';
 import { findInBanks } from '../utils/preset-helpers.js';
-import { clusterSongsBySharedTone, buildLiveLayout, diffLayout, splitSwapsByImpact, buildJamLayout } from '../utils/optimizer-helpers.js';
+import { clusterSongsBySharedTone, buildLiveLayout, diffLayout, splitSwapsByImpact, buildJamLayout, packForCapacity, deriveLayoutFromReference, applyJamOverrides } from '../utils/optimizer-helpers.js';
 import { CC, TYPE_LABELS } from '../utils/ui-constants.js';
 import { scoreColor } from '../components/score-utils.js';
 import Breadcrumb from '../components/Breadcrumb.jsx';
@@ -143,6 +143,24 @@ function BankOptimizerScreen({
       const updated = fn(list.slice());
       const next = { ...(cur.discoveryPins || {}), [deviceId]: updated };
       return { ...p, [activeProfileId]: { ...cur, discoveryPins: next, lastModified: Date.now() } };
+    });
+  };
+  // Phase 14.6 — mode de dérivation + contexte « ce soir » (stamp lastModified).
+  const setDerivationMode = (deviceId, modeVal) => {
+    if (!onProfiles || !activeProfileId) return;
+    onProfiles((p) => {
+      const cur = p[activeProfileId]; if (!cur) return p;
+      const next = { ...(cur.derivationMode || {}), [deviceId]: modeVal };
+      return { ...p, [activeProfileId]: { ...cur, derivationMode: next, lastModified: Date.now() } };
+    });
+  };
+  const setPortableTarget = (deviceId, target) => {
+    if (!onProfiles || !activeProfileId) return;
+    onProfiles((p) => {
+      const cur = p[activeProfileId]; if (!cur) return p;
+      const next = { ...(cur.portableTargets || {}) };
+      if (target) next[deviceId] = target; else delete next[deviceId];
+      return { ...p, [activeProfileId]: { ...cur, portableTargets: next, lastModified: Date.now() } };
     });
   };
   const enabledDevices = getActiveDevicesForRender(profile);
@@ -369,7 +387,8 @@ function BankOptimizerScreen({
   // Construit les clusters d'un device (closures de scoring injectées dans
   // clusterSongsBySharedTone). Tout le catalog est filtré aux sources
   // compatibles avec le device (isSrcCompatible + availableSources).
-  const buildReorgForDevice = (dev) => {
+  const buildReorgForDevice = (dev, songsArg) => {
+    const srcSongs = songsArg || songs;
     const deviceKey = dev.deviceKey;
     const srcOk = (src) => isSrcCompatible(src, deviceKey) && !(src && availableSources && availableSources[src] === false);
     const ctxBySong = new Map();
@@ -424,7 +443,7 @@ function BankOptimizerScreen({
       const e = findCatalogEntry(captureName); if (!e) return 0;
       return computeFinalScore(e, c.gId, c.style, c.targetGain, c.resolvedAmp, false);
     };
-    return clusterSongsBySharedTone(songs, {
+    return clusterSongsBySharedTone(srcSongs, {
       bankModel: dev.bankModel,
       getReco,
       voicesForAmp: dev.bankModel === 'triplet' ? voicesForAmp : undefined,
@@ -458,7 +477,8 @@ function BankOptimizerScreen({
   // un jam est un contexte de STYLE général, pas la setlist courante (qui pilote
   // le Live). Catalog pré-filtré aux sources compatibles du device.
   const jamStyles = getEffectiveJamStyles(profile);
-  const buildJamForDevice = (dev) => {
+  const buildJamForDevice = (dev, stylesArg) => {
+    const styles = stylesArg && stylesArg.length ? stylesArg : jamStyles;
     const deviceKey = dev.deviceKey;
     const srcOk = (src) => isSrcCompatible(src, deviceKey) && !(src && availableSources && availableSources[src] === false);
     const cat = {};
@@ -468,7 +488,7 @@ function BankOptimizerScreen({
       cat[name] = info;
     }
     const rankedByStyle = {};
-    for (const style of jamStyles) {
+    for (const style of styles) {
       rankedByStyle[style] = rankJamAmps(style, songDb, cat, availableSources, {
         guitars: allGuitars, isSourceAvailable: () => true, k: jamK,
       });
@@ -493,6 +513,91 @@ function BankOptimizerScreen({
     return () => { cancelled = true; clearTimeout(tm); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, songDb, allGuitars, availableSources, jamK, jamStyles.join(',')]);
+
+  // Phase 14.6 — rig de référence + dérivation cross-device.
+  const refId = getEffectiveReferenceDeviceId(profile, enabledDevices);
+  const refDev = reorgDevices.find((d) => d.id === refId) || null;
+  const deviceLabelById = (id) => enabledDevices.find((d) => d.id === id)?.label || id;
+  // Substitut le plus proche d'une capture pour un device cible : même ampli →
+  // même gain → même style, compatible (isSrcCompatible + sources possédées).
+  const findClosestForTarget = (entry, deviceKey) => {
+    if (!entry || !entry.amp) return null;
+    const srcOk = (src) => isSrcCompatible(src, deviceKey) && !(src && availableSources && availableSources[src] === false);
+    const gain = typeof entry.gain === 'number' ? entry.gain : gainToNumeric(entry.gain);
+    const gr = getGainRange(gain);
+    let sameAmpGain = null; let sameAmp = null; let sameStyle = null;
+    for (const [name, info] of Object.entries(PRESET_CATALOG_MERGED)) {
+      if (!info || !info.amp) continue;
+      if (info.src && !srcOk(info.src)) continue;
+      if (info.amp === entry.amp) {
+        if (!sameAmp) sameAmp = name;
+        if (!sameAmpGain && getGainRange(typeof info.gain === 'number' ? info.gain : gainToNumeric(info.gain)) === gr) sameAmpGain = name;
+      } else if (!sameStyle && info.style && entry.style && info.style === entry.style && getGainRange(typeof info.gain === 'number' ? info.gain : gainToNumeric(info.gain)) === gr) {
+        sameStyle = name;
+      }
+    }
+    const pick = sameAmpGain || sameAmp || sameStyle;
+    return pick ? { name: pick, reason: 'capture-indispo' } : null;
+  };
+
+  // deriveData : pour chaque device non-référence en mode 'derived', dérive le
+  // plan PROPOSÉ du rig de référence (pour le contexte « ce soir ») + pack.
+  const [deriveData, setDeriveData] = useState(null);
+  useEffect(() => {
+    if (mode !== 'reorganize' || !refDev) { setDeriveData(null); return undefined; }
+    const targets = reorgDevices.filter((d) => d.id !== refId && getDerivationMode(profile, d.id, refId) === 'derived');
+    if (!targets.length) { setDeriveData(null); return undefined; }
+    let cancelled = false;
+    const tm = setTimeout(() => {
+      if (cancelled) return;
+      const t0 = performance.now();
+      const out = {};
+      for (const dev of targets) {
+        const pt = (profile?.portableTargets || {})[dev.id];
+        let refSongs = songs; let ctxStyles = jamStyles; let contextLabel = sl?.name || '';
+        if (pt?.kind === 'setlist' && pt.setlistId) {
+          const sl2 = setlists.find((s) => s.id === pt.setlistId);
+          if (sl2) { refSongs = sl2.songIds.map((id) => songDb.find((s) => s.id === id)).filter(Boolean); contextLabel = sl2.name; }
+        } else if (pt?.kind === 'jam') {
+          refSongs = []; ctxStyles = (pt.styles && pt.styles.length) ? pt.styles : jamStyles;
+          contextLabel = tFormat('optimizer.portable-jam-ctx', { styles: ctxStyles.join(', ') }, 'Jam : {styles}');
+        }
+        // Plan PROPOSÉ du rig de référence pour ce contexte.
+        const refClusters = buildReorgForDevice(refDev, refSongs).clusters;
+        const refLive = buildLiveLayout(refClusters, axis, { bankModel: refDev.bankModel, startBank: 0 }).banks;
+        const refRanked = buildJamForDevice(refDev, ctxStyles).rankedByStyle;
+        const refJam = buildJamLayout(refRanked, { bankModel: refDev.bankModel, jamStart: 0, jamCapacity: Infinity, chosenAmp: (profile?.jamOverrides || {})[refDev.deviceKey] || {} }).banks;
+        // Dérivation vers la cible (substitution si incompatible).
+        const isCompatible = (name) => { const e = findCatalogEntry(name); return !!e && (!e.src || (isSrcCompatible(e.src, dev.deviceKey) && !(availableSources && availableSources[e.src] === false))); };
+        const findSubstitute = (name) => findClosestForTarget(findCatalogEntry(name), dev.deviceKey);
+        const { layout: derived, divergences } = deriveLayoutFromReference({ live: refLive, jams: refJam }, { bankModel: dev.bankModel, isCompatible, findSubstitute });
+        // Précédence §6ter : overrides jam manuels de la CIBLE survivent à la dérivation.
+        const tgtOverrides = (profile?.jamOverrides || {})[dev.deviceKey] || {};
+        if (Object.keys(tgtOverrides).length) {
+          const tgtRanked = buildJamForDevice(dev, ctxStyles).rankedByStyle;
+          const ownJam = buildJamLayout(tgtRanked, { bankModel: dev.bankModel, jamStart: 0, jamCapacity: Infinity, chosenAmp: tgtOverrides }).banks;
+          derived.jams = applyJamOverrides(derived.jams, ownJam, Object.keys(tgtOverrides));
+        }
+        // Pack à la capacité du device cible.
+        const zonesT = getEffectiveZones(profile, dev.id, dev.maxBanks);
+        const capacity = dev.bankModel === 'flat' ? dev.nbSlots : dev.maxBanks;
+        const packed = packForCapacity({ live: derived.live, jams: derived.jams, discovery: [] }, capacity, dev.bankModel);
+        // Renumérotation dans les zones du device cible.
+        const liveStart = dev.startBank;
+        packed.kept.live = packed.kept.live.map((b, i) => ({ ...b, bank: liveStart + i }));
+        const jamStart = dev.startBank + zonesT.liveEnd;
+        packed.kept.jams = packed.kept.jams.map((b, i) => ({ ...b, bank: jamStart + i }));
+        out[dev.deviceKey] = { ...packed, divergences, contextLabel };
+      }
+      if (typeof window !== 'undefined' && window.__TONEX_PERF) {
+        // eslint-disable-next-line no-console
+        console.log(`[perf] derive (${targets.length} dev): ${(performance.now() - t0).toFixed(0)}ms`);
+      }
+      if (!cancelled) setDeriveData(out);
+    }, 0);
+    return () => { cancelled = true; clearTimeout(tm); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, songs, songDb, allGuitars, availableSources, banksAnn, banksPlug, banksOne, banksOnePlus, axis, jamK, refId, jamStyles.join(','), JSON.stringify(profile?.portableTargets || {}), JSON.stringify(profile?.derivationMode || {}), JSON.stringify(profile?.jamOverrides || {})]);
 
   const catLabelOf = (cluster) => (cluster.kind === 'amp' ? (cluster.amp || '') : (cluster.key || ''));
   const slotsToBank = (slots, cluster) => ({
@@ -528,6 +633,28 @@ function BankOptimizerScreen({
     dev.onBanks((prev) => {
       const next = {}; for (const k in prev) next[k] = prev[k];
       jamBanks.forEach((b) => { next[b.bank] = jamBankToSlots(b); });
+      return next;
+    });
+  };
+
+  // Phase 14.6 — apply layout dérivé (Live + Jams) dans les banques de la cible.
+  const derivedBankToSlots = (b) => {
+    const label = b.cluster ? catLabelOf(b.cluster) : (b.style || '');
+    return (b.slots.B !== undefined || b.slots.C !== undefined)
+      ? { cat: label, A: b.slots.A || '', B: b.slots.B || '', C: b.slots.C || '' }
+      : { cat: label, A: b.slots.A || '' };
+  };
+  const applyDerivedBank = (dev, b) => {
+    if (!window.confirm(tFormat('optimizer.apply-bank-confirm', { bank: b.bank }, 'Appliquer la banque {bank} ?'))) return;
+    dev.onBanks((prev) => ({ ...prev, [b.bank]: derivedBankToSlots(b) }));
+  };
+  const applyDerivedAll = (dev, kept) => {
+    const all = [...(kept.live || []), ...(kept.jams || [])];
+    if (!all.length) return;
+    if (!window.confirm(tFormat('optimizer.derive-apply-confirm', { n: all.length }, 'Écrire le layout dérivé ({n} banques) sur ce device ?'))) return;
+    dev.onBanks((prev) => {
+      const next = {}; for (const k in prev) next[k] = prev[k];
+      all.forEach((b) => { next[b.bank] = derivedBankToSlots(b); });
       return next;
     });
   };
@@ -585,6 +712,123 @@ function BankOptimizerScreen({
     fusionnee: { color: 'var(--success)', label: t('optimizer.diff-merged', 'fusionnée') },
     liberee: { color: 'var(--yellow)', label: t('optimizer.diff-freed', 'libérée → vidée') },
   };
+  const subHead = (label) => <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', color: 'var(--text-tertiary)', margin: '12px 0 6px' }}>{label}</div>;
+
+  // Phase 14.6 — bandeau de contrôle par device (référence / dérivé / autonome
+  // + contexte « ce soir »). Rendu en tête de chaque device en mode Réorganiser.
+  const deviceZoneControls = (dev) => {
+    if (dev.id === refId) {
+      return <div style={{ fontSize: 9, color: 'var(--accent)', fontWeight: 700, marginBottom: 6 }}>{t('optimizer.derive-reference', 'Rig de référence (source)')}</div>;
+    }
+    const dmode = getDerivationMode(profile, dev.id, refId);
+    const pt = (profile?.portableTargets || {})[dev.id];
+    const ptValue = pt?.kind === 'setlist' ? `setlist:${pt.setlistId}` : (pt?.kind === 'jam' ? 'jam' : '');
+    const segStyle = (on) => ({ background: on ? 'var(--accent)' : 'var(--bg-elev-1)', color: on ? 'var(--text-inverse)' : 'var(--text-secondary)', border: '1px solid ' + (on ? 'var(--accent)' : 'var(--border-subtle)'), borderRadius: 'var(--r-sm)', padding: '3px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer' });
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+        <button onClick={() => setDerivationMode(dev.id, 'derived')} style={segStyle(dmode === 'derived')}>{tFormat('optimizer.derive-derived', { ref: deviceLabelById(refId) }, 'Dérivé de {ref}')}</button>
+        <button onClick={() => setDerivationMode(dev.id, 'independent')} style={segStyle(dmode === 'independent')}>{t('optimizer.derive-independent', 'Autonome')}</button>
+        {dmode === 'derived' && (
+          <select
+            value={ptValue}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!v) setPortableTarget(dev.id, null);
+              else if (v === 'jam') setPortableTarget(dev.id, { kind: 'jam', styles: jamStyles });
+              else setPortableTarget(dev.id, { kind: 'setlist', setlistId: v.slice(8) });
+            }}
+            style={{ background: 'var(--bg-elev-1)', color: 'var(--text-primary)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--r-sm)', padding: '3px 6px', fontSize: 10 }}
+            title={t('optimizer.portable-title', 'Préparer ce device pour ce soir')}
+          >
+            <option value="">{tFormat('optimizer.portable-current', { name: sl?.name || '' }, 'Contexte actuel ({name})')}</option>
+            {setlists.map((s) => <option key={s.id} value={`setlist:${s.id}`}>{tFormat('optimizer.portable-setlist', { name: s.name }, 'Setlist : {name}')}</option>)}
+            <option value="jam">{tFormat('optimizer.portable-jam', { styles: jamStyles.join('/') }, 'Jam ({styles})')}</option>
+          </select>
+        )}
+      </div>
+    );
+  };
+
+  // Phase 14.6 — rendu d'un device DÉRIVÉ (miroir packé du rig de référence).
+  const renderDerivedDevice = (dev) => {
+    const dd = deriveData?.[dev.deviceKey];
+    const slotDefs = dev.bankModel === 'flat'
+      ? [{ s: 'A', l: t('optimizer.flat-slot', 'Preset') }]
+      : [{ s: 'A', l: t('optimizer.slot-clean', 'Clean') }, { s: 'B', l: t('optimizer.slot-crunch', 'Crunch') }, { s: 'C', l: t('optimizer.slot-lead', 'Lead') }];
+    const droppedByReason = (reason) => (dd?.dropped || []).filter((x) => x.reason === reason);
+    const card = (b, label) => (
+      <div key={b.bank} style={{ background: 'var(--bg-elev-2)', border: '1px solid var(--border-subtle)', borderRadius: 6, padding: '6px 8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2, gap: 4 }}>
+          <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-primary)' }}>{b.bank}</span>
+          <span style={{ fontSize: 8, color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 90 }}>{label}</span>
+        </div>
+        {slotDefs.map((x) => (
+          <div key={x.s} style={{ fontSize: 9, display: 'flex', gap: 3, alignItems: 'baseline', marginBottom: 1 }}>
+            <span style={{ fontWeight: 700, color: CC[x.s] || 'var(--text-tertiary)', width: 42, flexShrink: 0 }}>{x.l}</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, color: b.slots[x.s] ? 'var(--text-secondary)' : 'var(--text-tertiary)' }}>{b.slots[x.s] || '—'}</span>
+          </div>
+        ))}
+        <button onClick={() => applyDerivedBank(dev, b)} style={{ marginTop: 6, width: '100%', background: 'var(--bg-elev-1)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)', borderRadius: 'var(--r-sm)', padding: '3px 6px', fontSize: 9, fontWeight: 700, cursor: 'pointer' }}>{t('optimizer.apply-this-bank', 'Appliquer cette banque')}</button>
+      </div>
+    );
+    return (
+      <div key={dev.id} style={{ marginBottom: 'var(--s-4)' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <NavIcon id={dev.iconId || 'amp'} size={14}/>{dev.label}
+        </div>
+        {deviceZoneControls(dev)}
+        {!dd
+          ? <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{t('optimizer.reorg-loading', 'Analyse en cours…')}</div>
+          : (
+            <>
+              {dd.contextLabel && <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 6 }}>{tFormat('optimizer.derive-context', { ctx: dd.contextLabel }, 'Préparé pour : {ctx}')}</div>}
+              {subHead(t('optimizer.live-title', 'Live (1 banque/morceau)'))}
+              {dd.kept.live.length === 0
+                ? <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{t('optimizer.reorg-empty', 'Aucun morceau analysé pour proposer une réorganisation.')}</div>
+                : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(190px,1fr))', gap: 4, marginBottom: 'var(--s-2)' }}>{dd.kept.live.map((b) => card(b, b.cluster ? catLabelOf(b.cluster) : ''))}</div>}
+              {dd.kept.jams.length > 0 && (
+                <>
+                  {subHead(t('optimizer.jams-title', 'Jams (amplis passe-partout)'))}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(190px,1fr))', gap: 4, marginBottom: 'var(--s-2)' }}>{dd.kept.jams.map((b) => card(b, b.style || ''))}</div>
+                </>
+              )}
+              {dd.divergences.length > 0 && (
+                <>
+                  {subHead(tFormat('optimizer.diverg-title', { ref: deviceLabelById(refId) }, 'Divergences vs {ref}'))}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 'var(--s-2)' }}>
+                    {dd.divergences.slice(0, 30).map((d, i) => (
+                      <div key={i} style={{ fontSize: 9, color: 'var(--text-tertiary)', display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'baseline' }}>
+                        <span style={{ fontWeight: 700, color: 'var(--text-secondary)' }}>{d.context}</span>
+                        <span style={{ textDecoration: 'line-through' }}>{d.original}</span>
+                        <span>→</span>
+                        <span style={{ color: d.substitut ? 'var(--accent)' : 'var(--yellow)' }}>{d.substitut || t('optimizer.diverg-none', '(vide)')}</span>
+                        <span style={{ fontStyle: 'italic', color: 'var(--text-tertiary)' }}>{d.reason === 'aucun-substitut' ? t('optimizer.diverg-no-sub', 'aucun substitut') : t('optimizer.diverg-incompat', 'capture indispo')}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+              {dd.dropped.length > 0 && (
+                <>
+                  {subHead(t('optimizer.dropped-title', 'Retiré faute de place'))}
+                  <div style={{ fontSize: 10, color: 'var(--yellow)', display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 'var(--s-2)' }}>
+                    {droppedByReason('capacity-discovery').length > 0 && <span>{tFormat('optimizer.dropped-discovery', { n: droppedByReason('capacity-discovery').length }, 'Découverte : {n} preset(s)')}</span>}
+                    {droppedByReason('capacity-jams').length > 0 && <span>{tFormat('optimizer.dropped-jams', { n: droppedByReason('capacity-jams').length }, 'Jams : {n} banque(s)')}</span>}
+                    {droppedByReason('capacity-live').length > 0 && <span>{tFormat('optimizer.dropped-live', { n: droppedByReason('capacity-live').length, songs: droppedByReason('capacity-live').map((d) => (d.item.cluster ? catLabelOf(d.item.cluster) : '')).filter(Boolean).join(', ') }, 'Live (couverture la plus faible) : {n} — {songs}')}</span>}
+                  </div>
+                </>
+              )}
+              {(dd.kept.live.length + dd.kept.jams.length) > 0 && (
+                <button onClick={() => applyDerivedAll(dev, dd.kept)} style={{ width: '100%', background: 'linear-gradient(180deg,var(--brass-200,#d4a017),var(--brass-400,#b8860b))', border: 'none', color: 'var(--tolex-900,#1a1a1a)', borderRadius: 'var(--r-md)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>
+                  {tFormat('optimizer.derive-apply', { n: dd.kept.live.length + dd.kept.jams.length }, 'Appliquer le layout dérivé ({n} banques)')}
+                </button>
+              )}
+            </>
+          )}
+      </div>
+    );
+  };
+
   const renderReorgDevice = (dev) => {
     const data = reorgData?.[dev.deviceKey];
     if (!data) return null;
@@ -609,7 +853,6 @@ function BankOptimizerScreen({
       ? [{ s: 'A', l: t('optimizer.flat-slot', 'Preset') }]
       : [{ s: 'A', l: t('optimizer.slot-clean', 'Clean') }, { s: 'B', l: t('optimizer.slot-crunch', 'Crunch') }, { s: 'C', l: t('optimizer.slot-lead', 'Lead') }];
 
-    const subHead = (label) => <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', color: 'var(--text-tertiary)', margin: '12px 0 6px' }}>{label}</div>;
     const discBtn = { background: 'var(--bg-elev-1)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)', borderRadius: 'var(--r-sm)', padding: '3px 8px', fontSize: 9, fontWeight: 700, cursor: 'pointer' };
 
     // ── Zone Jams ──
@@ -744,6 +987,7 @@ function BankOptimizerScreen({
           <NavIcon id={dev.iconId || 'amp'} size={14}/>{dev.label}
           <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 400 }}>{tFormat('optimizer.reorg-metrics', { merged: diff.merged, moved: diff.moved, freed: diff.freed, unchanged: diff.unchanged }, '{merged} fus. · {moved} modif. · {freed} libér. · {unchanged} inch.')}</span>
         </div>
+        {deviceZoneControls(dev)}
         {subHead(t('optimizer.live-title', 'Live (1 banque/morceau)'))}
         {overflow && (
           <div style={{ fontSize: 10, color: 'var(--yellow)', background: 'var(--yellow-bg)', border: '1px solid var(--yellow-border)', borderRadius: 'var(--r-sm)', padding: '4px 8px', marginBottom: 6 }}>
@@ -1039,7 +1283,7 @@ function BankOptimizerScreen({
                   ? <div style={{ fontSize: 11, color: 'var(--text-tertiary)', padding: '12px 0' }}>{t('optimizer.reorg-loading', 'Analyse en cours…')}</div>
                   : (reorgDevices.length === 0
                     ? <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{t('optimizer.reorg-no-device', 'Aucun device ToneX activé.')}</div>
-                    : reorgDevices.map((dev) => renderReorgDevice(dev)))}
+                    : reorgDevices.map((dev) => ((dev.id !== refId && getDerivationMode(profile, dev.id, refId) === 'derived') ? renderDerivedDevice(dev) : renderReorgDevice(dev))))}
               </>
             )}
         </div>
