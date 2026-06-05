@@ -1016,6 +1016,16 @@ function BankOptimizerScreen({
                         {catLabelOf(b.cluster)}
                         {b.cluster.shared && <span style={{ color: 'var(--success)', marginLeft: 4 }}>· {tPlural('optimizer.songs-count', b.songCount, {}, { one: '1 morceau', other: '{count} morceaux' })}</span>}
                       </div>
+                      {(b.cluster.songs || []).length > 0 && (
+                        <ul style={{ listStyle: 'none', margin: '0 0 3px', padding: 0 }}>
+                          {(b.cluster.songs || []).map((s, i) => (
+                            <li key={s.id || i} style={{ fontSize: 9, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', gap: 3, alignItems: 'baseline' }} title={[s.title, s.artist].filter(Boolean).join(' — ')}>
+                              <span style={{ color: 'var(--text-tertiary)', flexShrink: 0 }}>·</span>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title || s.id}{s.artist ? <span style={{ color: 'var(--text-tertiary)' }}>{` — ${s.artist}`}</span> : null}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                       {slotDefs.map((x) => (
                         <div key={x.s} style={{ fontSize: 9, display: 'flex', gap: 3, alignItems: 'baseline', marginBottom: 1 }}>
                           <span style={{ fontWeight: 700, color: CC[x.s] || 'var(--text-tertiary)', width: 42, flexShrink: 0 }}>{x.l}</span>
