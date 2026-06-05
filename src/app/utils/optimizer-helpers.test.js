@@ -44,27 +44,49 @@ describe('clusterSongsBySharedTone — triplet, intra-ampli', () => {
     expect(clusters).toHaveLength(2);
   });
 
+  // Voix propres distinctes pour un morceau « weak/low » → la banque propre
+  // garde un triplet différent du groupe (la dédup ne la refusionne donc pas).
+  const voicesDistinct = (amp, sgs) => (sgs && sgs.length === 1 && /weak|low/.test(sgs[0].id)
+    ? { A: '800 Alt A', B: '800 Alt B', C: '800 Alt C' }
+    : voicesForAmp(amp, sgs));
+
   test('garde-fou régression : morceau du groupe mal couvert par les 3 voix → banque propre', () => {
     // 1 morceau AC/DC dont le best contre les voix 800SL régresse > δ.
     const weak = song('weak');
     const songs2 = [...acdc, weak];
     const getReco2 = (s) => (s.id === 'weak' ? { amp: 'Marshall 800SL', score: 98 } : getReco(s));
     const scoreCapture2 = (s, cap) => (s.id === 'weak' ? 85 : scoreCapture(s, cap)); // 85 < 98−5=93
-    const { clusters } = clusterSongsBySharedTone(songs2, { ...opts, getReco: getReco2, scoreCapture: scoreCapture2 });
+    const { clusters } = clusterSongsBySharedTone(songs2, { ...opts, voicesForAmp: voicesDistinct, getReco: getReco2, scoreCapture: scoreCapture2 });
     const shared = clusters.find((c) => c.amp === 'Marshall 800SL' && c.shared);
     expect(shared.songs.map((s) => s.id)).not.toContain('weak');
     const own = clusters.find((c) => c.songs.length === 1 && c.songs[0].id === 'weak');
     expect(own).toBeTruthy();
+    expect(own.voices).toEqual({ A: '800 Alt A', B: '800 Alt B', C: '800 Alt C' });
   });
 
-  test('plancher floor : même régression ≤ δ mais best < floor → banque propre', () => {
-    const songs3 = acdc.slice(0, 2);
-    const getReco3 = () => ({ amp: 'Marshall 800SL', score: 80 }); // dédié 80
-    const scoreCapture3 = () => 78; // régression 2 ≤ δ MAIS 78 < floor 80
-    const { clusters } = clusterSongsBySharedTone(songs3, { ...opts, getReco: getReco3, scoreCapture: scoreCapture3 });
-    // Aucun morceau dans une banque partagée → 2 banques propres.
-    expect(clusters.every((c) => !c.shared)).toBe(true);
-    expect(clusters).toHaveLength(2);
+  test('plancher floor : morceau < floor avec voix distinctes → reste séparé du groupe', () => {
+    const low = song('low');
+    const songsF = [...acdc, low];
+    const getRecoF = (s) => (s.id === 'low' ? { amp: 'Marshall 800SL', score: 98 } : getReco(s));
+    const scoreF = (s, cap) => (s.id === 'low' ? 78 : scoreCapture(s, cap)); // 78 < floor 80
+    const { clusters } = clusterSongsBySharedTone(songsF, { ...opts, voicesForAmp: voicesDistinct, getReco: getRecoF, scoreCapture: scoreF });
+    const shared = clusters.find((c) => c.amp === 'Marshall 800SL' && c.shared);
+    expect(shared.songs.map((s) => s.id)).not.toContain('low');
+    const own = clusters.find((c) => c.songs.length === 1 && c.songs[0].id === 'low');
+    expect(own).toBeTruthy();
+  });
+
+  test('dédup : banques propres aux 3 voix identiques → fusionnées en 1 banque partagée (bug 3-4-9)', () => {
+    // 3 morceaux du même ampli, tous sortis du groupe (floor), retombant sur le
+    // MÊME triplet de repli → une seule banque partagée au lieu de 3 identiques.
+    const three = ['s1', 's2', 's3'].map(song);
+    const getReco3 = () => ({ amp: 'Marshall 800SL', score: 80 });
+    const score3 = () => 78; // < floor 80 → tous sortis, mais triplet identique
+    const { clusters } = clusterSongsBySharedTone(three, { ...opts, getReco: getReco3, scoreCapture: score3 });
+    expect(clusters).toHaveLength(1);
+    expect(clusters[0].shared).toBe(true);
+    expect(clusters[0].songs.map((s) => s.id)).toEqual(['s1', 's2', 's3']);
+    expect(clusters[0].voices).toEqual({ A: '800 Clean', B: '800 Drive', C: '800 Lead' });
   });
 
   test('δ paramétrable : δ large refusionne le morceau faible', () => {

@@ -427,6 +427,7 @@ function BankOptimizerScreen({
       const c = repr ? songCtx(repr) : null;
       const best = { A: null, B: null, C: null };
       const bestSc = { A: -1, B: -1, C: -1 };
+      const scored = [];
       for (const [name, info] of Object.entries(PRESET_CATALOG_MERGED)) {
         if (!info || info.amp !== amp) continue;
         if (info.src && !srcOk(info.src)) continue;
@@ -434,7 +435,19 @@ function BankOptimizerScreen({
         const sc = c
           ? computeFinalScore(info, c.gId, c.style, c.targetGain, c.resolvedAmp, false)
           : (info.scores?.HB ?? 60);
+        scored.push({ name, sc });
         if (sc > bestSc[v]) { bestSc[v] = sc; best[v] = name; }
+      }
+      // Remplissage systématique : toute voix vide (l'ampli n'a aucune capture
+      // dans ce bucket de gain) reçoit la meilleure capture restante de
+      // l'ampli, distincte des autres voix. Évite les slots A/B/C vides dès que
+      // l'ampli dispose d'au moins 3 captures.
+      const used = new Set([best.A, best.B, best.C].filter(Boolean));
+      scored.sort((a, b) => b.sc - a.sc);
+      for (const v of ['A', 'B', 'C']) {
+        if (best[v]) continue;
+        const pick = scored.find((x) => !used.has(x.name));
+        if (pick) { best[v] = pick.name; used.add(pick.name); }
       }
       return best;
     };

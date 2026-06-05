@@ -97,7 +97,35 @@ function clusterSongsBySharedTone(songs, opts = {}) {
       });
     }
   }
-  return { clusters, unanalyzed };
+  // Mutualisation finale : deux banques aux 3 voix IDENTIQUES (même ampli,
+  // mêmes A/B/C) n'ont aucune différence tonale — les garder toutes deux
+  // gaspille de la capacité. On les fusionne en une seule banque partagée.
+  // Cas typique : plusieurs morceaux sortis du groupe (floor/δ) qui retombent
+  // sur le même triplet de repli de l'ampli.
+  return { clusters: dedupeTripletClusters(clusters), unanalyzed };
+}
+
+// Fusionne les clusters triplet dont le triplet (amp + A|B|C) est identique.
+// Union des morceaux (dédup par id), shared recalculé, order = min (préserve
+// la position setlist), 1re occurrence conservée pour key/kind/voices.
+function dedupeTripletClusters(clusters) {
+  const byTriplet = new Map();
+  for (const c of clusters) {
+    const v = c.voices || {};
+    const k = `${c.amp || c.key}|${v.A || ''}|${v.B || ''}|${v.C || ''}`;
+    const acc = byTriplet.get(k);
+    if (!acc) {
+      byTriplet.set(k, { ...c, songs: (c.songs || []).slice() });
+    } else {
+      const seen = new Set(acc.songs.map((s) => s.id || s));
+      for (const s of (c.songs || [])) {
+        const id = s.id || s;
+        if (!seen.has(id)) { acc.songs.push(s); seen.add(id); }
+      }
+      acc.order = Math.min(acc.order, c.order);
+    }
+  }
+  return Array.from(byTriplet.values()).map((c) => ({ ...c, shared: c.songs.length >= 2 }));
 }
 
 // buildLiveLayout(clusters, axis, opts)
