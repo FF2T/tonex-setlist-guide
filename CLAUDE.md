@@ -981,7 +981,61 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-06-04 jeudi, V9.8.1 — ToneX One + One+ + fix Optimiseur source device-gated)
+## État actuel (2026-06-05 vendredi, V9.8.10 — Phase 14 CLOSE : refonte Optimiseur (zones Live/Jams/Découverte + mobile + dérivation cross-device))
+
+**Backline v9.8.10 / SW backline-v456 / STATE_VERSION 15 / 2058 tests verts. Bundle 2969 KB.**
+
+### Chantier Phase 14 — Refonte Optimiseur ✅ CLOSE (handoff `handoff/PHASE_14_OPTIMISEUR_ZONES.md` entièrement traité)
+
+L'Optimiseur passe de 3 blocs empilés (Actions / Diagnostic / Plan) à **2 modes
+explicites** (Améliorer / Réorganiser) + un **découpage de la pédale en zones**
+(Live / Jams / Découverte) pilotable, une **métrique ampli passe-partout** pour
+les jams, le **packing sous contrainte** pour les devices mobiles et la
+**dérivation cross-device** depuis un rig de référence. **Zéro scoring V9 touché**
+(SCORING_VERSION reste 9, snapshots verts), pas de bump STATE_VERSION (les 7
+champs Phase 14 sont additifs optionnels, déjà au profileHash depuis 14.1).
+
+| Sous-phase | Version | Sujet |
+|---|---|---|
+| 14.0 (déjà fait v9.8.x) | 9.8.x | Devices One/One+ : modèle `flat` (20 slots), `bankModel`/`nbSlots` exposés tous devices |
+| 14.1 | 9.8.5 | Zones `bankZones` + `getEffectiveZones` (triplet ET flat) + barre de zones (Live/Jams/Découverte) + sync (7 champs au profileHash) |
+| 14.2 | (core) | `core/scoring/jam.js` : `jamScore` (refAmp retiré, renormalisé), `versatilityStats` (polyvalence = moyenne − k·écartType, défaut k=1.5), `computeAmpVersatility`, `rankJamAmps`. Test de réf §4.4 (Deluxe régulier > Plexi à pics). Pas d'UI |
+| 14.3 | 9.8.6 | Segmented **Améliorer / Réorganiser** + mode Réorganiser zone **Live** mutualisée (1 banque/ampli partagé, garde-fou régression δ/floor) + aperçu **diff** (inchangée/modifiée/fusionnée/libérée) + axes (setlist/famille ampli) + apply zone Live only. Suppression ancien Plan de réorganisation |
+| 14.4 | 9.8.7 | Mode **Améliorer seuillé** : `splitSwapsByImpact` (utile = franchit 80% OU sauvetage point faible `gain≥rescueGain`), mineures repliées, projected sur swaps utiles |
+| 14.5 | 9.8.8 | Zone **Jams** (branchée jam.js : ampli passe-partout par style, polyvalence/couverture, forçage `jamOverrides`, slider k) + zone **Découverte** (`discoveryPins` + suggestions + deep-link Explorer `window._explorePreset` + promotion → Jam/→ Live) |
+| 14.6 | 9.8.9 | **Mobile + dérivation** : `packForCapacity` (dégradation Découverte→Jams→fusion Live same-amp→flat 1-son→couverture, jamais de drop silencieux), `deriveLayoutFromReference` (capture compatible gardée / substituée même ampli-gain-style / vidée + divergences), `applyJamOverrides` (override survit à la dérivation), `getEffectiveReferenceDeviceId`/`getDerivationMode`, workflow « préparer ce device pour ce soir » (`portableTargets`), UI divergences + dropped |
+| 14.6.1 | 9.8.10 | Fix renumérotation : jams dérivées numérotées à la frontière de zone (Plug 11-12/10, One+ 21-22/20) → `numberDerivedLayout` (Live puis Jams contigus depuis startBank, dans la capacité) |
+
+**Helpers purs livrés** (tous testés, ~90 tests Phase 14) :
+- `core/state.js` : `getEffectiveZones`, `getEffectiveJamStyles`,
+  `getEffectiveReferenceDeviceId`, `getDerivationMode`.
+- `core/scoring/jam.js` : `jamScore`, `versatilityStats`,
+  `computeAmpVersatility`, `rankJamAmps`.
+- `app/utils/optimizer-helpers.js` : `clusterSongsBySharedTone`,
+  `buildLiveLayout`, `diffLayout`, `splitSwapsByImpact`, `buildJamLayout`,
+  `packForCapacity`, `deriveLayoutFromReference`, `applyJamOverrides`,
+  `numberDerivedLayout`.
+
+**Modèle de données Phase 14** (additif, `profile.*`, défauts via helpers) :
+`bankZones[deviceId]={liveEnd,jamEnd}`, `jamStyles[]`,
+`jamOverrides[deviceId][style]`, `discoveryPins[deviceId][]`,
+`referenceDeviceId`, `derivationMode[deviceId]` ('derived'|'independent'),
+`portableTargets[deviceId]={kind:'setlist'|'jam',setlistId?,styles?}`. Tous au
+profileHash (sync Firestore), pas de STATE_VERSION bump.
+
+**Dette résiduelle Phase 14** (assumée v1) :
+- Le mode Réorganiser est gated **admin** (route `optimizer` Phase 7.29.3). Si un
+  beta-testeur non-admin doit packer son device mobile, ouvrir l'accès (cf
+  dette Phase 7.67 édition rig non-admin).
+- `findClosestForTarget` (substitut dérivation) prend le 1er match
+  ampli→gain→style sans scorer finement (suffisant v1).
+- Pas de test E2E React de `BankOptimizerScreen` (les helpers purs couvrent la
+  logique ; smoke test manuel au déploiement). Le compute dérivation/packing est
+  déféré + mémoïsé (`window.__TONEX_PERF`).
+
+---
+
+## État précédent (2026-06-04 jeudi, V9.8.1 — ToneX One + One+ + fix Optimiseur source device-gated)
 
 **Backline v9.8.1 / SW backline-v447 / STATE_VERSION 15 / 1974 tests verts. Bundle 2914 KB.**
 
