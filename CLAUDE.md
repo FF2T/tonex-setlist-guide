@@ -1033,6 +1033,18 @@ profileHash (sync Firestore), pas de STATE_VERSION bump.
   logique ; smoke test manuel au déploiement). Le compute dérivation/packing est
   déféré + mémoïsé (`window.__TONEX_PERF`).
 
+### Statut responsive (mise au point 2026-06-05)
+
+**L'audit responsive est FAIT — ne pas relancer un audit global.** Mené en
+plusieurs vagues Cowork (Chrome MCP) entre le 24/05 et début juin :
+Phase 7.55.7 S1/S2, **Phase 7.85** (16/16 issues closes), et la grosse vague
+**v9.7.5 → v9.7.13** (root cause CSS syllable-breaking <430px + tous les touch
+targets 44×44 + layouts 2-cols iPad). Cf détail dans « Idées en attente →
+Phase 7.80.1 » (marquée ✅ largement traitée). Le résiduel = quelques
+**décisions de design** (nav iPad portrait, densité BankEditor), pas des bugs.
+→ Traiter les cas responsive **ponctuellement, ciblés, avec screenshot** du
+device concerné — pas de chantier « audit complet » à planifier.
+
 ---
 
 ## État précédent (2026-06-04 jeudi, V9.8.1 — ToneX One + One+ + fix Optimiseur source device-gated)
@@ -8727,11 +8739,44 @@ peut curer sans modale superposée.
 
 ### Phase 7.80 (notée 2026-05-19) — Dettes critiques
 
-1. **Phase 7.80.1 — Revue UX/UI responsive complète** (à investiguer)
-   — audit systématique sur iPhone (PWA installée) + iPad portrait/
-   paysage + Chrome DevTools responsive mode. Symptômes ponctuels
-   observés : header tronqué iPhone, overflow inputs, modales scroll
-   mobile. Effort ~6-10h audit + 10-15h fixes.
+1. **Phase 7.80.1 — Revue UX/UI responsive complète** ✅ **LARGEMENT
+   TRAITÉE 2026-05-24 → début juin (vagues Cowork)** — n'est PLUS un
+   chantier à lancer. L'audit responsive systématique (Claude Cowork,
+   Chrome MCP, 6 résolutions iPhone/iPad) a été mené en plusieurs
+   vagues et les issues sont closes :
+   - **Phase 7.55.7 S1/S2** (24/05, v8.14.190-191) : LiveScreen iPad
+     (typo XXL + Wake Lock) + cibles tactiles <44px (AppNavBottom 50px,
+     toolbar setlist, ✕ Quitter) + fix effondrement preset name iPhone.
+   - **Phase 7.85** (27/05, v8.14.240-243) : audit Cowork 4 batchs →
+     **16/16 issues closes** (4 P0 + 17 P1 + 5 P2). Tous les touch
+     targets passés à 44×44 (chips, avatar, toolbar, footer, boutons
+     Mon compte). max-width prose 65ch + sections.
+   - **v9.7.5 → v9.7.13** (début juin) : la grosse vague. **Root cause
+     CSS** identifiée (`flex-shrink:1 + white-space:normal + min-width:auto`
+     → texte coupé syllabe par syllabe <430px) → fix global via
+     `whiteSpace:nowrap` sur `chip()` + tabs + toolbars. 10 P0 + 6 P1
+     batch A/B/C, tours 2-3 sur les résiduels (boutons Langue, badges
+     guitare, SongSearchBar OK iPhone), **v9.7.9** audit iPad sur compte
+     réel (10 fixes), **v9.7.11** layouts 2-cols iPad fiche dépliée
+     (`.ipad-2col`), **v9.7.10** hit area CurationDot.
+   - **Méthode** : filtre signal/bruit explicite — Cowork mesurait à
+     640 CSS px (Mac Retina DPR=2) ce qui exagérait certaines issues ;
+     les « spurious » (nav-desktop 2 lignes, onglets 2 rangées) sont OK
+     à 1024 CSS px du vrai iPad Pro 13" et ont été écartés.
+
+   **Résiduel marginal = décisions de design, pas des bugs** (trigger
+   si signal user concret avec screenshot, pas un audit global) :
+   - P1-07 : nav iPad **portrait** au format mobile (latérale vs bottom
+     = choix design).
+   - B06 : centrage ListScreen iPad portrait, non reproduit en analyse
+     statique (`.page-root` margin:auto centre déjà).
+   - Quelques P2 cosmétiques (version 14px, marges paysage).
+   - P1-G : densité BankEditor 150 cellules sub-44px verticalement
+     (densité vs tactile, décision design assumée).
+
+   → Ne pas relancer un « audit responsive complet » de novo. Traiter
+   les cas ponctuels au fil de l'eau, ciblés, avec un screenshot du
+   device concerné.
 
 2. **Phase 7.80.2 — Fix sync aiCache Mac ↔ iPhone** ✅ **LIVRÉ 2026-05-19 soir (v8.14.144)**
    — Cause racine identifiée : `mergeProfileLWW` (state.js:805) faisait
