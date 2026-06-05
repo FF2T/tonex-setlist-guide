@@ -420,6 +420,25 @@ function BankOptimizerScreen({
       }
       return best;
     };
+    // Catalog entier scoré pour un contexte de morceau (mémoïsé par device
+    // build) → fallback de remplissage quand l'ampli n'a pas assez de captures.
+    const globalScoredCache = new Map();
+    const globalScoredFor = (c) => {
+      const key = c ? `${c.gId}|${c.style}|${c.targetGain}|${c.resolvedAmp}` : '_none';
+      if (globalScoredCache.has(key)) return globalScoredCache.get(key);
+      const glob = [];
+      for (const [name, info] of Object.entries(PRESET_CATALOG_MERGED)) {
+        if (!info || !info.amp) continue;
+        if (info.src && !srcOk(info.src)) continue;
+        const sc = c
+          ? computeFinalScore(info, c.gId, c.style, c.targetGain, c.resolvedAmp, false)
+          : (info.scores?.HB ?? 60);
+        glob.push({ name, sc });
+      }
+      glob.sort((a, b) => b.sc - a.sc);
+      globalScoredCache.set(key, glob);
+      return glob;
+    };
     // Meilleure capture par voix (A/B/C) d'un ampli, jugée sur le morceau
     // représentatif du groupe (ctx du 1er morceau).
     const voicesForAmp = (amp, groupSongs) => {
@@ -438,16 +457,25 @@ function BankOptimizerScreen({
         scored.push({ name, sc });
         if (sc > bestSc[v]) { bestSc[v] = sc; best[v] = name; }
       }
-      // Remplissage systématique : toute voix vide (l'ampli n'a aucune capture
-      // dans ce bucket de gain) reçoit la meilleure capture restante de
-      // l'ampli, distincte des autres voix. Évite les slots A/B/C vides dès que
-      // l'ampli dispose d'au moins 3 captures.
       const used = new Set([best.A, best.B, best.C].filter(Boolean));
+      // 1. Voix vide → meilleure capture restante du MÊME ampli (autre bucket).
       scored.sort((a, b) => b.sc - a.sc);
       for (const v of ['A', 'B', 'C']) {
         if (best[v]) continue;
         const pick = scored.find((x) => !used.has(x.name));
         if (pick) { best[v] = pick.name; used.add(pick.name); }
+      }
+      // 2. Voix encore vide (ampli < 3 captures dispo) → meilleures captures
+      //    du catalog entier pour le contexte. Garantit A/B/C TOUJOURS proposés,
+      //    même si une seule voix est vraiment utile au morceau.
+      if (!best.A || !best.B || !best.C) {
+        const glob = globalScoredFor(c);
+        let gi = 0;
+        for (const v of ['A', 'B', 'C']) {
+          if (best[v]) continue;
+          while (gi < glob.length && used.has(glob[gi].name)) gi += 1;
+          if (gi < glob.length) { best[v] = glob[gi].name; used.add(glob[gi].name); gi += 1; }
+        }
       }
       return best;
     };
