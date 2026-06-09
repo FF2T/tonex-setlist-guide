@@ -981,9 +981,47 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-06-06 samedi, V9.8.13 — Phase 14 CLOSE + raffinements Réorganiser 14.7→14.9)
+## État actuel (2026-06-09 mardi, V9.8.14 — fix corruption rig (customGuitars) + re-stamp setlist)
 
-**Backline v9.8.13 / SW backline-v459 / STATE_VERSION 15 / 2059 tests verts. Bundle ~2970 KB.**
+**Backline v9.8.14 / SW backline-v460 / STATE_VERSION 15 / 2065 tests verts. Bundle ~2971 KB.**
+
+### Session 2026-06-09 — fixes sync issus d'un audit anomalies (14.10 + 14.11)
+
+Deux bugs corrigés suite à un rapport d'anomalies (audit navigateur) + un
+incident live de corruption rig.
+
+- **14.10 (v9.8.14)** — **Anomalie D : re-stamp setlist en lecture seule.**
+  `SongDetailCard` auto-adoptait la guitare idéale (Phase 5.10) via
+  `onGuitarChange(matched.id)` — **un seul argument** alors que le handler attend
+  `(songId, gId)`. Résultat : écriture `guitars[<guitarId>]=undefined` (clé
+  garbage) sans remplir `guitars[song.id]` → `gId` restait `''` → auto-adoption
+  re-firait à CHAQUE ouverture → re-stamp `lastModified` de la setlist active
+  (churn Firestore + propagation cross-device sans valeur). Fix : arité
+  `onGuitarChange(song.id, matched.id)`. Stampe une fois (adoption légitime) puis
+  stable.
+
+- **14.11 (v9.8.14)** — **CAUSE RACINE corruption rig récurrente (Tele 51 cg_*
+  qui disparaît).** Le pull Firestore adoptait `shared.customGuitars` **EN BLOC**
+  (`applyRemoteData` poll + initial load, main.jsx) → un device poussant une
+  version appauvrie (custom guitar jamais syncée chez lui) **effaçait la guitare
+  pour tous, à chaque reload**. Aucune protection union/LWW contrairement à
+  myGuitars (7.74.x), setlists (5.7), ToneNET (7.53.1). Fix :
+  `mergeCustomGuitarsLWW` (union par id, aucun id droppé silencieusement, remote
+  gagne sur conflit de métadonnée), branché aux 2 call sites de pull. +6 tests.
+  Trade-off v1 assumé : pas de tombstone (suppression peut ressusciter depuis un
+  remote périmé — moindre mal vs perte de données ; pattern Phase 7.53.2 si besoin).
+
+**⚠️ Distinction critique pour les futures sessions** : il y a DEUX corruptions
+distinctes du rig, longtemps confondues :
+1. **`shared.customGuitars`** (métadonnée de la custom : nom/type/marque) — effacée
+   par l'adopt-en-bloc → **RÉGLÉ Phase 14.11**. Symptôme : la guitare disparaît
+   de la liste, plus cochable (findGuitar ne la résout pas).
+2. **`profile.myGuitars`** (quelles guitares sont cochées) — pollution
+   cross-profile (Sire de Francisco, sg61 d'Arthur s'ajoutent au rig Sébastien) —
+   **cause de fond NON identifiée** (Phase 7.74.x, défenses orphan/swap récurrentes
+   mais débordées). Symptôme : cases cochées erronées. Nettoyage manuel + stamp
+   `myGuitarsModified` tient. Logger forensique `__backline_persist_logs` à activer
+   pour capturer le prochain événement (`window.__getMergeDebugLogs()`).
 
 ### Chantier Phase 14 — Refonte Optimiseur ✅ CLOSE + raffinements (handoff `handoff/PHASE_14_OPTIMISEUR_ZONES.md` entièrement traité)
 
@@ -17176,6 +17214,47 @@ profile {
   passer en stale-while-revalidate sur le HTML.
 
 ## Idées en attente (proposées, pas encore validées)
+
+### Anomalies recensées (audit navigateur 2026-06-09) — A traiter
+
+Rapport d'anomalies sur v9.8.13. **D et la cause racine customGuitars ont été
+corrigées le 2026-06-09 (Phase 14.10 + 14.11, cf État actuel).** Restent :
+
+- **A — Gel rendu Explorer au changement de catégorie** (sévérité haute, à
+  confirmer device réel). Sur le catalogue complet (~431 presets), sélectionner
+  une catégorie (« Metal moderne ») bloque le paint > 30s par à-coups. DOM léger
+  (~221 divs, virtualisé) + JS répond → **longue tâche synchrone** au re-filtrage.
+  Piste : déférer/mémoïser le recompute (pattern `requestIdleCallback` déjà utilisé
+  Phase 5.13 ListScreen — mais PresetBrowser n'en bénéficie pas), ou pré-indexer
+  catégorie→presets côté data. ⚠️ Réserve : une partie du timeout peut venir de
+  l'automation CDP ; profiler en conditions réelles (Chrome desktop + iPad) avant
+  de coder. **Note investigation** : le `filtered` useMemo (PresetBrowser ~809)
+  est cheap ; suspecter plutôt le RENDER des cartes ou `PresetDetailInline`
+  (`guitarScores = allGuitars.map(...)` ligne ~441) si une carte reste ouverte.
+
+- **B — Diagnostic Optimiseur vide au mount** (moyenne). Setlist « Ma Setlist (16) »
+  sélectionnée → bloc DIAGNOSTIC affiche 0/0/0 Couverts/Moyens/Faibles + « 0 banques
+  utilisées » alors que banks pleines. Hypothèse : compute déféré + mémoïsé Phase 14
+  (`window.__TONEX_PERF`) non déclenché au mount, ou diagnostic non rafraîchi pour la
+  setlist active → état vide trompeur. Vérifier si une interaction explicite est
+  requise.
+
+- **C — Scoring Jammer : trop d'égalités à 93,5 %** (moyenne, qualité reco). SG Ebony
+  → Hard Rock → les 9 résultats (TOP3 ×3) tous à 93,5 % exact → classement non
+  discriminant. Trade-off connu `jam.js` Phase 14.2 (refAmp retiré + renormalisé).
+  Piste : tie-break secondaire visible (affinité micro fine, diversité ampli, registre)
+  ou sous-score exposé.
+
+- **E — Mon Profil → Activité : date d'inscription vide** (faible, cosmétique). Stat
+  « INSCRIPTION — » non remplie. Prévu Phase 7.73.2 Session C (dériver de
+  `loginHistory[0]`) — **Session C jamais livrée**. Piste : dériver de la 1ère entrée
+  loginHistory ou stocker `createdAt`.
+
+- **F — Hygiène données banks** (faible, dette connue). SupergroupBass_SM57_TB_full
+  (capture basse) en Anniversary 18C + Plug 9C/10B/10C (dupliquée), contexte guitare.
+  Laney VC50 HighGain (libellé inconnu, non curé) Plug 9A/10A. ~135 presets non curés
+  (compteurs « Curer 114 » Ann / « 21 » Plug). Dégrade la précision (pas de pin direct).
+  Couvert par dettes connues (Phase 7.73.2.3, Phase 11 couches curation).
 
 ### Phase 7.74.6 (proposée 2026-05-21) — Pollution profile 5e occurrence étendue à `banksAnn`
 
