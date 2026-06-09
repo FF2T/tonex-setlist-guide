@@ -295,7 +295,11 @@ function SongDetailCard({ song, banksAnn, banksPlug, onBanksAnn, onBanksPlug, ba
           const matched = findGuitarByAIName(r.ideal_guitar, allRigsGuitars || guitars);
           if (matched) {
             setTimeout(() => {
-              try { onGuitarChange(matched.id); } catch (e) { /* parent may not provide */ }
+              // Phase 14.10 — Arité corrigée : le handler attend (songId, gId).
+              // Avant : onGuitarChange(matched.id) écrivait guitars[<guitarId>]=undefined
+              // (clé garbage) sans remplir guitars[song.id] → gId restait '' → auto-adoption
+              // re-firait à CHAQUE ouverture → re-stamp setlist en boucle (anomalie D).
+              try { onGuitarChange(song.id, matched.id); } catch (e) { /* parent may not provide */ }
             }, 0);
           }
         }
