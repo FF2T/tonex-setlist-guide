@@ -981,11 +981,17 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-06-05 vendredi, V9.8.10 — Phase 14 CLOSE : refonte Optimiseur (zones Live/Jams/Découverte + mobile + dérivation cross-device))
+## État actuel (2026-06-06 samedi, V9.8.13 — Phase 14 CLOSE + raffinements Réorganiser 14.7→14.9)
 
-**Backline v9.8.10 / SW backline-v456 / STATE_VERSION 15 / 2058 tests verts. Bundle 2969 KB.**
+**Backline v9.8.13 / SW backline-v459 / STATE_VERSION 15 / 2059 tests verts. Bundle ~2970 KB.**
 
-### Chantier Phase 14 — Refonte Optimiseur ✅ CLOSE (handoff `handoff/PHASE_14_OPTIMISEUR_ZONES.md` entièrement traité)
+### Chantier Phase 14 — Refonte Optimiseur ✅ CLOSE + raffinements (handoff `handoff/PHASE_14_OPTIMISEUR_ZONES.md` entièrement traité)
+
+> **Note** : Phase 14 a été déclarée CLOSE à la 14.6.1 (v9.8.10). Les
+> sous-phases **14.7→14.9** (v9.8.11→9.8.13) sont des **raffinements du mode
+> Réorganiser** livrés après coup suite aux tests (tuiles Live + dédup banques
+> + remplissage A/B/C systématique). Zéro nouveau modèle de données, zéro
+> scoring V9 touché.
 
 L'Optimiseur passe de 3 blocs empilés (Actions / Diagnostic / Plan) à **2 modes
 explicites** (Améliorer / Réorganiser) + un **découpage de la pédale en zones**
@@ -1005,6 +1011,9 @@ champs Phase 14 sont additifs optionnels, déjà au profileHash depuis 14.1).
 | 14.5 | 9.8.8 | Zone **Jams** (branchée jam.js : ampli passe-partout par style, polyvalence/couverture, forçage `jamOverrides`, slider k) + zone **Découverte** (`discoveryPins` + suggestions + deep-link Explorer `window._explorePreset` + promotion → Jam/→ Live) |
 | 14.6 | 9.8.9 | **Mobile + dérivation** : `packForCapacity` (dégradation Découverte→Jams→fusion Live same-amp→flat 1-son→couverture, jamais de drop silencieux), `deriveLayoutFromReference` (capture compatible gardée / substituée même ampli-gain-style / vidée + divergences), `applyJamOverrides` (override survit à la dérivation), `getEffectiveReferenceDeviceId`/`getDerivationMode`, workflow « préparer ce device pour ce soir » (`portableTargets`), UI divergences + dropped |
 | 14.6.1 | 9.8.10 | Fix renumérotation : jams dérivées numérotées à la frontière de zone (Plug 11-12/10, One+ 21-22/20) → `numberDerivedLayout` (Live puis Jams contigus depuis startBank, dans la capacité) |
+| 14.7 | 9.8.11 | Tuiles Live : détail des **morceaux couverts** (titres + artiste discret) sous le label ampli/compteur, au lieu du seul « X morceaux ». Données déjà dispo via `b.cluster.songs`, aucun threading |
+| 14.8 | 9.8.12 | **Dédup banques Live identiques** (`dedupeTripletClusters` : fusionne clusters au triplet amp+A\|B\|C identique en 1 banque partagée, union morceaux) + **remplissage A/B/C systématique** (`voicesForAmp` : toute voix vide remplie avec meilleure capture distincte de l'ampli dès ≥3 captures). Fix bug banques répliquées 3/4/9 + 6/13. 2059 tests |
+| 14.9 | 9.8.13 | **A/B/C toujours proposés** (fallback cross-ampli) : `voicesForAmp` complète en 2 temps — (1) captures restantes du même ampli, (2) meilleures captures du **catalog entier** pour le contexte du morceau (mémoïsées par contexte). Garantit A/B/C remplis même si l'ampli a < 3 captures dispo (souvent dû au filtrage par sources cochées) |
 
 **Helpers purs livrés** (tous testés, ~90 tests Phase 14) :
 - `core/state.js` : `getEffectiveZones`, `getEffectiveJamStyles`,
@@ -1014,7 +1023,10 @@ champs Phase 14 sont additifs optionnels, déjà au profileHash depuis 14.1).
 - `app/utils/optimizer-helpers.js` : `clusterSongsBySharedTone`,
   `buildLiveLayout`, `diffLayout`, `splitSwapsByImpact`, `buildJamLayout`,
   `packForCapacity`, `deriveLayoutFromReference`, `applyJamOverrides`,
-  `numberDerivedLayout`.
+  `numberDerivedLayout`, `dedupeTripletClusters` (14.8).
+- `app/screens/BankOptimizerScreen.jsx` : `voicesForAmp` (14.8 + 14.9,
+  remplissage A/B/C même-ampli puis fallback catalog entier mémoïsé par
+  contexte).
 
 **Modèle de données Phase 14** (additif, `profile.*`, défauts via helpers) :
 `bankZones[deviceId]={liveEnd,jamEnd}`, `jamStyles[]`,
