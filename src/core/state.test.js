@@ -13,7 +13,7 @@ import {
   wrapDemoGuard, stripDemoProfiles, stripDemoFromSetlists,
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW, mergeProfileLWW,
-  mergeToneNetPresetsLWW, mergeDeletedToneNetIds,
+  mergeToneNetPresetsLWW, mergeDeletedToneNetIds, mergeCustomGuitarsLWW,
   stampedProfileUpdate,
   ensureProfileV10, ensureProfilesV10, migrateV9toV10, getProfileAiCache,
   ensureProfileV11, ensureProfilesV11, migrateV10toV11,
@@ -1487,6 +1487,44 @@ describe('mergeSetlistsLWW — Phase 5.7 (le scénario du bug)', () => {
     const remote = { id: 'a', name: 'R', songIds: [] };
     const out = mergeSetlistsLWW([local], [remote], { a: 1 });
     expect(out).toHaveLength(0);
+  });
+});
+
+describe('mergeCustomGuitarsLWW — Phase 14.11', () => {
+  const TELE51 = { id: 'cg_1779120397266', name: "Fender Telecaster '51", short: 'Tele 51', type: 'SC', brand: 'Fender' };
+  const SIRE = { id: 'sire_t7', name: 'Sire T7', type: 'SC', brand: 'Sire' };
+
+  test('scénario bug : remote appauvri n\'efface PAS la custom locale', () => {
+    // Avant Phase 14.11 : adopt-en-bloc → remote=[] effaçait Tele 51.
+    const out = mergeCustomGuitarsLWW([TELE51], []);
+    expect(out).toEqual([TELE51]);
+  });
+
+  test('remote-only adopté', () => {
+    const out = mergeCustomGuitarsLWW([], [SIRE]);
+    expect(out.map((g) => g.id)).toEqual(['sire_t7']);
+  });
+
+  test('union : local-only + remote-only conservés tous les deux', () => {
+    const out = mergeCustomGuitarsLWW([TELE51], [SIRE]);
+    expect(out.map((g) => g.id).sort()).toEqual(['cg_1779120397266', 'sire_t7']);
+  });
+
+  test('conflit même id : remote gagne (édition de nom propagée)', () => {
+    const remoteEdit = { ...TELE51, name: 'Tele 51 renommée' };
+    const out = mergeCustomGuitarsLWW([TELE51], [remoteEdit]);
+    expect(out).toHaveLength(1);
+    expect(out[0].name).toBe('Tele 51 renommée');
+  });
+
+  test('pas de doublon quand id présent des deux côtés', () => {
+    const out = mergeCustomGuitarsLWW([TELE51, SIRE], [SIRE]);
+    expect(out.map((g) => g.id).sort()).toEqual(['cg_1779120397266', 'sire_t7']);
+  });
+
+  test('inputs falsy / entries sans id → robuste', () => {
+    expect(mergeCustomGuitarsLWW(null, undefined)).toEqual([]);
+    expect(mergeCustomGuitarsLWW([{ name: 'no id' }], [TELE51])).toEqual([TELE51]);
   });
 });
 

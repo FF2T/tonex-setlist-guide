@@ -82,7 +82,7 @@ import {
   ensureSharedV7, ensureProfileV7, ensureProfilesV7,
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW,
-  mergeToneNetPresetsLWW, mergeDeletedToneNetIds,
+  mergeToneNetPresetsLWW, mergeDeletedToneNetIds, mergeCustomGuitarsLWW,
   stripAiCacheForSync, mergeSongDbPreservingLocalAiCache,
   computeNewzikCreateNames, computeNewzikMergeNames,
   toggleSetlistProfile,
@@ -282,7 +282,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "9.8.13";
+const APP_VERSION = "9.8.14";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -1463,9 +1463,12 @@ export function App() {
       if(JSON.stringify(m)===JSON.stringify(prev))return prev;
       return m;
     });
+    // Phase 14.11 — Merge UNION par id au lieu d'adopt-en-bloc (qui effaçait
+    // les customs absentes du remote → perte Tele 51 récurrente).
     if(data.shared.customGuitars) setCustomGuitars(prev=>{
-      if(JSON.stringify(data.shared.customGuitars)===JSON.stringify(prev))return prev;
-      return data.shared.customGuitars;
+      const merged=mergeCustomGuitarsLWW(prev,data.shared.customGuitars);
+      if(JSON.stringify(merged)===JSON.stringify(prev))return prev;
+      return merged;
     });
     // Phase 7.53.1 — Merge LWW per-item au lieu de remplacement en bloc.
     // Évite qu'un device avec [] vide écrase la curation d'un autre device.
@@ -1586,7 +1589,7 @@ export function App() {
             songDb:mergedSongs,
             theme:data.shared.theme||theme,
             setlists:mergedSl,
-            customGuitars:data.shared.customGuitars||customGuitars,
+            customGuitars:mergeCustomGuitarsLWW(customGuitars,data.shared.customGuitars),
             deletedSetlistIds:mergedDel,
             lastModified:Date.now(),
           },

@@ -1086,6 +1086,40 @@ function mergeToneNetPresetsLWW(localPresets, remotePresets, mergedTombstones) {
   return out;
 }
 
+// Phase 14.11 — Merge UNION par id de shared.customGuitars.
+//
+// BUG corrigé : le pull Firestore adoptait shared.customGuitars EN BLOC
+// (remplacement total par le remote). Un device poussant une version
+// appauvrie (custom guitar jamais syncée chez lui) effaçait la guitare
+// pour tous → perte de données récurrente (Tele 51 cg_* qui disparaît).
+//
+// Les customGuitars n'ont pas de lastModified per-item. On fait donc une
+// UNION par id : aucun id n'est jamais droppé silencieusement.
+//  - Présent des deux côtés → remote gagne (peut porter une édition de nom).
+//  - Local-only → conservé (la nouveauté pas encore propagée survit).
+//  - Remote-only → adopté.
+// Trade-off assumé v1 : pas de tombstone, donc une guitare supprimée peut
+// ressusciter depuis un remote périmé (moindre mal vs perte de données).
+// Tombstones à ajouter plus tard si la suppression devient un cas réel
+// (pattern Phase 7.53.2 deletedToneNetIds).
+function mergeCustomGuitarsLWW(localGuitars, remoteGuitars) {
+  const local = Array.isArray(localGuitars) ? localGuitars : [];
+  const remote = Array.isArray(remoteGuitars) ? remoteGuitars : [];
+  const remoteMap = new Map(remote.filter((g) => g && g.id).map((g) => [g.id, g]));
+  const seen = new Set();
+  const out = [];
+  for (const lg of local) {
+    if (!lg || !lg.id) continue;
+    seen.add(lg.id);
+    out.push(remoteMap.get(lg.id) || lg);
+  }
+  for (const rg of remote) {
+    if (!rg || !rg.id || seen.has(rg.id)) continue;
+    out.push(rg);
+  }
+  return out;
+}
+
 // Merge LWW per-profile. Pour chaque id dans union :
 //  - Présent des deux côtés → garde celui au plus grand lastModified
 //    (égalité = keep local).
@@ -3143,7 +3177,7 @@ export {
   wrapDemoGuard, stripDemoProfiles, stripDemoFromSetlists,
   gcTombstones,
   mergeDeletedSetlistIds, mergeSetlistsLWW, mergeProfilesLWW, mergeProfileLWW,
-  mergeToneNetPresetsLWW, mergeDeletedToneNetIds,
+  mergeToneNetPresetsLWW, mergeDeletedToneNetIds, mergeCustomGuitarsLWW,
   stampedProfileUpdate,
   ensureProfileV10, ensureProfilesV10, migrateV9toV10, getProfileAiCache,
   ensureProfileV11, ensureProfilesV11, migrateV10toV11,
