@@ -981,7 +981,98 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-06-09 mardi, V9.8.18 — fixes audit anomalies complet (D + rig + A + B + C + E))
+## État actuel (2026-06-09 mardi soir, V9.8.21 — Évaluateur d'achat de presets/packs)
+
+**Backline v9.8.21 / SW backline-v467 / STATE_VERSION 15 / 2112 tests verts. Bundle ~2991 KB.**
+
+### Nouvel écran admin « Évaluer » — décider si un pack vaut le coup (v9.8.19 → 9.8.21)
+
+Réponse au besoin : *« je voudrais une fonction qui détermine si l'achat d'un
+preset ou d'un pack est intéressant pour moi. Uploader une liste, Backline note
+les presets et dit si ça a du sens. »* Nouvel écran top-level **admin-gated**
+(comme l'Optimiseur), entrée nav `evaluate` (+ icône NavIcon `evaluate`
+étiquette de prix). Logique pure et testée dans `src/core/purchase-eval.js`,
+UI dans `src/app/screens/EvaluatePurchaseScreen.jsx`. **Lecture seule** (rien
+écrit au profil). **Pas de bump SCORING_VERSION** (réutilise V9) ni
+STATE_VERSION.
+
+**Le besoin** : coller le listing d'un pack envisagé → Backline note chaque
+preset contre le **répertoire analysé** et rend un verdict **mené par les
+morceaux débloqués**.
+
+**3 dimensions de « intéressant »** : couverture (score bien sur mes morceaux) ·
+valeur marginale (bat mon meilleur preset installé) · manques comblés
+(sauvetage de point faible).
+
+**Principes méthodologiques** (cf `feedback_apples-to-apples-scoring`) :
+- **P1 armes égales** : candidat ET baseline notés par la MÊME fonction
+  `scoreEntryForSong`, aucun pin asymétrique. On ne lit JAMAIS les
+  `result.preset_*.score` du cache (gonflés par les pins Phase 7.31/7.52.5) —
+  la baseline `currentBest` est **recalculée brute** sur les slots installés
+  (`computeFinalScore` n'applique pas les pins, posés après dans
+  `enrichAIResult`). Boost usages appliqué symétriquement des deux côtés.
+- **P3** : `currentBest === null` (aucun preset installé scoré) ≠ `0` → un
+  morceau « non calculé » n'est jamais compté « comble un manque ».
+- **P5** : le verdict compte des **morceaux** (`unlockedSongs` dédupliqués),
+  pas des presets.
+- **P6** : captures basse exclues (`isBassPreset`), compute **déféré/chunké**
+  (pattern Phase 5.13) avec progression.
+
+**Verdict tunable** (`buildVerdict`, seuils en `DEFAULT_EVAL_OPTS`, pas câblés
+UI) : positif si `unlockedCount ≥ 1` · **marginal** si peu d'utiles sur
+l'évaluable (`useful/evaluableCount ≤ 0.34`, nomme les presets qui débloquent) ·
+nuancé si seulement des améliorations · négatif sinon. Drapeau **préliminaire**
+quand > 40 % des presets sont devinés (`confidence: catalog|ai|guessed`).
+
+**Réutilisation** : `parsePackListing` (unzip -l / ls / liste brute) ·
+`findCatalogEntry` · `detectPresetMetadata` (heuristique) · `enrichPackWithAI`
+(bouton « Affiner avec l'IA », 1 appel Gemini/Anthropic) · `computeFinalScore` ·
+`bucketizeScore`. UI no-emoji (pastilles colorées + libellés). Scope = tous les
+morceaux analysés (filtre setlist optionnel). Baseline = presets installés
+recalculés — granularité « par pack possédé » = **Phase 12 `ownedPacks`** (la
+valeur marginale s'affinera quand Phase 12 arrivera ; ouverture non-admin
+couplée à Phase 12).
+
+**Helpers purs** (`src/core/purchase-eval.js`) : `usagesMatchSong`,
+`scoreEntryForSong`, `resolveInstalledEntries` (résout les slots installés 1×
+par rig, perf), `bestInstalledForSong`, `currentBestInstalled`, `buildVerdict`,
+`evaluatePack`. Tests : `purchase-eval.test.js` (32), `parse-pack-listing.test.js`
+(+2), `infer-preset.test.js` (6, B/C).
+
+**Fixes post-test prod** (retours Sébastien sur 4 packs réels) :
+- **A** `parsePackListing` garde les `/` des noms bruts (amplis vintage « VOX
+  AC30/4 », « JTM-45 / Radiospares OT ») ; ne strip le chemin que pour les
+  vrais `.txp`.
+- **B/C** `inferPresetInfo` : défaut gain **high** via l'école `mesa_heavy`
+  (toutes variantes Mesa Rectifier/Mark, Peavey/EVH 5150, ENGL, Diezel) + set
+  explicite des boutiques high-gain `marshall_crunch` (Friedman BE/HBE, Soldano
+  SLO/GP77) — NE bump PAS Marshall (JCM/Plexi/JTM) ni Bogner (versatile, même
+  école). Abréviations BOG/MES/FRIED/SOLD/PV.
+- **D** amp inconnu → tag « Non évaluable » (plus de faux « Doublon »), exclu du
+  décompte verdict ; pack 100 % inconnu reste préliminaire.
+- **E** verdict « Marginal » nommant les presets qui débloquent vraiment.
+- **F** barre de progression atteint 100 % (`evaluatePack` dans un tick séparé).
+- **G** perf : `resolveInstalledEntries` 1× par rig (le `findCatalogEntry` au
+  fallback toneModelName O(1700) ne tourne plus par morceau) + **baseline
+  mémoïsée par (scope, rig)** via `baselineRef` → enchaîner des packs et
+  « Affiner avec l'IA » sont quasi-instantanés (< 3 s).
+
+**Calibration P4** : défauts `goodThreshold 80 / weakThreshold 75 /
+improveDelta 5` confirmés sur la distribution réelle — ne pas bouger.
+
+**Dette résiduelle** :
+- **i18n EN/ES** des clés `evaluate.*` (FR fallback inline pour l'instant).
+- **Revv / Diezel(VH4-Herbert-Hagen) / Bogner Überschall** non résolus en high
+  (absents/mal mappés dans `AMP_TAXONOMY`) → restent « Non évaluable » ou mid.
+  Petit batch data (`src/data/data_context.js`) à grouper quand un profil metal
+  (Bruno) est réactivé — sans valeur pour le répertoire blues/rock 70s de
+  Sébastien (ces amplis sont « hors répertoire » par mismatch de style).
+- Ouverture aux non-admins : différée (dépend de Phase 12 pour la fiabilité de
+  la baseline « ce que je possède »).
+
+---
+
+## État précédent (2026-06-09 mardi matin, V9.8.18 — fixes audit anomalies complet (D + rig + A + B + C + E))
 
 **Backline v9.8.18 / SW backline-v464 / STATE_VERSION 15 / 2072 tests verts. Bundle ~2971 KB.**
 
