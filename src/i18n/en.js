@@ -413,6 +413,8 @@ const en = {
   'optimizer.stat-covered': 'Covered',
   'optimizer.stat-medium': 'Medium',
   'optimizer.stat-weak': 'Weak',
+  'optimizer.diag-computing': 'Computing diagnostic…',
+  'optimizer.diag-no-ai': '{n} song(s) without AI analysis — run "Analyze" from Setlists to populate the diagnostic.',
   // Phase 14.3 — modes Améliorer / Réorganiser
   'optimizer.mode-improve': 'Improve',
   'optimizer.mode-reorganize': 'Reorganize',

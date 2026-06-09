@@ -734,16 +734,30 @@ function BankOptimizerScreen({
   const sectionStyle = { background: 'var(--bg-elev-1)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--r-lg)', padding: 'var(--s-4)', marginBottom: 'var(--s-4)', contentVisibility: 'auto', containIntrinsicSize: '0 600px' };
   const eyebrow = (icon, label) => <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-xs)', textTransform: 'uppercase', letterSpacing: 'var(--tracking-wider)', color: 'var(--accent)', marginBottom: 'var(--s-3)' }}>{label}</div>;
 
-  const renderStats = (a) => (
-    <div style={{ display: 'flex', gap: 'var(--s-2)', marginBottom: 'var(--s-3)' }}>
-      {[{ n: a.covered, c: 'var(--success)', bg: 'var(--green-bg)', bd: 'var(--green-border)', l: t('optimizer.stat-covered', 'Couverts') }, { n: a.acceptable, c: 'var(--yellow)', bg: 'var(--yellow-bg)', bd: 'var(--yellow-border)', l: t('optimizer.stat-medium', 'Moyens') }, { n: a.poor, c: 'var(--danger)', bg: 'var(--red-bg)', bd: 'var(--red-border)', l: t('optimizer.stat-weak', 'Faibles') }].map(({ n, c, bg, bd, l }) => (
-        <div key={l} style={{ flex: 1, background: bg, border: '1px solid ' + bd, borderRadius: 'var(--r-md)', padding: 'var(--s-2)', textAlign: 'center' }}>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: c }}>{n}</div>
-          <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{l}</div>
-        </div>
-      ))}
-    </div>
-  );
+  // Phase 14.13 — Anomalie B : l'état vide (0/0/0) était trompeur car affiché
+  // tel quel pendant le compute déféré (setTimeout(0) + analyzeDevice lourd) ET
+  // quand aucun morceau n'a d'analyse IA. On distingue désormais 3 états :
+  // calcul en cours / aucune analyse IA / stats réelles.
+  const noteStyle = { fontSize: 11, color: 'var(--text-tertiary)', fontStyle: 'italic', textAlign: 'center', padding: 'var(--s-3) var(--s-2)', marginBottom: 'var(--s-3)' };
+  const renderStats = (a) => {
+    if (a.loading) {
+      return <div style={noteStyle}>{t('optimizer.diag-computing', 'Calcul du diagnostic en cours…')}</div>;
+    }
+    const analyzedCount = a.covered + a.acceptable + a.poor;
+    if (analyzedCount === 0 && (a.noAICount || 0) > 0) {
+      return <div style={noteStyle}>{tFormat('optimizer.diag-no-ai', { n: a.noAICount }, '{n} morceau(x) sans analyse IA — lance « Analyser » depuis les Setlists pour peupler le diagnostic.')}</div>;
+    }
+    return (
+      <div style={{ display: 'flex', gap: 'var(--s-2)', marginBottom: 'var(--s-3)' }}>
+        {[{ n: a.covered, c: 'var(--success)', bg: 'var(--green-bg)', bd: 'var(--green-border)', l: t('optimizer.stat-covered', 'Couverts') }, { n: a.acceptable, c: 'var(--yellow)', bg: 'var(--yellow-bg)', bd: 'var(--yellow-border)', l: t('optimizer.stat-medium', 'Moyens') }, { n: a.poor, c: 'var(--danger)', bg: 'var(--red-bg)', bd: 'var(--red-border)', l: t('optimizer.stat-weak', 'Faibles') }].map(({ n, c, bg, bd, l }) => (
+          <div key={l} style={{ flex: 1, background: bg, border: '1px solid ' + bd, borderRadius: 'var(--r-md)', padding: 'var(--s-2)', textAlign: 'center' }}>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-lg)', fontWeight: 800, color: c }}>{n}</div>
+            <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>{l}</div>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   // ── Rendu d'un device en mode Réorganiser ──
   const DIFF_META = {

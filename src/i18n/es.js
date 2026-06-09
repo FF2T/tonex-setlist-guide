@@ -411,6 +411,8 @@ const es = {
   'optimizer.stat-covered': 'Cubiertos',
   'optimizer.stat-medium': 'Medios',
   'optimizer.stat-weak': 'Débiles',
+  'optimizer.diag-computing': 'Calculando diagnóstico…',
+  'optimizer.diag-no-ai': '{n} canción(es) sin análisis IA — lanza «Analizar» desde Setlists para poblar el diagnóstico.',
   // Phase 14.3 — modos Mejorar / Reorganizar
   'optimizer.mode-improve': 'Mejorar',
   'optimizer.mode-reorganize': 'Reorganizar',
