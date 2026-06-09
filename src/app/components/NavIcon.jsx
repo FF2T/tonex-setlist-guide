@@ -63,6 +63,8 @@ function NavIcon({id,size}){
   // Cabinet rectangulaire + grille HP (gros cercle) + petits réglages.
   if(id==="amp") return <svg style={st} viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="13" r="4"/><circle cx="18" cy="8" r="0.8" fill="currentColor"/><circle cx="18" cy="13" r="0.8" fill="currentColor"/></svg>;
   if(id==="refresh") return <svg style={st} viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>;
+  // Évaluer un achat (étiquette de prix).
+  if(id==="evaluate") return <svg style={st} viewBox="0 0 24 24"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>;
   return null;
 }
 

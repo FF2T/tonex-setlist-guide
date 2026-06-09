@@ -282,7 +282,7 @@ import {
 const getType = id => findGuitar(id)?.type||"HB";
 
 // ─── localStorage ─────────────────────────────────────────────────────────────
-const APP_VERSION = "9.8.18";
+const APP_VERSION = "9.8.19";
 // Phase 7.73.0 — expose pour le bouton feedback Tally (URL params).
 if (typeof window !== 'undefined') window.__BACKLINE_APP_VERSION = APP_VERSION;
 // Phase 7.26 — ADMIN_PIN supprimé : l'écran ⚙️ Paramètres était redondant
@@ -385,6 +385,7 @@ import ListScreen from './app/screens/ListScreen.jsx';
 // ─── Bank Optimizer Screen ───────────────────────────────────────────────────
 // Phase 7.16 — extracted to src/app/screens/BankOptimizerScreen.jsx.
 import BankOptimizerScreen from './app/screens/BankOptimizerScreen.jsx';
+import EvaluatePurchaseScreen from './app/screens/EvaluatePurchaseScreen.jsx';
 
 // ─── Recap Screen ─────────────────────────────────────────────────────────────
 
@@ -1807,7 +1808,7 @@ export function App() {
     syncStatus:syncStatus,
     appVersion:APP_VERSION,
   };
-  var mainScreens=["list","setlists","explore","jam","optimizer","profile","viewprofile","exportimport"];
+  var mainScreens=["list","setlists","explore","jam","optimizer","evaluate","profile","viewprofile","exportimport"];
   var showNav=mainScreens.includes(screen);
 
   if(screen==="loading") return <div className="page-root"><div style={{textAlign:"center",padding:"60px 20px"}}><div style={{marginBottom:16,display:"flex",justifyContent:"center"}}><BacklineIcon size={56} color="var(--brass-300)"/></div><div style={{fontFamily:"var(--font-display)",fontSize:"var(--fs-lg)",fontWeight:800,color:"var(--text-primary)"}}>{APP_NAME}</div><div style={{fontSize:13,color:"var(--text-muted)",marginTop:8}}>{t("loading","Chargement...")}</div></div></div>;
@@ -1896,6 +1897,7 @@ export function App() {
     }}
   /></div>;
   else if(screen==="optimizer"&&isAdmin) screenContent=<BankOptimizerScreen songDb={songDbWithProfileCache} setlists={mySetlists} banksAnn={banksAnn} onBanksAnn={setBanksAnn} banksPlug={banksPlug} onBanksPlug={setBanksPlug} banksOne={banksOne} onBanksOne={setBanksOne} banksOnePlus={banksOnePlus} onBanksOnePlus={setBanksOnePlus} allGuitars={allGuitars} availableSources={availableSources} onNavigate={setScreen} profile={profile} onProfiles={setProfiles} activeProfileId={activeProfileId}/>;
+  else if(screen==="evaluate"&&isAdmin) screenContent=<EvaluatePurchaseScreen songDb={songDbWithProfileCache} setlists={mySetlists} allGuitars={allGuitars} banksAnn={banksAnn} banksPlug={banksPlug} banksOne={banksOne} banksOnePlus={banksOnePlus} profile={profile} aiKeys={aiKeys} aiProvider={aiProvider} onNavigate={setScreen}/>;
   // Phase 7.72 — Écran ⚙️ Admin séparé, gated isAdmin (URL hack defense).
   else if(screen==="admin"&&isAdmin) screenContent=<AdminScreen profile={profile} profiles={profiles} onProfiles={setProfiles} activeProfileId={activeProfileId} songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} allSetlists={setlists} onSetlists={setSetlists} onDeletedSetlistIds={setDeletedSetlistIds} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} onAiKeys={setAiKeys} onSaveSharedKey={saveSharedKey} guitarBias={effectiveGuitarBias} toneNetPresets={toneNetPresets} onToneNetPresets={setToneNetPresets} onDeletedToneNetIds={setDeletedToneNetIds} adminPacks={adminPacks} onAdminPacks={setAdminPacks} sharedArtistsOverrides={sharedArtistsOverrides} onSharedArtistsOverrides={(reducer)=>setSharedArtistsOverrides((prev)=>{const next=typeof reducer==='function'?reducer(prev||{}):reducer;return next||{};})} MaintenanceTabComponent={MaintenanceTab} fullState={fullState} onImportState={onImportState} onBack={()=>setScreen("list")} onNavigate={setScreen}/>;
   else screenContent=<HomeScreen songDb={songDbWithProfileCache} onSongDb={setSongDb} onAiCacheUpdate={setSongAiCache} setlists={mySetlists} allSetlists={setlists} onSetlists={setSetlists} mySongIds={mySongIds} checked={checked} onChecked={setChecked} onSettings={()=>setScreen("profile")} onProfile={(tab)=>{setProfileInitTab(tab||null);setScreen("profile");}} onSetlistScreen={()=>setScreen("setlists")} onJam={()=>setScreen("jam")} onExplore={()=>setScreen("explore")} onOptimizer={()=>setScreen("optimizer")} banksAnn={banksAnn} banksPlug={banksPlug} aiProvider={aiProvider} aiKeys={aiKeys} allGuitars={allGuitars} guitarBias={effectiveGuitarBias} availableSources={availableSources} profiles={profiles} activeProfileId={activeProfileId} onSwitchProfile={switchProfile} onProfiles={setProfiles} customPacks={profile.customPacks} syncStatus={syncStatus} onViewProfile={(id)=>{setViewProfileId(id);setScreen("viewprofile");}} onLogout={()=>{sessionStorage.removeItem("tonex_active_profile");sessionStorage.removeItem(ADMIN_ORIGIN_KEY);setScreen("pick");}} onTmpPatchOverride={onTmpPatchOverride} onLive={(slId)=>{setLiveSetlistId(slId||null);setScreen("live");}}/>;

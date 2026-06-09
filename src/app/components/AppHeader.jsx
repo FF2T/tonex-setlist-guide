@@ -22,6 +22,7 @@ const getNavItems = () => [
   { id: 'explore', label: t('nav.explore', 'Explorer') },
   { id: 'jam', label: t('nav.jam', 'Jammer') },
   { id: 'optimizer', label: t('nav.optimizer', 'Optimiser'), adminOnly: true },
+  { id: 'evaluate', label: t('nav.evaluate', 'Évaluer'), adminOnly: true },
   // Phase 7.72 — Écran admin séparé, gated isAdmin.
   { id: 'admin', label: t('nav.admin', 'Admin'), adminOnly: true },
 ];
@@ -85,6 +86,7 @@ function AppNavBottom({ screen, onNavigate, isAdmin }) {
     { id: 'explore', label: t('nav.explore', 'Explorer') },
     { id: 'jam', label: t('nav.jam', 'Jammer') },
     { id: 'optimizer', label: t('nav.optimizer', 'Optimiser'), adminOnly: true },
+    { id: 'evaluate', label: t('nav.evaluate', 'Évaluer'), adminOnly: true },
     // Phase 7.72 — Écran admin séparé.
     { id: 'admin', label: t('nav.admin', 'Admin'), adminOnly: true },
   ];
