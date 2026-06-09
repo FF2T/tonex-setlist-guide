@@ -260,6 +260,8 @@ const en = {
   // jam
   'jam.all-presets-hint': '(all presets, installed or not)',
   'jam.bank': 'Bank {bank}{slot}',
+  'jam.affinity-badge': '{type} fit {n}',
+  'jam.affinity-tooltip': '{type} pickup affinity: {n}/100 — tie-break at equal jam score',
   'jam.change-guitar': '← Change guitar',
   'jam.gain-high': 'High',
   'jam.gain-low': 'Low',

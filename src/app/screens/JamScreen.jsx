@@ -59,9 +59,14 @@ function getJamRecs(guitarId, style, banksAnn, banksPlug, guitars, availableSour
       } else {
         score = info.scores?.[gType] ?? 60; rawScore = score;
       }
-      return { name, score, rawScore, sortScore: rawScore, amp: info.amp, gain: info.gain, style: info.style, src: info.src };
+      // Phase 14.14 — affinité micro fine par capture (signal NON utilisé par V9
+      // qui passe par BASE_SCORES). Sert de tie-break visible quand le score jam
+      // est identique entre plusieurs amplis (anomalie C).
+      const affinity = typeof info.scores?.[gType] === 'number' ? info.scores[gType] : null;
+      return { name, score, rawScore, sortScore: rawScore, affinity, pickupType: gType, amp: info.amp, gain: info.gain, style: info.style, src: info.src };
     })
-    .sort((a, b) => b.sortScore - a.sortScore);
+    // Tri déterministe : score jam, puis affinité micro fine, puis nom.
+    .sort((a, b) => b.sortScore - a.sortScore || (b.affinity ?? -1) - (a.affinity ?? -1) || a.name.localeCompare(b.name));
   const pickTop3 = (list) => {
     const out = []; const amps = new Set();
     for (const p of list) {
@@ -74,8 +79,11 @@ function getJamRecs(guitarId, style, banksAnn, banksPlug, guitars, availableSour
     if (!list.length) return list;
     const counts = {}; list.forEach((p) => { counts[p.score] = (counts[p.score] || 0) + 1; });
     return list.map((p) => {
-      const tied = counts[p.score] > 1 && typeof p.rawScore === 'number' && p.rawScore !== p.score;
-      return { ...p, scoreLabel: tied ? p.rawScore.toFixed(1) + '%' : p.score + '%' };
+      const sameScore = counts[p.score] > 1;
+      const tied = sameScore && typeof p.rawScore === 'number' && p.rawScore !== p.score;
+      // tiedJam : plusieurs entrées au MÊME score jam → départage par affinité
+      // micro visible (anomalie C). Distinct de `tied` (décimal du rawScore).
+      return { ...p, scoreLabel: tied ? p.rawScore.toFixed(1) + '%' : p.score + '%', tiedJam: sameScore };
     });
   };
   const annInstalled = scored.map((p) => { const loc = findInBanks(p.name, banksAnn); return loc ? { ...p, ...loc } : null; }).filter(Boolean);
@@ -104,6 +112,12 @@ function JamPresetItem({ p, rank, isSelected, onSelect, banksAnn, banksPlug, gui
           <span style={{ fontSize: 18, fontWeight: 900, color: rankColors[rank] || 'var(--text-muted)', minWidth: 22 }}>#{rank + 1}</span>
           {'bank' in p && <span style={{ background: 'var(--accent-bg)', color: 'var(--accent)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-sm)', padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>{tFormat('jam.bank', { bank: p.bank, slot: p.slot }, 'Banque {bank}{slot}')}</span>}
           <span style={{ fontSize: 11, fontWeight: 800, color: sc, background: sb, borderRadius: 'var(--r-sm)', padding: '1px 7px', border: `1px solid ${sc}40` }}>{p.scoreLabel || p.score + '%'}</span>
+          {/* Phase 14.14 — affinité micro fine exposée quand le score jam est partagé
+              (anomalie C : sinon classement non discriminant). C'est le critère de
+              départage #1/#2/#3. */}
+          {p.tiedJam && typeof p.affinity === 'number' && (
+            <span title={tFormat('jam.affinity-tooltip', { type: p.pickupType, n: p.affinity }, 'Affinité micro {type} : {n}/100 — départage à score jam égal')} style={{ fontSize: 9, color: 'var(--text-muted)', background: 'var(--a4)', borderRadius: 'var(--r-sm)', padding: '1px 5px', fontWeight: 600 }}>{tFormat('jam.affinity-badge', { type: p.pickupType, n: p.affinity }, 'micro {type} {n}')}</span>
+          )}
           {gainBadge(p.gain)}
           <span style={{ fontSize: 9, color: 'var(--text-muted)', background: 'var(--a6)', borderRadius: 'var(--r-sm)', padding: '1px 5px', fontWeight: 600 }}>{p.src}</span>
           <span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 'auto' }}>{isSelected ? '▲' : '▼'}</span>

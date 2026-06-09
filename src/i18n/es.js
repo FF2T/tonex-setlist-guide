@@ -258,6 +258,8 @@ const es = {
   // jam
   'jam.all-presets-hint': '(todos los presets, instalados o no)',
   'jam.bank': 'Banco {bank}{slot}',
+  'jam.affinity-badge': 'micro {type} {n}',
+  'jam.affinity-tooltip': 'Afinidad pastilla {type}: {n}/100 — desempate a igual puntuación jam',
   'jam.change-guitar': '← Cambiar guitarra',
   'jam.gain-high': 'High',
   'jam.gain-low': 'Low',
