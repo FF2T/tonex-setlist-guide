@@ -10,12 +10,15 @@ import { AMP_TAXONOMY } from '../../data/data_context.js';
 import { inferGainFromName } from '../../core/scoring/style.js';
 import { resolveRefAmp } from './ai-helpers.js';
 
-// Amplis high-gain canoniques : sans mot-clé de gain explicite, leur
-// défaut « mid » (gainNum 6) est trompeur → on force « high ». (Retour
-// prod 2026-06-09, anomalie B : Mesa Rectifier/Mark, EVH/Peavey 5150,
-// Soldano, ENGL, Friedman classés mid au lieu de high.)
+// Anomalie B (retour prod 2026-06-09) : sans mot-clé de gain explicite, le
+// défaut « mid » (gainNum 6) est trompeur pour les amplis high-gain.
+// On bump via l'école mesa_heavy (toutes variantes Mesa Rectifier/Mark,
+// Peavey/EVH 5150, ENGL, Diezel — robuste face aux noms canoniques divers)
+// + un set explicite pour les boutiques high-gain de l'école marshall_crunch
+// (Friedman BE/HBE, Soldano SLO/GP77). On NE bump PAS les Marshall (JCM/Plexi/
+// JTM) ni Bogner (versatile), qui partagent l'école marshall_crunch.
 const HIGH_GAIN_AMPS = new Set([
-  'Mesa Rectifier', 'Mesa Mark IV', 'Peavey 5150', 'Soldano SLO-100', 'ENGL', 'Friedman BE-100',
+  'Friedman BE-100', 'Friedman HBE', 'Soldano SLO-100', 'Soldano GP77',
 ]);
 
 export function inferPresetInfo(presetName) {
@@ -94,9 +97,10 @@ export function inferPresetInfo(presetName) {
     else if (/drive|od/i.test(chLow)) finalGainNum = 7;
     else if (/lead|high/i.test(chLow)) finalGainNum = 9;
   }
-  // Défaut high pour les amplis high-gain canoniques quand aucun mot-clé
-  // de gain n'a tranché (gainNum neutre 6, pas de channel).
-  if (finalGainNum === 6 && HIGH_GAIN_AMPS.has(detectedAmp)) finalGainNum = 8;
+  // Défaut high quand aucun mot-clé de gain n'a tranché (gainNum neutre 6) :
+  // école mesa_heavy OU boutique high-gain explicite.
+  const ampSchool = AMP_TAXONOMY[detectedAmp]?.school;
+  if (finalGainNum === 6 && (ampSchool === 'mesa_heavy' || HIGH_GAIN_AMPS.has(detectedAmp))) finalGainNum = 8;
   const gain = finalGainNum <= 3 ? 'low' : finalGainNum >= 8 ? 'high' : 'mid';
   const SCHOOL_STYLE = { fender_clean: 'blues', marshall_crunch: 'rock', vox_chime: 'rock', dumble_smooth: 'blues', mesa_heavy: 'hard_rock', hiwatt_clean: 'rock', orange_crunch: 'hard_rock', friedman_modern: 'hard_rock', bogner_versatile: 'rock', matchless_chime: 'blues', soldano_lead: 'hard_rock', diezel_modern: 'metal', peavey_heavy: 'metal', two_rock_boutique: 'blues' };
   let style = 'rock';
