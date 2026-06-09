@@ -26,7 +26,7 @@ import {
   ANNIVERSARY_CATALOG,
 } from '../../data/data_catalogs.js';
 import { PRESET_CONTEXT } from '../../data/data_context.js';
-import { findInBanks } from '../utils/preset-helpers.js';
+import { findInBanks, buildBankIndex, lookupBankIndex } from '../utils/preset-helpers.js';
 
 const PRESET_PAGE_SIZE = 30;
 
@@ -571,6 +571,12 @@ function PresetList({ filtered, selected, setSelected, banksAnn, banksPlug, full
   const [shown, setShown] = useState(PRESET_PAGE_SIZE);
   useEffect(() => setShown(PRESET_PAGE_SIZE), [filtered, filterPacks]);
 
+  // Phase 14.12 — Index banks O(1) (anomalie A). Avant : 2× findInBanks
+  // O(150)/carte × 30 cartes à chaque changement de catégorie. Recalculé
+  // seulement quand les banks changent (pas au re-filtrage).
+  const annIndex = useMemo(() => buildBankIndex(banksAnn), [banksAnn]);
+  const plugIndex = useMemo(() => buildBankIndex(banksPlug), [banksPlug]);
+
   const subPacks = useMemo(() => {
     const groups = {};
     filtered.forEach(([name, info]) => {
@@ -618,8 +624,8 @@ function PresetList({ filtered, selected, setSelected, banksAnn, banksPlug, full
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
         {visible.map(([name, info]) => {
-          const annLoc = findInBanks(name, banksAnn);
-          const plugLoc = findInBanks(name, banksPlug);
+          const annLoc = lookupBankIndex(annIndex, name);
+          const plugLoc = lookupBankIndex(plugIndex, name);
           const isSel = selected === name;
           return (
             <div key={name}>

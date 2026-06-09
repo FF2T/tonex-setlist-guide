@@ -43,6 +43,36 @@ function findInBanks(name, banks) {
   return null;
 }
 
+// Phase 14.12 — Pré-index des banks pour lookup O(1) (vs findInBanks O(150)
+// scan + O(150 × normalizePresetName) fuzzy). Utilisé par l'Explorer qui
+// résout l'install location de 30 cartes × 2 banks à chaque render/changement
+// de catégorie (anomalie A : longue tâche synchrone au re-filtrage).
+// Clé exacte = nom brut ; clé fuzzy = 'n:' + normalizePresetName (préfixe
+// pour éviter toute collision avec un nom brut). Exact prioritaire (sémantique
+// findInBanks préservée). Premier slot vu gagne (ordre Object.entries
+// ascendant sur clés numériques = ordre de findInBanks).
+function buildBankIndex(banks) {
+  const idx = new Map();
+  if (!banks) return idx;
+  for (const [k, bank] of Object.entries(banks)) {
+    if (!bank) continue;
+    for (const slot of ['A', 'B', 'C']) {
+      const nm = bank[slot];
+      if (!nm) continue;
+      const loc = { bank: Number(k), slot };
+      if (!idx.has(nm)) idx.set(nm, loc);
+      const nkey = 'n:' + normalizePresetName(nm);
+      if (!idx.has(nkey)) idx.set(nkey, loc);
+    }
+  }
+  return idx;
+}
+
+function lookupBankIndex(idx, name) {
+  if (!idx || !name) return null;
+  return idx.get(name) || idx.get('n:' + normalizePresetName(name)) || null;
+}
+
 // Trouve le slot le moins pertinent pour un type de guitare
 // (candidat au remplacement).
 function worstSlot(banks, gType, exclude = []) {
@@ -117,4 +147,5 @@ export {
   COMPAT_STYLES,
   guitarScore, presetScore,
   findInBanks, worstSlot, findBestAvailable, getInstallRec,
+  buildBankIndex, lookupBankIndex,
 };
