@@ -981,14 +981,15 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-06-09 mardi, V9.8.14 — fix corruption rig (customGuitars) + re-stamp setlist)
+## État actuel (2026-06-09 mardi, V9.8.15 — fix corruption rig + re-stamp setlist + perf Explorer)
 
-**Backline v9.8.14 / SW backline-v460 / STATE_VERSION 15 / 2065 tests verts. Bundle ~2971 KB.**
+**Backline v9.8.15 / SW backline-v461 / STATE_VERSION 15 / 2072 tests verts. Bundle ~2971 KB.**
 
-### Session 2026-06-09 — fixes sync issus d'un audit anomalies (14.10 + 14.11)
+### Session 2026-06-09 — fixes sync + perf issus d'un audit anomalies (14.10 → 14.12)
 
-Deux bugs corrigés suite à un rapport d'anomalies (audit navigateur) + un
-incident live de corruption rig.
+Trois bugs corrigés suite à un rapport d'anomalies (audit navigateur) + un
+incident live de corruption rig. (14.12 = perf Explorer, cf « Anomalies recensées »
+en Idées en attente.)
 
 - **14.10 (v9.8.14)** — **Anomalie D : re-stamp setlist en lecture seule.**
   `SongDetailCard` auto-adoptait la guitare idéale (Phase 5.10) via
@@ -17220,17 +17221,19 @@ profile {
 Rapport d'anomalies sur v9.8.13. **D et la cause racine customGuitars ont été
 corrigées le 2026-06-09 (Phase 14.10 + 14.11, cf État actuel).** Restent :
 
-- **A — Gel rendu Explorer au changement de catégorie** (sévérité haute, à
-  confirmer device réel). Sur le catalogue complet (~431 presets), sélectionner
-  une catégorie (« Metal moderne ») bloque le paint > 30s par à-coups. DOM léger
-  (~221 divs, virtualisé) + JS répond → **longue tâche synchrone** au re-filtrage.
-  Piste : déférer/mémoïser le recompute (pattern `requestIdleCallback` déjà utilisé
-  Phase 5.13 ListScreen — mais PresetBrowser n'en bénéficie pas), ou pré-indexer
-  catégorie→presets côté data. ⚠️ Réserve : une partie du timeout peut venir de
-  l'automation CDP ; profiler en conditions réelles (Chrome desktop + iPad) avant
-  de coder. **Note investigation** : le `filtered` useMemo (PresetBrowser ~809)
-  est cheap ; suspecter plutôt le RENDER des cartes ou `PresetDetailInline`
-  (`guitarScores = allGuitars.map(...)` ligne ~441) si une carte reste ouverte.
+- **A — Gel rendu Explorer au changement de catégorie** — ⏳ **MITIGATION LIVRÉE
+  Phase 14.12 (v9.8.15), à confirmer device réel.** Coût réel identifié : chaque
+  carte résolvait son install location via 2× `findInBanks` (O(150) scan + fuzzy
+  O(150 × `normalizePresetName`) pour tout preset non installé) → ~9000
+  `normalizePresetName`/render sur 30 cartes × 2 banks. Fix : `buildBankIndex`/
+  `lookupBankIndex` (preset-helpers, O(1), mémoïsé sur banksAnn/Plug). Le `filtered`
+  useMemo (~809) et le render parent sont déjà cheap/mémoïsés. ⚠️ Les 30s rapportés
+  sont probablement **amplifiés par l'automation CDP** ; ce fix supprime le coût
+  réel par carte mais il faut **confirmer sur device réel** (Chrome desktop + iPad)
+  que le gel a disparu. Si gel persiste : profiler `PresetDetailInline`
+  (`guitarScores = allGuitars.map(...)` ~441 → `guitarScore`→`findCatalogEntry` avec
+  fallback O(1700) Phase 7.52.4) quand une fiche reste ouverte au changement de
+  catégorie.
 
 - **B — Diagnostic Optimiseur vide au mount** (moyenne). Setlist « Ma Setlist (16) »
   sélectionnée → bloc DIAGNOSTIC affiche 0/0/0 Couverts/Moyens/Faibles + « 0 banques
