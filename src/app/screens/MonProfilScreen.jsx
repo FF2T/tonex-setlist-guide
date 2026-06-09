@@ -1010,7 +1010,14 @@ function MonCompteSection({
         // (number = login normal, object = admin_switch). On filtre les
         // numbers seulement pour estimer la date d'inscription.
         const numericEntries = lh.filter((e) => typeof e === 'number');
-        const firstLogin = numericEntries.length > 0 ? numericEntries[numericEntries.length - 1] : null;
+        // Phase 14.15 (anomalie E) — priorité à profile.createdAt (date exacte
+        // d'inscription, posée à la création). Fallback : plus ancien login
+        // numérique connu via Math.min (robuste à l'ordre du tableau ; le
+        // loginHistory est capé à 5 donc c'est approximatif pour les anciens
+        // profils sans createdAt). Sinon « — » (donnée inconnue, pas inventée).
+        const firstLogin = typeof profile?.createdAt === 'number'
+          ? profile.createdAt
+          : (numericEntries.length > 0 ? Math.min(...numericEntries) : null);
         const inscriptionDate = firstLogin ? new Date(firstLogin) : null;
         const mySetlists = (setlists || []).filter((sl) => Array.isArray(sl.profileIds) && sl.profileIds.includes(activeProfileId));
         const myAiCacheCount = Object.keys(profile?.aiCache || {}).length;

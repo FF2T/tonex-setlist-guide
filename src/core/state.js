@@ -1862,6 +1862,7 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
       aiProvider: 'gemini',
       aiKeys: { anthropic: '', gemini: '' },
       loginHistory: [],
+      createdAt: Date.now(), // Phase 14.15 — date d'inscription (anomalie E)
       lastModified: Date.now(),
       // Phase 7.74.9 — timestamp dédié aux banks (0 = neutre, sera
       // stampé Date.now() à la première édition réelle via setProfileField).
@@ -1914,6 +1915,7 @@ function makeDefaultProfile(id, name, isAdmin = false, password = '') {
     aiProvider: 'gemini',
     aiKeys: { anthropic: '', gemini: '' },
     loginHistory: [],
+    createdAt: Date.now(), // Phase 14.15 — date d'inscription (anomalie E)
     lastModified: Date.now(),
     // Phase 7.74.9 — timestamp dédié aux banks (0 = neutre).
     banksModified: 0,
