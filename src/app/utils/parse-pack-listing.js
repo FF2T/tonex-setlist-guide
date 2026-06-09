@@ -90,10 +90,16 @@ export function parsePackListing(text) {
       // Ligne brute simple : on accepte (le user a collé une liste de noms)
     }
 
-    // Strip path
-    let name = raw.replace(/^.*\//, '');
-    // Strip .txp extension
-    name = name.replace(/\.txp$/i, '').trim();
+    // Strip le préfixe de chemin UNIQUEMENT pour les vrais paths .txp
+    // (unzip -l / ls). Les noms bruts peuvent contenir des "/" légitimes
+    // (ex: "VOX AC30/4 Fawn EF86", "JTM-45 / Radiospares OT") — on les
+    // garde entiers (anomalie A, retour prod 2026-06-09).
+    let name;
+    if (isTxp) {
+      name = raw.replace(/^.*\//, '').replace(/\.txp$/i, '').trim();
+    } else {
+      name = raw.trim();
+    }
     if (!name) continue;
 
     if (seen.has(name)) continue;

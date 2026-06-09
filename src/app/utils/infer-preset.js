@@ -10,6 +10,14 @@ import { AMP_TAXONOMY } from '../../data/data_context.js';
 import { inferGainFromName } from '../../core/scoring/style.js';
 import { resolveRefAmp } from './ai-helpers.js';
 
+// Amplis high-gain canoniques : sans mot-clé de gain explicite, leur
+// défaut « mid » (gainNum 6) est trompeur → on force « high ». (Retour
+// prod 2026-06-09, anomalie B : Mesa Rectifier/Mark, EVH/Peavey 5150,
+// Soldano, ENGL, Friedman classés mid au lieu de high.)
+const HIGH_GAIN_AMPS = new Set([
+  'Mesa Rectifier', 'Mesa Mark IV', 'Peavey 5150', 'Soldano SLO-100', 'ENGL', 'Friedman BE-100',
+]);
+
 export function inferPresetInfo(presetName) {
   if (!presetName || presetName.length < 3) return null;
   const n = presetName.toLowerCase();
@@ -56,6 +64,14 @@ export function inferPresetInfo(presetName) {
       [/\b(laney\s?aor)\b/, 'Laney AOR'],
       [/\b(laney\s?lionheart|laney\s?lion)\b/, 'Laney Lionheart'],
       [/\b(laney)\b/, 'Laney'],
+      // Abréviations / codes (banks Anniversary, packs Bogner/Revv…).
+      // Retour prod 2026-06-09 anomalie C — ne mapper que vers des amplis
+      // présents dans AMP_TAXONOMY (sinon finalAmp reste vide → Unknown).
+      [/\bbog\b/, 'Bogner Ecstasy'],
+      [/\bmes\b/, 'Mesa Rectifier'],
+      [/\bfried\b/, 'Friedman BE-100'],
+      [/\bsold\b/, 'Soldano SLO-100'],
+      [/\bpv\b/, 'Peavey 5150'],
     ];
     for (const [rx, amp] of TONENET_PATTERNS) {
       if (rx.test(norm)) { detectedAmp = amp; break; }
@@ -78,6 +94,9 @@ export function inferPresetInfo(presetName) {
     else if (/drive|od/i.test(chLow)) finalGainNum = 7;
     else if (/lead|high/i.test(chLow)) finalGainNum = 9;
   }
+  // Défaut high pour les amplis high-gain canoniques quand aucun mot-clé
+  // de gain n'a tranché (gainNum neutre 6, pas de channel).
+  if (finalGainNum === 6 && HIGH_GAIN_AMPS.has(detectedAmp)) finalGainNum = 8;
   const gain = finalGainNum <= 3 ? 'low' : finalGainNum >= 8 ? 'high' : 'mid';
   const SCHOOL_STYLE = { fender_clean: 'blues', marshall_crunch: 'rock', vox_chime: 'rock', dumble_smooth: 'blues', mesa_heavy: 'hard_rock', hiwatt_clean: 'rock', orange_crunch: 'hard_rock', friedman_modern: 'hard_rock', bogner_versatile: 'rock', matchless_chime: 'blues', soldano_lead: 'hard_rock', diezel_modern: 'metal', peavey_heavy: 'metal', two_rock_boutique: 'blues' };
   let style = 'rock';

@@ -37,6 +37,7 @@ export const DEFAULT_EVAL_OPTS = {
   usagesWeak: 80,        // plancher si usages artiste seul matche
   guessedRatioMax: 0.4,  // > 40 % de presets devinés → verdict préliminaire
   verdictMinUnlocked: 1, // morceaux débloqués mini pour un verdict positif
+  marginalRatio: 0.34,   // useful/évaluables ≤ ce ratio → verdict « marginal »
 };
 
 // Règle usages (miroir de findCatalogEntryByUsages / findSlotByUsageMatch,
@@ -104,34 +105,40 @@ function _banksForDevices(banksByDevice, enabledDevices) {
   return out;
 }
 
-// Meilleur preset INSTALLÉ pour un morceau, recalculé brut (P1).
-// Dédup par nom de preset unique avant de scorer (P6) : un même preset en
-// banques 13/23 n'est noté qu'une fois.
-// Retourne null si aucun slot installé scoré (P3) — « non calculé », distinct
-// d'un vrai score faible.
-export function currentBestInstalled(songCtx, banksByDevice, enabledDevices, guitarId, opts = DEFAULT_EVAL_OPTS) {
+// Résout les presets INSTALLÉS uniques en entries catalog, UNE seule fois
+// (dédup par nom, findCatalogEntry coûteux via fallback toneModelName O(1700)).
+// À mémoïser par (rig) côté écran : indépendant du morceau et du pack candidat
+// → évite de re-résoudre 55× les mêmes slots (perf G, retour prod 2026-06-09).
+export function resolveInstalledEntries(banksByDevice, enabledDevices) {
   const banksList = _banksForDevices(banksByDevice, enabledDevices);
-  // Collecte des noms uniques + leur 1ère localisation (device/bank/slot).
-  const seen = new Map(); // name -> { device, bank, slot }
+  const seen = new Map(); // name -> { name, entry, device, bank, slot }
   for (const [device, banks] of banksList) {
     for (const [bankNum, bank] of Object.entries(banks || {})) {
       for (const slot of ['A', 'B', 'C']) {
         const name = bank?.[slot];
         if (!name || typeof name !== 'string') continue;
-        if (!seen.has(name)) seen.set(name, { device, bank: Number(bankNum), slot });
+        if (!seen.has(name)) seen.set(name, { name, entry: findCatalogEntry(name), device, bank: Number(bankNum), slot });
       }
     }
   }
-  if (seen.size === 0) return null;
+  return Array.from(seen.values());
+}
+
+// Meilleur installé pour un morceau, à partir des entries pré-résolues (P1).
+// Retourne null si aucune entry (P3) — « non calculé », distinct d'un score faible.
+export function bestInstalledForSong(songCtx, installedEntries, guitarId, opts = DEFAULT_EVAL_OPTS) {
+  if (!Array.isArray(installedEntries) || installedEntries.length === 0) return null;
   let best = null;
-  for (const [name, loc] of seen) {
-    const entry = findCatalogEntry(name);
-    const { score } = scoreEntryForSong(entry, songCtx, guitarId, opts);
-    if (!best || score > best.score) {
-      best = { score, presetName: name, device: loc.device, bank: loc.bank, slot: loc.slot };
-    }
+  for (const it of installedEntries) {
+    const { score } = scoreEntryForSong(it.entry, songCtx, guitarId, opts);
+    if (!best || score > best.score) best = { score, presetName: it.name, device: it.device, bank: it.bank, slot: it.slot };
   }
   return best;
+}
+
+// Variante banks-based (tests / appelants simples). Résout puis score.
+export function currentBestInstalled(songCtx, banksByDevice, enabledDevices, guitarId, opts = DEFAULT_EVAL_OPTS) {
+  return bestInstalledForSong(songCtx, resolveInstalledEntries(banksByDevice, enabledDevices), guitarId, opts);
 }
 
 // Un candidat passe-t-il dans un bucket strictement supérieur ? (P4)
@@ -160,8 +167,12 @@ function _classify(score, currentBest, opts) {
 // (le libellé FR/i18n est composé par l'UI).
 export function buildVerdict(summary, opts = DEFAULT_EVAL_OPTS) {
   let tone;
-  if (summary.unlockedCount >= opts.verdictMinUnlocked) tone = 'positive';
-  else if (summary.improvedCount >= 1) tone = 'nuanced';
+  if (summary.unlockedCount >= opts.verdictMinUnlocked) {
+    // « Marginal » quand très peu de presets sont utiles sur l'ensemble
+    // évaluable (ex. 1 utile / 10) : vrai mais l'info d'achat est nuancée.
+    const ev = summary.evaluableCount || 0;
+    tone = (ev > 0 && (summary.useful / ev) <= opts.marginalRatio) ? 'marginal' : 'positive';
+  } else if (summary.improvedCount >= 1) tone = 'nuanced';
   else tone = 'negative';
   return { tone, preliminary: summary.preliminary };
 }
@@ -177,8 +188,9 @@ export function evaluatePack(candidateEntries, repertoire, opts = DEFAULT_EVAL_O
 
   const presets = [];
   let bassCount = 0;
+  let unknownCount = 0;
   let guessedGuitar = 0;
-  let guitarCount = 0;
+  let guitarCount = 0; // non-basse (évaluables + inconnus) — base du ratio préliminaire
 
   // Accumulateurs par morceau (P5 — on dédupliquera).
   const fillBySong = new Map();    // songId -> { song, bestPreset, bestScore, currentBest }
@@ -192,6 +204,15 @@ export function evaluatePack(candidateEntries, repertoire, opts = DEFAULT_EVAL_O
     }
     guitarCount += 1;
     if (cand.confidence === 'guessed') guessedGuitar += 1;
+    // D — métadonnées insuffisantes (amp inconnu) : non évaluable. On ne
+    // le score PAS (un score plancher + tag « doublon » laisserait croire
+    // « tu as l'équivalent »). Exclu du décompte du verdict.
+    const ampStr = cand.entry?.amp;
+    if (!ampStr || /^unknown$/i.test(String(ampStr).trim())) {
+      unknownCount += 1;
+      presets.push({ name: cand.name, entry: cand.entry, confidence: cand.confidence, tag: 'unknown', bestScore: null, bestSongId: null, helps: [] });
+      continue;
+    }
 
     const helps = [];
     let bestScore = -1;
@@ -238,12 +259,16 @@ export function evaluatePack(candidateEntries, repertoire, opts = DEFAULT_EVAL_O
   const duplicates = presets.filter((p) => p.tag === 'duplicate').length;
   const offRepertoire = presets.filter((p) => p.tag === 'off').length;
   const uncoveredUncomputed = rep.filter((s) => s.currentBest == null).length;
+  // Préliminaire = ratio devinés sur tous les non-basse (inconnus compris,
+  // pour conserver P2 : un pack 100 % inconnu reste « préliminaire »).
   const preliminary = guitarCount > 0 && (guessedGuitar / guitarCount) > o.guessedRatioMax;
 
   const summary = {
     total: cands.length,
     guitarCount,
+    evaluableCount: guitarCount - unknownCount,
     bassCount,
+    unknownCount,
     useful,
     unlockedCount: unlockedSongs.length,
     improvedCount: improvedSongs.length,

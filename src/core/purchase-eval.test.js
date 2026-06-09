@@ -10,6 +10,8 @@ import {
   usagesMatchSong,
   scoreEntryForSong,
   currentBestInstalled,
+  resolveInstalledEntries,
+  bestInstalledForSong,
   buildVerdict,
   evaluatePack,
   DEFAULT_EVAL_OPTS,
@@ -79,6 +81,42 @@ describe('buildVerdict — branches tunables (P5)', () => {
   });
   it('preliminary remonté', () => {
     expect(buildVerdict({ unlockedCount: 1, improvedCount: 0, preliminary: true }).preliminary).toBe(true);
+  });
+  it('marginal (E) : débloque mais peu d\'utiles sur l\'évaluable', () => {
+    expect(buildVerdict({ unlockedCount: 1, useful: 1, evaluableCount: 10, improvedCount: 0, preliminary: false }).tone).toBe('marginal');
+    expect(buildVerdict({ unlockedCount: 1, useful: 3, evaluableCount: 10, improvedCount: 0, preliminary: false }).tone).toBe('marginal'); // 0.30 ≤ 0.34
+    expect(buildVerdict({ unlockedCount: 1, useful: 4, evaluableCount: 10, improvedCount: 0, preliminary: false }).tone).toBe('positive'); // 0.40 > 0.34
+  });
+});
+
+describe('evaluatePack — métadonnées insuffisantes (D)', () => {
+  it('amp Unknown → tag « unknown », non scoré, exclu du décompte', () => {
+    const cand = { name: 'BOG XYZ', entry: { amp: 'Unknown', gain: 'mid', style: 'rock', scores: {} }, confidence: 'guessed' };
+    const { presets, summary } = evaluatePack([cand], [song('s1', 60)]);
+    expect(presets[0].tag).toBe('unknown');
+    expect(presets[0].bestScore).toBeNull();
+    expect(summary.unknownCount).toBe(1);
+    expect(summary.evaluableCount).toBe(0);
+    expect(summary.useful).toBe(0);
+    expect(summary.duplicates).toBe(0);
+  });
+  it('pack 100 % inconnu (guessed) reste préliminaire (P2 préservé)', () => {
+    const cands = [1, 2, 3].map((i) => ({ name: 'X' + i, entry: { amp: 'Unknown', gain: 'mid', style: 'rock' }, confidence: 'guessed' }));
+    const { summary } = evaluatePack(cands, [song('s1', 60)]);
+    expect(summary.preliminary).toBe(true);
+    expect(summary.unknownCount).toBe(3);
+  });
+});
+
+describe('resolveInstalledEntries / bestInstalledForSong (G)', () => {
+  it('dédup par nom : 2 slots de même nom → 1 entry', () => {
+    const banks = { ann: { 0: { A: 'Dup', B: 'Dup' }, 1: { A: 'Other' } } };
+    const list = resolveInstalledEntries(banks, ['tonex-anniversary']);
+    expect(list.map((x) => x.name).sort()).toEqual(['Dup', 'Other']);
+  });
+  it('aucune entry → null', () => {
+    expect(bestInstalledForSong(CTX, [], GID)).toBeNull();
+    expect(resolveInstalledEntries({ ann: {} }, ['tonex-anniversary'])).toEqual([]);
   });
 });
 

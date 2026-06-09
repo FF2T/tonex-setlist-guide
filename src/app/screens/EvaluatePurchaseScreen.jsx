@@ -12,7 +12,7 @@
 //
 // No-emoji UI (règle 2026-05-27) : tags = pastilles colorées + libellés.
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { t, tFormat } from '../../i18n/index.js';
 import NavIcon from '../components/NavIcon.jsx';
 import Breadcrumb from '../components/Breadcrumb.jsx';
@@ -22,7 +22,7 @@ import { enrichPackWithAI } from '../utils/enrich-pack-ai.js';
 import { findCatalogEntry } from '../../core/catalog.js';
 import { bucketizeScore } from '../../core/scoring/compat-buckets.js';
 import { getSharedGeminiKey } from '../utils/shared-key.js';
-import { evaluatePack, currentBestInstalled, DEFAULT_EVAL_OPTS } from '../../core/purchase-eval.js';
+import { evaluatePack, resolveInstalledEntries, bestInstalledForSong, DEFAULT_EVAL_OPTS } from '../../core/purchase-eval.js';
 
 const SOURCE_OPTIONS = ['', 'TSR', 'AA', 'JS', 'TJ', 'ML', 'WT', 'Galtone', 'ToneNET'];
 
@@ -32,6 +32,7 @@ const TAG_META = {
   duplicate: { color: 'var(--text-tertiary)',  label: 'Doublon',          order: 2 },
   off:       { color: 'var(--text-dim)',       label: 'Hors répertoire',  order: 3 },
   bass:      { color: 'var(--brass-300)',      label: 'Capture basse',    order: 4 },
+  unknown:   { color: 'var(--text-dim)',       label: 'Non évaluable',    order: 5 },
 };
 const CONF_LABEL = { catalog: 'catalogue', ai: 'IA', guessed: 'estimé' };
 
@@ -66,8 +67,14 @@ export default function EvaluatePurchaseScreen({
   const [aiErr, setAiErr] = useState('');
   const [expanded, setExpanded] = useState(null);
 
-  const enabledDevices = profile.enabledDevices || [];
+  const enabledDevices = useMemo(() => profile.enabledDevices || [], [profile.enabledDevices]);
   const banksByDevice = useMemo(() => ({ ann: banksAnn, plug: banksPlug, one: banksOne, onePlus: banksOnePlus }), [banksAnn, banksPlug, banksOne, banksOnePlus]);
+  // Entries installées résolues UNE fois par rig (perf G) — findCatalogEntry
+  // coûteux (fallback toneModelName O(1700)) ne tourne plus 1×/morceau.
+  const installedEntries = useMemo(() => resolveInstalledEntries(banksByDevice, enabledDevices), [banksByDevice, enabledDevices]);
+  // Cache baseline (repertoire + currentBest) par (scope, rig, données) :
+  // indépendant du pack candidat → enchaîner 4 packs ne recalcule qu'1×.
+  const baselineRef = useRef(null);
 
   const aiKey = aiProvider === 'anthropic'
     ? (aiKeys?.anthropic || '')
@@ -106,18 +113,42 @@ export default function EvaluatePurchaseScreen({
     });
   }
 
-  // Pass différé + chunké : baseline (dominant) puis evaluatePack.
+  function finishEvaluation(candidates, repertoire) {
+    const evald = evaluatePack(candidates, repertoire, DEFAULT_EVAL_OPTS);
+    if (typeof window !== 'undefined' && window.__TONEX_PERF) {
+      const baseVals = repertoire.map((r) => r.currentBest).filter((v) => v != null);
+      const candVals = evald.presets.map((p) => p.bestScore).filter((v) => v != null);
+      if (baseVals.length && candVals.length) {
+        // eslint-disable-next-line no-console
+        console.log('[purchase-eval] baseline n=%d min=%d max=%d | candidat best min=%d max=%d | unlocked=%d', baseVals.length, Math.min(...baseVals), Math.max(...baseVals), Math.min(...candVals), Math.max(...candVals), evald.summary.unlockedCount);
+      }
+    }
+    setResult(evald);
+    setComputing(false);
+    setProgress(1);
+  }
+
+  // Pass différé + chunké : baseline (dominant) mémoïsée par (scope, rig),
+  // puis evaluatePack. Cache hit → quasi-instantané (perf G).
   function runEvaluation(aiPresets) {
     const candidates = resolveCandidates(aiPresets);
     if (!candidates.length) { setResult(null); return; }
     const songs = repertoireSongs;
+    const cache = baselineRef.current;
+    if (cache && cache.scopeId === scopeId && cache.installedEntries === installedEntries && cache.songDb === songDb && cache.setlists === setlists) {
+      finishEvaluation(candidates, cache.repertoire);
+      return;
+    }
     if (!songs.length) {
-      setResult(evaluatePack(candidates, [], DEFAULT_EVAL_OPTS));
+      const repertoire = [];
+      baselineRef.current = { scopeId, installedEntries, songDb, setlists, repertoire };
+      finishEvaluation(candidates, repertoire);
       return;
     }
     setComputing(true);
     setProgress(0);
     setResult(null);
+    const slSong = scopeId ? setlists.find((x) => x.id === scopeId) : null;
     const repertoire = [];
     let i = 0;
     const step = () => {
@@ -125,23 +156,16 @@ export default function EvaluatePurchaseScreen({
       for (; i < end; i++) {
         const s = songs[i];
         const ctx = songCtx(s);
-        const slSong = scopeId ? setlists.find((x) => x.id === scopeId) : null;
         const gid = (slSong?.guitars?.[s.id]) || s?.aiCache?.gId || null;
-        const cb = currentBestInstalled(ctx, banksByDevice, enabledDevices, gid, DEFAULT_EVAL_OPTS);
+        const cb = bestInstalledForSong(ctx, installedEntries, gid, DEFAULT_EVAL_OPTS);
         repertoire.push({ songId: s.id, title: s.title, artist: s.artist, ctx, guitarId: gid, currentBest: cb ? cb.score : null });
       }
-      setProgress(songs.length ? i / songs.length : 1);
+      setProgress(i / songs.length);
       if (i < songs.length) { setTimeout(step, 0); return; }
-      const evald = evaluatePack(candidates, repertoire, DEFAULT_EVAL_OPTS);
-      if (typeof window !== 'undefined' && window.__TONEX_PERF) {
-        const baseVals = repertoire.map((r) => r.currentBest).filter((v) => v != null);
-        const candVals = evald.presets.map((p) => p.bestScore).filter((v) => v != null);
-        // eslint-disable-next-line no-console
-        console.log('[purchase-eval] baseline n=%d min=%d max=%d | candidat best min=%d max=%d | unlocked=%d', baseVals.length, Math.min(...baseVals), Math.max(...baseVals), Math.min(...candVals), Math.max(...candVals), evald.summary.unlockedCount);
-      }
-      setResult(evald);
-      setComputing(false);
-      setProgress(1);
+      // Baseline complète : cache + évaluation dans un tick séparé (la barre
+      // atteint 100 % avant le compute final — anomalie F).
+      baselineRef.current = { scopeId, installedEntries, songDb, setlists, repertoire };
+      setTimeout(() => finishEvaluation(candidates, repertoire), 0);
     };
     setTimeout(step, 0);
   }
@@ -232,12 +256,15 @@ export default function EvaluatePurchaseScreen({
       {result && (() => {
         const { summary, unlockedSongs, improvedSongs } = result;
         const tone = summary.verdict.tone;
-        const toneColor = tone === 'positive' ? 'var(--green)' : tone === 'nuanced' ? 'var(--yellow)' : 'var(--text-tertiary)';
+        const fillPresets = [...new Set(unlockedSongs.map((u) => u.bestPreset))];
+        const toneColor = tone === 'positive' ? 'var(--green)' : (tone === 'nuanced' || tone === 'marginal') ? 'var(--yellow)' : 'var(--text-tertiary)';
         const verdictText = tone === 'positive'
           ? tFormat('evaluate.verdict-positive', { n: summary.unlockedCount, k: summary.useful }, 'Ça vaut le coup — débloque {n} morceau(x) avec {k} preset(s) pertinent(s).')
-          : tone === 'nuanced'
-            ? tFormat('evaluate.verdict-nuanced', { n: summary.improvedCount }, 'Intérêt limité — n\'ouvre rien de neuf mais améliore {n} morceau(x).')
-            : t('evaluate.verdict-negative', 'Peu d\'intérêt — tu as déjà l\'équivalent pour ton répertoire.');
+          : tone === 'marginal'
+            ? tFormat('evaluate.verdict-marginal', { presets: fillPresets.join(', '), n: summary.unlockedCount }, 'Marginal — surtout {presets} ({n} morceau(x)), le reste fait doublon ou hors-répertoire.')
+            : tone === 'nuanced'
+              ? tFormat('evaluate.verdict-nuanced', { n: summary.improvedCount }, 'Intérêt limité — n\'ouvre rien de neuf mais améliore {n} morceau(x).')
+              : t('evaluate.verdict-negative', 'Peu d\'intérêt — tu as déjà l\'équivalent pour ton répertoire.');
         return (
           <div style={{ ...card, borderColor: toneColor }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -260,7 +287,8 @@ export default function EvaluatePurchaseScreen({
               </div>
             )}
             <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 6 }}>
-              {summary.guitarCount} {t('evaluate.presets-scored', 'presets notés')}
+              {summary.evaluableCount} {t('evaluate.presets-scored', 'presets notés')}
+              {summary.unknownCount > 0 && ` · ${tFormat('evaluate.unknown-count', { n: summary.unknownCount }, '{n} non évaluable(s) (métadonnées insuffisantes)')}`}
               {summary.bassCount > 0 && ` · ${tFormat('evaluate.bass-excluded', { n: summary.bassCount }, '{n} capture(s) basse exclue(s)')}`}
               {notAnalyzedCount > 0 && ` · ${tFormat('evaluate.not-analyzed', { n: notAnalyzedCount }, '{n} morceau(x) non analysé(s), exclus')}`}
               {summary.uncoveredUncomputed > 0 && ` · ${tFormat('evaluate.uncovered', { n: summary.uncoveredUncomputed }, '{n} morceau(x) non couvert(s) (non calculé)')}`}

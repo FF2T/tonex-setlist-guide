@@ -139,6 +139,24 @@ describe('parsePackListing — edge cases', () => {
     expect(r.presets).toEqual(['baz']);
   });
 
+  it('garde les "/" des noms bruts (amplis vintage) — anomalie A 2026-06-09', () => {
+    const text = [
+      'VOX AC30/4 Fawn EF86',
+      '1964 Marshall JTM-45 Clapton knobs / Radiospares OT',
+    ].join('\n');
+    const r = parsePackListing(text);
+    expect(r.presets).toEqual([
+      'VOX AC30/4 Fawn EF86',
+      '1964 Marshall JTM-45 Clapton knobs / Radiospares OT',
+    ]);
+  });
+
+  it('strip le préfixe de chemin uniquement pour les vrais .txp', () => {
+    const text = 'folder/sub/Mesa Rectifier Modern.txp';
+    const r = parsePackListing(text);
+    expect(r.presets).toEqual(['Mesa Rectifier Modern']);
+  });
+
   it('cas réel mixte : unzip -l + names with special chars', () => {
     const text = [
       'Archive:  TSR-Mix-Pack.zip',
