@@ -981,15 +981,15 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-06-09 mardi, V9.8.15 — fix corruption rig + re-stamp setlist + perf Explorer)
+## État actuel (2026-06-09 mardi, V9.8.16 — fixes audit anomalies (rig + re-stamp + perf Explorer + diag Optimiseur))
 
-**Backline v9.8.15 / SW backline-v461 / STATE_VERSION 15 / 2072 tests verts. Bundle ~2971 KB.**
+**Backline v9.8.16 / SW backline-v462 / STATE_VERSION 15 / 2072 tests verts. Bundle ~2971 KB.**
 
-### Session 2026-06-09 — fixes sync + perf issus d'un audit anomalies (14.10 → 14.12)
+### Session 2026-06-09 — fixes sync + perf + UX issus d'un audit anomalies (14.10 → 14.13)
 
-Trois bugs corrigés suite à un rapport d'anomalies (audit navigateur) + un
-incident live de corruption rig. (14.12 = perf Explorer, cf « Anomalies recensées »
-en Idées en attente.)
+Quatre bugs corrigés suite à un rapport d'anomalies (audit navigateur) + un
+incident live de corruption rig. 14.12 (perf Explorer) + 14.13 (état diagnostic
+Optimiseur) — cf « Anomalies recensées » en Idées en attente.
 
 - **14.10 (v9.8.14)** — **Anomalie D : re-stamp setlist en lecture seule.**
   `SongDetailCard` auto-adoptait la guitare idéale (Phase 5.10) via
@@ -17235,12 +17235,14 @@ corrigées le 2026-06-09 (Phase 14.10 + 14.11, cf État actuel).** Restent :
   fallback O(1700) Phase 7.52.4) quand une fiche reste ouverte au changement de
   catégorie.
 
-- **B — Diagnostic Optimiseur vide au mount** (moyenne). Setlist « Ma Setlist (16) »
-  sélectionnée → bloc DIAGNOSTIC affiche 0/0/0 Couverts/Moyens/Faibles + « 0 banques
-  utilisées » alors que banks pleines. Hypothèse : compute déféré + mémoïsé Phase 14
-  (`window.__TONEX_PERF`) non déclenché au mount, ou diagnostic non rafraîchi pour la
-  setlist active → état vide trompeur. Vérifier si une interaction explicite est
-  requise.
+- **B — Diagnostic Optimiseur vide au mount** — ✅ **RÉGLÉ Phase 14.13 (v9.8.16).**
+  `renderStats` affichait 0/0/0 tel quel dans 2 cas trompeurs : (1) pendant le compute
+  déféré (`setTimeout(0)` + `analyzeDevice` lourd, EMPTY_ANALYSIS.loading), (2) quand
+  tous les morceaux sont `noAI` (`cot_step1` absent). Distingue désormais 3 états :
+  « Calcul du diagnostic en cours… » / « N morceaux sans analyse IA — lance Analyser »
+  / stats réelles. NB : `buildBankMap` (« banques utilisées ») est synchrone et lit
+  `songs` direct → si 0, les morceaux n'ont vraiment pas d'aiCache (le message no-AI
+  l'explique). L'Optimiseur reçoit bien `songDbWithProfileCache` (aiCache mergé).
 
 - **C — Scoring Jammer : trop d'égalités à 93,5 %** (moyenne, qualité reco). SG Ebony
   → Hard Rock → les 9 résultats (TOP3 ×3) tous à 93,5 % exact → classement non
