@@ -981,15 +981,28 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-06-09 mardi, V9.8.16 — fixes audit anomalies (rig + re-stamp + perf Explorer + diag Optimiseur))
+## État actuel (2026-06-09 mardi, V9.8.18 — fixes audit anomalies complet (D + rig + A + B + C + E))
 
-**Backline v9.8.16 / SW backline-v462 / STATE_VERSION 15 / 2072 tests verts. Bundle ~2971 KB.**
+**Backline v9.8.18 / SW backline-v464 / STATE_VERSION 15 / 2072 tests verts. Bundle ~2971 KB.**
 
-### Session 2026-06-09 — fixes sync + perf + UX issus d'un audit anomalies (14.10 → 14.13)
+### Session 2026-06-09 — fixes sync + perf + UX issus d'un audit anomalies (14.10 → 14.15)
 
-Quatre bugs corrigés suite à un rapport d'anomalies (audit navigateur) + un
-incident live de corruption rig. 14.12 (perf Explorer) + 14.13 (état diagnostic
-Optimiseur) — cf « Anomalies recensées » en Idées en attente.
+Six items corrigés suite à un rapport d'anomalies (audit navigateur) + un
+incident live de corruption rig. Détail des anomalies en « Idées en attente ».
+
+| Phase | Ver. | Anomalie | Sujet |
+|---|---|---|---|
+| 14.10 | 9.8.14 | D | Re-stamp setlist en boucle (arité auto-adoption guitare) |
+| 14.11 | 9.8.14 | — | **Cause racine corruption rig** : merge union `shared.customGuitars` au pull |
+| 14.12 | 9.8.15 | A | Perf Explorer : index banks O(1) (à confirmer device réel) |
+| 14.13 | 9.8.16 | B | État diagnostic Optimiseur explicite (calcul / sans IA / stats) |
+| 14.14 | 9.8.17 | C | Tie-break affinité micro fine Jammer (départage score jam égal) |
+| 14.15 | 9.8.18 | E | Date d'inscription (`profile.createdAt` + fallback) |
+
+Restent : **A** à confirmer sur device réel, **F** = dette de curation (pas un
+fix code — cf Phase 11). Tout déployé en prod.
+
+Détail des deux fixes structurants (D + corruption rig) :
 
 - **14.10 (v9.8.14)** — **Anomalie D : re-stamp setlist en lecture seule.**
   `SongDetailCard` auto-adoptait la guitare idéale (Phase 5.10) via
@@ -17244,18 +17257,20 @@ corrigées le 2026-06-09 (Phase 14.10 + 14.11, cf État actuel).** Restent :
   `songs` direct → si 0, les morceaux n'ont vraiment pas d'aiCache (le message no-AI
   l'explique). L'Optimiseur reçoit bien `songDbWithProfileCache` (aiCache mergé).
 
-- **C — Scoring Jammer : trop d'égalités à 93,5 %** (moyenne, qualité reco). SG Ebony
-  → Hard Rock → les 9 résultats (TOP3 ×3) tous à 93,5 % exact → classement non
-  discriminant. Trade-off connu `jam.js` Phase 14.2 (refAmp retiré + renormalisé).
-  Piste : tie-break secondaire visible (affinité micro fine, diversité ampli, registre)
-  ou sous-score exposé.
+- **C — Scoring Jammer : trop d'égalités à 93,5 %** — ✅ **RÉGLÉ Phase 14.14 (v9.8.17).**
+  Cause : en mode jam `computeFinalScore` drop gainMatch + refAmp (targetGain/refAmp
+  null) → presets d'un même bucket style/gain tous au même score → TOP3 non
+  discriminant, ordre arbitraire. Fix display-layer (V9 intact) : tri secondaire
+  déterministe (score jam → `info.scores[gType]` affinité micro fine → nom) + badge
+  « micro {type} {n} » exposé quand le score jam est partagé (`tiedJam`). +2 i18n.
 
-- **E — Mon Profil → Activité : date d'inscription vide** (faible, cosmétique). Stat
-  « INSCRIPTION — » non remplie. Prévu Phase 7.73.2 Session C (dériver de
-  `loginHistory[0]`) — **Session C jamais livrée**. Piste : dériver de la 1ère entrée
-  loginHistory ou stocker `createdAt`.
+- **E — Mon Profil → Activité : date d'inscription vide** — ✅ **RÉGLÉ Phase 14.15
+  (v9.8.18).** `profile.createdAt` posé à la création (makeDefaultProfile 2 branches) ;
+  lecture priorise `createdAt`, fallback `Math.min(loginHistory numériques)`, sinon
+  « — ». Anciens profils sans createdAt : approximation au prochain login normal
+  (loginHistory capé à 5).
 
-- **F — Hygiène données banks** (faible, dette connue). SupergroupBass_SM57_TB_full
+- **F — Hygiène données banks** (faible, dette de curation — PAS un fix code). SupergroupBass_SM57_TB_full
   (capture basse) en Anniversary 18C + Plug 9C/10B/10C (dupliquée), contexte guitare.
   Laney VC50 HighGain (libellé inconnu, non curé) Plug 9A/10A. ~135 presets non curés
   (compteurs « Curer 114 » Ann / « 21 » Plug). Dégrade la précision (pas de pin direct).
