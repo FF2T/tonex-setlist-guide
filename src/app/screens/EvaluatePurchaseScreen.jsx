@@ -158,7 +158,7 @@ export default function EvaluatePurchaseScreen({
         const ctx = songCtx(s);
         const gid = (slSong?.guitars?.[s.id]) || s?.aiCache?.gId || null;
         const cb = bestInstalledForSong(ctx, installedEntries, gid, DEFAULT_EVAL_OPTS);
-        repertoire.push({ songId: s.id, title: s.title, artist: s.artist, ctx, guitarId: gid, currentBest: cb ? cb.score : null });
+        repertoire.push({ songId: s.id, title: s.title, artist: s.artist, ctx, guitarId: gid, currentBest: cb ? cb.score : null, currentBestPreset: cb ? cb.presetName : null });
       }
       setProgress(i / songs.length);
       if (i < songs.length) { setTimeout(step, 0); return; }
@@ -314,6 +314,11 @@ export default function EvaluatePurchaseScreen({
                     <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
                       {p.entry?.amp || '—'} · {p.entry?.gain || '?'} · {p.entry?.style || '?'} · <span style={{ opacity: 0.8 }}>{CONF_LABEL[p.confidence] || p.confidence}</span>
                     </div>
+                    {p.tag === 'duplicate' && p.dupOf?.length > 0 && (
+                      <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2, overflowWrap: 'anywhere' }}>
+                        {tFormat('evaluate.dup-of', { presets: p.dupOf.join(', ') }, 'Doublon de : {presets}')}
+                      </div>
+                    )}
                   </div>
                   <span style={{ fontSize: 11, color: tm.color, fontWeight: 600, whiteSpace: 'nowrap' }}>{tm.label}</span>
                   {p.bestScore != null && (

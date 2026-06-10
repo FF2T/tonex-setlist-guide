@@ -224,7 +224,7 @@ export function evaluatePack(candidateEntries, repertoire, opts = DEFAULT_EVAL_O
       const relation = _classify(score, song.currentBest, o);
       if (relation === 'none') continue;
       const delta = song.currentBest == null ? null : score - song.currentBest;
-      helps.push({ songId: song.songId, title: song.title, artist: song.artist, score, currentBest: song.currentBest, delta, relation });
+      helps.push({ songId: song.songId, title: song.title, artist: song.artist, score, currentBest: song.currentBest, currentBestPreset: song.currentBestPreset ?? null, delta, relation });
 
       if (relation === 'fill') {
         const cur = fillBySong.get(song.songId);
@@ -247,7 +247,20 @@ export function evaluatePack(candidateEntries, repertoire, opts = DEFAULT_EVAL_O
     else if (bestScore >= o.minRelevant) tag = 'duplicate'; // pertinent quelque part mais ne bat rien
     else tag = 'off'; // hors répertoire ⟺ max(score) < minRelevant
 
-    presets.push({ name: cand.name, entry: cand.entry, confidence: cand.confidence, tag, bestScore: bestScore < 0 ? null : bestScore, bestSongId, helps });
+    // Doublon : nommer le(s) preset(s) installé(s) qui couvrent déjà les
+    // morceaux où ce candidat est pertinent (relation 'covered'). On prend
+    // les morceaux les mieux scorés en premier, dédup par nom. Réponse à
+    // « de quel preset est-ce un doublon ? » (retour prod 2026-06-10).
+    let dupOf = null;
+    if (tag === 'duplicate') {
+      const covered = helps
+        .filter((h) => h.relation === 'covered' && h.currentBestPreset)
+        .sort((a, b) => b.score - a.score);
+      const names = [...new Set(covered.map((h) => h.currentBestPreset))];
+      if (names.length) dupOf = names.slice(0, 3);
+    }
+
+    presets.push({ name: cand.name, entry: cand.entry, confidence: cand.confidence, tag, bestScore: bestScore < 0 ? null : bestScore, bestSongId, dupOf, helps });
   }
 
   // P5 — morceaux débloqués (dédupliqués). Un morceau « amélioré » n'est

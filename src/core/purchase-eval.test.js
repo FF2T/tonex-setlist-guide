@@ -152,6 +152,33 @@ describe('evaluatePack — classement', () => {
     expect(improvedSongs).toHaveLength(0);
   });
 
+  it('doublon : dupOf nomme le preset installé qui couvre déjà le morceau', () => {
+    const s = { ...song('s1', 92), currentBestPreset: 'AA MRSH JT50' };
+    const { presets } = evaluatePack([strongCand()], [s]);
+    expect(presets[0].tag).toBe('duplicate');
+    expect(presets[0].dupOf).toEqual(['AA MRSH JT50']);
+  });
+
+  it('doublon multi-morceaux : dupOf dédupliqué, trié par score, cap 3', () => {
+    const songs = [
+      { ...song('s1', 92), currentBestPreset: 'Inst A' },
+      { ...song('s2', 92), currentBestPreset: 'Inst B' },
+      { ...song('s3', 92), currentBestPreset: 'Inst A' }, // doublon de nom
+    ];
+    const { presets } = evaluatePack([strongCand()], songs);
+    expect(presets[0].tag).toBe('duplicate');
+    expect(new Set(presets[0].dupOf)).toEqual(new Set(['Inst A', 'Inst B']));
+  });
+
+  it('dupOf null hors doublon (fill) et sans nom installé', () => {
+    const { presets: fill } = evaluatePack([strongCand()], [song('s1', 60)]);
+    expect(fill[0].tag).toBe('fill');
+    expect(fill[0].dupOf).toBeNull();
+    const { presets: dup } = evaluatePack([strongCand()], [song('s1', 92)]); // pas de currentBestPreset
+    expect(dup[0].tag).toBe('duplicate');
+    expect(dup[0].dupOf).toBeNull();
+  });
+
   it('dédup unlockedSongs (P5) : 5 presets débloquent le même morceau → 1 morceau', () => {
     const cands = [1, 2, 3, 4, 5].map((i) => strongCand('Cand' + i));
     const { unlockedSongs, summary } = evaluatePack(cands, [song('s1', 60)]);
