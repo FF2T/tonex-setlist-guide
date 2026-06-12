@@ -981,7 +981,96 @@ Les deux doivent monter ensemble. Le SW utilise `CACHE` pour purger
 automatiquement les anciens caches via le filtre `k !== CACHE` dans
 son handler `activate`.
 
-## État actuel (2026-06-09 mardi soir, V9.8.21 — Évaluateur d'achat de presets/packs)
+## État actuel (2026-06-12 vendredi, V9.8.24 — Évaluateur : doublon nommé + levier simulation usages + i18n)
+
+**Backline v9.8.24 / SW backline-v470 / STATE_VERSION 15 / 2118 tests verts. Bundle ~3002 KB.**
+
+### Session 2026-06-10 → 06-12 — 3 incréments sur l'écran « Évaluer » (v9.8.22 → 9.8.24)
+
+Suite directe de l'écran Évaluer livré v9.8.19→21 (cf État précédent). Aucun
+bump SCORING/STATE_VERSION. Logique pure dans `src/core/purchase-eval.js`, UI
+dans `src/app/screens/EvaluatePurchaseScreen.jsx`. **L'écran reste en lecture
+seule (rien écrit au profil).**
+
+| Ver. | Sujet |
+|---|---|
+| 9.8.22 | **Doublon nommé** : un candidat « Doublon » indique de quel preset installé |
+| 9.8.23 | **Levier simulation usages éphémère** : tagger artiste/morceaux sur un candidat et voir l'impact live |
+| 9.8.24 | **i18n EN/ES** de tout l'écran Évaluer (clôt la dette `evaluate.*`) |
+
+#### v9.8.22 — Doublon nomme le(s) preset(s) installé(s) dupliqué(s)
+
+Retour Sébastien : *« quand une éval donne "doublon", dire de quel(s)
+preset(s) c'est le doublon »*. Champ `dupOf` ajouté sur chaque preset tagué
+`duplicate` : preset(s) installé(s) qui couvrent déjà les morceaux où le
+candidat est pertinent (relation `covered`), triés par score décroissant,
+dédup par nom, **cap 3**.
+- `purchase-eval.js` : `currentBestPreset` (déjà calculé par la baseline
+  `bestInstalledForSong`) remonté jusqu'aux `helps`, puis `dupOf` construit.
+- `EvaluatePurchaseScreen.jsx` : ligne « Doublon de : … » sous la meta.
+- `null` hors doublon / sans nom installé connu → pas d'affichage trompeur.
+
+**Nuance documentée (cas Laney/Sabbath)** : un 1969 Laney Supergroup sort
+« Doublon de ORNG 120 Dimed / JTM Jumped » non par bug mais (1) `AMP_TAXONOMY`
+range `Laney Supergroup` en école `marshall_crunch` — même famille tonale que
+les plexis britanniques crankés (JTM45, Super Lead, Orange OR120) ; (2)
+asymétrie de curation : l'Orange installé porte des `usages` curés Black
+Sabbath (Phase 7.52, plancher 92), le candidat Laney IA n'en a aucun → noté
+brut. Le verdict est honnête : pour ce répertoire la zone British-crunch est
+déjà couverte. Levier pour corriger = tagger la capture avec ses `usages`,
+pas toucher au scoring → motivation de v9.8.23.
+
+#### v9.8.23 — Levier simulation usages éphémère
+
+Sur un candidat **`duplicate`** ou **`off`**, un dépliable *« Simuler : et si
+c'était LA capture d'un artiste ? »* permet de tagger artiste/morceaux et voir
+l'impact **live** sur le verdict, **sans rien écrire au profil** (préserve le
+read-only de l'écran posé v9.8.19).
+- **Pré-remplissage** : bouton *« Reprendre les artistes de l'ampli (N) »* qui
+  copie les refs historiques de `data_context.js` (ex. Laney Supergroup →
+  Tony Iommi / Black Sabbath). Le `a` brut « Lead (Groupe) » est splitté en 2
+  usages (lead + groupe) pour matcher via `song.artist` OU `ref_guitarist`.
+- **Éditable** : artiste + morceaux (datalist autocomplete depuis le
+  répertoire analysé).
+- **Preview** : re-note le candidat avec usages injectés → nouveau tag +
+  « Débloquerait / Améliorerait : … » ou « Ne débloque toujours rien (déjà
+  couvert à égalité) ».
+- **Découpage** : extraction de `scoreCandidateAgainstRepertoire(entry,
+  repertoire, opts)` (pure, réutilisée par `evaluatePack` ET la simulation —
+  `evaluatePack` inchangé en comportement) + nouveau util
+  `src/app/utils/amp-context.js` (`findAmpContext` sorti de PresetBrowser
+  → DRY, + `refsToUsages`).
+- **Limite assumée en UI + test** : à égalité (currentBest=92) ça **reste
+  doublon** (un candidat doit battre *strictement* pour combler/améliorer). Le
+  levier requalifie surtout les candidats dont l'artiste a des morceaux **mal
+  couverts** (install faible/absent → usages plancher 92 > 70 → fill).
+
+#### v9.8.24 — i18n EN/ES (dette `evaluate.*` close)
+
+47 clés `evaluate.*` (toutes en fallback FR inline jusqu'ici → écran 100 % FR
+en EN/ES) traduites EN + ES, dont les clés `sim-*` et `dup-of`. Les libellés
+de tags (`Doublon`, `Comble un manque`…) et de confiance
+(`catalogue/IA/estimé`), jusqu'ici en dur dans `TAG_META`/`CONF_LABEL`,
+wrappés via `t('evaluate.tag-'+tag, fallbackFR)` / `t('evaluate.conf-'+conf,…)`
+au render (fallback FR conservé). `useLocale()` ajouté → re-render au switch.
+
+#### Helpers purs ajoutés (`src/core/purchase-eval.js`)
+- `scoreCandidateAgainstRepertoire(entry, repertoire, opts)` → `{ tag,
+  bestScore, bestSongId, dupOf, helps }`. Tests : `purchase-eval.test.js` (38,
+  +6 sur la session : dupOf simple/multi/cap-3/null + parité simulation +
+  flip duplicate→fill sur morceau mal couvert + non-flip à égalité).
+
+#### Dette résiduelle Évaluateur (inchangée)
+- Ouverture aux non-admins : différée (dépend de **Phase 12 `ownedPacks`** pour
+  fiabiliser la baseline « ce que je possède »). Phase 12 capitaliserait
+  directement sur cet écran (baseline = tes packs, pas tout le catalog).
+- Revv / Diezel(VH4) / Bogner Überschall non résolus en high (absents/mal
+  mappés `AMP_TAXONOMY`) → restent « Non évaluable »/mid. Hors répertoire
+  blues/rock 70s de Sébastien.
+
+---
+
+## État précédent (2026-06-09 mardi soir, V9.8.21 — Évaluateur d'achat de presets/packs)
 
 **Backline v9.8.21 / SW backline-v467 / STATE_VERSION 15 / 2112 tests verts. Bundle ~2991 KB.**
 
