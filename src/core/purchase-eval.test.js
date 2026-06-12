@@ -14,6 +14,7 @@ import {
   bestInstalledForSong,
   buildVerdict,
   evaluatePack,
+  scoreCandidateAgainstRepertoire,
   DEFAULT_EVAL_OPTS,
 } from './purchase-eval.js';
 
@@ -229,6 +230,30 @@ describe('evaluatePack — classement', () => {
     expect(unlockedSongs).toHaveLength(0);
     expect(summary.unlockedCount).toBe(0);
     expect(summary.verdict.tone).toBe('negative');
+  });
+});
+
+describe('scoreCandidateAgainstRepertoire (levier simulation usages)', () => {
+  it('parité avec evaluatePack pour un candidat (tag/score/dupOf)', () => {
+    const rep = [song('s1', 92)];
+    const cand = strongCand();
+    const fromPack = evaluatePack([cand], rep).presets[0];
+    const direct = scoreCandidateAgainstRepertoire(cand.entry, rep);
+    expect(direct.tag).toBe(fromPack.tag);
+    expect(direct.bestScore).toBe(fromPack.bestScore);
+    expect(direct.dupOf).toEqual(fromPack.dupOf);
+  });
+
+  it('usages injectés sur morceau mal couvert (currentBest=70) → fill', () => {
+    const withUsages = { amp: 'Marshall', gain: 'high', style: 'rock', usages: USG };
+    const res = scoreCandidateAgainstRepertoire(withUsages, [song('s1', 70)]);
+    expect(res.tag).toBe('fill'); // plancher usages 92 > 70 → débloque
+  });
+
+  it('usages injectés sur égalité (currentBest=92) → reste doublon (pas de flip magique)', () => {
+    const withUsages = { amp: 'Marshall', gain: 'high', style: 'rock', usages: USG };
+    const res = scoreCandidateAgainstRepertoire(withUsages, [song('s1', 92)]);
+    expect(res.tag).toBe('duplicate');
   });
 });
 

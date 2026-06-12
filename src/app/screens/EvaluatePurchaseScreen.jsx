@@ -22,7 +22,8 @@ import { enrichPackWithAI } from '../utils/enrich-pack-ai.js';
 import { findCatalogEntry } from '../../core/catalog.js';
 import { bucketizeScore } from '../../core/scoring/compat-buckets.js';
 import { getSharedGeminiKey } from '../utils/shared-key.js';
-import { evaluatePack, resolveInstalledEntries, bestInstalledForSong, DEFAULT_EVAL_OPTS } from '../../core/purchase-eval.js';
+import { evaluatePack, resolveInstalledEntries, bestInstalledForSong, scoreCandidateAgainstRepertoire, DEFAULT_EVAL_OPTS } from '../../core/purchase-eval.js';
+import { findAmpContext, refsToUsages } from '../utils/amp-context.js';
 
 const SOURCE_OPTIONS = ['', 'TSR', 'AA', 'JS', 'TJ', 'ML', 'WT', 'Galtone', 'ToneNET'];
 
@@ -66,6 +67,10 @@ export default function EvaluatePurchaseScreen({
   const [aiBusy, setAiBusy] = useState(false);
   const [aiErr, setAiErr] = useState('');
   const [expanded, setExpanded] = useState(null);
+  // Simulation d'usages éphémère (rien écrit au profil — l'écran reste en
+  // lecture seule) : { [idx]: [{ artist, songsText }] } + ligne ouverte.
+  const [simRows, setSimRows] = useState({});
+  const [simOpenIdx, setSimOpenIdx] = useState(null);
 
   const enabledDevices = useMemo(() => profile.enabledDevices || [], [profile.enabledDevices]);
   const banksByDevice = useMemo(() => ({ ann: banksAnn, plug: banksPlug, one: banksOne, onePlus: banksOnePlus }), [banksAnn, banksPlug, banksOne, banksOnePlus]);
@@ -131,6 +136,7 @@ export default function EvaluatePurchaseScreen({
   // Pass différé + chunké : baseline (dominant) mémoïsée par (scope, rig),
   // puis evaluatePack. Cache hit → quasi-instantané (perf G).
   function runEvaluation(aiPresets) {
+    setSimRows({}); setSimOpenIdx(null); // repart d'une simulation vierge
     const candidates = resolveCandidates(aiPresets);
     if (!candidates.length) { setResult(null); return; }
     const songs = repertoireSongs;
@@ -201,6 +207,37 @@ export default function EvaluatePurchaseScreen({
       return (b.bestScore ?? -1) - (a.bestScore ?? -1);
     });
   }, [result]);
+
+  // Autocomplete pour la simulation : artistes (+ guitaristes) et titres du
+  // répertoire analysé.
+  const artistOptions = useMemo(() => {
+    const s = new Set();
+    for (const song of repertoireSongs) {
+      if (song.artist) s.add(song.artist);
+      const rg = song?.aiCache?.result?.ref_guitarist;
+      if (rg) String(rg).split(/[/,]/).forEach((x) => { const v = x.trim(); if (v) s.add(v); });
+    }
+    return [...s].sort();
+  }, [repertoireSongs]);
+  const songOptions = useMemo(() => [...new Set(repertoireSongs.map((s) => s.title).filter(Boolean))], [repertoireSongs]);
+
+  // Rows éditables → usages [{artist, songs}] pour le scoring.
+  const toUsages = (rows) => (rows || [])
+    .map((r) => ({ artist: (r.artist || '').trim(), songs: (r.songsText || '').split(',').map((x) => x.trim()).filter(Boolean) }))
+    .filter((r) => r.artist);
+  const setRows = (idx, rows) => setSimRows((prev) => ({ ...prev, [idx]: rows }));
+  const fillFromAmp = (idx, entry) => {
+    const ctx = findAmpContext(entry?.amp);
+    const us = refsToUsages(ctx?.refs);
+    setRows(idx, us.length ? us.map((u) => ({ artist: u.artist, songsText: (u.songs || []).join(', ') })) : [{ artist: '', songsText: '' }]);
+  };
+  // Re-note un candidat avec les usages simulés contre le répertoire mémoïsé.
+  const simPreview = (idx, entry) => {
+    const u = toUsages(simRows[idx]);
+    if (!u.length) return null;
+    const repertoire = baselineRef.current?.repertoire || [];
+    return scoreCandidateAgainstRepertoire({ ...entry, usages: u }, repertoire, DEFAULT_EVAL_OPTS);
+  };
 
   // ---- styles ----
   const card = { background: 'var(--bg-elev-1)', border: '1px solid var(--a8)', borderRadius: 'var(--r-md)', padding: 14, marginBottom: 14 };
@@ -305,6 +342,13 @@ export default function EvaluatePurchaseScreen({
             const bk = p.bestScore != null ? bucketizeScore(p.bestScore) : null;
             const isOpen = expanded === idx;
             const realHelps = (p.helps || []).filter((h) => h.relation === 'fill' || h.relation === 'upgrade');
+            // Simulation d'usages : proposée sur les candidats « doublon » /
+            // « hors répertoire » (un tag artiste pourrait les requalifier).
+            const canSim = p.tag === 'duplicate' || p.tag === 'off';
+            const simOpen = simOpenIdx === idx;
+            const simR = simRows[idx] || [];
+            const ampRefs = canSim ? (findAmpContext(p.entry?.amp)?.refs || []) : [];
+            const preview = simOpen ? simPreview(idx, p.entry) : null;
             return (
               <div key={idx} style={{ borderTop: idx ? '1px solid var(--a8)' : 'none', padding: '8px 0' }}>
                 <div onClick={() => realHelps.length && setExpanded(isOpen ? null : idx)} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: realHelps.length ? 'pointer' : 'default' }}>
@@ -338,11 +382,85 @@ export default function EvaluatePurchaseScreen({
                     ))}
                   </div>
                 )}
+                {canSim && (
+                  <div style={{ marginLeft: 17, marginTop: 6 }}>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setSimOpenIdx(simOpen ? null : idx); }}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-sec)', fontSize: 11, cursor: 'pointer', padding: 0 }}
+                    >
+                      {simOpen ? '▾' : '▸'} {t('evaluate.sim-toggle', "Simuler : et si c'était LA capture d'un artiste ?")}
+                    </button>
+                    {simOpen && (
+                      <div style={{ marginTop: 6, padding: 8, background: 'var(--a3)', border: '1px solid var(--a8)', borderRadius: 'var(--r-sm)' }}>
+                        <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 6 }}>
+                          {t('evaluate.sim-hint', "Tag artiste/morceaux pour ce candidat (rien n'est enregistré). Utile surtout sur tes morceaux mal couverts — pas sur un doublon à égalité.")}
+                        </div>
+                        {ampRefs.length > 0 && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); fillFromAmp(idx, p.entry); }}
+                            style={{ fontSize: 11, padding: '5px 9px', marginBottom: 6, background: 'var(--a5)', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-sm)', cursor: 'pointer' }}
+                          >
+                            {tFormat('evaluate.sim-fill-amp', { n: ampRefs.length }, "Reprendre les artistes de l'ampli ({n})")}
+                          </button>
+                        )}
+                        {simR.map((r, ri) => (
+                          <div key={ri} style={{ display: 'flex', gap: 6, marginBottom: 5, alignItems: 'center' }}>
+                            <input
+                              value={r.artist}
+                              onChange={(e) => setRows(idx, simR.map((x, xi) => xi === ri ? { ...x, artist: e.target.value } : x))}
+                              placeholder={t('evaluate.sim-artist', 'Artiste / guitariste')}
+                              list="eval-sim-artist-dl"
+                              style={{ flex: '0 0 38%', minWidth: 0, padding: 5, fontSize: 11, background: 'var(--bg-elev-0, var(--bg-elev-1))', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-sm)' }}
+                            />
+                            <input
+                              value={r.songsText}
+                              onChange={(e) => setRows(idx, simR.map((x, xi) => xi === ri ? { ...x, songsText: e.target.value } : x))}
+                              placeholder={t('evaluate.sim-songs', 'Morceaux (virgule)')}
+                              list="eval-sim-song-dl"
+                              style={{ flex: 1, minWidth: 0, padding: 5, fontSize: 11, background: 'var(--bg-elev-0, var(--bg-elev-1))', color: 'var(--text)', border: '1px solid var(--a15)', borderRadius: 'var(--r-sm)' }}
+                            />
+                            <button onClick={(e) => { e.stopPropagation(); setRows(idx, simR.filter((_, xi) => xi !== ri)); }} style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 13, padding: '0 4px' }}>×</button>
+                          </div>
+                        ))}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setRows(idx, [...simR, { artist: '', songsText: '' }]); }}
+                          style={{ fontSize: 11, padding: '4px 8px', background: 'none', color: 'var(--text-sec)', border: '1px dashed var(--a15)', borderRadius: 'var(--r-sm)', cursor: 'pointer' }}
+                        >
+                          + {t('evaluate.sim-add', 'Ajouter un artiste')}
+                        </button>
+                        {preview && (() => {
+                          const ptm = TAG_META[preview.tag] || TAG_META.duplicate;
+                          const gained = (preview.helps || []).filter((h) => h.relation === 'fill' || h.relation === 'upgrade').sort((a, b) => b.score - a.score);
+                          return (
+                            <div style={{ marginTop: 8, fontSize: 11 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ color: 'var(--text-tertiary)' }}>{t('evaluate.sim-result', 'Avec ce tag →')}</span>
+                                <Dot c={ptm.color}/>
+                                <b style={{ color: ptm.color }}>{ptm.label}</b>
+                                {preview.bestScore != null && <span style={{ fontFamily: 'monospace', color: 'var(--text-sec)' }}>({preview.bestScore})</span>}
+                              </div>
+                              {gained.length > 0 ? (
+                                <div style={{ marginTop: 4, color: 'var(--green)' }}>
+                                  {preview.tag === 'fill' ? t('evaluate.sim-unlocks', 'Débloquerait') : t('evaluate.sim-improves', 'Améliorerait')} : {gained.map((h) => h.title).join(' · ')}
+                                </div>
+                              ) : (
+                                <div style={{ marginTop: 4, color: 'var(--text-tertiary)' }}>{t('evaluate.sim-nochange', 'Ne débloque toujours rien (déjà couvert à égalité).')}</div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       )}
+
+      <datalist id="eval-sim-artist-dl">{artistOptions.map((a) => <option key={a} value={a}/>)}</datalist>
+      <datalist id="eval-sim-song-dl">{songOptions.map((s) => <option key={s} value={s}/>)}</datalist>
     </div>
   );
 }

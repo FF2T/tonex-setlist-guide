@@ -177,6 +177,50 @@ export function buildVerdict(summary, opts = DEFAULT_EVAL_OPTS) {
   return { tone, preliminary: summary.preliminary };
 }
 
+// Note un candidat (déjà résolu, non-basse, amp connu) contre le répertoire
+// et classe sa relation. Renvoie { tag, bestScore, bestSongId, dupOf, helps }.
+// PURE et sans état pack-level → réutilisé par evaluatePack ET par la
+// simulation d'usages de l'écran Évaluer (injecte usages dans entry, re-note).
+export function scoreCandidateAgainstRepertoire(entry, repertoire, opts = DEFAULT_EVAL_OPTS) {
+  const o = { ...DEFAULT_EVAL_OPTS, ...(opts || {}) };
+  const rep = Array.isArray(repertoire) ? repertoire : [];
+  const helps = [];
+  let bestScore = -1;
+  let bestSongId = null;
+
+  for (const song of rep) {
+    const { score } = scoreEntryForSong(entry, song.ctx, song.guitarId, o);
+    if (score > bestScore) { bestScore = score; bestSongId = song.songId; }
+    const relation = _classify(score, song.currentBest, o);
+    if (relation === 'none') continue;
+    const delta = song.currentBest == null ? null : score - song.currentBest;
+    helps.push({ songId: song.songId, title: song.title, artist: song.artist, score, currentBest: song.currentBest, currentBestPreset: song.currentBestPreset ?? null, delta, relation });
+  }
+
+  const hasFill = helps.some((h) => h.relation === 'fill');
+  const hasUpgrade = helps.some((h) => h.relation === 'upgrade');
+  let tag;
+  if (hasFill) tag = 'fill';
+  else if (hasUpgrade) tag = 'upgrade';
+  else if (bestScore >= o.minRelevant) tag = 'duplicate'; // pertinent quelque part mais ne bat rien
+  else tag = 'off'; // hors répertoire ⟺ max(score) < minRelevant
+
+  // Doublon : nommer le(s) preset(s) installé(s) qui couvrent déjà les
+  // morceaux où ce candidat est pertinent (relation 'covered'). On prend
+  // les morceaux les mieux scorés en premier, dédup par nom. Réponse à
+  // « de quel preset est-ce un doublon ? » (retour prod 2026-06-10).
+  let dupOf = null;
+  if (tag === 'duplicate') {
+    const covered = helps
+      .filter((h) => h.relation === 'covered' && h.currentBestPreset)
+      .sort((a, b) => b.score - a.score);
+    const names = [...new Set(covered.map((h) => h.currentBestPreset))];
+    if (names.length) dupOf = names.slice(0, 3);
+  }
+
+  return { tag, bestScore: bestScore < 0 ? null : bestScore, bestSongId, dupOf, helps };
+}
+
 // candidateEntries : [{ name, entry, confidence: 'catalog'|'ai'|'guessed' }]
 // repertoire        : [{ songId, title, artist, ctx, guitarId, currentBest }]
 //   ctx = { song_style, target_gain, ref_amp, artist, title, ref_guitarist }
@@ -214,53 +258,23 @@ export function evaluatePack(candidateEntries, repertoire, opts = DEFAULT_EVAL_O
       continue;
     }
 
-    const helps = [];
-    let bestScore = -1;
-    let bestSongId = null;
-
-    for (const song of rep) {
-      const { score } = scoreEntryForSong(cand.entry, song.ctx, song.guitarId, o);
-      if (score > bestScore) { bestScore = score; bestSongId = song.songId; }
-      const relation = _classify(score, song.currentBest, o);
-      if (relation === 'none') continue;
-      const delta = song.currentBest == null ? null : score - song.currentBest;
-      helps.push({ songId: song.songId, title: song.title, artist: song.artist, score, currentBest: song.currentBest, currentBestPreset: song.currentBestPreset ?? null, delta, relation });
-
-      if (relation === 'fill') {
-        const cur = fillBySong.get(song.songId);
-        if (!cur || score > cur.bestScore) {
-          fillBySong.set(song.songId, { songId: song.songId, title: song.title, artist: song.artist, bestPreset: cand.name, bestScore: score, currentBest: song.currentBest });
+    const res = scoreCandidateAgainstRepertoire(cand.entry, rep, o);
+    // Agrégation pack-level (morceaux débloqués/améliorés) depuis les helps.
+    for (const h of res.helps) {
+      if (h.relation === 'fill') {
+        const cur = fillBySong.get(h.songId);
+        if (!cur || h.score > cur.bestScore) {
+          fillBySong.set(h.songId, { songId: h.songId, title: h.title, artist: h.artist, bestPreset: cand.name, bestScore: h.score, currentBest: h.currentBest });
         }
-      } else if (relation === 'upgrade') {
-        const cur = upgradeBySong.get(song.songId);
-        if (!cur || score > cur.bestScore) {
-          upgradeBySong.set(song.songId, { songId: song.songId, title: song.title, artist: song.artist, bestPreset: cand.name, bestScore: score, currentBest: song.currentBest });
+      } else if (h.relation === 'upgrade') {
+        const cur = upgradeBySong.get(h.songId);
+        if (!cur || h.score > cur.bestScore) {
+          upgradeBySong.set(h.songId, { songId: h.songId, title: h.title, artist: h.artist, bestPreset: cand.name, bestScore: h.score, currentBest: h.currentBest });
         }
       }
     }
 
-    const hasFill = helps.some((h) => h.relation === 'fill');
-    const hasUpgrade = helps.some((h) => h.relation === 'upgrade');
-    let tag;
-    if (hasFill) tag = 'fill';
-    else if (hasUpgrade) tag = 'upgrade';
-    else if (bestScore >= o.minRelevant) tag = 'duplicate'; // pertinent quelque part mais ne bat rien
-    else tag = 'off'; // hors répertoire ⟺ max(score) < minRelevant
-
-    // Doublon : nommer le(s) preset(s) installé(s) qui couvrent déjà les
-    // morceaux où ce candidat est pertinent (relation 'covered'). On prend
-    // les morceaux les mieux scorés en premier, dédup par nom. Réponse à
-    // « de quel preset est-ce un doublon ? » (retour prod 2026-06-10).
-    let dupOf = null;
-    if (tag === 'duplicate') {
-      const covered = helps
-        .filter((h) => h.relation === 'covered' && h.currentBestPreset)
-        .sort((a, b) => b.score - a.score);
-      const names = [...new Set(covered.map((h) => h.currentBestPreset))];
-      if (names.length) dupOf = names.slice(0, 3);
-    }
-
-    presets.push({ name: cand.name, entry: cand.entry, confidence: cand.confidence, tag, bestScore: bestScore < 0 ? null : bestScore, bestSongId, dupOf, helps });
+    presets.push({ name: cand.name, entry: cand.entry, confidence: cand.confidence, ...res });
   }
 
   // P5 — morceaux débloqués (dédupliqués). Un morceau « amélioré » n'est
