@@ -13,7 +13,7 @@
 // No-emoji UI (règle 2026-05-27) : tags = pastilles colorées + libellés.
 
 import React, { useState, useMemo, useRef } from 'react';
-import { t, tFormat } from '../../i18n/index.js';
+import { t, tFormat, useLocale } from '../../i18n/index.js';
 import NavIcon from '../components/NavIcon.jsx';
 import Breadcrumb from '../components/Breadcrumb.jsx';
 import { parsePackListing } from '../utils/parse-pack-listing.js';
@@ -57,6 +57,7 @@ export default function EvaluatePurchaseScreen({
   banksAnn = {}, banksPlug = {}, banksOne = {}, banksOnePlus = {},
   profile = {}, aiKeys = {}, aiProvider = 'gemini', onNavigate,
 }) {
+  useLocale(); // re-render au changement de langue
   const [rawText, setRawText] = useState('');
   const [packName, setPackName] = useState('');
   const [source, setSource] = useState('');
@@ -356,7 +357,7 @@ export default function EvaluatePurchaseScreen({
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 13, overflowWrap: 'anywhere' }}>{p.name}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-                      {p.entry?.amp || '—'} · {p.entry?.gain || '?'} · {p.entry?.style || '?'} · <span style={{ opacity: 0.8 }}>{CONF_LABEL[p.confidence] || p.confidence}</span>
+                      {p.entry?.amp || '—'} · {p.entry?.gain || '?'} · {p.entry?.style || '?'} · <span style={{ opacity: 0.8 }}>{t('evaluate.conf-' + p.confidence, CONF_LABEL[p.confidence] || p.confidence)}</span>
                     </div>
                     {p.tag === 'duplicate' && p.dupOf?.length > 0 && (
                       <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2, overflowWrap: 'anywhere' }}>
@@ -364,7 +365,7 @@ export default function EvaluatePurchaseScreen({
                       </div>
                     )}
                   </div>
-                  <span style={{ fontSize: 11, color: tm.color, fontWeight: 600, whiteSpace: 'nowrap' }}>{tm.label}</span>
+                  <span style={{ fontSize: 11, color: tm.color, fontWeight: 600, whiteSpace: 'nowrap' }}>{t('evaluate.tag-' + p.tag, tm.label)}</span>
                   {p.bestScore != null && (
                     <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12, color: 'var(--text-inverse)', background: bk.color, borderRadius: 4, padding: '2px 7px', minWidth: 40, textAlign: 'center' }}>{p.bestScore}</span>
                   )}
@@ -436,7 +437,7 @@ export default function EvaluatePurchaseScreen({
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                 <span style={{ color: 'var(--text-tertiary)' }}>{t('evaluate.sim-result', 'Avec ce tag →')}</span>
                                 <Dot c={ptm.color}/>
-                                <b style={{ color: ptm.color }}>{ptm.label}</b>
+                                <b style={{ color: ptm.color }}>{t('evaluate.tag-' + preview.tag, ptm.label)}</b>
                                 {preview.bestScore != null && <span style={{ fontFamily: 'monospace', color: 'var(--text-sec)' }}>({preview.bestScore})</span>}
                               </div>
                               {gained.length > 0 ? (
